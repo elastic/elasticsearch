@@ -144,16 +144,31 @@ NOTE: Data frames are only available with the default distribution of {es}.
 // end::notable-highlights[]
 
 // tag::notable-highlights[]
-[float]
-==== Outlier detection
+[discrete]
+[[release-highlights-7.3.0-outlier-detection]]
+==== Discover your most unusual data using {oldetection}
 
-{stack-ov}/security-privileges.html[Outlier detection] utilizes Elastic data
-frame indexes to evaluate source indexes across multiple dimensions and identify
-clusters of data based on the assigned values and which values are different
-from those of the clustered data point. An outlier score can be used to indicate
-how different an entity is from other entities in the index based on the
-dimensions that you supply.
-
-NOTE: Outlier detection requires a platinum license.
+The goal of {stack-ov}/dfa-outlier-detection.html[{oldetection}] is to find 
+the most unusual data points in an index. We analyse the numerical fields of 
+each data point (document in an index) and annotate them with how unusual they 
+are.
+ 
+We use unsupervised {oldetection} which means there is no need to provide a 
+training data set to teach {oldetection} to recognize outliers. In practice, 
+this is achieved by using an ensemble of distance based and density based 
+techniques to identify those data points which are the most different from the 
+bulk of the data in the index. We assign to each analysed data point an 
+{olscore}, which captures how different the entity is from other entities in the 
+index.
+ 
+In addition to new {oldetection} functionality, we are introducing the 
+{ref}/evaluate-dfanalytics.html[evaluate {dfanalytics} API], which enables you to compute a range of performance metrics such 
+as confusion matrices, precision, recall, the 
+https://en.wikipedia.org/wiki/Receiver_operating_characteristic[receiver-operating characteristics (ROC) curve] 
+and the area under the ROC curve. If you are running {oldetection} on a source 
+index that has already been labeled to indicate which points are truly outliers 
+and which are normal, you can use the 
+evaluate {dfanalytics} API to assess the performance of the 
+{oldetection} analytics on your dataset.
 
 // end::notable-highlights[]

@@ -15,7 +15,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.core.indexlifecycle.action.RetryAction;
+import org.elasticsearch.xpack.core.ilm.action.RetryAction;
 
 public class RestRetryAction extends BaseRestHandler {
 

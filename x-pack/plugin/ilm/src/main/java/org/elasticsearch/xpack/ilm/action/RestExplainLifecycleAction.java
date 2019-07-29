@@ -14,8 +14,8 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.core.indexlifecycle.ExplainLifecycleRequest;
-import org.elasticsearch.xpack.core.indexlifecycle.action.ExplainLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.ExplainLifecycleRequest;
+import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
 
 import java.io.IOException;
 

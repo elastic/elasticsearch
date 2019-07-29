@@ -4,7 +4,7 @@
 <titleabbrev>Script</titleabbrev>
 ++++
 
-Filter documents based on a provided <<modules-scripting-using,script>>. The
+Filters documents based on a provided <<modules-scripting-using,script>>. The
 `script` query is typically used in a <<query-filter-context,filter context>>.
 
 

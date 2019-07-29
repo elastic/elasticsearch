@@ -33,6 +33,7 @@ import org.elasticsearch.geo.geometry.MultiPolygon;
 import org.elasticsearch.geo.geometry.Point;
 import org.elasticsearch.geo.geometry.Polygon;
 import org.elasticsearch.geo.utils.WellKnownText;
+import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -42,7 +43,7 @@ import java.util.Collections;
 
 public class GeometryIndexerTests extends ESTestCase {
 
-    GeometryIndexer indexer = new GeometryIndexer(true);
+    GeoShapeIndexer indexer = new GeoShapeIndexer(true);
     private static final WellKnownText WKT = new WellKnownText(true, geometry -> {
     });
 
@@ -208,13 +209,13 @@ public class GeometryIndexerTests extends ESTestCase {
 
     private Geometry actual(String wkt, boolean rightOrientation) throws IOException, ParseException {
         Geometry shape = parseGeometry(wkt, rightOrientation);
-        return new GeometryIndexer(true).prepareForIndexing(shape);
+        return new GeoShapeIndexer(true).prepareForIndexing(shape);
     }
 
 
     private Geometry actual(XContentBuilder geoJson, boolean rightOrientation) throws IOException, ParseException {
         Geometry shape = parseGeometry(geoJson, rightOrientation);
-        return new GeometryIndexer(true).prepareForIndexing(shape);
+        return new GeoShapeIndexer(true).prepareForIndexing(shape);
     }
 
     private Geometry parseGeometry(String wkt, boolean rightOrientation) throws IOException, ParseException {

@@ -432,14 +432,6 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
             }
 
             if (seedNodes.hasNext()) {
-                final DiscoveryNode seedNode = maybeAddProxyAddress(proxyAddress, seedNodes.next().get());
-                logger.debug("[{}] opening connection to seed node: [{}] proxy address: [{}]", clusterAlias, seedNode,
-                    proxyAddress);
-                final ConnectionProfile profile = ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.REG);
-
-                final StepListener<Transport.Connection> openConnectionStep = new StepListener<>();
-                connectionManager.openConnection(seedNode, profile, openConnectionStep);
-
                 final Consumer<Exception> onFailure = e -> {
                     if (e instanceof ConnectTransportException ||
                         e instanceof IOException ||
@@ -455,6 +447,17 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
                     logger.warn(() -> new ParameterizedMessage("fetching nodes from external cluster [{}] failed", clusterAlias), e);
                     listener.onFailure(e);
                 };
+
+                final DiscoveryNode seedNode = maybeAddProxyAddress(proxyAddress, seedNodes.next().get());
+                logger.debug("[{}] opening connection to seed node: [{}] proxy address: [{}]", clusterAlias, seedNode,
+                    proxyAddress);
+                final ConnectionProfile profile = ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.REG);
+                final StepListener<Transport.Connection> openConnectionStep = new StepListener<>();
+                try {
+                    connectionManager.openConnection(seedNode, profile, openConnectionStep);
+                } catch (Exception e) {
+                    onFailure.accept(e);
+                }
 
                 final StepListener<TransportService.HandshakeResponse> handShakeStep = new StepListener<>();
                 openConnectionStep.whenComplete(connection -> {

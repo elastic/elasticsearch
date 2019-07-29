@@ -32,6 +32,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.http.HttpInfo;
@@ -464,6 +465,38 @@ public class RestControllerTests extends ESTestCase {
             randomBoolean() ? new IllegalStateException("bad request") : new Throwable("bad request"));
         assertTrue(channel.getSendResponseCalled());
         assertThat(channel.getRestResponse().content().utf8ToString(), containsString("bad request"));
+    }
+
+    public void testDoesNotConsumeContent() throws Exception {
+        final RestRequest.Method method = randomFrom(RestRequest.Method.values());
+        restController.registerHandler(method, "/notconsumed", new RestHandler() {
+            @Override
+            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+                channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+            }
+
+            @Override
+            public boolean canTripCircuitBreaker() {
+                return false;
+            }
+        });
+
+        final XContentBuilder content = XContentBuilder.builder(randomFrom(XContentType.values()).xContent())
+            .startObject().field("field", "value").endObject();
+        final FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
+            .withPath("/notconsumed")
+            .withMethod(method)
+            .withContent(BytesReference.bytes(content), content.contentType())
+            .build();
+
+        final AssertingChannel channel = new AssertingChannel(restRequest, true, RestStatus.OK);
+        assertFalse(channel.getSendResponseCalled());
+        assertFalse(restRequest.isContentConsumed());
+
+        restController.dispatchRequest(restRequest, channel, new ThreadContext(Settings.EMPTY));
+
+        assertTrue(channel.getSendResponseCalled());
+        assertFalse("RestController must not consume request content", restRequest.isContentConsumed());
     }
 
     public void testDispatchBadRequestUnknownCause() {

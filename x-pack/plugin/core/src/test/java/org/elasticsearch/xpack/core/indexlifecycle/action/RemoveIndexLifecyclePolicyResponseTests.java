@@ -6,8 +6,9 @@
 
 package org.elasticsearch.xpack.core.indexlifecycle.action;
 
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.action.RemoveIndexLifecyclePolicyAction.Response;
 
 import java.io.IOException;
@@ -16,17 +17,17 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-public class RemoveIndexLifecyclePolicyResponseTests extends AbstractStreamableXContentTestCase<RemoveIndexLifecyclePolicyAction.Response> {
-
-    @Override
-    protected Response createBlankInstance() {
-        return new Response();
-    }
+public class RemoveIndexLifecyclePolicyResponseTests extends AbstractSerializingTestCase<Response> {
 
     @Override
     protected Response createTestInstance() {
         List<String> failedIndexes = Arrays.asList(generateRandomStringArray(20, 20, false));
         return new Response(failedIndexes);
+    }
+
+    @Override
+    protected Writeable.Reader<Response> instanceReader() {
+        return Response::new;
     }
 
     @Override

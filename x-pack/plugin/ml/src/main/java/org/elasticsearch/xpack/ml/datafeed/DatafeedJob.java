@@ -61,6 +61,7 @@ class DatafeedJob {
     private final long queryDelayMs;
     private final Client client;
     private final DataExtractorFactory dataExtractorFactory;
+    private final DatafeedTimingStatsReporter timingStatsReporter;
     private final Supplier<Long> currentTimeSupplier;
     private final DelayedDataDetector delayedDataDetector;
 
@@ -74,13 +75,15 @@ class DatafeedJob {
     private volatile boolean isIsolated;
 
     DatafeedJob(String jobId, DataDescription dataDescription, long frequencyMs, long queryDelayMs,
-                DataExtractorFactory dataExtractorFactory, Client client, Auditor auditor, Supplier<Long> currentTimeSupplier,
-                DelayedDataDetector delayedDataDetector, long latestFinalBucketEndTimeMs, long latestRecordTimeMs) {
+                DataExtractorFactory dataExtractorFactory, DatafeedTimingStatsReporter timingStatsReporter, Client client,
+                Auditor auditor, Supplier<Long> currentTimeSupplier, DelayedDataDetector delayedDataDetector,
+                long latestFinalBucketEndTimeMs, long latestRecordTimeMs) {
         this.jobId = jobId;
         this.dataDescription = Objects.requireNonNull(dataDescription);
         this.frequencyMs = frequencyMs;
         this.queryDelayMs = queryDelayMs;
         this.dataExtractorFactory = dataExtractorFactory;
+        this.timingStatsReporter = timingStatsReporter;
         this.client = client;
         this.auditor = auditor;
         this.currentTimeSupplier = currentTimeSupplier;
@@ -350,6 +353,7 @@ class DatafeedJob {
                 try (InputStream in = extractedData.get()) {
                     counts = postData(in, XContentType.JSON);
                     LOGGER.trace("[{}] Processed another {} records", jobId, counts.getProcessedRecordCount());
+                    timingStatsReporter.reportDataCounts(counts);
                 } catch (Exception e) {
                     if (e instanceof InterruptedException) {
                         Thread.currentThread().interrupt();

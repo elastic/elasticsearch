@@ -1,5 +1,8 @@
 [[query-dsl-fuzzy-query]]
-=== Fuzzy Query
+=== Fuzzy query
+++++
+<titleabbrev>Fuzzy</titleabbrev>
+++++
 
 The fuzzy query uses similarity based on Levenshtein edit distance.
 

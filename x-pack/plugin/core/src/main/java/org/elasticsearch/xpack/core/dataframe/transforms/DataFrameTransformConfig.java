@@ -195,7 +195,7 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
         id = in.readString();
         source = new SourceConfig(in);
         dest = new DestConfig(in);
-        if (in.getVersion().onOrAfter(Version.CURRENT)) {
+        if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
             frequency = in.readOptionalTimeValue();
         } else {
             frequency = null;
@@ -288,7 +288,7 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
         out.writeString(id);
         source.writeTo(out);
         dest.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.CURRENT)) {
+        if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
             out.writeOptionalTimeValue(frequency);
         }
         out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);

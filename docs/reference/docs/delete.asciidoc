@@ -1,5 +1,5 @@
 [[docs-delete]]
-== Delete API
+=== Delete API
 
 The delete API allows to delete a JSON document from a specific
 index based on its id. The following example deletes the JSON document
@@ -37,7 +37,7 @@ The result of the above delete operation is:
 
 [float]
 [[optimistic-concurrency-control-delete]]
-=== Optimistic concurrency control
+==== Optimistic concurrency control
 
 Delete operations can be made conditional and only be performed if the last
 modification to the document was assigned the sequence number and primary 
@@ -47,7 +47,7 @@ and a status code of 409. See <<optimistic-concurrency-control>> for more detail
 
 [float]
 [[delete-versioning]]
-=== Versioning
+==== Versioning
 
 Each document indexed is versioned. When deleting a document, the `version` can
 be specified to make sure the relevant document we are trying to delete is
@@ -60,7 +60,7 @@ determined by the `index.gc_deletes` index setting and defaults to 60 seconds.
 
 [float]
 [[delete-routing]]
-=== Routing
+==== Routing
 
 When indexing using the ability to control the routing, in order to
 delete a document, the routing value should also be provided. For
@@ -97,7 +97,7 @@ the request.
 
 [float]
 [[delete-index-creation]]
-=== Automatic index creation
+==== Automatic index creation
 
 If an <<docs-index_,external versioning variant>> is used,
 the delete operation automatically creates an index if it has not been
@@ -106,7 +106,7 @@ for manually creating an index).
 
 [float]
 [[delete-distributed]]
-=== Distributed
+==== Distributed
 
 The delete operation gets hashed into a specific shard id. It then gets
 redirected into the primary shard within that id group, and replicated
@@ -114,7 +114,7 @@ redirected into the primary shard within that id group, and replicated
 
 [float]
 [[delete-wait-for-active-shards]]
-=== Wait For Active Shards
+==== Wait For Active Shards
 
 When making delete requests, you can set the `wait_for_active_shards`
 parameter to require a minimum number of shard copies to be active
@@ -124,7 +124,7 @@ example.
 
 [float]
 [[delete-refresh]]
-=== Refresh
+==== Refresh
 
 Control when the changes made by this request are visible to search. See
 <<docs-refresh>>.
@@ -132,7 +132,7 @@ Control when the changes made by this request are visible to search. See
 
 [float]
 [[delete-timeout]]
-=== Timeout
+==== Timeout
 
 The primary shard assigned to perform the delete operation might not be
 available when the delete operation is executed. Some reasons for this

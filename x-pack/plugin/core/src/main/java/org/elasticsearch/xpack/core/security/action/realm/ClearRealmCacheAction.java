@@ -5,19 +5,14 @@
  */
 package org.elasticsearch.xpack.core.security.action.realm;
 
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 
-public class ClearRealmCacheAction extends StreamableResponseActionType<ClearRealmCacheResponse> {
+public class ClearRealmCacheAction extends ActionType<ClearRealmCacheResponse> {
 
     public static final ClearRealmCacheAction INSTANCE = new ClearRealmCacheAction();
     public static final String NAME = "cluster:admin/xpack/security/realm/cache/clear";
 
     protected ClearRealmCacheAction() {
-        super(NAME);
-    }
-
-    @Override
-    public ClearRealmCacheResponse newResponse() {
-        return new ClearRealmCacheResponse();
+        super(NAME, ClearRealmCacheResponse::new);
     }
 }

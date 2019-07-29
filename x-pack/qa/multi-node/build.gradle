@@ -7,7 +7,7 @@ dependencies {
 }
 
 testClusters.integTest {
-  distribution = 'DEFAULT'
+  testDistribution = 'DEFAULT'
   numberOfNodes = 2
   setting 'xpack.ilm.enabled', 'false'
   setting 'xpack.security.enabled', 'true'

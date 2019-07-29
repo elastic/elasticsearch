@@ -88,6 +88,27 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
 
     private Integer version;
 
+    public PutIndexTemplateRequest(StreamInput in) throws IOException {
+        super(in);
+        cause = in.readString();
+        name = in.readString();
+        indexPatterns = in.readStringList();
+        order = in.readInt();
+        create = in.readBoolean();
+        settings = readSettingsFromStream(in);
+        int size = in.readVInt();
+        for (int i = 0; i < size; i++) {
+            final String type = in.readString();
+            String mappingSource = in.readString();
+            mappings.put(type, mappingSource);
+        }
+        int aliasesSize = in.readVInt();
+        for (int i = 0; i < aliasesSize; i++) {
+            aliases.add(new Alias(in));
+        }
+        version = in.readOptionalVInt();
+    }
+
     public PutIndexTemplateRequest() {
     }
 
@@ -451,28 +472,6 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     @Override
     public IndicesOptions indicesOptions() {
         return IndicesOptions.strictExpand();
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        cause = in.readString();
-        name = in.readString();
-        indexPatterns = in.readStringList();
-        order = in.readInt();
-        create = in.readBoolean();
-        settings = readSettingsFromStream(in);
-        int size = in.readVInt();
-        for (int i = 0; i < size; i++) {
-            final String type = in.readString();
-            String mappingSource = in.readString();
-            mappings.put(type, mappingSource);
-        }
-        int aliasesSize = in.readVInt();
-        for (int i = 0; i < aliasesSize; i++) {
-            aliases.add(Alias.read(in));
-        }
-        version = in.readOptionalVInt();
     }
 
     @Override

@@ -103,8 +103,7 @@ public class RankEvalResponseTests extends ESTestCase {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             randomResponse.writeTo(output);
             try (StreamInput in = output.bytes().streamInput()) {
-                RankEvalResponse deserializedResponse = new RankEvalResponse();
-                deserializedResponse.readFrom(in);
+                RankEvalResponse deserializedResponse = new RankEvalResponse(in);
                 assertEquals(randomResponse.getMetricScore(), deserializedResponse.getMetricScore(), Double.MIN_VALUE);
                 assertEquals(randomResponse.getPartialResults(), deserializedResponse.getPartialResults());
                 assertEquals(randomResponse.getFailures().keySet(), deserializedResponse.getFailures().keySet());

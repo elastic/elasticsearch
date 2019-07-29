@@ -1,0 +1,137 @@
+[role="xpack"]
+[testenv="platinum"]
+[[put-dfanalytics]]
+=== Create {dfanalytics-jobs} API
+[subs="attributes"]
+++++
+<titleabbrev>Create {dfanalytics-jobs}</titleabbrev>
+++++
+
+Instantiates a {dfanalytics-job}.
+
+experimental[]
+
+[[ml-put-dfanalytics-request]]
+==== {api-request-title}
+
+`PUT _ml/data_frame/analytics/<data_frame_analytics_id>`
+
+[[ml-put-dfanalytics-prereq]]
+==== {api-prereq-title}
+
+* You must have `machine_learning_admin` built-in role to use this API. You must 
+also have `read` and `view_index_metadata` privileges on the source index and 
+`read`, `create_index`, and `index` privileges on the destination index. For 
+more information, see {stack-ov}/security-privileges.html[Security privileges] 
+and {stack-ov}/built-in-roles.html[Built-in roles].
+
+[[ml-put-dfanalytics-desc]]
+==== {api-description-title}
+
+This API creates a {dfanalytics-job} that performs an analysis on the source 
+index and stores the outcome in a destination index.
+
+The destination index will be automatically created if it does not exist. The 
+`index.number_of_shards` and `index.number_of_replicas` settings of the source 
+index will be copied over the destination index. When the source index matches 
+multiple indices, these settings will be set to the maximum values found in the 
+source indices.
+
+The mappings of the source indices are also attempted to be copied over
+to the destination index, however, if the mappings of any of the fields don't 
+match among the source indices, the attempt will fail with an error message.
+
+If the destination index already exists, then it will be use as is. This makes 
+it possible to set up the destination index in advance with custom settings 
+and mappings.
+
+[[ml-put-dfanalytics-path-params]]
+==== {api-path-parms-title}
+
+`<data_frame_analytics_id>`::
+  (Required, string) A numerical character string that uniquely identifies the 
+  {dfanalytics-job}. This identifier can contain lowercase alphanumeric
+  characters (a-z and 0-9), hyphens, and underscores. It must start and end with
+  alphanumeric characters.
+
+[[ml-put-dfanalytics-request-body]]
+==== {api-request-body-title}
+
+`analysis`::
+  (Required, object) Defines the type of {dfanalytics} you want to perform on your source 
+  index. For example: `outlier_detection`. See <<dfanalytics-types>>.
+  
+`analyzed_fields`::
+  (Optional, object) You can specify both `includes` and/or `excludes` patterns. If 
+  `analyzed_fields` is not set, only the relevant fields will be included. For 
+  example, all the numeric fields for {oldetection}.
+  
+`dest`::
+  (Required, object) The destination configuration, consisting of `index` and 
+  optionally `results_field` (`ml` by default). See 
+  <<ml-dfanalytics-properties,{dfanalytics} properties>>.
+  
+`model_memory_limit`::
+  (Optional, string) The approximate maximum amount of memory resources that are 
+  permitted for analytical processing. The default value for {dfanalytics-jobs} 
+  is `1gb`. If your `elasticsearch.yml` file contains an 
+  `xpack.ml.max_model_memory_limit` setting, an error occurs when you try to 
+  create {dfanalytics-jobs} that have `model_memory_limit` values greater than 
+  that setting. For more information, see <<ml-settings>>.
+  
+`source`::
+  (Required, object) The source configuration, consisting of `index` and 
+  optionally a `query`. See 
+  <<ml-dfanalytics-properties,{dfanalytics} properties>>. 
+
+[[ml-put-dfanalytics-example]]
+==== {api-examples-title}
+
+The following example creates the `loganalytics` {dfanalytics-job}, the analysis 
+type is `outlier_detection`:
+
+[source,js]
+--------------------------------------------------
+PUT _ml/data_frame/analytics/loganalytics
+{
+  "source": {
+    "index": "logdata"
+  },
+  "dest": {
+    "index": "logdata_out"
+  },
+  "analysis": {
+    "outlier_detection": {
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:setup_logdata]
+
+The API returns the following result:
+
+[source,js]
+----
+{
+    "id": "loganalytics",
+    "source": {
+        "index": ["logdata"],
+        "query": {
+            "match_all": {}
+        }
+    },
+    "dest": {
+        "index": "logdata_out",
+        "results_field": "ml"
+    },
+    "analysis": {
+        "outlier_detection": {}
+    },
+    "model_memory_limit": "1gb",
+    "create_time" : 1562265491319,
+    "version" : "8.0.0"
+}
+----
+// TESTRESPONSE[s/1562265491319/$body.$_path/]
+// TESTRESPONSE[s/"version": "8.0.0"/"version": $body.version/]

@@ -15,13 +15,13 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class DataFrameTransform extends AbstractDiffable<DataFrameTransform> implements XPackPlugin.XPackPersistentTaskParams {
+public class DataFrameTransform extends AbstractDiffable<DataFrameTransform> implements PersistentTaskParams {
 
     public static final String NAME = DataFrameField.TASK_NAME;
     public static final ParseField VERSION = new ParseField(DataFrameField.VERSION);
@@ -58,7 +58,7 @@ public class DataFrameTransform extends AbstractDiffable<DataFrameTransform> imp
         } else {
             this.version = Version.V_7_2_0;
         }
-        if (in.getVersion().onOrAfter(Version.CURRENT)) {
+        if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
             this.frequency = in.readOptionalTimeValue();
         } else {
             this.frequency = null;
@@ -81,7 +81,7 @@ public class DataFrameTransform extends AbstractDiffable<DataFrameTransform> imp
         if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
             Version.writeVersion(version, out);
         }
-        if (out.getVersion().onOrAfter(Version.CURRENT)) {
+        if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
             out.writeOptionalTimeValue(frequency);
         }
     }

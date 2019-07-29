@@ -26,9 +26,10 @@ public final class GetApiKeyRequest extends ActionRequest {
     private final String userName;
     private final String apiKeyId;
     private final String apiKeyName;
+    private final boolean myApiKeysOnly;
 
     public GetApiKeyRequest() {
-        this(null, null, null, null);
+        this(null, null, null, null, false);
     }
 
     public GetApiKeyRequest(StreamInput in) throws IOException {
@@ -37,14 +38,16 @@ public final class GetApiKeyRequest extends ActionRequest {
         userName = in.readOptionalString();
         apiKeyId = in.readOptionalString();
         apiKeyName = in.readOptionalString();
+        myApiKeysOnly = in.readOptionalBoolean();
     }
 
     public GetApiKeyRequest(@Nullable String realmName, @Nullable String userName, @Nullable String apiKeyId,
-            @Nullable String apiKeyName) {
+                            @Nullable String apiKeyName, boolean myApiKeysOnly) {
         this.realmName = realmName;
         this.userName = userName;
         this.apiKeyId = apiKeyId;
         this.apiKeyName = apiKeyName;
+        this.myApiKeysOnly = myApiKeysOnly;
     }
 
     public String getRealmName() {
@@ -63,13 +66,17 @@ public final class GetApiKeyRequest extends ActionRequest {
         return apiKeyName;
     }
 
+    public boolean myApiKeysOnly() {
+        return myApiKeysOnly;
+    }
+
     /**
      * Creates get API key request for given realm name
      * @param realmName realm name
      * @return {@link GetApiKeyRequest}
      */
     public static GetApiKeyRequest usingRealmName(String realmName) {
-        return new GetApiKeyRequest(realmName, null, null, null);
+        return new GetApiKeyRequest(realmName, null, null, null, false);
     }
 
     /**
@@ -78,7 +85,7 @@ public final class GetApiKeyRequest extends ActionRequest {
      * @return {@link GetApiKeyRequest}
      */
     public static GetApiKeyRequest usingUserName(String userName) {
-        return new GetApiKeyRequest(null, userName, null, null);
+        return new GetApiKeyRequest(null, userName, null, null, false);
     }
 
     /**
@@ -88,25 +95,27 @@ public final class GetApiKeyRequest extends ActionRequest {
      * @return {@link GetApiKeyRequest}
      */
     public static GetApiKeyRequest usingRealmAndUserName(String realmName, String userName) {
-        return new GetApiKeyRequest(realmName, userName, null, null);
+        return new GetApiKeyRequest(realmName, userName, null, null, false);
     }
 
     /**
      * Creates get API key request for given api key id
      * @param apiKeyId api key id
+     * @param myApiKeysOnly set {@code true} if the request is only for the API keys owned by current authenticated user else {@code false}
      * @return {@link GetApiKeyRequest}
      */
-    public static GetApiKeyRequest usingApiKeyId(String apiKeyId) {
-        return new GetApiKeyRequest(null, null, apiKeyId, null);
+    public static GetApiKeyRequest usingApiKeyId(String apiKeyId, boolean myApiKeysOnly) {
+        return new GetApiKeyRequest(null, null, apiKeyId, null, myApiKeysOnly);
     }
 
     /**
      * Creates get api key request for given api key name
      * @param apiKeyName api key name
+     * @param myApiKeysOnly set {@code true} if the request is only for the API keys owned by current authenticated user else {@code false}
      * @return {@link GetApiKeyRequest}
      */
-    public static GetApiKeyRequest usingApiKeyName(String apiKeyName) {
-        return new GetApiKeyRequest(null, null, null, apiKeyName);
+    public static GetApiKeyRequest usingApiKeyName(String apiKeyName, boolean myApiKeysOnly) {
+        return new GetApiKeyRequest(null, null, null, apiKeyName, myApiKeysOnly);
     }
 
     @Override
@@ -124,6 +133,13 @@ public final class GetApiKeyRequest extends ActionRequest {
                         validationException);
             }
         }
+        if (myApiKeysOnly) {
+            if (Strings.hasText(realmName) || Strings.hasText(userName)) {
+                validationException = addValidationError(
+                    "username or realm name must not be specified when retrieving owned API keys",
+                    validationException);
+            }
+        }
         if (Strings.hasText(apiKeyId) && Strings.hasText(apiKeyName)) {
             validationException = addValidationError("only one of [api key id, api key name] can be specified", validationException);
         }
@@ -137,6 +153,7 @@ public final class GetApiKeyRequest extends ActionRequest {
         out.writeOptionalString(userName);
         out.writeOptionalString(apiKeyId);
         out.writeOptionalString(apiKeyName);
+        out.writeOptionalBoolean(myApiKeysOnly);
     }
 
     }

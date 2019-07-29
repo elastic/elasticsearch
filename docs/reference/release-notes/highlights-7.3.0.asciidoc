@@ -131,15 +131,23 @@ similar level as what you could have on pre-6.0 releases.
 // end::notable-highlights[]
 
 // tag::notable-highlights[]
-[float]
-==== Data frame pivot transforms to create entity-centric indexes
+[discrete]
+[[release-highlights-7.3.0-transforms]]
+==== {dataframes-cap}: transform and pivot your streaming data
 
-<<put-dfanalytics,Data frames>>, released in 7.2, allow to transform an
-existing index to a secondary, summarized index. 7.3 now introduces Data frame
-pivot transforms in order to create entity-centric indexes that can summarize
-the behavior of an entity. 
+beta[] {stack-ov}/ml-dataframes.html[{dataframe-transforms-cap}] are a core new
+feature in {es} that enable you to transform an existing index to a secondary,
+summarized index. {dataframe-transforms-cap} enable you to pivot your data and
+create entity-centric indices that can summarize the behavior of an entity. This
+organizes the data into an analysis-friendly format.
 
-NOTE: Data frames are only available with the default distribution of {es}.
+{dataframe-transforms-cap} were originally available in 7.2. With 7.3 they can
+now run either as a single batch transform or continuously incorporating new
+data as it is ingested. 
+
+{dataframes-cap} enable new possibilities for {ml} analysis (such as
+_outlier detection_), but they can also be useful for other types of
+visualizations and custom types of analysis. 
 
 // end::notable-highlights[]
 

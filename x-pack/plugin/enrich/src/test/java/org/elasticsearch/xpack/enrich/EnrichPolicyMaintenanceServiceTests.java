@@ -30,7 +30,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.EXACT_MATCH_TYPE;

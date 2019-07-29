@@ -4,9 +4,8 @@
 <titleabbrev>Script</titleabbrev>
 ++++
 
-
-Accepts another query as a <<modules-scripting-using,script>>. `script` queries
-are typically used in a <<query-filter-context,filter context>>.
+Filter documents based on a provided <<modules-scripting-using,script>>. The
+`script` query is typically used in a <<query-filter-context,filter context>>.
 
 
 [[script-query-ex-request]]

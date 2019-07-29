@@ -35,6 +35,7 @@ import org.elasticsearch.geo.geometry.GeometryCollection;
 import org.elasticsearch.geo.geometry.MultiLine;
 import org.elasticsearch.geo.geometry.MultiPoint;
 import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.test.VersionUtils;
@@ -1425,7 +1426,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
     
     public Geometry parse(XContentParser parser) throws IOException, ParseException {
         GeometryParser geometryParser = new GeometryParser(true, true, true);
-        GeometryIndexer indexer = new GeometryIndexer(true);
+        GeoShapeIndexer indexer = new GeoShapeIndexer(true);
         return indexer.prepareForIndexing(geometryParser.parse(parser));
     }
 }

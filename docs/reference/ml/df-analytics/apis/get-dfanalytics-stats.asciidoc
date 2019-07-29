@@ -43,9 +43,18 @@ information, see {stack-ov}/security-privileges.html[Security privileges] and
 ==== {api-query-parms-title}
 
 `allow_no_match`::
-  (Optional, boolean) If `false` and the `data_frame_analytics_id` does not
-  match any {dfanalytics-job} an error will be returned. The default value is
-  `true`.
+  (Optional, boolean) Specifies what to do when the request:
++
+--
+* Contains wildcard expressions and there are no {dfanalytics-jobs} that match.
+* Contains the `_all` string or no identifiers and there are no matches.
+* Contains wildcard expressions and there are only partial matches. 
+
+The default value is `true`, which returns an empty `data_frame_analytics` array 
+when there are no matches and the subset of results when there are partial 
+matches. If this parameter is `false`, the request returns a `404` status code 
+when there are no matches or only partial matches.
+--
 
 `from`::
   (Optional, integer) Skips the specified number of {dfanalytics-jobs}. The
@@ -63,6 +72,13 @@ The API returns the following information:
 `data_frame_analytics`::
   (array) An array of statistics objects for {dfanalytics-jobs}, which are
   sorted by the `id` value in ascending order.
+
+[[ml-get-dfanalytics-stats-response-codes]]
+==== {api-response-codes-title}
+
+`404` (Missing resources)::
+  If `allow_no_match` is `false`, this code indicates that there are no
+  resources that match the request or only partial matches for the request.
 
 [[ml-get-dfanalytics-stats-example]]
 ==== {api-examples-title}

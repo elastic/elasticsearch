@@ -185,15 +185,15 @@ public class RestRequest implements ToXContent.Params {
     }
 
     public boolean hasContent() {
-        return content(false).length() > 0;
+        return contentLength() > 0;
+    }
+
+    public int contentLength() {
+        return httpRequest.content().length();
     }
 
     public BytesReference content() {
-        return content(true);
-    }
-
-    protected BytesReference content(final boolean contentConsumed) {
-        this.contentConsumed = this.contentConsumed | contentConsumed;
+        this.contentConsumed = true;
         return httpRequest.content();
     }
 

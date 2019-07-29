@@ -778,6 +778,7 @@ POST /_bulk
 ----
 +
 // CONSOLE
+// TEST[continued]
 
 ===== Day-of-the-Week Bucket Aggregation Example
 
@@ -801,6 +802,7 @@ GET /messages/_search?pretty=true
 }
 ----
 // CONSOLE
+// TEST[continued]
 
 ===== Morning/Evening Bucket Aggregation Example
 
@@ -824,6 +826,7 @@ GET /messages/_search?pretty=true
 }
 ----
 // CONSOLE
+// TEST[continued]
 
 ===== Age of a Message Script Field Example
 
@@ -852,6 +855,7 @@ GET /_search?pretty=true
 }
 ----
 // CONSOLE
+// TEST[continued]
 
 The following shows the script broken into multiple lines:
 

@@ -3617,6 +3617,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(shardStats.getSeqNoStats().getMaxSeqNo(), equalTo(15L));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/44630")
     public void testParallelRestoreOperations() {
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";

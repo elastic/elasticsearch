@@ -1128,6 +1128,30 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertNotNull(aliasData);
     }
 
+    @SuppressWarnings("unchecked")
+    public void testClone() throws IOException {
+        createIndex("source", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0)
+            .put("index.number_of_routing_shards", 4).build());
+        updateIndexSettings("source", Settings.builder().put("index.blocks.write", true));
+
+        ResizeRequest resizeRequest = new ResizeRequest("target", "source");
+        resizeRequest.setResizeType(ResizeType.CLONE);
+        Settings targetSettings = Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0).build();
+        resizeRequest.setTargetIndex(new org.elasticsearch.action.admin.indices.create.CreateIndexRequest("target")
+            .settings(targetSettings)
+            .alias(new Alias("alias")));
+        ResizeResponse resizeResponse = execute(resizeRequest, highLevelClient().indices()::clone, highLevelClient().indices()::cloneAsync);
+        assertTrue(resizeResponse.isAcknowledged());
+        assertTrue(resizeResponse.isShardsAcknowledged());
+        Map<String, Object> getIndexResponse = getAsMap("target");
+        Map<String, Object> indexSettings = (Map<String, Object>)XContentMapValues.extractValue("target.settings.index", getIndexResponse);
+        assertNotNull(indexSettings);
+        assertEquals("2", indexSettings.get("number_of_shards"));
+        assertEquals("0", indexSettings.get("number_of_replicas"));
+        Map<String, Object> aliasData = (Map<String, Object>)XContentMapValues.extractValue("target.aliases.alias", getIndexResponse);
+        assertNotNull(aliasData);
+    }
+
     public void testRollover() throws IOException {
         highLevelClient().indices().create(new CreateIndexRequest("test").alias(new Alias("alias")), RequestOptions.DEFAULT);
         RolloverRequest rolloverRequest = new RolloverRequest("alias", "test_new");

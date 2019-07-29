@@ -48,13 +48,16 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
             core = "generic".equals(threadPoolName) ? 4 : 1; // the defaults
         }
 
+        final int availableProcessors = Runtime.getRuntime().availableProcessors();
         final int maxBasedOnNumberOfProcessors;
+        final int processors;
         if (randomBoolean()) {
-            final int processors = randomIntBetween(1, 64);
+            processors = randomIntBetween(1, availableProcessors);
             maxBasedOnNumberOfProcessors = expectedSize(threadPoolName, processors);
             builder.put("processors", processors);
         } else {
-            maxBasedOnNumberOfProcessors = expectedSize(threadPoolName, Runtime.getRuntime().availableProcessors());
+            maxBasedOnNumberOfProcessors = expectedSize(threadPoolName, availableProcessors);
+            processors = availableProcessors;
         }
 
         final int expectedMax;
@@ -93,6 +96,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
             assertThat(info.getMax(), equalTo(expectedMax));
             assertThat(esThreadPoolExecutor.getMaximumPoolSize(), equalTo(expectedMax));
         });
+
     }
 
     private int expectedSize(final String threadPoolName, final int numberOfProcessors) {

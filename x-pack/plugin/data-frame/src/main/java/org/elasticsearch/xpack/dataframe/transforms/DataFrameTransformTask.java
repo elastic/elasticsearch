@@ -166,7 +166,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
     public DataFrameIndexerTransformStats getStats() {
         if (getIndexer() == null) {
-            return new DataFrameIndexerTransformStats(getTransformId());
+            return new DataFrameIndexerTransformStats();
         } else {
             return getIndexer().getStats();
         }
@@ -425,7 +425,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
         ClientDataFrameIndexerBuilder(String transformId) {
             this.transformId = transformId;
-            this.initialStats = new DataFrameIndexerTransformStats(transformId);
+            this.initialStats = new DataFrameIndexerTransformStats();
         }
 
         ClientDataFrameIndexer build(DataFrameTransformTask parentTask) {
@@ -551,7 +551,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 fieldMappings,
                 ExceptionsHelper.requireNonNull(initialState, "initialState"),
                 initialPosition,
-                initialStats == null ? new DataFrameIndexerTransformStats(transformId) : initialStats,
+                initialStats == null ? new DataFrameIndexerTransformStats() : initialStats,
                 transformProgress,
                 lastCheckpoint,
                 nextCheckpoint);

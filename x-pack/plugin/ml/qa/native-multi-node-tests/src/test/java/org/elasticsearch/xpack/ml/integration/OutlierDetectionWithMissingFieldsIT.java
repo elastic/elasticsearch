@@ -41,10 +41,10 @@ public class OutlierDetectionWithMissingFieldsIT extends MlNativeDataFrameAnalyt
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-        // 5 docs with valid value
+        // 5 docs with valid numeric value and missing categorical field (which should be ignored as it's not analyzed)
         for (int i = 0; i < 5; i++) {
             IndexRequest indexRequest = new IndexRequest(sourceIndex);
-            indexRequest.source("numeric", 42.0, "categorical", "foo");
+            indexRequest.source("numeric", 42.0);
             bulkRequestBuilder.add(indexRequest);
         }
 

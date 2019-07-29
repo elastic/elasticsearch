@@ -75,7 +75,7 @@ public class DataFrameTransformStats implements Writeable, ToXContentObject {
     }
 
     public static DataFrameTransformStats initialStats(String id) {
-        return stoppedStats(id, new DataFrameIndexerTransformStats(id));
+        return stoppedStats(id, new DataFrameIndexerTransformStats());
     }
 
     public static DataFrameTransformStats stoppedStats(String id, DataFrameIndexerTransformStats indexerTransformStats) {

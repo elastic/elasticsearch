@@ -393,7 +393,6 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
             indexer.start();
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
             assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
-            assertThat(indexer.getState(), equalTo(IndexerState.INDEXING));
             assertTrue(awaitBusy(() -> isFinished.get()));
             indexer.assertCounters();
         } finally {

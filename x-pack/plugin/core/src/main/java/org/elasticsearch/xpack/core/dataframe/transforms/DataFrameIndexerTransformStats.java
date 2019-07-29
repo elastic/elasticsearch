@@ -76,7 +76,7 @@ public class DataFrameIndexerTransformStats extends IndexerJobStats {
 
     public DataFrameIndexerTransformStats(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().before(Version.V_8_0_0)) { // TODO change to 7.4.0 after backport
+        if (in.getVersion().before(Version.V_7_4_0)) {
             in.readString(); // was transformId
         }
     }
@@ -84,7 +84,7 @@ public class DataFrameIndexerTransformStats extends IndexerJobStats {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().before(Version.V_8_0_0)) { // TODO change to 7.4.0 after backport
+        if (out.getVersion().before(Version.V_7_4_0)) {
             out.writeString(DEFAULT_TRANSFORM_ID);
         }
     }

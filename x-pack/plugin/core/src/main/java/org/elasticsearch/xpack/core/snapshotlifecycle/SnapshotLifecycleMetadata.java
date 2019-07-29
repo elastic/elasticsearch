@@ -18,7 +18,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.XPackPlugin.XPackMetaDataCustom;
 import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
 
 import java.io.IOException;
@@ -36,7 +35,7 @@ import java.util.stream.Collectors;
  * Custom cluster state metadata that stores all the snapshot lifecycle
  * policies and their associated metadata
  */
-public class SnapshotLifecycleMetadata implements XPackMetaDataCustom {
+public class SnapshotLifecycleMetadata implements MetaData.Custom {
 
     public static final String TYPE = "snapshot_lifecycle";
     public static final ParseField OPERATION_MODE_FIELD = new ParseField("operation_mode");

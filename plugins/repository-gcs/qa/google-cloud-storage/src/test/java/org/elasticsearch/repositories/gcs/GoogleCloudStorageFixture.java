@@ -36,6 +36,7 @@ import java.io.InputStreamReader;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -565,7 +566,7 @@ public class GoogleCloudStorageFixture extends AbstractHttpFixture {
         Item(String name, byte[] bytes) {
             this.name = name;
             this.bytes = bytes;
-            this.created = LocalDateTime.now();
+            this.created = LocalDateTime.now(ZoneOffset.UTC);
         }
 
         public static Item empty(String name) {

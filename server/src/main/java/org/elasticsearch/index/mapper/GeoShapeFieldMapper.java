@@ -24,7 +24,6 @@ import org.apache.lucene.geo.Line;
 import org.apache.lucene.geo.Polygon;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.geo.GeometryIndexer;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.settings.Settings;
@@ -37,8 +36,8 @@ import org.elasticsearch.geo.geometry.MultiLine;
 import org.elasticsearch.geo.geometry.MultiPoint;
 import org.elasticsearch.geo.geometry.MultiPolygon;
 import org.elasticsearch.geo.geometry.Point;
+import org.elasticsearch.index.query.VectorGeoShapeQueryProcessor;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 
@@ -62,9 +61,10 @@ import java.util.Arrays;
  * <p>
  * "field" : "POLYGON ((100.0 0.0, 101.0 0.0, 101.0 1.0, 100.0 1.0, 100.0 0.0))
  */
-public class GeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
+public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, Geometry> {
+    public static final String CONTENT_TYPE = "geo_shape";
 
-    public static class Builder extends BaseGeoShapeFieldMapper.Builder<BaseGeoShapeFieldMapper.Builder, GeoShapeFieldMapper> {
+    public static class Builder extends AbstractGeometryFieldMapper.Builder<AbstractGeometryFieldMapper.Builder, GeoShapeFieldMapper> {
         public Builder(String name) {
             super (name, new GeoShapeFieldType(), new GeoShapeFieldType());
         }
@@ -75,9 +75,21 @@ public class GeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
             return new GeoShapeFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context), coerce(context),
                 ignoreZValue(), context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
+
+        @Override
+        protected void setupFieldType(BuilderContext context) {
+            super.setupFieldType(context);
+
+            GeometryParser geometryParser = new GeometryParser(orientation == ShapeBuilder.Orientation.RIGHT, coerce(context).value(),
+                ignoreZValue().value());
+
+            ((GeoShapeFieldType)fieldType()).setGeometryIndexer(new GeoShapeIndexer(orientation == ShapeBuilder.Orientation.RIGHT));
+            ((GeoShapeFieldType)fieldType()).setGeometryParser( (parser, mapper) -> geometryParser.parse(parser));
+            ((GeoShapeFieldType)fieldType()).setGeometryQueryBuilder(new VectorGeoShapeQueryProcessor());
+        }
     }
 
-    public static final class GeoShapeFieldType extends BaseGeoShapeFieldType {
+    public static final class GeoShapeFieldType extends AbstractGeometryFieldType<Geometry, Geometry> {
         public GeoShapeFieldType() {
             super();
         }
@@ -90,10 +102,17 @@ public class GeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
         public GeoShapeFieldType clone() {
             return new GeoShapeFieldType(this);
         }
-    }
 
-    private final GeometryParser geometryParser;
-    private final GeometryIndexer geometryIndexer;
+        @Override
+        public String typeName() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
+        protected Indexer<Geometry, Geometry> geometryIndexer() {
+            return new GeoShapeIndexer(orientation == ShapeBuilder.Orientation.RIGHT);
+        }
+    }
 
     public GeoShapeFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
                                Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
@@ -101,8 +120,6 @@ public class GeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
                                MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, ignoreZValue, indexSettings,
             multiFields, copyTo);
-        geometryParser = new GeometryParser(orientation() == ShapeBuilder.Orientation.RIGHT, coerce().value(), ignoreZValue.value());
-        geometryIndexer = new GeometryIndexer(true);
     }
 
     @Override
@@ -110,35 +127,9 @@ public class GeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
         return (GeoShapeFieldType) super.fieldType();
     }
 
-    /** parsing logic for {@link LatLonShape} indexing */
     @Override
-    public void parse(ParseContext context) throws IOException {
-        try {
-
-            Object shape = context.parseExternalValue(Object.class);
-            if (shape == null) {
-                Geometry geometry = geometryParser.parse(context.parser());
-                if (geometry == null) {
-                    return;
-                }
-                shape = geometryIndexer.prepareForIndexing(geometry);
-            }
-            indexShape(context, shape);
-        } catch (Exception e) {
-            if (ignoreMalformed.value() == false) {
-                throw new MapperParsingException("failed to parse field [{}] of type [{}]", e, fieldType().name(),
-                    fieldType().typeName());
-            }
-            context.addIgnoredField(fieldType().name());
-        }
-    }
-
-    private void indexShape(ParseContext context, Object luceneShape) {
-        if (luceneShape instanceof Geometry) {
-            ((Geometry) luceneShape).visit(new LuceneGeometryIndexer(context));
-        } else {
-            throw new IllegalArgumentException("invalid shape type found [" + luceneShape.getClass() + "] while indexing shape");
-        }
+    protected void indexShape(ParseContext context, Geometry luceneShape) {
+        luceneShape.visit(new LuceneGeometryIndexer(context));
     }
 
     private class LuceneGeometryIndexer implements GeometryVisitor<Void, RuntimeException> {
@@ -231,5 +222,10 @@ public class GeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
         for (IndexableField f : flist) {
             context.doc().add(f);
         }
+    }
+
+    @Override
+    protected String contentType() {
+        return CONTENT_TYPE;
     }
 }

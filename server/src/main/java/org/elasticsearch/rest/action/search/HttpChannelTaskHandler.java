@@ -66,8 +66,7 @@ final class HttpChannelTaskHandler {
                     if (e instanceof Exception) {
                         listener.onFailure((Exception)e);
                     } else {
-                        //TODO should we rather throw in case of throwable instead of notifying the listener?
-                        listener.onFailure(new RuntimeException(e));
+                        throw new RuntimeException(e);
                     }
                 }
 
@@ -104,10 +103,8 @@ final class HttpChannelTaskHandler {
             }
         }
 
-        //TODO test case where listener is registered, but no tasks have been added yet:
-        // - connection gets closed, channel will be removed, no tasks will be cancelled
-
-        //TODO check that no tasks are left behind through assertions at node close
+        //TODO check that no tasks are left behind through assertions at node close. Not sure how. Couldn't there be in-flight requests
+        //causing channels to be in the map when a node gets closed?
     }
 
     final class CloseListener implements ActionListener<Void> {
@@ -122,8 +119,9 @@ final class HttpChannelTaskHandler {
         void registerTask(HttpChannel httpChannel, TaskId taskId) {
             if (channel.compareAndSet(null, httpChannel)) {
                 //In case the channel is already closed when we register the listener, the listener will be immediately executed which will
-                //remove the channel from the map straight-away. That is why we do this in two stages. If we provided the channel at close
-                //listener initialization we would have to deal with close listeners calls before the channel is in the map.
+                //remove the channel from the map straight-away. That is why we first create the CloseListener and later we associate it
+                //with the channel. This guarantees that the close listener is already in the map when the it gets registered to its
+                //corresponding channel, hence it is always found in the map when it gets invoked if the channel gets closed.
                 httpChannel.addCloseListener(this);
             }
             this.taskIds.add(taskId);
@@ -135,24 +133,32 @@ final class HttpChannelTaskHandler {
 
         @Override
         public void onResponse(Void aVoid) {
-            //When the channel gets closed it won't be reused: we can remove it from the map as there is no chance we will
-            //register another close listener to it later.
-            //The channel reference may be null, if the connection gets closed before we set it.
-            //The channel must be found in the map though as this listener gets registered after the channel is added.
-            //TODO test channel null here? it can happen!
-            httpChannels.remove(channel.get());
-            for (TaskId previousTaskId : taskIds) {
-                CancelTasksRequest cancelTasksRequest = new CancelTasksRequest();
-                cancelTasksRequest.setTaskId(previousTaskId);
-                //We don't wait for cancel tasks to come back. Task cancellation is just best effort.
-                //Note that cancel tasks fails if the user sending the search request does not have the permissions to call it.
-                client.admin().cluster().cancelTasks(cancelTasksRequest, ActionListener.wrap(r -> {}, e -> {}));
-            }
+            cancelTasks();
         }
 
         @Override
         public void onFailure(Exception e) {
-            //nothing to do here
+            cancelTasks();
+        }
+
+        private void cancelTasks() {
+            //When the channel gets closed it won't be reused: we can remove it from the map as there is no chance we will
+            //register another close listener to it later.
+            //The channel reference may be null, if the connection gets closed before it got set.
+            HttpChannel channel = this.channel.get();
+            //TODO is this enough to make sure that we only cancel tasks once? it could be that not all tasks have been registered yet
+            //when the close listener is notified. We remove the channel and cancel the tasks that are known up until then.
+            //if new tasks come in from the same channel, the channel will be added again to the map, but the close listener will
+            //be registered another time to it which is no good. tasks should not be left behind though.
+            if (channel != null && httpChannels.remove(channel) != null) {
+                for (TaskId previousTaskId : taskIds) {
+                    CancelTasksRequest cancelTasksRequest = new CancelTasksRequest();
+                    cancelTasksRequest.setTaskId(previousTaskId);
+                    //We don't wait for cancel tasks to come back. Task cancellation is just best effort.
+                    //Note that cancel tasks fails if the user sending the search request does not have the permissions to call it.
+                    client.admin().cluster().cancelTasks(cancelTasksRequest, ActionListener.wrap(r -> {}, e -> {}));
+                }
+            }
         }
     }
 }

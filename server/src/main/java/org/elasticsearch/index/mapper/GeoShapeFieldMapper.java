@@ -68,7 +68,8 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
             GeometryParser geometryParser = new GeometryParser(orientation == ShapeBuilder.Orientation.RIGHT, coerce(context).value(),
                 ignoreZValue().value());
 
-            ((GeoShapeFieldType)fieldType()).setGeometryIndexer(new GeoShapeIndexer(orientation == ShapeBuilder.Orientation.RIGHT, name()));
+            ((GeoShapeFieldType)fieldType()).setGeometryIndexer(new GeoShapeIndexer(orientation == ShapeBuilder.Orientation.RIGHT,
+                fieldType.name()));
             ((GeoShapeFieldType)fieldType()).setGeometryParser( (parser, mapper) -> geometryParser.parse(parser));
             ((GeoShapeFieldType)fieldType()).setGeometryQueryBuilder(new VectorGeoShapeQueryProcessor());
         }

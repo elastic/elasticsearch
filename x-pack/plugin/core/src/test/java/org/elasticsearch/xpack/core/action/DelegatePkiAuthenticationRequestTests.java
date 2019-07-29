@@ -111,6 +111,6 @@ public class DelegatePkiAuthenticationRequestTests extends AbstractXContentTestC
 
     @Override
     protected boolean supportsUnknownFields() {
-        return true;
+        return false;
     }
 }

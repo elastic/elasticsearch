@@ -40,7 +40,7 @@ public final class DelegatePkiAuthenticationRequest extends ActionRequest implem
     private static final ParseField X509_CERTIFICATE_CHAIN_FIELD = new ParseField("x509_certificate_chain");
 
     public static final ConstructingObjectParser<DelegatePkiAuthenticationRequest, Void> PARSER = new ConstructingObjectParser<>(
-            "delegate_pki_request", true, a -> {
+            "delegate_pki_request", false, a -> {
                 @SuppressWarnings("unchecked")
                 final List<String> encodedCertificatesList = (List<String>) a[0];
                 final List<X509Certificate> certificates = new ArrayList<>(encodedCertificatesList.size());

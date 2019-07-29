@@ -24,12 +24,12 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
-import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
-import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
-import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecycleMetadata;
-import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicyMetadata;
-import org.elasticsearch.xpack.core.snapshotlifecycle.action.PutSnapshotLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
+import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
+import org.elasticsearch.xpack.core.ilm.OperationMode;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
+import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
 import org.elasticsearch.xpack.slm.SnapshotLifecycleService;
 
 import java.io.IOException;

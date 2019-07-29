@@ -22,6 +22,7 @@ import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geo.utils.GeographyValidator;
+import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions;
 import org.locationtech.jts.geom.Geometry;
@@ -66,7 +67,7 @@ abstract class BaseGeoParsingTestCase extends ESTestCase {
             } else {
                 GeometryParser geometryParser = new GeometryParser(true, true, true);
                 org.elasticsearch.geo.geometry.Geometry shape = geometryParser.parse(parser);
-                shape = new GeometryIndexer(true).prepareForIndexing(shape);
+                shape = new GeoShapeIndexer(true).prepareForIndexing(shape);
                 ElasticsearchGeoAssertions.assertEquals(expected, shape);
             }
         }

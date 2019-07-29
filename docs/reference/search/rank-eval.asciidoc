@@ -14,7 +14,7 @@ _precision_ or _discounted cumulative gain_.
 
 Search quality evaluation starts with looking at the users of your search application, and the things that they are searching for.
 Users have a specific _information need_, e.g. they are looking for gift in a web shop or want to book a flight for their next holiday.
-They usually enters some search terms into a search box or some other web form.
+They usually enter some search terms into a search box or some other web form.
 All of this information, together with meta information about the user (e.g. the browser, location, earlier preferences etc...) then gets translated into a query to the underlying search system.
 
 The challenge for search engineers is to tweak this translation process from user entries to a concrete query in such a way, that the search results contain the most relevant information with respect to the users information need.

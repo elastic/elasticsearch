@@ -477,7 +477,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
 
     public RetentionLease cloneLocalPeerRecoveryRetentionLease(String nodeId, ActionListener<ReplicationResponse> listener) {
         return cloneRetentionLease(
-            getPeerRecoveryRetentionLeaseId(getPeerRecoveryRetentionLeaseId(routingTable.primaryShard())),
+            getPeerRecoveryRetentionLeaseId(routingTable.primaryShard()),
             getPeerRecoveryRetentionLeaseId(nodeId), listener);
     }
 

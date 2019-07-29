@@ -53,7 +53,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         assertFalse(testGet.getFields().containsKey(RoutingFieldMapper.NAME));
         assertEquals(new String(testGet.source(), StandardCharsets.UTF_8), "{\"foo\" : \"bar\"}");
         try (Engine.Searcher searcher = primary.getEngine().acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
-            assertEquals(searcher.reader().maxDoc(), 1); // we refreshed
+            assertEquals(searcher.getIndexReader().maxDoc(), 1); // we refreshed
         }
 
         Engine.IndexResult test1 = indexDoc(primary, "test", "1", "{\"foo\" : \"baz\"}",  XContentType.JSON, "foobar");
@@ -63,11 +63,11 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         assertTrue(testGet1.getFields().containsKey(RoutingFieldMapper.NAME));
         assertEquals("foobar", testGet1.getFields().get(RoutingFieldMapper.NAME).getValue());
         try (Engine.Searcher searcher = primary.getEngine().acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
-            assertEquals(searcher.reader().maxDoc(), 1); // we read from the translog
+            assertEquals(searcher.getIndexReader().maxDoc(), 1); // we read from the translog
         }
         primary.getEngine().refresh("test");
         try (Engine.Searcher searcher = primary.getEngine().acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
-            assertEquals(searcher.reader().maxDoc(), 2);
+            assertEquals(searcher.getIndexReader().maxDoc(), 2);
         }
 
         // now again from the reader

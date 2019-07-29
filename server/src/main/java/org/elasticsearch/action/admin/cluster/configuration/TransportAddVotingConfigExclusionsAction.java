@@ -69,11 +69,6 @@ public class TransportAddVotingConfigExclusionsAction extends TransportMasterNod
     }
 
     @Override
-    protected AddVotingConfigExclusionsResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     protected AddVotingConfigExclusionsResponse read(StreamInput in) throws IOException {
         return new AddVotingConfigExclusionsResponse(in);
     }

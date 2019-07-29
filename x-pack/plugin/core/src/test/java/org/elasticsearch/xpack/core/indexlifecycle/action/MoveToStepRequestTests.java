@@ -6,14 +6,15 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle.action;
 
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import org.elasticsearch.xpack.core.indexlifecycle.StepKeyTests;
 import org.elasticsearch.xpack.core.indexlifecycle.action.MoveToStepAction.Request;
 import org.junit.Before;
 
-public class MoveToStepRequestTests extends AbstractStreamableXContentTestCase<Request> {
+public class MoveToStepRequestTests extends AbstractSerializingTestCase<Request> {
 
     private String index;
     private static final StepKeyTests stepKeyTests = new StepKeyTests();
@@ -29,8 +30,8 @@ public class MoveToStepRequestTests extends AbstractStreamableXContentTestCase<R
     }
 
     @Override
-    protected Request createBlankInstance() {
-        return new Request();
+    protected Writeable.Reader<Request> instanceReader() {
+        return Request::new;
     }
 
     @Override

@@ -58,7 +58,7 @@ public class HttpReadWriteHandler implements NioChannelHandler {
     private final TaskScheduler taskScheduler;
     private final LongSupplier nanoClock;
     private final long readTimeoutNanos;
-    private boolean channelRegistered = false;
+    private boolean channelActive = false;
     private boolean requestSinceReadTimeoutTrigger = false;
     private int inFlightRequests = 0;
 
@@ -91,8 +91,8 @@ public class HttpReadWriteHandler implements NioChannelHandler {
     }
 
     @Override
-    public void channelRegistered() {
-        channelRegistered = true;
+    public void channelActive() {
+        channelActive = true;
         if (readTimeoutNanos > 0) {
             scheduleReadTimeout();
         }
@@ -100,7 +100,7 @@ public class HttpReadWriteHandler implements NioChannelHandler {
 
     @Override
     public int consumeReads(InboundChannelBuffer channelBuffer) {
-        assert channelRegistered : "channelRegistered should have been called";
+        assert channelActive : "channelActive should have been called";
         int bytesConsumed = adaptor.read(channelBuffer.sliceAndRetainPagesTo(channelBuffer.getIndex()));
         Object message;
         while ((message = adaptor.pollInboundMessage()) != null) {
@@ -123,7 +123,7 @@ public class HttpReadWriteHandler implements NioChannelHandler {
     public List<FlushOperation> writeToBytes(WriteOperation writeOperation) {
         assert writeOperation.getObject() instanceof NioHttpResponse : "This channel only supports messages that are of type: "
             + NioHttpResponse.class + ". Found type: " + writeOperation.getObject().getClass() + ".";
-        assert channelRegistered : "channelRegistered should have been called";
+        assert channelActive : "channelActive should have been called";
         --inFlightRequests;
         assert inFlightRequests >= 0 : "Inflight requests should never drop below zero, found: " + inFlightRequests;
         adaptor.write(writeOperation);

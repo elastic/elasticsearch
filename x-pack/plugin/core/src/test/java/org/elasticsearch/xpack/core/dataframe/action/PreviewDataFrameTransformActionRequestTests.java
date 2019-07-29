@@ -44,6 +44,7 @@ public class PreviewDataFrameTransformActionRequestTests extends AbstractSeriali
                 "transform-preview",
                 randomSourceConfig(),
                 new DestConfig("unused-transform-preview-index", null),
+                null,
                 randomBoolean() ? DataFrameTransformConfigTests.randomSyncConfig() : null,
                 null,
                 PivotConfigTests.randomPivotConfig(),

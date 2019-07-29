@@ -9,9 +9,10 @@ package org.elasticsearch.xpack.core.indexlifecycle;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -20,7 +21,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class ExplainLifecycleResponseTests extends AbstractStreamableXContentTestCase<ExplainLifecycleResponse> {
+public class ExplainLifecycleResponseTests extends AbstractSerializingTestCase<ExplainLifecycleResponse> {
 
     @Override
     protected ExplainLifecycleResponse createTestInstance() {
@@ -33,8 +34,8 @@ public class ExplainLifecycleResponseTests extends AbstractStreamableXContentTes
     }
 
     @Override
-    protected ExplainLifecycleResponse createBlankInstance() {
-        return new ExplainLifecycleResponse();
+    protected Writeable.Reader<ExplainLifecycleResponse> instanceReader() {
+        return ExplainLifecycleResponse::new;
     }
 
     @Override
@@ -52,6 +53,11 @@ public class ExplainLifecycleResponseTests extends AbstractStreamableXContentTes
 
     @Override
     protected boolean supportsUnknownFields() {
+        return false;
+    }
+
+    @Override
+    protected boolean assertToXContentEquivalence() {
         return false;
     }
 

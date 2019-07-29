@@ -19,7 +19,9 @@
 
 package org.elasticsearch.geo.geometry;
 
+import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.utils.GeographyValidator;
+import org.elasticsearch.geo.utils.StandardValidator;
 import org.elasticsearch.geo.utils.WellKnownText;
 
 import java.io.IOException;
@@ -35,7 +37,7 @@ public class MultiLineTests extends BaseGeometryTestCase<MultiLine> {
         int size = randomIntBetween(1, 10);
         List<Line> arr = new ArrayList<Line>();
         for (int i = 0; i < size; i++) {
-            arr.add(randomLine(hasAlt));
+            arr.add(GeometryTestUtils.randomLine(hasAlt));
         }
         return new MultiLine(arr);
     }
@@ -49,5 +51,14 @@ public class MultiLineTests extends BaseGeometryTestCase<MultiLine> {
 
         assertEquals("multilinestring EMPTY", wkt.toWKT(MultiLine.EMPTY));
         assertEquals(MultiLine.EMPTY, wkt.fromWKT("multilinestring EMPTY)"));
+    }
+
+    public void testValidation() {
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new StandardValidator(false).validate(
+            new MultiLine(Collections.singletonList(new Line(new double[]{1, 2}, new double[]{3, 4}, new double[]{6, 5})))));
+        assertEquals("found Z value [6.0] but [ignore_z_value] parameter is [false]", ex.getMessage());
+
+        new StandardValidator(true).validate(
+            new MultiLine(Collections.singletonList(new Line(new double[]{1, 2}, new double[]{3, 4}, new double[]{6, 5}))));
     }
 }

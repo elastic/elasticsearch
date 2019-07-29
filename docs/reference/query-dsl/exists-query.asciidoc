@@ -1,5 +1,8 @@
 [[query-dsl-exists-query]]
-=== Exists Query
+=== Exists query
+++++
+<titleabbrev>Exists</titleabbrev>
+++++
 
 Returns documents that contain an indexed value for a field.
 

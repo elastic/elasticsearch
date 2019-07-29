@@ -1,5 +1,5 @@
 [[docs-multi-termvectors]]
-== Multi termvectors API
+=== Multi termvectors API
 
 Multi termvectors API allows to get multiple termvectors at once. The
 documents from which to retrieve the term vectors are specified by an index and id.

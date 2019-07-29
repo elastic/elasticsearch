@@ -28,16 +28,13 @@ import java.io.IOException;
 public class ValidateJoinRequest extends TransportRequest {
     private ClusterState state;
 
-    public ValidateJoinRequest() {}
+    public ValidateJoinRequest(StreamInput in) throws IOException {
+        super(in);
+        this.state = ClusterState.readFrom(in, null);
+    }
 
     public ValidateJoinRequest(ClusterState state) {
         this.state = state;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        this.state = ClusterState.readFrom(in, null);
     }
 
     @Override

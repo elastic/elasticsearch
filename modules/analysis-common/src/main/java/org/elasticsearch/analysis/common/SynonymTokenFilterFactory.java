@@ -116,7 +116,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
 
     Analyzer buildSynonymAnalyzer(TokenizerFactory tokenizer, List<CharFilterFactory> charFilters,
                                   List<TokenFilterFactory> tokenFilters, Function<String, TokenFilterFactory> allFilters) {
-        return new CustomAnalyzer("synonyms", tokenizer, charFilters.toArray(new CharFilterFactory[0]),
+        return new CustomAnalyzer(tokenizer, charFilters.toArray(new CharFilterFactory[0]),
             tokenFilters.stream()
                 .map(TokenFilterFactory::getSynonymFilter)
                 .toArray(TokenFilterFactory[]::new));

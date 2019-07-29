@@ -124,8 +124,7 @@ public class RolloverRequestTests extends ESTestCase {
             originalRequest.writeTo(out);
             BytesReference bytes = out.bytes();
             try (StreamInput in = new NamedWriteableAwareStreamInput(bytes.streamInput(), writeableRegistry)) {
-                RolloverRequest cloneRequest = new RolloverRequest();
-                cloneRequest.readFrom(in);
+                RolloverRequest cloneRequest = new RolloverRequest(in);
                 assertThat(cloneRequest.getNewIndexName(), equalTo(originalRequest.getNewIndexName()));
                 assertThat(cloneRequest.getAlias(), equalTo(originalRequest.getAlias()));
                 for (Map.Entry<String, Condition<?>> entry : cloneRequest.getConditions().entrySet()) {

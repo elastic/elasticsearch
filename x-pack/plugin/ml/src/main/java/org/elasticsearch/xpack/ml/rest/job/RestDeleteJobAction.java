@@ -73,10 +73,10 @@ public class RestDeleteJobAction extends BaseRestHandler {
     // We do not want to log anything due to a delete action
     // The response or error will be returned to the client when called synchronously
     // or it will be stored in the task result when called asynchronously
-    private static TaskListener nullTaskListener() {
-        return new TaskListener() {
+    private static <T> TaskListener<T> nullTaskListener() {
+        return new TaskListener<T>() {
             @Override
-            public void onResponse(Task task, Object o) {}
+            public void onResponse(Task task, T o) {}
 
             @Override
             public void onFailure(Task task, Throwable e) {}

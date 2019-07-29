@@ -278,7 +278,6 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
             CharFilterFactory[] charFilterFactories = components.getCharFilters();
             TokenizerFactory tokenizerFactory = components.getTokenizerFactory();
             TokenFilterFactory[] tokenFilterFactories = components.getTokenFilters();
-            String tokenizerName = components.getTokenizerName();
 
             String[][] charFiltersTexts = new String[charFilterFactories != null ? charFilterFactories.length : 0][request.text().length];
             TokenListCreator[] tokenFiltersTokenListCreator = new TokenListCreator[tokenFilterFactories != null ?
@@ -338,7 +337,8 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
                 }
             }
             detailResponse = new AnalyzeAction.DetailAnalyzeResponse(charFilteredLists,
-                    new AnalyzeAction.AnalyzeTokenList(tokenizerName, tokenizerTokenListCreator.getArrayTokens()), tokenFilterLists);
+                new AnalyzeAction.AnalyzeTokenList(tokenizerFactory.name(), tokenizerTokenListCreator.getArrayTokens()),
+                tokenFilterLists);
         } else {
             String name;
             if (analyzer instanceof NamedAnalyzer) {

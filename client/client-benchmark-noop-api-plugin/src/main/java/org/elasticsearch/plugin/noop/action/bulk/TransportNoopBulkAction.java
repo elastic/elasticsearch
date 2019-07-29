@@ -32,15 +32,13 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.function.Supplier;
-
 public class TransportNoopBulkAction extends HandledTransportAction<BulkRequest, BulkResponse> {
     private static final BulkItemResponse ITEM_RESPONSE = new BulkItemResponse(1, DocWriteRequest.OpType.UPDATE,
-        new UpdateResponse(new ShardId("mock", "", 1), "mock_type", "1", 1L, DocWriteResponse.Result.CREATED));
+        new UpdateResponse(new ShardId("mock", "", 1), "mock_type", "1", 0L, 1L, 1L, DocWriteResponse.Result.CREATED));
 
     @Inject
     public TransportNoopBulkAction(TransportService transportService, ActionFilters actionFilters) {
-        super(NoopBulkAction.NAME, transportService, actionFilters, (Supplier<BulkRequest>) BulkRequest::new);
+        super(NoopBulkAction.NAME, transportService, actionFilters, BulkRequest::new);
     }
 
     @Override

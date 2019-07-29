@@ -1618,12 +1618,37 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                         }
                     });
 
+                latch.await();
                 assertFalse(requestProcessed.get());
 
                 service.acceptIncomingRequests();
-                assertBusy(() -> assertTrue(requestProcessed.get()));
 
-                latch.await();
+                CountDownLatch latch2 = new CountDownLatch(1);
+                serviceA.sendRequest(connection, "internal:action", new TestRequest(), TransportRequestOptions.EMPTY,
+                    new TransportResponseHandler<TestResponse>() {
+                        @Override
+                        public TestResponse read(StreamInput in) throws IOException {
+                            return new TestResponse(in);
+                        }
+
+                        @Override
+                        public void handleResponse(TestResponse response) {
+                            latch2.countDown();
+                        }
+
+                        @Override
+                        public void handleException(TransportException exp) {
+                            latch2.countDown();
+                        }
+
+                        @Override
+                        public String executor() {
+                            return ThreadPool.Names.SAME;
+                        }
+                    });
+
+                latch2.await();
+                assertBusy(() -> assertTrue(requestProcessed.get()));
             }
         }
     }

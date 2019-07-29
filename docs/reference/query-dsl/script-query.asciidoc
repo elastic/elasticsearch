@@ -37,7 +37,7 @@ GET /_search
 
 `script`::
 (Required, <<modules-scripting-using, script object>>) Contains a script to run
-as a query.
+as a query. This script must return a boolean value, `true` or `false`.
 
 [[script-query-notes]]
 ==== Notes

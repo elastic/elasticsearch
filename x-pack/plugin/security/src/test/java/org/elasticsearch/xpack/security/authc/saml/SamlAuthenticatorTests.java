@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.xml.security.Init;
 import org.apache.xml.security.encryption.EncryptedData;
 import org.apache.xml.security.encryption.EncryptedKey;
@@ -17,7 +19,9 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.hamcrest.Matchers;
 import org.junit.AfterClass;
@@ -76,6 +80,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -1355,7 +1360,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
 
     public void testContentIsRejectedIfRestrictedToADifferentAudience() throws Exception {
         final String audience = "https://some.other.sp/SAML2";
-        final String xml = getResponseWithAudienceRestriction(audience);
+        final String xml = getResponseWithAudienceRestrictions(audience);
         final SamlToken token = token(signDoc(xml));
         final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
         assertThat(exception.getMessage(), containsString("required audience"));
@@ -1366,11 +1371,45 @@ public class SamlAuthenticatorTests extends SamlTestCase {
     }
 
     public void testContentIsAcceptedIfRestrictedToOurAudience() throws Exception {
-        final String xml = getResponseWithAudienceRestriction(SP_ENTITY_ID);
+        final String xml = getResponseWithAudienceRestrictions(SP_ENTITY_ID);
         final SamlToken token = token(signDoc(xml));
         final SamlAttributes attributes = authenticator.authenticate(token);
         assertThat(attributes, notNullValue());
         assertThat(attributes.attributes(), not(empty()));
+    }
+
+    public void testLoggingWhenAudienceCheckFails() throws Exception {
+        final String similarAudience = SP_ENTITY_ID.replaceFirst("/$", ":80/");
+        final String wrongAudience = "http://" + randomAlphaOfLengthBetween(4, 12) + "." + randomAlphaOfLengthBetween(6, 8) + "/";
+        final String xml = getResponseWithAudienceRestrictions(similarAudience, wrongAudience);
+        final SamlToken token = token(signDoc(xml));
+
+        final Logger samlLogger = LogManager.getLogger(authenticator.getClass());
+        final MockLogAppender mockAppender = new MockLogAppender();
+        mockAppender.start();
+        try {
+            Loggers.addAppender(samlLogger, mockAppender);
+
+            mockAppender.addExpectation(new MockLogAppender.SeenEventExpectation(
+                "similar audience",
+                authenticator.getClass().getName(),
+                Level.INFO,
+                "Audience restriction [" + similarAudience + "] does not match required audience [" + SP_ENTITY_ID +
+                    "] (difference starts at character [#" + (SP_ENTITY_ID.length() - 1) + "] [:80/] vs [/])"
+            ));
+            mockAppender.addExpectation(new MockLogAppender.SeenEventExpectation(
+                "not similar audience",
+                authenticator.getClass().getName(),
+                Level.INFO,
+                "Audience restriction [" + wrongAudience + "] does not match required audience [" + SP_ENTITY_ID + "]"
+            ));
+            final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
+            assertThat(exception.getMessage(), containsString("required audience"));
+            mockAppender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(samlLogger, mockAppender);
+            mockAppender.stop();
+        }
     }
 
     public void testContentIsRejectedIfNotMarkedAsSuccess() throws Exception {
@@ -2101,14 +2140,13 @@ public class SamlAuthenticatorTests extends SamlTestCase {
                 "</proto:Response>";
     }
 
-    private String getResponseWithAudienceRestriction(String requiredAudience) {
+    private String getResponseWithAudienceRestrictions(String... requiredAudiences) {
+        String inner = Stream.of(requiredAudiences)
+            .map(s -> "<assert:Audience>" + s + "</assert:Audience>")
+            .collect(Collectors.joining());
         return getSimpleResponse(clock.instant()).replaceFirst("<assert:AuthnStatement",
-                "<assert:Conditions><assert:AudienceRestriction>" +
-                        "<assert:Audience>" +
-                        requiredAudience +
-                        "</assert:Audience>" +
-                        "</assert:AudienceRestriction></assert:Conditions>" +
-                        "$0");
+            "<assert:Conditions><assert:AudienceRestriction>" + inner + "</assert:AudienceRestriction></assert:Conditions>" +
+                "$0");
     }
 
     private String randomId() {

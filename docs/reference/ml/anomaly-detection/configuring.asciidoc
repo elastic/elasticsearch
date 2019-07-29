@@ -7,8 +7,8 @@ your cluster and all master-eligible nodes must have {ml} enabled. By default,
 all nodes are {ml} nodes. For more information about these settings, see 
 {ref}/modules-node.html#ml-node[{ml} nodes].
 
-To use the {ml-features} to analyze your data, you must create a job and
-send your data to that job.
+To use the {ml-features} to analyze your data, you can create an {anomaly-job}
+and send your data to that job.
 
 * If your data is stored in {es}:
 

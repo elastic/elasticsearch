@@ -19,9 +19,12 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedField;
 import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedFields;
 
 import java.util.Arrays;
@@ -52,12 +55,20 @@ public class DataFrameDataExtractorFactory {
                 analyticsId,
                 extractedFields,
                 Arrays.asList(index),
-                QueryBuilders.matchAllQuery(),
+                allExtractedFieldsExistQuery(),
                 1000,
                 headers,
                 includeSource
             );
         return new DataFrameDataExtractor(client, context);
+    }
+
+    private QueryBuilder allExtractedFieldsExistQuery() {
+        BoolQueryBuilder query = QueryBuilders.boolQuery();
+        for (ExtractedField field : extractedFields.getAllFields()) {
+            query.filter(QueryBuilders.existsQuery(field.getName()));
+        }
+        return query;
     }
 
     /**

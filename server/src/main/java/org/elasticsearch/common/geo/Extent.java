@@ -29,7 +29,7 @@ import java.util.Objects;
  * Object representing the extent of a geometry object within a
  * {@link GeometryTreeWriter} and {@link EdgeTreeWriter};
  */
-public final class Extent implements Writeable {
+public class Extent implements Writeable {
     public final int minX;
     public final int minY;
     public final int maxX;

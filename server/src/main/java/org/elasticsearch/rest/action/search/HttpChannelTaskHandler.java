@@ -61,13 +61,9 @@ final class HttpChannelTaskHandler {
                 }
 
                 @Override
-                public void onFailure(Task task, Throwable e) {
+                public void onFailure(Task task, Exception e) {
                     unlink(task);
-                    if (e instanceof Exception) {
-                        listener.onFailure((Exception)e);
-                    } else {
-                        throw new RuntimeException(e);
-                    }
+                    listener.onFailure(e);
                 }
 
                 private void unlink(Task task) {

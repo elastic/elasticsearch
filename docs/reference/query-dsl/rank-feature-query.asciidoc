@@ -126,7 +126,6 @@ The following query searches for `2016` and boosts relevance scores based or
 
 [source,js]
 ----
-
 GET /test/_search 
 {
   "query": {

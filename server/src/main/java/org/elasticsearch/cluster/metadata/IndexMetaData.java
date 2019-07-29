@@ -54,7 +54,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
@@ -283,7 +282,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
     private final long mappingVersion;
 
     private final long settingsVersion;
-    
+
     private final long aliasesVersion;
 
     private final long[] primaryTerms;
@@ -1012,25 +1011,25 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             this.mappingVersion = mappingVersion;
             return this;
         }
-        
+
         public long settingsVersion() {
             return settingsVersion;
         }
-        
+
         public Builder settingsVersion(final long settingsVersion) {
             this.settingsVersion = settingsVersion;
             return this;
         }
-        
+
         public long aliasesVersion() {
             return aliasesVersion;
         }
-        
+
         public Builder aliasesVersion(final long aliasesVersion) {
             this.aliasesVersion = aliasesVersion;
             return this;
         }
-        
+
         /**
          * returns the primary term for the given shard.
          * See {@link IndexMetaData#primaryTerm(int)} for more information.

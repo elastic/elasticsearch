@@ -1089,7 +1089,6 @@ public class InternalEngine extends Engine {
     private boolean treatDocumentFailureAsTragicError(Index index) {
         // TODO: can we enable this check for all origins except primary on the leader?
         return index.origin() == Operation.Origin.REPLICA
-            || index.origin() == Operation.Origin.LOCAL_TRANSLOG_RECOVERY
             || index.origin() == Operation.Origin.LOCAL_RESET;
     }
 

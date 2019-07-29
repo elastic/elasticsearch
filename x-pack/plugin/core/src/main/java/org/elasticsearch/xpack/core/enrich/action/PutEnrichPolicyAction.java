@@ -63,6 +63,12 @@ public class PutEnrichPolicyAction extends ActionType<AcknowledgedResponse> {
 
         @Override
         public ActionRequestValidationException validate() {
+            if (policy.getVersionCreated() != null) {
+                ActionRequestValidationException e = new ActionRequestValidationException();
+                e.addValidationError("Cannot set [version_created] field on enrich policy [" + name + "]. Found [" +
+                    policy.getVersionCreated() + "]");
+                return e;
+            }
             return null;
         }
 

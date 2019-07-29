@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.enrich;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -12,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -39,6 +41,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
     private static final ParseField INDICES = new ParseField("indices");
     private static final ParseField ENRICH_KEY = new ParseField("enrich_key");
     private static final ParseField ENRICH_VALUES = new ParseField("enrich_values");
+    private static final ParseField VERSION_CREATED = new ParseField("version_created");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<EnrichPolicy, Void> PARSER = new ConstructingObjectParser<>("policy",
@@ -52,10 +55,11 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
     );
 
     static {
-        declareParserOptions(PARSER);
+        declareCommonConstructorParsingOptions(PARSER);
+        PARSER.declareField(EnrichPolicy::setVersionCreated, ((p, c) -> Version.fromString(p.text())), VERSION_CREATED, ValueType.STRING);
     }
 
-    private static void declareParserOptions(ConstructingObjectParser<?, ?> parser) {
+    private static <T> void declareCommonConstructorParsingOptions(ConstructingObjectParser<T, ?> parser) {
         parser.declareString(ConstructingObjectParser.constructorArg(), TYPE);
         parser.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
             XContentBuilder contentBuilder = XContentBuilder.builder(p.contentType().xContent());
@@ -76,6 +80,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
     private final List<String> indices;
     private final String enrichKey;
     private final List<String> enrichValues;
+    private Version versionCreated;
 
     public EnrichPolicy(StreamInput in) throws IOException {
         this(
@@ -85,6 +90,9 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
             in.readString(),
             in.readStringList()
         );
+        if (in.readBoolean()) {
+            setVersionCreated(Version.readVersion(in));
+        }
     }
 
     public EnrichPolicy(String type,
@@ -97,6 +105,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         this.indices = indices;
         this.enrichKey = enrichKey;
         this.enrichValues = enrichValues;
+        this.versionCreated = null;
     }
 
     public String getType() {
@@ -119,6 +128,14 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         return enrichValues;
     }
 
+    public Version getVersionCreated() {
+        return versionCreated;
+    }
+
+    public void setVersionCreated(Version versionCreated) {
+        this.versionCreated = versionCreated;
+    }
+
     public static String getBaseName(String policyName) {
         return ENRICH_INDEX_NAME_BASE + policyName;
     }
@@ -130,6 +147,12 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         out.writeStringCollection(indices);
         out.writeString(enrichKey);
         out.writeStringCollection(enrichValues);
+        if (versionCreated != null) {
+            out.writeBoolean(true);
+            Version.writeVersion(versionCreated, out);
+        } else {
+            out.writeBoolean(false);
+        }
     }
 
     @Override
@@ -141,6 +164,9 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         builder.array(INDICES.getPreferredName(), indices.toArray(new String[0]));
         builder.field(ENRICH_KEY.getPreferredName(), enrichKey);
         builder.array(ENRICH_VALUES.getPreferredName(), enrichValues.toArray(new String[0]));
+        if (versionCreated != null) {
+            builder.field(VERSION_CREATED.getPreferredName(), versionCreated.toString());
+        }
         return builder;
     }
 
@@ -153,7 +179,8 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
             Objects.equals(query, policy.query) &&
             indices.equals(policy.indices) &&
             enrichKey.equals(policy.enrichKey) &&
-            enrichValues.equals(policy.enrichValues);
+            enrichValues.equals(policy.enrichValues) &&
+            Objects.equals(versionCreated, policy.versionCreated);
     }
 
     @Override
@@ -163,7 +190,8 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
             query,
             indices,
             enrichKey,
-            enrichValues
+            enrichValues,
+            versionCreated
         );
     }
 
@@ -235,7 +263,9 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
 
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME);
-            declareParserOptions(PARSER);
+            declareCommonConstructorParsingOptions(PARSER);
+            PARSER.declareField((policy, version) -> policy.policy.setVersionCreated(version), ((p, c) -> Version.fromString(p.text())),
+                VERSION_CREATED, ValueType.STRING);
         }
 
         private final String name;

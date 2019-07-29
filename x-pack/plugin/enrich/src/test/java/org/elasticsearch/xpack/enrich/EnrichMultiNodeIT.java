@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.enrich;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -69,7 +70,12 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
 
             EnrichPolicy result =
                 client().execute(GetEnrichPolicyAction.INSTANCE, new GetEnrichPolicyAction.Request(policyName)).actionGet().getPolicy();
-            assertThat(result, equalTo(enrichPolicy));
+            assertThat(result.getType(), equalTo(enrichPolicy.getType()));
+            assertThat(result.getQuery(), equalTo(enrichPolicy.getQuery()));
+            assertThat(result.getIndices(), equalTo(enrichPolicy.getIndices()));
+            assertThat(result.getEnrichKey(), equalTo(enrichPolicy.getEnrichKey()));
+            assertThat(result.getEnrichValues(), equalTo(enrichPolicy.getEnrichValues()));
+            assertThat(result.getVersionCreated(), equalTo(Version.CURRENT));
             String enrichIndexPrefix = EnrichPolicy.getBaseName(policyName) + "*";
             refresh(enrichIndexPrefix);
             SearchResponse searchResponse = client().search(new SearchRequest(enrichIndexPrefix)).actionGet();

@@ -8,6 +8,7 @@ package org.elasticsearch.test.enrich;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -74,6 +75,16 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
         assertThat(_source.get("host"), equalTo("elastic.co"));
         assertThat(_source.get("global_rank"), equalTo(25));
         assertThat(_source.get("tld_rank"), equalTo(7));
+    }
+
+    public void testImmutablePolicy() throws IOException {
+        Request putPolicyRequest = new Request("PUT", "/_enrich/policy/my_policy");
+        putPolicyRequest.setJsonEntity("{\"type\": \"exact_match\",\"indices\": [\"my-source-index\"], \"enrich_key\": \"host\", " +
+            "\"enrich_values\": [\"globalRank\", \"tldRank\", \"tld\"]}");
+        assertOK(client().performRequest(putPolicyRequest));
+
+        ResponseException exc = expectThrows(ResponseException.class, () -> client().performRequest(putPolicyRequest));
+        assertTrue(exc.getMessage().contains("policy [my_policy] already exists"));
     }
 
     private static Map<String, Object> toMap(Response response) throws IOException {

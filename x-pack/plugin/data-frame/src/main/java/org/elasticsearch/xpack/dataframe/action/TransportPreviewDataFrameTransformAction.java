@@ -143,7 +143,7 @@ public class TransportPreviewDataFrameTransformAction extends
                         r -> {
                             try {
                                 final CompositeAggregation agg = r.getAggregations().get(COMPOSITE_AGGREGATION_NAME);
-                                DataFrameIndexerTransformStats stats = DataFrameIndexerTransformStats.withDefaultTransformId();
+                                DataFrameIndexerTransformStats stats = new DataFrameIndexerTransformStats();
                                 // remove all internal fields
 
                                 if (pipeline == null) {

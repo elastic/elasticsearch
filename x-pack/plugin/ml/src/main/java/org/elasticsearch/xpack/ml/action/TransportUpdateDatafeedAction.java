@@ -16,8 +16,10 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -31,12 +33,16 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MlConfigMigrationEligibilityCheck;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
-public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<UpdateDatafeedAction.Request, PutDatafeedAction.Response> {
+public class TransportUpdateDatafeedAction extends
+    TransportMasterNodeAction<UpdateDatafeedAction.Request, PutDatafeedAction.Response> {
 
+    private final Client client;
     private final DatafeedConfigProvider datafeedConfigProvider;
     private final JobConfigProvider jobConfigProvider;
     private final MlConfigMigrationEligibilityCheck migrationEligibilityCheck;
@@ -46,12 +52,13 @@ public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<Upd
                                          ThreadPool threadPool, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver,
                                          Client client, NamedXContentRegistry xContentRegistry) {
-        super(UpdateDatafeedAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, UpdateDatafeedAction.Request::new);
+        super(UpdateDatafeedAction.NAME, transportService, clusterService, threadPool, actionFilters, UpdateDatafeedAction.Request::new,
+                indexNameExpressionResolver);
 
-        datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
-        jobConfigProvider = new JobConfigProvider(client, xContentRegistry);
-        migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
+        this.client = client;
+        this.datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
+        this.jobConfigProvider = new JobConfigProvider(client, xContentRegistry);
+        this.migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
     }
 
     @Override
@@ -60,8 +67,8 @@ public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<Upd
     }
 
     @Override
-    protected PutDatafeedAction.Response newResponse() {
-        return new PutDatafeedAction.Response();
+    protected PutDatafeedAction.Response read(StreamInput in) throws IOException {
+        return new PutDatafeedAction.Response(in);
     }
 
     @Override
@@ -86,21 +93,42 @@ public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<Upd
 
         String datafeedId = request.getUpdate().getId();
 
-        CheckedConsumer<Boolean, Exception> updateConsumer = ok -> {
-            datafeedConfigProvider.updateDatefeedConfig(request.getUpdate().getId(), request.getUpdate(), headers,
+        CheckedConsumer<BulkByScrollResponse, Exception> updateConsumer =
+            unused -> {
+                datafeedConfigProvider.updateDatefeedConfig(
+                    datafeedId,
+                    request.getUpdate(),
+                    headers,
                     jobConfigProvider::validateDatafeedJob,
                     ActionListener.wrap(
-                            updatedConfig -> listener.onResponse(new PutDatafeedAction.Response(updatedConfig)),
-                            listener::onFailure
-                    ));
-        };
+                        updatedConfig -> listener.onResponse(new PutDatafeedAction.Response(updatedConfig)),
+                        listener::onFailure));
+            };
+
+        CheckedConsumer<Boolean, Exception> deleteTimingStatsAndUpdateConsumer =
+            unused -> {
+                datafeedConfigProvider.getDatafeedConfig(
+                    datafeedId,
+                    ActionListener.wrap(
+                        datafeedConfigBuilder -> {
+                            String jobId = datafeedConfigBuilder.build().getJobId();
+                            if (jobId.equals(request.getUpdate().getJobId())) {
+                                // Datafeed's jobId didn't change, no point in deleting datafeed timing stats.
+                                updateConsumer.accept(null);
+                            } else {
+                                JobDataDeleter jobDataDeleter = new JobDataDeleter(client, jobId);
+                                jobDataDeleter.deleteDatafeedTimingStats(ActionListener.wrap(updateConsumer, listener::onFailure));
+                            }
+                        },
+                        listener::onFailure));
+            };
 
 
         if (request.getUpdate().getJobId() != null) {
-            checkJobDoesNotHaveADifferentDatafeed(request.getUpdate().getJobId(), datafeedId,
-                    ActionListener.wrap(updateConsumer, listener::onFailure));
+            checkJobDoesNotHaveADifferentDatafeed(
+                request.getUpdate().getJobId(), datafeedId, ActionListener.wrap(deleteTimingStatsAndUpdateConsumer, listener::onFailure));
         } else {
-            updateConsumer.accept(Boolean.TRUE);
+            updateConsumer.accept(null);
         }
     }
 

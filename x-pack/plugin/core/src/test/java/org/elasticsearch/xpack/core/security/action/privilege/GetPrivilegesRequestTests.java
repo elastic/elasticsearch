@@ -29,8 +29,7 @@ public class GetPrivilegesRequestTests extends ESTestCase {
         final BytesStreamOutput out = new BytesStreamOutput();
         original.writeTo(out);
 
-        final GetPrivilegesRequest copy = new GetPrivilegesRequest();
-        copy.readFrom(out.bytes().streamInput());
+        final GetPrivilegesRequest copy = new GetPrivilegesRequest(out.bytes().streamInput());
 
         assertThat(original.application(), Matchers.equalTo(copy.application()));
         assertThat(original.privileges(), Matchers.equalTo(copy.privileges()));

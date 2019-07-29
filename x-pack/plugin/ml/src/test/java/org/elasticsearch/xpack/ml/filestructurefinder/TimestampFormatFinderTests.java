@@ -737,16 +737,27 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
         assertEquals(1, lenientTimestampFormatFinder.getNumMatchedFormats());
     }
 
-    public void testCustomOverrideNotMatchingBuiltInFormat() {
+    public void testCustomOverridesNotMatchingBuiltInFormat() {
 
-        String overrideFormat = "MM/dd HH.mm.ss,SSSSSS 'in' yyyy";
-        String text = "05/15 17.14.56,374946 in 2018";
-        String expectedSimpleRegex = "\\b\\d{2}/\\d{2} \\d{2}\\.\\d{2}\\.\\d{2},\\d{6} in \\d{4}\\b";
-        String expectedGrokPatternName = "CUSTOM_TIMESTAMP";
-        Map<String, String> expectedCustomGrokPatternDefinitions =
+        validateCustomOverrideNotMatchingBuiltInFormat("MM/dd HH.mm.ss,SSSSSS 'in' yyyy", "05/15 17.14.56,374946 in 2018",
+            "\\b\\d{2}/\\d{2} \\d{2}\\.\\d{2}\\.\\d{2},\\d{6} in \\d{4}\\b", "CUSTOM_TIMESTAMP",
             Collections.singletonMap(TimestampFormatFinder.CUSTOM_TIMESTAMP_GROK_NAME,
-                "%{MONTHNUM2}/%{MONTHDAY} %{HOUR}\\.%{MINUTE}\\.%{SECOND} in %{YEAR}");
+                "%{MONTHNUM2}/%{MONTHDAY} %{HOUR}\\.%{MINUTE}\\.%{SECOND} in %{YEAR}"));
 
+        validateCustomOverrideNotMatchingBuiltInFormat("'some_prefix 'dd.MM.yyyy HH:mm:ss.SSSSSS", "some_prefix 06.01.2018 16:56:14.295748",
+            "some_prefix \\d{2}\\.\\d{2}\\.\\d{4} \\d{2}:\\d{2}:\\d{2}\\.\\d{6}\\b", "CUSTOM_TIMESTAMP",
+            Collections.singletonMap(TimestampFormatFinder.CUSTOM_TIMESTAMP_GROK_NAME,
+                "some_prefix %{MONTHDAY}\\.%{MONTHNUM2}\\.%{YEAR} %{HOUR}:%{MINUTE}:%{SECOND}"));
+
+        validateCustomOverrideNotMatchingBuiltInFormat("dd.MM. yyyy HH:mm:ss.SSSSSS", "06.01. 2018 16:56:14.295748",
+            "\\b\\d{2}\\.\\d{2}\\. \\d{4} \\d{2}:\\d{2}:\\d{2}\\.\\d{6}\\b", "CUSTOM_TIMESTAMP",
+            Collections.singletonMap(TimestampFormatFinder.CUSTOM_TIMESTAMP_GROK_NAME,
+                "%{MONTHDAY}\\.%{MONTHNUM2}\\. %{YEAR} %{HOUR}:%{MINUTE}:%{SECOND}"));
+    }
+
+    private void validateCustomOverrideNotMatchingBuiltInFormat(String overrideFormat, String text, String expectedSimpleRegex,
+                                                                String expectedGrokPatternName,
+                                                                Map<String, String> expectedCustomGrokPatternDefinitions) {
         TimestampFormatFinder strictTimestampFormatFinder = new TimestampFormatFinder(explanation, overrideFormat, true, true, true,
             NOOP_TIMEOUT_CHECKER);
         strictTimestampFormatFinder.addSample(text);

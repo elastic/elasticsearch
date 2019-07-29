@@ -732,7 +732,7 @@ public class SamlRealmTests extends SamlTestCase {
         } else {
             JavaVersion full =
                 AccessController.doPrivileged(
-                        (PrivilegedAction<JavaVersion>) () -> JavaVersion.parse(System.getProperty("java.specification.version")));
+                    (PrivilegedAction<JavaVersion>) () -> JavaVersion.parse(System.getProperty("java.version")));
             if (full.compareTo(JavaVersion.parse("12.0.1")) < 0) {
                 return List.of("TLSv1.2");
             }

@@ -33,7 +33,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -67,7 +67,7 @@ public class MultiGetRequest extends ActionRequest
     /**
      * A single get item.
      */
-    public static class Item implements Streamable, IndicesRequest, ToXContentObject {
+    public static class Item implements Writeable, IndicesRequest, ToXContentObject {
 
         private String index;
         private String type;
@@ -80,6 +80,18 @@ public class MultiGetRequest extends ActionRequest
 
         public Item() {
 
+        }
+
+        public Item(StreamInput in) throws IOException {
+            index = in.readString();
+            type = in.readOptionalString();
+            id = in.readString();
+            routing = in.readOptionalString();
+            storedFields = in.readOptionalStringArray();
+            version = in.readLong();
+            versionType = VersionType.fromValue(in.readByte());
+
+            fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
         }
 
         /**
@@ -181,25 +193,6 @@ public class MultiGetRequest extends ActionRequest
             return this;
         }
 
-        public static Item readItem(StreamInput in) throws IOException {
-            Item item = new Item();
-            item.readFrom(in);
-            return item;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            index = in.readString();
-            type = in.readOptionalString();
-            id = in.readString();
-            routing = in.readOptionalString();
-            storedFields = in.readOptionalStringArray();
-            version = in.readLong();
-            versionType = VersionType.fromValue(in.readByte());
-
-            fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(index);
@@ -271,6 +264,21 @@ public class MultiGetRequest extends ActionRequest
     boolean realtime = true;
     boolean refresh;
     List<Item> items = new ArrayList<>();
+
+    public MultiGetRequest() {}
+
+    public MultiGetRequest(StreamInput in) throws IOException {
+        super(in);
+        preference = in.readOptionalString();
+        refresh = in.readBoolean();
+        realtime = in.readBoolean();
+
+        int size = in.readVInt();
+        items = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            items.add(new Item(in));
+        }
+    }
 
     public List<Item> getItems() {
         return this.items;
@@ -528,20 +536,6 @@ public class MultiGetRequest extends ActionRequest
     @Override
     public Iterator<Item> iterator() {
         return Collections.unmodifiableCollection(items).iterator();
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        preference = in.readOptionalString();
-        refresh = in.readBoolean();
-        realtime = in.readBoolean();
-
-        int size = in.readVInt();
-        items = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            items.add(Item.readItem(in));
-        }
     }
 
     @Override

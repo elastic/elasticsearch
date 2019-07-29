@@ -4,14 +4,13 @@
 :response: StartDatafeedResponse
 --
 [id="{upid}-{api}"]
-=== Start Datafeed API
+=== Start datafeed API
 
-The Start Datafeed API provides the ability to start a {ml} datafeed in the cluster.
-It accepts a +{request}+ object and responds
-with a +{response}+ object.
+Starts a {ml} datafeed in the cluster. It accepts a +{request}+ object and
+responds with a +{response}+ object.
 
 [id="{upid}-{api}-request"]
-==== Start Datafeed Request
+==== Start datafeed request
 
 A +{request}+ object is created referencing a non-null `datafeedId`.
 All other fields are optional for the request.
@@ -20,9 +19,9 @@ All other fields are optional for the request.
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
-<1> Constructing a new request referencing an existing `datafeedId`
+<1> Constructing a new request referencing an existing `datafeedId`.
 
-==== Optional Arguments
+==== Optional arguments
 
 The following arguments are optional.
 

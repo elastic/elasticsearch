@@ -1,5 +1,5 @@
-[[search-request-collapse]]
-=== Field Collapsing
+[[request-body-search-collapse]]
+==== Field Collapsing
 
 Allows to collapse search results based on field values.
 The collapsing is done by selecting only the top sorted document per collapse key.
@@ -35,7 +35,7 @@ The field used for collapsing must be a single valued <<keyword, `keyword`>> or 
 NOTE: The collapsing is applied to the top hits only and does not affect aggregations.
 
 
-==== Expand collapse results
+===== Expand collapse results
 
 It is also possible to expand each collapsed top hits with the `inner_hits` option.
 
@@ -68,7 +68,7 @@ GET /twitter/_search
 <4> how to sort the document inside each group
 <5> the number of concurrent requests allowed to retrieve the inner_hits` per group
 
-See <<search-request-inner-hits, inner hits>> for the complete list of supported options and the format of the response.
+See <<request-body-search-inner-hits, inner hits>> for the complete list of supported options and the format of the response.
 
 It is also possible to request multiple `inner_hits` for each collapsed hit.  This can be useful when you want to get
 multiple representations of the collapsed hits.
@@ -114,10 +114,10 @@ The `max_concurrent_group_searches` request parameter can be used to control
 the maximum number of concurrent searches allowed in this phase.
 The default is based on the number of data nodes and the default search thread pool size.
 
-WARNING: `collapse` cannot be used in conjunction with <<search-request-scroll, scroll>>,
-<<search-request-rescore, rescore>> or <<search-request-search-after, search after>>.
+WARNING: `collapse` cannot be used in conjunction with <<request-body-search-scroll, scroll>>,
+<<request-body-search-rescore, rescore>> or <<request-body-search-search-after, search after>>.
 
-==== Second level of collapsing
+===== Second level of collapsing
 
 Second level of collapsing is also supported and is applied to `inner_hits`.
 For example, the following request finds the top scored tweets for

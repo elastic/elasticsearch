@@ -95,7 +95,7 @@ public class RestSqlQueryAction extends BaseRestHandler {
             return channel -> client.execute(SqlQueryAction.INSTANCE, sqlRequest, new RestResponseListener<SqlQueryResponse>(channel) {
                 @Override
                 public RestResponse buildResponse(SqlQueryResponse response) throws Exception {
-                    XContentBuilder builder = XContentBuilder.builder(xContentType.xContent());
+                    XContentBuilder builder = channel.newBuilder(request.getXContentType(), xContentType, true);
                     response.toXContent(builder, request);
                     return new BytesRestResponse(RestStatus.OK, builder);
                 }

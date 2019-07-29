@@ -24,7 +24,6 @@ import java.util.function.Function;
 public class SamlRealmSettings {
 
     public static final String TYPE = "saml";
-    private static final String TRANSIENT_NAMEID_FORMAT = "urn:oasis:names:tc:SAML:2.0:nameid-format:transient";
 
     // these settings will be used under the prefix xpack.security.authc.realms.REALM_NAME.
     private static final String IDP_METADATA_SETTING_PREFIX = "idp.metadata.";
@@ -49,9 +48,8 @@ public class SamlRealmSettings {
     public static final Setting.AffixSetting<String> SP_ACS = RealmSettings.simpleString(TYPE, "sp.acs", Setting.Property.NodeScope);
     public static final Setting.AffixSetting<String> SP_LOGOUT = RealmSettings.simpleString(TYPE, "sp.logout", Setting.Property.NodeScope);
 
-    public static final Setting.AffixSetting<String> NAMEID_FORMAT = Setting.affixKeySetting(
-            RealmSettings.realmSettingPrefix(TYPE), "nameid_format",
-            key -> new Setting<>(key, s -> TRANSIENT_NAMEID_FORMAT, Function.identity(), Setting.Property.NodeScope));
+    public static final Setting.AffixSetting<String> NAMEID_FORMAT
+        = RealmSettings.simpleString(TYPE, "nameid_format", Setting.Property.NodeScope);
 
     public static final Setting.AffixSetting<Boolean> NAMEID_ALLOW_CREATE = Setting.affixKeySetting(
             RealmSettings.realmSettingPrefix(TYPE), "nameid.allow_create",

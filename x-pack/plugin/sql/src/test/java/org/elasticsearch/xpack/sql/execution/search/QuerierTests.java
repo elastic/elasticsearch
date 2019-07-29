@@ -75,7 +75,8 @@ public class QuerierTests extends ESTestCase {
         for (int j = 0; j < noColumns; j++) {
             boolean order = randomBoolean();
             ordering[j] = order;
-            tuples.add(new Tuple<>(j, order ? Comparator.naturalOrder() : Comparator.reverseOrder()));
+            Comparator comp = order ? Comparator.naturalOrder() : Comparator.reverseOrder();
+            tuples.add(new Tuple<>(j, comp));
         }
 
         // Insert random no of documents (rows) with random 0/1 values for each field

@@ -1,5 +1,5 @@
-[[search-request-docvalue-fields]]
-=== Doc value Fields
+[[request-body-search-docvalue-fields]]
+==== Doc value Fields
 
 Allows to return the <<doc-values,doc value>> representation of a field for each hit, for
 example:
@@ -55,7 +55,7 @@ Note that if the fields parameter specifies fields without docvalues it will try
 causing the terms for that field to be loaded to memory (cached), which will result in more memory consumption.
 
 [float]
-==== Custom formats
+====== Custom formats
 
 While most fields do not support custom formats, some of them do:
 
@@ -70,4 +70,4 @@ with the configured `date` format, etc.
 NOTE: On its own, `docvalue_fields` cannot be used to load fields in nested
 objects -- if a field contains a nested object in its path, then no data will
 be returned for that docvalue field. To access nested fields, `docvalue_fields`
-must be used within an <<search-request-inner-hits, `inner_hits`>> block.
+must be used within an <<request-body-search-inner-hits, `inner_hits`>> block.

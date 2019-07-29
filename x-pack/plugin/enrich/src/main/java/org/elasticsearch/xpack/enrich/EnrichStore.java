@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.enrich;
 
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -46,6 +47,9 @@ public final class EnrichStore {
 
         updateClusterState(clusterService, handler, current -> {
             final Map<String, EnrichPolicy> policies = getPolicies(current);
+            if (policies.get(name) != null) {
+                throw new ResourceAlreadyExistsException("policy [{}] already exists", name);
+            }
             policies.put(name, policy);
             return policies;
         });

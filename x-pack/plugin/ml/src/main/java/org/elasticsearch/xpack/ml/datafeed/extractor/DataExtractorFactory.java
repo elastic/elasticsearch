@@ -16,9 +16,10 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationDataExtractorFactory;
-import org.elasticsearch.xpack.ml.datafeed.extractor.chunked.ChunkedDataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.RollupDataExtractorFactory;
+import org.elasticsearch.xpack.ml.datafeed.extractor.chunked.ChunkedDataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.scroll.ScrollDataExtractorFactory;
 
 public interface DataExtractorFactory {
@@ -31,10 +32,11 @@ public interface DataExtractorFactory {
                        DatafeedConfig datafeed,
                        Job job,
                        NamedXContentRegistry xContentRegistry,
+                       DatafeedTimingStatsReporter timingStatsReporter,
                        ActionListener<DataExtractorFactory> listener) {
         ActionListener<DataExtractorFactory> factoryHandler = ActionListener.wrap(
             factory -> listener.onResponse(datafeed.getChunkingConfig().isEnabled()
-                ? new ChunkedDataExtractorFactory(client, datafeed, job, xContentRegistry, factory) : factory)
+                ? new ChunkedDataExtractorFactory(client, datafeed, job, xContentRegistry, factory, timingStatsReporter) : factory)
             , listener::onFailure
         );
 
@@ -42,13 +44,15 @@ public interface DataExtractorFactory {
             response -> {
                 if (response.getJobs().isEmpty()) { // This means no rollup indexes are in the config
                     if (datafeed.hasAggregations()) {
-                        factoryHandler.onResponse(new AggregationDataExtractorFactory(client, datafeed, job, xContentRegistry));
+                        factoryHandler.onResponse(
+                            new AggregationDataExtractorFactory(client, datafeed, job, xContentRegistry, timingStatsReporter));
                     } else {
-                        ScrollDataExtractorFactory.create(client, datafeed, job, xContentRegistry, factoryHandler);
+                        ScrollDataExtractorFactory.create(client, datafeed, job, xContentRegistry, timingStatsReporter, factoryHandler);
                     }
                 } else {
                     if (datafeed.hasAggregations()) { // Rollup indexes require aggregations
-                        RollupDataExtractorFactory.create(client, datafeed, job, response.getJobs(), xContentRegistry, factoryHandler);
+                        RollupDataExtractorFactory.create(
+                            client, datafeed, job, response.getJobs(), xContentRegistry, timingStatsReporter, factoryHandler);
                     } else {
                         listener.onFailure(new IllegalArgumentException("Aggregations are required when using Rollup indices"));
                     }

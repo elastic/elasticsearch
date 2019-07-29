@@ -8,9 +8,12 @@ package org.elasticsearch.xpack.enrich;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
@@ -20,6 +23,11 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class EnrichStoreTests extends ESSingleNodeTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return List.of(LocalStateEnrich.class);
+    }
 
     public void testCrud() throws Exception {
         EnrichPolicy policy = randomEnrichPolicy(XContentType.JSON);
@@ -38,6 +46,22 @@ public class EnrichStoreTests extends ESSingleNodeTestCase {
 
         deleteEnrichPolicy(name, clusterService);
         result = EnrichStore.getPolicy(name, clusterService.state());
+        assertThat(result, nullValue());
+    }
+
+    public void testImmutability() throws Exception {
+        EnrichPolicy policy = randomEnrichPolicy(XContentType.JSON);
+        ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        String name = "my-policy";
+
+        AtomicReference<Exception> error = saveEnrichPolicy(name, policy, clusterService);
+        assertThat(error.get(), nullValue());
+
+        error = saveEnrichPolicy(name, policy, clusterService);
+        assertTrue(error.get().getMessage().contains("policy [my-policy] already exists"));;
+
+        deleteEnrichPolicy(name, clusterService);
+        EnrichPolicy result = EnrichStore.getPolicy(name, clusterService.state());
         assertThat(result, nullValue());
     }
 

@@ -35,8 +35,10 @@ public class BytesTransportRequest extends TransportRequest {
     BytesReference bytes;
     Version version;
 
-    public BytesTransportRequest() {
-
+    public BytesTransportRequest(StreamInput in) throws IOException {
+        super(in);
+        bytes = in.readBytesReference();
+        version = in.getVersion();
     }
 
     public BytesTransportRequest(BytesReference bytes, Version version) {
@@ -50,13 +52,6 @@ public class BytesTransportRequest extends TransportRequest {
 
     public BytesReference bytes() {
         return this.bytes;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        bytes = in.readBytesReference();
-        version = in.getVersion();
     }
 
     /**

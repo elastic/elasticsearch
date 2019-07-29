@@ -50,7 +50,7 @@ The returned +{response}+ contains the following properties:
 `accessToken`:: This is the newly created access token.
    It can be used to authenticate to the Elasticsearch cluster.
 `type`:: The type of the token, this is always `"Bearer"`.
-`expiresIn`:: The length of time until the token will expire.
+`expiresIn`:: The length of time (in seconds) until the token will expire.
    The token will be considered invalid after that time.
 
 ["source","java",subs="attributes,callouts,macros"]

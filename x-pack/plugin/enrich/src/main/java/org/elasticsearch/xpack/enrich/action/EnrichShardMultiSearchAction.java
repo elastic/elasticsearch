@@ -30,9 +30,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -51,6 +54,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.internal.InternalSearchResponse;
@@ -59,7 +63,9 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -100,6 +106,7 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
                 .flatMap(Arrays::stream)
                 .distinct()
                 .count() == 1 : "action [" + NAME + "] cannot handle msearch request pointing to multiple indices";
+            assert assertSearchSource();
         }
 
         public Request(StreamInput in) throws IOException {
@@ -126,6 +133,38 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
         MultiSearchRequest getMultiSearchRequest() {
             return multiSearchRequest;
         }
+
+        private boolean assertSearchSource() {
+            for (SearchRequest request : multiSearchRequest.requests()) {
+                SearchSourceBuilder copy = copy(request.source());
+
+                // validate that only a from, size, query and source filtering has been provided (other features are not supported):
+                // (first unset, what is supported and then see if there is anything left)
+                copy.query(null);
+                copy.from(0);
+                copy.size(10);
+                copy.fetchSource(null);
+                assert EMPTY_SOURCE.equals(copy) : "search request [" + Strings.toString(copy) +
+                    "] is using features that is not supported";
+            }
+            return true;
+        }
+
+        private SearchSourceBuilder copy(SearchSourceBuilder source) {
+            NamedWriteableRegistry registry = new NamedWriteableRegistry(new SearchModule(Settings.EMPTY, List.of()).getNamedWriteables());
+            try (BytesStreamOutput output = new BytesStreamOutput()) {
+                source.writeTo(output);
+                try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), registry)) {
+                    return new SearchSourceBuilder(in);
+                }
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+
+        private static final SearchSourceBuilder EMPTY_SOURCE = new SearchSourceBuilder()
+            // can't set -1 to indicate not specified
+            .from(0).size(10);
     }
 
     public static class TransportAction extends TransportSingleShardAction<Request, MultiSearchResponse> {
@@ -179,20 +218,9 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
                     final SearchSourceBuilder searchSourceBuilder = request.multiSearchRequest.requests().get(i).source();
 
                     final QueryBuilder queryBuilder = searchSourceBuilder.query();
-                    final int from = searchSourceBuilder.from() == -1 ? 0 : searchSourceBuilder.from();
-                    final int size = searchSourceBuilder.size() == -1 ? 10 : searchSourceBuilder.size();
+                    final int from = searchSourceBuilder.from();
+                    final int size = searchSourceBuilder.size();
                     final FetchSourceContext fetchSourceContext = searchSourceBuilder.fetchSource();
-
-                    // validate that only a from, size, query and source filtering has been provided (other features are not supported):
-                    // (first unset, what is supported and then see if there is anything left)
-                    searchSourceBuilder.query(null);
-                    searchSourceBuilder.from(0);
-                    searchSourceBuilder.size(10);
-                    searchSourceBuilder.fetchSource(null);
-                    if (EMPTY_SOURCE.equals(searchSourceBuilder) == false) {
-                        throw new IllegalStateException("search request [" + Strings.toString(searchSourceBuilder) +
-                            "] is using features that is not supported");
-                    }
 
                     final Query luceneQuery = queryBuilder.rewrite(context).toQuery(context);
                     final int n = from + size;
@@ -237,7 +265,4 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
         );
     }
 
-    private static final SearchSourceBuilder EMPTY_SOURCE = new SearchSourceBuilder()
-        // can't set -1 to indicate not specified
-        .from(0).size(10);
 }

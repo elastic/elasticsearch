@@ -50,6 +50,8 @@ public class EnrichShardMultiSearchActionTests extends ESSingleNodeTestCase {
         MultiSearchRequest request = new MultiSearchRequest();
         for (int i = 0; i < numSearches; i++) {
             SearchRequest searchRequest = new SearchRequest(indexName);
+            searchRequest.source().from(0);
+            searchRequest.source().size(1);
             searchRequest.source().query(new MatchAllQueryBuilder());
             searchRequest.source().fetchSource("key1", null);
             request.add(searchRequest);

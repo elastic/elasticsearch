@@ -77,6 +77,7 @@ final class ExactMatchProcessor extends AbstractProcessor {
             TermQueryBuilder termQuery = new TermQueryBuilder(enrichKey, value);
             ConstantScoreQueryBuilder constantScore = new ConstantScoreQueryBuilder(termQuery);
             SearchSourceBuilder searchBuilder = new SearchSourceBuilder();
+            searchBuilder.from(0);
             searchBuilder.size(1);
             searchBuilder.trackScores(false);
             searchBuilder.fetchSource(specifications.stream().map(s -> s.sourceField).toArray(String[]::new), null);

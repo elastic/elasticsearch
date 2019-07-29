@@ -40,6 +40,7 @@ import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
@@ -2591,7 +2592,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public void addPeerRecoveryRetentionLease(String nodeId, long globalCheckpoint, ActionListener<ReplicationResponse> listener) {
         assert assertPrimaryMode();
+        // only needed for BWC reasons involving rolling upgrades from versions that do not support PRRLs:
+        assert indexSettings.getIndexVersionCreated().before(Version.V_7_4_0);
         replicationTracker.addPeerRecoveryRetentionLease(nodeId, globalCheckpoint, listener);
+    }
+
+    public RetentionLease cloneLocalPeerRecoveryRetentionLease(String nodeId, ActionListener<ReplicationResponse> listener) {
+        assert assertPrimaryMode();
+        return replicationTracker.cloneLocalPeerRecoveryRetentionLease(nodeId, listener);
     }
 
     public void removePeerRecoveryRetentionLease(String nodeId, ActionListener<ReplicationResponse> listener) {

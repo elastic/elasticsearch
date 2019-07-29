@@ -31,6 +31,7 @@ import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
@@ -177,6 +178,11 @@ public class RecoverySourceHandler {
                 && shard.hasCompleteHistoryOperations("peer-recovery", request.startingSeqNo())
                 && (useRetentionLeases == false
                 || (retentionLeaseRef.get() != null && retentionLeaseRef.get().retainingSequenceNumber() <= request.startingSeqNo()));
+            // NB check hasCompleteHistoryOperations when computing isSequenceNumberBasedRecovery, even if there is a retention lease,
+            // because when doing a rolling upgrade from earlier than 7.4 we may create some leases that are initially unsatisfied. It's
+            // possible there are other cases where we cannot satisfy all leases, because that's not a property we currently expect to hold.
+            // Also it's pretty cheap when soft deletes are enabled, and it'd be a disaster if we tried a sequence-number-based recovery
+            // without having a complete history.
 
             if (isSequenceNumberBasedRecovery && useRetentionLeases) {
                 // all the history we need is retained by an existing retention lease, so we do not need a separate retention lock
@@ -271,19 +277,32 @@ public class RecoverySourceHandler {
                 if (useRetentionLeases && isSequenceNumberBasedRecovery == false) {
                     // We can in general use retention leases for peer recovery, but there is no lease for the target node right now.
                     runUnderPrimaryPermit(() -> {
-                            // Start the lease off retaining all the history needed from the local checkpoint of the safe commit that we've
-                            // just established on the replica. This primary is certainly retaining such history, but other replicas might
-                            // not be. No big deal if this recovery succeeds, but if this primary fails then the new primary might have to
-                            // repeat phase 1 to recover this replica.
-                            final long localCheckpointOfSafeCommit = startingSeqNo - 1;
-                            logger.trace("creating new retention lease at [{}]", localCheckpointOfSafeCommit);
-                            shard.addPeerRecoveryRetentionLease(request.targetNode().getId(), localCheckpointOfSafeCommit,
-                                new ThreadedActionListener<>(logger, shard.getThreadPool(),
-                                    ThreadPool.Names.GENERIC, establishRetentionLeaseStep, false));
+                            // Clone the peer recovery retention lease belonging to the source shard. We are retaining history between the
+                            // the local checkpoint of the safe commit we're creating and this lease's retained seqno with the retention
+                            // lock, and by cloning an existing lease we (approximately) know that all our peers are also retaining history
+                            // as requested by the cloned lease. If the recovery now fails before copying enough history over then a
+                            // subsequent attempt will find this lease, determine it is not enough, and fall back to a file-based recovery.
+                            //
+                            // (approximately) because we do not guarantee to be able to satisfy every lease on every peer.
+                            logger.trace("cloning primary's retention lease");
+                            try {
+                                final RetentionLease clonedLease = shard.cloneLocalPeerRecoveryRetentionLease(request.targetNode().getId(),
+                                    new ThreadedActionListener<>(logger, shard.getThreadPool(),
+                                        ThreadPool.Names.GENERIC, establishRetentionLeaseStep, false));
+                                logger.trace("cloned primary's retention lease as [{}]", clonedLease);
+                            } catch (RetentionLeaseNotFoundException e) {
+                                // it's possible that the primary has no retention lease yet if we are doing a rolling upgrade from a
+                                // version before 7.4, and in that case we just create a lease using the local checkpoint of the safe commit
+                                // which we're using for recovery as a conservative estimate for the global checkpoint.
+                                assert shard.indexSettings().getIndexVersionCreated().before(Version.V_7_4_0);
+                                final long estimatedGlobalCheckpoint = startingSeqNo - 1;
+                                shard.addPeerRecoveryRetentionLease(request.targetNode().getId(),
+                                    estimatedGlobalCheckpoint, new ThreadedActionListener<>(logger, shard.getThreadPool(),
+                                        ThreadPool.Names.GENERIC, establishRetentionLeaseStep, false));
+                                logger.trace("created retention lease with estimated checkpoint of [{}]", estimatedGlobalCheckpoint);
+                            }
                     }, shardId + " establishing retention lease for [" + request.targetAllocationId() + "]",
                         shard, cancellableThreads, logger);
-                    // all the history we need is now retained by a retention lease so we can close the retention lock
-                    retentionLock.close();
                 } else {
                     establishRetentionLeaseStep.onResponse(null);
                 }
@@ -313,7 +332,7 @@ public class RecoverySourceHandler {
                 final Translog.Snapshot phase2Snapshot = shard.getHistoryOperations("peer-recovery", startingSeqNo);
                 resources.add(phase2Snapshot);
 
-                if (useRetentionLeases == false) {
+                if (useRetentionLeases == false || isSequenceNumberBasedRecovery == false) {
                     // we can release the retention lock here because the snapshot itself will retain the required operations.
                     retentionLock.close();
                 }

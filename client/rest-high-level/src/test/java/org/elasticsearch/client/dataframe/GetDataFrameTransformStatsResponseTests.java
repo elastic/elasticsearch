@@ -21,8 +21,8 @@ package org.elasticsearch.client.dataframe;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.TaskOperationFailure;
-import org.elasticsearch.client.dataframe.transforms.DataFrameTransformStateAndStats;
-import org.elasticsearch.client.dataframe.transforms.DataFrameTransformStateAndStatsTests;
+import org.elasticsearch.client.dataframe.transforms.DataFrameTransformStats;
+import org.elasticsearch.client.dataframe.transforms.DataFrameTransformStatsTests;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
 
@@ -48,9 +48,9 @@ public class GetDataFrameTransformStatsResponseTests extends ESTestCase {
 
     private static GetDataFrameTransformStatsResponse createTestInstance() {
         int count = randomIntBetween(1, 3);
-        List<DataFrameTransformStateAndStats> stats = new ArrayList<>();
+        List<DataFrameTransformStats> stats = new ArrayList<>();
         for (int i=0; i<count; i++) {
-            stats.add(DataFrameTransformStateAndStatsTests.randomInstance());
+            stats.add(DataFrameTransformStatsTests.randomInstance());
         }
 
         List<TaskOperationFailure> taskFailures = null;
@@ -77,8 +77,8 @@ public class GetDataFrameTransformStatsResponseTests extends ESTestCase {
         builder.startObject();
         {
             builder.startArray("transforms");
-            for (DataFrameTransformStateAndStats stats : response.getTransformsStateAndStats()) {
-                DataFrameTransformStateAndStatsTests.toXContent(stats, builder);
+            for (DataFrameTransformStats stats : response.getTransformsStats()) {
+                DataFrameTransformStatsTests.toXContent(stats, builder);
             }
             builder.endArray();
 
@@ -92,7 +92,7 @@ public class GetDataFrameTransformStatsResponseTests extends ESTestCase {
     // the object so use a custom compare method rather than Object.equals
     private static void assertEqualInstances(GetDataFrameTransformStatsResponse expected,
                                              GetDataFrameTransformStatsResponse actual) {
-        assertEquals(expected.getTransformsStateAndStats(), actual.getTransformsStateAndStats());
+        assertEquals(expected.getTransformsStats(), actual.getTransformsStats());
         AcknowledgedTasksResponseTests.assertTaskOperationFailuresEqual(expected.getTaskFailures(), actual.getTaskFailures());
         AcknowledgedTasksResponseTests.assertNodeFailuresEqual(expected.getNodeFailures(), actual.getNodeFailures());
     }

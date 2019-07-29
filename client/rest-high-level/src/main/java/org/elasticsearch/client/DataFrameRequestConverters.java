@@ -39,6 +39,7 @@ import static org.elasticsearch.client.RequestConverters.REQUEST_BODY_CONTENT_TY
 import static org.elasticsearch.client.RequestConverters.createEntity;
 import static org.elasticsearch.client.dataframe.DeleteDataFrameTransformRequest.FORCE;
 import static org.elasticsearch.client.dataframe.GetDataFrameTransformRequest.ALLOW_NO_MATCH;
+import static org.elasticsearch.client.dataframe.PutDataFrameTransformRequest.DEFER_VALIDATION;
 
 final class DataFrameRequestConverters {
 
@@ -51,6 +52,9 @@ final class DataFrameRequestConverters {
                 .build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
         request.setEntity(createEntity(putRequest, REQUEST_BODY_CONTENT_TYPE));
+        if (putRequest.getDeferValidation() != null) {
+            request.addParameter(DEFER_VALIDATION, Boolean.toString(putRequest.getDeferValidation()));
+        }
         return request;
     }
 

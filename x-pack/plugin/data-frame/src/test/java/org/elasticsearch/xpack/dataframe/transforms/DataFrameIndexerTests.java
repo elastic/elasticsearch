@@ -213,7 +213,7 @@ public class DataFrameIndexerTests extends ESTestCase {
             DataFrameAuditor auditor = new DataFrameAuditor(client, "node_1");
 
             MockedDataFrameIndexer indexer = new MockedDataFrameIndexer(executor, config, Collections.emptyMap(), auditor, state, null,
-                    new DataFrameIndexerTransformStats(config.getId()), searchFunction, bulkFunction, failureConsumer);
+                    new DataFrameIndexerTransformStats(), searchFunction, bulkFunction, failureConsumer);
             final CountDownLatch latch = indexer.newLatch(1);
             indexer.start();
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));

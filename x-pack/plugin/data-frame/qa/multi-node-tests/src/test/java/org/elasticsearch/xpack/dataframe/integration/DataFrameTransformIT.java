@@ -65,9 +65,8 @@ public class DataFrameTransformIT extends DataFrameIntegTestCase {
         waitUntilCheckpoint(config.getId(), 1L);
 
         // It will eventually be stopped
-        assertBusy(() ->
-            assertThat(getDataFrameTransformStats(config.getId()).getTransformsStateAndStats().get(0).getTransformState().getIndexerState(),
-                equalTo(IndexerState.STOPPED)));
+        assertBusy(() -> assertThat(getDataFrameTransformStats(config.getId())
+                .getTransformsStats().get(0).getCheckpointingInfo().getNext().getIndexerState(), equalTo(IndexerState.STOPPED)));
         stopDataFrameTransform(config.getId());
 
         DataFrameTransformConfig storedConfig = getDataFrameTransform(config.getId()).getTransformConfigurations().get(0);
@@ -103,13 +102,13 @@ public class DataFrameTransformIT extends DataFrameIntegTestCase {
         assertTrue(startDataFrameTransform(config.getId(), RequestOptions.DEFAULT).isAcknowledged());
 
         waitUntilCheckpoint(config.getId(), 1L);
-        assertThat(getDataFrameTransformStats(config.getId()).getTransformsStateAndStats().get(0).getTransformState().getTaskState(),
+        assertThat(getDataFrameTransformStats(config.getId()).getTransformsStats().get(0).getTaskState(),
                 equalTo(DataFrameTransformTaskState.STARTED));
 
         long docsIndexed = getDataFrameTransformStats(config.getId())
-            .getTransformsStateAndStats()
+            .getTransformsStats()
             .get(0)
-            .getTransformStats()
+            .getIndexerStats()
             .getNumDocuments();
 
         DataFrameTransformConfig storedConfig = getDataFrameTransform(config.getId()).getTransformConfigurations().get(0);
@@ -148,9 +147,9 @@ public class DataFrameTransformIT extends DataFrameIntegTestCase {
 
         // Assert that we wrote the new docs
         assertThat(getDataFrameTransformStats(config.getId())
-            .getTransformsStateAndStats()
+            .getTransformsStats()
             .get(0)
-            .getTransformStats()
+            .getIndexerStats()
             .getNumDocuments(), greaterThan(docsIndexed));
 
         stopDataFrameTransform(config.getId());

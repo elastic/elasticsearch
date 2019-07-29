@@ -39,7 +39,6 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -83,7 +82,7 @@ public class PeerRecoverySourceService implements IndexEventListener {
         }
     }
 
-    private void recover(StartRecoveryRequest request, ActionListener<RecoveryResponse> listener) throws IOException {
+    private void recover(StartRecoveryRequest request, ActionListener<RecoveryResponse> listener) {
         final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         final IndexShard shard = indexService.getShard(request.shardId().id());
 

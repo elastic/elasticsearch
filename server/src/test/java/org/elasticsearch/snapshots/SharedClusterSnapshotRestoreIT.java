@@ -3615,6 +3615,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
     }
 
     public void testParallelRestoreOperations() {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/44630", Constants.WINDOWS);
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
         String repoName = "test-restore-snapshot-repo";

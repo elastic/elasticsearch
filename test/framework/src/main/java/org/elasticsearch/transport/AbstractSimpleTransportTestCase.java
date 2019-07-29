@@ -1995,8 +1995,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             DiscoveryNode node =
                 new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(), version0);
             ConnectTransportException exception = expectThrows(ConnectTransportException.class, () -> serviceA.connectToNode(node));
-            assertTrue(exception.getCause() instanceof TransportException);
-            assertEquals("handshake failed because connection reset", exception.getCause().getMessage());
+            assertThat(exception.getCause(), instanceOf(IllegalStateException.class));
+            assertEquals("handshake failed", exception.getCause().getMessage());
         }
 
         ConnectionProfile connectionProfile = ConnectionProfile.buildDefaultConnectionProfile(Settings.EMPTY);

@@ -97,8 +97,10 @@ public final class TransportLogger {
                     try (ThreadContext context = new ThreadContext(Settings.EMPTY)) {
                         context.readHeaders(streamInput);
                     }
-                    // now we decode the features
-                    streamInput.readStringArray();
+                    if (streamInput.getVersion().before(Version.V_8_0_0)) {
+                        // discard the features
+                        streamInput.readStringArray();
+                    }
                     sb.append(", action: ").append(streamInput.readString());
                 }
                 sb.append(']');

@@ -485,7 +485,8 @@ public class GoogleCloudStorageFixture extends AbstractHttpFixture {
 
                         // Executes the batched request
                         final RequestHandler handler =
-                                handlers.retrieve(batchedRequest.getMethod() + " " + batchedRequest.getPath(), batchedRequest.getParameters());
+                                handlers.retrieve(batchedRequest.getMethod() + " " + batchedRequest.getPath(),
+                                        batchedRequest.getParameters());
                         if (handler != null) {
                             try {
                                 batchedResponses.add(handler.handle(batchedRequest));

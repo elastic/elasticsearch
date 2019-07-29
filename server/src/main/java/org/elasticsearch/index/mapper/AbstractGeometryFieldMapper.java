@@ -78,6 +78,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
 
         Class<Processed> processedClass();
 
+        List<IndexableField> indexShape(ParseContext context, Processed shape);
     }
 
     /**
@@ -410,8 +411,6 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         return ((AbstractGeometryFieldType)fieldType).orientation();
     }
 
-    protected abstract void indexShape(ParseContext context, Processed shape);
-
     /** parsing logic for geometry indexing */
     @Override
     public void parse(ParseContext context) throws IOException {
@@ -428,7 +427,12 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
                 }
                 shape = geometryIndexer.prepareForIndexing(geometry);
             }
-            indexShape(context, shape);
+
+            List<IndexableField> fields = geometryIndexer.indexShape(context, shape);
+            createFieldNamesField(context, fields);
+            for (IndexableField field : fields) {
+                context.doc().add(field);
+            }
         } catch (Exception e) {
             if (ignoreMalformed.value() == false) {
                 throw new MapperParsingException("failed to parse field [{}] of type [{}]", e, fieldType().name(),

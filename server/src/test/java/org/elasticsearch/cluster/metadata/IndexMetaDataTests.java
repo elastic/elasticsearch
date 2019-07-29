@@ -289,37 +289,4 @@ public class IndexMetaDataTests extends ESTestCase {
         assertEquals("the number of source shards [2] must be a factor of [3]", iae.getMessage());
     }
 
-    public void testMappingOrDefault() throws IOException {
-        Settings settings = Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
-                .build();
-        IndexMetaData meta = IndexMetaData.builder("index")
-                .settings(settings)
-                .build();
-        assertNull(meta.mappingOrDefault());
-
-        meta = IndexMetaData.builder("index")
-                .settings(settings)
-                .putMapping("type", "{}")
-                .build();
-        assertNotNull(meta.mappingOrDefault());
-        assertEquals("type", meta.mappingOrDefault().type());
-
-        meta = IndexMetaData.builder("index")
-                .settings(settings)
-                .putMapping(MapperService.DEFAULT_MAPPING, "{}")
-                .build();
-        assertNotNull(meta.mappingOrDefault());
-        assertEquals(MapperService.DEFAULT_MAPPING, meta.mappingOrDefault().type());
-
-        meta = IndexMetaData.builder("index")
-                .settings(settings)
-                .putMapping("type", "{}")
-                .putMapping(MapperService.DEFAULT_MAPPING, "{}")
-                .build();
-        assertNotNull(meta.mappingOrDefault());
-        assertEquals("type", meta.mappingOrDefault().type());
-    }
 }

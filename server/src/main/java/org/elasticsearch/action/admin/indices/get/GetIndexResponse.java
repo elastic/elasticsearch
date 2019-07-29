@@ -258,10 +258,8 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
                     } else {
                         MappingMetaData mappings = null;
                         for (final ObjectObjectCursor<String, MappingMetaData> typeEntry : indexMappings) {
-                            if (typeEntry.key.equals(MapperService.DEFAULT_MAPPING) == false) {
-                                assert mappings == null;
-                                mappings = typeEntry.value;
-                            }
+                            assert mappings == null;
+                            mappings = typeEntry.value;
                         }
                         if (mappings == null) {
                             // no mappings yet

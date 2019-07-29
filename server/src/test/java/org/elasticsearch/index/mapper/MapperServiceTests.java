@@ -102,32 +102,6 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         MapperService.validateTypeName("_doc"); // no exception
     }
 
-    public void testIndexIntoDefaultMapping() throws Throwable {
-        // 1. test implicit index creation
-        ExecutionException e = expectThrows(ExecutionException.class,
-            () -> client().prepareIndex("index1", MapperService.DEFAULT_MAPPING, "1")
-                .setSource("{}", XContentType.JSON).execute().get());
-        Throwable throwable = ExceptionsHelper.unwrapCause(e.getCause());
-        if (throwable instanceof IllegalArgumentException) {
-            assertEquals("It is forbidden to index into the default mapping [_default_]", throwable.getMessage());
-        } else {
-            throw e;
-        }
-
-        // 2. already existing index
-        IndexService indexService = createIndex("index2");
-        e = expectThrows(ExecutionException.class, () -> {
-            client().prepareIndex("index1", MapperService.DEFAULT_MAPPING, "2").setSource().execute().get();
-        });
-        throwable = ExceptionsHelper.unwrapCause(e.getCause());
-        if (throwable instanceof IllegalArgumentException) {
-            assertEquals("It is forbidden to index into the default mapping [_default_]", throwable.getMessage());
-        } else {
-            throw e;
-        }
-        assertNull(indexService.mapperService().documentMapper(MapperService.DEFAULT_MAPPING));
-    }
-
     /**
      * Test that we can have at least the number of fields in new mappings that are defined by "index.mapping.total_fields.limit".
      * Any additional field should trigger an IllegalArgumentException.
@@ -326,15 +300,6 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> mapperService.merge("type2", new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE));
         assertThat(e.getMessage(), startsWith("Rejecting mapping update to [test] as the final mapping would have more than 1 type: "));
-    }
-
-    public void testDefaultMappingIsRejectedOn7() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_default_").endObject().endObject());
-        MapperService mapperService = createIndex("test").mapperService();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> mapperService.merge("_default_", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE));
-        assertEquals("The [default] mapping cannot be updated on index [test]: defaults mappings are not useful anymore now"
-            + " that indices can have at most one type.", e.getMessage());
     }
 
     public void testFieldNameLengthLimit() throws Throwable {

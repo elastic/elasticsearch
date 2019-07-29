@@ -282,17 +282,14 @@ public class RecoverySourceHandler {
                                     ThreadPool.Names.GENERIC, establishRetentionLeaseStep, false));
                     }, shardId + " establishing retention lease for [" + request.targetAllocationId() + "]",
                         shard, cancellableThreads, logger);
+                    // all the history we need is now retained by a retention lease so we can close the retention lock
+                    retentionLock.close();
                 } else {
                     establishRetentionLeaseStep.onResponse(null);
                 }
             }, onFailure);
 
             establishRetentionLeaseStep.whenComplete(r -> {
-                if (useRetentionLeases && isSequenceNumberBasedRecovery == false) {
-                    // all the history we need is now retained by a retention lease so we can close the retention lock
-                    retentionLock.close();
-                }
-
                 assert Transports.assertNotTransportThread(RecoverySourceHandler.this + "[prepareTargetForTranslog]");
                 // For a sequence based recovery, the target can keep its local translog
                 prepareTargetForTranslog(isSequenceNumberBasedRecovery == false,

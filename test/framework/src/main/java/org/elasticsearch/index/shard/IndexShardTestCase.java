@@ -27,6 +27,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -639,11 +640,15 @@ public abstract class IndexShardTestCase extends ESTestCase {
             request, Math.toIntExact(ByteSizeUnit.MB.toBytes(1)), between(1, 8));
         primary.updateShardState(primary.routingEntry(), primary.getPendingPrimaryTerm(), null,
             currentClusterStateVersion.incrementAndGet(), inSyncIds, routingTable);
-
-        PlainActionFuture<RecoveryResponse> future = new PlainActionFuture<>();
-        recovery.recoverToTarget(future);
-        future.actionGet();
-        recoveryTarget.markAsDone();
+        try {
+            PlainActionFuture<RecoveryResponse> future = new PlainActionFuture<>();
+            recovery.recoverToTarget(future);
+            future.actionGet();
+            recoveryTarget.markAsDone();
+        } catch (Exception e) {
+            recoveryTarget.fail(new RecoveryFailedException(request, e), false);
+            throw e;
+        }
     }
 
     protected void startReplicaAfterRecovery(IndexShard replica, IndexShard primary, Set<String> inSyncIds,
@@ -775,8 +780,9 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     protected void updateMappings(IndexShard shard, IndexMetaData indexMetadata) {
-        shard.indexSettings().updateIndexMetaData(indexMetadata);
         shard.mapperService().merge(indexMetadata, MapperService.MergeReason.MAPPING_UPDATE);
+        shard.indexSettings().updateIndexMetaData(
+            IndexMetaData.builder(indexMetadata).putMapping(new MappingMetaData(shard.mapperService().documentMapper())).build());
     }
 
     protected Engine.DeleteResult deleteDoc(IndexShard shard, String type, String id) throws IOException {

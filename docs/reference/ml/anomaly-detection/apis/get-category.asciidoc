@@ -6,7 +6,7 @@
 <titleabbrev>Get categories</titleabbrev>
 ++++
 
-Retrieves job results for one or more categories.
+Retrieves {anomaly-job} results for one or more categories.
 
 [[ml-get-category-request]]
 ==== {api-request-title}
@@ -35,11 +35,12 @@ For more information about categories, see
 ==== {api-path-parms-title}
 
 `<job_id>`::
-  (Required, string) Identifier for the job.
+  (Required, string) Identifier for the {anomaly-job}.
 
 `<category_id>`::
   (Optional, long) Identifier for the category. If you do not specify this
-  parameter, the API returns information about all categories in the job.
+  parameter, the API returns information about all categories in the
+  {anomaly-job}.
 
 [[ml-get-category-request-body]]
 ==== {api-request-body-title}

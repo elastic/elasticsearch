@@ -47,7 +47,9 @@ public class LongGCDisruption extends SingleNodeDisruption {
         // security manager is shared across all nodes and it uses synchronized maps internally
         Pattern.compile("java\\.lang\\.SecurityManager"),
         // SecureRandom instance from SecureRandomHolder class is shared by all nodes
-        Pattern.compile("java\\.security\\.SecureRandom")
+        Pattern.compile("java\\.security\\.SecureRandom"),
+        // Don't suspend in nio system calls to avoid potential build portability issues
+        Pattern.compile("sun\\.nio")
     };
 
     private static final ThreadMXBean threadBean = ManagementFactory.getThreadMXBean();

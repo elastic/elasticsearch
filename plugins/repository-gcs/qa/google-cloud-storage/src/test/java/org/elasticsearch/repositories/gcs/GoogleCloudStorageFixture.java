@@ -184,7 +184,7 @@ public class GoogleCloudStorageFixture extends AbstractHttpFixture {
                 } else {
                     bucket.objects.put(objectName, Item.empty(objectName));
                     final String location = /*endpoint +*/ "/upload/storage/v1/b/" + bucket.name + "/o?uploadType=resumable&upload_id="
-                            + objectName;
+                        + objectName;
                     return newResponse(RestStatus.CREATED, singletonMap("Location", location), jsonBuilder());
                 }
             } else if ("multipart".equals(uploadType)) {
@@ -450,8 +450,8 @@ public class GoogleCloudStorageFixture extends AbstractHttpFixture {
 
             // Read line by line the batched requests
             try (BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(
-                            new ByteArrayInputStream(request.getBody()), StandardCharsets.UTF_8))) {
+                                              new InputStreamReader(
+                                                  new ByteArrayInputStream(request.getBody()), StandardCharsets.UTF_8))) {
                 String line;
                 while ((line = reader.readLine()) != null) {
                     // Start of a batched request
@@ -486,8 +486,7 @@ public class GoogleCloudStorageFixture extends AbstractHttpFixture {
 
                         // Executes the batched request
                         final RequestHandler handler =
-                                handlers.retrieve(batchedRequest.getMethod() + " " + batchedRequest.getPath(),
-                                        batchedRequest.getParameters());
+                            handlers.retrieve(batchedRequest.getMethod() + " " + batchedRequest.getPath(), batchedRequest.getParameters());
                         if (handler != null) {
                             try {
                                 batchedResponses.add(handler.handle(batchedRequest));
@@ -509,10 +508,10 @@ public class GoogleCloudStorageFixture extends AbstractHttpFixture {
                 builder.append("Content-Type: application/http").append(line);
                 builder.append(line);
                 builder.append("HTTP/1.1 ")
-                        .append(response.getStatus())
-                        .append(' ')
-                        .append(RestStatus.fromCode(response.getStatus()).toString())
-                        .append(line);
+                    .append(response.getStatus())
+                    .append(' ')
+                    .append(RestStatus.fromCode(response.getStatus()).toString())
+                    .append(line);
                 builder.append("Content-Length: ").append(response.getBody().length).append(line);
                 builder.append("Content-Type: ").append(response.getContentType()).append(line);
                 response.getHeaders().forEach((k, v) -> builder.append(k).append(": ").append(v).append(line));
@@ -530,12 +529,12 @@ public class GoogleCloudStorageFixture extends AbstractHttpFixture {
         // Fake refresh of an OAuth2 token
         //
         handlers.insert("POST /o/oauth2/token", (request) ->
-                newResponse(RestStatus.OK, emptyMap(), jsonBuilder()
-                        .startObject()
-                        .field("access_token", "unknown")
-                        .field("token_type", "Bearer")
-                        .field("expires_in", 3600)
-                        .endObject())
+            newResponse(RestStatus.OK, emptyMap(), jsonBuilder()
+                .startObject()
+                    .field("access_token", "unknown")
+                    .field("token_type", "Bearer")
+                    .field("expires_in", 3600)
+                .endObject())
         );
 
         return handlers;
@@ -597,17 +596,17 @@ public class GoogleCloudStorageFixture extends AbstractHttpFixture {
         try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             try (XContentBuilder builder = jsonBuilder()) {
                 builder.startObject()
-                        .startObject("error")
-                        .field("code", status.getStatus())
-                        .field("message", message)
-                        .startArray("errors")
-                        .startObject()
-                        .field("domain", "global")
-                        .field("reason", status.toString())
-                        .field("message", message)
-                        .endObject()
-                        .endArray()
-                        .endObject()
+                            .startObject("error")
+                                .field("code", status.getStatus())
+                                .field("message", message)
+                                .startArray("errors")
+                                    .startObject()
+                                        .field("domain", "global")
+                                        .field("reason", status.toString())
+                                        .field("message", message)
+                                    .endObject()
+                                .endArray()
+                            .endObject()
                         .endObject();
                 BytesReference.bytes(builder).writeTo(out);
             }
@@ -624,10 +623,10 @@ public class GoogleCloudStorageFixture extends AbstractHttpFixture {
      */
     private static XContentBuilder buildBucketResource(final String name) throws IOException {
         return jsonBuilder().startObject()
-                .field("kind", "storage#bucket")
-                .field("name", name)
-                .field("id", name)
-                .endObject();
+                                .field("kind", "storage#bucket")
+                                .field("name", name)
+                                .field("id", name)
+                            .endObject();
     }
 
     /**
@@ -646,12 +645,12 @@ public class GoogleCloudStorageFixture extends AbstractHttpFixture {
                                                        final String bucket,
                                                        final Item item) throws IOException {
         return builder.startObject()
-                .field("kind", "storage#object")
-                .field("id", String.join("/", bucket, item.name))
-                .field("name", item.name)
-                .field("timeCreated", DateTimeFormatter.ISO_LOCAL_DATE_TIME.format(item.created))
-                .field("bucket", bucket)
-                .field("size", String.valueOf(item.bytes.length))
+                            .field("kind", "storage#object")
+                            .field("id", String.join("/", bucket, item.name))
+                            .field("name", item.name)
+                            .field("timeCreated", DateTimeFormatter.ISO_LOCAL_DATE_TIME.format(item.created))
+                            .field("bucket", bucket)
+                            .field("size", String.valueOf(item.bytes.length))
                 .endObject();
     }
 }

@@ -43,7 +43,7 @@ import java.util.Collections;
 
 public class GeometryIndexerTests extends ESTestCase {
 
-    GeoShapeIndexer indexer = new GeoShapeIndexer(true);
+    GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
     private static final WellKnownText WKT = new WellKnownText(true, geometry -> {
     });
 
@@ -209,13 +209,13 @@ public class GeometryIndexerTests extends ESTestCase {
 
     private Geometry actual(String wkt, boolean rightOrientation) throws IOException, ParseException {
         Geometry shape = parseGeometry(wkt, rightOrientation);
-        return new GeoShapeIndexer(true).prepareForIndexing(shape);
+        return new GeoShapeIndexer(true, "test").prepareForIndexing(shape);
     }
 
 
     private Geometry actual(XContentBuilder geoJson, boolean rightOrientation) throws IOException, ParseException {
         Geometry shape = parseGeometry(geoJson, rightOrientation);
-        return new GeoShapeIndexer(true).prepareForIndexing(shape);
+        return new GeoShapeIndexer(true, "test").prepareForIndexing(shape);
     }
 
     private Geometry parseGeometry(String wkt, boolean rightOrientation) throws IOException, ParseException {

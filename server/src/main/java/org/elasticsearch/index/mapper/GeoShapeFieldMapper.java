@@ -18,28 +18,13 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LatLonShape;
-import org.apache.lucene.geo.Line;
-import org.apache.lucene.geo.Polygon;
-import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.geo.geometry.Circle;
 import org.elasticsearch.geo.geometry.Geometry;
-import org.elasticsearch.geo.geometry.GeometryCollection;
-import org.elasticsearch.geo.geometry.GeometryVisitor;
-import org.elasticsearch.geo.geometry.LinearRing;
-import org.elasticsearch.geo.geometry.MultiLine;
-import org.elasticsearch.geo.geometry.MultiPoint;
-import org.elasticsearch.geo.geometry.MultiPolygon;
-import org.elasticsearch.geo.geometry.Point;
 import org.elasticsearch.index.query.VectorGeoShapeQueryProcessor;
-
-import java.util.ArrayList;
-import java.util.Arrays;
 
 /**
  * FieldMapper for indexing {@link LatLonShape}s.
@@ -80,12 +65,14 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
         protected void setupFieldType(BuilderContext context) {
             super.setupFieldType(context);
 
-            GeometryParser geometryParser = new GeometryParser(orientation == ShapeBuilder.Orientation.RIGHT, coerce(context).value(),
-                ignoreZValue().value());
+            GeoShapeFieldType fieldType = (GeoShapeFieldType)fieldType();
+            boolean orientation = fieldType.orientation == ShapeBuilder.Orientation.RIGHT;
 
-            ((GeoShapeFieldType)fieldType()).setGeometryIndexer(new GeoShapeIndexer(orientation == ShapeBuilder.Orientation.RIGHT));
-            ((GeoShapeFieldType)fieldType()).setGeometryParser( (parser, mapper) -> geometryParser.parse(parser));
-            ((GeoShapeFieldType)fieldType()).setGeometryQueryBuilder(new VectorGeoShapeQueryProcessor());
+            GeometryParser geometryParser = new GeometryParser(orientation, coerce(context).value(), ignoreZValue().value());
+
+            fieldType.setGeometryIndexer(new GeoShapeIndexer(orientation, fieldType.name()));
+            fieldType.setGeometryParser( (parser, mapper) -> geometryParser.parse(parser));
+            fieldType.setGeometryQueryBuilder(new VectorGeoShapeQueryProcessor());
         }
     }
 
@@ -107,11 +94,6 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
         public String typeName() {
             return CONTENT_TYPE;
         }
-
-        @Override
-        protected Indexer<Geometry, Geometry> geometryIndexer() {
-            return new GeoShapeIndexer(orientation == ShapeBuilder.Orientation.RIGHT);
-        }
     }
 
     public GeoShapeFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
@@ -125,103 +107,6 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
     @Override
     public GeoShapeFieldType fieldType() {
         return (GeoShapeFieldType) super.fieldType();
-    }
-
-    @Override
-    protected void indexShape(ParseContext context, Geometry luceneShape) {
-        luceneShape.visit(new LuceneGeometryIndexer(context));
-    }
-
-    private class LuceneGeometryIndexer implements GeometryVisitor<Void, RuntimeException> {
-        private ParseContext context;
-
-        private LuceneGeometryIndexer(ParseContext context) {
-            this.context = context;
-        }
-
-        @Override
-        public Void visit(Circle circle) {
-            throw new IllegalArgumentException("invalid shape type found [Circle] while indexing shape");
-        }
-
-        @Override
-        public Void visit(GeometryCollection<?> collection) {
-            for (Geometry geometry : collection) {
-                geometry.visit(this);
-            }
-            return null;
-        }
-
-        @Override
-        public Void visit(org.elasticsearch.geo.geometry.Line line) {
-            indexFields(context, LatLonShape.createIndexableFields(name(), new Line(line.getLats(), line.getLons())));
-            return null;
-        }
-
-        @Override
-        public Void visit(LinearRing ring) {
-            throw new IllegalArgumentException("invalid shape type found [LinearRing] while indexing shape");
-        }
-
-        @Override
-        public Void visit(MultiLine multiLine) {
-            for (org.elasticsearch.geo.geometry.Line line : multiLine) {
-                visit(line);
-            }
-            return null;
-        }
-
-        @Override
-        public Void visit(MultiPoint multiPoint) {
-            for(Point point : multiPoint) {
-                visit(point);
-            }
-            return null;
-        }
-
-        @Override
-        public Void visit(MultiPolygon multiPolygon) {
-            for(org.elasticsearch.geo.geometry.Polygon polygon : multiPolygon) {
-                visit(polygon);
-            }
-            return null;
-        }
-
-        @Override
-        public Void visit(Point point) {
-            indexFields(context, LatLonShape.createIndexableFields(name(), point.getLat(), point.getLon()));
-            return null;
-        }
-
-        @Override
-        public Void visit(org.elasticsearch.geo.geometry.Polygon polygon) {
-            indexFields(context, LatLonShape.createIndexableFields(name(), toLucenePolygon(polygon)));
-            return null;
-        }
-
-        @Override
-        public Void visit(org.elasticsearch.geo.geometry.Rectangle r) {
-            Polygon p = new Polygon(new double[]{r.getMinLat(), r.getMinLat(), r.getMaxLat(), r.getMaxLat(), r.getMinLat()},
-                new double[]{r.getMinLon(), r.getMaxLon(), r.getMaxLon(), r.getMinLon(), r.getMinLon()});
-            indexFields(context, LatLonShape.createIndexableFields(name(), p));
-            return null;
-        }
-    }
-
-    public static Polygon toLucenePolygon(org.elasticsearch.geo.geometry.Polygon polygon) {
-        Polygon[] holes = new Polygon[polygon.getNumberOfHoles()];
-        for(int i = 0; i<holes.length; i++) {
-            holes[i] = new Polygon(polygon.getHole(i).getLats(), polygon.getHole(i).getLons());
-        }
-        return new Polygon(polygon.getPolygon().getLats(), polygon.getPolygon().getLons(), holes);
-    }
-
-    private void indexFields(ParseContext context, Field[] fields) {
-        ArrayList<IndexableField> flist = new ArrayList<>(Arrays.asList(fields));
-        createFieldNamesField(context, flist);
-        for (IndexableField f : flist) {
-            context.doc().add(f);
-        }
     }
 
     @Override

@@ -28,6 +28,7 @@ import org.elasticsearch.search.aggregations.metrics.InternalAvg;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.test.ESTestCase;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -145,7 +146,8 @@ public class InternalMultiBucketAggregationTests extends ESTestCase {
             DocValueFormat.RAW, Collections.emptyList(), Collections.emptyMap());
         InternalAggregations internalStringAggs = new InternalAggregations(Collections.singletonList(agg));
         List<StringTerms.Bucket> stringBuckets = Collections.singletonList(new StringTerms.Bucket(
-            new BytesRef("foo".getBytes(), 0, "foo".getBytes().length), 1, internalStringAggs, false, 0, DocValueFormat.RAW));
+            new BytesRef("foo".getBytes(StandardCharsets.UTF_8), 0, "foo".getBytes(StandardCharsets.UTF_8).length), 1,
+            internalStringAggs, false, 0, DocValueFormat.RAW));
 
         InternalTerms termsAgg = new StringTerms("string_terms", BucketOrder.count(false), 1, 0, Collections.emptyList(),
             Collections.emptyMap(), DocValueFormat.RAW, 1, false, 0, stringBuckets, 0);
@@ -165,7 +167,8 @@ public class InternalMultiBucketAggregationTests extends ESTestCase {
             DocValueFormat.RAW, Collections.emptyList(), Collections.emptyMap());
         InternalAggregations internalStringAggs = new InternalAggregations(Collections.singletonList(agg));
         List<StringTerms.Bucket> stringBuckets = Collections.singletonList(new StringTerms.Bucket(
-            new BytesRef("foo".getBytes(), 0, "foo".getBytes().length), 1, internalStringAggs, false, 0, DocValueFormat.RAW));
+            new BytesRef("foo".getBytes(StandardCharsets.UTF_8), 0, "foo".getBytes(StandardCharsets.UTF_8).length), 1,
+            internalStringAggs, false, 0, DocValueFormat.RAW));
 
         InternalTerms termsAgg = new StringTerms("string_terms", BucketOrder.count(false), 1, 0, Collections.emptyList(),
             Collections.emptyMap(), DocValueFormat.RAW, 1, false, 0, stringBuckets, 0);

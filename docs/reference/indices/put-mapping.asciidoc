@@ -31,10 +31,11 @@ use the API to make the following changes to existing fields:
 [[indices-put-mapping-path-params]]
 === {api-path-parms-title}
 
-`<index>` (Required)::
+`<index>`::
 +
 --
-(string) Comma-separated list or wildcard expression of index names to update.
+(Required, string) Comma-separated list or wildcard expression of index names to
+update.
 
 You can use a value of `_all` or `*` to update all indices.
 --
@@ -43,14 +44,14 @@ You can use a value of `_all` or `*` to update all indices.
 [[indices-put-mapping-query-params]]
 === {api-query-parms-title}
 
-`allow_no_indices` (Optional)::
-(boolean) Indicates whether the operation is skipped if a wildcard expression
+`allow_no_indices`::
+(Optional, boolean) Indicates whether the operation is skipped if a wildcard expression
 matches no indices. Defaults to `false`.
 
-`expand_wildcards` (Optional)::
+`expand_wildcards`::
 +
 --
-(string) Indicates whether wildcard expressions should expand to
+(Optional, string) Indicates whether wildcard expressions should expand to
 <<indices-open-close, open or closed indices>>. Possible values are:
 
 * `open` (Default)
@@ -59,15 +60,15 @@ matches no indices. Defaults to `false`.
 * `all`
 --
 
-`ignore_unavailable` (Optional)::
-(boolean) Indicates whether unavailable indices are skipped. Defaults to
-`false`.
+`ignore_unavailable`::
+(Optional, boolean) Indicates whether unavailable indices are skipped. Defaults
+to `false`.
 
-`include_type_name` (Optional)::
+`include_type_name`::
 +
 --
-(boolean) Indicates whether the type name is included in the response. Defaults
-to `false`.
+(Optional, boolean) Indicates whether the type name is included in the response.
+Defaults to `false`.
 
 NOTE: Before 7.0.0, the 'mappings' definition used to include a type name.
 Although mappings in responses no longer contain a type name by default, you can
@@ -82,10 +83,10 @@ include::{docdir}/rest-api/timeoutparms.asciidoc[]
 [[indices-put-mapping-request-body]]
 === {api-request-body-title}
 
-`properties` (Required)::
+`properties`::
 +
 --
-(object) Describes fields in the index and their datatypes. See
+(Required, object) Describes fields in the index and their datatypes. See
 <<mapping-types>>.
 
 You can use this parameter to add new fields. You also can make the following

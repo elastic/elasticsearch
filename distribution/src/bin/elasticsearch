@@ -30,7 +30,7 @@ KEYSTORE_PASSWORD=
 if [ -f "$ES_PATH_CONF"/elasticsearch.keystore ] \
     && ! echo $* | grep -E '(^-h |-h$| -h |--help$|--help )' >/dev/null 2>&1 \
     && ! echo $* | grep -E '(^-V |-V$| -V |--version$|--version )' >/dev/null 2>&1 \
-    && ! ${keystore.passwd.check} >/dev/null 2>&1
+    && ! "`dirname "$0"`"/elasticsearch-keystore list <&- >/dev/null 2>&1
 then
   if [ -e "$ES_KEYSTORE_PASSPHRASE_FILE" ] ; then
     # read from a file or a FIFO

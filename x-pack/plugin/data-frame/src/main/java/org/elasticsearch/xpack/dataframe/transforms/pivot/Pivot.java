@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.dataframe.transforms.pivot;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
@@ -72,7 +73,7 @@ public class Pivot {
     public void validateConfig() {
         for (AggregationBuilder agg : config.getAggregationConfig().getAggregatorFactories()) {
             if (Aggregations.isSupportedByDataframe(agg.getType()) == false) {
-                throw new RuntimeException("Unsupported aggregation type [" + agg.getType() + "]");
+                throw new ElasticsearchStatusException("Unsupported aggregation type [" + agg.getType() + "]", RestStatus.BAD_REQUEST);
             }
         }
     }
@@ -82,15 +83,17 @@ public class Pivot {
 
         client.execute(SearchAction.INSTANCE, searchRequest, ActionListener.wrap(response -> {
             if (response == null) {
-                listener.onFailure(new RuntimeException("Unexpected null response from test query"));
+                listener.onFailure(new ElasticsearchStatusException("Unexpected null response from test query",
+                    RestStatus.SERVICE_UNAVAILABLE));
                 return;
             }
             if (response.status() != RestStatus.OK) {
-                listener.onFailure(new RuntimeException("Unexpected status from response of test query: "+ response.status()));
+                listener.onFailure(new ElasticsearchStatusException("Unexpected status from response of test query: " + response.status(),
+                    response.status()));
                 return;
             }
             listener.onResponse(true);
-        }, e -> listener.onFailure(new RuntimeException("Failed to test query", e))));
+        }, e -> listener.onFailure(new ElasticsearchStatusException("Failed to test query", RestStatus.SERVICE_UNAVAILABLE, e))));
     }
 
     public void deduceMappings(Client client, SourceConfig sourceConfig, final ActionListener<Map<String, String>> listener) {

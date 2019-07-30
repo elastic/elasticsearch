@@ -50,6 +50,10 @@ public class AggregationsTests extends ESTestCase {
         assertEquals("_dynamic", Aggregations.resolveTargetMapping("bucket_script", null));
         assertEquals("_dynamic", Aggregations.resolveTargetMapping("bucket_script", "int"));
 
+        // bucket_selector
+        assertEquals("_dynamic", Aggregations.resolveTargetMapping("bucket_selector", null));
+        assertEquals("_dynamic", Aggregations.resolveTargetMapping("bucket_selector", "int"));
+
         // weighted_avg
         assertEquals("_dynamic", Aggregations.resolveTargetMapping("weighted_avg", null));
         assertEquals("_dynamic", Aggregations.resolveTargetMapping("weighted_avg", "double"));

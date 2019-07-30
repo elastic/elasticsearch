@@ -53,7 +53,7 @@ public class VectorsUsageTransportAction extends XPackUsageFeatureTransportActio
         int numSparseVectorFields = 0;
         int avgDenseVectorDims = 0;
 
-        if (vectorsAvailable && vectorsEnabled) {
+        if (vectorsAvailable && vectorsEnabled && state != null) {
             for (IndexMetaData indexMetaData : state.metaData()) {
                 MappingMetaData mappingMetaData = indexMetaData.mapping();
                 if (mappingMetaData != null) {

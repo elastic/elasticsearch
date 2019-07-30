@@ -82,12 +82,12 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
         PARSER.declareString(ConstructingObjectParser.constructorArg(), SCHEDULE);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), REPOSITORY);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), CONFIG);
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), SnapshotRetentionConfiguration::parse, RETENTION);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), SnapshotRetentionConfiguration::parse, RETENTION);
     }
 
     public SnapshotLifecyclePolicy(final String id, final String name, final String schedule,
-                                   final String repository, @Nullable Map<String, Object> configuration,
-                                   final SnapshotRetentionConfiguration retentionPolicy) {
+                                   final String repository, @Nullable final Map<String, Object> configuration,
+                                   @Nullable final SnapshotRetentionConfiguration retentionPolicy) {
         this.id = Objects.requireNonNull(id, "policy id is required");
         this.name = Objects.requireNonNull(name, "policy snapshot name is required");
         this.schedule = Objects.requireNonNull(schedule, "policy schedule is required");
@@ -102,7 +102,7 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
         this.schedule = in.readString();
         this.repository = in.readString();
         this.configuration = in.readMap();
-        this.retentionPolicy = new SnapshotRetentionConfiguration(in);
+        this.retentionPolicy = in.readOptionalWriteable(SnapshotRetentionConfiguration::new);
     }
 
     public String getId() {
@@ -126,6 +126,7 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
         return this.configuration;
     }
 
+    @Nullable
     public SnapshotRetentionConfiguration getRetentionPolicy() {
         return this.retentionPolicy;
     }
@@ -271,7 +272,7 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
         out.writeString(this.schedule);
         out.writeString(this.repository);
         out.writeMap(this.configuration);
-        this.retentionPolicy.writeTo(out);
+        out.writeOptionalWriteable(this.retentionPolicy);
     }
 
     @Override
@@ -283,7 +284,9 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
         if (this.configuration != null) {
             builder.field(CONFIG.getPreferredName(), this.configuration);
         }
-        builder.field(RETENTION.getPreferredName(), this.retentionPolicy);
+        if (this.retentionPolicy != null) {
+            builder.field(RETENTION.getPreferredName(), this.retentionPolicy);
+        }
         builder.endObject();
         return builder;
     }

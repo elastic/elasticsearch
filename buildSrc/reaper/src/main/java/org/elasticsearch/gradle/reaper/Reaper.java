@@ -77,20 +77,21 @@ public class Reaper implements Closeable {
 
             for (Path inputFile : inputFiles) {
                 System.out.println("Process file: " + inputFile);
-                for (String line : Files.readAllLines(inputFile)) {
-                    System.out.println("Running command: " + line);
-                    String[] command = line.split(" ");
-                    Process process = Runtime.getRuntime().exec(command);
-                    int ret = process.waitFor();
+                String line = Files.readString(inputFile);
+                System.out.println("Running command: " + line);
+                String[] command = line.split(" ");
+                Process process = Runtime.getRuntime().exec(command);
+                int ret = process.waitFor();
 
-                    System.out.print("Stdout: ");
-                    process.getInputStream().transferTo(System.out);
-                    System.out.print("\nStderr: ");
-                    process.getErrorStream().transferTo(System.out);
-                    System.out.println(); // end the stream
-                    if (ret != 0) {
-                        logFailure("Command [" + line + "] failed with exit code " + ret, null);
-                    }
+                System.out.print("Stdout: ");
+                process.getInputStream().transferTo(System.out);
+                System.out.print("\nStderr: ");
+                process.getErrorStream().transferTo(System.out);
+                System.out.println(); // end the stream
+                if (ret != 0) {
+                    logFailure("Command [" + line + "] failed with exit code " + ret, null);
+                } else {
+                    delete(inputFile);
                 }
             }
         } catch (Exception e) {
@@ -106,13 +107,19 @@ public class Reaper implements Closeable {
         failed = true;
     }
 
+    private void delete(Path toDelete) {
+        try {
+            Files.delete(toDelete);
+        } catch (IOException e) {
+            logFailure("Failed to delete [" + toDelete + "]", e);
+        }
+    }
+
     @Override
     public void close() {
         if (failed == false) {
             try {
-                for (Path toDelete : Files.walk(inputDir).sorted(Comparator.reverseOrder()).collect(Collectors.toList())) {
-                    Files.delete(toDelete);
-                }
+                Files.walk(inputDir).sorted(Comparator.reverseOrder()).forEach(this::delete);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }

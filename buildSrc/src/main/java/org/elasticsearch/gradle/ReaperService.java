@@ -114,7 +114,7 @@ public class ReaperService {
                     "-Xms4m", "-Xmx16m", // no need for a big heap, just need to read some files and execute
                     "-jar", jarPath.toString(),
                     inputDir.toString());
-                logger.lifecycle("Launching reaper: " + String.join(" ", builder.command()));
+                logger.info("Launching reaper: " + String.join(" ", builder.command()));
                 // be explicit for stdin, we use closing of the pipe to signal shutdown to the reaper
                 builder.redirectInput(ProcessBuilder.Redirect.PIPE);
                 builder.redirectOutput(logFile.toFile());

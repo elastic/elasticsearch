@@ -66,9 +66,10 @@ if (JavaVersion.current() < JavaVersion.VERSION_11) {
   throw new GradleException('At least Java 11 is required to build elasticsearch gradle tools')
 }
 
-// Keep compatibility with Java 8 for external users of build-tools that haven't migrated to Java 11
-targetCompatibility = '11'
-sourceCompatibility = '11'
+allprojects {
+  targetCompatibility = '11'
+  sourceCompatibility = '11'
+}
 
 sourceSets {
     // We have a few classes that need to be compiled for older java versions

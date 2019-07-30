@@ -37,9 +37,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * This class keeps track of which tasks came in from which {@link HttpChannel}, by allowing to associate
- * an {@link HttpChannel} with a {@link TaskId}, and also removing the link once the task is complete.
- * Additionally, it accepts a consumer that gets called whenever an http channel gets closed, which
- * can be used to cancel the associated task when the underlying connection gets closed.
+ * an {@link HttpChannel} with a {@link TaskId}, and also to unregister the task once it's complete.
  */
 final class HttpChannelTaskHandler {
     final Map<HttpChannel, CloseListener> httpChannels = new ConcurrentHashMap<>();

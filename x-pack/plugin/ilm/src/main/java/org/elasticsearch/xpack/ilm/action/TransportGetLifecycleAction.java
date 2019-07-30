@@ -20,12 +20,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
-import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyMetadata;
-import org.elasticsearch.xpack.core.indexlifecycle.action.GetLifecycleAction;
-import org.elasticsearch.xpack.core.indexlifecycle.action.GetLifecycleAction.LifecyclePolicyResponseItem;
-import org.elasticsearch.xpack.core.indexlifecycle.action.GetLifecycleAction.Request;
-import org.elasticsearch.xpack.core.indexlifecycle.action.GetLifecycleAction.Response;
+import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
+import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
+import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction.LifecyclePolicyResponseItem;
+import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction.Request;
+import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction.Response;
 
 import java.io.IOException;
 import java.util.ArrayList;

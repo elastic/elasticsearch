@@ -25,4 +25,11 @@ for J in $(cd "${JARS_PATH}/vendor"; ls *.jar); do
   CLASSPATH=${CLASSPATH}${CLASSPATH:+:}${JARS_PATH}/vendor/${J}
 done
 
-exec java -cp "${CLASSPATH}" org.elasticsearch.snapshots.SnapshotToolCli "$@"
+# Give JAVA_HOME precedence over the `java` on the PATH
+if [ ! -z "$JAVA_HOME" ]; then
+  JAVA="$JAVA_HOME/bin/java"
+else
+  JAVA=java
+fi
+
+exec ${JAVA} -cp "${CLASSPATH}" org.elasticsearch.snapshots.SnapshotToolCli "$@"

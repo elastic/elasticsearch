@@ -103,6 +103,7 @@ public class ReindexFailoverIT extends ReindexTestCase {
         String nodeName = nodeIdToName.get(nodeId);
 
         logger.info("--> restarting node: " + nodeName);
+        ensureGreen(ReindexTask.REINDEX_INDEX);
         internalCluster().restartNode(nodeName, new InternalTestCluster.RestartCallback());
 
         ensureYellow("dest");

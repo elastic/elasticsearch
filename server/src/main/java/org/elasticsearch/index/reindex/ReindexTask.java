@@ -57,6 +57,7 @@ public class ReindexTask extends AllocatedPersistentTask {
 
     // TODO: Name
     public static final String NAME = "reindex/job";
+    // TODO: Eventually this should be an alias for index versioning
     public static final String REINDEX_INDEX = ".reindex";
     public static final String REINDEX_ORIGIN = "reindex";
 

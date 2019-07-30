@@ -29,7 +29,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 
-import static org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper.toLucenePolygon;
+import static org.elasticsearch.xpack.spatial.index.mapper.ShapeIndexer.toLucenePolygon;
 
 public class ShapeQueryProcessor implements AbstractGeometryFieldMapper.QueryProcessor {
 

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.geo.geometry;
 
+import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.utils.GeographyValidator;
 import org.elasticsearch.geo.utils.StandardValidator;
 import org.elasticsearch.geo.utils.WellKnownText;
@@ -36,7 +37,7 @@ public class MultiPolygonTests extends BaseGeometryTestCase<MultiPolygon> {
         int size = randomIntBetween(1, 10);
         List<Polygon> arr = new ArrayList<>();
         for (int i = 0; i < size; i++) {
-            arr.add(randomPolygon(hasAlt));
+            arr.add(GeometryTestUtils.randomPolygon(hasAlt));
         }
         return new MultiPolygon(arr);
     }

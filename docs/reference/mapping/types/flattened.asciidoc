@@ -3,6 +3,9 @@
 
 [[flattened]]
 === Flattened datatype
+++++
+<titleabbrev>Flattened</titleabbrev>
+++++
 
 By default, each subfield in an object is mapped and indexed separately. If
 the names or types of the subfields are not known in advance, then they are

@@ -60,6 +60,7 @@ import java.util.function.Supplier;
 public class ReindexPlugin extends Plugin implements ActionPlugin, PersistentTaskPlugin {
 
     public static final String NAME = "reindex";
+    private final SetOnce<NamedXContentRegistry> namedXContentRegistry = new SetOnce<>();
 
     private final SetOnce<ScriptService> scriptService = new SetOnce<>();
     private final SetOnce<ReindexSslConfig> reindexSslConfig = new SetOnce<>();
@@ -110,6 +111,7 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, PersistentTas
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
         this.scriptService.set(scriptService);
         this.reindexSslConfig.set(new ReindexSslConfig(environment.settings(), environment, resourceWatcherService));
+        namedXContentRegistry.set(xContentRegistry);
         return Collections.singletonList(reindexSslConfig.get());
     }
 
@@ -128,7 +130,7 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, PersistentTas
         assert scriptService != null;
         ReindexSslConfig reindexSslConfig = this.reindexSslConfig.get();
         assert reindexSslConfig != null;
-        return Collections.singletonList(new ReindexTask.ReindexPersistentTasksExecutor(clusterService, client, threadPool, scriptService,
-            reindexSslConfig));
+        return Collections.singletonList(new ReindexTask.ReindexPersistentTasksExecutor(clusterService, client, namedXContentRegistry.get(),
+            threadPool, scriptService, reindexSslConfig));
     }
 }

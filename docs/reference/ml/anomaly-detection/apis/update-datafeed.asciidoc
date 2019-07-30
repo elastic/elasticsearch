@@ -67,7 +67,7 @@ The following properties can be updated after the {dfeed} is created:
 
 `job_id`::
  (Optional, string) A numerical character string that uniquely identifies the
- job.
+ {anomaly-job}.
 
 `query`::
   (Optional, object) The {es} query domain-specific language (DSL). This value

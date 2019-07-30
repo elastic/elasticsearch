@@ -58,6 +58,15 @@ public class ConnectionManager implements Closeable {
     private final AbstractRefCounted connectingRefCounter = new AbstractRefCounted("connection manager") {
         @Override
         protected void closeInternal() {
+            Iterator<Map.Entry<DiscoveryNode, Transport.Connection>> iterator = connectedNodes.entrySet().iterator();
+            while (iterator.hasNext()) {
+                Map.Entry<DiscoveryNode, Transport.Connection> next = iterator.next();
+                try {
+                    IOUtils.closeWhileHandlingException(next.getValue());
+                } finally {
+                    iterator.remove();
+                }
+            }
             closeLatch.countDown();
         }
     };
@@ -249,22 +258,23 @@ public class ConnectionManager implements Closeable {
 
     @Override
     public void close() {
+        internalClose(true);
+    }
+
+    public void closeNoBlock() {
+        internalClose(false);
+    }
+
+    private void internalClose(boolean waitForPendingConnections) {
         assert Transports.assertNotTransportThread("Closing ConnectionManager");
         if (closing.compareAndSet(false, true)) {
             connectingRefCounter.decRef();
-            try {
-                closeLatch.await();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new IllegalStateException(e);
-            }
-            Iterator<Map.Entry<DiscoveryNode, Transport.Connection>> iterator = connectedNodes.entrySet().iterator();
-            while (iterator.hasNext()) {
-                Map.Entry<DiscoveryNode, Transport.Connection> next = iterator.next();
+            if (waitForPendingConnections) {
                 try {
-                    IOUtils.closeWhileHandlingException(next.getValue());
-                } finally {
-                    iterator.remove();
+                    closeLatch.await();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException(e);
                 }
             }
         }

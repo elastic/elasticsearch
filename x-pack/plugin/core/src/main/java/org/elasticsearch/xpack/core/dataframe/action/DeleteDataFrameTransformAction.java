@@ -39,7 +39,7 @@ public class DeleteDataFrameTransformAction extends ActionType<AcknowledgedRespo
         public Request(StreamInput in) throws IOException {
             super(in);
             id = in.readString();
-            if (in.getVersion().onOrAfter(Version.CURRENT)) {
+            if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
                 force = in.readBoolean();
             } else {
                 force = false;
@@ -58,7 +58,7 @@ public class DeleteDataFrameTransformAction extends ActionType<AcknowledgedRespo
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(id);
-            if (out.getVersion().onOrAfter(Version.CURRENT)) {
+            if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
                 out.writeBoolean(force);
             }
         }

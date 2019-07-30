@@ -6,7 +6,7 @@
 <titleabbrev>Get records</titleabbrev>
 ++++
 
-Retrieves anomaly records for a job.
+Retrieves anomaly records for an {anomaly-job}.
 
 [[ml-get-record-request]]
 ==== {api-request-title}
@@ -27,7 +27,7 @@ privileges. See {stack-ov}/security-privileges.html[Security privileges] and
 ==== {api-path-parms-title}
 
 `<job_id>`::
-  (Required, string) Identifier for the job.
+  (Required, string) Identifier for the {anomaly-job}.
 
 [[ml-get-record-request-body]]
 ==== {api-request-body-title}
@@ -66,7 +66,7 @@ The API returns the following information:
 
 `records`::
   (array) An array of record objects. For more information, see
-  <<ml-results-records,Records>>.
+  <<ml-results-records>>.
 
 [[ml-get-record-example]]
 ==== {api-examples-title}

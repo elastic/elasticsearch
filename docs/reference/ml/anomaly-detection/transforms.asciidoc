@@ -7,9 +7,9 @@ it is analyzed. {dfeeds-cap} contain an optional `script_fields` property, where
 you can specify scripts that evaluate custom expressions and return script
 fields.
 
-If your {dfeed} defines script fields, you can use those fields in your job.
-For example, you can use the script fields in the analysis functions in one or
-more detectors.
+If your {dfeed} defines script fields, you can use those fields in your
+{anomaly-job}. For example, you can use the script fields in the analysis
+functions in one or more detectors.
 
 * <<ml-configuring-transform1>>
 * <<ml-configuring-transform2>>
@@ -146,12 +146,14 @@ PUT _ml/datafeeds/datafeed-test1
 within the job.
 <2> The script field is defined in the {dfeed}.
 
-This `test1` job contains a detector that uses a script field in a mean analysis
-function. The `datafeed-test1` {dfeed} defines the script field. It contains a
-script that adds two fields in the document to produce a "total" error count.
+This `test1` {anomaly-job} contains a detector that uses a script field in a
+mean analysis function. The `datafeed-test1` {dfeed} defines the script field.
+It contains a script that adds two fields in the document to produce a "total"
+error count.
 
 The syntax for the `script_fields` property is identical to that used by {es}.
-For more information, see {ref}/search-request-body.html#request-body-search-script-fields[Script Fields].
+For more information, see
+{ref}/search-request-body.html#request-body-search-script-fields[Script fields].
 
 You can preview the contents of the {dfeed} by using the following API:
 
@@ -181,15 +183,15 @@ insufficient data to generate meaningful results.
 //For a full demonstration of
 //how to create jobs with sample data, see <<ml-getting-started>>.
 
-You can alternatively use {kib} to create an advanced job that uses script
-fields. To add the `script_fields` property to your {dfeed}, you must use the
-**Edit JSON** tab. For example:
+You can alternatively use {kib} to create an advanced {anomaly-job} that uses
+script fields. To add the `script_fields` property to your {dfeed}, you must use
+the **Edit JSON** tab. For example:
 
 [role="screenshot"]
 image::images/ml-scriptfields.jpg[Adding script fields to a {dfeed} in {kib}]
 
 [[ml-configuring-transform-examples]]
-==== Common Script Field Examples
+==== Common script field examples
 
 While the possibilities are limitless, there are a number of common scenarios
 where you might use script fields in your {dfeeds}.
@@ -199,7 +201,7 @@ where you might use script fields in your {dfeeds}.
 Some of these examples use regular expressions. By default, regular
 expressions are disabled because they circumvent the protection that Painless
 provides against long running and memory hungry scripts. For more information,
-see {ref}/modules-scripting-painless.html[Painless Scripting Language].
+see {ref}/modules-scripting-painless.html[Painless scripting language].
 
 Machine learning analysis is case sensitive. For example, "John" is considered
 to be different than "john". This is one reason you might consider using scripts

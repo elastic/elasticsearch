@@ -209,7 +209,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
      */
     boolean dispatchRequest(final RestRequest request, final RestChannel channel, final NodeClient client,
                             final Optional<RestHandler> mHandler) throws Exception {
-        final int contentLength = request.hasContent() ? request.content().length() : 0;
+        final int contentLength = request.contentLength();
 
         RestChannel responseChannel = channel;
         // Indicator of whether a response was sent or not

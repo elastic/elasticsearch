@@ -59,6 +59,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.NameableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -415,8 +416,8 @@ public class RBACEngine implements AuthorizationEngine {
         // But we don't have a meaningful ordering for objects like ConfigurableClusterPrivilege, so the tests work with "random" ordering
         final Set<ConfigurableClusterPrivilege> conditionalCluster = new HashSet<>();
         for (ClusterPrivilege privilege : userRole.cluster().privileges()) {
-            if (privilege instanceof ActionClusterPrivilege) {
-                cluster.add(((ActionClusterPrivilege) privilege).name());
+            if (privilege instanceof NameableClusterPrivilege) {
+                cluster.add(((NameableClusterPrivilege) privilege).name());
             } else if (privilege instanceof ConfigurableClusterPrivilege) {
                 conditionalCluster.add((ConfigurableClusterPrivilege) privilege);
             } else {

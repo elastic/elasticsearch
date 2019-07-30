@@ -51,11 +51,22 @@ public class ClusterPermission {
      * @return {@code true} if the specified cluster permissions actions are implied by this cluster permission else returns {@code false}
      */
     public boolean implies(final ClusterPermission otherClusterPermission) {
-        if (this.checks.isEmpty() && otherClusterPermission.checks.isEmpty()) {
+        if (this.checks.isEmpty() && otherClusterPermission.checks.isEmpty() || otherClusterPermission.checks.isEmpty()) {
             return true;
         } else {
-            return this.checks.stream().anyMatch(thisPermissionCheck -> otherClusterPermission.checks.stream()
-                .anyMatch(otherPermissionCheck -> thisPermissionCheck.implies(otherPermissionCheck)));
+            for (PermissionCheck otherPermissionCheck : otherClusterPermission.checks) {
+                boolean isImplied = false;
+                for (PermissionCheck thisPermissionCheck : this.checks) {
+                    isImplied = thisPermissionCheck.implies(otherPermissionCheck);
+                    if (isImplied) {
+                        break;
+                    }
+                }
+                if (isImplied == false) {
+                    return false;
+                }
+            }
+            return true;
         }
     }
 

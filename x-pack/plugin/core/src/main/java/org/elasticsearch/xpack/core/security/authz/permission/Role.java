@@ -215,11 +215,11 @@ public class Role {
             List<ClusterPermission> clusterPermissions = new ArrayList<>();
             if (privilegeNames.isEmpty() == false) {
                 for (String name : privilegeNames) {
-                    ClusterPrivilegeResolver.resolve(name).buildPermission(builder);
+                    builder = ClusterPrivilegeResolver.resolve(name).buildPermission(builder);
                 }
             }
             for (ConfigurableClusterPrivilege ccp : configurableClusterPrivileges) {
-                ccp.buildPermission(builder);
+                builder = ccp.buildPermission(builder);
             }
             this.cluster = builder.build();
             return this;

@@ -67,8 +67,8 @@ public class PrivilegeTests extends ESTestCase {
         assertTrue(allClusterPermission.implies(monitorClusterPermission));
 
         ClusterPermission.Builder builder = ClusterPermission.builder();
-        allClusterPrivilege.buildPermission(builder);
-        noneClusterPrivilege.buildPermission(builder);
+        builder = allClusterPrivilege.buildPermission(builder);
+        builder = noneClusterPrivilege.buildPermission(builder);
         ClusterPermission combinedPermission = builder.build();
         assertTrue(combinedPermission.implies(monitorClusterPermission));
         assertTrue(combinedPermission.implies(monitorClusterPermission));

@@ -128,8 +128,8 @@ Tokenizer::
 * <<analysis-lowercase-tokenizer,Lower Case Tokenizer>>
 
 To customize the `simple` analyzer, duplicate it to create the basis for 
-a `custom` analyzer. The new analyzer can be modified as required, usually 
-with token filters. 
+a `custom` analyzer. The new analyzer can be modified as required, usually by 
+adding token filters.
 
 ===== Example
 

@@ -86,18 +86,20 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
         execute(task, request, new ActionListener<Response>() {
             @Override
             public void onResponse(Response response) {
-                if (task != null) {
+                try {
                     taskManager.unregister(task);
+                } finally {
+                    listener.onResponse(task, response);
                 }
-                listener.onResponse(task, response);
             }
 
             @Override
             public void onFailure(Exception e) {
-                if (task != null) {
+                try {
                     taskManager.unregister(task);
+                } finally {
+                    listener.onFailure(task, e);
                 }
-                listener.onFailure(task, e);
             }
         });
         return task;

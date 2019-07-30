@@ -68,7 +68,7 @@ public class DemoServer {
                         pipeline.addLast("aggregator", new HttpObjectAggregator(65536));
 
                         pipeline.addLast(new WebSocketServerCompressionHandler());
-                        pipeline.addLast(new WebSocketServerProtocolHandler("/websocket", null, true));
+                        pipeline.addLast(new WebSocketServerProtocolHandler("/graphql", null, true));
 
                         pipeline.addLast("business-logic", new HttpHandler());
                         pipeline.addLast(new WebSocketFrameHandler());

@@ -97,29 +97,9 @@ public class StartDemoServer {
             }
 
             @Override
-            public void onNext(DemoServerSocket demoServerSocket) {
-                logger.info("New socket received: {}", demoServerSocket);
-                demoServerSocket.getIncomingMessages().subscribe(new Subscriber<String>() {
-                    @Override
-                    public void onSubscribe(Subscription s) {
-                        logger.info("Listening to new socket");
-                    }
-
-                    @Override
-                    public void onNext(String s) {
-                        logger.info("Received message: {}", s);
-                    }
-
-                    @Override
-                    public void onError(Throwable t) {
-                        logger.error(t);
-                    }
-
-                    @Override
-                    public void onComplete() {
-                        logger.info("Socket closed.");
-                    }
-                });
+            public void onNext(DemoServerSocket socket) {
+                logger.info("New socket received: {}", socket);
+                new DemoServerSocketHandler(gqlServer, socket).handle();
             }
 
             @Override

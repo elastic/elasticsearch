@@ -19,11 +19,20 @@
 
 package org.elasticsearch.graphql.server;
 
-import org.reactivestreams.Publisher;
+public enum SocketClientMsgType {
 
-public interface DemoServerSocket {
+    INIT("GQL_CONNECTION_INIT"),
+    START("GQL_START"),
+    STOP("GQL_STOP"),
+    TERMINATE("GQL_CONNECTION_TERMINATE");
 
-    Publisher<String> getIncomingMessages();
+    private String type;
 
-    void send(String message);
+    SocketClientMsgType(String type) {
+        this.type = type;
+    }
+
+    public String value() {
+        return type;
+    }
 }

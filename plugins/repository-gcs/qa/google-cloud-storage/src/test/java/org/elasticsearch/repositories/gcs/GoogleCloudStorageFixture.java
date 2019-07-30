@@ -176,7 +176,7 @@ public class GoogleCloudStorageFixture extends AbstractHttpFixture {
                 if ("0".equals(ifGenerationMatch)) {
                     if (bucket.objects.putIfAbsent(objectName, Item.empty(objectName)) == null) {
                         final String location = /*endpoint +*/ "/upload/storage/v1/b/" + bucket.name + "/o?uploadType=resumable&upload_id="
-                                + objectName;
+                            + objectName;
                         return newResponse(RestStatus.CREATED, singletonMap("Location", location), jsonBuilder());
                     } else {
                         return newError(RestStatus.PRECONDITION_FAILED, "object already exist");

@@ -79,6 +79,7 @@ public final class TrackingResultProcessor implements Processor {
                     processorResultList.add(new SimulateProcessorResult(processor.getTag(), new IngestDocument(ingestDocument)));
                 } else {
                     processorResultList.add(new SimulateProcessorResult(processor.getTag()));
+                    return null;
                 }
             }
         } catch (Exception e) {

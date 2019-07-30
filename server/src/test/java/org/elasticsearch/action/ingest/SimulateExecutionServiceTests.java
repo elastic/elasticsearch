@@ -241,4 +241,22 @@ public class SimulateExecutionServiceTests extends ESTestCase {
         assertThat(verboseResult.getProcessorResults().get(1).getFailure(), nullValue());
     }
 
+    public void testDropDocumentVerboseExtraProcessor() {
+        TestProcessor processor1 = new TestProcessor(ingestDocument -> ingestDocument.setFieldValue("field1", "value"));
+        Processor processor2 = new DropProcessor.Factory().create(Map.of(), null, Map.of());
+        TestProcessor processor3 = new TestProcessor(ingestDocument -> ingestDocument.setFieldValue("field2", "value"));
+        Pipeline pipeline = new Pipeline("_id", "_description", version, new CompoundProcessor(processor1, processor2, processor3));
+
+        SimulateDocumentResult actualItemResponse = executionService.executeDocument(pipeline, ingestDocument, true);
+        assertThat(processor1.getInvokedCounter(), equalTo(1));
+        assertThat(processor3.getInvokedCounter(), equalTo(0));
+        assertThat(actualItemResponse, instanceOf(SimulateDocumentVerboseResult.class));
+        SimulateDocumentVerboseResult verboseResult = (SimulateDocumentVerboseResult) actualItemResponse;
+        assertThat(verboseResult.getProcessorResults().size(), equalTo(2));
+        assertThat(verboseResult.getProcessorResults().get(0).getIngestDocument(), notNullValue());
+        assertThat(verboseResult.getProcessorResults().get(0).getFailure(), nullValue());
+        assertThat(verboseResult.getProcessorResults().get(1).getIngestDocument(), nullValue());
+        assertThat(verboseResult.getProcessorResults().get(1).getFailure(), nullValue());
+    }
+
 }

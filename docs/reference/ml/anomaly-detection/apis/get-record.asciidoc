@@ -6,18 +6,28 @@
 <titleabbrev>Get records</titleabbrev>
 ++++
 
-Retrieves anomaly records for a job.
+Retrieves anomaly records for an {anomaly-job}.
 
 [[ml-get-record-request]]
 ==== {api-request-title}
 
 `GET _ml/anomaly_detectors/<job_id>/results/records`
 
+[[ml-get-record-prereqs]]
+==== {api-prereq-title}
+
+* You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
+privileges to use this API. You also need `read` index privilege on the index
+that stores the results. The `machine_learning_admin` and `machine_learning_user`
+roles provide these privileges. For more information, see
+{stack-ov}/security-privileges.html[Security privileges] and
+{stack-ov}/built-in-roles.html[Built-in roles].
+
 [[ml-get-record-path-parms]]
 ==== {api-path-parms-title}
 
-`job_id`::
-  (string) Identifier for the job.
+`<job_id>`::
+  (Required, string) Identifier for the {anomaly-job}.
 
 [[ml-get-record-request-body]]
 ==== {api-request-body-title}
@@ -55,17 +65,7 @@ The API returns the following information:
 
 `records`::
   (array) An array of record objects. For more information, see
-  <<ml-results-records,Records>>.
-
-[[ml-get-record-prereqs]]
-==== {api-prereq-title}
-
-You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
-privileges to use this API. You also need `read` index privilege on the index
-that stores the results. The `machine_learning_admin` and `machine_learning_user`
-roles provide these privileges. For more information, see
-{stack-ov}/security-privileges.html[Security privileges] and
-{stack-ov}/built-in-roles.html[Built-in roles].
+  <<ml-results-records>>.
 
 [[ml-get-record-example]]
 ==== {api-examples-title}

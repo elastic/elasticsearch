@@ -15,11 +15,18 @@ Retrieves information about model snapshots.
 
 `GET _ml/anomaly_detectors/<job_id>/model_snapshots/<snapshot_id>`
 
+[[ml-get-snapshot-prereqs]]
+==== {api-prereq-title}
+
+* You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
+privileges to use this API. For more information, see
+{stack-ov}/security-privileges.html[Security privileges].
+
 [[ml-get-snapshot-path-parms]]
 ==== {api-path-parms-title}
 
-`job_id`::
-  (string) Identifier for the job.
+`<job_id>`::
+  (Required, string) Identifier for the {anomaly-job}.
 
 `snapshot_id`::
   (string) Identifier for the model snapshot. If you do not specify this
@@ -54,14 +61,7 @@ The API returns the following information:
 
 `model_snapshots`::
   (array) An array of model snapshot objects. For more information, see
-  <<ml-snapshot-resource,Model Snapshots>>.
-
-[[ml-get-snapshot-prereqs]]
-==== {api-prereq-title}
-
-You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
-privileges to use this API. For more information, see
-{stack-ov}/security-privileges.html[Security privileges].
+  <<ml-snapshot-resource>>.
 
 [[ml-get-snapshot-example]]
 ==== {api-examples-title}

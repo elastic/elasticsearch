@@ -127,10 +127,10 @@ if (useS3Fixture) {
     doLast {
       minioDockerfile.parentFile.mkdirs()
       minioDockerfile.text =
-              "FROM minio/minio:RELEASE.2019-01-23T23-18-58Z\n" +
-                      "RUN mkdir -p /minio/data/${s3PermanentBucket}\n" +
-                      "ENV MINIO_ACCESS_KEY ${s3PermanentAccessKey}\n" +
-                      "ENV MINIO_SECRET_KEY ${s3PermanentSecretKey}"
+        "FROM minio/minio:RELEASE.2019-01-23T23-18-58Z\n" +
+          "RUN mkdir -p /minio/data/${s3PermanentBucket}\n" +
+          "ENV MINIO_ACCESS_KEY ${s3PermanentAccessKey}\n" +
+          "ENV MINIO_SECRET_KEY ${s3PermanentSecretKey}"
     }
   }
 
@@ -146,13 +146,13 @@ if (useS3Fixture) {
 
   thirdPartyTestS3 {
     dependsOn tasks.postProcessFixture
-    nonInputProperties.systemProperty 'test.s3.endpoint', "${-> minioAddress.call()}"
+    nonInputProperties.systemProperty 'test.s3.endpoint', "${ -> minioAddress.call() }"
   }
 
   gradle.taskGraph.whenReady {
     if (it.hasTask(s3ThirdPartyTests)) {
       throw new IllegalStateException("Tried to run third party tests but not all of the necessary environment variables 'amazon_s3_access_key', " +
-              "'amazon_s3_secret_key', 'amazon_s3_bucket', and 'amazon_s3_base_path' are set.");
+        "'amazon_s3_secret_key', 'amazon_s3_bucket', and 'amazon_s3_base_path' are set.");
     }
   }
 }
@@ -225,9 +225,7 @@ task unpackArchive(dependsOn: tasks.assemble, type: Copy) {
 
 task smokeTest(type: Exec) {
   dependsOn unpackArchive
-  onlyIf {
-    ElasticsearchDistribution.CURRENT_PLATFORM != ElasticsearchDistribution.Platform.WINDOWS
-  }
+  onlyIf { ElasticsearchDistribution.CURRENT_PLATFORM != ElasticsearchDistribution.Platform.WINDOWS }
   commandLine "${project.buildDir}/snapshot-tool-${project.version}/bin/elasticsearch-snapshot", "-h"
 }
 

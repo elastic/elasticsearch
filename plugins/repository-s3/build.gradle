@@ -291,6 +291,10 @@ testClusters.integTest {
   }
 }
 
+task s3ThirdPartyTests {
+  dependsOn check
+}
+
 if (useFixture) {
   task integTestECS(type: RestIntegTestTask.class) {
     description = "Runs tests using the ECS repository."
@@ -310,6 +314,13 @@ if (useFixture) {
     setting 's3.client.integration_test_ecs.endpoint', { "http://${s3Fixture.addressAndPort}" }, IGNORE_VALUE
     plugin file(tasks.bundlePlugin.archiveFile)
     environment 'AWS_CONTAINER_CREDENTIALS_FULL_URI', { "http://${s3Fixture.addressAndPort}/ecs_credentials_endpoint" }, IGNORE_VALUE
+  }
+
+  gradle.taskGraph.whenReady {
+    if (it.hasTask(s3ThirdPartyTests)) {
+      throw new IllegalStateException("Tried to run third party tests but not all of the necessary environment variables 'amazon_s3_access_key', " +
+        "'amazon_s3_secret_key', 'amazon_s3_bucket', and 'amazon_s3_base_path' are set.");
+    }
   }
 }
 

@@ -209,7 +209,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
      */
     boolean dispatchRequest(final RestRequest request, final RestChannel channel, final NodeClient client,
                             final Optional<RestHandler> mHandler) throws Exception {
-        final int contentLength = request.hasContent() ? request.content().length() : 0;
+        final int contentLength = request.contentLength();
 
         RestChannel responseChannel = channel;
         // Indicator of whether a response was sent or not
@@ -506,6 +506,12 @@ public class RestController implements HttpServerTransport.Dispatcher {
         @Override
         public XContentBuilder newBuilder(@Nullable XContentType xContentType, boolean useFiltering) throws IOException {
             return delegate.newBuilder(xContentType, useFiltering);
+        }
+
+        @Override
+        public XContentBuilder newBuilder(XContentType xContentType, XContentType responseContentType, boolean useFiltering)
+                throws IOException {
+            return delegate.newBuilder(xContentType, responseContentType, useFiltering);
         }
 
         @Override

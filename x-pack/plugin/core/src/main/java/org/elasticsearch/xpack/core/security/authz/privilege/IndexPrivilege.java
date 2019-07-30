@@ -21,7 +21,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.core.ccr.action.ForgetFollowerAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
-import org.elasticsearch.xpack.core.indexlifecycle.action.ExplainLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
 import java.util.Arrays;
@@ -156,4 +156,9 @@ public final class IndexPrivilege extends Privilege {
     static Map<String, IndexPrivilege> values() {
         return VALUES;
     }
+
+    public static Set<String> names() {
+        return Collections.unmodifiableSet(VALUES.keySet());
+    }
+
 }

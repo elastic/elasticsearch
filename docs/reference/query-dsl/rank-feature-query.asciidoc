@@ -1,5 +1,8 @@
 [[query-dsl-rank-feature-query]]
-=== Rank Feature Query
+=== Rank feature query
+++++
+<titleabbrev>Rank feature</titleabbrev>
+++++
 
 The `rank_feature` query is a specialized query that only works on
 <<rank-feature,`rank_feature`>> fields and <<rank-features,`rank_features`>> fields.

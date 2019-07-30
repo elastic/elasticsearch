@@ -39,7 +39,6 @@ final class RecoveryTranslogOperationsResponse extends TransportResponse {
 
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeZLong(localCheckpoint);
     }
 }

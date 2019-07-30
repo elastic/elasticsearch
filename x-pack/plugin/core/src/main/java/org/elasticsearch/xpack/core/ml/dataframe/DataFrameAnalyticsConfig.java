@@ -127,7 +127,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         this.analyzedFields = analyzedFields;
         this.modelMemoryLimit = modelMemoryLimit;
         this.headers = Collections.unmodifiableMap(headers);
-        this.createTime = createTime == null ? null : Instant.ofEpochMilli(createTime.toEpochMilli());;
+        this.createTime = createTime == null ? null : Instant.ofEpochMilli(createTime.toEpochMilli());
         this.version = version;
     }
 

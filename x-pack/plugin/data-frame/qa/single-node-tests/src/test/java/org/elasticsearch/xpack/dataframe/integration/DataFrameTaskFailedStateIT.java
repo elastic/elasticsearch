@@ -6,87 +6,118 @@
 
 package org.elasticsearch.xpack.dataframe.integration;
 
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformTaskState;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DataFrameTaskFailedStateIT extends DataFrameRestTestCase {
 
-    public void testDummy() {
-        // remove once the awaits fix below is resolved
+    private static final String TRANSFORM_ID = "failure_pivot_1";
+
+    @Before
+    public void setClusterSettings() throws IOException {
+        // Make sure we never retry on failure to speed up the test
+        Request addFailureRetrySetting = new Request("PUT", "/_cluster/settings");
+        addFailureRetrySetting.setJsonEntity(
+            "{\"persistent\": {\"xpack.data_frame.num_transform_failure_retries\": \"" + 0 + "\"}}");
+        client().performRequest(addFailureRetrySetting);
     }
 
-    @AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/40543")
-    public void testFailureStateInteraction() throws Exception {
-        createReviewsIndex();
-        String transformId = "failure_pivot_1";
+    @After
+    public void cleanUpPotentiallyFailedTransform() throws Exception {
+        // If the tests failed in the middle, we should force stop it. This prevents other transform tests from failing due
+        // to this left over transform
+        stopDataFrameTransform(TRANSFORM_ID, true);
+        deleteDataFrameTransform(TRANSFORM_ID);
+    }
+
+    public void testForceStopFailedTransform() throws Exception {
+        createReviewsIndex(REVIEWS_INDEX_NAME, 10);
         String dataFrameIndex = "failure_pivot_reviews";
-        createPivotReviewsTransform(transformId, dataFrameIndex, null);
-        deleteIndex(REVIEWS_INDEX_NAME); // trigger start failure due to index missing
-        startDataframeTransform(transformId, false);
-        awaitState(transformId, DataFrameTransformTaskState.FAILED);
-        Map<?, ?> fullState = getDataFrameState(transformId);
-
+        createDestinationIndexWithBadMapping(dataFrameIndex);
+        createContinuousPivotReviewsTransform(TRANSFORM_ID, dataFrameIndex, null);
+        startDataframeTransform(TRANSFORM_ID, false);
+        awaitState(TRANSFORM_ID, DataFrameTransformTaskState.FAILED);
+        Map<?, ?> fullState = getDataFrameState(TRANSFORM_ID);
+        final String failureReason = "task encountered more than 0 failures; latest failure: " +
+            "Bulk index experienced failures. See the logs of the node running the transform for details.";
         // Verify we have failed for the expected reason
-        assertThat(XContentMapValues.extractValue("state.reason", fullState),
-            equalTo("task encountered irrecoverable failure: no such index [reviews]"));
-        assertThat(XContentMapValues.extractValue("state.indexer_state", fullState), equalTo("started"));
+        assertThat(XContentMapValues.extractValue("reason", fullState), equalTo(failureReason));
 
-        // Verify that we cannot stop or start the transform when the task is in a failed state
-        ResponseException ex = expectThrows(ResponseException.class, () -> stopDataFrameTransform(transformId, false));
+        // verify that we cannot stop a failed transform
+        ResponseException ex = expectThrows(ResponseException.class, () -> stopDataFrameTransform(TRANSFORM_ID, false));
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.CONFLICT.getStatus()));
         assertThat(XContentMapValues.extractValue("error.reason", entityAsMap(ex.getResponse())),
-            equalTo("Unable to stop data frame transform [failure_pivot_1] as it is in a failed state with reason: [" +
-                "task encountered irrecoverable failure: no such index [reviews]]. Use force stop to stop the data frame transform."));
+            equalTo("Unable to stop data frame transform [failure_pivot_1] as it is in a failed state with reason [" +
+                failureReason +
+                "]. Use force stop to stop the data frame transform."));
 
-        ex = expectThrows(ResponseException.class, () -> startDataframeTransform(transformId, false));
+        // Verify that we can force stop a failed transform
+        stopDataFrameTransform(TRANSFORM_ID, true);
+
+        awaitState(TRANSFORM_ID, DataFrameTransformTaskState.STOPPED);
+        fullState = getDataFrameState(TRANSFORM_ID);
+        assertThat(XContentMapValues.extractValue("reason", fullState), is(nullValue()));
+    }
+
+    public void testForceStartFailedTransform() throws Exception {
+        createReviewsIndex(REVIEWS_INDEX_NAME, 10);
+        String dataFrameIndex = "failure_pivot_reviews";
+        createDestinationIndexWithBadMapping(dataFrameIndex);
+        createContinuousPivotReviewsTransform(TRANSFORM_ID, dataFrameIndex, null);
+        startDataframeTransform(TRANSFORM_ID, false);
+        awaitState(TRANSFORM_ID, DataFrameTransformTaskState.FAILED);
+        Map<?, ?> fullState = getDataFrameState(TRANSFORM_ID);
+        final String failureReason = "task encountered more than 0 failures; latest failure: " +
+            "Bulk index experienced failures. See the logs of the node running the transform for details.";
+        // Verify we have failed for the expected reason
+        assertThat(XContentMapValues.extractValue("reason", fullState), equalTo(failureReason));
+
+        // Verify that we cannot start the transform when the task is in a failed state
+        ResponseException ex = expectThrows(ResponseException.class, () -> startDataframeTransform(TRANSFORM_ID, false));
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.CONFLICT.getStatus()));
         assertThat(XContentMapValues.extractValue("error.reason", entityAsMap(ex.getResponse())),
             equalTo("Unable to start data frame transform [failure_pivot_1] as it is in a failed state with failure: [" +
-                "task encountered irrecoverable failure: no such index [reviews]]. " +
-                "Use force start to restart data frame transform once error is resolved."));
+                failureReason +
+                "]. Use force start to restart data frame transform once error is resolved."));
 
-        // Correct the failure by creating the reviews index again
-        createReviewsIndex();
+        // Correct the failure by deleting the destination index
+        deleteIndex(dataFrameIndex);
         // Force start the data frame to indicate failure correction
-        startDataframeTransform(transformId, true);
-        // Wait for data to be indexed appropriately and refresh for search
-        waitForDataFrameCheckpoint(transformId);
-        refreshIndex(dataFrameIndex);
+        startDataframeTransform(TRANSFORM_ID, true);
 
         // Verify that we have started and that our reason is cleared
-        fullState = getDataFrameState(transformId);
-        assertThat(XContentMapValues.extractValue("state.reason", fullState), is(nullValue()));
-        assertThat(XContentMapValues.extractValue("state.task_state", fullState), equalTo("started"));
-        assertThat(XContentMapValues.extractValue("state.indexer_state", fullState), equalTo("started"));
-        assertThat(XContentMapValues.extractValue("stats.search_failures", fullState), equalTo(1));
+        fullState = getDataFrameState(TRANSFORM_ID);
+        assertThat(XContentMapValues.extractValue("reason", fullState), is(nullValue()));
+        assertThat(XContentMapValues.extractValue("task_state", fullState), equalTo("started"));
+        assertThat(XContentMapValues.extractValue("stats.index_failures", fullState), equalTo(1));
 
-        // get and check some users to verify we restarted
-        assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_0", 3.776978417);
-        assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_5", 3.72);
-        assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_11", 3.846153846);
-        assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_20", 3.769230769);
-        assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_26", 3.918918918);
-
-
-        stopDataFrameTransform(transformId, true);
-        deleteDataFrameTransform(transformId);
+        stopDataFrameTransform(TRANSFORM_ID, true);
     }
 
     private void awaitState(String transformId, DataFrameTransformTaskState state) throws Exception {
         assertBusy(() -> {
             String currentState = getDataFrameTaskState(transformId);
-            assertThat(state.value(), equalTo(currentState));
-        });
+            assertThat(currentState, equalTo(state.value()));
+        }, 180, TimeUnit.SECONDS); // It should not take this long, but if the scheduler gets deferred, it could
     }
 
     private void assertOnePivotValue(String query, double expected) throws IOException {
@@ -95,5 +126,26 @@ public class DataFrameTaskFailedStateIT extends DataFrameRestTestCase {
         assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
         double actual = (Double) ((List<?>) XContentMapValues.extractValue("hits.hits._source.avg_rating", searchResult)).get(0);
         assertEquals(expected, actual, 0.000001);
+    }
+
+    private void createDestinationIndexWithBadMapping(String indexName) throws IOException {
+        // create mapping
+        try (XContentBuilder builder = jsonBuilder()) {
+            builder.startObject();
+            {
+                builder.startObject("mappings")
+                    .startObject("properties")
+                    .startObject("reviewer")
+                    .field("type", "long")
+                    .endObject()
+                    .endObject()
+                    .endObject();
+            }
+            builder.endObject();
+            final StringEntity entity = new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
+            Request req = new Request("PUT", indexName);
+            req.setEntity(entity);
+            client().performRequest(req);
+        }
     }
 }

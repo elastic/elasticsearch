@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformAction;
 
@@ -31,7 +32,7 @@ public class RestStartDataFrameTransformAction extends BaseRestHandler {
         StartDataFrameTransformAction.Request request = new StartDataFrameTransformAction.Request(id, force);
         request.timeout(restRequest.paramAsTime(DataFrameField.TIMEOUT.getPreferredName(), AcknowledgedRequest.DEFAULT_ACK_TIMEOUT));
         return channel -> client.execute(StartDataFrameTransformAction.INSTANCE, request,
-                new BaseTasksResponseToXContentListener<>(channel));
+                new RestToXContentListener<>(channel));
     }
 
     @Override

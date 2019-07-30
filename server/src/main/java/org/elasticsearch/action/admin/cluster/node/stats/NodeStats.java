@@ -90,7 +90,24 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     @Nullable
     private AdaptiveSelectionStats adaptiveSelectionStats;
 
-    NodeStats() {
+    public NodeStats(StreamInput in) throws IOException {
+        super(in);
+        timestamp = in.readVLong();
+        if (in.readBoolean()) {
+            indices = new NodeIndicesStats(in);
+        }
+        os = in.readOptionalWriteable(OsStats::new);
+        process = in.readOptionalWriteable(ProcessStats::new);
+        jvm = in.readOptionalWriteable(JvmStats::new);
+        threadPool = in.readOptionalWriteable(ThreadPoolStats::new);
+        fs = in.readOptionalWriteable(FsInfo::new);
+        transport = in.readOptionalWriteable(TransportStats::new);
+        http = in.readOptionalWriteable(HttpStats::new);
+        breaker = in.readOptionalWriteable(AllCircuitBreakerStats::new);
+        scriptStats = in.readOptionalWriteable(ScriptStats::new);
+        discoveryStats = in.readOptionalWriteable(DiscoveryStats::new);
+        ingestStats = in.readOptionalWriteable(IngestStats::new);
+        adaptiveSelectionStats = in.readOptionalWriteable(AdaptiveSelectionStats::new);
     }
 
     public NodeStats(DiscoveryNode node, long timestamp, @Nullable NodeIndicesStats indices,
@@ -208,33 +225,6 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     @Nullable
     public AdaptiveSelectionStats getAdaptiveSelectionStats() {
         return adaptiveSelectionStats;
-    }
-
-    public static NodeStats readNodeStats(StreamInput in) throws IOException {
-        NodeStats nodeInfo = new NodeStats();
-        nodeInfo.readFrom(in);
-        return nodeInfo;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        timestamp = in.readVLong();
-        if (in.readBoolean()) {
-            indices = NodeIndicesStats.readIndicesStats(in);
-        }
-        os = in.readOptionalWriteable(OsStats::new);
-        process = in.readOptionalWriteable(ProcessStats::new);
-        jvm = in.readOptionalWriteable(JvmStats::new);
-        threadPool = in.readOptionalWriteable(ThreadPoolStats::new);
-        fs = in.readOptionalWriteable(FsInfo::new);
-        transport = in.readOptionalWriteable(TransportStats::new);
-        http = in.readOptionalWriteable(HttpStats::new);
-        breaker = in.readOptionalWriteable(AllCircuitBreakerStats::new);
-        scriptStats = in.readOptionalWriteable(ScriptStats::new);
-        discoveryStats = in.readOptionalWriteable(DiscoveryStats::new);
-        ingestStats = in.readOptionalWriteable(IngestStats::new);
-        adaptiveSelectionStats = in.readOptionalWriteable(AdaptiveSelectionStats::new);
     }
 
     @Override

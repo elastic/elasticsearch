@@ -1,5 +1,5 @@
 [[voting-config-exclusions]]
-== Voting configuration exclusions API
+=== Voting configuration exclusions API
 ++++
 <titleabbrev>Voting Configuration Exclusions</titleabbrev>
 ++++
@@ -8,20 +8,20 @@ Adds or removes master-eligible nodes from the
 <<modules-discovery-voting,voting configuration exclusion list>>.
 
 [float]
-=== Request
+==== Request
 
 `POST _cluster/voting_config_exclusions/<node_name>` +
 
 `DELETE _cluster/voting_config_exclusions`
 
 [float]
-=== Path parameters
+==== Path parameters
 
 `node_name`::
   A <<cluster-nodes,node filter>> that identifies {es} nodes.
 
 [float]
-=== Description
+==== Description
   
 By default, if there are more than three master-eligible nodes in the cluster
 and you remove fewer than half of the master-eligible nodes in the cluster at
@@ -58,7 +58,7 @@ maintain the voting configuration.
 For more information, see <<modules-discovery-removing-nodes>>.
 
 [float]
-=== Examples
+==== Examples
 
 Add `nodeId1` to the voting configuration exclusions list:
 [source,js]

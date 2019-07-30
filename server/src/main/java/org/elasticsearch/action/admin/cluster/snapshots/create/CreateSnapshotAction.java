@@ -19,23 +19,18 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.create;
 
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 
 /**
  * Create snapshot action
  */
-public class CreateSnapshotAction extends StreamableResponseActionType<CreateSnapshotResponse> {
+public class CreateSnapshotAction extends ActionType<CreateSnapshotResponse> {
 
     public static final CreateSnapshotAction INSTANCE = new CreateSnapshotAction();
     public static final String NAME = "cluster:admin/snapshot/create";
 
     private CreateSnapshotAction() {
-        super(NAME);
-    }
-
-    @Override
-    public CreateSnapshotResponse newResponse() {
-        return new CreateSnapshotResponse();
+        super(NAME, CreateSnapshotResponse::new);
     }
 }
 

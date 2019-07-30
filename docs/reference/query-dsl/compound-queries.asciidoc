@@ -37,6 +37,7 @@ Changes the relevance scores of documents returned by a wrapped query. You can
 use the `function_score` query to incorporate factors like popularity, recency,
 distance, or custom algorithms into your search results.
 
+
 include::bool-query.asciidoc[]
 include::boosting-query.asciidoc[]
 include::constant-score-query.asciidoc[]

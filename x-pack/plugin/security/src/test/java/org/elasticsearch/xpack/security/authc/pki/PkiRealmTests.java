@@ -79,7 +79,7 @@ public class PkiRealmTests extends ESTestCase {
 
         assertThat(realm.supports(null), is(false));
         assertThat(realm.supports(new UsernamePasswordToken("", new SecureString(new char[0]))), is(false));
-        assertThat(realm.supports(new X509AuthenticationToken(new X509Certificate[0], "", "")), is(true));
+        assertThat(realm.supports(new X509AuthenticationToken(new X509Certificate[0])), is(true));
     }
 
     public void testExtractToken() throws Exception {
@@ -92,7 +92,6 @@ public class PkiRealmTests extends ESTestCase {
         X509AuthenticationToken token = realm.token(threadContext);
         assertThat(token, is(notNullValue()));
         assertThat(token.dn(), is("CN=Elasticsearch Test Node, OU=elasticsearch, O=org"));
-        assertThat(token.principal(), is("Elasticsearch Test Node"));
     }
 
     public void testAuthenticateBasedOnCertToken() throws Exception {
@@ -112,7 +111,8 @@ public class PkiRealmTests extends ESTestCase {
         PkiRealm realm = buildRealm(roleMapper, globalSettings);
         verify(roleMapper).refreshRealmOnChange(realm);
 
-        final String expectedUsername = token.principal();
+        final String expectedUsername = PkiRealm.getPrincipalFromSubjectDN(Pattern.compile(PkiRealmSettings.DEFAULT_USERNAME_PATTERN),
+                token, NoOpLogger.INSTANCE);
         final AuthenticationResult result = authenticate(token, realm);
         final PlainActionFuture<AuthenticationResult> future;
         assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
@@ -133,15 +133,24 @@ public class PkiRealmTests extends ESTestCase {
                     realm.expire(expectedUsername);
                 }
             }
-            future = new PlainActionFuture<>();
-            realm.authenticate(token, future);
-            assertEquals(AuthenticationResult.Status.SUCCESS, future.actionGet().getStatus());
-            assertEquals(user, future.actionGet().getUser());
+            final AuthenticationResult result2 = authenticate(token, realm);
+            assertThat(AuthenticationResult.Status.SUCCESS, is(result2.getStatus()));
+            assertThat(user, is(result2.getUser()));
         }
 
         final int numTimes = invalidate ? 2 : 1;
         verify(roleMapper, times(numTimes)).resolveRoles(any(UserRoleMapper.UserData.class), any(ActionListener.class));
         verifyNoMoreInteractions(roleMapper);
+    }
+
+    private UserRoleMapper buildRoleMapper() {
+        UserRoleMapper roleMapper = mock(UserRoleMapper.class);
+        Mockito.doAnswer(invocation -> {
+            ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[1];
+            listener.onResponse(Collections.emptySet());
+            return null;
+        }).when(roleMapper).resolveRoles(any(UserRoleMapper.UserData.class), any(ActionListener.class));
+        return roleMapper;
     }
 
     private UserRoleMapper buildRoleMapper(Set<String> roles, String dn) {
@@ -172,7 +181,7 @@ public class PkiRealmTests extends ESTestCase {
 
     private X509AuthenticationToken buildToken() throws Exception {
         X509Certificate certificate = readCert(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
-        return new X509AuthenticationToken(new X509Certificate[]{certificate}, "Elasticsearch Test Node", "CN=Elasticsearch Test Node,");
+        return new X509AuthenticationToken(new X509Certificate[]{certificate});
     }
 
     private AuthenticationResult authenticate(X509AuthenticationToken token, PkiRealm realm) {
@@ -181,38 +190,44 @@ public class PkiRealmTests extends ESTestCase {
         return future.actionGet();
     }
 
-    public void testCustomUsernamePattern() throws Exception {
+    public void testCustomUsernamePatternMatches() throws Exception {
         final Settings settings = Settings.builder()
                 .put(globalSettings)
                 .put("xpack.security.authc.realms.pki.my_pki.username_pattern", "OU=(.*?),")
                 .build();
         ThreadContext threadContext = new ThreadContext(settings);
         X509Certificate certificate = readCert(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
-        UserRoleMapper roleMapper = mock(UserRoleMapper.class);
-        PkiRealm realm = new PkiRealm(new RealmConfig(new RealmConfig.RealmIdentifier("pki", "my_pki"), settings,
-            TestEnvironment.newEnvironment(settings), threadContext), roleMapper);
-        realm.initialize(Collections.emptyList(), licenseState);
-        Mockito.doAnswer(invocation -> {
-            ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[1];
-            listener.onResponse(Collections.emptySet());
-            return null;
-        }).when(roleMapper).resolveRoles(any(UserRoleMapper.UserData.class), any(ActionListener.class));
+        UserRoleMapper roleMapper = buildRoleMapper();
+        PkiRealm realm = buildRealm(roleMapper, settings);
         threadContext.putTransient(PkiRealm.PKI_CERT_HEADER_NAME, new X509Certificate[] { certificate });
 
         X509AuthenticationToken token = realm.token(threadContext);
-        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
-        realm.authenticate(token, future);
-        User user = future.actionGet().getUser();
+        User user = authenticate(token, realm).getUser();
         assertThat(user, is(notNullValue()));
         assertThat(user.principal(), is("elasticsearch"));
         assertThat(user.roles(), is(notNullValue()));
         assertThat(user.roles().length, is(0));
     }
 
+    public void testCustomUsernamePatternMismatchesAndNullToken() throws Exception {
+        final Settings settings = Settings.builder()
+                .put(globalSettings)
+                .put("xpack.security.authc.realms.pki.my_pki.username_pattern", "OU=(mismatch.*?),")
+                .build();
+        ThreadContext threadContext = new ThreadContext(settings);
+        X509Certificate certificate = readCert(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
+        UserRoleMapper roleMapper = buildRoleMapper();
+        PkiRealm realm = buildRealm(roleMapper, settings);
+        threadContext.putTransient(PkiRealm.PKI_CERT_HEADER_NAME, new X509Certificate[] { certificate });
+
+        X509AuthenticationToken token = realm.token(threadContext);
+        assertThat(token, is(nullValue()));
+    }
+
     public void testVerificationUsingATruststore() throws Exception {
         X509Certificate certificate = readCert(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
 
-        UserRoleMapper roleMapper = mock(UserRoleMapper.class);
+        UserRoleMapper roleMapper = buildRoleMapper();
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.security.authc.realms.pki.my_pki.truststore.secure_password", "testnode");
         Settings settings = Settings.builder()
@@ -222,21 +237,12 @@ public class PkiRealmTests extends ESTestCase {
                 .setSecureSettings(secureSettings)
                 .build();
         ThreadContext threadContext = new ThreadContext(globalSettings);
-        PkiRealm realm = new PkiRealm(new RealmConfig(new RealmConfig.RealmIdentifier("pki", "my_pki"), settings,
-                TestEnvironment.newEnvironment(globalSettings), threadContext), roleMapper);
-        realm.initialize(Collections.emptyList(), licenseState);
-        Mockito.doAnswer(invocation -> {
-            ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[1];
-            listener.onResponse(Collections.emptySet());
-            return null;
-        }).when(roleMapper).resolveRoles(any(UserRoleMapper.UserData.class), any(ActionListener.class));
+        PkiRealm realm = buildRealm(roleMapper, settings);
 
         threadContext.putTransient(PkiRealm.PKI_CERT_HEADER_NAME, new X509Certificate[] { certificate });
 
         X509AuthenticationToken token = realm.token(threadContext);
-        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
-        realm.authenticate(token, future);
-        User user = future.actionGet().getUser();
+        User user = authenticate(token, realm).getUser();
         assertThat(user, is(notNullValue()));
         assertThat(user.principal(), is("Elasticsearch Test Node"));
         assertThat(user.roles(), is(notNullValue()));
@@ -245,32 +251,25 @@ public class PkiRealmTests extends ESTestCase {
 
     public void testVerificationFailsUsingADifferentTruststore() throws Exception {
         X509Certificate certificate = readCert(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
-        UserRoleMapper roleMapper = mock(UserRoleMapper.class);
+        UserRoleMapper roleMapper = buildRoleMapper();
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.security.authc.realms.pki.mypki.truststore.secure_password", "testnode-client-profile");
+        secureSettings.setString("xpack.security.authc.realms.pki.my_pki.truststore.secure_password", "testnode-client-profile");
         Settings settings = Settings.builder()
                 .put(globalSettings)
-            .put("xpack.security.authc.realms.pki.mypki.truststore.path",
+            .put("xpack.security.authc.realms.pki.my_pki.truststore.path",
                         getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-client-profile.jks"))
                 .setSecureSettings(secureSettings)
                 .build();
-        final ThreadContext threadContext = new ThreadContext(settings);
-        PkiRealm realm = new PkiRealm(new RealmConfig(new RealmConfig.RealmIdentifier("pki", "mypki"), settings,
-                TestEnvironment.newEnvironment(settings), threadContext), roleMapper);
-        realm.initialize(Collections.emptyList(), licenseState);
-        Mockito.doAnswer(invocation -> {
-            ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[1];
-            listener.onResponse(Collections.emptySet());
-            return null;
-        }).when(roleMapper).resolveRoles(any(UserRoleMapper.UserData.class), any(ActionListener.class));
+        ThreadContext threadContext = new ThreadContext(settings);
+        PkiRealm realm = buildRealm(roleMapper, settings);
 
         threadContext.putTransient(PkiRealm.PKI_CERT_HEADER_NAME, new X509Certificate[] { certificate });
 
         X509AuthenticationToken token = realm.token(threadContext);
-        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
-        realm.authenticate(token, future);
-        User user = future.actionGet().getUser();
-        assertThat(user, is(nullValue()));
+        AuthenticationResult result = authenticate(token, realm);
+        assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.CONTINUE));
+        assertThat(result.getMessage(), containsString("not trusted"));
+        assertThat(result.getUser(), is(nullValue()));
     }
 
     public void testTruststorePathWithoutPasswordThrowsException() throws Exception {
@@ -306,11 +305,13 @@ public class PkiRealmTests extends ESTestCase {
         X500Principal principal = new X500Principal("CN=PKI Client");
         when(certificate.getSubjectX500Principal()).thenReturn(principal);
 
-        X509AuthenticationToken token = PkiRealm.token(new X509Certificate[]{certificate},
-                Pattern.compile(PkiRealmSettings.DEFAULT_USERNAME_PATTERN), NoOpLogger.INSTANCE);
+        X509AuthenticationToken token = new X509AuthenticationToken(new X509Certificate[]{certificate});
         assertThat(token, notNullValue());
-        assertThat(token.principal(), is("PKI Client"));
         assertThat(token.dn(), is("CN=PKI Client"));
+
+        String parsedPrincipal = PkiRealm.getPrincipalFromSubjectDN(Pattern.compile(PkiRealmSettings.DEFAULT_USERNAME_PATTERN), token,
+                NoOpLogger.INSTANCE);
+        assertThat(parsedPrincipal, is("PKI Client"));
     }
 
     public void testCertificateWithCnAndOuExtractsProperly() throws Exception {
@@ -318,11 +319,13 @@ public class PkiRealmTests extends ESTestCase {
         X500Principal principal = new X500Principal("CN=PKI Client, OU=Security");
         when(certificate.getSubjectX500Principal()).thenReturn(principal);
 
-        X509AuthenticationToken token = PkiRealm.token(new X509Certificate[]{certificate},
-                Pattern.compile(PkiRealmSettings.DEFAULT_USERNAME_PATTERN), NoOpLogger.INSTANCE);
+        X509AuthenticationToken token = new X509AuthenticationToken(new X509Certificate[]{certificate});
         assertThat(token, notNullValue());
-        assertThat(token.principal(), is("PKI Client"));
         assertThat(token.dn(), is("CN=PKI Client, OU=Security"));
+
+        String parsedPrincipal = PkiRealm.getPrincipalFromSubjectDN(Pattern.compile(PkiRealmSettings.DEFAULT_USERNAME_PATTERN), token,
+                NoOpLogger.INSTANCE);
+        assertThat(parsedPrincipal, is("PKI Client"));
     }
 
     public void testCertificateWithCnInMiddle() throws Exception {
@@ -330,11 +333,13 @@ public class PkiRealmTests extends ESTestCase {
         X500Principal principal = new X500Principal("EMAILADDRESS=pki@elastic.co, CN=PKI Client, OU=Security");
         when(certificate.getSubjectX500Principal()).thenReturn(principal);
 
-        X509AuthenticationToken token = PkiRealm.token(new X509Certificate[]{certificate},
-                Pattern.compile(PkiRealmSettings.DEFAULT_USERNAME_PATTERN), NoOpLogger.INSTANCE);
+        X509AuthenticationToken token = new X509AuthenticationToken(new X509Certificate[]{certificate});
         assertThat(token, notNullValue());
-        assertThat(token.principal(), is("PKI Client"));
         assertThat(token.dn(), is("EMAILADDRESS=pki@elastic.co, CN=PKI Client, OU=Security"));
+
+        String parsedPrincipal = PkiRealm.getPrincipalFromSubjectDN(Pattern.compile(PkiRealmSettings.DEFAULT_USERNAME_PATTERN), token,
+                NoOpLogger.INSTANCE);
+        assertThat(parsedPrincipal, is("PKI Client"));
     }
 
     public void testPKIRealmSettingsPassValidation() throws Exception {
@@ -355,10 +360,12 @@ public class PkiRealmTests extends ESTestCase {
 
     public void testDelegatedAuthorization() throws Exception {
         final X509AuthenticationToken token = buildToken();
+        String parsedPrincipal = PkiRealm.getPrincipalFromSubjectDN(Pattern.compile(PkiRealmSettings.DEFAULT_USERNAME_PATTERN), token,
+                NoOpLogger.INSTANCE);
 
         final MockLookupRealm otherRealm = new MockLookupRealm(new RealmConfig(new RealmConfig.RealmIdentifier("mock", "other_realm"),
             globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings)));
-        final User lookupUser = new User(token.principal());
+        final User lookupUser = new User(parsedPrincipal);
         otherRealm.registerUser(lookupUser);
 
         final Settings realmSettings = Settings.builder()
@@ -373,7 +380,7 @@ public class PkiRealmTests extends ESTestCase {
         assertThat(result.getUser(), sameInstance(lookupUser));
 
         // check that the authorizing realm is consulted even for cached principals
-        final User lookupUser2 = new User(token.principal());
+        final User lookupUser2 = new User(parsedPrincipal);
         otherRealm.registerUser(lookupUser2);
 
         result = authenticate(token, pkiRealm);

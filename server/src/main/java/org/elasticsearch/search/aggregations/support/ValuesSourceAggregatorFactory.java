@@ -29,13 +29,12 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource, AF extends ValuesSourceAggregatorFactory<VS, AF>>
-        extends AggregatorFactory<AF> {
+public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> extends AggregatorFactory {
 
     protected ValuesSourceConfig<VS> config;
 
     public ValuesSourceAggregatorFactory(String name, ValuesSourceConfig<VS> config, SearchContext context,
-            AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
+            AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
         super(name, context, parent, subFactoriesBuilder, metaData);
         this.config = config;
     }
@@ -43,11 +42,26 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource, AF 
     @Override
     public Aggregator createInternal(Aggregator parent, boolean collectsFromSingleBucket,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        VS vs = config.toValuesSource(context.getQueryShardContext());
+        VS vs = config.toValuesSource(context.getQueryShardContext(), this::resolveMissingAny);
         if (vs == null) {
             return createUnmapped(parent, pipelineAggregators, metaData);
         }
         return doCreateInternal(vs, parent, collectsFromSingleBucket, pipelineAggregators, metaData);
+    }
+
+    /**
+     * This method provides a hook for aggregations that need finer grained control over the ValuesSource selected when the user supplies a
+     * missing value and there is no mapped field to infer the type from.  This will only be called for aggregations that specify the
+     * ValuesSourceType.ANY in their constructors (On the builder class).  The user supplied object is passed as a parameter, so its type
+     * may be inspected as needed.
+     *
+     * Generally, only the type of the returned ValuesSource is used, so returning the EMPTY instance of the chosen type is recommended.
+     *
+     * @param missing The user supplied missing value
+     * @return A ValuesSource instance compatible with the supplied parameter
+     */
+    protected ValuesSource resolveMissingAny(Object missing) {
+        return ValuesSource.Bytes.WithOrdinals.EMPTY;
     }
 
     protected abstract Aggregator createUnmapped(Aggregator parent,

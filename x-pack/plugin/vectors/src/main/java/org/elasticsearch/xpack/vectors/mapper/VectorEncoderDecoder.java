@@ -162,12 +162,11 @@ public final class VectorEncoderDecoder {
         float[] vector = new float[dimCount];
         int offset = vectorBR.offset;
         for (int dim = 0; dim < dimCount; dim++) {
-            int intValue = ((vectorBR.bytes[offset] & 0xFF) << 24)   |
-                ((vectorBR.bytes[offset+1] & 0xFF) << 16) |
-                ((vectorBR.bytes[offset+2] & 0xFF) <<  8) |
-                (vectorBR.bytes[offset+3] & 0xFF);
+            int intValue = ((vectorBR.bytes[offset++] & 0xFF) << 24)   |
+                ((vectorBR.bytes[offset++] & 0xFF) << 16) |
+                ((vectorBR.bytes[offset++] & 0xFF) <<  8) |
+                (vectorBR.bytes[offset++] & 0xFF);
             vector[dim] = Float.intBitsToFloat(intValue);
-            offset = offset + INT_BYTES;
         }
         return vector;
     }

@@ -18,10 +18,11 @@
  */
 package org.elasticsearch.persistent;
 
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.persistent.CompletionPersistentTaskAction.Request;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-public class RestartPersistentTaskRequestTests extends AbstractStreamableTestCase<Request> {
+public class RestartPersistentTaskRequestTests extends AbstractWireSerializingTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
@@ -29,7 +30,7 @@ public class RestartPersistentTaskRequestTests extends AbstractStreamableTestCas
     }
 
     @Override
-    protected Request createBlankInstance() {
-        return new Request();
+    protected Writeable.Reader<Request> instanceReader() {
+        return Request::new;
     }
 }

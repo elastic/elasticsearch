@@ -70,7 +70,7 @@ public class DataFrameAnalyticsManager {
         ActionListener<DataFrameAnalyticsConfig> configListener = ActionListener.wrap(
             config -> {
                 DataFrameAnalyticsTaskState reindexingState = new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.REINDEXING,
-                    task.getAllocationId());
+                    task.getAllocationId(), null);
                 switch(currentState) {
                     // If we are STARTED, we are right at the beginning of our task, we should indicate that we are entering the
                     // REINDEX state and start reindexing.
@@ -191,7 +191,7 @@ public class DataFrameAnalyticsManager {
         ActionListener<DataFrameDataExtractorFactory> dataExtractorFactoryListener = ActionListener.wrap(
             dataExtractorFactory -> {
                 DataFrameAnalyticsTaskState analyzingState = new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.ANALYZING,
-                    task.getAllocationId());
+                    task.getAllocationId(), null);
                 task.updatePersistentTaskState(analyzingState, ActionListener.wrap(
                     updatedTask -> processManager.runJob(task, config, dataExtractorFactory,
                         error -> {

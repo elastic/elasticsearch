@@ -158,6 +158,8 @@ public final class NoOpEngine extends ReadOnlyEngine {
                     try (Translog translog = new Translog(translogConfig, translogUuid, translogDeletionPolicy,
                         engineConfig.getGlobalCheckpointSupplier(), engineConfig.getPrimaryTermSupplier(), seqNo -> {})) {
                         translog.trimUnreferencedReaders();
+                        // refresh the translog stats
+                        this.translogStats = translog.stats();
                     }
                 }
             }

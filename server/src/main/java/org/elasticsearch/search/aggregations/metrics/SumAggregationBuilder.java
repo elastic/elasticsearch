@@ -79,7 +79,7 @@ public class SumAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
 
     @Override
     protected SumAggregatorFactory innerBuild(SearchContext context, ValuesSourceConfig<Numeric> config,
-            AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
+            AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
         return new SumAggregatorFactory(name, config, context, parent, subFactoriesBuilder, metaData);
     }
 

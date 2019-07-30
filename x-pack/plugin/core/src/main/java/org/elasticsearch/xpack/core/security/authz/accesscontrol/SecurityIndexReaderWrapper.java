@@ -14,7 +14,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
@@ -44,17 +43,17 @@ public class SecurityIndexReaderWrapper implements CheckedFunction<DirectoryRead
     private static final Logger logger = LogManager.getLogger(SecurityIndexReaderWrapper.class);
 
     private final Function<ShardId, QueryShardContext> queryShardContextProvider;
-    private final BitsetFilterCache bitsetFilterCache;
+    private final DocumentSubsetBitsetCache bitsetCache;
     private final XPackLicenseState licenseState;
     private final ThreadContext threadContext;
     private final ScriptService scriptService;
 
     public SecurityIndexReaderWrapper(Function<ShardId, QueryShardContext> queryShardContextProvider,
-                                      BitsetFilterCache bitsetFilterCache, ThreadContext threadContext, XPackLicenseState licenseState,
+                                      DocumentSubsetBitsetCache bitsetCache, ThreadContext threadContext, XPackLicenseState licenseState,
                                       ScriptService scriptService) {
         this.scriptService = scriptService;
         this.queryShardContextProvider = queryShardContextProvider;
-        this.bitsetFilterCache = bitsetFilterCache;
+        this.bitsetCache = bitsetCache;
         this.threadContext = threadContext;
         this.licenseState = licenseState;
     }
@@ -84,7 +83,7 @@ public class SecurityIndexReaderWrapper implements CheckedFunction<DirectoryRead
             if (documentPermissions != null && documentPermissions.hasDocumentLevelPermissions()) {
                 BooleanQuery filterQuery = documentPermissions.filter(getUser(), scriptService, shardId, queryShardContextProvider);
                 if (filterQuery != null) {
-                    wrappedReader = DocumentSubsetReader.wrap(wrappedReader, bitsetFilterCache, new ConstantScoreQuery(filterQuery));
+                    wrappedReader = DocumentSubsetReader.wrap(wrappedReader, bitsetCache, new ConstantScoreQuery(filterQuery));
                 }
             }
 

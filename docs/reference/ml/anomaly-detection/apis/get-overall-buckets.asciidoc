@@ -6,8 +6,8 @@
 <titleabbrev>Get overall buckets</titleabbrev>
 ++++
 
-Retrieves overall bucket results that summarize the
-bucket results of multiple jobs.
+Retrieves overall bucket results that summarize the bucket results of multiple
+{anomaly-jobs}.
 
 [[ml-get-overall-buckets-request]]
 ==== {api-request-title}
@@ -31,45 +31,46 @@ privileges. See {stack-ov}/security-privileges.html[Security privileges] and
 [[ml-get-overall-buckets-desc]]
 ==== {api-description-title}
 
-You can summarize the bucket results for all jobs by using `_all` or by
-specifying `*` as the `<job_id>`.
+You can summarize the bucket results for all {anomaly-jobs} by using `_all` or
+by specifying `*` as the `<job_id>`.
 
 An overall bucket has a span equal to the largest `bucket_span` value for the
-specified jobs.
+specified {anomaly-jobs}.
 
-The `overall_score` is calculated by combining the scores of all
-the buckets within the overall bucket span. First, the maximum `anomaly_score` per
-job in the overall bucket is calculated. Then the `top_n` of those scores are
-averaged to result in the `overall_score`. This means that you can fine-tune
-the `overall_score` so that it is more or less sensitive to the number
+The `overall_score` is calculated by combining the scores of all the buckets
+within the overall bucket span. First, the maximum `anomaly_score` per
+{anomaly-job} in the overall bucket is calculated. Then the `top_n` of those
+scores are averaged to result in the `overall_score`. This means that you can
+fine-tune the `overall_score` so that it is more or less sensitive to the number
 of jobs that detect an anomaly at the same time. For example, if you set `top_n`
-to `1`, the `overall_score` is the maximum bucket
-score in the overall bucket. Alternatively, if you set `top_n` to the number of
-jobs, the `overall_score` is high only when all jobs detect anomalies in that
-overall bucket.
+to `1`, the `overall_score` is the maximum bucket score in the overall bucket. Alternatively, if you set `top_n` to the number of jobs, the `overall_score` is
+high only when all jobs detect anomalies in that overall bucket.
 
 In addition, the optional parameter `bucket_span` may be used in order
-to request overall buckets that span longer than the largest job's `bucket_span`.
-When set, the `overall_score` will be the max `overall_score` of the corresponding
-overall buckets with a span equal to the largest job's `bucket_span`.
+to request overall buckets that span longer than the `bucket_span` of the
+largest {anomaly-job}. When set, the `overall_score` will be the max
+`overall_score` of the corresponding overall buckets with a span equal to the
+`bucket_span` of the largest {anomaly-job}.
 
 [[ml-get-overall-buckets-path-parms]]
 ==== {api-path-parms-title}
 
 `<job_id>`::
-  (Required, string) Identifier for the job. It can be a job identifier, a group
-  name, a comma-separated list of jobs or groups, or a wildcard expression.
+  (Required, string) Identifier for the {anomaly-job}. It can be a job
+  identifier, a group name, a comma-separated list of jobs or groups, or a
+  wildcard expression.
 
 [[ml-get-overall-buckets-request-body]]
 ==== {api-request-body-title}
 
 `allow_no_jobs`::
-  (Optional, boolean) If `false` and the `job_id` does not match any job, an
-  error occurs. The default value is `true`.
+  (Optional, boolean) If `false` and the `job_id` does not match any
+  {anomaly-jobs}, an error occurs. The default value is `true`.
 
 `bucket_span`::
   (Optional, string) The span of the overall buckets. Must be greater or equal
-  to the largest job's `bucket_span`. Defaults to the largest job's `bucket_span`.
+  to the `bucket_span` of the largest {anomaly-job}. Defaults to the
+  `bucket_span` of the largest {anomaly-job}. 
 
 `end`::
   (Optional, string) Returns overall buckets with timestamps earlier than this
@@ -88,8 +89,8 @@ overall buckets with a span equal to the largest job's `bucket_span`.
   (Optional, string) Returns overall buckets with timestamps after this time.
 
 `top_n`::
-  (Optional, integer) The number of top job bucket scores to be used in the
-  `overall_score` calculation. The default value is `1`.
+  (Optional, integer) The number of top {anomaly-job} bucket scores to be used
+  in the `overall_score` calculation. The default value is `1`.
 
 [[ml-get-overall-buckets-results]]
 ==== {api-response-body-title}
@@ -103,7 +104,8 @@ The API returns the following information:
 [[ml-get-overall-buckets-example]]
 ==== {api-examples-title}
 
-The following example gets overall buckets for jobs with IDs matching `job-*`:
+The following example gets overall buckets for {anomaly-jobs} with IDs matching
+`job-*`:
 
 [source,js]
 --------------------------------------------------

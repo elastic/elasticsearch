@@ -87,7 +87,7 @@ public class TransportGetDataFrameTransformsStatsAction extends
         String nodeId = state.nodes().getLocalNode().getId();
         if (task.isCancelled() == false) {
             DataFrameTransformState transformState = task.getState();
-            task.getCheckpointingInfo(ActionListener.wrap(
+            task.getCheckpointingInfo(transformsCheckpointService, ActionListener.wrap(
                 checkpointingInfo -> listener.onResponse(new Response(
                     Collections.singletonList(new DataFrameTransformStats(task.getTransformId(),
                         transformState.getTaskState(),

@@ -61,10 +61,14 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
                 sourceCheckpoint = DataFrameTransformCheckpoint.EMPTY;
             }
 
+            // checkpointstats requires a non-negative checkpoint number
+            long lastCheckpointNumber = lastCheckpoint.getCheckpoint() > 0 ? lastCheckpoint.getCheckpoint() : 0;
+            long nextCheckpointNumber = nextCheckpoint.getCheckpoint() > 0 ? nextCheckpoint.getCheckpoint() : 0;
+
             return new DataFrameTransformCheckpointingInfo(
-                new DataFrameTransformCheckpointStats(lastCheckpoint.getCheckpoint(), null, null, null,
+                new DataFrameTransformCheckpointStats(lastCheckpointNumber, null, null, null,
                     lastCheckpoint.getTimestamp(), lastCheckpoint.getTimeUpperBound()),
-                new DataFrameTransformCheckpointStats(nextCheckpoint.getCheckpoint(), nextCheckpointIndexerState, nextCheckpointPosition,
+                new DataFrameTransformCheckpointStats(nextCheckpointNumber, nextCheckpointIndexerState, nextCheckpointPosition,
                     nextCheckpointProgress, nextCheckpoint.getTimestamp(), nextCheckpoint.getTimeUpperBound()),
                 DataFrameTransformCheckpoint.getBehind(lastCheckpoint, sourceCheckpoint));
         }

@@ -178,8 +178,19 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         return currentCheckpoint.get();
     }
 
-    public void getCheckpointingInfo(ActionListener<DataFrameTransformCheckpointingInfo> listener) {
+    public void getCheckpointingInfo(DataFrameTransformsCheckpointService transformsCheckpointService,
+            ActionListener<DataFrameTransformCheckpointingInfo> listener) {
         ClientDataFrameIndexer indexer = getIndexer();
+        if (indexer == null) {
+            transformsCheckpointService.getCheckpointingInfo(
+                    transform.getId(),
+                    currentCheckpoint.get(),
+                    initialIndexerState,
+                    initialPosition,
+                    null,
+                    listener);
+            return;
+        }
         indexer.getCheckpointProvider().getCheckpointingInfo(
                 indexer.getLastCheckpoint(),
                 indexer.getNextCheckpoint(),

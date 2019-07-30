@@ -706,20 +706,26 @@ public class SettingsTests extends ESTestCase {
     }
 
     public void testProcessSetting() throws IOException {
-        Map<String, Object> map = new HashMap<>(2);
-        SettingsTests.processSetting(map, "", "ant", "value1");
-        SettingsTests.processSetting(map, "", "ant.bee.cat", "value2");
-        SettingsTests.processSetting(map, "", "bee.cat", "value3");
+        Settings test = Settings.builder()
+            .put("ant", "value1")
+            .put("ant.bee.cat", "value2")
+            .put("bee.cat", "value3")
+            .build();
         XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
-        builder.map(map);
+        builder.startObject();
+        test.toXContent(builder, new ToXContent.MapParams(Collections.emptyMap()));
+        builder.endObject();
         assertEquals("{\"ant.bee\":{\"cat\":\"value2\"},\"ant\":\"value1\",\"bee\":{\"cat\":\"value3\"}}", Strings.toString(builder));
 
-        map.clear();
-        SettingsTests.processSetting(map, "", "ant", "value1");
-        SettingsTests.processSetting(map, "", "ant.bee.cat", "value2");
-        SettingsTests.processSetting(map, "", "ant.bee.cat.dog.ewe", "value3");
+        test = Settings.builder()
+            .put("ant", "value1")
+            .put("ant.bee.cat", "value2")
+            .put("ant.bee.cat.dog.ewe", "value3")
+            .build();
         builder = XContentBuilder.builder(XContentType.JSON.xContent());
-        builder.map(map);
+        builder.startObject();
+        test.toXContent(builder, new ToXContent.MapParams(Collections.emptyMap()));
+        builder.endObject();
         assertEquals("{\"ant.bee\":{\"cat.dog\":{\"ewe\":\"value3\"},\"cat\":\"value2\"},\"ant\":\"value1\"}", Strings.toString(builder));
     }
 

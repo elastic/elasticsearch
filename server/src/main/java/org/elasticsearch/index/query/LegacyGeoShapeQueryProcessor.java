@@ -65,7 +65,7 @@ public class LegacyGeoShapeQueryProcessor implements AbstractGeometryFieldMapper
 
     @Override
     public Query process(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
-        return process(shape, fieldName, LegacyGeoShapeFieldMapper.DeprecatedParameters.Defaults.STRATEGY, relation, context);
+        throw new UnsupportedOperationException("process method should not be called for PrefixTree based geo_shapes");
     }
 
     @Override

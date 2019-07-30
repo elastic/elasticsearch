@@ -72,13 +72,8 @@ public class ShapeIndexer implements AbstractGeometryFieldMapper.Indexer<Geometr
 
         @Override
         public Void visit(org.elasticsearch.geo.geometry.Line line) {
-            float[] x = new float[line.length()];
-            float[] y = new float[x.length];
-            for (int i = 0; i < x.length; ++i) {
-                x[i] = (float)line.getLon(i);
-                y[i] = (float)line.getLat(i);
-            }
-            addFields(XYShape.createIndexableFields(name, new XYLine(x, y)));
+            float[][] vertices = lineToFloatArray(line.getLons(), line.getLats());
+            addFields(XYShape.createIndexableFields(name, new XYLine(vertices[0], vertices[1])));
             return null;
         }
 
@@ -140,23 +135,23 @@ public class ShapeIndexer implements AbstractGeometryFieldMapper.Indexer<Geometr
     public static XYPolygon toLucenePolygon(org.elasticsearch.geo.geometry.Polygon polygon) {
         XYPolygon[] holes = new XYPolygon[polygon.getNumberOfHoles()];
         LinearRing ring;
+        float[][] vertices;
         for(int i = 0; i<holes.length; i++) {
             ring = polygon.getHole(i);
-            float[] x = new float[ring.length()];
-            float[] y = new float[x.length];
-            for (int j = 0; j < x.length; ++j) {
-                x[j] = (float)ring.getLon(j);
-                y[j] = (float)ring.getLat(j);
-            }
-            holes[i] = new XYPolygon(x, y);
+            vertices = lineToFloatArray(ring.getLons(), ring.getLats());
+            holes[i] = new XYPolygon(vertices[0], vertices[1]);
         }
         ring = polygon.getPolygon();
-        float[] x = new float[ring.length()];
-        float[] y = new float[x.length];
+        vertices = lineToFloatArray(ring.getLons(), ring.getLats());
+        return new XYPolygon(vertices[0], vertices[1], holes);
+    }
+
+    private static float[][] lineToFloatArray(double[] x, double[] y) {
+        float[][] result = new float[2][x.length];
         for (int i = 0; i < x.length; ++i) {
-            x[i] = (float)ring.getLon(i);
-            y[i] = (float)ring.getLat(i);
+            result[0][i] = (float)x[i];
+            result[1][i] = (float)y[i];
         }
-        return new XYPolygon(x, y, holes);
+        return result;
     }
 }

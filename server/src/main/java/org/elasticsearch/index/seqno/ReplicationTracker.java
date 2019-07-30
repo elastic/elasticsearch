@@ -305,6 +305,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         final RetentionLease retentionLease;
         final RetentionLeases currentRetentionLeases;
         synchronized (this) {
+            assert primaryMode;
             if (getRetentionLeases().contains(sourceLeaseId) == false) {
                 throw new RetentionLeaseNotFoundException(sourceLeaseId);
             }

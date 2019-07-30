@@ -22,7 +22,7 @@ POST _analyze
 [source,js]
 ----------------------------
 {
-  "tokens": [iiii
+  "tokens": [
     {
       "token": "the",
       "start_offset": 0,

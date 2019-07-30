@@ -27,6 +27,7 @@ import org.elasticsearch.common.geo.builders.MultiLineStringBuilder;
 import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
+import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.test.ESTestCase;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.LineString;
@@ -778,6 +779,6 @@ public class ShapeBuilderTests extends ESTestCase {
     }
 
     public Object buildGeometry(ShapeBuilder<?, ?, ?> builder) {
-        return new GeometryIndexer(true).prepareForIndexing(builder.buildGeometry());
+        return new GeoShapeIndexer(true).prepareForIndexing(builder.buildGeometry());
     }
 }

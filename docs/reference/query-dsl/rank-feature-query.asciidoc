@@ -44,8 +44,7 @@ mapping. To see how you can set up an index for the `rank_feature` query, try
 the following example.
 
 Create a `test` index with the following field mappings:
-+
---
+
 - `pagerank`, a <<rank-feature,`rank_feature`>> field which measures the
 importance of a website
 - `url_length`, a <<rank-feature,`rank_feature`>> field which contains the
@@ -76,11 +75,10 @@ PUT /test
 ----
 // CONSOLE
 // TESTSETUP
---
+
 
 Index several documents to the `test` index.
-+
---
+
 [source,js]
 ----
 PUT /test/_doc/1?refresh
@@ -121,7 +119,6 @@ PUT /test/_doc/3?refresh
 }
 ----
 // CONSOLE
---
 
 [[rank-feature-query-ex-query]]
 ===== Example query

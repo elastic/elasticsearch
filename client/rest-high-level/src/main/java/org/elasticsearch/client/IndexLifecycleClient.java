@@ -34,12 +34,12 @@ import org.elasticsearch.client.indexlifecycle.RemoveIndexLifecyclePolicyRespons
 import org.elasticsearch.client.indexlifecycle.RetryLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.StartILMRequest;
 import org.elasticsearch.client.indexlifecycle.StopILMRequest;
-import org.elasticsearch.client.snapshotlifecycle.DeleteSnapshotLifecyclePolicyRequest;
-import org.elasticsearch.client.snapshotlifecycle.ExecuteSnapshotLifecyclePolicyRequest;
-import org.elasticsearch.client.snapshotlifecycle.ExecuteSnapshotLifecyclePolicyResponse;
-import org.elasticsearch.client.snapshotlifecycle.GetSnapshotLifecyclePolicyRequest;
-import org.elasticsearch.client.snapshotlifecycle.GetSnapshotLifecyclePolicyResponse;
-import org.elasticsearch.client.snapshotlifecycle.PutSnapshotLifecyclePolicyRequest;
+import org.elasticsearch.client.slm.DeleteSnapshotLifecyclePolicyRequest;
+import org.elasticsearch.client.slm.ExecuteSnapshotLifecyclePolicyRequest;
+import org.elasticsearch.client.slm.ExecuteSnapshotLifecyclePolicyResponse;
+import org.elasticsearch.client.slm.GetSnapshotLifecyclePolicyRequest;
+import org.elasticsearch.client.slm.GetSnapshotLifecyclePolicyResponse;
+import org.elasticsearch.client.slm.PutSnapshotLifecyclePolicyRequest;
 
 import java.io.IOException;
 

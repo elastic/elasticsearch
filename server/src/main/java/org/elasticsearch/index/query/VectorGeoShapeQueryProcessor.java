@@ -66,7 +66,7 @@ public class VectorGeoShapeQueryProcessor implements AbstractGeometryFieldMapper
         if (processedShape == null) {
             return new MatchNoDocsQuery();
         }
-        return queryShape.visit(new ShapeVisitor(context, fieldName, relation));
+        return processedShape.visit(new ShapeVisitor(context, fieldName, relation));
     }
 
     private class ShapeVisitor implements GeometryVisitor<Query, RuntimeException> {

@@ -1155,7 +1155,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
     }
 
     public void testClusterRecoversAfterExceptionDuringSerialization() {
-        try (Cluster cluster = new Cluster(randomIntBetween(2, 5))) { // 1-node cluster doesn't do any serialization
+        try (Cluster cluster = new Cluster(randomIntBetween(1, 5))) {
             cluster.runRandomly();
             cluster.stabilise();
 

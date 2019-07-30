@@ -196,8 +196,7 @@ value of the rank feature `field`. If no function is provided, the `rank_feature
 query defaults to the `saturation` function. See
 <<rank-feature-query-saturation,Saturation>> for more information.
 
-You cannot use the `saturation` parameter with the `log` or `sigmoid`
-parameters.
+Only one function `saturation`, `log`, or `sigmoid` can be provided.
 --
 
 `log`::
@@ -208,8 +207,7 @@ function used to boost <<query-filter-context,relevance scores>> based on the
 value of the rank feature `field`. See
 <<rank-feature-query-logarithm,Logarithm>> for more information.
 
-You cannot use the `log` parameter with the `saturation` or `sigmoid`
-parameters.
+Only one function `saturation`, `log`, or `sigmoid` can be provided.
 --
 
 `sigmoid`::
@@ -220,8 +218,7 @@ to boost <<query-filter-context,relevance scores>> based on the value of the
 rank feature `field`. See <<rank-feature-query-sigmoid,Sigmoid>> for more
 information.
 
-You cannot use the `sigmoid` parameter with the `saturation` or `log`
-parameters.
+Only one function `saturation`, `log`, or `sigmoid` can be provided.
 --
 
 

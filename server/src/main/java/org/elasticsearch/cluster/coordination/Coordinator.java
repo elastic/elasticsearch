@@ -99,6 +99,11 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         Setting.timeSetting("cluster.publish.timeout",
             TimeValue.timeValueMillis(30000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
 
+    // the interval between reports of slow publication
+    public static final Setting<TimeValue> PUBLISH_REPORT_INTERVAL_SETTING =
+        Setting.timeSetting("cluster.publish.report_interval",
+            TimeValue.timeValueMillis(10000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
+
     private final Settings settings;
     private final boolean singleNodeDiscovery;
     private final ElectionStrategy electionStrategy;
@@ -121,6 +126,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private final ElectionSchedulerFactory electionSchedulerFactory;
     private final SeedHostsResolver configuredHostsResolver;
     private final TimeValue publishTimeout;
+    private final TimeValue publishReportInterval;
     private final PublicationTransportHandler publicationHandler;
     private final LeaderChecker leaderChecker;
     private final FollowersChecker followersChecker;
@@ -167,6 +173,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.lastJoin = Optional.empty();
         this.joinAccumulator = new InitialJoinAccumulator();
         this.publishTimeout = PUBLISH_TIMEOUT_SETTING.get(settings);
+        this.publishReportInterval = PUBLISH_REPORT_INTERVAL_SETTING.get(settings);
         this.random = random;
         this.electionSchedulerFactory = new ElectionSchedulerFactory(settings, random, transportService.getThreadPool());
         this.preVoteCollector = new PreVoteCollector(transportService, this::startElection, this::updateMaxTermSeen, electionStrategy);
@@ -1208,7 +1215,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         private final AckListener ackListener;
         private final ActionListener<Void> publishListener;
         private final PublicationTransportHandler.PublicationContext publicationContext;
-        private final Scheduler.ScheduledCancellable scheduledCancellable;
+        private final Scheduler.ScheduledCancellable timeoutHandler;
+        private final Scheduler.Cancellable delayReporter;
 
         // We may not have accepted our own state before receiving a join from another node, causing its join to be rejected (we cannot
         // safely accept a join whose last-accepted term/version is ahead of ours), so store them up and process them at the end.
@@ -1249,7 +1257,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             this.localNodeAckEvent = localNodeAckEvent;
             this.ackListener = ackListener;
             this.publishListener = publishListener;
-            this.scheduledCancellable = transportService.getThreadPool().schedule(new Runnable() {
+
+            this.timeoutHandler = transportService.getThreadPool().schedule(new Runnable() {
                 @Override
                 public void run() {
                     synchronized (mutex) {
@@ -1262,6 +1271,20 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     return "scheduled timeout for " + CoordinatorPublication.this;
                 }
             }, publishTimeout, Names.GENERIC);
+
+            this.delayReporter = transportService.getThreadPool().scheduleWithFixedDelay(new Runnable() {
+                @Override
+                public void run() {
+                    synchronized (mutex) {
+                        logIncompleteNodes();
+                    }
+                }
+
+                @Override
+                public String toString() {
+                    return "periodic reporting for " + CoordinatorPublication.this;
+                }
+            }, publishReportInterval, Names.GENERIC);
         }
 
         private void removePublicationAndPossiblyBecomeCandidate(String reason) {
@@ -1303,7 +1326,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                                 synchronized (mutex) {
                                     removePublicationAndPossiblyBecomeCandidate("clusterApplier#onNewClusterState");
                                 }
-                                scheduledCancellable.cancel();
+                                timeoutHandler.cancel();
+                                delayReporter.cancel();
                                 ackListener.onNodeAck(getLocalNode(), e);
                                 publishListener.onFailure(e);
                             }
@@ -1348,8 +1372,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                                         }
                                     }
                                     lagDetector.startLagDetector(publishRequest.getAcceptedState().version());
+                                    logIncompleteNodes();
                                 }
-                                scheduledCancellable.cancel();
+                                timeoutHandler.cancel();
+                                delayReporter.cancel();
                                 ackListener.onNodeAck(getLocalNode(), null);
                                 publishListener.onResponse(null);
                             }
@@ -1360,7 +1386,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 public void onFailure(Exception e) {
                     assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
                     removePublicationAndPossiblyBecomeCandidate("Publication.onCompletion(false)");
-                    scheduledCancellable.cancel();
+                    timeoutHandler.cancel();
+                    delayReporter.cancel();
 
                     final FailedToCommitClusterStateException exception = new FailedToCommitClusterStateException("publication failed", e);
                     ackListener.onNodeAck(getLocalNode(), exception); // other nodes have acked, but not the master.

@@ -195,6 +195,16 @@ public abstract class Publication {
             ", version=" + publishRequest.getAcceptedState().version() + '}';
     }
 
+    void logIncompleteNodes() {
+        final String message = publicationTargets.stream().filter(PublicationTarget::isActive).map(publicationTarget ->
+            publicationTarget.getDiscoveryNode() + " [" + publicationTarget.getState() + "]").collect(Collectors.joining(", "));
+        if (message.isEmpty() == false) {
+            final TimeValue elapsedTime = TimeValue.timeValueMillis(currentTimeSupplier.getAsLong() - startTime);
+            logger.warn("after [{}] publication of cluster state version [{}] is still waiting for {}", elapsedTime,
+                publishRequest.getAcceptedState().version(), message);
+        }
+    }
+
     enum PublicationTargetState {
         NOT_STARTED,
         FAILED,
@@ -211,6 +221,10 @@ public abstract class Publication {
 
         PublicationTarget(DiscoveryNode discoveryNode) {
             this.discoveryNode = discoveryNode;
+        }
+
+        PublicationTargetState getState() {
+            return state;
         }
 
         @Override

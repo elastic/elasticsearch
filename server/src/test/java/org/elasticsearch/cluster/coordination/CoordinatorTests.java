@@ -1266,6 +1266,66 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
+    public void testLogsWarningPeriodicallyIfPublicationDelayed() throws IllegalAccessException {
+        final long warningDelayMillis;
+        final Settings settings;
+        if (randomBoolean()) {
+            settings = Settings.EMPTY;
+            warningDelayMillis = Coordinator.PUBLISH_REPORT_INTERVAL_SETTING.get(settings).millis();
+        } else {
+            warningDelayMillis = randomLongBetween(1, Coordinator.PUBLISH_REPORT_INTERVAL_SETTING.get(Settings.EMPTY).millis());
+            settings = Settings.builder()
+                .put(Coordinator.PUBLISH_REPORT_INTERVAL_SETTING.getKey(), warningDelayMillis + "ms")
+                .build();
+        }
+        logger.info("--> emitting warnings every [{}ms]", warningDelayMillis);
+
+        try (Cluster cluster = new Cluster(between(3, 5), true, settings)) {
+            cluster.runRandomly();
+            cluster.stabilise();
+
+            // drop the publication messages to one node, but then restore connectivity so it remains in the cluster and does not fail
+            // health checks
+            final ClusterNode brokenNode = cluster.getAnyNodeExcept(cluster.getAnyLeader());
+            brokenNode.blackhole();
+            cluster.getAnyLeader().submitValue(randomLong());
+            cluster.runFor(DEFAULT_CLUSTER_STATE_UPDATE_DELAY, "waiting for publication to start");
+            brokenNode.heal();
+
+            final MockLogAppender mockLogAppenderForDelayedPublication = new MockLogAppender();
+            try {
+                Loggers.addAppender(LogManager.getLogger(Coordinator.CoordinatorPublication.class), mockLogAppenderForDelayedPublication);
+                mockLogAppenderForDelayedPublication.start();
+                mockLogAppenderForDelayedPublication.addExpectation(new MockLogAppender.SeenEventExpectation("warning",
+                    Coordinator.CoordinatorPublication.class.getCanonicalName(), Level.WARN,
+                    "after [*] publication of cluster state version [*] is still waiting for " + brokenNode.getLocalNode() + " ["
+                        + Publication.PublicationTargetState.SENT_PUBLISH_REQUEST + ']'));
+                cluster.runFor(warningDelayMillis + DEFAULT_DELAY_VARIABILITY, "waiting for warning to be emitted");
+                mockLogAppenderForDelayedPublication.assertAllExpectationsMatched();
+            } finally {
+                mockLogAppenderForDelayedPublication.stop();
+                Loggers.removeAppender(LogManager.getLogger(Coordinator.CoordinatorPublication.class),
+                    mockLogAppenderForDelayedPublication);
+            }
+
+            final MockLogAppender mockLogAppenderForLagDetection = new MockLogAppender();
+            try {
+                Loggers.addAppender(LogManager.getLogger(LagDetector.class), mockLogAppenderForLagDetection);
+                mockLogAppenderForLagDetection.start();
+                mockLogAppenderForLagDetection.addExpectation(new MockLogAppender.SeenEventExpectation("warning",
+                    LagDetector.class.getCanonicalName(), Level.WARN,
+                    "node [" + brokenNode + "] is lagging at cluster state version [*], " +
+                        "although publication of cluster state version [*] completed [*] ago"));
+                cluster.runFor(defaultMillis(PUBLISH_TIMEOUT_SETTING)
+                    + defaultMillis(LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING), "waiting for warning to be emitted");
+                mockLogAppenderForLagDetection.assertAllExpectationsMatched();
+            } finally {
+                mockLogAppenderForLagDetection.stop();
+                Loggers.removeAppender(LogManager.getLogger(LagDetector.class), mockLogAppenderForLagDetection);
+            }
+        }
+    }
+
     public void testReconfiguresToExcludeMasterIneligibleNodesInVotingConfig() {
         try (Cluster cluster = new Cluster(3)) {
             cluster.runRandomly();

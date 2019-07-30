@@ -4,7 +4,7 @@
 <titleabbrev>Rank feature</titleabbrev>
 ++++
 
-Boosts the <<query-filter-context,relevance score>> of documents based on the
+Boosts the <<relevance-scores,relevance score>> of documents based on the
 numeric value of a <<rank-feature,`rank_feature`>> or
 <<rank-features,`rank_features`>> field.
 
@@ -13,7 +13,7 @@ The `rank_feature` query is typically used in the `should` clause of a
 scores from the `bool` query.
 
 Unlike the <<query-dsl-function-score-query,`function_score`>> query or other
-ways to change <<query-filter-context,relevance scores>>, the
+ways to change <<relevance-scores,relevance scores>>, the
 `rank_feature` query efficiently skips non-competitive hits when the
 <<search-uri-request,`track_total_hits`>> parameter is **not** `true`. This can
 dramatically improve query speed.
@@ -174,13 +174,13 @@ GET /test/_search
 `field`::
 (Required, string) <<rank-feature,`rank_feature`>> or
 <<rank-features,`rank_features`>> field used to boost
-<<query-filter-context,relevance scores>>.
+<<relevance-scores,relevance scores>>.
 
 `boost`::
 +
 --
 (Optional, float) Floating point number used to decrease or increase
-<<query-filter-context,relevance scores>>. Defaults to `1.0`.
+<<relevance-scores,relevance scores>>. Defaults to `1.0`.
 
 Boost values are relative to the default value of `1.0`. A boost value between
 `0` and `1.0` decreases the relevance score. A value greater than `1.0`
@@ -191,7 +191,7 @@ increases the relevance score.
 +
 --
 (Optional, <<rank-feature-query-saturation,function object>>) Saturation
-function used to boost <<query-filter-context,relevance scores>> based on the
+function used to boost <<relevance-scores,relevance scores>> based on the
 value of the rank feature `field`. If no function is provided, the `rank_feature`
 query defaults to the `saturation` function. See
 <<rank-feature-query-saturation,Saturation>> for more information.
@@ -203,7 +203,7 @@ Only one function `saturation`, `log`, or `sigmoid` can be provided.
 +
 --
 (Optional, <<rank-feature-query-logarithm,function object>>) Logarithmic
-function used to boost <<query-filter-context,relevance scores>> based on the
+function used to boost <<relevance-scores,relevance scores>> based on the
 value of the rank feature `field`. See
 <<rank-feature-query-logarithm,Logarithm>> for more information.
 
@@ -214,7 +214,7 @@ Only one function `saturation`, `log`, or `sigmoid` can be provided.
 +
 --
 (Optional, <<rank-feature-query-sigmoid,function object>>) Sigmoid function used
-to boost <<query-filter-context,relevance scores>> based on the value of the
+to boost <<relevance-scores,relevance scores>> based on the value of the
 rank feature `field`. See <<rank-feature-query-sigmoid,Sigmoid>> for more
 information.
 

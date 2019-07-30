@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.dataframe.action;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
@@ -214,21 +213,32 @@ public class TransportPutDataFrameTransformAction extends TransportMasterNodeAct
         // <2> Put our transform
         ActionListener<Boolean> pivotValidationListener = ActionListener.wrap(
             validationResult -> dataFrameTransformsConfigManager.putTransformConfiguration(config, putTransformConfigurationListener),
-            validationException -> listener.onFailure(
-                    new ElasticsearchStatusException(
+            validationException -> {
+                if (validationException instanceof ElasticsearchStatusException) {
+                    listener.onFailure(new ElasticsearchStatusException(
                         DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION,
-                        RestStatus.BAD_REQUEST,
-                        validationException))
+                        ((ElasticsearchStatusException)validationException).status(),
+                        validationException));
+                } else {
+                    listener.onFailure(new ElasticsearchStatusException(
+                        DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION,
+                        RestStatus.INTERNAL_SERVER_ERROR,
+                        validationException));
+                }
+            }
         );
 
         try {
             pivot.validateConfig();
-        } catch (ElasticsearchException e) {
-            listener.onFailure(
-                new ElasticsearchStatusException(
-                    DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION,
-                    RestStatus.BAD_REQUEST,
-                    e));
+        } catch (ElasticsearchStatusException e) {
+            listener.onFailure(new ElasticsearchStatusException(
+                DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION,
+                e.status(),
+                e));
+            return;
+        } catch (Exception e) {
+            listener.onFailure(new ElasticsearchStatusException(
+                DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION, RestStatus.INTERNAL_SERVER_ERROR, e));
             return;
         }
 

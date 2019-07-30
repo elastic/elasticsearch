@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.dataframe.action;
 
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ingest.SimulatePipelineAction;
@@ -106,11 +105,15 @@ public class TransportPreviewDataFrameTransformAction extends
         Pivot pivot = new Pivot(config.getPivotConfig());
         try {
             pivot.validateConfig();
-        } catch (ElasticsearchException e) {
+        } catch (ElasticsearchStatusException e) {
             listener.onFailure(
                 new ElasticsearchStatusException(DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION,
-                    RestStatus.BAD_REQUEST,
+                    e.status(),
                     e));
+            return;
+        } catch (Exception e) {
+            listener.onFailure(new ElasticsearchStatusException(
+                DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION, RestStatus.INTERNAL_SERVER_ERROR, e));
             return;
         }
 

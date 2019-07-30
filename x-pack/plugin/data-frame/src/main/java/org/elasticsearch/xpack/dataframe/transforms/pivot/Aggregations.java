@@ -38,6 +38,7 @@ public final class Aggregations {
         GEO_CENTROID("geo_centroid", "geo_point"),
         SCRIPTED_METRIC("scripted_metric", DYNAMIC),
         WEIGHTED_AVG("weighted_avg", DYNAMIC),
+        BUCKET_SELECTOR("bucket_selector", DYNAMIC),
         BUCKET_SCRIPT("bucket_script", DYNAMIC);
 
         private final String aggregationType;

@@ -27,6 +27,7 @@ import org.apache.logging.log4j.core.appender.ConsoleAppender;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ElasticsearchException;
@@ -235,27 +236,18 @@ final class Bootstrap {
             throw new BootstrapException(e);
         }
 
-        char[] password;
-        if (keystore != null && keystore.hasPassword()) {
-            password = Terminal.DEFAULT.readSecret("Elasticsearch password? ");
-        } else {
-            // TODO[wrb]: is there a case w/o stdin?
-            password = new char[0];
-        }
-
-        try {
+        try (SecureString password = keystore != null && keystore.hasPassword()
+                ? new SecureString(Terminal.DEFAULT.readSecret("Elasticsearch keystore password? "))
+                : new SecureString(new char[0])) {
             if (keystore == null) {
                 final KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.create();
                 keyStoreWrapper.save(initialEnv.configFile(), new char[0]);
                 return keyStoreWrapper;
             } else {
-                keystore.decrypt(password);
-                KeyStoreWrapper.upgrade(keystore, initialEnv.configFile(), password);
+                keystore.decrypt(password.getChars());
+                KeyStoreWrapper.upgrade(keystore, initialEnv.configFile(), password.getChars());
             }
         } catch (Exception e) {
-            if (password.length != 0) {
-                throw new BootstrapException(new SecurityException("Incorrect keystore password"));
-            }
             throw new BootstrapException(e);
         }
         return keystore;

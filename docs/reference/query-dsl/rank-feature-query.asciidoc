@@ -12,6 +12,12 @@ The `rank_feature` query is typically used in the `should` clause of a
 <<query-dsl-bool-query,`bool`>> query so its relevance scores are added to other
 scores from the `bool` query.
 
+Unlike the <<query-dsl-function-score-query,`function_score`>> query or other
+ways to change <<query-filter-context,relevance scores>>, the
+`rank_feature` query efficiently skips non-competitive hits when the
+<<search-uri-request,`track_total_hits`>> parameter is **not** `true`. This can
+dramatically improve query speed.
+
 [[rank-feature-query-functions]]
 ==== Rank feature functions
 
@@ -25,7 +31,6 @@ query supports the following mathematical functions:
 If you don't know where to start, we recommend using the `saturation` function.
 If no function is provided, the `rank_feature` query uses the `saturation`
 function by default.
-
 
 [[rank-feature-query-ex-request]]
 ==== Example request
@@ -319,11 +324,3 @@ GET /test/_search
 }
 --------------------------------------------------
 // CONSOLE
-
-[[rank-feature-skip-hits]]
-===== Skip non-competitive hits
-Unlike the <<query-dsl-function-score-query,`function_score`>> query or other
-ways to change <<query-filter-context,relevance scores>>, the
-`rank_feature` query efficiently skips non-competitive hits when the
-<<search-uri-request,`track_total_hits`>> parameter is **not** `true`. This can
-dramatically improve query speed.

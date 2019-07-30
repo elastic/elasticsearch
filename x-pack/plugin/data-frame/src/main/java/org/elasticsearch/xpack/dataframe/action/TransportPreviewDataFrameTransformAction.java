@@ -103,6 +103,19 @@ public class TransportPreviewDataFrameTransformAction extends
         }
 
         Pivot pivot = new Pivot(config.getPivotConfig());
+        try {
+            pivot.validateConfig();
+        } catch (ElasticsearchStatusException e) {
+            listener.onFailure(
+                new ElasticsearchStatusException(DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION,
+                    e.status(),
+                    e));
+            return;
+        } catch (Exception e) {
+            listener.onFailure(new ElasticsearchStatusException(
+                DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION, RestStatus.INTERNAL_SERVER_ERROR, e));
+            return;
+        }
 
         getPreview(pivot, config.getSource(), config.getDestination().getPipeline(), config.getDestination().getIndex(), listener);
     }

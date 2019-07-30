@@ -29,14 +29,11 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.tasks.TaskListener;
 
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArraySet;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * This class keeps track of which tasks came in from which {@link HttpChannel}, by allowing to associate
@@ -49,55 +46,31 @@ final class HttpChannelTaskHandler {
 
     <Response extends ActionResponse> void execute(NodeClient client, HttpChannel httpChannel, ActionRequest request,
                                                    ActionType<Response> actionType, ActionListener<Response> listener) {
-        //0: initial state, 1: either linked or already unlinked without being linked first, 2: first linked and then unlinked
-        //link can only be done if it's the first thing that happens. unlink will only happen if link was done first.
-        AtomicInteger link = new AtomicInteger(0);
+
+        CloseListener closeListener = httpChannels.computeIfAbsent(httpChannel, channel -> new CloseListener(client));
+        TaskHolder taskHolder = new TaskHolder();
         Task task = client.executeLocally(actionType, request,
-            new TaskListener<>() {
+            new ActionListener<>() {
                 @Override
-                public void onResponse(Task task, Response searchResponse) {
-                    unlink(task);
-                    listener.onResponse(searchResponse);
+                public void onResponse(Response searchResponse) {
+                    try {
+                        closeListener.unregisterTask(taskHolder);
+                    } finally {
+                        listener.onResponse(searchResponse);
+                    }
                 }
 
                 @Override
-                public void onFailure(Task task, Exception e) {
-                    unlink(task);
-                    listener.onFailure(e);
-                }
-
-                private void unlink(Task task) {
-                    //the synchronized blocks are to make sure that only link or unlink for a specific task can happen at a given time,
-                    //they can't happen concurrently. The link flag is needed because unlink can still be called before link, which would
-                    //lead to piling up task ids that are never removed from the map.
-                    //It may look like only either synchronized or the flag are needed but they both are. In fact, the flag is needed to
-                    //ensure that we don't link a task if we have already unlinked it. But it's not enough as, once we start the linking,
-                    //we do want its corresponding unlinking to happen, but only once the linking is completed. With only
-                    //the flag, we would just miss unlinking for some tasks that are being linked while onResponse is called.
-                    synchronized(task) {
-                        try {
-                            //nothing to do if link was not called yet: we would not find the task anyways.
-                            if (link.getAndIncrement() > 0) {
-                                CloseListener closeListener = httpChannels.get(httpChannel);
-                                TaskId taskId = new TaskId(client.getLocalNodeId(), task.getId());
-                                closeListener.unregisterTask(taskId);
-                            }
-                        } catch(Exception e) {
-                            listener.onFailure(e);
-                        }
+                public void onFailure(Exception e) {
+                    try {
+                        closeListener.unregisterTask(taskHolder);
+                    } finally {
+                        listener.onFailure(e);
                     }
                 }
             });
 
-        CloseListener closeListener = httpChannels.computeIfAbsent(httpChannel, channel -> new CloseListener(client));
-        synchronized (task) {
-            //the task will only be registered if it's not completed yet, meaning if its TaskListener has not been called yet.
-            //otherwise, given that its listener has already been called, the task id would never be removed.
-            if (link.getAndIncrement() == 0) {
-                TaskId taskId = new TaskId(client.getLocalNodeId(), task.getId());
-                closeListener.registerTask(httpChannel, taskId);
-            }
-        }
+        closeListener.registerTask(httpChannel, taskHolder, new TaskId(client.getLocalNodeId(), task.getId()));
 
         //TODO check that no tasks are left behind through assertions at node close. Not sure how. Couldn't there be in-flight requests
         //causing channels to be in the map when a node gets closed?
@@ -105,48 +78,45 @@ final class HttpChannelTaskHandler {
 
     final class CloseListener implements ActionListener<Void> {
         private final Client client;
-        final Set<TaskId> taskIds = new CopyOnWriteArraySet<>();
-        private final AtomicReference<HttpChannel> channel = new AtomicReference<>();
+        final Set<TaskId> taskIds = new HashSet<>();
+        private HttpChannel channel;
 
         CloseListener(Client client) {
             this.client = client;
         }
 
-        void registerTask(HttpChannel httpChannel, TaskId taskId) {
-            if (channel.compareAndSet(null, httpChannel)) {
+        synchronized void registerTask(HttpChannel httpChannel, TaskHolder taskHolder, TaskId taskId) {
+            if (channel == null) {
+                channel = httpChannel;
                 //In case the channel is already closed when we register the listener, the listener will be immediately executed which will
                 //remove the channel from the map straight-away. That is why we first create the CloseListener and later we associate it
                 //with the channel. This guarantees that the close listener is already in the map when the it gets registered to its
                 //corresponding channel, hence it is always found in the map when it gets invoked if the channel gets closed.
                 httpChannel.addCloseListener(this);
             }
-            this.taskIds.add(taskId);
+            taskHolder.taskId = taskId;
+            if (taskHolder.completed == false) {
+                this.taskIds.add(taskId);
+            }
         }
 
-        private void unregisterTask(TaskId taskId) {
-            this.taskIds.remove(taskId);
+        private synchronized void unregisterTask(TaskHolder taskHolder) {
+            if (taskHolder.taskId != null) {
+                this.taskIds.remove(taskHolder.taskId);
+            }
+            taskHolder.completed = true;
         }
 
         @Override
-        public void onResponse(Void aVoid) {
-            cancelTasks();
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            cancelTasks();
-        }
-
-        private void cancelTasks() {
+        public synchronized void onResponse(Void aVoid) {
             //When the channel gets closed it won't be reused: we can remove it from the map as there is no chance we will
             //register another close listener to it later.
             //The channel reference may be null, if the connection gets closed before it got set.
-            HttpChannel channel = this.channel.get();
-            //TODO is this enough to make sure that we only cancel tasks once? it could be that not all tasks have been registered yet
-            //when the close listener is notified. We remove the channel and cancel the tasks that are known up until then.
-            //if new tasks come in from the same channel, the channel will be added again to the map, but the close listener will
-            //be registered another time to it which is no good. tasks should not be left behind though.
-            if (channel != null && httpChannels.remove(channel) != null) {
+            //TODO Could it be that not all tasks have been registered yet when the close listener is notified. We remove the channel
+            // and cancel the tasks that are known up until then. if new tasks come in from the same channel, the channel will be added
+            // again to the map, but the close listener will be registered another time to it which is not good.
+            if (channel != null) {
+                httpChannels.remove(channel);
                 for (TaskId previousTaskId : taskIds) {
                     CancelTasksRequest cancelTasksRequest = new CancelTasksRequest();
                     cancelTasksRequest.setTaskId(previousTaskId);
@@ -156,5 +126,15 @@ final class HttpChannelTaskHandler {
                 }
             }
         }
+
+        @Override
+        public void onFailure(Exception e) {
+            onResponse(null);
+        }
+    }
+
+    private static class TaskHolder {
+        private TaskId taskId;
+        private boolean completed = false;
     }
 }

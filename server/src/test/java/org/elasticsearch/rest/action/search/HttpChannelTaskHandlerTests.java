@@ -35,7 +35,6 @@ import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.tasks.TaskListener;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -159,36 +158,35 @@ public class HttpChannelTaskHandlerTests extends ESTestCase {
         @Override
         public <Request extends ActionRequest, Response extends ActionResponse> Task executeLocally(ActionType<Response> action,
                                                                                                     Request request,
-                                                                                                    TaskListener<Response> listener) {
-            assert action == SearchAction.INSTANCE;
-            Task task = request.createTask(counter.getAndIncrement(), "search", action.name(), null, Collections.emptyMap());
-            if (timeout.get() == false) {
-                if (rarely()) {
-                    //make sure that search is sometimes also called from the same thread before the task is returned
-                    listener.onResponse(task, null);
-                } else {
-                    threadPool().generic().submit(() -> listener.onResponse(task, null));
-                }
-            }
-            return task;
-        }
-
-        @Override
-        public <Request extends ActionRequest, Response extends ActionResponse> Task executeLocally(ActionType<Response> action,
-                                                                                                    Request request,
                                                                                                     ActionListener<Response> listener) {
-            assert action == CancelTasksAction.INSTANCE;
-            CancelTasksRequest cancelTasksRequest = (CancelTasksRequest) request;
-            assertTrue("tried to cancel the same task more than once", cancelledTasks.add(cancelTasksRequest.getTaskId()));
-            Task task = request.createTask(counter.getAndIncrement(), "cancel_task", action.name(), null, Collections.emptyMap());
-            if (randomBoolean()) {
-                listener.onResponse(null);
-            } else {
-                //test that cancel tasks is best effort, failure received are not propagated
-                listener.onFailure(new IllegalStateException());
+            switch(action.name()) {
+                case CancelTasksAction.NAME:
+                    CancelTasksRequest cancelTasksRequest = (CancelTasksRequest) request;
+                    assertTrue("tried to cancel the same task more than once", cancelledTasks.add(cancelTasksRequest.getTaskId()));
+                    Task task = request.createTask(counter.getAndIncrement(), "cancel_task", action.name(), null, Collections.emptyMap());
+                    if (randomBoolean()) {
+                        listener.onResponse(null);
+                    } else {
+                        //test that cancel tasks is best effort, failure received are not propagated
+                        listener.onFailure(new IllegalStateException());
+                    }
+
+                    return task;
+                case SearchAction.NAME:
+                    Task searchTask = request.createTask(counter.getAndIncrement(), "search", action.name(), null, Collections.emptyMap());
+                    if (timeout.get() == false) {
+                        if (rarely()) {
+                            //make sure that search is sometimes also called from the same thread before the task is returned
+                            listener.onResponse(null);
+                        } else {
+                            threadPool().generic().submit(() -> listener.onResponse(null));
+                        }
+                    }
+                    return searchTask;
+                default:
+                    throw new UnsupportedOperationException();
             }
 
-            return task;
         }
 
         @Override

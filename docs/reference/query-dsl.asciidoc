@@ -48,3 +48,5 @@ include::query-dsl/term-level-queries.asciidoc[]
 include::query-dsl/minimum-should-match.asciidoc[]
 
 include::query-dsl/multi-term-rewrite.asciidoc[]
+
+include::query-dsl/regexp-syntax.asciidoc[]

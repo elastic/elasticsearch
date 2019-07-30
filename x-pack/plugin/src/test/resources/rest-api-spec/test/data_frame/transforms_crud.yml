@@ -619,8 +619,7 @@ setup:
         transform_id: "airline-transform-start-delete"
   - match: { count: 1 }
   - match: { transforms.0.id: "airline-transform-start-delete" }
-  - match: { transforms.0.state.indexer_state: "/started|indexing/" }
-  - match: { transforms.0.state.task_state: "started" }
+  - match: { transforms.0.task_state: "started" }
 
   - do:
       catch: /Cannot delete data frame \[airline-transform-start-delete\] as the task is running/

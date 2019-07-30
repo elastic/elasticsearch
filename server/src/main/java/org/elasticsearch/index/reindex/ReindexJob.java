@@ -38,31 +38,25 @@ public class ReindexJob implements PersistentTaskParams {
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<ReindexJob, Void> PARSER
-        = new ConstructingObjectParser<>(NAME, a -> new ReindexJob((ReindexRequest) a[0], (Boolean) a[1], (Map<String, String>) a[2]));
+        = new ConstructingObjectParser<>(NAME, a -> new ReindexJob((Boolean) a[0], (Map<String, String>) a[1]));
 
-    private static String REINDEX_REQUEST = "reindex_request";
     private static String STORE_RESULT = "store_result";
     private static String HEADERS = "headers";
 
     static {
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> ReindexRequest.fromXContentWithParams(p),
-            new ParseField(REINDEX_REQUEST));
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), new ParseField(STORE_RESULT));
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> p.mapStrings(), new ParseField(HEADERS));
     }
 
-    private final ReindexRequest reindexRequest;
     private final boolean storeResult;
     private final Map<String, String> headers;
 
-    public ReindexJob(ReindexRequest reindexRequest, boolean storeResult, Map<String, String> headers) {
-        this.reindexRequest = reindexRequest;
+    public ReindexJob(boolean storeResult, Map<String, String> headers) {
         this.storeResult = storeResult;
         this.headers = headers;
     }
 
     public ReindexJob(StreamInput in) throws IOException {
-        reindexRequest = new ReindexRequest(in);
         storeResult = in.readBoolean();
         headers = in.readMap(StreamInput::readString, StreamInput::readString);
     }
@@ -80,7 +74,6 @@ public class ReindexJob implements PersistentTaskParams {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        reindexRequest.writeTo(out);
         out.writeBoolean(storeResult);
         out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
     }
@@ -88,15 +81,9 @@ public class ReindexJob implements PersistentTaskParams {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(REINDEX_REQUEST);
-        reindexRequest.toXContent(builder, params, true);
         builder.field(STORE_RESULT, storeResult);
         builder.field(HEADERS, headers);
         return builder.endObject();
-    }
-
-    public ReindexRequest getReindexRequest() {
-        return reindexRequest;
     }
 
     public boolean shouldStoreResult() {

@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.core.security.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Nullable;
@@ -14,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -38,7 +40,11 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
         userName = in.readOptionalString();
         id = in.readOptionalString();
         name = in.readOptionalString();
-        myApiKeysOnly = in.readOptionalBoolean();
+        if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
+            myApiKeysOnly = in.readOptionalBoolean();
+        } else {
+            myApiKeysOnly = false;
+        }
     }
 
     public InvalidateApiKeyRequest(@Nullable String realmName, @Nullable String userName, @Nullable String id,
@@ -158,6 +164,29 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
         out.writeOptionalString(userName);
         out.writeOptionalString(id);
         out.writeOptionalString(name);
-        out.writeOptionalBoolean(myApiKeysOnly);
+        if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
+            out.writeOptionalBoolean(myApiKeysOnly);
+        }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        InvalidateApiKeyRequest that = (InvalidateApiKeyRequest) o;
+        return myApiKeysOnly == that.myApiKeysOnly &&
+            Objects.equals(realmName, that.realmName) &&
+            Objects.equals(userName, that.userName) &&
+            Objects.equals(id, that.id) &&
+            Objects.equals(name, that.name);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(realmName, userName, id, name, myApiKeysOnly);
     }
 }

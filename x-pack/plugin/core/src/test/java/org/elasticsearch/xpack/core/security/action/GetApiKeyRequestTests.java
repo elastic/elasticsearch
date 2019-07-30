@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.core.security.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
@@ -18,6 +19,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class GetApiKeyRequestTests extends ESTestCase {
 
@@ -108,6 +111,38 @@ public class GetApiKeyRequestTests extends ESTestCase {
                 assertEquals(expectedErrorMessages[caseNo].length, ve.validationErrors().size());
                 assertThat(ve.validationErrors(), containsInAnyOrder(expectedErrorMessages[caseNo]));
             }
+        }
+    }
+
+    public void testSerialization() throws IOException {
+        final String apiKeyId = randomAlphaOfLength(5);
+        final boolean myApiKeysOnly = true;
+        GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.usingApiKeyId(apiKeyId, myApiKeysOnly);
+        {
+            ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
+            OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
+            out.setVersion(Version.V_7_2_0);
+            getApiKeyRequest.writeTo(out);
+
+            InputStreamStreamInput inputStreamStreamInput = new InputStreamStreamInput(new ByteArrayInputStream(outBuffer.toByteArray()));
+            inputStreamStreamInput.setVersion(randomFrom(Version.V_7_2_0, Version.V_7_3_0));
+            GetApiKeyRequest requestFromInputStream = new GetApiKeyRequest(inputStreamStreamInput);
+
+            assertThat(requestFromInputStream.getApiKeyId(), equalTo(getApiKeyRequest.getApiKeyId()));
+            // old version so the default for `myApiKeysOnly` is false
+            assertThat(requestFromInputStream.myApiKeysOnly(), is(false));
+        }
+        {
+            ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
+            OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
+            out.setVersion(randomFrom(Version.V_7_4_0, Version.CURRENT));
+            getApiKeyRequest.writeTo(out);
+
+            InputStreamStreamInput inputStreamStreamInput = new InputStreamStreamInput(new ByteArrayInputStream(outBuffer.toByteArray()));
+            inputStreamStreamInput.setVersion(randomFrom(Version.V_7_4_0, Version.CURRENT));
+            GetApiKeyRequest requestFromInputStream = new GetApiKeyRequest(inputStreamStreamInput);
+
+            assertThat(requestFromInputStream, equalTo(getApiKeyRequest));
         }
     }
 

@@ -95,7 +95,6 @@ public class Zen1IT extends ESIntegTestCase {
         createIndex("test");
     }
 
-    @AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/44999")
     public void testMixedClusterDisruption() throws Exception {
         final List<String> nodes = internalCluster().startNodes(IntStream.range(0, 5)
             .mapToObj(i -> i < 2 ? ZEN1_SETTINGS : ZEN2_SETTINGS).toArray(Settings[]::new));

@@ -27,6 +27,10 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.http.*;
+import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
+import io.netty.handler.codec.http.websocketx.WebSocketFrame;
+import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
+import io.netty.handler.codec.http.websocketx.extensions.compression.WebSocketServerCompressionHandler;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
 import io.netty.util.CharsetUtil;
@@ -34,6 +38,7 @@ import org.elasticsearch.graphql.server.*;
 import org.elasticsearch.rest.RestRequest;
 
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 public class DemoServer {
@@ -60,7 +65,12 @@ public class DemoServer {
                         pipeline.addLast("request", new HttpRequestDecoder());
                         pipeline.addLast("response", new HttpResponseEncoder());
                         pipeline.addLast("aggregator", new HttpObjectAggregator(65536));
+
+                        pipeline.addLast(new WebSocketServerCompressionHandler());
+                        pipeline.addLast(new WebSocketServerProtocolHandler("/websocket", null, true));
+
                         pipeline.addLast("business-logic", new HttpHandler());
+                        pipeline.addLast(new WebSocketFrameHandler());
                     }
                 })
                 .channel(NioServerSocketChannel.class);
@@ -238,6 +248,34 @@ public class DemoServer {
 
             if (!keepAlive) {
                 f.addListener(ChannelFutureListener.CLOSE);
+            }
+        }
+    }
+
+    public class WebSocketHandler extends SimpleChannelInboundHandler<WebSocketFrame> {
+        @Override
+        protected void channelRead0(ChannelHandlerContext ctx, WebSocketFrame frame) throws Exception {
+            if (frame instanceof TextWebSocketFrame) {
+                // Send the uppercase string back.
+                String request = ((TextWebSocketFrame) frame).text();
+                ctx.channel().writeAndFlush(new TextWebSocketFrame(request.toUpperCase(Locale.US)));
+            } else {
+                String message = "unsupported frame type: " + frame.getClass().getName();
+                throw new UnsupportedOperationException(message);
+            }
+        }
+    }
+
+    public class WebSocketFrameHandler extends SimpleChannelInboundHandler<WebSocketFrame> {
+        @Override
+        protected void channelRead0(ChannelHandlerContext ctx, WebSocketFrame frame) throws Exception {
+            if (frame instanceof TextWebSocketFrame) {
+                String request = ((TextWebSocketFrame) frame).text();
+                System.out.println("Websocket received: " + request);
+                ctx.channel().writeAndFlush(new TextWebSocketFrame(request.toUpperCase(Locale.US)));
+            } else {
+                String message = "unsupported frame type: " + frame.getClass().getName();
+                throw new UnsupportedOperationException(message);
             }
         }
     }

@@ -158,7 +158,7 @@ public class StartDemoServer {
 
     private void sendExecutionResult(DemoServerResponse res, GqlResult result) {
         logger.info("GraphQL result: {}", result);
-        logger.info("JSON: {}", GqlApiUtils.serializeJson(result));
+        logger.info("JSON: {}", GqlApiUtils.serializeJson(result.getSpecification()));
 
         res.setHeader("Content-Type", "application/json");
         res.send(GqlApiUtils.serializeJson(result.getSpecification()));

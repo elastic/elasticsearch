@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.sql.querydsl.query.MatchAll;
 import org.elasticsearch.xpack.sql.querydsl.query.NestedQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.Query;
 import org.elasticsearch.xpack.sql.tree.Source;
+import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.io.IOException;
 import java.util.AbstractMap;
@@ -297,16 +298,48 @@ public class QueryContainer {
     // reference methods
     //
     private FieldExtraction topHitFieldRef(FieldAttribute fieldAttr) {
-        return new SearchHitFieldRef(aliasName(fieldAttr), fieldAttr.field().getDataType(), fieldAttr.field().isAggregatable());
+        FieldAttribute actualField = fieldAttr;
+        FieldAttribute rootField = fieldAttr;
+        StringBuilder fullFieldName = new StringBuilder(fieldAttr.field().getName());
+        
+        // Only if the field is not an alias (in which case it will be taken out from docvalue_fields if it's isAggregatable()),
+        // go up the tree of parents until a non-object (and non-nested) type of field is found and use that specific parent
+        // as the field to extract data from, from _source. We do it like this because sub-fields are not in the _source, only
+        // the root field to which those sub-fields belong to, are. Instead of "text_field.keyword_subfield" for _source extraction,
+        // we use "text_field", because there is no source for "keyword_subfield".
+        /*
+         *    "text_field": {
+         *       "type": "text",
+         *       "fields": {
+         *         "keyword_subfield": {
+         *           "type": "keyword"
+         *         }
+         *       }
+         *     }
+         */
+        if (fieldAttr.field().isAlias() == false) {
+            while (actualField.parent() != null
+                    && actualField.parent().field().getDataType() != DataType.OBJECT
+                    && actualField.parent().field().getDataType() != DataType.NESTED
+                    && actualField.field().getDataType().isFromDocValuesOnly() == false) {
+                actualField = actualField.parent();
+            }
+        }
+        while (rootField.parent() != null) {
+            fullFieldName.insert(0, ".").insert(0, rootField.parent().field().getName());
+            rootField = rootField.parent();
+        }
+        return new SearchHitFieldRef(aliasName(actualField), fullFieldName.toString(), fieldAttr.field().getDataType(),
+                fieldAttr.field().isAggregatable(), fieldAttr.field().isAlias());
     }
 
     private Tuple<QueryContainer, FieldExtraction> nestedHitFieldRef(FieldAttribute attr) {
         String name = aliasName(attr);
         Query q = rewriteToContainNestedField(query, attr.source(),
-                attr.nestedParent().name(), name, attr.field().getDataType().format(), attr.field().isAggregatable());
+                attr.nestedParent().name(), name, attr.field().getDataType().format(), attr.field().getDataType().isFromDocValuesOnly());
 
-        SearchHitFieldRef nestedFieldRef = new SearchHitFieldRef(name, attr.field().getDataType(),
-                attr.field().isAggregatable(), attr.parent().name());
+        SearchHitFieldRef nestedFieldRef = new SearchHitFieldRef(name, null, attr.field().getDataType(), attr.field().isAggregatable(),
+                false, attr.parent().name());
 
         return new Tuple<>(
                 new QueryContainer(q, aggs, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit, trackHits, includeFrozen),

@@ -61,8 +61,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -73,7 +73,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
     public static final String DIRECT_RESPONSE_PROFILE = ".direct";
     public static final String HANDSHAKE_ACTION_NAME = "internal:transport/handshake";
 
-    private final CountDownLatch blockIncomingRequestsLatch = new CountDownLatch(1);
+    private final AtomicBoolean handleIncomingRequests = new AtomicBoolean();
     private final DelegatingTransportMessageListener messageListener = new DelegatingTransportMessageListener();
     protected final Transport transport;
     protected final ConnectionManager connectionManager;
@@ -285,7 +285,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
      * this method is called
      */
     public final void acceptIncomingRequests() {
-        blockIncomingRequestsLatch.countDown();
+        handleIncomingRequests.set(true);
     }
 
     public TransportInfo info() {
@@ -723,7 +723,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
     }
 
     private void sendLocalRequest(long requestId, final String action, final TransportRequest request, TransportRequestOptions options) {
-        final DirectResponseChannel channel = new DirectResponseChannel(logger, localNode, action, requestId, this, threadPool);
+        final DirectResponseChannel channel = new DirectResponseChannel(localNode, action, requestId, this, threadPool);
         try {
             onRequestSent(localNode, requestId, action, request, options);
             onRequestReceived(requestId, action);
@@ -877,11 +877,8 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
      */
     @Override
     public void onRequestReceived(long requestId, String action) {
-        try {
-            blockIncomingRequestsLatch.await();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("interrupted while waiting for incoming requests block to be removed");
+        if (handleIncomingRequests.get() == false) {
+            throw new IllegalStateException("transport not ready yet to handle incoming requests");
         }
         if (tracerLog.isTraceEnabled() && shouldTraceAction(action)) {
             tracerLog.trace("[{}][{}] received request", requestId, action);
@@ -1131,16 +1128,13 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
     }
 
     static class DirectResponseChannel implements TransportChannel {
-        final Logger logger;
         final DiscoveryNode localNode;
         private final String action;
         private final long requestId;
         final TransportService service;
         final ThreadPool threadPool;
 
-        DirectResponseChannel(Logger logger, DiscoveryNode localNode, String action, long requestId, TransportService service,
-                              ThreadPool threadPool) {
-            this.logger = logger;
+        DirectResponseChannel(DiscoveryNode localNode, String action, long requestId, TransportService service, ThreadPool threadPool) {
             this.localNode = localNode;
             this.action = action;
             this.requestId = requestId;

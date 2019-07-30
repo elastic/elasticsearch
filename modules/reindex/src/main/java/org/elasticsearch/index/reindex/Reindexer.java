@@ -158,12 +158,6 @@ public class Reindexer {
      */
     static class AsyncIndexBySearchAction extends AbstractAsyncBulkByScrollAction<ReindexRequest, TransportReindexAction> {
 
-//        private final ScriptService scriptService;
-//        private final ReindexSslConfig sslConfig;
-        private static final String SSL_CONFIG = "SSL_CONFIG";
-        private static final String SCRIPT_SERVICE = "SCRIPT_SERVICE";
-
-
         /**
          * List of threads created by this process. Usually actions don't create threads in Elasticsearch. Instead they use the builtin
          * {@link ThreadPool}s. But reindex-from-remote uses Elasticsearch's {@link RestClient} which doesn't use the
@@ -181,7 +175,7 @@ public class Reindexer {
                  * external versioning.
                  */
                 request.getDestination().versionType() != VersionType.INTERNAL,
-                false, logger, client, threadPool, request, listener, buildConfig(scriptService, sslConfig));
+                false, logger, client, threadPool, request, listener, scriptService, sslConfig);
         }
 
         @Override
@@ -189,7 +183,7 @@ public class Reindexer {
             if (mainRequest.getRemoteInfo() != null) {
                 RemoteInfo remoteInfo = mainRequest.getRemoteInfo();
                 createdThreads = synchronizedList(new ArrayList<>());
-                ReindexSslConfig sslConfig = (ReindexSslConfig) config.get(SSL_CONFIG);
+                assert sslConfig != null : "Reindex ssl config must be set";
                 RestClient restClient = buildRestClient(remoteInfo, sslConfig, task.getId(), createdThreads);
                 return new RemoteScrollableHitSource(logger, backoffPolicy, threadPool, worker::countSearchRetry,
                     this::onScrollResponse, this::finishHim,
@@ -215,7 +209,7 @@ public class Reindexer {
         public BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> buildScriptApplier() {
             Script script = mainRequest.getScript();
             if (script != null) {
-                ScriptService scriptService = (ScriptService) config.get(SCRIPT_SERVICE);
+                assert scriptService != null : "Script service must be set";
                 return new Reindexer.AsyncIndexBySearchAction.ReindexScriptApplier(worker, scriptService, script, script.getParams());
             }
             return super.buildScriptApplier();

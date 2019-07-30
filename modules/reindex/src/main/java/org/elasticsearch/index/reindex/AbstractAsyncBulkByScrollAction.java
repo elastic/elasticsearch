@@ -36,6 +36,7 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.ParentTaskAssigningClient;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -88,9 +89,10 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
 
     protected final Logger logger;
     protected final BulkByScrollTask task;
-    protected final Map<String, Object> config;
     protected final WorkerBulkByScrollTaskState worker;
     protected final ThreadPool threadPool;
+    protected final ScriptService scriptService;
+    protected final ReindexSslConfig sslConfig;
 
     /**
      * The request for this action. Named mainRequest because we create lots of <code>request</code> variables all representing child
@@ -118,15 +120,16 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                                            boolean needsSourceDocumentSeqNoAndPrimaryTerm, Logger logger, ParentTaskAssigningClient client,
                                            ThreadPool threadPool, Request mainRequest, ActionListener<BulkByScrollResponse> listener) {
         this(task, needsSourceDocumentVersions, needsSourceDocumentSeqNoAndPrimaryTerm, logger, client, threadPool, mainRequest, listener,
-            Collections.emptyMap());
+            null, null);
     }
 
     public AbstractAsyncBulkByScrollAction(BulkByScrollTask task, boolean needsSourceDocumentVersions,
                                            boolean needsSourceDocumentSeqNoAndPrimaryTerm, Logger logger, ParentTaskAssigningClient client,
                                            ThreadPool threadPool, Request mainRequest, ActionListener<BulkByScrollResponse> listener,
-                                           Map<String, Object> config) {
+                                           @Nullable ScriptService scriptService, @Nullable ReindexSslConfig sslConfig) {
         this.task = task;
-        this.config = config;
+        this.scriptService = scriptService;
+        this.sslConfig = sslConfig;
         if (!task.isWorker()) {
             throw new IllegalArgumentException("Given task [" + task.getId() + "] must have a child worker");
         }
@@ -164,7 +167,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         // The default script applier executes a no-op
         return (request, searchHit) -> request;
     }
-    
+
     /**
      * Build the {@link RequestWrapper} for a single search hit. This shouldn't handle
      * metadata or scripting. That will be handled by copyMetadata and

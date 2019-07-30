@@ -81,7 +81,6 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
      */
     static class AsyncIndexBySearchAction extends AbstractAsyncBulkByScrollAction<UpdateByQueryRequest, TransportUpdateByQueryAction> {
 
-        private final ScriptService scriptService;
 
         AsyncIndexBySearchAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
                                  ThreadPool threadPool, TransportUpdateByQueryAction action, UpdateByQueryRequest request,
@@ -89,8 +88,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
             super(task,
                 // use sequence number powered optimistic concurrency control
                 false, true,
-                logger, client, threadPool, request, listener);
-            scriptService = action.scriptService;
+                logger, client, threadPool, request, listener, action.scriptService, null);
         }
 
         @Override

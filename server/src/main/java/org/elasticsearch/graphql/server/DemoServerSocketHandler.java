@@ -264,8 +264,8 @@ public class DemoServerSocketHandler {
     }
 
     private void stopAllSubscriptions() {
-        for (Subscriber<Map<String, Object>> subscriber : subscribers.values()) {
-            subscriber.onComplete();
+        for (String id : subscribers.keySet()) {
+            stopSubscription(id);
         }
     }
 

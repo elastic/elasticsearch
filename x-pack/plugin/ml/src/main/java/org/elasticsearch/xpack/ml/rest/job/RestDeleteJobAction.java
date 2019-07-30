@@ -79,7 +79,7 @@ public class RestDeleteJobAction extends BaseRestHandler {
             public void onResponse(Task task, T o) {}
 
             @Override
-            public void onFailure(Task task, Throwable e) {}
+            public void onFailure(Task task, Exception e) {}
         };
     }
 }

@@ -8,12 +8,12 @@ package org.elasticsearch.xpack.ilm.action;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.core.indexlifecycle.StopILMRequest;
+import org.elasticsearch.xpack.core.ilm.StopILMRequest;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.core.indexlifecycle.action.StopILMAction;
+import org.elasticsearch.xpack.core.ilm.action.StopILMAction;
 
 public class RestStopAction extends BaseRestHandler {
 

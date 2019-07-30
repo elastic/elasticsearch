@@ -40,7 +40,7 @@ public class DemoServerSocketHandler {
 
     private DemoServerSocket socket;
 
-    private Map<String, Publisher<Map<String, Object>>> subscriptions = new HashMap<>();
+    private Map<String, Subscriber<Map<String, Object>>> subscribers = new HashMap<>();
 
     public DemoServerSocketHandler(GqlServer gqlServer, DemoServerSocket socket) {
         this.gqlServer = gqlServer;
@@ -66,7 +66,8 @@ public class DemoServerSocketHandler {
 
             @Override
             public void onComplete() {
-                logger.info("Socket closed.");
+                logger.info("Closing socket.");
+                stopAllSubscriptions();
             }
         });
     }
@@ -100,23 +101,14 @@ public class DemoServerSocketHandler {
                 sendAck();
             } else if (type.equals(SocketClientMsgType.START.value())) {
                 onStartMessage(data);
+            } else if (type.equals(SocketClientMsgType.STOP.value())) {
+                onStopMessage(data);
             } else {
                 sendConnectionError("Unknown message type.");
             }
         } catch (Exception e) {
             logger.error(e);
             sendConnectionError("Could not process message.");
-        }
-    }
-
-    private void sendAck() {
-        try {
-            send(createJavaUtilBuilder()
-                .startObject()
-                    .field("type", SocketServerMsgType.CONNECTION_ACK.value())
-                .endObject());
-        } catch (Exception e) {
-            logger.error(e);
         }
     }
 
@@ -144,7 +136,7 @@ public class DemoServerSocketHandler {
             return;
         }
 
-        if (subscriptions.containsKey(id)) {
+        if (subscribers.containsKey(id)) {
             sendError(id, "Subscription with this id already exists.");
             return;
         }
@@ -178,9 +170,7 @@ public class DemoServerSocketHandler {
             ? (Map<String, Object>) payload.get("variables") : new HashMap();
 
         Publisher<Map<String, Object>> subscription = gqlServer.execute(query, operationName, variables).getSubscription();
-        subscriptions.put(id, subscription);
-
-        subscription.subscribe(new Subscriber<Map<String, Object>>() {
+        Subscriber<Map<String, Object>> subscriber = new Subscriber<Map<String, Object>>() {
             AtomicReference<Subscription> subscriptionRef = new AtomicReference<>();
 
             @Override
@@ -214,9 +204,55 @@ public class DemoServerSocketHandler {
 
             @Override
             public void onComplete() {
-
+                sendComplete(id);
             }
-        });
+        };
+        subscribers.put(id, subscriber);
+        subscription.subscribe(subscriber);
+    }
+
+
+    private void onStopMessage(Map<String, Object> data) {
+        if (!data.containsKey("id")) {
+            sendConnectionError("id not provided.");
+            return;
+        }
+
+        if (!(data.get("id") instanceof String)) {
+            sendConnectionError("id must be a string.");
+            return;
+        }
+
+        String id = (String) data.get("id");
+
+        if (id == null) {
+            sendConnectionError("Invalid id.");
+            return;
+        }
+
+        if (id.length() < 1) {
+            sendConnectionError("Invalid id.");
+            return;
+        }
+
+        if (!subscribers.containsKey(id)) {
+            sendError(id, "Subscription does not exist.");
+            return;
+        }
+
+        stopSubscription(id);
+    }
+
+    private void stopSubscription(String id) {
+        Subscriber<Map<String, Object>> subscriber = subscribers.get(id);
+        subscribers.remove(id);
+        subscriber.onComplete();
+    }
+
+    private void stopAllSubscriptions() {
+        for (Subscriber<Map<String, Object>> subscriber : subscribers.values()) {
+            subscriber.onComplete();
+        }
     }
 
     private void sendConnectionError(String message) {
@@ -242,6 +278,29 @@ public class DemoServerSocketHandler {
                     .startObject("payload")
                         .field("error", message)
                     .endObject()
+                .endObject());
+        } catch (Exception e) {
+            logger.error(e);
+        }
+    }
+
+    private void sendAck() {
+        try {
+            send(createJavaUtilBuilder()
+                .startObject()
+                .field("type", SocketServerMsgType.CONNECTION_ACK.value())
+                .endObject());
+        } catch (Exception e) {
+            logger.error(e);
+        }
+    }
+
+    private void sendComplete(String id) {
+        try {
+            send(createJavaUtilBuilder()
+                .startObject()
+                    .field("type", SocketServerMsgType.COMPLETE.value())
+                    .field("id", id)
                 .endObject());
         } catch (Exception e) {
             logger.error(e);

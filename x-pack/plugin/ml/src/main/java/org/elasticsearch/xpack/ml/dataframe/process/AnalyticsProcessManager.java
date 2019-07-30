@@ -203,7 +203,7 @@ public class AnalyticsProcessManager {
         try {
             processContext.process.close();
             LOGGER.info("[{}] Closed process", configId);
-        } catch (IOException e) {
+        } catch (Exception e) {
             String errorMsg = new ParameterizedMessage("[{}] Error closing data frame analyzer process [{}]"
                 , configId, e.getMessage()).getFormattedMessage();
             processContext.setFailureReason(errorMsg);

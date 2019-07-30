@@ -25,9 +25,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
-import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicy;
-import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotRetentionConfiguration;
+import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
+import org.elasticsearch.xpack.core.slm.SnapshotRetentionConfiguration;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -126,7 +126,11 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
         // It's possible there could have been a snapshot in progress when the
         // policy is deleted, so wait for it to be finished
         assertBusy(() -> {
-            assertThat(wipeSnapshots().size(), equalTo(0));
+            try {
+                assertThat(wipeSnapshots().size(), equalTo(0));
+            } catch (ResponseException e) {
+                fail(EntityUtils.toString(e.getResponse().getEntity()));
+            }
         });
     }
 
@@ -222,7 +226,11 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
         // It's possible there could have been a snapshot in progress when the
         // policy is deleted, so wait for it to be finished
         assertBusy(() -> {
-            assertThat(wipeSnapshots().size(), equalTo(0));
+            try {
+                assertThat(wipeSnapshots().size(), equalTo(0));
+            } catch (ResponseException e) {
+                fail(EntityUtils.toString(e.getResponse().getEntity()));
+            }
         });
     }
 
@@ -298,7 +306,11 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
             // It's possible there could have been a snapshot in progress when the
             // policy is deleted, so wait for it to be finished
             assertBusy(() -> {
-                assertThat(wipeSnapshots().size(), equalTo(0));
+                try {
+                    assertThat(wipeSnapshots().size(), equalTo(0));
+                } catch (ResponseException e) {
+                    fail(EntityUtils.toString(e.getResponse().getEntity()));
+                }
             });
         } finally {
             // Unset retention

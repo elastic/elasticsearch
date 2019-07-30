@@ -21,9 +21,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
-import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecycleMetadata;
-import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicy;
-import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotRetentionConfiguration;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
+import org.elasticsearch.xpack.core.slm.SnapshotRetentionConfiguration;
 
 import java.util.Collection;
 import java.util.Collections;

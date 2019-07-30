@@ -10,8 +10,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicy;
-import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotRetentionConfiguration;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
+import org.elasticsearch.xpack.core.slm.SnapshotRetentionConfiguration;
 
 import java.util.ArrayList;
 import java.util.Arrays;

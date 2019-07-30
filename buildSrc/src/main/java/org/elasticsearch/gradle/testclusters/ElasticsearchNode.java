@@ -626,10 +626,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         // don't buffer all in memory, make sure we don't block on the default pipes
         processBuilder.redirectError(ProcessBuilder.Redirect.appendTo(esStderrFile.toFile()));
         processBuilder.redirectOutput(ProcessBuilder.Redirect.appendTo(esStdoutFile.toFile()));
-        processBuilder.redirectInput(ProcessBuilder.Redirect.DISCARD);
         LOGGER.info("Running `{}` in `{}` for {} env: {}", command, workingDir, this, environment);
         try {
             esProcess = processBuilder.start();
+            esProcess.getOutputStream().close();
         } catch (IOException e) {
             throw new TestClustersException("Failed to start ES process for " + this, e);
         }

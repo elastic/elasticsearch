@@ -90,6 +90,49 @@ public class StartDemoServer {
             }
         });
 
+        router.onSocket.subscribe(new Subscriber<DemoServerSocket>() {
+            @Override
+            public void onSubscribe(Subscription s) {
+                logger.info("Listening for new WebSockets.");
+            }
+
+            @Override
+            public void onNext(DemoServerSocket demoServerSocket) {
+                logger.info("New socket received: {}", demoServerSocket);
+                demoServerSocket.getIncomingMessages().subscribe(new Subscriber<String>() {
+                    @Override
+                    public void onSubscribe(Subscription s) {
+                        logger.info("Listening to new socket");
+                    }
+
+                    @Override
+                    public void onNext(String s) {
+                        logger.info("Received message: {}", s);
+                    }
+
+                    @Override
+                    public void onError(Throwable t) {
+                        logger.error(t);
+                    }
+
+                    @Override
+                    public void onComplete() {
+                        logger.info("Socket closed.");
+                    }
+                });
+            }
+
+            @Override
+            public void onError(Throwable t) {
+                logger.error(t);
+            }
+
+            @Override
+            public void onComplete() {
+                logger.info("Socket server closed.");
+            }
+        });
+
         for (NetworkPlugin plugin: networkPlugins) {
             System.out.println(plugin.getClass());
             try {

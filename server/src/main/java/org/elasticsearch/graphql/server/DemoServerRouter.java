@@ -39,4 +39,6 @@ public class DemoServerRouter {
     public List<DemoServerRoute> getRoutes() {
         return routes;
     }
+
+    public SingleSink<DemoServerSocket> onSocket = new SingleSink<DemoServerSocket>();
 }

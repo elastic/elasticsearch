@@ -36,6 +36,7 @@ import io.netty.handler.logging.LoggingHandler;
 import io.netty.util.CharsetUtil;
 import org.elasticsearch.graphql.server.*;
 import org.elasticsearch.rest.RestRequest;
+import org.reactivestreams.Publisher;
 
 import java.util.HashMap;
 import java.util.Locale;
@@ -252,30 +253,46 @@ public class DemoServer {
         }
     }
 
-    public class WebSocketHandler extends SimpleChannelInboundHandler<WebSocketFrame> {
-        @Override
-        protected void channelRead0(ChannelHandlerContext ctx, WebSocketFrame frame) throws Exception {
-            if (frame instanceof TextWebSocketFrame) {
-                // Send the uppercase string back.
-                String request = ((TextWebSocketFrame) frame).text();
-                ctx.channel().writeAndFlush(new TextWebSocketFrame(request.toUpperCase(Locale.US)));
-            } else {
-                String message = "unsupported frame type: " + frame.getClass().getName();
-                throw new UnsupportedOperationException(message);
-            }
-        }
-    }
-
     public class WebSocketFrameHandler extends SimpleChannelInboundHandler<WebSocketFrame> {
+        ChannelHandlerContext ctx = null;
+
+        SingleSink<String> incomingMessages = new SingleSink<String>();
+
+        DemoServerSocket demoSocket = new DemoServerSocket() {
+            @Override
+            public Publisher<String> getIncomingMessages() {
+                return incomingMessages;
+            }
+
+            @Override
+            public void send(String message) {
+                if (ctx == null) return;
+                ctx.channel().writeAndFlush(new TextWebSocketFrame(message));
+            }
+        };
+
+        @Override
+        public void channelRegistered(ChannelHandlerContext ctx) throws Exception {
+            this.ctx = ctx;
+            router.onSocket.next(demoSocket);
+            ctx.fireChannelRegistered();
+        }
+
+        @Override
+        public void channelUnregistered(ChannelHandlerContext ctx) throws Exception {
+            this.ctx = null;
+            incomingMessages.done();
+            ctx.fireChannelUnregistered();
+        }
+
         @Override
         protected void channelRead0(ChannelHandlerContext ctx, WebSocketFrame frame) throws Exception {
             if (frame instanceof TextWebSocketFrame) {
                 String request = ((TextWebSocketFrame) frame).text();
-                System.out.println("Websocket received: " + request);
-                ctx.channel().writeAndFlush(new TextWebSocketFrame(request.toUpperCase(Locale.US)));
+                incomingMessages.next(request);
             } else {
                 String message = "unsupported frame type: " + frame.getClass().getName();
-                throw new UnsupportedOperationException(message);
+                incomingMessages.error(new UnsupportedOperationException(message));
             }
         }
     }

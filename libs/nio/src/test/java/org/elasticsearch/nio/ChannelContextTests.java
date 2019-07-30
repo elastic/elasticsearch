@@ -118,11 +118,11 @@ public class ChannelContextTests extends ESTestCase {
         public NioSelector getSelector() {
             throw new UnsupportedOperationException("not implemented");
         }
+
         @Override
         public NioChannel getChannel() {
             throw new UnsupportedOperationException("not implemented");
         }
-
     }
 
     private class FakeRawChannel extends SelectableChannel implements NetworkChannel {

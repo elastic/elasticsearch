@@ -19,12 +19,9 @@
 
 package org.elasticsearch.gradle.reaper;
 
-import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -52,8 +49,8 @@ import java.util.stream.Collectors;
  */
 public class Reaper implements Closeable {
 
-    Path inputDir;
-    boolean failed;
+    private Path inputDir;
+    private boolean failed;
 
     private Reaper(Path inputDir) {
         this.inputDir = inputDir;
@@ -62,7 +59,7 @@ public class Reaper implements Closeable {
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {
-            System.err.println("Expected one argument.\nUsage: java -cp reaper.jar Reaper <DIR_OF_REAPING_COMMANDS>");
+            System.err.println("Expected one argument.\nUsage: java -jar reaper.jar <DIR_OF_REAPING_COMMANDS>");
             System.exit(1);
         }
         Path inputDir = Paths.get(args[0]);
@@ -76,7 +73,7 @@ public class Reaper implements Closeable {
     private void reap() {
         try {
             final List<Path> inputFiles = Files.list(inputDir)
-                .filter(p -> p.getFileName().toString().endsWith(".log") == false).collect(Collectors.toList());
+                .filter(p -> p.getFileName().toString().endsWith(".cmd")).collect(Collectors.toList());
 
             for (Path inputFile : inputFiles) {
                 System.out.println("Process file: " + inputFile);
@@ -86,8 +83,11 @@ public class Reaper implements Closeable {
                     Process process = Runtime.getRuntime().exec(command);
                     int ret = process.waitFor();
 
-                    System.out.println("Stdout: " + readStream(process.getInputStream()));
-                    System.out.println("Stderr: " + readStream(process.getErrorStream()));
+                    System.out.print("Stdout: ");
+                    process.getInputStream().transferTo(System.out);
+                    System.out.print("\nStderr: ");
+                    process.getErrorStream().transferTo(System.out);
+                    System.out.println(); // end the stream
                     if (ret != 0) {
                         logFailure("Command [" + line + "] failed with exit code " + ret, null);
                     }
@@ -100,14 +100,10 @@ public class Reaper implements Closeable {
 
     private void logFailure(String message, Exception e) {
         System.err.println(message);
-        e.printStackTrace(System.err);
+        if (e != null) {
+            e.printStackTrace(System.err);
+        }
         failed = true;
-    }
-
-    private static String readStream(InputStream s) throws IOException {
-        ByteArrayOutputStream o = new ByteArrayOutputStream();
-        s.transferTo(o);
-        return o.toString(StandardCharsets.UTF_8);
     }
 
     @Override

@@ -25,7 +25,7 @@ import org.elasticsearch.gradle.LazyPropertyMap;
 import org.elasticsearch.gradle.LoggedExec;
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.PropertyNormalization;
-import org.elasticsearch.gradle.ReaperPlugin;
+import org.elasticsearch.gradle.ReaperService;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.http.WaitForHttpResource;
@@ -109,7 +109,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final String path;
     private final String name;
     private final Project project;
-    private final ReaperPlugin reaper;
+    private final ReaperService reaper;
     private final AtomicBoolean configurationFrozen = new AtomicBoolean(false);
     private final Path workingDir;
 
@@ -144,7 +144,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private Function<String, String> nameCustomization = Function.identity();
     private boolean isWorkingDirConfigured = false;
 
-    ElasticsearchNode(String path, String name, Project project, ReaperPlugin reaper, File workingDirBase,
+    ElasticsearchNode(String path, String name, Project project, ReaperService reaper, File workingDirBase,
                       ElasticsearchDistribution distribution) {
         this.path = path;
         this.name = name;

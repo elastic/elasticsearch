@@ -22,6 +22,7 @@ import groovy.lang.Closure;
 import org.elasticsearch.gradle.DistributionDownloadPlugin;
 import org.elasticsearch.gradle.ElasticsearchDistribution;
 import org.elasticsearch.gradle.ReaperPlugin;
+import org.elasticsearch.gradle.ReaperService;
 import org.elasticsearch.gradle.test.RestTestRunnerTask;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
@@ -57,14 +58,14 @@ public class TestClustersPlugin implements Plugin<Project> {
     private final Set<ElasticsearchCluster> runningClusters = new HashSet<>();
     private final Boolean allowClusterToSurvive = Boolean.valueOf(System.getProperty(TESTCLUSTERS_INSPECT_FAILURE, "false"));
 
-    private ReaperPlugin reaper;
+    private ReaperService reaper;
 
     @Override
     public void apply(Project project) {
         project.getPlugins().apply(DistributionDownloadPlugin.class);
 
         project.getRootProject().getPluginManager().apply(ReaperPlugin.class);
-        reaper = project.getRootProject().getPlugins().getPlugin(ReaperPlugin.class);
+        reaper = project.getRootProject().getExtensions().getByType(ReaperService.class);
 
         // enable the DSL to describe clusters
         NamedDomainObjectContainer<ElasticsearchCluster> container = createTestClustersContainerExtension(project);

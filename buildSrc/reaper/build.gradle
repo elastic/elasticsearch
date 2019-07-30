@@ -2,3 +2,9 @@ apply plugin: 'java'
 
 targetCompatibility = '11'
 sourceCompatibility = '11'
+
+jar {
+    manifest {
+        attributes 'Main-Class': 'org.elasticsearch.gradle.reaper.Reaper'
+    }
+}

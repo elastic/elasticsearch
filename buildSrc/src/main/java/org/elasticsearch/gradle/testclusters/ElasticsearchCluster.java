@@ -21,7 +21,7 @@ package org.elasticsearch.gradle.testclusters;
 import org.elasticsearch.gradle.ElasticsearchDistribution;
 import org.elasticsearch.gradle.FileSupplier;
 import org.elasticsearch.gradle.PropertyNormalization;
-import org.elasticsearch.gradle.ReaperPlugin;
+import org.elasticsearch.gradle.ReaperService;
 import org.elasticsearch.gradle.http.WaitForHttpResource;
 import org.gradle.api.Named;
 import org.gradle.api.NamedDomainObjectContainer;
@@ -62,9 +62,9 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     private final Function<Integer, ElasticsearchDistribution> distributionFactory;
     private final LinkedHashMap<String, Predicate<TestClusterConfiguration>> waitConditions = new LinkedHashMap<>();
     private final Project project;
-    private final ReaperPlugin reaper;
+    private final ReaperService reaper;
 
-    public ElasticsearchCluster(String path, String clusterName, Project project, ReaperPlugin reaper,
+    public ElasticsearchCluster(String path, String clusterName, Project project, ReaperService reaper,
                                 Function<Integer, ElasticsearchDistribution> distributionFactory, File workingDirBase) {
         this.path = path;
         this.clusterName = clusterName;

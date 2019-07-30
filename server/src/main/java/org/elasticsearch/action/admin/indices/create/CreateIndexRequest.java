@@ -100,7 +100,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         }
         int aliasesSize = in.readVInt();
         for (int i = 0; i < aliasesSize; i++) {
-            aliases.add(Alias.read(in));
+            aliases.add(new Alias(in));
         }
         waitForActiveShards = ActiveShardCount.readFrom(in);
     }

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.dataframe.transforms;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -26,17 +27,17 @@ import java.util.Objects;
  */
 public class DataFrameTransformCheckpointingInfo implements Writeable, ToXContentObject {
 
-    public static DataFrameTransformCheckpointingInfo EMPTY = new DataFrameTransformCheckpointingInfo(
+    public static final DataFrameTransformCheckpointingInfo EMPTY = new DataFrameTransformCheckpointingInfo(
             DataFrameTransformCheckpointStats.EMPTY,
             DataFrameTransformCheckpointStats.EMPTY,
             0L);
 
-    public static final ParseField CURRENT_CHECKPOINT = new ParseField("current");
-    public static final ParseField IN_PROGRESS_CHECKPOINT = new ParseField("in_progress");
+    public static final ParseField LAST_CHECKPOINT = new ParseField("last");
+    public static final ParseField NEXT_CHECKPOINT = new ParseField("next");
     public static final ParseField OPERATIONS_BEHIND = new ParseField("operations_behind");
 
-    private final DataFrameTransformCheckpointStats current;
-    private final DataFrameTransformCheckpointStats inProgress;
+    private final DataFrameTransformCheckpointStats last;
+    private final DataFrameTransformCheckpointStats next;
     private final long operationsBehind;
 
     private static final ConstructingObjectParser<DataFrameTransformCheckpointingInfo, Void> LENIENT_PARSER =
@@ -51,39 +52,39 @@ public class DataFrameTransformCheckpointingInfo implements Writeable, ToXConten
 
     static {
         LENIENT_PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> DataFrameTransformCheckpointStats.fromXContent(p), CURRENT_CHECKPOINT);
+            DataFrameTransformCheckpointStats.LENIENT_PARSER::apply, LAST_CHECKPOINT);
         LENIENT_PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> DataFrameTransformCheckpointStats.fromXContent(p), IN_PROGRESS_CHECKPOINT);
+            DataFrameTransformCheckpointStats.LENIENT_PARSER::apply, NEXT_CHECKPOINT);
         LENIENT_PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), OPERATIONS_BEHIND);
     }
 
     /**
-     * Create checkpoint stats object with checkpoint information about the current and in progress checkpoint as well as the current state
+     * Create checkpoint stats object with checkpoint information about the last and next checkpoint as well as the current state
      * of source.
      *
-     * @param current stats of the current checkpoint
-     * @param inProgress stats of the in progress checkpoint
+     * @param last stats of the last checkpoint
+     * @param next stats of the next checkpoint
      * @param operationsBehind counter of operations the current checkpoint is behind source
      */
-    public DataFrameTransformCheckpointingInfo(DataFrameTransformCheckpointStats current, DataFrameTransformCheckpointStats inProgress,
+    public DataFrameTransformCheckpointingInfo(DataFrameTransformCheckpointStats last, DataFrameTransformCheckpointStats next,
             long operationsBehind) {
-        this.current = Objects.requireNonNull(current);
-        this.inProgress = Objects.requireNonNull(inProgress);
+        this.last = Objects.requireNonNull(last);
+        this.next = Objects.requireNonNull(next);
         this.operationsBehind = operationsBehind;
     }
 
     public DataFrameTransformCheckpointingInfo(StreamInput in) throws IOException {
-        current = new DataFrameTransformCheckpointStats(in);
-        inProgress = new DataFrameTransformCheckpointStats(in);
+        last = new DataFrameTransformCheckpointStats(in);
+        next = new DataFrameTransformCheckpointStats(in);
         operationsBehind = in.readLong();
     }
 
-    public DataFrameTransformCheckpointStats getCurrent() {
-        return current;
+    public DataFrameTransformCheckpointStats getLast() {
+        return last;
     }
 
-    public DataFrameTransformCheckpointStats getInProgress() {
-        return inProgress;
+    public DataFrameTransformCheckpointStats getNext() {
+        return next;
     }
 
     public long getOperationsBehind() {
@@ -93,13 +94,10 @@ public class DataFrameTransformCheckpointingInfo implements Writeable, ToXConten
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (current.getTimestampMillis() > 0) {
-            builder.field(CURRENT_CHECKPOINT.getPreferredName(), current);
+        builder.field(LAST_CHECKPOINT.getPreferredName(), last);
+        if (next.getCheckpoint() > 0) {
+            builder.field(NEXT_CHECKPOINT.getPreferredName(), next);
         }
-        if (inProgress.getTimestampMillis() > 0) {
-            builder.field(IN_PROGRESS_CHECKPOINT.getPreferredName(), inProgress);
-        }
-
         builder.field(OPERATIONS_BEHIND.getPreferredName(), operationsBehind);
         builder.endObject();
         return builder;
@@ -107,8 +105,8 @@ public class DataFrameTransformCheckpointingInfo implements Writeable, ToXConten
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        current.writeTo(out);
-        inProgress.writeTo(out);
+        last.writeTo(out);
+        next.writeTo(out);
         out.writeLong(operationsBehind);
     }
 
@@ -118,7 +116,7 @@ public class DataFrameTransformCheckpointingInfo implements Writeable, ToXConten
 
     @Override
     public int hashCode() {
-        return Objects.hash(current, inProgress, operationsBehind);
+        return Objects.hash(last, next, operationsBehind);
     }
 
     @Override
@@ -133,9 +131,13 @@ public class DataFrameTransformCheckpointingInfo implements Writeable, ToXConten
 
         DataFrameTransformCheckpointingInfo that = (DataFrameTransformCheckpointingInfo) other;
 
-        return Objects.equals(this.current, that.current) &&
-                Objects.equals(this.inProgress, that.inProgress) &&
+        return Objects.equals(this.last, that.last) &&
+                Objects.equals(this.next, that.next) &&
                 this.operationsBehind == that.operationsBehind;
     }
 
+    @Override
+    public String toString() {
+        return Strings.toString(this);
+    }
 }

@@ -1,0 +1,35 @@
+#!/bin/bash
+
+SCRIPT="$0"
+
+while [ -h "$SCRIPT" ] ; do
+  ls=`ls -ld "$SCRIPT"`
+  # Drop everything prior to ->
+  link=`expr "$ls" : '.*-> \(.*\)$'`
+  if expr "$link" : '/.*' > /dev/null; then
+    SCRIPT="$link"
+  else
+    SCRIPT=`dirname "$SCRIPT"`/"$link"
+  fi
+done
+
+JARS_PATH="$(dirname $(dirname $SCRIPT))/libs"
+
+unset CLASSPATH
+
+for J in $(cd "${JARS_PATH}"; ls *.jar); do
+  CLASSPATH=${CLASSPATH}${CLASSPATH:+:}${JARS_PATH}/${J}
+done
+
+for J in $(cd "${JARS_PATH}/vendor"; ls *.jar); do
+  CLASSPATH=${CLASSPATH}${CLASSPATH:+:}${JARS_PATH}/vendor/${J}
+done
+
+# Give JAVA_HOME precedence over the `java` on the PATH
+if [ ! -z "$JAVA_HOME" ]; then
+  JAVA="$JAVA_HOME/bin/java"
+else
+  JAVA=java
+fi
+
+exec ${JAVA} -cp "${CLASSPATH}" org.elasticsearch.snapshots.SnapshotToolCli "$@"

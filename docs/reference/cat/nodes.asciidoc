@@ -1,5 +1,5 @@
 [[cat-nodes]]
-== cat nodes
+=== cat nodes
 
 The `nodes` command shows the cluster topology. For example
 
@@ -33,7 +33,7 @@ requested with `id` or `nodeId`) in its full length or in abbreviated form (the
 default).
 
 [float]
-=== Columns
+==== Columns
 
 Below is an exhaustive list of the existing headers that can be
 passed to `nodes?h=` to retrieve the relevant details in ordered

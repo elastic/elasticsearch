@@ -81,11 +81,11 @@ public class TransportHandshakerTests extends ESTestCase {
         BytesStreamOutput bytesStreamOutput = new BytesStreamOutput();
         handshakeRequest.writeTo(bytesStreamOutput);
         StreamInput input = bytesStreamOutput.bytes().streamInput();
-        handshaker.handleHandshake(Version.CURRENT, Collections.emptySet(), mockChannel, reqId, input);
+        handshaker.handleHandshake(Version.CURRENT, mockChannel, reqId, input);
 
 
         ArgumentCaptor<TransportResponse> responseCaptor = ArgumentCaptor.forClass(TransportResponse.class);
-        verify(responseSender).sendResponse(eq(Version.CURRENT), eq(Collections.emptySet()), eq(mockChannel), responseCaptor.capture(),
+        verify(responseSender).sendResponse(eq(Version.CURRENT), eq(mockChannel), responseCaptor.capture(),
             eq(reqId));
 
         TransportResponseHandler<TransportHandshaker.HandshakeResponse> handler = handshaker.removeHandlerForHandshake(reqId);
@@ -121,12 +121,12 @@ public class TransportHandshakerTests extends ESTestCase {
         // Otherwise, we need to update the test.
         assertEquals(currentHandshakeBytes.bytes().length(), lengthCheckingHandshake.bytes().length());
         assertEquals(1031, futureHandshakeStream.available());
-        handshaker.handleHandshake(Version.CURRENT, Collections.emptySet(), mockChannel, reqId, futureHandshakeStream);
+        handshaker.handleHandshake(Version.CURRENT, mockChannel, reqId, futureHandshakeStream);
         assertEquals(0, futureHandshakeStream.available());
 
 
         ArgumentCaptor<TransportResponse> responseCaptor = ArgumentCaptor.forClass(TransportResponse.class);
-        verify(responseSender).sendResponse(eq(Version.CURRENT), eq(Collections.emptySet()), eq(mockChannel), responseCaptor.capture(),
+        verify(responseSender).sendResponse(eq(Version.CURRENT), eq(mockChannel), responseCaptor.capture(),
             eq(reqId));
 
         TransportHandshaker.HandshakeResponse response = (TransportHandshaker.HandshakeResponse) responseCaptor.getValue();

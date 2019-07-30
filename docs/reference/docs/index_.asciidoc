@@ -1,5 +1,5 @@
 [[docs-index_]]
-== Index API
+=== Index API
 
 IMPORTANT: See <<removal-of-types>>.
 
@@ -54,7 +54,7 @@ NOTE:   Replica shards may not all be started when an indexing operation success
 
 [float]
 [[index-creation]]
-=== Automatic Index Creation
+==== Automatic Index Creation
 
 The index operation automatically creates an index if it does not already
 exist, and applies any <<indices-templates,index templates>> that are
@@ -108,7 +108,7 @@ patterns are matched in the order in which they are given.
 
 [float]
 [[operation-type]]
-=== Operation Type
+==== Operation Type
 
 The index operation also accepts an `op_type` that can be used to force
 a `create` operation, allowing for "put-if-absent" behavior. When
@@ -142,7 +142,7 @@ PUT twitter/_create/1
 // CONSOLE
 
 [float]
-=== Automatic ID Generation
+==== Automatic ID Generation
 
 The index operation can be executed without specifying the id. In such a
 case, an id will be generated automatically. In addition, the `op_type`
@@ -183,7 +183,7 @@ The result of the above index operation is:
 
 [float]
 [[optimistic-concurrency-control-index]]
-=== Optimistic concurrency control
+==== Optimistic concurrency control
 
 Index operations can be made conditional and only be performed if the last
 modification to the document was assigned the sequence number and primary 
@@ -193,7 +193,7 @@ and a status code of 409. See <<optimistic-concurrency-control>> for more detail
 
 [float]
 [[index-routing]]
-=== Routing
+==== Routing
 
 By default, shard placement ? or `routing` ? is controlled by using a
 hash of the document's id value. For more explicit control, the value
@@ -223,7 +223,7 @@ value is provided or extracted.
 
 [float]
 [[index-distributed]]
-=== Distributed
+==== Distributed
 
 The index operation is directed to the primary shard based on its route
 (see the Routing section above) and performed on the actual node
@@ -232,7 +232,7 @@ if needed, the update is distributed to applicable replicas.
 
 [float]
 [[index-wait-for-active-shards]]
-=== Wait For Active Shards
+==== Wait For Active Shards
 
 To improve the resiliency of writes to the system, indexing operations
 can be configured to wait for a certain number of active shard copies
@@ -290,14 +290,14 @@ replication succeeded/failed.
 
 [float]
 [[index-refresh]]
-=== Refresh
+==== Refresh
 
 Control when the changes made by this request are visible to search. See
 <<docs-refresh,refresh>>.
 
 [float]
 [[index-noop]]
-=== Noop Updates
+==== Noop Updates
 
 When updating a document using the index API a new version of the document is
 always created even if the document hasn't changed. If this isn't acceptable
@@ -312,7 +312,7 @@ Elasticsearch runs on the shard receiving the updates.
 
 [float]
 [[timeout]]
-=== Timeout
+==== Timeout
 
 The primary shard assigned to perform the index operation might not be
 available when the index operation is executed. Some reasons for this
@@ -336,7 +336,7 @@ PUT twitter/_doc/1?timeout=5m
 
 [float]
 [[index-versioning]]
-=== Versioning
+==== Versioning
 
 Each indexed document is given a version number. By default, 
 internal versioning is used that starts at 1 and increments
@@ -381,7 +381,7 @@ latest version will be used if the index operations arrive out of order for
 whatever reason.
 
 [float]
-==== Version types
+===== Version types
 
 Next to the `external` version type explained above, Elasticsearch
 also supports other types for specific use cases. Here is an overview of

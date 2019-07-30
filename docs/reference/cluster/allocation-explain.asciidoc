@@ -1,5 +1,5 @@
 [[cluster-allocation-explain]]
-== Cluster Allocation Explain API
+=== Cluster Allocation Explain API
 
 The purpose of the cluster allocation explain API is to provide
 explanations for shard allocations in the cluster.  For unassigned shards,
@@ -11,7 +11,7 @@ a shard is unassigned or why a shard continues to remain on its current node
 when you might expect otherwise.
 
 [float]
-=== Explain API Request
+==== Explain API Request
 
 To explain the allocation of a shard, first an index should exist:
 
@@ -68,7 +68,7 @@ GET /_cluster/allocation/explain
 // CONSOLE
 
 [float]
-=== Explain API Response
+==== Explain API Response
 
 This section includes examples of the cluster allocation explain API response output
 under various scenarios.

@@ -1500,6 +1500,22 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
         return new ShardId(sourceIndexMetadata.getIndex(), shardId/routingFactor);
     }
 
+    /**
+     * Returns the source shard ID to clone the given target shard off
+     * @param shardId the id of the target shard to clone into
+     * @param sourceIndexMetadata the source index metadata
+     * @param numTargetShards the total number of shards in the target index
+     * @return a the source shard ID to clone from
+     */
+    public static ShardId selectCloneShard(int shardId, IndexMetaData sourceIndexMetadata, int numTargetShards) {
+        int numSourceShards = sourceIndexMetadata.getNumberOfShards();
+        if (numSourceShards != numTargetShards) {
+            throw new IllegalArgumentException("the number of target shards (" + numTargetShards + ") must be the same as the number of "
+                + " source shards ( " + numSourceShards + ")");
+        }
+        return new ShardId(sourceIndexMetadata.getIndex(), shardId);
+    }
+
     private static void assertSplitMetadata(int numSourceShards, int numTargetShards, IndexMetaData sourceIndexMetadata) {
         if (numSourceShards > numTargetShards) {
             throw new IllegalArgumentException("the number of source shards [" + numSourceShards
@@ -1530,8 +1546,9 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             return selectShrinkShards(shardId, sourceIndexMetadata, numTargetShards);
         } else if (sourceIndexMetadata.getNumberOfShards() < numTargetShards) {
             return Collections.singleton(selectSplitShard(shardId, sourceIndexMetadata, numTargetShards));
+        } else {
+            return Collections.singleton(selectCloneShard(shardId, sourceIndexMetadata, numTargetShards));
         }
-        throw new IllegalArgumentException("can't select recover from shards if both indices have the same number of shards");
     }
 
     /**

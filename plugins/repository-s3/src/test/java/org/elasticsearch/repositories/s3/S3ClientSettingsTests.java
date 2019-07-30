@@ -151,4 +151,11 @@ public class S3ClientSettingsTests extends ESTestCase {
         assertThat(settings.get("default").pathStyleAccess, is(false));
         assertThat(settings.get("other").pathStyleAccess, is(true));
     }
+
+    public void testUseChunkedEncodingCanBeSet() {
+        final Map<String, S3ClientSettings> settings = S3ClientSettings.load(
+            Settings.builder().put("s3.client.other.disable_chunked_encoding", true).build());
+        assertThat(settings.get("default").disableChunkedEncoding, is(false));
+        assertThat(settings.get("other").disableChunkedEncoding, is(true));
+    }
 }

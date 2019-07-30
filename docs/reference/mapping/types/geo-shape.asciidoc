@@ -296,7 +296,7 @@ differs from many Geospatial APIs (e.g., Google Maps) that generally
 use the colloquial latitude, longitude (Y, X).
 =============================================
 
-[[geo-point]]
+[[geo-point-type]]
 [float]
 ===== http://geojson.org/geojson-spec.html#id2[Point]
 

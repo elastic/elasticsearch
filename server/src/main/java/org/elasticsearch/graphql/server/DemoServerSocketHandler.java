@@ -106,6 +106,9 @@ public class DemoServerSocketHandler {
             } else if (type.equals(SocketClientMsgType.STOP.value())) {
                 logger.info("GQL_STOP {}", data);
                 onStopMessage(data);
+            } else if (type.equals(SocketClientMsgType.TERMINATE.value())) {
+                logger.info("CONNECTION_TERMINATE {}", data);
+                stopAllSubscriptions();
             } else {
                 logger.info("UNKNOWN {}", data);
                 sendConnectionError("Unknown message type.");

@@ -51,6 +51,8 @@ Features/Stats::
 Machine Learning::
 * Fix ML memory tracker lockup when inner step fails {pull}44158[#44158] (issue: {issue}44156[#44156])
 * Fix datafeed checks when a concrete remote index is present {pull}43923[#43923] (issue: {issue}42113[#42113])
+* Don't write model size stats when job is closed without any input {ml-pull}512[#512] (issue: {ml-issue}394[#394])
+* Don't persist model state at the end of lookback if the lookback did not generate any input {ml-pull}521[#521] (issue: {ml-issue}519[#519])
 
 Mapping::
 * Prevent types deprecation warning for indices.exists requests {pull}43963[#43963] (issue: {issue}43905[#43905])

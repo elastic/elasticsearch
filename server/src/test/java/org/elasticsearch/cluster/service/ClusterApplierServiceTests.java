@@ -193,14 +193,14 @@ public class ClusterApplierServiceTests extends ESTestCase {
                         "test2",
                         ClusterApplierService.class.getCanonicalName(),
                         Level.WARN,
-                        "*cluster state applier task [test2] took [32s] which is above the warn threshold of *: " +
+                        "*cluster state applier task [test2] took [32s] which is above the warn threshold of [*]: " +
                             "[running task [test2]] took [*"));
         mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                         "test4",
                         ClusterApplierService.class.getCanonicalName(),
                         Level.WARN,
-                        "*cluster state applier task [test3] took [34s] which is above the warn threshold of *: " +
+                        "*cluster state applier task [test3] took [34s] which is above the warn threshold of [*]: " +
                             "[running task [test3]] took [*"));
 
         Logger clusterLogger = LogManager.getLogger(ClusterApplierService.class);

@@ -1,3 +1,4 @@
+[[shape]]
 [role="xpack"]
 [testenv="basic"]
 === Shape datatype

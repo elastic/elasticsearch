@@ -41,7 +41,8 @@ public final class ClusterPrivilege extends Privilege {
 
     // shared automatons
     private static final Automaton DELEGATE_PKI_AUTOMATON = patterns(DelegatePkiAuthenticationAction.NAME);
-    private static final Automaton MANAGE_SECURITY_AUTOMATON = minusAndMinimize(patterns("cluster:admin/xpack/security/*"), DELEGATE_PKI_AUTOMATON);
+    private static final Automaton MANAGE_SECURITY_AUTOMATON = minusAndMinimize(patterns("cluster:admin/xpack/security/*"),
+            DELEGATE_PKI_AUTOMATON);
     private static final Automaton MANAGE_SAML_AUTOMATON = patterns("cluster:admin/xpack/security/saml/*",
             InvalidateTokenAction.NAME, RefreshTokenAction.NAME);
     private static final Automaton MANAGE_OIDC_AUTOMATON = patterns("cluster:admin/xpack/security/oidc/*");

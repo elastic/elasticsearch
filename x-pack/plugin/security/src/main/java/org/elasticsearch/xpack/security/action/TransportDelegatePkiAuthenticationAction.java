@@ -55,17 +55,19 @@ public class TransportDelegatePkiAuthenticationAction
         final X509AuthenticationToken x509DelegatedToken = new X509AuthenticationToken(request.getCertificates(), true);
         logger.trace("Attempting to authenticate delegated x509Token [{}]", x509DelegatedToken);
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            authenticationService.authenticate(DelegatePkiAuthenticationAction.NAME, request, x509DelegatedToken, ActionListener.wrap(authentication -> {
-                assert authentication != null : "authentication should never be null at this point";
-                tokenService.createOAuth2Tokens(authentication, delegateeAuthentication, Map.of(), false, ActionListener.wrap(tuple -> {
-                    final TimeValue expiresIn = tokenService.getExpirationDelay();
-                    listener.onResponse(new DelegatePkiAuthenticationResponse(tuple.v1(), expiresIn));
-                }, listener::onFailure));
-            }, e -> {
-                logger.debug((Supplier<?>) () -> new ParameterizedMessage("Delegated x509Token [{}] could not be authenticated",
-                        x509DelegatedToken), e);
-                listener.onFailure(e);
-            }));
+            authenticationService.authenticate(DelegatePkiAuthenticationAction.NAME, request, x509DelegatedToken,
+                    ActionListener.wrap(authentication -> {
+                        assert authentication != null : "authentication should never be null at this point";
+                        tokenService.createOAuth2Tokens(authentication, delegateeAuthentication, Map.of(), false,
+                                ActionListener.wrap(tuple -> {
+                                    final TimeValue expiresIn = tokenService.getExpirationDelay();
+                                    listener.onResponse(new DelegatePkiAuthenticationResponse(tuple.v1(), expiresIn));
+                                }, listener::onFailure));
+                    }, e -> {
+                        logger.debug((Supplier<?>) () -> new ParameterizedMessage("Delegated x509Token [{}] could not be authenticated",
+                                x509DelegatedToken), e);
+                        listener.onFailure(e);
+                    }));
         }
     }
 }

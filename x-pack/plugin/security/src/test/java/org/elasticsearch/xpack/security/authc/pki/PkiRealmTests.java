@@ -18,6 +18,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.InternalRealmsSettings;
 import org.elasticsearch.xpack.core.security.authc.Realm;
@@ -267,8 +268,14 @@ public class PkiRealmTests extends ESTestCase {
 
     public void testAuthenticationDelegationSuccess() throws Exception {
         X509Certificate certificate = readCert(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
-        X509AuthenticationToken delegatedToken = new X509AuthenticationToken(new X509Certificate[] { certificate },
-                mock(Authentication.class));
+        Authentication mockAuthentication = mock(Authentication.class);
+        User mockUser = mock(User.class);
+        when(mockUser.principal()).thenReturn("mockup_delegate_username");
+        RealmRef mockRealmRef = mock(RealmRef.class);
+        when(mockRealmRef.getName()).thenReturn("mockup_delegate_realm");
+        when(mockAuthentication.getUser()).thenReturn(mockUser);
+        when(mockAuthentication.getAuthenticatedBy()).thenReturn(mockRealmRef);
+        X509AuthenticationToken delegatedToken = new X509AuthenticationToken(new X509Certificate[] { certificate }, mockAuthentication);
 
         UserRoleMapper roleMapper = buildRoleMapper();
         MockSecureSettings secureSettings = new MockSecureSettings();
@@ -288,6 +295,8 @@ public class PkiRealmTests extends ESTestCase {
         assertThat(result.getUser().principal(), is("Elasticsearch Test Node"));
         assertThat(result.getUser().roles(), is(notNullValue()));
         assertThat(result.getUser().roles().length, is(0));
+        assertThat(result.getUser().metadata().get("pki_delegated_from_user"), is("mockup_delegate_username"));
+        assertThat(result.getUser().metadata().get("pki_delegated_from_realm"), is("mockup_delegate_realm"));
     }
 
     public void testAuthenticationDelegationFailure() throws Exception {

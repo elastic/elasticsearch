@@ -98,12 +98,16 @@ public class DemoServerSocketHandler {
             String type = (String) data.get("type");
 
             if (type.equals(SocketClientMsgType.INIT.value())) {
+                logger.info("GQL_INIT {}", data);
                 sendAck();
             } else if (type.equals(SocketClientMsgType.START.value())) {
+                logger.info("GQL_START {}", data);
                 onStartMessage(data);
             } else if (type.equals(SocketClientMsgType.STOP.value())) {
+                logger.info("GQL_STOP {}", data);
                 onStopMessage(data);
             } else {
+                logger.info("UNKNOWN {}", data);
                 sendConnectionError("Unknown message type.");
             }
         } catch (Exception e) {
@@ -169,9 +173,10 @@ public class DemoServerSocketHandler {
         Map<String, Object> variables = payload.get("variables") instanceof Map
             ? (Map<String, Object>) payload.get("variables") : new HashMap();
 
-        Publisher<Map<String, Object>> subscription = gqlServer.execute(query, operationName, variables).getSubscription();
+        Publisher<Map<String, Object>> publisher = gqlServer.execute(query, operationName, variables).getSubscription();
         Subscriber<Map<String, Object>> subscriber = new Subscriber<Map<String, Object>>() {
             AtomicReference<Subscription> subscriptionRef = new AtomicReference<>();
+            boolean completed = false;
 
             @Override
             public void onSubscribe(Subscription s) {
@@ -181,7 +186,12 @@ public class DemoServerSocketHandler {
 
             @Override
             public void onNext(Map<String, Object> payload) {
-                logger.info("Push to subscription {} ~> {}", id, payload);
+                logger.info("GQL_DATA {} ~> {}", id, payload);
+
+                if (completed) {
+                    return;
+                }
+
                 try {
                     send(createJavaUtilBuilder()
                         .startObject()
@@ -204,11 +214,12 @@ public class DemoServerSocketHandler {
 
             @Override
             public void onComplete() {
+                completed = true;
                 sendComplete(id);
             }
         };
         subscribers.put(id, subscriber);
-        subscription.subscribe(subscriber);
+        publisher.subscribe(subscriber);
     }
 
 

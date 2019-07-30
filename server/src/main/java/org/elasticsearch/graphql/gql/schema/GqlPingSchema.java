@@ -63,10 +63,12 @@ public class GqlPingSchema {
                         @Override
                         public void request(long n) {
                             while (n --> 0) {
-                                try {
-                                    Thread.sleep(3000);
+                                new Thread(() -> {
+                                    try {
+                                        Thread.sleep(3000);
+                                    } catch (Exception e) {}
                                     s.onNext("pong");
-                                } catch (Exception e) {}
+                                }).start();
                             }
                         }
 

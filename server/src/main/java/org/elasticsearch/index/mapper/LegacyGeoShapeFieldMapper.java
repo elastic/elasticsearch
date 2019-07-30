@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.TermQueryPrefixTreeStrategy;
@@ -36,7 +35,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.geo.SpatialStrategy;
-import org.elasticsearch.common.geo.XShapeCollection;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
@@ -47,13 +45,9 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.LegacyGeoShapeQueryProcessor;
-import org.locationtech.spatial4j.shape.Point;
 import org.locationtech.spatial4j.shape.Shape;
-import org.locationtech.spatial4j.shape.jts.JtsGeometry;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -270,7 +264,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractGeometryFieldMapper<Shape
         protected void setupFieldType(BuilderContext context) {
             super.setupFieldType(context);
 
-            fieldType().setGeometryIndexer(new LegacyGeoShapeIndexer());
+            fieldType().setGeometryIndexer(new LegacyGeoShapeIndexer(fieldType()));
             fieldType().setGeometryParser(ShapeParser::parse);
             fieldType().setGeometryQueryBuilder(new LegacyGeoShapeQueryProcessor(fieldType()));
 
@@ -485,34 +479,6 @@ public class LegacyGeoShapeFieldMapper extends AbstractGeometryFieldMapper<Shape
     @Override
     public GeoShapeFieldType fieldType() {
         return (GeoShapeFieldType) super.fieldType();
-    }
-
-    @Override
-    protected void indexShape(ParseContext context, Shape shape) {
-        if (fieldType().pointsOnly() == true) {
-            // index configured for pointsOnly
-            if (shape instanceof XShapeCollection && XShapeCollection.class.cast(shape).pointsOnly()) {
-                // MULTIPOINT data: index each point separately
-                @SuppressWarnings("unchecked") List<Shape> shapes = ((XShapeCollection) shape).getShapes();
-                for (Shape s : shapes) {
-                    doIndexShape(context, s);
-                }
-                return;
-            } else if (shape instanceof Point == false) {
-                throw new MapperParsingException("[{" + fieldType().name() + "}] is configured for points only but a "
-                    + ((shape instanceof JtsGeometry) ? ((JtsGeometry)shape).getGeom().getGeometryType() : shape.getClass())
-                    + " was found");
-            }
-        }
-        doIndexShape(context, shape);
-    }
-
-    private void doIndexShape(ParseContext context, Shape shape) {
-        List<IndexableField> fields = new ArrayList<>(Arrays.asList(fieldType().defaultPrefixTreeStrategy().createIndexableFields(shape)));
-        createFieldNamesField(context, fields);
-        for (IndexableField field : fields) {
-            context.doc().add(field);
-        }
     }
 
     @Override

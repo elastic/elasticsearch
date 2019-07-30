@@ -197,7 +197,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             }
         };
 
-        protected ReplicationGroup(final IndexMetaData indexMetaData) throws IOException {
+        public ReplicationGroup(final IndexMetaData indexMetaData) throws IOException {
             final ShardRouting primaryRouting = this.createShardRouting("s0", true);
             primary = newShard(
                 primaryRouting, indexMetaData, null, getEngineFactory(primaryRouting), () -> {}, retentionLeaseSyncer);

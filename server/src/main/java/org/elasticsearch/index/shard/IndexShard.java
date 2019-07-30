@@ -1400,6 +1400,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 recoveryState.getTranslog().totalLocal(0);
                 return globalCheckpoint + 1;
             }
+            if (indexSettings.getIndexMetaData().getState() == IndexMetaData.State.CLOSE ||
+                IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.get(indexSettings.getSettings())) {
+                logger.trace("skip local recovery as the index was closed or not allowed to write; safe commit {} global checkpoint {}",
+                    safeCommit.get(), globalCheckpoint);
+                recoveryState.getTranslog().totalLocal(0);
+                return safeCommit.get().localCheckpoint + 1;
+            }
             try {
                 final Engine.TranslogRecoveryRunner translogRecoveryRunner = (engine, snapshot) -> {
                     recoveryState.getTranslog().totalLocal(snapshot.totalOperations());

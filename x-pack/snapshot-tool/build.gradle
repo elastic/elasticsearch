@@ -82,10 +82,11 @@ dependencyLicenses {
 test.enabled = false
 testingConventions.enabled = false
 
-task thirdPartyTest {
+task s3ThirdPartyTests {
+  dependsOn check
 }
 
-task s3ThirdPartyTests {
+task gcsThirdPartyTests {
   dependsOn check
 }
 
@@ -107,16 +108,41 @@ if (!s3PermanentAccessKey && !s3PermanentSecretKey && !s3PermanentBucket && !s3P
   throw new IllegalArgumentException("not all options specified to run against external S3 service as permanent credentials are present")
 }
 
-task thirdPartyTestS3(type: Test) {
-  include '**/S3CleanupTests.class'
-  systemProperty 'tests.security.manager', 'false'
+boolean useGCSFixture = false
+
+String gcsServiceAccount = System.getenv("google_storage_service_account")
+String gcsBucket = System.getenv("google_storage_bucket")
+String gcsBasePath = System.getenv("google_storage_base_path")
+
+if (!gcsServiceAccount && !gcsBucket && !gcsBasePath) {
+  gcsServiceAccount = new File(project(':plugins:repository-gcs:qa:google-cloud-storage').buildDir,
+          'generated-resources/service_account_test.json').path
+  gcsBucket = 'bucket_test'
+  gcsBasePath = 'integration_test'
+
+  useGCSFixture = true
+} else if (!gcsServiceAccount || !gcsBucket || !gcsBasePath) {
+  throw new IllegalArgumentException("not all options specified to run thirdPartyTestGCS against external GCS service are present")
+}
+
+def encodedCredentials = {
+  Base64.encoder.encodeToString(Files.readAllBytes(file(gcsServiceAccount).toPath()))
+}
+
+task thirdPartyTest (type: Test) {
+  include '**/GCSCleanupTests.class', '**/S3CleanupTests.class'
+  
+  systemProperty 'tests.security.manager', false
+
   systemProperty 'test.s3.account', s3PermanentAccessKey
   systemProperty 'test.s3.key', s3PermanentSecretKey
   systemProperty 'test.s3.bucket', s3PermanentBucket
   systemProperty 'test.s3.base', s3PermanentBasePath
+  
+  systemProperty 'test.google.bucket', gcsBucket
+  systemProperty 'test.google.base', gcsBasePath
+  nonInputProperties.systemProperty 'test.google.account', "${-> encodedCredentials.call()}"
 }
-
-thirdPartyTest.dependsOn(thirdPartyTestS3)
 
 if (useS3Fixture) {
   apply plugin: 'elasticsearch.test.fixtures'
@@ -144,7 +170,7 @@ if (useS3Fixture) {
     'http://127.0.0.1:' + minioPort
   }
 
-  thirdPartyTestS3 {
+  thirdPartyTest {
     dependsOn tasks.postProcessFixture
     nonInputProperties.systemProperty 'test.s3.endpoint', "${ -> minioAddress.call() }"
   }
@@ -157,45 +183,10 @@ if (useS3Fixture) {
   }
 }
 
-task gcsThirdPartyTests {
-  dependsOn check
-}
-
-boolean useGCSFixture = false
-
-String gcsServiceAccount = System.getenv("google_storage_service_account")
-String gcsBucket = System.getenv("google_storage_bucket")
-String gcsBasePath = System.getenv("google_storage_base_path")
-
-if (!gcsServiceAccount && !gcsBucket && !gcsBasePath) {
-  gcsServiceAccount = new File(project(':plugins:repository-gcs:qa:google-cloud-storage').buildDir,
-          'generated-resources/service_account_test.json').path
-  gcsBucket = 'bucket_test'
-  gcsBasePath = 'integration_test'
-
-  useGCSFixture = true
-} else if (!gcsServiceAccount || !gcsBucket || !gcsBasePath) {
-  throw new IllegalArgumentException("not all options specified to run thirdPartyTestGCS against external GCS service are present")
-}
-
-def encodedCredentials = {
-  Base64.encoder.encodeToString(Files.readAllBytes(file(gcsServiceAccount).toPath()))
-}
-
-task thirdPartyTestGCS (type: Test) {
-  include '**/GCSCleanupTests.class'
-  systemProperty 'tests.security.manager', false
-  systemProperty 'test.google.bucket', gcsBucket
-  systemProperty 'test.google.base', gcsBasePath
-  nonInputProperties.systemProperty 'test.google.account', "${-> encodedCredentials.call()}"
-}
-
-thirdPartyTest.dependsOn(thirdPartyTestGCS)
-
 if (useGCSFixture) {
-  thirdPartyTestGCS.dependsOn(':plugins:repository-gcs:qa:google-cloud-storage:createServiceAccountFile',
+  thirdPartyTest.dependsOn(':plugins:repository-gcs:qa:google-cloud-storage:createServiceAccountFile',
           ':plugins:repository-gcs:qa:google-cloud-storage:googleCloudStorageFixture')
-  thirdPartyTestGCS.finalizedBy(':plugins:repository-gcs:qa:google-cloud-storage:googleCloudStorageFixture#stop')
+  thirdPartyTest.finalizedBy(':plugins:repository-gcs:qa:google-cloud-storage:googleCloudStorageFixture#stop')
 
   def fixtureEndpoint = {
     "http://${project(':plugins:repository-gcs:qa:google-cloud-storage').googleCloudStorageFixture.addressAndPort}"
@@ -205,7 +196,7 @@ if (useGCSFixture) {
     "http://${project(':plugins:repository-gcs:qa:google-cloud-storage').googleCloudStorageFixture.addressAndPort}/o/oauth2/token"
   }
 
-  thirdPartyTestGCS {
+  thirdPartyTest {
     nonInputProperties.systemProperty 'test.google.endpoint', "${-> fixtureEndpoint.call()}"
     nonInputProperties.systemProperty 'test.google.tokenURI', "${-> tokenURI.call()}"
   }

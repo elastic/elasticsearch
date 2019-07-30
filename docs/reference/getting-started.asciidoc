@@ -8,7 +8,7 @@ REST APIs to store, search, and analyze data?
 
 Follow this getting started tutorial to:
 
-. Get an {es} instance up and running
+. Get an {es} cluster up and running
 . Index some sample documents
 . Search for documents using the {es} query language
 . Analyze the results using bucket and metrics aggregations
@@ -32,124 +32,114 @@ trial of Elasticsearch Service] in the cloud.
 [[getting-started-install]]
 == Get {es} up and running
 
-To take {es} for a test drive, you can create a one-click cloud deployment on the <<gs-run-elasticsearch-cloud,Elasticsearch Service>>,
+To take {es} for a test drive, you can create a one-click cloud deployment
+on the <<gs-run-elasticsearch-cloud,Elasticsearch Service>>,
 or set up a basic {es} cluster on your own <<gs-run-elasticsearch-linux,Linux>>,
 <<gs-run-elasticsearch-mac,macOS>>, or
 <<gs-run-elasticsearch-win,Windows>> machine.
 
-[float]
-[[gs-run-elasticsearch-cloud]]
-=== Run {es} on the Elasticsearch Service
-The simplest way to get Elasticsearch up and running is to use the hosted
-{es} Service on Elastic Cloud.
-
-To run a free Elasticsearch instance on AWS or GCP:
-
-. Go to the https://www.elastic.co/cloud/elasticsearch-service/signup[
-Elasticsearch Service Trial page].
-. Enter your email address and click **Start Free Trial**.
-. Verify your email address by clicking the link in the welcome email from Elastic.
-. Enter a password for the Elasticsearch Service console and click **Set password**.
-. Click **Create deployment** on the Deployments page.
-. Give your deployment a name and click **Create deployment** to set up the latest
-version of {es} on AWS. (If you prefer to run your instance on GCP, select
-Google Cloud Platform.)
-. Save the generated password for the _elastic_ user.
-
-You're all set! You have a three node {es} cluster up and running, along with a
-{kib} instance you can use to send requests to {es} and load, explore, and
-visualize sample data.
-
 
 [float]
-[[gs-run-elasticsearch-linux]]
-=== Run {es} on Linux
+[[run-elasticsearch-local]]
+=== Run {es} locally on Linux, macOS, or Windows
 
-To install and run {es} on your Linux machine:
+When you create a cluster on the Elasticsearch Service, you automatically
+get a three node cluster. To run a three node {es} cluster locally, you can
+install using the tar or zip archive:
 
-. Download the `tar.gz` archive:
+. Download the Elasticsearch archive for your OS:
++
+Linux: https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-linux-x86_64.tar.gz[elasticsearch-{version}-linux-x86_64.tar.gz]
 +
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
 curl -L -O https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-linux-x86_64.tar.gz
 --------------------------------------------------
 // NOTCONSOLE
++
+macOS: https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-darwin-x86_64.tar.gz[elasticsearch-{version}-darwin-x86_64.tar.gz]
++
+["source","sh",subs="attributes,callouts"]
+--------------------------------------------------
+curl -L -O https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-darwin-x86_64.tar.gz
+--------------------------------------------------
+// NOTCONSOLE
++
+Windows:
+https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-windows-x86_64.zip[elasticsearch-{version}-windows-x86_64.zip]
 
 . Extract the archive:
++
+Linux:
 +
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
 tar -xvf elasticsearch-{version}-linux-x86_64.tar.gz
 --------------------------------------------------
++
+macOS:
++
+["source","sh",subs="attributes,callouts"]
+-------------------------------------------------
+tar -xvf elasticsearch-{version}-darwin-x86_64.tar.gz
+--------------------------------------------------
++
+Windows PowerShell:
++
+["source","sh",subs="attributes,callouts"]
+-------------------------------------------------
+--------------------------------------------------
 
 . Start elasticsearch from the `bin` directory:
++
+Linux and macOS:
 +
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
 cd elasticsearch-{version}/bin
 ./elasticsearch
 --------------------------------------------------
-
-You're all set! You now have a single-node {es} cluster up and running.
-
-[float]
-[[gs-run-elasticsearch-mac]]
-=== Run {es} on macOS
-
-To install and run {es} on your Mac:
-
-. Tap the Elastic Homebrew repository:
 +
-["source","sh"]
---------------------------------------------------
-brew tap elastic/tap
---------------------------------------------------
-
-. Use brew to install {es}:
-+
-["source","sh"]
---------------------------------------------------
-brew install elasticsearch-full
---------------------------------------------------
-
-. Start {es}:
+Windows:
 +
 ["source","sh",subs="attributes,callouts"]
---------------------------------------------------
-elasticsearch
---------------------------------------------------
-
-You're all set! You have a single-node {es} cluster up and running.
-
-[float]
-[[gs-run-elasticsearch-win]]
-=== Run {es} on Windows
-
-To install and run {es} on your Windows box:
-
-. Download the Elasticsearch {version} MSI from
-https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.msi.
-
-. Double click the MSI file and install {es} using the default settings.
-
-. Start {es} from the `bin` directory:
-+
-[source,sh]
 --------------------------------------------------
 cd %PROGRAMFILES%\Elastic\Elasticsearch\bin
 .\elasticsearch.exe
 --------------------------------------------------
++
+You now have a single-node {es} cluster up and running!
 
-You're all set! You now have a single-node {es} cluster up and running.
+. Start two more instances of {es} so you can see how a typical multi-node
+cluster behaves. You need to specify unique data and log paths
+for each node.
++
+Linux and macOS:
++
+["source","sh",subs="attributes,callouts"]
+--------------------------------------------------
+./elasticsearch -Epath.data=data2 -Epath.logs=log2
+--------------------------------------------------
++
+Windows:
++
+["source","sh",subs="attributes,callouts"]
+--------------------------------------------------
+.\elasticsearch.exe -Epath.data=data2 -Epath.logs=log2
+--------------------------------------------------
++
+The default configuration enables the new nodes to automatically join the
+cluster with the first node because they are all running locally. Each node
+is automatically assigned a unique ID.
 
 [float]
 [[gs-other-install]]
 === Other installation options
 
-For this tutorial, all you need is a basic Elasticsearch install on Elastic Cloud
-or your local machine, but you can also install {es} using the  <<deb,deb>> or
-<<rpm,rpm>> packages or use the <<docker,Docker image>> to run
-{es} in a container.
+You can also run {es} in a Docker container, install {es} using the DEB
+or RPM packages on Linux, install using Homebrew on macOS, and install using the
+MSI package installer on Windows. See <<install-elasticsearch>> for
+information about all of the available installation options.
 
 [[getting-started-explore]]
 == Exploring Your Cluster

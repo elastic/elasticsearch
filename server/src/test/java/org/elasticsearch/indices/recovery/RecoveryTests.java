@@ -444,7 +444,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
                 (shard, sourceNode) -> new RecoveryTarget(shard, sourceNode, new PeerRecoveryTargetService.RecoveryListener() {
                     @Override
                     public void onRecoveryDone(RecoveryState state) {
-                        throw new AssertionError("recovery must not be done if it fails to index to Lucene");
+                        throw new AssertionError("recovery must fail");
                     }
 
                     @Override

@@ -233,7 +233,7 @@ parameters.
 The `saturation` function gives a score equal to `S / (S + pivot)`, where `S` is
 the value of the rank feature field and `pivot` is a configurable pivot value so
 that the result will be less than `0.5` if `S` is less than pivot and greater
-than `0.5` otherwise. Scores are always between `0` and `1`.
+than `0.5` otherwise. Scores are always `(0,1)`.
 
 If the rank feature has a negative score impact then the function will be
 computed as `pivot / (S + pivot)`, which decreases when `S` increases.
@@ -302,9 +302,9 @@ GET /test/_search
 The `sigmoid` function is an extension of `saturation` which adds a configurable
 exponent. Scores are computed as `S^exp^ / (S^exp^ + pivot^exp^)`. Like for the
 `saturation` function, `pivot` is the value of `S` that gives a score of `0.5`
-and scores are between `0` and `1`.
+and scores are `(0,1)`.
 
-The `exponent` must be positive and is typically in between `0.5` and `1`. A
+The `exponent` must be positive and is typically in `[0.5, 1]`. A
 good value should be computed via training. If you don't have the opportunity to
 do so, we recommend you use the `saturation` function instead.
 

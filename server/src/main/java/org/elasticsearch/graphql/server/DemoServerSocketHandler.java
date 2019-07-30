@@ -25,10 +25,13 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.graphql.api.GqlApiUtils;
 import static org.elasticsearch.graphql.api.GqlApiUtils.*;
 import org.elasticsearch.graphql.gql.GqlServer;
+import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
+import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class DemoServerSocketHandler {
     private static final Logger logger = LogManager.getLogger(DemoServerSocketHandler.class);
@@ -36,6 +39,8 @@ public class DemoServerSocketHandler {
     private GqlServer gqlServer;
 
     private DemoServerSocket socket;
+
+    private Map<String, Publisher<Map<String, Object>>> subscriptions = new HashMap<>();
 
     public DemoServerSocketHandler(GqlServer gqlServer, DemoServerSocket socket) {
         this.gqlServer = gqlServer;
@@ -51,34 +56,7 @@ public class DemoServerSocketHandler {
 
             @Override
             public void onNext(String message) {
-                logger.info("Received message: {}", message);
-
-                Map<String, Object> data;
-                try {
-                    data = GqlApiUtils.parseJson(message);
-                } catch (Exception e) {
-                    sendConnectionError("Could not parse request.");
-                    logger.error(e);
-                    return;
-                }
-
-                if (!data.containsKey("type")) {
-                    sendConnectionError("Message type not specified.");
-                    return;
-                }
-
-                if (!(data.get("type") instanceof String)) {
-                    sendConnectionError("Message type must be a string.");
-                    return;
-                }
-
-                String type = (String) data.get("type");
-
-                if (type.equals(SocketClientMsgType.INIT.value())) {
-
-                } else {
-                    sendConnectionError("Unknown message type.");
-                }
+                onMessage(message);
             }
 
             @Override
@@ -89,6 +67,154 @@ public class DemoServerSocketHandler {
             @Override
             public void onComplete() {
                 logger.info("Socket closed.");
+            }
+        });
+    }
+
+    private void onMessage(String message) {
+        try {
+            logger.info("Received message: {}", message);
+
+            Map<String, Object> data;
+            try {
+                data = GqlApiUtils.parseJson(message);
+            } catch (Exception e) {
+                sendConnectionError("Could not parse request.");
+                logger.error(e);
+                return;
+            }
+
+            if (!data.containsKey("type")) {
+                sendConnectionError("Message type not specified.");
+                return;
+            }
+
+            if (!(data.get("type") instanceof String)) {
+                sendConnectionError("Message type must be a string.");
+                return;
+            }
+
+            String type = (String) data.get("type");
+
+            if (type.equals(SocketClientMsgType.INIT.value())) {
+                sendAck();
+            } else if (type.equals(SocketClientMsgType.START.value())) {
+                onStartMessage(data);
+            } else {
+                sendConnectionError("Unknown message type.");
+            }
+        } catch (Exception e) {
+            logger.error(e);
+            sendConnectionError("Could not process message.");
+        }
+    }
+
+    private void sendAck() {
+        try {
+            send(createJavaUtilBuilder()
+                .startObject()
+                    .field("type", SocketServerMsgType.CONNECTION_ACK.value())
+                .endObject());
+        } catch (Exception e) {
+            logger.error(e);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void onStartMessage(Map<String, Object> data) {
+        if (!data.containsKey("id")) {
+            sendConnectionError("id not provided.");
+            return;
+        }
+
+        if (!(data.get("id") instanceof String)) {
+            sendConnectionError("id must be a string.");
+            return;
+        }
+
+        String id = (String) data.get("id");
+
+        if (id == null) {
+            sendConnectionError("Invalid id.");
+            return;
+        }
+
+        if (id.length() < 1) {
+            sendConnectionError("Invalid id.");
+            return;
+        }
+
+        if (subscriptions.containsKey(id)) {
+            sendError(id, "Subscription with this id already exists.");
+            return;
+        }
+
+        if (!data.containsKey("payload")) {
+            sendError(id, "No payload found.");
+            return;
+        }
+
+        if (!(data.get("payload") instanceof Map)) {
+            sendError(id, "Invalid payload type.");
+            return;
+        }
+
+        Map<String, Object> payload = (Map<String, Object>) data.get("payload");
+
+        if (payload == null) {
+            sendError(id, "Payload is null.");
+            return;
+        }
+
+        if (!(payload.get("query") instanceof String) || (((String) payload.get("query")).length() < 3)) {
+            sendError(id, "GraphQL request must have a query.");
+            return;
+        }
+
+        String query = (String) payload.get("query");
+        String operationName = payload.get("operationName") instanceof String
+            ? (String) payload.get("operationName") : "";
+        Map<String, Object> variables = payload.get("variables") instanceof Map
+            ? (Map<String, Object>) payload.get("variables") : new HashMap();
+
+        Publisher<Map<String, Object>> subscription = gqlServer.execute(query, operationName, variables).getSubscription();
+        subscriptions.put(id, subscription);
+
+        subscription.subscribe(new Subscriber<Map<String, Object>>() {
+            AtomicReference<Subscription> subscriptionRef = new AtomicReference<>();
+
+            @Override
+            public void onSubscribe(Subscription s) {
+                subscriptionRef.set(s);
+                s.request(1);
+            }
+
+            @Override
+            public void onNext(Map<String, Object> payload) {
+                logger.info("Push to subscription {} ~> {}", id, payload);
+                try {
+                    send(createJavaUtilBuilder()
+                        .startObject()
+                            .field("type", SocketServerMsgType.DATA.value())
+                            .field("id", id)
+                            .field("payload").map(payload, false)
+                        .endObject());
+                    subscriptionRef.get().request(1);
+                } catch (Exception e) {
+                    logger.error(e);
+                    sendError(id, "Error while emitting data.");
+                }
+            }
+
+            @Override
+            public void onError(Throwable t) {
+                logger.error(t);
+                sendError(id, "Subscription error.");
+            }
+
+            @Override
+            public void onComplete() {
+
             }
         });
     }

@@ -20,18 +20,20 @@
 package org.elasticsearch.graphql.gql;
 
 import graphql.*;
+import graphql.execution.SubscriptionExecutionStrategy;
 import graphql.schema.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.graphql.api.GqlApi;
-import org.elasticsearch.graphql.api.GqlApiUtils;
+import static org.elasticsearch.graphql.api.GqlApiUtils.*;
 import org.reactivestreams.Publisher;
 
 import java.util.Map;
-import java.util.Observable;
 import java.util.Optional;
 
 import org.elasticsearch.graphql.gql.schema.*;
+import org.reactivestreams.Subscriber;
+import org.reactivestreams.Subscription;
 
 public class GqlServer {
     private static final Logger logger = LogManager.getLogger(GqlServer.class);
@@ -57,7 +59,9 @@ public class GqlServer {
             .get();
 
         schema = builder.build();
-        graphql = GraphQL.newGraphQL(schema).build();
+        graphql = GraphQL.newGraphQL(schema)
+            .subscriptionExecutionStrategy(new SubscriptionExecutionStrategy())
+            .build();
     }
 
     /**
@@ -91,8 +95,7 @@ public class GqlServer {
                 .operationName(operationName)
                 .variables(variables)
                 .context(ctx)
-                .build()
-        );
+                .build());
 
         return new GqlResult() {
             @Override
@@ -118,7 +121,40 @@ public class GqlServer {
                 }
 
                 Publisher<ExecutionResult> publisher = (Publisher<ExecutionResult>) extensions.get(GraphQL.DEFERRED_RESULTS);
-                return GqlApiUtils.transformPublisher(publisher, executionResult -> executionResult.toSpecification());
+                return transformPublisher(publisher, executionResult -> executionResult.toSpecification());
+            }
+
+            @Override
+            public boolean isSubscription() {
+                return result.getData() instanceof Publisher;
+            }
+
+            @Override
+            public Publisher<Map<String, Object>> getSubscription() {
+                if (isSubscription()) {
+                    Publisher<ExecutionResult> results = result.getData();
+                    return transformPublisher(results, executionResult -> executionResult.toSpecification());
+                } else {
+                    return new Publisher<Map<String, Object>>() {
+                        boolean sent = false;
+
+                        @Override
+                        public void subscribe(Subscriber<? super Map<String, Object>> s) {
+                            s.onSubscribe(new Subscription() {
+                                @Override
+                                public void request(long n) {
+                                    if (!sent) {
+                                        sent = true;
+                                        s.onNext(result.getData());
+                                    }
+                                }
+
+                                @Override
+                                public void cancel() {}
+                            });
+                        }
+                    };
+                }
             }
         };
     }

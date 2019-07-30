@@ -12,4 +12,8 @@ public interface GqlResult {
     boolean hasDeferredResults();
 
     Publisher<Map<String, Object>> getDeferredResults();
+
+    boolean isSubscription();
+
+    Publisher<Map<String, Object>> getSubscription();
 }

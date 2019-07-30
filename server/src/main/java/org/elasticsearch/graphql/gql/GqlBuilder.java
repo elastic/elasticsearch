@@ -20,6 +20,7 @@
 package org.elasticsearch.graphql.gql;
 
 import graphql.schema.*;
+
 import static graphql.schema.GraphQLObjectType.newObject;
 import static graphql.schema.FieldCoordinates.coordinates;
 
@@ -28,6 +29,7 @@ import java.util.*;
 public class GqlBuilder {
     private GraphQLObjectType.Builder query;
     private GraphQLObjectType.Builder mutation;
+    private GraphQLObjectType.Builder subscription;
     private GraphQLCodeRegistry.Builder code;
     private Set<GraphQLType> types = new LinkedHashSet<>();
     private Set<GraphQLDirective> directives = new LinkedHashSet<>();
@@ -39,6 +41,9 @@ public class GqlBuilder {
         mutation = newObject()
             .name("Mutation")
             .description("State mutation main type.");
+        subscription = newObject()
+            .name("Subscription")
+            .description("Reactive data subscription.");
         code = GraphQLCodeRegistry.newCodeRegistry();
     }
 
@@ -49,6 +54,11 @@ public class GqlBuilder {
 
     public GqlBuilder mutationField(GraphQLFieldDefinition.Builder builder) {
         mutation.field(builder);
+        return this;
+    }
+
+    public GqlBuilder subscriptionField(GraphQLFieldDefinition.Builder builder) {
+        subscription.field(builder);
         return this;
     }
 
@@ -66,10 +76,12 @@ public class GqlBuilder {
         GraphQLSchema.Builder schemaBuilder = new GraphQLSchema.Builder()
             .query(query)
             .mutation(mutation)
+            .subscription(subscription)
             .additionalTypes(types)
             .additionalDirectives(directives)
             .codeRegistry(code.build());
-        GraphQLSchema schema = schemaBuilder.build();
+        GraphQLSchema schema = schemaBuilder
+            .build();
 
         return schema;
     }

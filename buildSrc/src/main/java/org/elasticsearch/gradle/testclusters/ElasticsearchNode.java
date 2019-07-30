@@ -44,11 +44,13 @@ import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.util.PatternFilterable;
 
+import java.io.BufferedWriter;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.LineNumberReader;
+import java.io.OutputStreamWriter;
 import java.io.UncheckedIOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -627,9 +629,14 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         processBuilder.redirectError(ProcessBuilder.Redirect.appendTo(esStderrFile.toFile()));
         processBuilder.redirectOutput(ProcessBuilder.Redirect.appendTo(esStdoutFile.toFile()));
         LOGGER.info("Running `{}` in `{}` for {} env: {}", command, workingDir, this, environment);
+        BufferedWriter writer;
         try {
             esProcess = processBuilder.start();
-            esProcess.getOutputStream().close();
+            // TODO[wrb]: This fixes integration tests, but I'm not sure why. Still need to dig.
+            writer = new BufferedWriter(new OutputStreamWriter(esProcess.getOutputStream()));
+            writer.write("lol\n");
+            writer.flush();
+            writer.close();
         } catch (IOException e) {
             throw new TestClustersException("Failed to start ES process for " + this, e);
         }

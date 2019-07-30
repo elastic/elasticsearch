@@ -658,7 +658,7 @@ public class ApiKeyService {
             findApiKeysForUserRealmApiKeyIdAndNameCombination(realmName, username, apiKeyName, apiKeyId, true, false,
                 ActionListener.wrap(apiKeyIds -> {
                     if (apiKeyIds.isEmpty()) {
-                        logger.warn(
+                        logger.debug(
                             "No active api keys to invalidate for realm [{}], username [{}], api key name [{}] and api key id [{}]",
                             realmName, username, apiKeyName, apiKeyId);
                         invalidateListener.onResponse(InvalidateApiKeysResult.EMPTY_RESULT);
@@ -877,7 +877,7 @@ public class ApiKeyService {
             findApiKeysForUserRealmApiKeyIdAndNameCombination(realmName, username, apiKeyName, apiKeyId, false, false,
                 ActionListener.wrap(apiKeyInfos -> {
                     if (apiKeyInfos.isEmpty()) {
-                        logger.warn("No active api keys found for realm [{}], user [{}], api key name [{}] and api key id [{}]",
+                        logger.debug("No active api keys found for realm [{}], user [{}], api key name [{}] and api key id [{}]",
                             realmName, username, apiKeyName, apiKeyId);
                         listener.onResponse(GetApiKeysResult.EMPTY_RESULT);
                     } else {
@@ -902,11 +902,11 @@ public class ApiKeyService {
     }
 
     public static final class GetApiKeysResult {
-        static final GetApiKeysResult EMPTY_RESULT = new GetApiKeysResult(Collections.emptyList());
+        static final GetApiKeysResult EMPTY_RESULT = new GetApiKeysResult(null);
         private final Collection<ApiKey> foundApiKeysInfo;
 
         public GetApiKeysResult(Collection<ApiKey> foundApiKeysInfo) {
-            this.foundApiKeysInfo = foundApiKeysInfo;
+            this.foundApiKeysInfo = (foundApiKeysInfo == null) ? List.of() : foundApiKeysInfo;
         }
 
         public Collection<ApiKey> getApiKeyInfos() {
@@ -915,8 +915,7 @@ public class ApiKeyService {
     }
 
     public static final class InvalidateApiKeysResult {
-        static final InvalidateApiKeysResult EMPTY_RESULT = new InvalidateApiKeysResult(Collections.emptyList(), Collections.emptyList(),
-            null);
+        static final InvalidateApiKeysResult EMPTY_RESULT = new InvalidateApiKeysResult(null, null, null);
         private final List<String> invalidatedApiKeys;
         private final List<String> previouslyInvalidatedApiKeys;
         private final List<ElasticsearchException> errors;

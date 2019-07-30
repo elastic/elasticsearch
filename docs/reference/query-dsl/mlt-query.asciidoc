@@ -243,7 +243,7 @@ parameter to explicitly ignore them.
 --
 (Optional, float) Floating point number used to decrease or increase the
 <<query-filter-context, relevance scores>> of returned documents for the MLT
-query. Defaults to`1.0`.
+query. Defaults to `1.0`.
 
 You can use the `boost` parameter to adjust relevance scores for searches
 containing two or more queries.

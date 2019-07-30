@@ -71,7 +71,6 @@ public class PrivilegeTests extends ESTestCase {
         builder = noneClusterPrivilege.buildPermission(builder);
         ClusterPermission combinedPermission = builder.build();
         assertTrue(combinedPermission.implies(monitorClusterPermission));
-        assertTrue(combinedPermission.implies(monitorClusterPermission));
     }
 
     public void testClusterTemplateActions() throws Exception {
@@ -98,10 +97,13 @@ public class PrivilegeTests extends ESTestCase {
     }
 
     public void testClusterAction() throws Exception {
+        // ClusterPrivilegeResolver.resolve() for a cluster action converts action name into a pattern by adding "*"
         ClusterPrivilege clusterPrivilegeSnapshotDelete = ClusterPrivilegeResolver.resolve("cluster:admin/snapshot/delete");
         assertThat(clusterPrivilegeSnapshotDelete, notNullValue());
-        verifyClusterActionAllowed(clusterPrivilegeSnapshotDelete, "cluster:admin/snapshot/delete");
-        verifyClusterActionDenied(clusterPrivilegeSnapshotDelete, "cluster:admin/snapshot/dele");
+        verifyClusterActionAllowed(clusterPrivilegeSnapshotDelete, "cluster:admin/snapshot/delete", "cluster:admin/snapshot/delete[n]",
+            "cluster:admin/snapshot/delete/non-existing");
+        verifyClusterActionDenied(clusterPrivilegeSnapshotDelete, "cluster:admin/snapshot/dele", "cluster:admin/snapshot/dele[n]",
+            "cluster:admin/snapshot/dele/non-existing");
     }
 
     public void testIndexAction() throws Exception {

@@ -133,9 +133,17 @@ public class ClusterPrivilegeResolver {
         MANAGE_SLM,
         READ_SLM).collect(Collectors.toUnmodifiableMap(NameableClusterPrivilege::name, Function.identity()));
 
+    /**
+     * Resolves a {@link NameableClusterPrivilege} from a given name if it exists.
+     * If the name is a cluster action, then it converts the name to pattern and creates a {@link ActionClusterPrivilege}
+     *
+     * @param name either {@link ClusterPrivilegeResolver#names()} or cluster action {@link #isClusterAction(String)}
+     * @return instance of {@link NameableClusterPrivilege}
+     */
     public static NameableClusterPrivilege resolve(String name) {
         name = Objects.requireNonNull(name).toLowerCase(Locale.ROOT);
         if (isClusterAction(name)) {
+            name = actionToPattern(name);
             return new ActionClusterPrivilege(name, Set.of(name));
         }
         final NameableClusterPrivilege fixedPrivilege = VALUES.get(name);
@@ -156,4 +164,9 @@ public class ClusterPrivilegeResolver {
     public static boolean isClusterAction(String actionName) {
         return actionName.startsWith("cluster:") || actionName.startsWith("indices:admin/template/");
     }
+
+    private static String actionToPattern(String text) {
+        return text + "*";
+    }
+
 }

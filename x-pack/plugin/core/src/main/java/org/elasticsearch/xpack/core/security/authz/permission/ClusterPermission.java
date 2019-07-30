@@ -51,7 +51,7 @@ public class ClusterPermission {
      * @return {@code true} if the specified cluster permissions actions are implied by this cluster permission else returns {@code false}
      */
     public boolean implies(final ClusterPermission otherClusterPermission) {
-        if (this.checks.isEmpty() && otherClusterPermission.checks.isEmpty() || otherClusterPermission.checks.isEmpty()) {
+        if (otherClusterPermission.checks.isEmpty()) {
             return true;
         } else {
             for (PermissionCheck otherPermissionCheck : otherClusterPermission.checks) {
@@ -153,14 +153,16 @@ public class ClusterPermission {
     // Automaton based permission check
     private static class AutomatonPermissionCheck implements PermissionCheck {
         private final Automaton automaton;
+        private final Predicate<String> actionPredicate;
 
         AutomatonPermissionCheck(final Automaton automaton) {
             this.automaton = automaton;
+            this.actionPredicate = Automatons.predicate(automaton);
         }
 
         @Override
         public boolean check(final String action, final TransportRequest request) {
-            return Automatons.predicate(automaton).test(action);
+            return actionPredicate.test(action);
         }
 
         @Override

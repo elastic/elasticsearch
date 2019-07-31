@@ -32,7 +32,11 @@ public class RecoveryFinalizeRecoveryRequest extends TransportRequest {
     private ShardId shardId;
     private long globalCheckpoint;
 
-    public RecoveryFinalizeRecoveryRequest() {
+    public RecoveryFinalizeRecoveryRequest(StreamInput in) throws IOException {
+        super(in);
+        recoveryId = in.readLong();
+        shardId = new ShardId(in);
+        globalCheckpoint = in.readZLong();
     }
 
     RecoveryFinalizeRecoveryRequest(final long recoveryId, final ShardId shardId, final long globalCheckpoint) {
@@ -51,14 +55,6 @@ public class RecoveryFinalizeRecoveryRequest extends TransportRequest {
 
     public long globalCheckpoint() {
         return globalCheckpoint;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        recoveryId = in.readLong();
-        shardId = ShardId.readShardId(in);
-        globalCheckpoint = in.readZLong();
     }
 
     @Override

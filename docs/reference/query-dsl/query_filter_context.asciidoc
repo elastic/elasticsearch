@@ -13,7 +13,7 @@ document matches, the query clause also calculates a `_score` representing how
 well the document matches, relative to other documents.
 
 Query context is in effect whenever a query clause is passed to a `query` parameter,
-such as the `query` parameter in the <<search-request-query,`search`>> API.
+such as the `query` parameter in the <<request-body-search-query,`search`>> API.
 --
 
 Filter context::
@@ -52,12 +52,12 @@ GET /_search
   "query": { <1>
     "bool": { <2>
       "must": [
-        { "match": { "title":   "Search"        }}, <2>
-        { "match": { "content": "Elasticsearch" }}  <2>
+        { "match": { "title":   "Search"        }},
+        { "match": { "content": "Elasticsearch" }}  
       ],
       "filter": [ <3>
-        { "term":  { "status": "published" }}, <4>
-        { "range": { "publish_date": { "gte": "2015-01-01" }}} <4>
+        { "term":  { "status": "published" }}, 
+        { "range": { "publish_date": { "gte": "2015-01-01" }}} 
       ]
     }
   }
@@ -68,10 +68,15 @@ GET /_search
 <2> The `bool` and two `match` clauses are used in query context,
     which means that they are used to score how well each document
     matches.
-<3> The `filter` parameter indicates filter context.
-<4> The `term` and `range` clauses are used in filter context.
-    They will filter out documents which do not match, but they will
+<3> The `filter` parameter indicates filter context. Its `term` and 
+    `range` clauses are used in filter context. They will filter out 
+    documents which do not match, but they will
     not affect the score for matching documents.
+
+WARNING: Scores calculated for queries in query context are represented 
+as single precision floating point numbers; they have only
+24 bits for significand's precision. Score calculations that exceed the
+significand's precision will be converted to floats with loss of precision.
 
 TIP: Use query clauses in query context for conditions which should affect the
 score of matching documents (i.e. how well does the document match), and use

@@ -51,6 +51,19 @@ public class ClientYamlSuiteRestApiParser {
         while (parser.nextToken() != XContentParser.Token.END_OBJECT || level >= 0) {
 
             if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
+                if ("stability".equals(parser.currentName()))
+                {
+                    parser.nextToken();
+                    String stability = parser.textOrNull();
+                    try {
+                        restApi.setStability(stability);
+                    } catch (IllegalArgumentException ex)
+                    {
+                        throw new IllegalArgumentException("API [" + apiName + "] sets wrong state for stability ("
+                            + stability + ") [" + location + "]");
+                    }
+                }
+
                 if ("methods".equals(parser.currentName())) {
                     parser.nextToken();
                     while (parser.nextToken() == XContentParser.Token.VALUE_STRING) {
@@ -143,6 +156,10 @@ public class ClientYamlSuiteRestApiParser {
         parser.nextToken();
         assert parser.currentToken() == XContentParser.Token.END_OBJECT : "Expected [END_OBJECT] but was ["  + parser.currentToken() +"]";
         parser.nextToken();
+
+        if (restApi.getStability() == ClientYamlSuiteRestApi.Stability.UNKNOWN) {
+            throw new IllegalArgumentException("API [" + apiName + "] does not explicitly declare its stability in [" + location + "]");
+        }
 
         return restApi;
     }

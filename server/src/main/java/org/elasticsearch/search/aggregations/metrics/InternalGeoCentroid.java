@@ -70,7 +70,7 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
         super(in);
         count = in.readVLong();
         if (in.readBoolean()) {
-            if (in.getVersion().onOrAfter(Version.V_7_1_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
                 centroid = new GeoPoint(in.readDouble(), in.readDouble());
             } else {
                 final long hash = in.readLong();
@@ -87,7 +87,7 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
         out.writeVLong(count);
         if (centroid != null) {
             out.writeBoolean(true);
-            if (out.getVersion().onOrAfter(Version.V_7_1_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
                 out.writeDouble(centroid.lat());
                 out.writeDouble(centroid.lon());
             } else {
@@ -180,15 +180,18 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
     }
 
     @Override
-    public boolean doEquals(Object o) {
-        InternalGeoCentroid that = (InternalGeoCentroid) o;
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+        InternalGeoCentroid that = (InternalGeoCentroid) obj;
         return count == that.count &&
                 Objects.equals(centroid, that.centroid);
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(centroid, count);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), centroid, count);
     }
 
     @Override

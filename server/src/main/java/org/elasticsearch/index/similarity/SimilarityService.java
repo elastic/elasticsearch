@@ -212,9 +212,8 @@ public final class SimilarityService extends AbstractIndexComponent {
         for (int freq = 1; freq <= 10; ++freq) {
             float score = scorer.score(freq, norm);
             if (score < 0) {
-                fail(indexCreatedVersion, "Similarities should not return negative scores:\n" +
-                        scorer.explain(Explanation.match(freq, "term freq"), norm));
-                break;
+                throw new IllegalArgumentException("Similarities should not return negative scores:\n" +
+                    scorer.explain(Explanation.match(freq, "term freq"), norm));
             }
         }
     }
@@ -230,10 +229,9 @@ public final class SimilarityService extends AbstractIndexComponent {
         for (int freq = 1; freq <= 10; ++freq) {
             float score = scorer.score(freq, norm);
             if (score < previousScore) {
-                fail(indexCreatedVersion, "Similarity scores should not decrease when term frequency increases:\n" +
-                        scorer.explain(Explanation.match(freq - 1, "term freq"), norm) + "\n" +
-                        scorer.explain(Explanation.match(freq, "term freq"), norm));
-                break;
+                throw new IllegalArgumentException("Similarity scores should not decrease when term frequency increases:\n" +
+                    scorer.explain(Explanation.match(freq - 1, "term freq"), norm) + "\n" +
+                    scorer.explain(Explanation.match(freq, "term freq"), norm));
             }
             previousScore = score;
         }
@@ -256,22 +254,12 @@ public final class SimilarityService extends AbstractIndexComponent {
             }
             float score = scorer.score(1, norm);
             if (score > previousScore) {
-                fail(indexCreatedVersion, "Similarity scores should not increase when norm increases:\n" +
-                        scorer.explain(Explanation.match(1, "term freq"), norm - 1) + "\n" +
-                        scorer.explain(Explanation.match(1, "term freq"), norm));
-                break;
+                throw new IllegalArgumentException("Similarity scores should not increase when norm increases:\n" +
+                    scorer.explain(Explanation.match(1, "term freq"), norm - 1) + "\n" +
+                    scorer.explain(Explanation.match(1, "term freq"), norm));
             }
             previousScore = score;
             previousNorm = norm;
         }
     }
-
-    private static void fail(Version indexCreatedVersion, String message) {
-        if (indexCreatedVersion.onOrAfter(Version.V_7_0_0)) {
-            throw new IllegalArgumentException(message);
-        } else if (indexCreatedVersion.onOrAfter(Version.V_6_5_0)) {
-            deprecationLogger.deprecated(message);
-        }
-    }
-
 }

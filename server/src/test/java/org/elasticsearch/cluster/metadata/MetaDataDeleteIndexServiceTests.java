@@ -33,6 +33,7 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
+import org.elasticsearch.snapshots.SnapshotInfoTests;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
@@ -60,7 +61,8 @@ public class MetaDataDeleteIndexServiceTests extends ESTestCase {
         Snapshot snapshot = new Snapshot("doesn't matter", new SnapshotId("snapshot name", "snapshot uuid"));
         SnapshotsInProgress snaps = new SnapshotsInProgress(new SnapshotsInProgress.Entry(snapshot, true, false,
                 SnapshotsInProgress.State.INIT, singletonList(new IndexId(index, "doesn't matter")),
-                System.currentTimeMillis(), (long) randomIntBetween(0, 1000), ImmutableOpenMap.of()));
+                System.currentTimeMillis(), (long) randomIntBetween(0, 1000), ImmutableOpenMap.of(),
+                SnapshotInfoTests.randomUserMetadata()));
         ClusterState state = ClusterState.builder(clusterState(index))
                 .putCustom(SnapshotsInProgress.TYPE, snaps)
                 .build();

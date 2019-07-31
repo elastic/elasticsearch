@@ -50,6 +50,9 @@ public final class Messages {
             "Datafeed frequency [{0}] must be a multiple of the aggregation interval [{1}]";
     public static final String DATAFEED_ID_ALREADY_TAKEN = "A datafeed with id [{0}] already exists";
 
+    public static final String DATA_FRAME_ANALYTICS_BAD_QUERY_FORMAT = "Data Frame Analytics config query is not parsable";
+    public static final String DATA_FRAME_ANALYTICS_BAD_FIELD_FILTER = "No field [{0}] could be detected";
+
     public static final String FILTER_CANNOT_DELETE = "Cannot delete filter [{0}] currently used by jobs {1}";
     public static final String FILTER_CONTAINS_TOO_MANY_ITEMS = "Filter [{0}] contains too many items; up to [{1}] items are allowed";
     public static final String FILTER_NOT_FOUND = "No filter with id [{0}] exists";
@@ -91,8 +94,11 @@ public final class Messages {
     public static final String JOB_AUDIT_CALENDARS_UPDATED_ON_PROCESS = "Updated calendars in running process";
     public static final String JOB_AUDIT_MEMORY_STATUS_SOFT_LIMIT = "Job memory status changed to soft_limit; memory pruning will now be " +
             "more aggressive";
-    public static final String JOB_AUDIT_MEMORY_STATUS_HARD_LIMIT = "Job memory status changed to hard_limit at {0}; adjust the " +
-            "analysis_limits.model_memory_limit setting to ensure all data is analyzed";
+    public static final String JOB_AUDIT_MEMORY_STATUS_HARD_LIMIT = "Job memory status changed to hard_limit; " +
+            "job exceeded model memory limit {0} by {1}. " +
+            "Adjust the analysis_limits.model_memory_limit setting to ensure all data is analyzed";
+    public static final String JOB_AUDIT_MEMORY_STATUS_HARD_LIMIT_PRE_7_2 = "Job memory status changed to hard_limit at {0}; adjust the " +
+        "analysis_limits.model_memory_limit setting to ensure all data is analyzed";
 
     public static final String JOB_CONFIG_CATEGORIZATION_FILTERS_CONTAINS_DUPLICATES = "categorization_filters contain duplicates";
     public static final String JOB_CONFIG_CATEGORIZATION_FILTERS_CONTAINS_EMPTY =

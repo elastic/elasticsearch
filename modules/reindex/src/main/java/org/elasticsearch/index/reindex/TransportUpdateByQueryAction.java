@@ -20,7 +20,6 @@
 package org.elasticsearch.index.reindex;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
@@ -82,18 +81,13 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
      */
     static class AsyncIndexBySearchAction extends AbstractAsyncBulkByScrollAction<UpdateByQueryRequest, TransportUpdateByQueryAction> {
 
-        private final boolean useSeqNoForCAS;
-
         AsyncIndexBySearchAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
                 ThreadPool threadPool, TransportUpdateByQueryAction action, UpdateByQueryRequest request, ClusterState clusterState,
                 ActionListener<BulkByScrollResponse> listener) {
             super(task,
-                // not all nodes support sequence number powered optimistic concurrency control, we fall back to version
-                clusterState.nodes().getMinNodeVersion().onOrAfter(Version.V_6_7_0) == false,
-                // all nodes support sequence number powered optimistic concurrency control and we can use it
-                clusterState.nodes().getMinNodeVersion().onOrAfter(Version.V_6_7_0),
+                // use sequence number powered optimistic concurrency control
+                false, true,
                 logger, client, threadPool, action, request, listener);
-            useSeqNoForCAS = clusterState.nodes().getMinNodeVersion().onOrAfter(Version.V_6_7_0);
         }
 
         @Override

@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -793,7 +794,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
                 nodeId,
                 buildNewFakeTransportAddress(),
                 emptyMap(),
-                Set.of(DiscoveryNode.Role.MASTER, DiscoveryNode.Role.DATA),
+                Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE),
                 Version.CURRENT);
     }
 

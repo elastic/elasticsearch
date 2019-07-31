@@ -13,6 +13,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -31,10 +32,11 @@ public class ChunkedDataExtractorFactoryTests extends ESTestCase {
 
     private Client client;
     private DataExtractorFactory dataExtractorFactory;
+    private DatafeedTimingStatsReporter timingStatsReporter;
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         return new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 
@@ -42,6 +44,7 @@ public class ChunkedDataExtractorFactoryTests extends ESTestCase {
     public void setUpMocks() {
         client = mock(Client.class);
         dataExtractorFactory = mock(DataExtractorFactory.class);
+        timingStatsReporter = mock(DatafeedTimingStatsReporter.class);
     }
 
     public void testNewExtractor_GivenAlignedTimes() {
@@ -103,7 +106,12 @@ public class ChunkedDataExtractorFactoryTests extends ESTestCase {
         DatafeedConfig.Builder datafeedConfigBuilder = new DatafeedConfig.Builder("foo-feed", jobBuilder.getId());
         datafeedConfigBuilder.setParsedAggregations(aggs);
         datafeedConfigBuilder.setIndices(Arrays.asList("my_index"));
-        return new ChunkedDataExtractorFactory(client, datafeedConfigBuilder.build(), jobBuilder.build(new Date()),
-            xContentRegistry(), dataExtractorFactory);
+        return new ChunkedDataExtractorFactory(
+            client,
+            datafeedConfigBuilder.build(),
+            jobBuilder.build(new Date()),
+            xContentRegistry(),
+            dataExtractorFactory,
+            timingStatsReporter);
     }
 }

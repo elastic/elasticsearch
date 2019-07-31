@@ -33,6 +33,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
@@ -119,11 +120,66 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
         });
     }
 
+    public void testUnmappedMissingString() throws IOException {
+        ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("name", null)
+            .field("number").missing("🍌🍌🍌");
+
+        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 7)));
+            iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 8)));
+            iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 9)));
+        }, card -> {
+            assertEquals(3, card.getValue(), 0);
+            assertTrue(AggregationInspectionHelper.hasValue(card));
+        }, null);
+    }
+
+    public void testUnmappedMissingNumber() throws IOException {
+        ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("name", null)
+            .field("number").missing(1234);
+
+        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 7)));
+            iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 8)));
+            iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 9)));
+        }, card -> {
+            assertEquals(3, card.getValue(), 0);
+            assertTrue(AggregationInspectionHelper.hasValue(card));
+        }, null);
+    }
+
+    public void testUnmappedMissingGeoPoint() throws IOException {
+        ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("name", null)
+            .field("number").missing(new GeoPoint(42.39561, -71.13051));
+
+        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 7)));
+            iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 8)));
+            iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 9)));
+        }, card -> {
+            assertEquals(3, card.getValue(), 0);
+            assertTrue(AggregationInspectionHelper.hasValue(card));
+        }, null);
+    }
+
     private void testCase(Query query,
                           ValueType valueType,
                           CheckedConsumer<RandomIndexWriter, IOException> indexer,
                           Consumer<InternalValueCount> verify) throws IOException {
+        MappedFieldType fieldType = createMappedFieldType(valueType);
+        fieldType.setName(FIELD_NAME);
+        fieldType.setHasDocValues(true);
 
+        ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("_name", valueType);
+        aggregationBuilder.field(FIELD_NAME);
+
+        testCase(aggregationBuilder, query, indexer, verify, fieldType);
+
+    }
+
+    private void testCase(ValueCountAggregationBuilder aggregationBuilder, Query query,
+                          CheckedConsumer<RandomIndexWriter, IOException> indexer,
+                          Consumer<InternalValueCount> verify, MappedFieldType fieldType) throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 indexer.accept(indexWriter);
@@ -131,13 +187,6 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
 
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-
-                MappedFieldType fieldType = createMappedFieldType(valueType);
-                fieldType.setName(FIELD_NAME);
-                fieldType.setHasDocValues(true);
-
-                ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("_name", valueType);
-                aggregationBuilder.field(FIELD_NAME);
 
                 ValueCountAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
                 aggregator.preCollection();

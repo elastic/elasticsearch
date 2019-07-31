@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
@@ -700,7 +701,18 @@ public class UpdateIT extends ESIntegTestCase {
                                         .setRetryOnConflict(retryOnConflict)
                                         .setUpsert(jsonBuilder().startObject().field("field", 1).endObject())
                                         .request();
-                                client().update(ur, new UpdateListener(j));
+                                if (randomBoolean()) {
+                                    client().update(ur, new UpdateListener(j));
+                                } else {
+                                    client().prepareBulk().add(ur).execute(ActionListener.map(new UpdateListener(j), br -> {
+                                        final BulkItemResponse ir = br.getItems()[0];
+                                        if (ir.isFailed()) {
+                                            throw ir.getFailure().getCause();
+                                        } else {
+                                            return ir.getResponse();
+                                        }
+                                    }));
+                                }
                             } catch (NoNodeAvailableException nne) {
                                 updateRequestsOutstanding.release();
                                 synchronized (failedMap) {

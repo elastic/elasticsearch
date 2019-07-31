@@ -19,11 +19,14 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
@@ -46,7 +49,7 @@ public class TransportSearchActionSingleNodeTests extends ESSingleNodeTestCase {
         assertEquals(RestStatus.CREATED, indexResponse.status());
 
         {
-            SearchRequest searchRequest = SearchRequest.crossClusterSearch(new SearchRequest(), Strings.EMPTY_ARRAY,
+            SearchRequest searchRequest = SearchRequest.subSearchRequest(new SearchRequest(), Strings.EMPTY_ARRAY,
                 "local", nowInMillis, randomBoolean());
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
             assertEquals(1, searchResponse.getHits().getTotalHits().value);
@@ -58,7 +61,7 @@ public class TransportSearchActionSingleNodeTests extends ESSingleNodeTestCase {
             assertEquals("1", hit.getId());
         }
         {
-            SearchRequest searchRequest = SearchRequest.crossClusterSearch(new SearchRequest(), Strings.EMPTY_ARRAY,
+            SearchRequest searchRequest = SearchRequest.subSearchRequest(new SearchRequest(), Strings.EMPTY_ARRAY,
                 "", nowInMillis, randomBoolean());
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
             assertEquals(1, searchResponse.getHits().getTotalHits().value);
@@ -100,13 +103,13 @@ public class TransportSearchActionSingleNodeTests extends ESSingleNodeTestCase {
             assertEquals(0, searchResponse.getTotalShards());
         }
         {
-            SearchRequest searchRequest = SearchRequest.crossClusterSearch(new SearchRequest(),
+            SearchRequest searchRequest = SearchRequest.subSearchRequest(new SearchRequest(),
                 Strings.EMPTY_ARRAY, "", 0, randomBoolean());
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
             assertEquals(2, searchResponse.getHits().getTotalHits().value);
         }
         {
-            SearchRequest searchRequest = SearchRequest.crossClusterSearch(new SearchRequest(),
+            SearchRequest searchRequest = SearchRequest.subSearchRequest(new SearchRequest(),
                 Strings.EMPTY_ARRAY, "", 0, randomBoolean());
             searchRequest.indices("<test-{now/d}>");
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
@@ -114,7 +117,7 @@ public class TransportSearchActionSingleNodeTests extends ESSingleNodeTestCase {
             assertEquals("test-1970.01.01", searchResponse.getHits().getHits()[0].getIndex());
         }
         {
-            SearchRequest searchRequest = SearchRequest.crossClusterSearch(new SearchRequest(),
+            SearchRequest searchRequest = SearchRequest.subSearchRequest(new SearchRequest(),
                 Strings.EMPTY_ARRAY, "", 0, randomBoolean());
             SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
             RangeQueryBuilder rangeQuery = new RangeQueryBuilder("date");
@@ -156,7 +159,7 @@ public class TransportSearchActionSingleNodeTests extends ESSingleNodeTestCase {
         source.aggregation(terms);
 
         {
-            SearchRequest searchRequest = randomBoolean() ? originalRequest : SearchRequest.crossClusterSearch(originalRequest,
+            SearchRequest searchRequest = randomBoolean() ? originalRequest : SearchRequest.subSearchRequest(originalRequest,
                 Strings.EMPTY_ARRAY, "remote", nowInMillis, true);
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
             assertEquals(2, searchResponse.getHits().getTotalHits().value);
@@ -165,13 +168,71 @@ public class TransportSearchActionSingleNodeTests extends ESSingleNodeTestCase {
             assertEquals(1, longTerms.getBuckets().size());
         }
         {
-            SearchRequest searchRequest = SearchRequest.crossClusterSearch(originalRequest,
+            SearchRequest searchRequest = SearchRequest.subSearchRequest(originalRequest,
                 Strings.EMPTY_ARRAY, "remote", nowInMillis, false);
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
             assertEquals(2, searchResponse.getHits().getTotalHits().value);
             Aggregations aggregations = searchResponse.getAggregations();
             LongTerms longTerms = aggregations.get("terms");
             assertEquals(2, longTerms.getBuckets().size());
+        }
+    }
+
+    public void testSplitIndices() {
+        {
+            CreateIndexResponse response = client().admin().indices().prepareCreate("write").get();
+            assertTrue(response.isAcknowledged());
+        }
+        {
+            CreateIndexResponse response = client().admin().indices().prepareCreate("readonly").get();
+            assertTrue(response.isAcknowledged());
+        }
+        {
+            SearchResponse response = client().prepareSearch("readonly").get();
+            assertEquals(1, response.getTotalShards());
+            assertEquals(1, response.getSuccessfulShards());
+            assertEquals(1, response.getNumReducePhases());
+        }
+        {
+            SearchResponse response = client().prepareSearch("write").get();
+            assertEquals(1, response.getTotalShards());
+            assertEquals(1, response.getSuccessfulShards());
+            assertEquals(1, response.getNumReducePhases());
+        }
+        {
+            SearchResponse response = client().prepareSearch("readonly", "write").get();
+            assertEquals(2, response.getTotalShards());
+            assertEquals(2, response.getSuccessfulShards());
+            assertEquals(1, response.getNumReducePhases());
+        }
+        {
+            Settings settings = Settings.builder().put("index.blocks.read_only", "true").build();
+            AcknowledgedResponse response = client().admin().indices().prepareUpdateSettings("readonly").setSettings(settings).get();
+            assertTrue(response.isAcknowledged());
+        }
+        try {
+            {
+                SearchResponse response = client().prepareSearch("readonly").get();
+                assertEquals(1, response.getTotalShards());
+                assertEquals(1, response.getSuccessfulShards());
+                assertEquals(1, response.getNumReducePhases());
+            }
+            {
+                SearchResponse response = client().prepareSearch("write").get();
+                assertEquals(1, response.getTotalShards());
+                assertEquals(1, response.getSuccessfulShards());
+                assertEquals(1, response.getNumReducePhases());
+            }
+            {
+                SearchResponse response = client().prepareSearch("readonly", "write").get();
+                assertEquals(2, response.getTotalShards());
+                assertEquals(2, response.getSuccessfulShards());
+                assertEquals(3, response.getNumReducePhases());
+            }
+        } finally {
+            Settings settings = Settings.builder().put("index.blocks.read_only", "false").build();
+            AcknowledgedResponse response = client().admin().indices().prepareUpdateSettings("readonly").setSettings(settings).get();
+            assertTrue(response.isAcknowledged());
         }
     }
 }

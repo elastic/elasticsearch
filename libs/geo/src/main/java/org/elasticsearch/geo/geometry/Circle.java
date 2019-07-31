@@ -49,8 +49,6 @@ public class Circle implements Geometry {
         if (radiusMeters < 0 ) {
             throw new IllegalArgumentException("Circle radius [" + radiusMeters + "] cannot be negative");
         }
-        GeometryUtils.checkLatitude(lat);
-        GeometryUtils.checkLongitude(lon);
     }
 
     @Override

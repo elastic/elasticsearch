@@ -66,6 +66,7 @@ public class ForbiddenPatternsTask extends DefaultTask {
         .exclude("**/*.zip")
         .exclude("**/*.jks")
         .exclude("**/*.crt")
+        .exclude("**/*.keystore")
         .exclude("**/*.png");
 
     /*

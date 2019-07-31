@@ -73,7 +73,7 @@ public class ClusterSearchShardsResponseTests extends ESTestCase {
         ClusterSearchShardsResponse clusterSearchShardsResponse = new ClusterSearchShardsResponse(clusterSearchShardsGroups,
                 nodes.toArray(new DiscoveryNode[nodes.size()]), indicesAndFilters);
 
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(searchModule.getNamedWriteables());
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(entries);

@@ -1,9 +1,9 @@
 {
   "tasks.cancel": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/tasks.html",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/tasks.html",
+    "stability": "stable",
     "methods": ["POST"],
     "url": {
-      "path": "/_tasks",
       "paths": ["/_tasks/_cancel", "/_tasks/{task_id}/_cancel"],
       "parts": {
         "task_id": {

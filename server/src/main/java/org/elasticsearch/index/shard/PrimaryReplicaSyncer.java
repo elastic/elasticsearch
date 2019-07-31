@@ -84,7 +84,7 @@ public class PrimaryReplicaSyncer {
     public void resync(final IndexShard indexShard, final ActionListener<ResyncTask> listener) {
         Translog.Snapshot snapshot = null;
         try {
-            final long startingSeqNo = indexShard.getGlobalCheckpoint() + 1;
+            final long startingSeqNo = indexShard.getLastKnownGlobalCheckpoint() + 1;
             final long maxSeqNo = indexShard.seqNoStats().getMaxSeqNo();
             final ShardId shardId = indexShard.shardId();
             // Wrap translog snapshot to make it synchronized as it is accessed by different threads through SnapshotSender.
@@ -172,7 +172,7 @@ public class PrimaryReplicaSyncer {
             }
         };
         try {
-            new SnapshotSender(logger, syncAction, resyncTask, shardId, primaryAllocationId, primaryTerm, snapshot, chunkSize.bytesAsInt(),
+            new SnapshotSender(syncAction, resyncTask, shardId, primaryAllocationId, primaryTerm, snapshot, chunkSize.bytesAsInt(),
                 startingSeqNo, maxSeqNo, maxSeenAutoIdTimestamp, wrappedListener).run();
         } catch (Exception e) {
             wrappedListener.onFailure(e);
@@ -200,12 +200,12 @@ public class PrimaryReplicaSyncer {
         private final AtomicBoolean firstMessage = new AtomicBoolean(true);
         private final AtomicInteger totalSentOps = new AtomicInteger();
         private final AtomicInteger totalSkippedOps = new AtomicInteger();
-        private AtomicBoolean closed = new AtomicBoolean();
+        private final AtomicBoolean closed = new AtomicBoolean();
 
-        SnapshotSender(Logger logger, SyncAction syncAction, ResyncTask task, ShardId shardId, String primaryAllocationId, long primaryTerm,
+        SnapshotSender(SyncAction syncAction, ResyncTask task, ShardId shardId, String primaryAllocationId, long primaryTerm,
                        Translog.Snapshot snapshot, int chunkSizeInBytes, long startingSeqNo, long maxSeqNo,
                        long maxSeenAutoIdTimestamp, ActionListener<Void> listener) {
-            this.logger = logger;
+            this.logger = PrimaryReplicaSyncer.logger;
             this.syncAction = syncAction;
             this.task = task;
             this.shardId = shardId;
@@ -232,7 +232,7 @@ public class PrimaryReplicaSyncer {
             }
         }
 
-        private static Translog.Operation[] EMPTY_ARRAY = new Translog.Operation[0];
+        private static final Translog.Operation[] EMPTY_ARRAY = new Translog.Operation[0];
 
         @Override
         protected void doRun() throws Exception {

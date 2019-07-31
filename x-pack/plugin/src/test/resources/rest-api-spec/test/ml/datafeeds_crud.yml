@@ -203,6 +203,9 @@ setup:
 
 ---
 "Test update datafeed to point to different job":
+  - skip:
+      features: "warnings"
+
   - do:
       ml.put_datafeed:
         datafeed_id: test-datafeed-1
@@ -214,6 +217,8 @@ setup:
           }
 
   - do:
+      warnings:
+        - The ability to update a datafeed's job_id is deprecated.
       ml.update_datafeed:
         datafeed_id: test-datafeed-1
         body:  >
@@ -319,7 +324,7 @@ setup:
               "histogram_buckets":{
                 "date_histogram": {
                   "field": "@timestamp",
-                  "interval": "5m",
+                  "fixed_interval": "5m",
                   "time_zone": "UTC",
                   "min_doc_count": 0
                 },

@@ -143,9 +143,11 @@ project.sourceSets.test.output.dir(outputDir, builtBy: copyXPackRestSpec)
 
 repositories {
     maven {
+        name "elastic"
         url "https://artifacts.elastic.co/maven"
     }
     maven {
+        name "elastic-snapshots"
         url "https://snapshots.elastic.co/maven"
     }
 }

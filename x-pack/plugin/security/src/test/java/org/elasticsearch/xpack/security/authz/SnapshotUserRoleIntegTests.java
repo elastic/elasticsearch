@@ -6,31 +6,41 @@
 
 package org.elasticsearch.xpack.security.authz;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.security.DeleteRoleRequest;
+import org.elasticsearch.client.security.PutRoleRequest;
+import org.elasticsearch.client.security.PutUserRequest;
+import org.elasticsearch.client.security.PutUserResponse;
+import org.elasticsearch.client.security.RefreshPolicy;
+import org.elasticsearch.client.security.user.User;
+import org.elasticsearch.client.security.user.privileges.Role;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
-import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 
-import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7;
-import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
-
+import static org.elasticsearch.test.SecuritySettingsSource.SECURITY_REQUEST_OPTIONS;
+import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationException;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.containsString;
+import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7;
+import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationException;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
 
 public class SnapshotUserRoleIntegTests extends NativeRealmIntegTestCase {
 
@@ -38,7 +48,7 @@ public class SnapshotUserRoleIntegTests extends NativeRealmIntegTestCase {
     private String ordinaryIndex;
 
     @Before
-    public void setupClusterBeforeSnapshot() {
+    public void setupClusterBeforeSnapshot() throws IOException {
         logger.info("-->  creating repository");
         assertAcked(client().admin().cluster().preparePutRepository("repo")
                 .setType("fs")
@@ -55,7 +65,10 @@ public class SnapshotUserRoleIntegTests extends NativeRealmIntegTestCase {
         final char[] password = new char[] {'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
         final String snapshotUserToken = basicAuthHeaderValue(user, new SecureString(password));
         client = client().filterWithHeader(Collections.singletonMap("Authorization", snapshotUserToken));
-        securityClient().preparePutUser(user, password, Hasher.BCRYPT, "snapshot_user").get();
+        PutUserResponse response = new TestRestHighLevelClient().security().putUser(
+            PutUserRequest.withPassword(new User(user, List.of("snapshot_user")), password, true, RefreshPolicy.IMMEDIATE),
+            SECURITY_REQUEST_OPTIONS);
+        assertTrue(response.isCreated());
         ensureGreen(INTERNAL_SECURITY_MAIN_INDEX_7);
     }
 
@@ -75,17 +88,21 @@ public class SnapshotUserRoleIntegTests extends NativeRealmIntegTestCase {
         assertThat(snapshotResponse.getSnapshotInfo().indices(), containsInAnyOrder(INTERNAL_SECURITY_MAIN_INDEX_7, ordinaryIndex));
         // view snapshots for repo
         final GetSnapshotsResponse getSnapshotResponse = client.admin().cluster().prepareGetSnapshots("repo").get();
-        assertThat(getSnapshotResponse.getSnapshots().size(), is(1));
-        assertThat(getSnapshotResponse.getSnapshots().get(0).snapshotId().getName(), is("snap"));
-        assertThat(getSnapshotResponse.getSnapshots().get(0).indices(), containsInAnyOrder(INTERNAL_SECURITY_MAIN_INDEX_7, ordinaryIndex));
+        assertThat(getSnapshotResponse.getSnapshots("repo").size(), is(1));
+        assertThat(getSnapshotResponse.getSnapshots("repo").get(0).snapshotId().getName(), is("snap"));
+        assertThat(getSnapshotResponse.getSnapshots("repo").get(0).indices(), containsInAnyOrder(INTERNAL_SECURITY_MAIN_INDEX_7,
+                ordinaryIndex));
     }
 
     public void testSnapshotUserRoleIsReserved() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> securityClient().preparePutRole("snapshot_user").get());
+        final RestHighLevelClient restClient = new TestRestHighLevelClient();
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
+                () -> restClient.security().putRole(
+                    new PutRoleRequest(Role.builder().name("snapshot_user").build(), RefreshPolicy.IMMEDIATE), SECURITY_REQUEST_OPTIONS));
         assertThat(e.getMessage(), containsString("role [snapshot_user] is reserved and cannot be modified"));
-        e = expectThrows(IllegalArgumentException.class,
-                () -> securityClient().prepareDeleteRole("snapshot_user").get());
+        e = expectThrows(ElasticsearchStatusException.class,
+                () -> restClient.security().deleteRole(
+                    new DeleteRoleRequest("snapshot_user", RefreshPolicy.IMMEDIATE), SECURITY_REQUEST_OPTIONS));
         assertThat(e.getMessage(), containsString("role [snapshot_user] is reserved and cannot be deleted"));
     }
 

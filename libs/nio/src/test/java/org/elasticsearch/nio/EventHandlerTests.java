@@ -44,7 +44,7 @@ public class EventHandlerTests extends ESTestCase {
     private Consumer<Exception> channelExceptionHandler;
     private Consumer<Exception> genericExceptionHandler;
 
-    private ReadWriteHandler readWriteHandler;
+    private NioChannelHandler readWriteHandler;
     private EventHandler handler;
     private DoNotRegisterSocketContext context;
     private DoNotRegisterServerContext serverContext;
@@ -56,7 +56,7 @@ public class EventHandlerTests extends ESTestCase {
     public void setUpHandler() throws IOException {
         channelExceptionHandler = mock(Consumer.class);
         genericExceptionHandler = mock(Consumer.class);
-        readWriteHandler = mock(ReadWriteHandler.class);
+        readWriteHandler = mock(NioChannelHandler.class);
         channelFactory = mock(ChannelFactory.class);
         NioSelector selector = mock(NioSelector.class);
         ArrayList<NioSelector> selectors = new ArrayList<>();
@@ -81,32 +81,25 @@ public class EventHandlerTests extends ESTestCase {
     }
 
     public void testRegisterCallsContext() throws IOException {
-        NioSocketChannel channel = mock(NioSocketChannel.class);
-        SocketChannelContext channelContext = mock(SocketChannelContext.class);
-        when(channel.getContext()).thenReturn(channelContext);
-        when(channelContext.getSelectionKey()).thenReturn(new TestSelectionKey(0));
+        ChannelContext<?> channelContext = randomBoolean() ? mock(SocketChannelContext.class) : mock(ServerChannelContext.class);
+        TestSelectionKey attachment = new TestSelectionKey(0);
+        when(channelContext.getSelectionKey()).thenReturn(attachment);
+        attachment.attach(channelContext);
         handler.handleRegistration(channelContext);
         verify(channelContext).register();
     }
 
-    public void testRegisterNonServerAddsOP_CONNECTAndOP_READInterest() throws IOException {
+    public void testActiveNonServerAddsOP_CONNECTAndOP_READInterest() throws IOException {
         SocketChannelContext context = mock(SocketChannelContext.class);
         when(context.getSelectionKey()).thenReturn(new TestSelectionKey(0));
-        handler.handleRegistration(context);
+        handler.handleActive(context);
         assertEquals(SelectionKey.OP_READ | SelectionKey.OP_CONNECT, context.getSelectionKey().interestOps());
     }
 
-    public void testRegisterAddsAttachment() throws IOException {
-        ChannelContext<?> context = randomBoolean() ?  mock(SocketChannelContext.class) : mock(ServerChannelContext.class);
-        when(context.getSelectionKey()).thenReturn(new TestSelectionKey(0));
-        handler.handleRegistration(context);
-        assertEquals(context, context.getSelectionKey().attachment());
-    }
-
-    public void testHandleServerRegisterSetsOP_ACCEPTInterest() throws IOException {
-        assertNull(serverContext.getSelectionKey());
-
-        handler.handleRegistration(serverContext);
+    public void testHandleServerActiveSetsOP_ACCEPTInterest() throws IOException {
+        ServerChannelContext serverContext = mock(ServerChannelContext.class);
+        when(serverContext.getSelectionKey()).thenReturn(new TestSelectionKey(0));
+        handler.handleActive(serverContext);
 
         assertEquals(SelectionKey.OP_ACCEPT, serverContext.getSelectionKey().interestOps());
     }
@@ -141,11 +134,11 @@ public class EventHandlerTests extends ESTestCase {
         verify(serverChannelContext).handleException(exception);
     }
 
-    public void testRegisterWithPendingWritesAddsOP_CONNECTAndOP_READAndOP_WRITEInterest() throws IOException {
+    public void testActiveWithPendingWritesAddsOP_CONNECTAndOP_READAndOP_WRITEInterest() throws IOException {
         FlushReadyWrite flushReadyWrite = mock(FlushReadyWrite.class);
         when(readWriteHandler.writeToBytes(flushReadyWrite)).thenReturn(Collections.singletonList(flushReadyWrite));
         context.queueWriteOperation(flushReadyWrite);
-        handler.handleRegistration(context);
+        handler.handleActive(context);
         assertEquals(SelectionKey.OP_READ | SelectionKey.OP_CONNECT | SelectionKey.OP_WRITE, context.getSelectionKey().interestOps());
     }
 
@@ -260,13 +253,15 @@ public class EventHandlerTests extends ESTestCase {
 
 
         DoNotRegisterSocketContext(NioSocketChannel channel, NioSelector selector, Consumer<Exception> exceptionHandler,
-                                   ReadWriteHandler handler) {
+                                   NioChannelHandler handler) {
             super(channel, selector, exceptionHandler, handler, InboundChannelBuffer.allocatingInstance());
         }
 
         @Override
         public void register() {
-            setSelectionKey(new TestSelectionKey(0));
+            TestSelectionKey selectionKey = new TestSelectionKey(0);
+            setSelectionKey(selectionKey);
+            selectionKey.attach(this);
         }
     }
 
@@ -280,7 +275,9 @@ public class EventHandlerTests extends ESTestCase {
 
         @Override
         public void register() {
+            TestSelectionKey selectionKey = new TestSelectionKey(0);
             setSelectionKey(new TestSelectionKey(0));
+            selectionKey.attach(this);
         }
     }
 }

@@ -1,5 +1,5 @@
 [[docs-update-by-query]]
-== Update By Query API
+=== Update By Query API
 
 The simplest usage of `_update_by_query` just performs an update on every
 document in the index without changing the source. This is useful to
@@ -196,7 +196,7 @@ POST twitter/_update_by_query?pipeline=set-foo
 // TEST[setup:twitter]
 
 [float]
-=== URL Parameters
+==== URL Parameters
 
 In addition to the standard parameters like `pretty`, the Update By Query API
 also supports `refresh`, `wait_for_completion`, `wait_for_active_shards`, `timeout`,
@@ -246,7 +246,7 @@ starting the next set. This is "bursty" instead of "smooth". The default is `-1`
 
 [float]
 [[docs-update-by-query-response-body]]
-=== Response body
+==== Response body
 
 //////////////////////////
 [source,js]
@@ -351,7 +351,7 @@ version conflicts.
 
 [float]
 [[docs-update-by-query-task-api]]
-=== Works with the Task API
+==== Works with the Task API
 
 You can fetch the status of all running update by query requests with the
 <<tasks,Task API>>:
@@ -433,7 +433,7 @@ you to delete that document.
 
 [float]
 [[docs-update-by-query-cancel-task-api]]
-=== Works with the Cancel Task API
+==== Works with the Cancel Task API
 
 Any update by query can be cancelled using the <<tasks,Task Cancel API>>:
 
@@ -452,7 +452,7 @@ that it has been cancelled and terminates itself.
 
 [float]
 [[docs-update-by-query-rethrottle]]
-=== Rethrottling
+==== Rethrottling
 
 The value of `requests_per_second` can be changed on a running update by query
 using the `_rethrottle` API:
@@ -474,7 +474,7 @@ timeouts.
 
 [float]
 [[docs-update-by-query-slice]]
-=== Slicing
+==== Slicing
 
 Update by query supports <<sliced-scroll>> to parallelize the updating process.
 This parallelization can improve efficiency and provide a convenient way to
@@ -482,7 +482,7 @@ break the request down into smaller parts.
 
 [float]
 [[docs-update-by-query-manual-slice]]
-==== Manual slicing
+===== Manual slicing
 Slice an update by query manually by providing a slice id and total number of
 slices to each request:
 
@@ -539,7 +539,7 @@ Which results in a sensible `total` like this one:
 
 [float]
 [[docs-update-by-query-automatic-slice]]
-==== Automatic slicing
+===== Automatic slicing
 
 You can also let update by query automatically parallelize using
 <<sliced-scroll>> to slice on `_id`. Use `slices` to specify the number of
@@ -602,17 +602,17 @@ sub-request proportionally.
 * Due to the nature of `slices` each sub-request won't get a perfectly even
 portion of the documents. All documents will be addressed, but some slices may
 be larger than others. Expect larger slices to have a more even distribution.
-* Parameters like `requests_per_second` and `size` on a request with `slices`
-are distributed proportionally to each sub-request. Combine that with the point
-above about distribution being uneven and you should conclude that the using
-`size` with `slices` might not result in exactly `size` documents being
-updated.
+* Parameters like `requests_per_second` and `max_docs` on a request with
+`slices` are distributed proportionally to each sub-request. Combine that with
+the point above about distribution being uneven and you should conclude that
+using `max_docs` with `slices` might not result in exactly `max_docs` documents
+being updated.
 * Each sub-request gets a slightly different snapshot of the source index
 though these are all taken at approximately the same time.
 
 [float]
 [[docs-update-by-query-picking-slices]]
-===== Picking the number of slices
+====== Picking the number of slices
 
 If slicing automatically, setting `slices` to `auto` will choose a reasonable
 number for most indices. If you're slicing manually or otherwise tuning
@@ -632,7 +632,7 @@ documents being reindexed and cluster resources.
 
 [float]
 [[picking-up-a-new-property]]
-=== Pick up a new property
+==== Pick up a new property
 
 Say you created an index without dynamic mapping, filled it with data, and then
 added a mapping value to pick up more fields from the data:

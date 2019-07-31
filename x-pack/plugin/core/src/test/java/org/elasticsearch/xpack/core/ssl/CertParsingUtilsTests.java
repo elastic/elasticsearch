@@ -20,10 +20,10 @@ import java.security.interfaces.ECPrivateKey;
 import java.util.Collections;
 import java.util.List;
 
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class CertParsingUtilsTests extends ESTestCase {
     public void testReadKeysCorrectly() throws Exception {
@@ -79,7 +79,7 @@ public class CertParsingUtilsTests extends ESTestCase {
         verifyPrime256v1ECKey(keyNoSpecPath);
 
         Path certPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/prime256v1-cert.pem");
-        Certificate[] certs = CertParsingUtils.readCertificates(Collections.singletonList(certPath.toString()), null);
+        Certificate[] certs = CertParsingUtils.readCertificates(Collections.singletonList(certPath.toString()), newEnvironment());
         assertEquals(1, certs.length);
         Certificate cert = certs[0];
         assertNotNull(cert);

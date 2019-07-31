@@ -51,7 +51,7 @@ public abstract class InternalGeoGridBucket<B extends InternalGeoGridBucket>
     public InternalGeoGridBucket(StreamInput in) throws IOException {
         hashAsLong = in.readLong();
         docCount = in.readVLong();
-        aggregations = InternalAggregations.readAggregations(in);
+        aggregations = new InternalAggregations(in);
     }
 
     @Override

@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWat
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
+import org.elasticsearch.xpack.watcher.ClockHolder;
 import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
 import org.elasticsearch.xpack.watcher.execution.ManualExecutionContext;
@@ -67,13 +68,13 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
 
     @Inject
     public TransportExecuteWatchAction(TransportService transportService, ThreadPool threadPool,
-                                       ActionFilters actionFilters, ExecutionService executionService, Clock clock,
+                                       ActionFilters actionFilters, ExecutionService executionService, ClockHolder clockHolder,
                                        XPackLicenseState licenseState, WatchParser watchParser, Client client,
                                        TriggerService triggerService) {
         super(ExecuteWatchAction.NAME, transportService, actionFilters, licenseState, ExecuteWatchRequest::new);
         this.threadPool = threadPool;
         this.executionService = executionService;
-        this.clock = clock;
+        this.clock = clockHolder.clock;
         this.triggerService = triggerService;
         this.watchParser = watchParser;
         this.client = client;

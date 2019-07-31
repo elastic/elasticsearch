@@ -96,9 +96,6 @@ public class RandomSearchRequestGenerator {
             searchRequest.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
         }
         if (randomBoolean()) {
-            searchRequest.types(generateRandomStringArray(10, 10, false, false));
-        }
-        if (randomBoolean()) {
             searchRequest.preference(randomAlphaOfLengthBetween(3, 10));
         }
         if (randomBoolean()) {

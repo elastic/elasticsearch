@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.node;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
 
@@ -240,8 +241,16 @@ public class DiscoveryNodesTests extends ESTestCase {
             if (frequently()) {
                 attributes.put("custom", randomBoolean() ? "match" : randomAlphaOfLengthBetween(3, 5));
             }
-            final DiscoveryNode node = newNode(idGenerator.getAndIncrement(), attributes,
-                new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))));
+            final Set<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES));
+            if (frequently()) {
+                roles.add(new DiscoveryNodeRole("custom_role", "cr") {
+                    @Override
+                    protected Setting<Boolean> roleSetting() {
+                        return null;
+                    }
+                });
+            }
+            final DiscoveryNode node = newNode(idGenerator.getAndIncrement(), attributes, roles);
             nodesList.add(node);
         }
         return nodesList;
@@ -259,7 +268,7 @@ public class DiscoveryNodesTests extends ESTestCase {
         return discoBuilder.build();
     }
 
-    private static DiscoveryNode newNode(int nodeId, Map<String, String> attributes, Set<DiscoveryNode.Role> roles) {
+    private static DiscoveryNode newNode(int nodeId, Map<String, String> attributes, Set<DiscoveryNodeRole> roles) {
         return new DiscoveryNode("name_" + nodeId, "node_" + nodeId, buildNewFakeTransportAddress(), attributes, roles,
             Version.CURRENT);
     }
@@ -275,21 +284,21 @@ public class DiscoveryNodesTests extends ESTestCase {
             Set<String> matchingNodeIds(DiscoveryNodes nodes) {
                 return Collections.singleton(nodes.getMasterNodeId());
             }
-        }, MASTER_ELIGIBLE(DiscoveryNode.Role.MASTER.getRoleName() + ":true") {
+        }, MASTER_ELIGIBLE(DiscoveryNodeRole.MASTER_ROLE.roleName() + ":true") {
             @Override
             Set<String> matchingNodeIds(DiscoveryNodes nodes) {
                 Set<String> ids = new HashSet<>();
                 nodes.getMasterNodes().keysIt().forEachRemaining(ids::add);
                 return ids;
             }
-        }, DATA(DiscoveryNode.Role.DATA.getRoleName() + ":true") {
+        }, DATA(DiscoveryNodeRole.DATA_ROLE.roleName() + ":true") {
             @Override
             Set<String> matchingNodeIds(DiscoveryNodes nodes) {
                 Set<String> ids = new HashSet<>();
                 nodes.getDataNodes().keysIt().forEachRemaining(ids::add);
                 return ids;
             }
-        }, INGEST(DiscoveryNode.Role.INGEST.getRoleName() + ":true") {
+        }, INGEST(DiscoveryNodeRole.INGEST_ROLE.roleName() + ":true") {
             @Override
             Set<String> matchingNodeIds(DiscoveryNodes nodes) {
                 Set<String> ids = new HashSet<>();
@@ -314,6 +323,17 @@ public class DiscoveryNodesTests extends ESTestCase {
                 });
                 return ids;
             }
+        }, CUSTOM_ROLE("custom_role:true") {
+            @Override
+            Set<String> matchingNodeIds(DiscoveryNodes nodes) {
+                Set<String> ids = new HashSet<>();
+                nodes.getNodes().valuesIt().forEachRemaining(node -> {
+                    if (node.getRoles().stream().anyMatch(role -> role.roleName().equals("custom_role"))) {
+                        ids.add(node.getId());
+                    }
+                });
+                return ids;
+            }
         };
 
         private final String selector;
@@ -328,13 +348,13 @@ public class DiscoveryNodesTests extends ESTestCase {
     public void testMaxMinNodeVersion() {
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         discoBuilder.add(new DiscoveryNode("name_" + 1, "node_" + 1, buildNewFakeTransportAddress(), Collections.emptyMap(),
-            new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))),
+            new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES)),
             Version.fromString("5.1.0")));
         discoBuilder.add(new DiscoveryNode("name_" + 2, "node_" + 2, buildNewFakeTransportAddress(), Collections.emptyMap(),
-            new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))),
+            new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES)),
             Version.fromString("6.3.0")));
         discoBuilder.add(new DiscoveryNode("name_" + 3, "node_" + 3, buildNewFakeTransportAddress(), Collections.emptyMap(),
-            new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))),
+            new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES)),
             Version.fromString("1.1.0")));
         discoBuilder.localNodeId("name_1");
         discoBuilder.masterNodeId("name_2");

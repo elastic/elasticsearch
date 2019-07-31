@@ -703,7 +703,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             request.add(new IndexRequest("posts").id("4")  // <3>
                     .source(XContentType.JSON,"field", "baz"));
             // end::bulk-request-with-mixed-operations
-            BulkResponse bulkResponse = client.bulk(request, RequestOptions.DEFAULT); 
+            BulkResponse bulkResponse = client.bulk(request, RequestOptions.DEFAULT);
             assertSame(RestStatus.OK, bulkResponse.status());
             assertFalse(bulkResponse.hasFailures());
 
@@ -824,9 +824,9 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::reindex-request-conflicts
             request.setConflicts("proceed"); // <1>
             // end::reindex-request-conflicts
-            // tag::reindex-request-size
-            request.setSize(10); // <1>
-            // end::reindex-request-size
+            // tag::reindex-request-maxDocs
+            request.setMaxDocs(10); // <1>
+            // end::reindex-request-maxDocs
             // tag::reindex-request-sourceSize
             request.setSourceBatchSize(100); // <1>
             // end::reindex-request-sourceSize
@@ -1026,9 +1026,9 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::update-by-query-request-query
             request.setQuery(new TermQueryBuilder("user", "kimchy")); // <1>
             // end::update-by-query-request-query
-            // tag::update-by-query-request-size
-            request.setSize(10); // <1>
-            // end::update-by-query-request-size
+            // tag::update-by-query-request-maxDocs
+            request.setMaxDocs(10); // <1>
+            // end::update-by-query-request-maxDocs
             // tag::update-by-query-request-scrollSize
             request.setBatchSize(100); // <1>
             // end::update-by-query-request-scrollSize
@@ -1148,9 +1148,9 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::delete-by-query-request-query
             request.setQuery(new TermQueryBuilder("user", "kimchy")); // <1>
             // end::delete-by-query-request-query
-            // tag::delete-by-query-request-size
-            request.setSize(10); // <1>
-            // end::delete-by-query-request-size
+            // tag::delete-by-query-request-maxDocs
+            request.setMaxDocs(10); // <1>
+            // end::delete-by-query-request-maxDocs
             // tag::delete-by-query-request-scrollSize
             request.setBatchSize(100); // <1>
             // end::delete-by-query-request-scrollSize
@@ -1614,9 +1614,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
 
         // tag::term-vectors-response
         String index = response.getIndex(); // <1>
-        String type = response.getType(); // <2>
-        String id = response.getId(); // <3>
-        boolean found = response.getFound(); // <4>
+        String id = response.getId(); // <2>
+        boolean found = response.getFound(); // <3>
         // end::term-vectors-response
 
         if (response.getTermVectorsList() != null) {

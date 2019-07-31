@@ -118,5 +118,5 @@ The response looks like:
 i         sth
 twitter   true
 --------------------------------------------------
-// TESTRESPONSE[_cat]
+// TESTRESPONSE[non_json]
 

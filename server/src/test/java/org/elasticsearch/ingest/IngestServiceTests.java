@@ -153,10 +153,72 @@ public class IngestServiceTests extends ESTestCase {
             .build();
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         assertThat(ingestService.pipelines().size(), is(1));
-        assertThat(ingestService.pipelines().get("_id").getId(), equalTo("_id"));
-        assertThat(ingestService.pipelines().get("_id").getDescription(), nullValue());
-        assertThat(ingestService.pipelines().get("_id").getProcessors().size(), equalTo(1));
-        assertThat(ingestService.pipelines().get("_id").getProcessors().get(0).getType(), equalTo("set"));
+        assertThat(ingestService.pipelines().get("_id").pipeline.getId(), equalTo("_id"));
+        assertThat(ingestService.pipelines().get("_id").pipeline.getDescription(), nullValue());
+        assertThat(ingestService.pipelines().get("_id").pipeline.getProcessors().size(), equalTo(1));
+        assertThat(ingestService.pipelines().get("_id").pipeline.getProcessors().get(0).getType(), equalTo("set"));
+    }
+
+    public void testInnerUpdatePipelines() {
+        IngestService ingestService = createWithProcessors();
+        assertThat(ingestService.pipelines().size(), is(0));
+
+        PipelineConfiguration pipeline1 = new PipelineConfiguration("_id1", new BytesArray("{\"processors\": []}"), XContentType.JSON);
+        IngestMetadata ingestMetadata = new IngestMetadata(Map.of("_id1", pipeline1));
+
+        ingestService.innerUpdatePipelines(ingestMetadata);
+        assertThat(ingestService.pipelines().size(), is(1));
+        assertThat(ingestService.pipelines().get("_id1").pipeline.getId(), equalTo("_id1"));
+        assertThat(ingestService.pipelines().get("_id1").pipeline.getProcessors().size(), equalTo(0));
+
+        PipelineConfiguration pipeline2 = new PipelineConfiguration("_id2", new BytesArray("{\"processors\": []}"), XContentType.JSON);
+        ingestMetadata = new IngestMetadata(Map.of("_id1", pipeline1, "_id2", pipeline2));
+
+        ingestService.innerUpdatePipelines(ingestMetadata);
+        assertThat(ingestService.pipelines().size(), is(2));
+        assertThat(ingestService.pipelines().get("_id1").pipeline.getId(), equalTo("_id1"));
+        assertThat(ingestService.pipelines().get("_id1").pipeline.getProcessors().size(), equalTo(0));
+        assertThat(ingestService.pipelines().get("_id2").pipeline.getId(), equalTo("_id2"));
+        assertThat(ingestService.pipelines().get("_id2").pipeline.getProcessors().size(), equalTo(0));
+
+        PipelineConfiguration pipeline3 = new PipelineConfiguration("_id3", new BytesArray("{\"processors\": []}"), XContentType.JSON);
+        ingestMetadata = new IngestMetadata(Map.of("_id1", pipeline1, "_id2", pipeline2, "_id3", pipeline3));
+
+        ingestService.innerUpdatePipelines(ingestMetadata);
+        assertThat(ingestService.pipelines().size(), is(3));
+        assertThat(ingestService.pipelines().get("_id1").pipeline.getId(), equalTo("_id1"));
+        assertThat(ingestService.pipelines().get("_id1").pipeline.getProcessors().size(), equalTo(0));
+        assertThat(ingestService.pipelines().get("_id2").pipeline.getId(), equalTo("_id2"));
+        assertThat(ingestService.pipelines().get("_id2").pipeline.getProcessors().size(), equalTo(0));
+        assertThat(ingestService.pipelines().get("_id3").pipeline.getId(), equalTo("_id3"));
+        assertThat(ingestService.pipelines().get("_id3").pipeline.getProcessors().size(), equalTo(0));
+
+        ingestMetadata = new IngestMetadata(Map.of("_id1", pipeline1, "_id3", pipeline3));
+
+        ingestService.innerUpdatePipelines(ingestMetadata);
+        assertThat(ingestService.pipelines().size(), is(2));
+        assertThat(ingestService.pipelines().get("_id1").pipeline.getId(), equalTo("_id1"));
+        assertThat(ingestService.pipelines().get("_id1").pipeline.getProcessors().size(), equalTo(0));
+        assertThat(ingestService.pipelines().get("_id3").pipeline.getId(), equalTo("_id3"));
+        assertThat(ingestService.pipelines().get("_id3").pipeline.getProcessors().size(), equalTo(0));
+
+        pipeline3 = new PipelineConfiguration(
+            "_id3",new BytesArray("{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}"), XContentType.JSON
+        );
+        ingestMetadata = new IngestMetadata(Map.of("_id1", pipeline1, "_id3", pipeline3));
+
+        ingestService.innerUpdatePipelines(ingestMetadata);
+        assertThat(ingestService.pipelines().size(), is(2));
+        assertThat(ingestService.pipelines().get("_id1").pipeline.getId(), equalTo("_id1"));
+        assertThat(ingestService.pipelines().get("_id1").pipeline.getProcessors().size(), equalTo(0));
+        assertThat(ingestService.pipelines().get("_id3").pipeline.getId(), equalTo("_id3"));
+        assertThat(ingestService.pipelines().get("_id3").pipeline.getProcessors().size(), equalTo(1));
+        assertThat(ingestService.pipelines().get("_id3").pipeline.getProcessors().get(0).getType(), equalTo("set"));
+
+        // Perform an update with no changes:
+        Map<String, IngestService.PipelineHolder> pipelines = ingestService.pipelines();
+        ingestService.innerUpdatePipelines(ingestMetadata);
+        assertThat(ingestService.pipelines(), sameInstance(pipelines));
     }
 
     public void testDelete() {

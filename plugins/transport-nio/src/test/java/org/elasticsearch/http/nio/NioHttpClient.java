@@ -49,7 +49,7 @@ import org.elasticsearch.nio.NioSelectorGroup;
 import org.elasticsearch.nio.NioSelector;
 import org.elasticsearch.nio.NioServerSocketChannel;
 import org.elasticsearch.nio.NioSocketChannel;
-import org.elasticsearch.nio.ReadWriteHandler;
+import org.elasticsearch.nio.NioChannelHandler;
 import org.elasticsearch.nio.SocketChannelContext;
 import org.elasticsearch.nio.WriteOperation;
 import org.elasticsearch.tasks.Task;
@@ -110,10 +110,24 @@ class NioHttpClient implements Closeable {
         return sendRequests(remoteAddress, requests);
     }
 
-    public final FullHttpResponse post(InetSocketAddress remoteAddress, FullHttpRequest httpRequest) throws InterruptedException {
+    public final FullHttpResponse send(InetSocketAddress remoteAddress, FullHttpRequest httpRequest) throws InterruptedException {
         Collection<FullHttpResponse> responses = sendRequests(remoteAddress, Collections.singleton(httpRequest));
         assert responses.size() == 1 : "expected 1 and only 1 http response";
         return responses.iterator().next();
+    }
+
+    public final NioSocketChannel connect(InetSocketAddress remoteAddress) {
+        ChannelFactory<NioServerSocketChannel, NioSocketChannel> factory = new ClientChannelFactory(new CountDownLatch(0), new
+            ArrayList<>());
+        try {
+            NioSocketChannel nioSocketChannel = nioGroup.openChannel(remoteAddress, factory);
+            PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
+            nioSocketChannel.addConnectListener(ActionListener.toBiConsumer(connectFuture));
+            connectFuture.actionGet();
+            return nioSocketChannel;
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     private void onException(Exception e) {
@@ -193,7 +207,7 @@ class NioHttpClient implements Closeable {
         }
     }
 
-    private static class HttpClientHandler implements ReadWriteHandler {
+    private static class HttpClientHandler implements NioChannelHandler {
 
         private final NettyAdaptor adaptor;
         private final CountDownLatch latch;
@@ -211,6 +225,9 @@ class NioHttpClient implements Closeable {
             adaptor = new NettyAdaptor(handlers.toArray(new ChannelHandler[0]));
             adaptor.addCloseListener((v, e) -> channel.close());
         }
+
+        @Override
+        public void channelActive() {}
 
         @Override
         public WriteOperation createWriteOperation(SocketChannelContext context, Object message, BiConsumer<Void, Exception> listener) {
@@ -254,22 +271,33 @@ class NioHttpClient implements Closeable {
             int bytesConsumed = adaptor.read(channelBuffer.sliceAndRetainPagesTo(channelBuffer.getIndex()));
             Object message;
             while ((message = adaptor.pollInboundMessage()) != null) {
-                handleRequest(message);
+                handleResponse(message);
             }
 
             return bytesConsumed;
         }
 
         @Override
+        public boolean closeNow() {
+            return false;
+        }
+
+        @Override
         public void close() throws IOException {
             try {
                 adaptor.close();
+                // After closing the pipeline, we must poll to see if any new messages are available. This
+                // is because HTTP supports a channel being closed as an end of content marker.
+                Object message;
+                while ((message = adaptor.pollInboundMessage()) != null) {
+                    handleResponse(message);
+                }
             } catch (Exception e) {
                 throw new IOException(e);
             }
         }
 
-        private void handleRequest(Object message) {
+        private void handleResponse(Object message) {
             final FullHttpResponse response = (FullHttpResponse) message;
             DefaultFullHttpResponse newResponse = new DefaultFullHttpResponse(response.protocolVersion(),
                 response.status(),

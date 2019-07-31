@@ -61,8 +61,9 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
     private final SearchRequest firstSearchRequest;
 
     public ClientScrollableHitSource(Logger logger, BackoffPolicy backoffPolicy, ThreadPool threadPool, Runnable countSearchRetry,
-            Consumer<Exception> fail, ParentTaskAssigningClient client, SearchRequest firstSearchRequest) {
-        super(logger, backoffPolicy, threadPool, countSearchRetry, fail);
+                                     Consumer<AsyncResponse> onResponse, Consumer<Exception> fail,
+                                     ParentTaskAssigningClient client, SearchRequest firstSearchRequest) {
+        super(logger, backoffPolicy, threadPool, countSearchRetry, onResponse, fail);
         this.client = client;
         this.firstSearchRequest = firstSearchRequest;
     }
@@ -70,9 +71,8 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
     @Override
     public void doStart(Consumer<? super Response> onResponse) {
         if (logger.isDebugEnabled()) {
-            logger.debug("executing initial scroll against {}{}",
-                    isEmpty(firstSearchRequest.indices()) ? "all indices" : firstSearchRequest.indices(),
-                    isEmpty(firstSearchRequest.types()) ? "" : firstSearchRequest.types());
+            logger.debug("executing initial scroll against {}",
+                    isEmpty(firstSearchRequest.indices()) ? "all indices" : firstSearchRequest.indices());
         }
         searchWithRetry(listener -> client.search(firstSearchRequest, listener), r -> consume(r, onResponse));
     }

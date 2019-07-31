@@ -32,9 +32,12 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.http.HttpInfo;
+import org.elasticsearch.http.HttpRequest;
+import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
@@ -58,6 +61,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.UnaryOperator;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doCallRealMethod;
@@ -462,6 +467,38 @@ public class RestControllerTests extends ESTestCase {
         assertThat(channel.getRestResponse().content().utf8ToString(), containsString("bad request"));
     }
 
+    public void testDoesNotConsumeContent() throws Exception {
+        final RestRequest.Method method = randomFrom(RestRequest.Method.values());
+        restController.registerHandler(method, "/notconsumed", new RestHandler() {
+            @Override
+            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+                channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+            }
+
+            @Override
+            public boolean canTripCircuitBreaker() {
+                return false;
+            }
+        });
+
+        final XContentBuilder content = XContentBuilder.builder(randomFrom(XContentType.values()).xContent())
+            .startObject().field("field", "value").endObject();
+        final FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
+            .withPath("/notconsumed")
+            .withMethod(method)
+            .withContent(BytesReference.bytes(content), content.contentType())
+            .build();
+
+        final AssertingChannel channel = new AssertingChannel(restRequest, true, RestStatus.OK);
+        assertFalse(channel.getSendResponseCalled());
+        assertFalse(restRequest.isContentConsumed());
+
+        restController.dispatchRequest(restRequest, channel, new ThreadContext(Settings.EMPTY));
+
+        assertTrue(channel.getSendResponseCalled());
+        assertFalse("RestController must not consume request content", restRequest.isContentConsumed());
+    }
+
     public void testDispatchBadRequestUnknownCause() {
         final FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).build();
         final AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.BAD_REQUEST);
@@ -469,6 +506,89 @@ public class RestControllerTests extends ESTestCase {
         assertTrue(channel.getSendResponseCalled());
         assertThat(channel.getRestResponse().content().utf8ToString(), containsString("unknown cause"));
     }
+
+    public void testFavicon() {
+        final FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
+            .withMethod(RestRequest.Method.GET)
+            .withPath("/favicon.ico")
+            .build();
+        final AssertingChannel channel = new AssertingChannel(fakeRestRequest, false, RestStatus.OK);
+        restController.dispatchRequest(fakeRestRequest, channel, new ThreadContext(Settings.EMPTY));
+        assertTrue(channel.getSendResponseCalled());
+        assertThat(channel.getRestResponse().contentType(), containsString("image/x-icon"));
+    }
+
+    public void testFaviconWithWrongHttpMethod() {
+        final FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
+            .withMethod(randomValueOtherThan(RestRequest.Method.GET, () -> randomFrom(RestRequest.Method.values())))
+            .withPath("/favicon.ico")
+            .build();
+        final AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.METHOD_NOT_ALLOWED);
+        restController.dispatchRequest(fakeRestRequest, channel, new ThreadContext(Settings.EMPTY));
+        assertTrue(channel.getSendResponseCalled());
+        assertThat(channel.getRestResponse().getHeaders().containsKey("Allow"), equalTo(true));
+        assertThat(channel.getRestResponse().getHeaders().get("Allow"), hasItem(equalTo(RestRequest.Method.GET.toString())));
+    }
+
+    public void testDispatchUnsupportedHttpMethod() {
+        final boolean hasContent = randomBoolean();
+        final RestRequest request = RestRequest.request(xContentRegistry(), new HttpRequest() {
+            @Override
+            public RestRequest.Method method() {
+                throw new IllegalArgumentException("test");
+            }
+
+            @Override
+            public String uri() {
+                return "/";
+            }
+
+            @Override
+            public BytesReference content() {
+                if (hasContent) {
+                    return new BytesArray("test");
+                }
+                return BytesArray.EMPTY;
+            }
+
+            @Override
+            public Map<String, List<String>> getHeaders() {
+                Map<String, List<String>> headers = new HashMap<>();
+                if (hasContent) {
+                    headers.put("Content-Type", Collections.singletonList("text/plain"));
+                }
+                return headers;
+            }
+
+            @Override
+            public List<String> strictCookies() {
+                return null;
+            }
+
+            @Override
+            public HttpVersion protocolVersion() {
+                return randomFrom(HttpVersion.values());
+            }
+
+            @Override
+            public HttpRequest removeHeader(String header) {
+                return this;
+            }
+
+            @Override
+            public HttpResponse createResponse(RestStatus status, BytesReference content) {
+                return null;
+            }
+        }, null);
+
+        final AssertingChannel channel = new AssertingChannel(request, true, RestStatus.METHOD_NOT_ALLOWED);
+        assertFalse(channel.getSendResponseCalled());
+        restController.dispatchRequest(request, channel, new ThreadContext(Settings.EMPTY));
+        assertTrue(channel.getSendResponseCalled());
+        assertThat(channel.getRestResponse().getHeaders().containsKey("Allow"), equalTo(true));
+        assertThat(channel.getRestResponse().getHeaders().get("Allow"), hasItem(equalTo(RestRequest.Method.GET.toString())));
+    }
+
 
     private static final class TestHttpServerTransport extends AbstractLifecycleComponent implements
         HttpServerTransport {

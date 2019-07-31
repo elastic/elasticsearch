@@ -40,7 +40,6 @@ import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.bulk.BackoffPolicy;
-import org.elasticsearch.index.reindex.ScrollableHitSource.Response;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.HeapBufferedAsyncResponseConsumer;
 import org.elasticsearch.client.RestClient;
@@ -53,6 +52,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.index.reindex.ScrollableHitSource.Response;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
@@ -123,41 +123,20 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
     }
 
     public void testLookupRemoteVersion() throws Exception {
+        assertLookupRemoteVersion(Version.fromString("0.20.5"), "main/0_20_5.json");
+        assertLookupRemoteVersion(Version.fromString("0.90.13"), "main/0_90_13.json");
+        assertLookupRemoteVersion(Version.fromString("1.7.5"), "main/1_7_5.json");
+        assertLookupRemoteVersion(Version.fromId(2030399), "main/2_3_3.json");
+        // assert for V_5_0_0 (no qualifier) since we no longer consider qualifier in Version since 7
+        assertLookupRemoteVersion(Version.fromId(5000099), "main/5_0_0_alpha_3.json");
+        // V_5_0_0 since we no longer consider qualifier in Version
+        assertLookupRemoteVersion(Version.fromId(5000099), "main/with_unknown_fields.json");
+    }
+
+    private void assertLookupRemoteVersion(Version expected, String s) throws Exception {
         AtomicBoolean called = new AtomicBoolean();
-        sourceWithMockedRemoteCall(false, ContentType.APPLICATION_JSON, "main/0_20_5.json").lookupRemoteVersion(v -> {
-            assertEquals(Version.fromString("0.20.5"), v);
-            called.set(true);
-        });
-        assertTrue(called.get());
-        called.set(false);
-        sourceWithMockedRemoteCall(false, ContentType.APPLICATION_JSON, "main/0_90_13.json").lookupRemoteVersion(v -> {
-            assertEquals(Version.fromString("0.90.13"), v);
-            called.set(true);
-        });
-        assertTrue(called.get());
-        called.set(false);
-        sourceWithMockedRemoteCall(false, ContentType.APPLICATION_JSON, "main/1_7_5.json").lookupRemoteVersion(v -> {
-            assertEquals(Version.fromString("1.7.5"), v);
-            called.set(true);
-        });
-        assertTrue(called.get());
-        called.set(false);
-        sourceWithMockedRemoteCall(false, ContentType.APPLICATION_JSON, "main/2_3_3.json").lookupRemoteVersion(v -> {
-            assertEquals(Version.fromId(2030399), v);
-            called.set(true);
-        });
-        assertTrue(called.get());
-        called.set(false);
-        sourceWithMockedRemoteCall(false, ContentType.APPLICATION_JSON, "main/5_0_0_alpha_3.json").lookupRemoteVersion(v -> {
-            // assert for V_5_0_0 (no qualifier) since we no longer consider qualifier in Version since 7
-            assertEquals(Version.fromId(5000099), v);
-            called.set(true);
-        });
-        assertTrue(called.get());
-        called.set(false);
-        sourceWithMockedRemoteCall(false, ContentType.APPLICATION_JSON, "main/with_unknown_fields.json").lookupRemoteVersion(v -> {
-            // V_5_0_0 since we no longer consider qualifier in Version
-            assertEquals(Version.fromId(5000099), v);
+        sourceWithMockedRemoteCall(false, ContentType.APPLICATION_JSON, s).lookupRemoteVersion(v -> {
+            assertEquals(expected, v);
             called.set(true);
         });
         assertTrue(called.get());
@@ -593,7 +572,7 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
     private class TestRemoteScrollableHitSource extends RemoteScrollableHitSource {
         TestRemoteScrollableHitSource(RestClient client) {
             super(RemoteScrollableHitSourceTests.this.logger, backoff(), RemoteScrollableHitSourceTests.this.threadPool,
-                    RemoteScrollableHitSourceTests.this::countRetry, RemoteScrollableHitSourceTests.this::failRequest, client,
+                    RemoteScrollableHitSourceTests.this::countRetry, r -> fail(), RemoteScrollableHitSourceTests.this::failRequest, client,
                     new BytesArray("{}"), RemoteScrollableHitSourceTests.this.searchRequest);
         }
     }

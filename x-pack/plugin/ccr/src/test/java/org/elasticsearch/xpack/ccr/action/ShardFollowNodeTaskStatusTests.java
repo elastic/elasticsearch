@@ -59,6 +59,7 @@ public class ShardFollowNodeTaskStatusTests extends AbstractSerializingTestCase<
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
+                randomNonNegativeLong(),
                 randomReadExceptions(),
                 randomLong(),
                 randomBoolean() ? new ElasticsearchException("fatal error") : null);
@@ -80,6 +81,7 @@ public class ShardFollowNodeTaskStatusTests extends AbstractSerializingTestCase<
         assertThat(newInstance.writeBufferOperationCount(), equalTo(expectedInstance.writeBufferOperationCount()));
         assertThat(newInstance.followerMappingVersion(), equalTo(expectedInstance.followerMappingVersion()));
         assertThat(newInstance.followerSettingsVersion(), equalTo(expectedInstance.followerSettingsVersion()));
+        assertThat(newInstance.followerAliasesVersion(), equalTo(expectedInstance.followerAliasesVersion()));
         assertThat(newInstance.totalReadTimeMillis(), equalTo(expectedInstance.totalReadTimeMillis()));
         assertThat(newInstance.successfulReadRequests(), equalTo(expectedInstance.successfulReadRequests()));
         assertThat(newInstance.failedReadRequests(), equalTo(expectedInstance.failedReadRequests()));

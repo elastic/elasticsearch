@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.ml.datafeed;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -31,9 +30,10 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
+import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.core.ml.utils.XContentObjectTransformer;
-import org.elasticsearch.xpack.core.ml.utils.time.TimeUtils;
+import org.elasticsearch.xpack.core.common.time.TimeUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -123,7 +123,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         parser.declareString((builder, val) ->
             builder.setFrequency(TimeValue.parseTimeValue(val, FREQUENCY.getPreferredName())), FREQUENCY);
         parser.declareObject(Builder::setQueryProvider,
-            (p, c) -> QueryProvider.fromXContent(p, ignoreUnknownFields),
+            (p, c) -> QueryProvider.fromXContent(p, ignoreUnknownFields, Messages.DATAFEED_CONFIG_QUERY_BAD_FORMAT),
             QUERY);
         parser.declareObject(Builder::setAggregationsSafe,
             (p, c) -> AggProvider.fromXContent(p, ignoreUnknownFields),
@@ -204,12 +204,6 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         } else {
             this.indices = null;
         }
-        // This consumes the list of types if there was one.
-        if (in.getVersion().before(Version.V_7_0_0)) {
-            if (in.readBoolean()) {
-                in.readStringList();
-            }
-        }
         // each of these writables are version aware
         this.queryProvider = QueryProvider.fromStream(in);
         // This reads a boolean from the stream, if true, it sends the stream to the `fromStream` method
@@ -222,16 +216,8 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         }
         this.scrollSize = in.readOptionalVInt();
         this.chunkingConfig = in.readOptionalWriteable(ChunkingConfig::new);
-        if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
-            this.headers = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readString));
-        } else {
-            this.headers = Collections.emptyMap();
-        }
-        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
-            delayedDataCheckConfig = in.readOptionalWriteable(DelayedDataCheckConfig::new);
-        } else {
-            delayedDataCheckConfig = DelayedDataCheckConfig.defaultDelayedDataCheckConfig();
-        }
+        this.headers = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readString));
+        delayedDataCheckConfig = in.readOptionalWriteable(DelayedDataCheckConfig::new);
     }
 
     /**
@@ -412,12 +398,6 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         } else {
             out.writeBoolean(false);
         }
-        // Write the now removed types to prior versions.
-        // An empty list is expected
-        if (out.getVersion().before(Version.V_7_0_0)) {
-            out.writeBoolean(true);
-            out.writeStringCollection(Collections.emptyList());
-        }
 
         // Each of these writables are version aware
         queryProvider.writeTo(out); // never null
@@ -432,12 +412,8 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         }
         out.writeOptionalVInt(scrollSize);
         out.writeOptionalWriteable(chunkingConfig);
-        if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
-            out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
-        }
-        if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
-            out.writeOptionalWriteable(delayedDataCheckConfig);
-        }
+        out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeOptionalWriteable(delayedDataCheckConfig);
     }
 
     @Override

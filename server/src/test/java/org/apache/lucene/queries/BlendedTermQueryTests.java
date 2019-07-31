@@ -227,4 +227,34 @@ public class BlendedTermQueryTests extends ESTestCase {
         assertThat(extracted.size(), equalTo(terms.size()));
         assertThat(extracted, containsInAnyOrder(terms.toArray(new Term[0])));
     }
+
+    public void testMinTTF() throws IOException {
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(new MockAnalyzer(random())));
+        FieldType ft = new FieldType(TextField.TYPE_NOT_STORED);
+        ft.freeze();
+
+        for (int i = 0; i < 10; i++) {
+            Document d = new Document();
+            d.add(new TextField("id", Integer.toString(i), Field.Store.YES));
+            d.add(new Field("dense", "foo foo foo", ft));
+            if (i % 10 == 0) {
+                d.add(new Field("sparse", "foo", ft));
+            }
+            w.addDocument(d);
+        }
+        w.commit();
+        DirectoryReader reader = DirectoryReader.open(w);
+        IndexSearcher searcher = setSimilarity(newSearcher(reader));
+        {
+            String[] fields = new String[]{"dense", "sparse"};
+            Query query = BlendedTermQuery.dismaxBlendedQuery(toTerms(fields, "foo"), 0.1f);
+            TopDocs search = searcher.search(query, 10);
+            ScoreDoc[] scoreDocs = search.scoreDocs;
+            assertEquals(Integer.toString(0), reader.document(scoreDocs[0].doc).getField("id").stringValue());
+        }
+        reader.close();
+        w.close();
+        dir.close();
+    }
 }

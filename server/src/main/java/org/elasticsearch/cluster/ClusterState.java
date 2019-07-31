@@ -23,7 +23,6 @@ import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.Version;
-import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData;
@@ -65,8 +64,9 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.StreamSupport;
 
 /**
  * Represents the current state of the cluster.
@@ -94,51 +94,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
 
     public static final ClusterState EMPTY_STATE = builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).build();
 
-    /**
-     * An interface that implementors use when a class requires a client to maybe have a feature.
-     */
-    public interface FeatureAware {
-
-        /**
-         * An optional feature that is required for the client to have.
-         *
-         * @return an empty optional if no feature is required otherwise a string representing the required feature
-         */
-        default Optional<String> getRequiredFeature() {
-            return Optional.empty();
-        }
-
-        /**
-         * Tests whether or not the custom should be serialized. The criteria are:
-         * <ul>
-         * <li>the output stream must be at least the minimum supported version of the custom</li>
-         * <li>the output stream must have the feature required by the custom (if any) or not be a transport client</li>
-         * </ul>
-         * <p>
-         * That is, we only serialize customs to clients than can understand the custom based on the version of the client and the features
-         * that the client has. For transport clients we can be lenient in requiring a feature in which case we do not send the custom but
-         * for connected nodes we always require that the node has the required feature.
-         *
-         * @param out    the output stream
-         * @param custom the custom to serialize
-         * @param <T>    the type of the custom
-         * @return true if the custom should be serialized and false otherwise
-         */
-        static <T extends VersionedNamedWriteable & FeatureAware> boolean shouldSerialize(final StreamOutput out, final T custom) {
-            if (out.getVersion().before(custom.getMinimalSupportedVersion())) {
-                return false;
-            }
-            if (custom.getRequiredFeature().isPresent()) {
-                final String requiredFeature = custom.getRequiredFeature().get();
-                // if it is a transport client we are lenient yet for a connected node it must have the required feature
-                return out.hasFeature(requiredFeature) || out.hasFeature(TransportClient.TRANSPORT_CLIENT_FEATURE) == false;
-            }
-            return true;
-        }
-
-    }
-
-    public interface Custom extends NamedDiffable<Custom>, ToXContentFragment, FeatureAware {
+    public interface Custom extends NamedDiffable<Custom>, ToXContentFragment {
 
         /**
          * Returns <code>true</code> iff this {@link Custom} is private to the cluster and should never be send to a client.
@@ -295,7 +251,8 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
     public String toString() {
         StringBuilder sb = new StringBuilder();
         final String TAB = "   ";
-        sb.append("cluster uuid: ").append(metaData.clusterUUID()).append("\n");
+        sb.append("cluster uuid: ").append(metaData.clusterUUID())
+            .append(" [committed: ").append(metaData.clusterUUIDCommitted()).append("]").append("\n");
         sb.append("version: ").append(version).append("\n");
         sb.append("state uuid: ").append(stateUUID).append("\n");
         sb.append("from_diff: ").append(wasReadFromDiff).append("\n");
@@ -701,7 +658,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         }
 
         public Builder putCustom(String type, Custom custom) {
-            customs.put(type, custom);
+            customs.put(type, Objects.requireNonNull(custom, type));
             return this;
         }
 
@@ -711,6 +668,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         }
 
         public Builder customs(ImmutableOpenMap<String, Custom> customs) {
+            StreamSupport.stream(customs.spliterator(), false).forEach(cursor -> Objects.requireNonNull(cursor.value, cursor.key));
             this.customs.putAll(customs);
             return this;
         }
@@ -785,13 +743,13 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         // filter out custom states not supported by the other node
         int numberOfCustoms = 0;
         for (final ObjectCursor<Custom> cursor : customs.values()) {
-            if (FeatureAware.shouldSerialize(out, cursor.value)) {
+            if (VersionedNamedWriteable.shouldSerialize(out, cursor.value)) {
                 numberOfCustoms++;
             }
         }
         out.writeVInt(numberOfCustoms);
         for (final ObjectCursor<Custom> cursor : customs.values()) {
-            if (FeatureAware.shouldSerialize(out, cursor.value)) {
+            if (VersionedNamedWriteable.shouldSerialize(out, cursor.value)) {
                 out.writeNamedWriteable(cursor.value);
             }
         }

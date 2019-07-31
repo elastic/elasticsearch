@@ -42,8 +42,8 @@
 ---
 "Indices recovery test for closed index":
   - skip:
-      version: " - 7.0.99"
-      reason: closed indices are replicated starting version 7.1.0
+      version: " - 7.1.99"
+      reason: closed indices are replicated starting version 7.2.0
 
   - do:
       indices.create:
@@ -130,3 +130,28 @@
         index: [v*]
 
   - match: { $body: {} }
+---
+"Indices recovery test with detailed parameter":
+  - skip:
+      version: " - 7.2.99"
+      reason: bug with detailed parameter fixed in 7.3
+
+  - do:
+      indices.create:
+        index:  test_3
+        body:
+          settings:
+            index:
+              number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      indices.recovery:
+        index: [test_3]
+        human: true
+        detailed: true
+
+  - match: { test_3.shards.0.index.files.details: [] }

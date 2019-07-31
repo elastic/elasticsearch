@@ -56,6 +56,19 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         PARSER.declareStringArray(fromList(String.class, FieldCapabilitiesRequest::fields), FIELDS_FIELD);
     }
 
+    public FieldCapabilitiesRequest(StreamInput in) throws IOException {
+        super(in);
+        fields = in.readStringArray();
+        indices = in.readStringArray();
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
+        mergeResults = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
+            includeUnmapped = in.readBoolean();
+        } else {
+            includeUnmapped = false;
+        }
+    }
+
     public FieldCapabilitiesRequest() {}
 
     /**
@@ -78,27 +91,13 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        fields = in.readStringArray();
-        indices = in.readStringArray();
-        indicesOptions = IndicesOptions.readIndicesOptions(in);
-        mergeResults = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_7_1_0)) {
-            includeUnmapped = in.readBoolean();
-        } else {
-            includeUnmapped = false;
-        }
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArray(fields);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
         out.writeBoolean(mergeResults);
-        if (out.getVersion().onOrAfter(Version.V_7_1_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
             out.writeBoolean(includeUnmapped);
         }
     }

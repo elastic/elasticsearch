@@ -5,20 +5,15 @@
  */
 package org.elasticsearch.license;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 
-public class PutLicenseAction extends Action<PutLicenseResponse> {
+public class PutLicenseAction extends ActionType<PutLicenseResponse> {
 
     public static final PutLicenseAction INSTANCE = new PutLicenseAction();
     public static final String NAME = "cluster:admin/xpack/license/put";
 
     private PutLicenseAction() {
-        super(NAME);
-    }
-
-    @Override
-    public PutLicenseResponse newResponse() {
-        return new PutLicenseResponse();
+        super(NAME, PutLicenseResponse::new);
     }
 }

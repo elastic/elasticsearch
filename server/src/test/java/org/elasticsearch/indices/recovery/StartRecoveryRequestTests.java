@@ -65,8 +65,7 @@ public class StartRecoveryRequestTests extends ESTestCase {
         final ByteArrayInputStream inBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
         InputStreamStreamInput in = new InputStreamStreamInput(inBuffer);
         in.setVersion(targetNodeVersion);
-        final StartRecoveryRequest inRequest = new StartRecoveryRequest();
-        inRequest.readFrom(in);
+        final StartRecoveryRequest inRequest = new StartRecoveryRequest(in);
 
         assertThat(outRequest.shardId(), equalTo(inRequest.shardId()));
         assertThat(outRequest.targetAllocationId(), equalTo(inRequest.targetAllocationId()));
@@ -75,11 +74,7 @@ public class StartRecoveryRequestTests extends ESTestCase {
         assertThat(outRequest.metadataSnapshot().asMap(), equalTo(inRequest.metadataSnapshot().asMap()));
         assertThat(outRequest.isPrimaryRelocation(), equalTo(inRequest.isPrimaryRelocation()));
         assertThat(outRequest.recoveryId(), equalTo(inRequest.recoveryId()));
-        if (targetNodeVersion.onOrAfter(Version.V_6_0_0_alpha1)) {
-            assertThat(outRequest.startingSeqNo(), equalTo(inRequest.startingSeqNo()));
-        } else {
-            assertThat(SequenceNumbers.UNASSIGNED_SEQ_NO, equalTo(inRequest.startingSeqNo()));
-        }
+        assertThat(outRequest.startingSeqNo(), equalTo(inRequest.startingSeqNo()));
     }
 
 }

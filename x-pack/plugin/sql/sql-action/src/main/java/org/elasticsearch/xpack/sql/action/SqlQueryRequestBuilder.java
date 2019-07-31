@@ -25,15 +25,16 @@ public class SqlQueryRequestBuilder extends ActionRequestBuilder<SqlQueryRequest
 
     public SqlQueryRequestBuilder(ElasticsearchClient client, SqlQueryAction action) {
         this(client, action, "", Collections.emptyList(), null, Protocol.TIME_ZONE, Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT,
-            Protocol.PAGE_TIMEOUT, false, "", new RequestInfo(Mode.PLAIN), Protocol.FIELD_MULTI_VALUE_LENIENCY);
+            Protocol.PAGE_TIMEOUT, false, "", new RequestInfo(Mode.PLAIN), Protocol.FIELD_MULTI_VALUE_LENIENCY, 
+            Protocol.INDEX_INCLUDE_FROZEN);
     }
 
     public SqlQueryRequestBuilder(ElasticsearchClient client, SqlQueryAction action, String query, List<SqlTypedParamValue> params,
             QueryBuilder filter, ZoneId zoneId, int fetchSize, TimeValue requestTimeout,
             TimeValue pageTimeout, boolean columnar, String nextPageInfo, RequestInfo requestInfo,
-            boolean multiValueFieldLeniency) {
+            boolean multiValueFieldLeniency, boolean indexIncludeFrozen) {
         super(client, action, new SqlQueryRequest(query, params, filter, zoneId, fetchSize, requestTimeout, pageTimeout, columnar,
-                nextPageInfo, requestInfo, multiValueFieldLeniency));
+                nextPageInfo, requestInfo, multiValueFieldLeniency, indexIncludeFrozen));
     }
 
     public SqlQueryRequestBuilder query(String query) {

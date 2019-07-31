@@ -1,9 +1,9 @@
 {
   "clear_scroll": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/search-request-scroll.html",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/search-request-body.html#_clear_scroll_api",
+    "stability": "stable",
     "methods": ["DELETE"],
     "url": {
-      "path": "/_search/scroll",
       "paths": [ "/_search/scroll"],
       "deprecated_paths" : [
         {

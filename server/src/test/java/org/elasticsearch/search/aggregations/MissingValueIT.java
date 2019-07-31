@@ -158,7 +158,7 @@ public class MissingValueIT extends ESIntegTestCase {
     public void testDateHistogram() {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(
-                        dateHistogram("my_histogram").field("date").dateHistogramInterval(DateHistogramInterval.YEAR).missing("2014-05-07"))
+                        dateHistogram("my_histogram").field("date").calendarInterval(DateHistogramInterval.YEAR).missing("2014-05-07"))
                 .get();
         assertSearchResponse(response);
         Histogram histogram = response.getAggregations().get("my_histogram");
@@ -170,7 +170,7 @@ public class MissingValueIT extends ESIntegTestCase {
 
         response = client().prepareSearch("idx")
                 .addAggregation(
-                        dateHistogram("my_histogram").field("date").dateHistogramInterval(DateHistogramInterval.YEAR).missing("2015-05-07"))
+                        dateHistogram("my_histogram").field("date").calendarInterval(DateHistogramInterval.YEAR).missing("2015-05-07"))
                 .get();
         assertSearchResponse(response);
         histogram = response.getAggregations().get("my_histogram");

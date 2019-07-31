@@ -1,9 +1,9 @@
 {
   "indices.delete_alias": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-aliases.html",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-aliases.html",
+    "stability": "stable",
     "methods": ["DELETE"],
     "url": {
-      "path": "/{index}/_alias/{name}",
       "paths": ["/{index}/_alias/{name}", "/{index}/_aliases/{name}"],
       "parts": {
         "index": {

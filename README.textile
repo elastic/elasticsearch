@@ -150,13 +150,13 @@ curl -XPUT 'http://localhost:9200/kimchy/_doc/2?pretty' -H 'Content-Type: applic
 
 The above will index information into the @kimchy@ index. Each user will get their own special index.
 
-Complete control on the index level is allowed. As an example, in the above case, we would want to change from the default 5 shards with 1 replica per index, to only 1 shard with 1 replica per index (== per twitter user). Here is how this can be done (the configuration can be in yaml as well):
+Complete control on the index level is allowed. As an example, in the above case, we might want to change from the default 1 shard with 1 replica per index, to 2 shards with 1 replica per index (because this user tweets a lot). Here is how this can be done (the configuration can be in yaml as well):
 
 <pre>
 curl -XPUT http://localhost:9200/another_user?pretty -H 'Content-Type: application/json' -d '
 {
     "index" : {
-        "number_of_shards" : 1,
+        "number_of_shards" : 2,
         "number_of_replicas" : 1
     }
 }'
@@ -191,7 +191,7 @@ h3. Distributed, Highly Available
 
 Let's face it, things will fail....
 
-Elasticsearch is a highly available and distributed search engine. Each index is broken down into shards, and each shard can have one or more replicas. By default, an index is created with 5 shards and 1 replica per shard (5/1). There are many topologies that can be used, including 1/10 (improve search performance), or 20/1 (improve indexing performance, with search executed in a map reduce fashion across shards).
+Elasticsearch is a highly available and distributed search engine. Each index is broken down into shards, and each shard can have one or more replicas. By default, an index is created with 1 shards and 1 replica per shard (1/1). There are many topologies that can be used, including 1/10 (improve search performance), or 20/1 (improve indexing performance, with search executed in a map reduce fashion across shards).
 
 In order to play with the distributed nature of Elasticsearch, simply bring more nodes up and shut down nodes. The system will continue to serve requests (make sure you use the correct http port) with the latest data indexed.
 

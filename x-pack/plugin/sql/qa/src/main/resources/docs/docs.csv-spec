@@ -93,11 +93,11 @@ showTables
 // tag::showTables
 SHOW TABLES;
 
-     name      |     type      
----------------+---------------
-emp            |BASE TABLE     
-employees      |VIEW          
-library        |BASE TABLE 
+     name      |     type      |     kind      
+---------------+---------------+---------------
+emp            |BASE TABLE     |INDEX          
+employees      |VIEW           |ALIAS          
+library        |BASE TABLE     |INDEX    
 
 // end::showTables
 ;
@@ -106,9 +106,9 @@ showTablesLikeExact
 // tag::showTablesLikeExact
 SHOW TABLES LIKE 'emp';
 
-     name      |     type      
----------------+---------------
-emp            |BASE TABLE     
+     name      |     type      |     kind      
+---------------+---------------+---------------
+emp            |BASE TABLE     |INDEX    
 
 // end::showTablesLikeExact
 ;
@@ -117,10 +117,10 @@ showTablesLikeWildcard
 // tag::showTablesLikeWildcard
 SHOW TABLES LIKE 'emp%';
 
-     name      |     type      
----------------+---------------
-emp            |BASE TABLE     
-employees      |VIEW          
+     name      |     type      |     kind      
+---------------+---------------+---------------
+emp            |BASE TABLE     |INDEX          
+employees      |VIEW           |ALIAS             
 
 // end::showTablesLikeWildcard
 ;
@@ -130,9 +130,9 @@ showTablesLikeOneChar
 // tag::showTablesLikeOneChar
 SHOW TABLES LIKE 'em_';
 
-     name      |     type      
----------------+---------------
-emp            |BASE TABLE     
+     name      |     type      |     kind      
+---------------+---------------+---------------
+emp            |BASE TABLE     |INDEX     
 
 // end::showTablesLikeOneChar
 ;
@@ -141,20 +141,20 @@ showTablesLikeMixed
 // tag::showTablesLikeMixed
 SHOW TABLES LIKE '%em_';
 
-     name      |     type      
----------------+---------------
-emp            |BASE TABLE     
+     name      |     type      |     kind      
+---------------+---------------+---------------
+emp            |BASE TABLE     |INDEX        
 
 // end::showTablesLikeMixed
 ;
 
 showTablesLikeEscape
-schema::name:s|type:s
+schema::name:s|type:s|kind:s
 // tag::showTablesLikeEscape
 SHOW TABLES LIKE 'emp!%' ESCAPE '!';
 
-     name      |     type      
----------------+---------------
+     name      |     type      |     kind      
+---------------+---------------+---------------
 
 // end::showTablesLikeEscape
 ;
@@ -164,13 +164,32 @@ showTablesEsMultiIndex
 // tag::showTablesEsMultiIndex
 SHOW TABLES "*,-l*";
 
-     name      |     type      
----------------+---------------
-emp            |BASE TABLE     
-employees      |VIEW
+     name      |     type      |     kind      
+---------------+---------------+---------------
+emp            |BASE TABLE     |INDEX          
+employees      |VIEW           |ALIAS  
 
 // end::showTablesEsMultiIndex
 ;
+
+
+//
+// include FROZEN
+//
+showTablesIncludeFrozen
+// tag::showTablesIncludeFrozen
+SHOW TABLES INCLUDE FROZEN;
+
+     name      |     type      |     kind      
+---------------+---------------+---------------
+archive        |BASE TABLE     |FROZEN INDEX
+emp            |BASE TABLE     |INDEX          
+employees      |VIEW           |ALIAS          
+library        |BASE TABLE     |INDEX    
+
+// end::showTablesIncludeFrozen
+;
+
 
 ///////////////////////////////
 //
@@ -182,7 +201,7 @@ showFunctions
 // tag::showFunctions
 SHOW FUNCTIONS;
 
-      name       |     type      
+      name       |     type
 -----------------+---------------
 AVG              |AGGREGATE      
 COUNT            |AGGREGATE
@@ -306,13 +325,21 @@ RIGHT            |SCALAR
 RTRIM            |SCALAR         
 SPACE            |SCALAR         
 SUBSTRING        |SCALAR         
-UCASE            |SCALAR         
+UCASE            |SCALAR
 CAST             |SCALAR
 CONVERT          |SCALAR
 DATABASE         |SCALAR
 USER             |SCALAR
+ST_ASTEXT        |SCALAR
+ST_ASWKT         |SCALAR
+ST_DISTANCE      |SCALAR
+ST_GEOMETRYTYPE  |SCALAR
+ST_GEOMFROMTEXT  |SCALAR
+ST_WKTTOSQL      |SCALAR
+ST_X             |SCALAR
+ST_Y             |SCALAR
+ST_Z             |SCALAR
 SCORE            |SCORE
-
 // end::showFunctions
 ;
 
@@ -463,6 +490,17 @@ SELECT * FROM "emp" LIMIT 1;
 // end::fromTableQuoted
 ;
 
+fromTableIncludeFrozen
+// tag::fromTableIncludeFrozen
+SELECT * FROM FROZEN archive LIMIT 1;
+
+     author      |        name        |  page_count   |    release_date    
+-----------------+--------------------+---------------+--------------------
+James S.A. Corey |Leviathan Wakes     |561            |2011-06-02T00:00:00Z
+
+// end::fromTableIncludeFrozen
+;
+
 fromTableQuoted
 // tag::fromTablePatternQuoted
 SELECT emp_no FROM "e*p" LIMIT 1;
@@ -605,9 +643,9 @@ M              |57
 ;
 
 groupByAndAggExpression
-// tag::groupByAndAggExpression
 schema::g:s|salary:i
-SELECT gender AS g, ROUND( (MIN(salary) / 100) ) AS salary FROM emp GROUP BY gender;
+// tag::groupByAndAggExpression
+SELECT gender AS g, ROUND((MIN(salary) / 100)) AS salary FROM emp GROUP BY gender;
 
        g       |    salary     
 ---------------+---------------
@@ -963,12 +1001,13 @@ Frank Herbert  |God Emperor of Dune|7.0029488
 
 optionalParamsForMatch
 // tag::optionalParamsForMatch
-SELECT author, name, SCORE() FROM library WHERE MATCH(name, 'to the star', 'operator=or;cutoff_frequency=0.2');
+SELECT author, name, SCORE() FROM library WHERE MATCH(name, 'to the star', 'operator=OR;fuzziness=AUTO:1,5;minimum_should_match=1')
+ORDER BY SCORE() DESC LIMIT 2;
 
      author      |                name                |    SCORE()
 -----------------+------------------------------------+---------------
-Peter F. Hamilton|Pandora's Star                      |3.0997515
 Douglas Adams    |The Hitchhiker's Guide to the Galaxy|3.1756816
+Peter F. Hamilton|Pandora's Star                      |3.0997515
 
 // end::optionalParamsForMatch
 ;

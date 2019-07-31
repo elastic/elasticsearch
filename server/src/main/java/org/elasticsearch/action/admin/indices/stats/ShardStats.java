@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -34,7 +33,7 @@ import org.elasticsearch.index.shard.ShardPath;
 
 import java.io.IOException;
 
-public class ShardStats implements Streamable, Writeable, ToXContentFragment {
+public class ShardStats implements Writeable, ToXContentFragment {
 
     private ShardRouting shardRouting;
     private CommonStats commonStats;
@@ -59,7 +58,15 @@ public class ShardStats implements Streamable, Writeable, ToXContentFragment {
     private String statePath;
     private boolean isCustomDataPath;
 
-    ShardStats() {
+    public ShardStats(StreamInput in) throws IOException {
+        shardRouting = new ShardRouting(in);
+        commonStats = new CommonStats(in);
+        commitStats = CommitStats.readOptionalCommitStatsFrom(in);
+        statePath = in.readString();
+        dataPath = in.readString();
+        isCustomDataPath = in.readBoolean();
+        seqNoStats = in.readOptionalWriteable(SeqNoStats::new);
+        retentionLeaseStats = in.readOptionalWriteable(RetentionLeaseStats::new);
     }
 
     public ShardStats(
@@ -112,29 +119,11 @@ public class ShardStats implements Streamable, Writeable, ToXContentFragment {
         return isCustomDataPath;
     }
 
-    public static ShardStats readShardStats(StreamInput in) throws IOException {
-        ShardStats stats = new ShardStats();
-        stats.readFrom(in);
-        return stats;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        shardRouting = new ShardRouting(in);
-        commonStats = new CommonStats(in);
-        commitStats = CommitStats.readOptionalCommitStatsFrom(in);
-        statePath = in.readString();
-        dataPath = in.readString();
-        isCustomDataPath = in.readBoolean();
-        seqNoStats = in.readOptionalWriteable(SeqNoStats::new);
-        retentionLeaseStats = in.readOptionalWriteable(RetentionLeaseStats::new);
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         shardRouting.writeTo(out);
         commonStats.writeTo(out);
-        out.writeOptionalStreamable(commitStats);
+        out.writeOptionalWriteable(commitStats);
         out.writeString(statePath);
         out.writeString(dataPath);
         out.writeBoolean(isCustomDataPath);

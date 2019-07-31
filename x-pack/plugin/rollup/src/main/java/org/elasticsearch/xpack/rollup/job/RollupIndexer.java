@@ -97,15 +97,12 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
     @Override
     protected void onStart(long now, ActionListener<Void> listener) {
         try {
-            // this is needed to exclude buckets that can still receive new documents.
+            // this is needed to exclude buckets that can still receive new documents
             DateHistogramGroupConfig dateHisto = job.getConfig().getGroupConfig().getDateHistogram();
-            long rounded = dateHisto.createRounding().round(now);
-            if (dateHisto.getDelay() != null) {
-                // if the job has a delay we filter all documents that appear before it.
-                maxBoundary = rounded - TimeValue.parseTimeValue(dateHisto.getDelay().toString(), "").millis();
-            } else {
-                maxBoundary = rounded;
-            }
+            // if the job has a delay we filter all documents that appear before it
+            long delay = dateHisto.getDelay() != null ?
+                TimeValue.parseTimeValue(dateHisto.getDelay().toString(), "").millis() : 0;
+            maxBoundary = dateHisto.createRounding().round(now - delay);
             listener.onResponse(null);
         } catch (Exception e) {
             listener.onFailure(e);
@@ -127,6 +124,11 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
     @Override
     protected IterationResult<Map<String, Object>> doProcess(SearchResponse searchResponse) {
         final CompositeAggregation response = searchResponse.getAggregations().get(AGGREGATION_NAME);
+
+        if (response.getBuckets().isEmpty()) {
+            // do not reset the position as we want to continue from where we stopped
+            return new IterationResult<>(Collections.emptyList(), getPosition(), true);
+        }
 
         return new IterationResult<>(
                 IndexerUtils.processBuckets(response, job.getConfig().getRollupIndex(), getStats(),
@@ -217,7 +219,13 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
         final String dateHistogramField = dateHistogram.getField();
         final String dateHistogramName = RollupField.formatIndexerAggName(dateHistogramField, DateHistogramAggregationBuilder.NAME);
         final DateHistogramValuesSourceBuilder dateHistogramBuilder = new DateHistogramValuesSourceBuilder(dateHistogramName);
-        dateHistogramBuilder.dateHistogramInterval(dateHistogram.getInterval());
+        if (dateHistogram instanceof DateHistogramGroupConfig.FixedInterval) {
+            dateHistogramBuilder.fixedInterval(dateHistogram.getInterval());
+        } else if (dateHistogram instanceof DateHistogramGroupConfig.CalendarInterval) {
+            dateHistogramBuilder.calendarInterval(dateHistogram.getInterval());
+        } else {
+            dateHistogramBuilder.dateHistogramInterval(dateHistogram.getInterval());
+        }
         dateHistogramBuilder.field(dateHistogramField);
         dateHistogramBuilder.timeZone(ZoneId.of(dateHistogram.getTimeZone()));
         return Collections.singletonList(dateHistogramBuilder);

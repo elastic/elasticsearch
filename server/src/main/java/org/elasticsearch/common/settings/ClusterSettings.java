@@ -26,7 +26,6 @@ import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.bootstrap.BootstrapSettings;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.InternalClusterInfoService;
@@ -113,12 +112,12 @@ import java.util.function.Predicate;
  * Encapsulates all valid cluster level settings.
  */
 public final class ClusterSettings extends AbstractScopedSettings {
+
     public ClusterSettings(final Settings nodeSettings, final Set<Setting<?>> settingsSet) {
         this(nodeSettings, settingsSet, Collections.emptySet());
     }
 
-    public ClusterSettings(
-            final Settings nodeSettings, final Set<Setting<?>> settingsSet, final Set<SettingUpgrader<?>> settingUpgraders) {
+    public ClusterSettings(final Settings nodeSettings, final Set<Setting<?>> settingsSet, final Set<SettingUpgrader<?>> settingUpgraders) {
         super(nodeSettings, settingsSet, settingUpgraders, Property.NodeScope);
         addSettingsUpdater(new LoggingSettingUpdater(nodeSettings));
     }
@@ -176,11 +175,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
 
     public static Set<Setting<?>> BUILT_IN_CLUSTER_SETTINGS = Set.of(
             AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING,
-            // TODO these transport client settings are kind of odd here and should only be valid if we are a transport client
-            TransportClient.CLIENT_TRANSPORT_NODES_SAMPLER_INTERVAL,
-            TransportClient.CLIENT_TRANSPORT_PING_TIMEOUT,
-            TransportClient.CLIENT_TRANSPORT_IGNORE_CLUSTER_NAME,
-            TransportClient.CLIENT_TRANSPORT_SNIFF,
             AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING,
             BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING,
             BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING,
@@ -280,19 +274,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
             SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS,
             TransportSearchAction.SHARD_COUNT_LIMIT_SETTING,
             RemoteClusterAware.REMOTE_CLUSTERS_SEEDS,
-            RemoteClusterAware.SEARCH_REMOTE_CLUSTERS_SEEDS,
             RemoteClusterAware.REMOTE_CLUSTERS_PROXY,
-            RemoteClusterAware.SEARCH_REMOTE_CLUSTERS_PROXY,
             RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE,
-            RemoteClusterService.SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE,
             RemoteClusterService.REMOTE_CONNECTIONS_PER_CLUSTER,
-            RemoteClusterService.SEARCH_REMOTE_CONNECTIONS_PER_CLUSTER,
             RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING,
-            RemoteClusterService.SEARCH_REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING,
             RemoteClusterService.REMOTE_NODE_ATTRIBUTE,
-            RemoteClusterService.SEARCH_REMOTE_NODE_ATTRIBUTE,
             RemoteClusterService.ENABLE_REMOTE_CLUSTERS,
-            RemoteClusterService.SEARCH_ENABLE_REMOTE_CLUSTERS,
             RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE,
             RemoteClusterService.REMOTE_CLUSTER_COMPRESS,
             TransportCloseIndexAction.CLUSTER_INDICES_CLOSE_ENABLE_SETTING,
@@ -365,6 +352,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             Node.INITIAL_STATE_TIMEOUT_SETTING,
             DiscoveryModule.DISCOVERY_TYPE_SETTING,
             DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING,
+            DiscoveryModule.ELECTION_STRATEGY_SETTING,
             SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING,
             SeedHostsResolver.DISCOVERY_SEED_RESOLVER_MAX_CONCURRENT_RESOLVERS_SETTING,
             SeedHostsResolver.DISCOVERY_SEED_RESOLVER_TIMEOUT_SETTING,
@@ -390,7 +378,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
             ThreadContext.DEFAULT_HEADERS_SETTING,
             Loggers.LOG_DEFAULT_LEVEL_SETTING,
             Loggers.LOG_LEVEL_SETTING,
-            NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING,
             NodeEnvironment.ENABLE_LUCENE_SEGMENT_INFOS_TRACE_SETTING,
             OsService.REFRESH_INTERVAL_SETTING,
             ProcessService.REFRESH_INTERVAL_SETTING,
@@ -452,9 +439,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
             ClusterBootstrapService.UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING,
             LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING);
 
-    static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = List.of(
-            RemoteClusterAware.SEARCH_REMOTE_CLUSTER_SEEDS_UPGRADER,
-            RemoteClusterAware.SEARCH_REMOTE_CLUSTERS_PROXY_UPGRADER,
-            RemoteClusterService.SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE_UPGRADER);
+    static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();
 
 }

@@ -18,14 +18,33 @@
  */
 package org.elasticsearch.gradle.tool;
 
+import org.gradle.api.Action;
+import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.api.plugins.JavaPluginConvention;
 import org.gradle.api.tasks.SourceSetContainer;
+
+import java.util.Optional;
 
 public abstract class Boilerplate {
 
     public static SourceSetContainer getJavaSourceSets(Project project) {
         return project.getConvention().getPlugin(JavaPluginConvention.class).getSourceSets();
+    }
+
+    public static <T> T maybeCreate(NamedDomainObjectContainer<T> collection, String name) {
+        return Optional.ofNullable(collection.findByName(name))
+            .orElse(collection.create(name));
+
+    }
+    public static <T> T maybeCreate(NamedDomainObjectContainer<T> collection, String name, Action<T> action) {
+        return Optional.ofNullable(collection.findByName(name))
+            .orElseGet(() -> {
+                T result = collection.create(name);
+                action.execute(result);
+                return result;
+            });
+
     }
 
 }

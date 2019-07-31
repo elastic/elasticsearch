@@ -186,7 +186,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
              * it. This is the same sort of dance that TransportIndexRequest
              * uses to decide to autocreate the index.
              */
-            target = indexNameExpressionResolver.concreteIndexNames(clusterState, destination)[0];
+            target = indexNameExpressionResolver.concreteWriteIndex(clusterState, destination).getName();
         }
         for (String sourceIndex : indexNameExpressionResolver.concreteIndexNames(clusterState, source)) {
             if (sourceIndex.equals(target)) {
@@ -279,7 +279,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
                 RemoteInfo remoteInfo = mainRequest.getRemoteInfo();
                 createdThreads = synchronizedList(new ArrayList<>());
                 RestClient restClient = buildRestClient(remoteInfo, mainAction.sslConfig, task.getId(), createdThreads);
-                return new RemoteScrollableHitSource(logger, backoffPolicy, threadPool, worker::countSearchRetry, this::finishHim,
+                return new RemoteScrollableHitSource(logger, backoffPolicy, threadPool, worker::countSearchRetry,
+                    this::onScrollResponse, this::finishHim,
                     restClient, remoteInfo.getQuery(), mainRequest.getSearchRequest());
             }
             return super.buildScrollableResultSource(backoffPolicy);

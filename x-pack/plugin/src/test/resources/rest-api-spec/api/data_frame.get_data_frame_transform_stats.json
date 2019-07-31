@@ -1,9 +1,9 @@
 {
   "data_frame.get_data_frame_transform_stats": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/get-data-frame-transform-stats.html",
+    "stability": "beta",
     "methods": [ "GET" ],
     "url": {
-      "path": "/_data_frame/transforms/{transform_id}/_stats",
       "paths": [ "/_data_frame/transforms/{transform_id}/_stats" ],
       "parts": {
         "transform_id": {
@@ -22,6 +22,11 @@
           "type": "number",
           "required": false,
           "description": "specifies a max number of transform stats to get, defaults to 100"
+        },
+        "allow_no_match": {
+          "type": "boolean",
+          "required": false,
+          "description": "Whether to ignore if a wildcard expression matches no data frame transforms. (This includes `_all` string or when no data frame transforms have been specified)"
         }
       }
     },

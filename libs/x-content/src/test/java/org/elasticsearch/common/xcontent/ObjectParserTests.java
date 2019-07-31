@@ -33,7 +33,9 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
@@ -732,5 +734,42 @@ public class ObjectParserTests extends ESTestCase {
         public void setFoo(int foo) {
             this.foo = foo;
         }
+    }
+
+    private static class ObjectWithArbitraryFields {
+        String name;
+        Map<String, Object> fields = new HashMap<>();
+        void setField(String key, Object value) {
+            fields.put(key, value);
+        }
+        void setName(String name) {
+            this.name = name;
+        }
+    }
+
+    public void testConsumeUnknownFields() throws IOException {
+        XContentParser parser = createParser(JsonXContent.jsonXContent,
+            "{\n"
+                + "  \"test\" : \"foo\",\n"
+                + "  \"test_number\" : 2,\n"
+                + "  \"name\" : \"geoff\",\n"
+                + "  \"test_boolean\" : true,\n"
+                + "  \"test_null\" : null,\n"
+                + "  \"test_array\":  [1,2,3,4],\n"
+                + "  \"test_nested\": { \"field\" : \"value\", \"field2\" : [ \"list1\", \"list2\" ] }\n"
+                + "}");
+        ObjectParser<ObjectWithArbitraryFields, Void> op
+            = new ObjectParser<>("unknown", ObjectWithArbitraryFields::setField, ObjectWithArbitraryFields::new);
+        op.declareString(ObjectWithArbitraryFields::setName, new ParseField("name"));
+
+        ObjectWithArbitraryFields o = op.parse(parser, null);
+        assertEquals("geoff", o.name);
+        assertEquals(6, o.fields.size());
+        assertEquals("foo", o.fields.get("test"));
+        assertEquals(2, o.fields.get("test_number"));
+        assertEquals(true, o.fields.get("test_boolean"));
+        assertNull(o.fields.get("test_null"));
+        assertEquals(List.of(1, 2, 3, 4), o.fields.get("test_array"));
+        assertEquals(Map.of("field", "value", "field2", List.of("list1", "list2")), o.fields.get("test_nested"));
     }
 }

@@ -23,6 +23,7 @@ import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
+import org.elasticsearch.client.core.PageParams;
 import org.elasticsearch.client.dataframe.DeleteDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.GetDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.GetDataFrameTransformStatsRequest;
@@ -36,6 +37,9 @@ import java.io.IOException;
 
 import static org.elasticsearch.client.RequestConverters.REQUEST_BODY_CONTENT_TYPE;
 import static org.elasticsearch.client.RequestConverters.createEntity;
+import static org.elasticsearch.client.dataframe.DeleteDataFrameTransformRequest.FORCE;
+import static org.elasticsearch.client.dataframe.GetDataFrameTransformRequest.ALLOW_NO_MATCH;
+import static org.elasticsearch.client.dataframe.PutDataFrameTransformRequest.DEFER_VALIDATION;
 
 final class DataFrameRequestConverters {
 
@@ -48,6 +52,9 @@ final class DataFrameRequestConverters {
                 .build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
         request.setEntity(createEntity(putRequest, REQUEST_BODY_CONTENT_TYPE));
+        if (putRequest.getDeferValidation() != null) {
+            request.addParameter(DEFER_VALIDATION, Boolean.toString(putRequest.getDeferValidation()));
+        }
         return request;
     }
 
@@ -57,21 +64,28 @@ final class DataFrameRequestConverters {
                 .addPathPart(Strings.collectionToCommaDelimitedString(getRequest.getId()))
                 .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
-        if (getRequest.getFrom() != null) {
-            request.addParameter("from", getRequest.getFrom().toString());
+        if (getRequest.getPageParams() != null && getRequest.getPageParams().getFrom() != null) {
+            request.addParameter(PageParams.FROM.getPreferredName(), getRequest.getPageParams().getFrom().toString());
         }
-        if (getRequest.getSize() != null) {
-            request.addParameter("size", getRequest.getSize().toString());
+        if (getRequest.getPageParams() != null && getRequest.getPageParams().getSize() != null) {
+            request.addParameter(PageParams.SIZE.getPreferredName(), getRequest.getPageParams().getSize().toString());
+        }
+        if (getRequest.getAllowNoMatch() != null) {
+            request.addParameter(ALLOW_NO_MATCH, getRequest.getAllowNoMatch().toString());
         }
         return request;
     }
 
-    static Request deleteDataFrameTransform(DeleteDataFrameTransformRequest request) {
+    static Request deleteDataFrameTransform(DeleteDataFrameTransformRequest deleteRequest) {
         String endpoint = new RequestConverters.EndpointBuilder()
                 .addPathPartAsIs("_data_frame", "transforms")
-                .addPathPart(request.getId())
+                .addPathPart(deleteRequest.getId())
                 .build();
-        return new Request(HttpDelete.METHOD_NAME, endpoint);
+        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+        if (deleteRequest.getForce() != null) {
+            request.addParameter(FORCE, Boolean.toString(deleteRequest.getForce()));
+        }
+        return request;
     }
 
     static Request startDataFrameTransform(StartDataFrameTransformRequest startRequest) {
@@ -81,28 +95,33 @@ final class DataFrameRequestConverters {
                 .addPathPartAsIs("_start")
                 .build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        RequestConverters.Params params = new RequestConverters.Params(request);
+        RequestConverters.Params params = new RequestConverters.Params();
         if (startRequest.getTimeout() != null) {
             params.withTimeout(startRequest.getTimeout());
         }
+        request.addParameters(params.asMap());
         return request;
     }
 
     static Request stopDataFrameTransform(StopDataFrameTransformRequest stopRequest) {
-            String endpoint = new RequestConverters.EndpointBuilder()
-                    .addPathPartAsIs("_data_frame", "transforms")
-                    .addPathPart(stopRequest.getId())
-                    .addPathPartAsIs("_stop")
-                    .build();
-            Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-            RequestConverters.Params params = new RequestConverters.Params(request);
-            if (stopRequest.getWaitForCompletion() != null) {
-                params.withWaitForCompletion(stopRequest.getWaitForCompletion());
-            }
-            if (stopRequest.getTimeout() != null) {
-                params.withTimeout(stopRequest.getTimeout());
-            }
-            return request;
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_data_frame", "transforms")
+            .addPathPart(stopRequest.getId())
+            .addPathPartAsIs("_stop")
+            .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        RequestConverters.Params params = new RequestConverters.Params();
+        if (stopRequest.getWaitForCompletion() != null) {
+            params.withWaitForCompletion(stopRequest.getWaitForCompletion());
+        }
+        if (stopRequest.getTimeout() != null) {
+            params.withTimeout(stopRequest.getTimeout());
+        }
+        if (stopRequest.getAllowNoMatch() != null) {
+            request.addParameter(ALLOW_NO_MATCH, stopRequest.getAllowNoMatch().toString());
+        }
+        request.addParameters(params.asMap());
+        return request;
     }
 
     static Request previewDataFrameTransform(PreviewDataFrameTransformRequest previewRequest) throws IOException {
@@ -120,6 +139,16 @@ final class DataFrameRequestConverters {
                 .addPathPart(statsRequest.getId())
                 .addPathPartAsIs("_stats")
                 .build();
-        return new Request(HttpGet.METHOD_NAME, endpoint);
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        if (statsRequest.getPageParams() != null && statsRequest.getPageParams().getFrom() != null) {
+            request.addParameter(PageParams.FROM.getPreferredName(), statsRequest.getPageParams().getFrom().toString());
+        }
+        if (statsRequest.getPageParams() != null && statsRequest.getPageParams().getSize() != null) {
+            request.addParameter(PageParams.SIZE.getPreferredName(), statsRequest.getPageParams().getSize().toString());
+        }
+        if (statsRequest.getAllowNoMatch() != null) {
+            request.addParameter(ALLOW_NO_MATCH, statsRequest.getAllowNoMatch().toString());
+        }
+        return request;
     }
 }

@@ -42,6 +42,7 @@ import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.NodeService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -81,17 +82,17 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
     }
 
     @Override
-    protected ClusterStatsNodeRequest newNodeRequest(String nodeId, ClusterStatsRequest request) {
-        return new ClusterStatsNodeRequest(nodeId, request);
+    protected ClusterStatsNodeRequest newNodeRequest(ClusterStatsRequest request) {
+        return new ClusterStatsNodeRequest(request);
     }
 
     @Override
-    protected ClusterStatsNodeResponse newNodeResponse() {
-        return new ClusterStatsNodeResponse();
+    protected ClusterStatsNodeResponse newNodeResponse(StreamInput in) throws IOException {
+        return new ClusterStatsNodeResponse(in);
     }
 
     @Override
-    protected ClusterStatsNodeResponse nodeOperation(ClusterStatsNodeRequest nodeRequest) {
+    protected ClusterStatsNodeResponse nodeOperation(ClusterStatsNodeRequest nodeRequest, Task task) {
         NodeInfo nodeInfo = nodeService.info(true, true, false, true, false, true, false, true, false, false);
         NodeStats nodeStats = nodeService.stats(CommonStatsFlags.NONE,
                 true, true, true, false, true, false, false, false, false, false, false, false);
@@ -139,19 +140,13 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
 
         ClusterStatsRequest request;
 
-        public ClusterStatsNodeRequest() {
+        public ClusterStatsNodeRequest(StreamInput in) throws IOException {
+            super(in);
+            request = new ClusterStatsRequest(in);
         }
 
-        ClusterStatsNodeRequest(String nodeId, ClusterStatsRequest request) {
-            super(nodeId);
+        ClusterStatsNodeRequest(ClusterStatsRequest request) {
             this.request = request;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            request = new ClusterStatsRequest();
-            request.readFrom(in);
         }
 
         @Override

@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.get.GetResultTests;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
@@ -54,7 +55,7 @@ public class UpdateResponseTests extends ESTestCase {
 
     public void testToXContent() throws IOException {
         {
-            UpdateResponse updateResponse = new UpdateResponse(new ShardId("index", "index_uuid", 0), "type", "id", 0, NOT_FOUND);
+            UpdateResponse updateResponse = new UpdateResponse(new ShardId("index", "index_uuid", 0), "type", "id", -2, 0, 0, NOT_FOUND);
             String output = Strings.toString(updateResponse);
             assertEquals("{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"_version\":0,\"result\":\"not_found\"," +
                     "\"_shards\":{\"total\":0,\"successful\":0,\"failed\":0}}", output);
@@ -74,7 +75,7 @@ public class UpdateResponseTests extends ESTestCase {
 
             UpdateResponse updateResponse = new UpdateResponse(new ReplicationResponse.ShardInfo(3, 2),
                     new ShardId("books", "books_uuid", 2), "book", "1", 7, 17, 2, UPDATED);
-            updateResponse.setGetResult(new GetResult("books", "book", "1",0, 1, 2, true, source, fields));
+            updateResponse.setGetResult(new GetResult("books", "book", "1",0, 1, 2, true, source, fields, null));
 
             String output = Strings.toString(updateResponse);
             assertEquals("{\"_index\":\"books\",\"_type\":\"book\",\"_id\":\"1\",\"_version\":2,\"result\":\"updated\"," +
@@ -162,21 +163,21 @@ public class UpdateResponseTests extends ESTestCase {
 
         // We also want small number values (randomNonNegativeLong() tend to generate high numbers)
         // in order to catch some conversion error that happen between int/long after parsing.
-        Long seqNo = randomFrom(randomNonNegativeLong(), (long) randomIntBetween(0, 10_000), null);
-        long primaryTerm = seqNo == null ? 0 : randomIntBetween(1, 16);
+        long seqNo = randomFrom(randomNonNegativeLong(), (long) randomIntBetween(0, 10_000), SequenceNumbers.UNASSIGNED_SEQ_NO);
+        long primaryTerm = seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO ? SequenceNumbers.UNASSIGNED_PRIMARY_TERM : randomIntBetween(1, 16);
 
         ShardId actualShardId = new ShardId(index, indexUUid, shardId);
         ShardId expectedShardId = new ShardId(index, INDEX_UUID_NA_VALUE, -1);
 
         UpdateResponse actual, expected;
-        if (seqNo != null) {
+        if (seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
             Tuple<ReplicationResponse.ShardInfo, ReplicationResponse.ShardInfo> shardInfos = RandomObjects.randomShardInfo(random());
 
             actual = new UpdateResponse(shardInfos.v1(), actualShardId, type, id, seqNo, primaryTerm, version, result);
             expected = new UpdateResponse(shardInfos.v2(), expectedShardId, type, id, seqNo, primaryTerm, version, result);
         } else {
-            actual = new UpdateResponse(actualShardId, type, id, version, result);
-            expected = new UpdateResponse(expectedShardId, type, id, version, result);
+            actual = new UpdateResponse(actualShardId, type, id, seqNo, primaryTerm, version, result);
+            expected = new UpdateResponse(expectedShardId, type, id, seqNo, primaryTerm, version, result);
         }
 
         if (actualGetResult.isExists()) {

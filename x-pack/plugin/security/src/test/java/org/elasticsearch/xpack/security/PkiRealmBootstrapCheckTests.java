@@ -58,7 +58,7 @@ public class PkiRealmBootstrapCheckTests extends AbstractBootstrapCheckTestCase 
         env = TestEnvironment.newEnvironment(settings);
         assertTrue(runCheck(settings, env).isFailure());
 
-        // set transport client auth
+        // set transport auth
         settings = Settings.builder().put(settings)
                 .put("xpack.security.transport.client_authentication", randomFrom("required", "optional"))
                 .build();

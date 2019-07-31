@@ -299,10 +299,12 @@ public final class Role {
         public static final String NONE = "none";
         public static final String ALL = "all";
         public static final String MONITOR = "monitor";
+        public static final String MONITOR_DATA_FRAME_TRANSFORMS = "monitor_data_frame_transforms";
         public static final String MONITOR_ML = "monitor_ml";
         public static final String MONITOR_WATCHER = "monitor_watcher";
         public static final String MONITOR_ROLLUP = "monitor_rollup";
         public static final String MANAGE = "manage";
+        public static final String MANAGE_DATA_FRAME_TRANSFORMS = "manage_data_frame_transforms";
         public static final String MANAGE_ML = "manage_ml";
         public static final String MANAGE_WATCHER = "manage_watcher";
         public static final String MANAGE_ROLLUP = "manage_rollup";
@@ -311,15 +313,17 @@ public final class Role {
         public static final String TRANSPORT_CLIENT = "transport_client";
         public static final String MANAGE_SECURITY = "manage_security";
         public static final String MANAGE_SAML = "manage_saml";
+        public static final String MANAGE_OIDC = "manage_oidc";
         public static final String MANAGE_TOKEN = "manage_token";
         public static final String MANAGE_PIPELINE = "manage_pipeline";
         public static final String MANAGE_CCR = "manage_ccr";
         public static final String READ_CCR = "read_ccr";
         public static final String MANAGE_ILM = "manage_ilm";
         public static final String READ_ILM = "read_ilm";
-        public static final String[] ALL_ARRAY = new String[] { NONE, ALL, MONITOR, MONITOR_ML, MONITOR_WATCHER, MONITOR_ROLLUP, MANAGE,
-                MANAGE_ML, MANAGE_WATCHER, MANAGE_ROLLUP, MANAGE_INDEX_TEMPLATES, MANAGE_INGEST_PIPELINES, TRANSPORT_CLIENT,
-                MANAGE_SECURITY, MANAGE_SAML, MANAGE_TOKEN, MANAGE_PIPELINE, MANAGE_CCR, READ_CCR, MANAGE_ILM, READ_ILM };
+        public static final String[] ALL_ARRAY = new String[] { NONE, ALL, MONITOR, MONITOR_DATA_FRAME_TRANSFORMS, MONITOR_ML,
+            MONITOR_WATCHER, MONITOR_ROLLUP, MANAGE, MANAGE_DATA_FRAME_TRANSFORMS,
+            MANAGE_ML, MANAGE_WATCHER, MANAGE_ROLLUP, MANAGE_INDEX_TEMPLATES, MANAGE_INGEST_PIPELINES, TRANSPORT_CLIENT,
+            MANAGE_SECURITY, MANAGE_SAML, MANAGE_OIDC, MANAGE_TOKEN, MANAGE_PIPELINE, MANAGE_CCR, READ_CCR, MANAGE_ILM, READ_ILM};
     }
 
     /**

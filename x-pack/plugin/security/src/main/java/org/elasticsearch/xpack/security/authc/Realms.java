@@ -5,24 +5,8 @@
  */
 package org.elasticsearch.xpack.security.authc;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
@@ -38,6 +22,21 @@ import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 /**
  * Serves as a realms registry (also responsible for ordering the realms appropriately)
@@ -117,6 +116,32 @@ public class Realms implements Iterable<Realm> {
             default:
                 throw new IllegalStateException("authentication should not be enabled");
         }
+    }
+
+    /**
+     * Returns a list of realms that are configured, but are not permitted under the current license.
+     */
+    public List<Realm> getUnlicensedRealms() {
+        // If auth is not allowed, then everything is unlicensed
+        if (licenseState.isAuthAllowed() == false) {
+            return Collections.unmodifiableList(realms);
+        }
+
+        AllowedRealmType allowedRealmType = licenseState.allowedRealmType();
+        // If all realms are allowed, then nothing is unlicensed
+        if (allowedRealmType == AllowedRealmType.ALL) {
+            return Collections.emptyList();
+        }
+
+        final List<Realm> allowedRealms = this.asList();
+        // Shortcut for the typical case, all the configured realms are allowed
+        if (allowedRealms.equals(this.realms)) {
+            return Collections.emptyList();
+        }
+
+        // Otherwise, we return anything in "all realms" that is not in the allowed realm list
+        List<Realm> unlicensed = realms.stream().filter(r -> allowedRealms.contains(r) == false).collect(Collectors.toList());
+        return Collections.unmodifiableList(unlicensed);
     }
 
     public Stream<Realm> stream() {

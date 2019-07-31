@@ -32,7 +32,6 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -76,7 +75,6 @@ import static org.hamcrest.Matchers.sameInstance;
 /**
  * Unit tests for the reloading of SSL configuration
  */
-@TestLogging("org.elasticsearch.watcher:TRACE")
 public class SSLConfigurationReloaderTests extends ESTestCase {
 
     private ThreadPool threadPool;
@@ -114,7 +112,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
             .put("xpack.security.transport.ssl.keystore.path", keystorePath)
             .setSecureSettings(secureSettings)
             .build();
-        final Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
+        final Environment env = TestEnvironment.newEnvironment(settings);
         //Load HTTPClient only once. Client uses the same store as a truststore
         try (CloseableHttpClient client = getSSLClient(keystorePath, "testnode")) {
             final Consumer<SSLContext> keyMaterialPreChecks = (context) -> {
@@ -172,8 +170,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
             .putList("xpack.security.transport.ssl.certificate_authorities", certPath.toString())
             .setSecureSettings(secureSettings)
             .build();
-        final Environment env = randomBoolean() ? null :
-            TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
+        final Environment env = newEnvironment();
         // Load HTTPClient once. Client uses a keystore containing testnode key/cert as a truststore
         try (CloseableHttpClient client = getSSLClient(Collections.singletonList(certPath))) {
             final Consumer<SSLContext> keyMaterialPreChecks = (context) -> {
@@ -229,7 +226,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
             .put("path.home", createTempDir())
             .setSecureSettings(secureSettings)
             .build();
-        Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
+        Environment env = TestEnvironment.newEnvironment(settings);
         // Create the MockWebServer once for both pre and post checks
         try (MockWebServer server = getSslServer(trustStorePath, "testnode")) {
             final Consumer<SSLContext> trustMaterialPreChecks = (context) -> {
@@ -279,7 +276,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
             .putList("xpack.security.transport.ssl.certificate_authorities", serverCertPath.toString())
             .put("path.home", createTempDir())
             .build();
-        Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
+        Environment env = TestEnvironment.newEnvironment(settings);
         // Create the MockWebServer once for both pre and post checks
         try (MockWebServer server = getSslServer(serverKeyPath, serverCertPath, "testnode")) {
             final Consumer<SSLContext> trustMaterialPreChecks = (context) -> {
@@ -328,7 +325,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
             .setSecureSettings(secureSettings)
             .put("path.home", createTempDir())
             .build();
-        Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
+        Environment env = TestEnvironment.newEnvironment(settings);
         final SSLService sslService = new SSLService(settings, env);
         final SSLConfiguration config = sslService.getSSLConfiguration("xpack.security.transport.ssl.");
         final AtomicReference<Exception> exceptionRef = new AtomicReference<>();
@@ -380,7 +377,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
             .put("path.home", createTempDir())
             .setSecureSettings(secureSettings)
             .build();
-        Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
+        Environment env = TestEnvironment.newEnvironment(settings);
         final SSLService sslService = new SSLService(settings, env);
         final SSLConfiguration config = sslService.getSSLConfiguration("xpack.security.transport.ssl.");
         final AtomicReference<Exception> exceptionRef = new AtomicReference<>();
@@ -426,7 +423,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
             .put("path.home", createTempDir())
             .setSecureSettings(secureSettings)
             .build();
-        Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
+        Environment env = TestEnvironment.newEnvironment(settings);
         final SSLService sslService = new SSLService(settings, env);
         final SSLConfiguration config = sslService.getSSLConfiguration("xpack.security.transport.ssl.");
         final AtomicReference<Exception> exceptionRef = new AtomicReference<>();
@@ -469,7 +466,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
             .putList("xpack.security.transport.ssl.certificate_authorities", clientCertPath.toString())
             .put("path.home", createTempDir())
             .build();
-        Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
+        Environment env = TestEnvironment.newEnvironment(settings);
         final SSLService sslService = new SSLService(settings, env);
         final SSLConfiguration config = sslService.sslConfiguration(settings.getByPrefix("xpack.security.transport.ssl."));
         final AtomicReference<Exception> exceptionRef = new AtomicReference<>();

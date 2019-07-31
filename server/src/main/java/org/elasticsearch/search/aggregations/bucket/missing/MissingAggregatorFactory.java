@@ -32,10 +32,10 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class MissingAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource, MissingAggregatorFactory> {
+public class MissingAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource> {
 
     public MissingAggregatorFactory(String name, ValuesSourceConfig<ValuesSource> config, SearchContext context,
-            AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
+            AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metaData);
     }
 

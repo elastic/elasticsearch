@@ -128,7 +128,7 @@ public class QueryShardContextTests extends ESTestCase {
         final long nowInMillis = randomNonNegativeLong();
 
         return new QueryShardContext(
-            0, indexSettings, null, (mappedFieldType, idxName) ->
+            0, indexSettings, null, null, (mappedFieldType, idxName) ->
             mappedFieldType.fielddataBuilder(idxName).build(indexSettings, mappedFieldType, null, null, null)
             , mapperService, null, null, NamedXContentRegistry.EMPTY, new NamedWriteableRegistry(Collections.emptyList()), null, null,
             () -> nowInMillis, clusterAlias);

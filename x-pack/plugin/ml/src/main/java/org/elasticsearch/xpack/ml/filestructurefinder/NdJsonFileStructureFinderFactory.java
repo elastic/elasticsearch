@@ -68,7 +68,8 @@ public class NdJsonFileStructureFinderFactory implements FileStructureFinderFact
 
     @Override
     public FileStructureFinder createFromSample(List<String> explanation, String sample, String charsetName, Boolean hasByteOrderMarker,
-                                                FileStructureOverrides overrides, TimeoutChecker timeoutChecker) throws IOException {
+                                                int lineMergeSizeLimit, FileStructureOverrides overrides, TimeoutChecker timeoutChecker)
+        throws IOException {
         return NdJsonFileStructureFinder.makeNdJsonFileStructureFinder(explanation, sample, charsetName, hasByteOrderMarker, overrides,
             timeoutChecker);
     }

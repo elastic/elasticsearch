@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.ParsedQuery;
@@ -122,8 +123,8 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
     }
 
     @Override
-    protected ShardValidateQueryResponse newShardResponse() {
-        return new ShardValidateQueryResponse();
+    protected ShardValidateQueryResponse readShardResponse(StreamInput in) throws IOException {
+        return new ShardValidateQueryResponse(in);
     }
 
     @Override
@@ -193,7 +194,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         boolean valid;
         String explanation = null;
         String error = null;
-        ShardSearchLocalRequest shardSearchLocalRequest = new ShardSearchLocalRequest(request.shardId(), request.types(),
+        ShardSearchLocalRequest shardSearchLocalRequest = new ShardSearchLocalRequest(request.shardId(),
             request.nowInMillis(), request.filteringAliases());
         SearchContext searchContext = searchService.createSearchContext(shardSearchLocalRequest, SearchService.NO_TIMEOUT);
         try {

@@ -98,15 +98,15 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
     }
 
     RecoveryTranslogOperationsRequest(StreamInput in) throws IOException {
-        super.readFrom(in);
+        super(in);
         recoveryId = in.readLong();
-        shardId = ShardId.readShardId(in);
+        shardId = new ShardId(in);
         operations = Translog.readOperations(in, "recovery");
         totalTranslogOps = in.readVInt();
         maxSeenAutoIdTimestampOnPrimary = in.readZLong();
         maxSeqNoOfUpdatesOrDeletesOnPrimary = in.readZLong();
         retentionLeases = new RetentionLeases(in);
-        if (in.getVersion().onOrAfter(Version.V_7_1_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
             mappingVersionOnPrimary = in.readVLong();
         } else {
             mappingVersionOnPrimary = Long.MAX_VALUE;
@@ -123,13 +123,9 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
         out.writeZLong(maxSeenAutoIdTimestampOnPrimary);
         out.writeZLong(maxSeqNoOfUpdatesOrDeletesOnPrimary);
         retentionLeases.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_7_1_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
             out.writeVLong(mappingVersionOnPrimary);
         }
     }
     
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
-}

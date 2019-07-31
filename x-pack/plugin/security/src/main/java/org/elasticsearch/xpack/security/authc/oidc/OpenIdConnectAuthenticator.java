@@ -37,6 +37,7 @@ import com.nimbusds.openid.connect.sdk.claims.AccessTokenHash;
 import com.nimbusds.openid.connect.sdk.token.OIDCTokens;
 import com.nimbusds.openid.connect.sdk.validators.AccessTokenValidator;
 import com.nimbusds.openid.connect.sdk.validators.IDTokenValidator;
+import net.minidev.json.JSONArray;
 import net.minidev.json.JSONObject;
 import org.apache.commons.codec.Charsets;
 import org.apache.http.Header;
@@ -94,6 +95,8 @@ import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+
+import java.net.URLEncoder;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
@@ -401,15 +404,16 @@ public class OpenIdConnectAuthenticator {
             if (httpResponse.getStatusLine().getStatusCode() == 200) {
                 if (ContentType.parse(contentHeader.getValue()).getMimeType().equals("application/json")) {
                     final JWTClaimsSet userInfoClaims = JWTClaimsSet.parse(contentAsString);
+                    validateUserInfoResponse(userInfoClaims, verifiedIdTokenClaims.getSubject(), claimsListener);
                     if (LOGGER.isTraceEnabled()) {
                         LOGGER.trace("Successfully retrieved user information: [{}]", userInfoClaims.toJSONObject().toJSONString());
                     }
                     final JSONObject combinedClaims = verifiedIdTokenClaims.toJSONObject();
-                    combinedClaims.merge(userInfoClaims.toJSONObject());
+                    mergeObjects(combinedClaims, userInfoClaims.toJSONObject());
                     claimsListener.onResponse(JWTClaimsSet.parse(combinedClaims));
                 } else if (ContentType.parse(contentHeader.getValue()).getMimeType().equals("application/jwt")) {
                     //TODO Handle validating possibly signed responses
-                    claimsListener.onFailure(new IllegalStateException("Unable to parse Userinfo Response. Signed/encryopted JWTs are" +
+                    claimsListener.onFailure(new IllegalStateException("Unable to parse Userinfo Response. Signed/encrypted JWTs are" +
                         "not currently supported"));
                 } else {
                     claimsListener.onFailure(new IllegalStateException("Unable to parse Userinfo Response. Content type was expected to " +
@@ -436,6 +440,19 @@ public class OpenIdConnectAuthenticator {
     }
 
     /**
+     * Validates that the userinfo response contains a sub Claim and that this claim value is the same as the one returned in the ID Token
+     */
+    private void validateUserInfoResponse(JWTClaimsSet userInfoClaims, String expectedSub, ActionListener<JWTClaimsSet> claimsListener) {
+        if (userInfoClaims.getSubject().isEmpty()) {
+            claimsListener.onFailure(new ElasticsearchSecurityException("Userinfo Response did not contain a sub Claim"));
+        } else if (userInfoClaims.getSubject().equals(expectedSub) == false) {
+            claimsListener.onFailure(new ElasticsearchSecurityException("Userinfo Response is not valid as it is for " +
+                "subject [{}] while the ID Token was for subject [{}]", userInfoClaims.getSubject(),
+                expectedSub));
+        }
+    }
+
+    /**
      * Attempts to make a request to the Token Endpoint of the OpenID Connect provider in order to exchange an
      * authorization code for an Id Token (and potentially an Access Token)
      */
@@ -450,8 +467,9 @@ public class OpenIdConnectAuthenticator {
             }
             httpPost.setEntity(new UrlEncodedFormEntity(params));
             httpPost.setHeader("Content-type", "application/x-www-form-urlencoded");
-            UsernamePasswordCredentials creds = new UsernamePasswordCredentials(rpConfig.getClientId().getValue(),
-                rpConfig.getClientSecret().toString());
+            UsernamePasswordCredentials creds =
+                new UsernamePasswordCredentials(URLEncoder.encode(rpConfig.getClientId().getValue(), StandardCharsets.UTF_8),
+                    URLEncoder.encode(rpConfig.getClientSecret().toString(), StandardCharsets.UTF_8));
             httpPost.addHeader(new BasicScheme().authenticate(creds, httpPost, null));
             SpecialPermission.check();
             AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
@@ -606,6 +624,75 @@ public class OpenIdConnectAuthenticator {
         watcherService.add(watcher, ResourceWatcherService.Frequency.MEDIUM);
     }
 
+    /**
+     * Merges the JsonObject with the claims of the ID Token with the JsonObject with the claims of the UserInfo response. This is
+     * necessary as some OPs return slightly different values for some claims (i.e. Google for the profile picture) and
+     * {@link JSONObject#merge(Object)} would throw a runtime exception. The merging is performed based on the following rules:
+     * <ul>
+     * <li>If the values for a given claim are primitives (of the same type), the value from the ID Token is retained</li>
+     * <li>If the values for a given claim are Objects, the values are merged</li>
+     * <li>If the values for a given claim are Arrays, the values are merged without removing duplicates</li>
+     * <li>If the values for a given claim are of different types, an exception is thrown</li>
+     * </ul>
+     *
+     * @param userInfo The JsonObject with the ID Token claims
+     * @param idToken  The JsonObject with the UserInfo Response claims
+     * @return the merged JsonObject
+     */
+    // pkg protected for testing
+    static JSONObject mergeObjects(JSONObject idToken, JSONObject userInfo) {
+        for (Map.Entry<String, Object> entry : idToken.entrySet()) {
+            Object value1 = entry.getValue();
+            Object value2 = userInfo.get(entry.getKey());
+            if (value2 == null) {
+                continue;
+            }
+            if (value1 instanceof JSONArray) {
+                idToken.put(entry.getKey(), mergeArrays((JSONArray) value1, value2));
+            } else if (value1 instanceof JSONObject) {
+                idToken.put(entry.getKey(), mergeObjects((JSONObject) value1, value2));
+            } else if (value1.getClass().equals(value2.getClass()) == false) {
+                throw new IllegalStateException("Error merging ID token and userinfo claim value for claim [" + entry.getKey() + "]. " +
+                    "Cannot merge [" + value1.getClass().getName() + "] with [" + value2.getClass().getName() + "]");
+            }
+        }
+        for (Map.Entry<String, Object> entry : userInfo.entrySet()) {
+            if (idToken.containsKey(entry.getKey()) == false) {
+                idToken.put(entry.getKey(), entry.getValue());
+            }
+        }
+        return idToken;
+    }
+
+    private static JSONObject mergeObjects(JSONObject jsonObject1, Object jsonObject2) {
+        if (jsonObject2 == null) {
+            return jsonObject1;
+        }
+        if (jsonObject2 instanceof JSONObject) {
+            return mergeObjects(jsonObject1, (JSONObject) jsonObject2);
+        }
+        throw new IllegalStateException("Error while merging ID token and userinfo claims. " +
+            "Cannot merge JSONObject with [" + jsonObject2.getClass().getName() + "]");
+    }
+
+    private static JSONArray mergeArrays(JSONArray jsonArray1, Object jsonArray2) {
+        if (jsonArray2 == null) {
+            return jsonArray1;
+        }
+        if (jsonArray2 instanceof JSONArray) {
+            return mergeArrays(jsonArray1, (JSONArray) jsonArray2);
+        }
+        if (jsonArray2 instanceof String) {
+            jsonArray1.add(jsonArray2);
+        }
+        return jsonArray1;
+    }
+
+    private static JSONArray mergeArrays(JSONArray jsonArray1, JSONArray jsonArray2) {
+        jsonArray1.addAll(jsonArray2);
+        return jsonArray1;
+    }
+
     protected void close() {
         try {
             this.httpClient.close();
@@ -693,6 +780,7 @@ public class OpenIdConnectAuthenticator {
                                     StandardCharsets.UTF_8));
                                 reloadFutureRef.set(null);
                                 LOGGER.trace("Successfully refreshed and cached remote JWKSet");
+                                future.onResponse(null);
                             } catch (IOException | ParseException e) {
                                 failed(e);
                             }

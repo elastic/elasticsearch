@@ -23,7 +23,7 @@ GET /_search
 [[exists-query-top-level-params]]
 ==== Top-level parameters for `exists`
 `field`::
-Name of the field you wish to search.
+(Required, string) Name of the field you wish to search.
 +
 To return a document, this field must exist and contain a value other
 than `null` or `[]`. These values can include:

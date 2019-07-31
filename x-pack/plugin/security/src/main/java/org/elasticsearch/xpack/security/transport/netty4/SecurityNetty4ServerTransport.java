@@ -15,7 +15,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.Netty4PluginConfig;
 import org.elasticsearch.xpack.core.security.transport.netty4.SecurityNetty4Transport;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -27,7 +26,6 @@ public class SecurityNetty4ServerTransport extends SecurityNetty4Transport {
 
     public SecurityNetty4ServerTransport(
             final Settings settings,
-            final Netty4PluginConfig pluginConfig,
             final Version version,
             final ThreadPool threadPool,
             final NetworkService networkService,
@@ -36,8 +34,7 @@ public class SecurityNetty4ServerTransport extends SecurityNetty4Transport {
             final CircuitBreakerService circuitBreakerService,
             @Nullable final IPFilter authenticator,
             final SSLService sslService) {
-        super(settings, pluginConfig, version, threadPool, networkService, pageCacheRecycler, namedWriteableRegistry,
-            circuitBreakerService, sslService);
+        super(settings, version, threadPool, networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService, sslService);
         this.authenticator = authenticator;
     }
 

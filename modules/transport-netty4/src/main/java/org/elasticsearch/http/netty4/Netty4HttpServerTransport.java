@@ -21,7 +21,6 @@ package org.elasticsearch.http.netty4;
 
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.ByteBufAllocator;
-import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandler;
@@ -62,7 +61,6 @@ import org.elasticsearch.http.HttpServerChannel;
 import org.elasticsearch.http.netty4.cors.Netty4CorsHandler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.CopyBytesServerSocketChannel;
-import org.elasticsearch.transport.Netty4PluginConfig;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 
 import java.net.InetSocketAddress;
@@ -141,15 +139,13 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     private final int readTimeoutMillis;
 
     private final int maxCompositeBufferComponents;
-    private final Netty4PluginConfig pluginConfig;
 
     private volatile ServerBootstrap serverBootstrap;
 
-    public Netty4HttpServerTransport(Settings settings, Netty4PluginConfig pluginConfig, NetworkService networkService, BigArrays bigArrays,
-                                     ThreadPool threadPool, NamedXContentRegistry xContentRegistry, Dispatcher dispatcher) {
+    public Netty4HttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool,
+                                     NamedXContentRegistry xContentRegistry, Dispatcher dispatcher) {
         super(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher);
         Netty4Utils.setAvailableProcessors(EsExecutors.PROCESSORS_SETTING.get(settings));
-        this.pluginConfig = pluginConfig;
 
         this.maxChunkSize = SETTING_HTTP_MAX_CHUNK_SIZE.get(settings);
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);

@@ -37,7 +37,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.Netty4PluginConfig;
 import org.junit.After;
 import org.junit.Before;
 
@@ -86,8 +85,8 @@ public class Netty4BadRequestTests extends ESTestCase {
             }
         };
 
-        try (HttpServerTransport httpServerTransport = new Netty4HttpServerTransport(Settings.EMPTY, new Netty4PluginConfig(Settings.EMPTY),
-            networkService, bigArrays, threadPool, xContentRegistry(), dispatcher)) {
+        try (HttpServerTransport httpServerTransport =
+                     new Netty4HttpServerTransport(Settings.EMPTY, networkService, bigArrays, threadPool, xContentRegistry(), dispatcher)) {
             httpServerTransport.start();
             final TransportAddress transportAddress = randomFrom(httpServerTransport.boundAddress().boundAddresses());
 

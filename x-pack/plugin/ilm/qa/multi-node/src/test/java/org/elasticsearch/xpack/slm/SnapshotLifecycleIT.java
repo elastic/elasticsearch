@@ -300,7 +300,7 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
                 } catch (ResponseException e) {
                     assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("snapshot_missing_exception"));
                 }
-            }, 30, TimeUnit.SECONDS);
+            }, 60, TimeUnit.SECONDS);
 
             Request delReq = new Request("DELETE", "/_slm/policy/" + policyName);
             assertOK(client().performRequest(delReq));

@@ -31,6 +31,7 @@ import static graphql.schema.GraphQLFieldDefinition.newFieldDefinition;
 import static graphql.schema.GraphQLNonNull.nonNull;
 import static graphql.Scalars.*;
 
+import java.time.LocalTime;
 import java.util.function.Function;
 
 public class GqlPingSchema {
@@ -39,6 +40,7 @@ public class GqlPingSchema {
      * - Adds `Query.ping: String` resolver.
      * - Adds `Mutation.ping: String` resolver.
      * - Adds `Subscription.ping: String` resolver.
+     * - Adds `Subscription.clock: String` resolver.
      */
     public Function<GqlBuilder, GqlBuilder> use = builder -> builder
         .queryField(newFieldDefinition()
@@ -52,6 +54,10 @@ public class GqlPingSchema {
         .subscriptionField(newFieldDefinition()
             .description("Ping subscription fot testing the server.")
             .name("ping")
+            .type(nonNull(GraphQLString)))
+        .subscriptionField(newFieldDefinition()
+            .description("Clock ticking every second.")
+            .name("clock")
             .type(nonNull(GraphQLString)))
         .fetcher("Query", "ping", new StaticDataFetcher("pong"))
         .fetcher("Mutation", "ping", new StaticDataFetcher("pong"))
@@ -68,6 +74,31 @@ public class GqlPingSchema {
                                         Thread.sleep(3000);
                                     } catch (Exception e) {}
                                     s.onNext("pong");
+                                }).start();
+                            }
+                        }
+
+                        @Override
+                        public void cancel() {
+                            s.onComplete();
+                        }
+                    });
+                };
+            }
+        })
+        .fetcher("Subscription", "clock",  new DataFetcher<Object>() {
+            @Override
+            public Publisher<String> get(DataFetchingEnvironment environment) {
+                return s -> {
+                    s.onSubscribe(new Subscription() {
+                        @Override
+                        public void request(long n) {
+                            while (n --> 0) {
+                                new Thread(() -> {
+                                    try {
+                                        Thread.sleep(1000);
+                                    } catch (Exception e) {}
+                                    s.onNext(LocalTime.now().toString());
                                 }).start();
                             }
                         }

@@ -68,7 +68,7 @@ public class ElasticsearchDistribution implements Buildable {
     }
 
     // package private to tests can use
-    static final Platform CURRENT_PLATFORM = OS.<Platform>conditional()
+    public static final Platform CURRENT_PLATFORM = OS.<Platform>conditional()
         .onLinux(() -> Platform.LINUX)
         .onWindows(() -> Platform.WINDOWS)
         .onMac(() -> Platform.DARWIN)

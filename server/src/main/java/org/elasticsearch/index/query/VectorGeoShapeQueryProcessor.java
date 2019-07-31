@@ -28,7 +28,6 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.geo.geometry.Circle;
 import org.elasticsearch.geo.geometry.Geometry;
 import org.elasticsearch.geo.geometry.GeometryCollection;
@@ -43,12 +42,12 @@ import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
-import static org.elasticsearch.index.mapper.GeoShapeFieldMapper.toLucenePolygon;
+import static org.elasticsearch.index.mapper.GeoShapeIndexer.toLucenePolygon;
 
 public class VectorGeoShapeQueryProcessor implements AbstractGeometryFieldMapper.QueryProcessor {
 
     @Override
-    public Query process(Geometry shape, String fieldName, SpatialStrategy strategy, ShapeRelation relation, QueryShardContext context) {
+    public Query process(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
         // CONTAINS queries are not yet supported by VECTOR strategy
         if (relation == ShapeRelation.CONTAINS) {
             throw new QueryShardException(context,
@@ -59,7 +58,7 @@ public class VectorGeoShapeQueryProcessor implements AbstractGeometryFieldMapper
     }
 
     protected Query getVectorQueryFromShape(Geometry queryShape, String fieldName, ShapeRelation relation, QueryShardContext context) {
-        GeoShapeIndexer geometryIndexer = new GeoShapeIndexer(true);
+        GeoShapeIndexer geometryIndexer = new GeoShapeIndexer(true, fieldName);
 
         Geometry processedShape = geometryIndexer.prepareForIndexing(queryShape);
 

@@ -42,6 +42,7 @@ import org.elasticsearch.index.query.QueryShardException;
 
 import java.io.IOException;
 import java.text.ParseException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -78,6 +79,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
 
         Class<Processed> processedClass();
 
+        List<IndexableField> indexShape(ParseContext context, Processed shape);
     }
 
     /**
@@ -93,8 +95,13 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
      * interface representing a query builder that generates a query from the given shape
      */
     public interface QueryProcessor {
+        Query process(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context);
 
-        Query process(Geometry shape, String fieldName, SpatialStrategy strategy, ShapeRelation relation, QueryShardContext context);
+        @Deprecated
+        default Query process(Geometry shape, String fieldName, SpatialStrategy strategy, ShapeRelation relation,
+                              QueryShardContext context) {
+            return process(shape, fieldName, relation, context);
+        }
     }
 
     public abstract static class Builder<T extends Builder, Y extends AbstractGeometryFieldMapper>
@@ -377,7 +384,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
     }
 
     @Override
-    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
+    public void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         builder.field("type", contentType());
         AbstractGeometryFieldType ft = (AbstractGeometryFieldType)fieldType();
         if (includeDefaults || ft.orientation() != Defaults.ORIENTATION.value()) {
@@ -410,8 +417,6 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         return ((AbstractGeometryFieldType)fieldType).orientation();
     }
 
-    protected abstract void indexShape(ParseContext context, Processed shape);
-
     /** parsing logic for geometry indexing */
     @Override
     public void parse(ParseContext context) throws IOException {
@@ -428,7 +433,13 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
                 }
                 shape = geometryIndexer.prepareForIndexing(geometry);
             }
-            indexShape(context, shape);
+
+            List<IndexableField> fields = new ArrayList<>();
+            fields.addAll(geometryIndexer.indexShape(context, shape));
+            createFieldNamesField(context, fields);
+            for (IndexableField field : fields) {
+                context.doc().add(field);
+            }
         } catch (Exception e) {
             if (ignoreMalformed.value() == false) {
                 throw new MapperParsingException("failed to parse field [{}] of type [{}]", e, fieldType().name(),

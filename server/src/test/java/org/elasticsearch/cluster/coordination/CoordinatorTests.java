@@ -1191,7 +1191,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
-    public void testLogsWarningPeriodicallyIfClusterNotFormed() {
+    public void testLogsWarningPeriodicallyIfClusterNotFormed() throws IllegalAccessException {
         final long warningDelayMillis;
         final Settings settings;
         if (randomBoolean()) {
@@ -1219,16 +1219,10 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 "waiting for leader failure");
 
             for (int i = scaledRandomIntBetween(1, 10); i >= 0; i--) {
-                final MockLogAppender mockLogAppender;
+                final MockLogAppender mockLogAppender = new MockLogAppender();
                 try {
-                    mockLogAppender = new MockLogAppender();
-                } catch (IllegalAccessException e) {
-                    throw new AssertionError(e);
-                }
-
-                try {
-                    Loggers.addAppender(LogManager.getLogger(ClusterFormationFailureHelper.class), mockLogAppender);
                     mockLogAppender.start();
+                    Loggers.addAppender(LogManager.getLogger(ClusterFormationFailureHelper.class), mockLogAppender);
                     mockLogAppender.addExpectation(new MockLogAppender.LoggingExpectation() {
                         final Set<DiscoveryNode> nodesLogged = new HashSet<>();
 
@@ -1259,8 +1253,8 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                     cluster.runFor(warningDelayMillis + DEFAULT_DELAY_VARIABILITY, "waiting for warning to be emitted");
                     mockLogAppender.assertAllExpectationsMatched();
                 } finally {
-                    mockLogAppender.stop();
                     Loggers.removeAppender(LogManager.getLogger(ClusterFormationFailureHelper.class), mockLogAppender);
+                    mockLogAppender.stop();
                 }
             }
         }
@@ -1294,8 +1288,8 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
             final MockLogAppender mockLogAppenderForDelayedPublication = new MockLogAppender();
             try {
-                Loggers.addAppender(LogManager.getLogger(Coordinator.CoordinatorPublication.class), mockLogAppenderForDelayedPublication);
                 mockLogAppenderForDelayedPublication.start();
+                Loggers.addAppender(LogManager.getLogger(Coordinator.CoordinatorPublication.class), mockLogAppenderForDelayedPublication);
                 mockLogAppenderForDelayedPublication.addExpectation(new MockLogAppender.SeenEventExpectation("warning",
                     Coordinator.CoordinatorPublication.class.getCanonicalName(), Level.WARN,
                     "after [*] publication of cluster state version [*] is still waiting for " + brokenNode.getLocalNode() + " ["
@@ -1303,15 +1297,15 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 cluster.runFor(warningDelayMillis + DEFAULT_DELAY_VARIABILITY, "waiting for warning to be emitted");
                 mockLogAppenderForDelayedPublication.assertAllExpectationsMatched();
             } finally {
-                mockLogAppenderForDelayedPublication.stop();
                 Loggers.removeAppender(LogManager.getLogger(Coordinator.CoordinatorPublication.class),
                     mockLogAppenderForDelayedPublication);
+                mockLogAppenderForDelayedPublication.stop();
             }
 
             final MockLogAppender mockLogAppenderForLagDetection = new MockLogAppender();
             try {
-                Loggers.addAppender(LogManager.getLogger(LagDetector.class), mockLogAppenderForLagDetection);
                 mockLogAppenderForLagDetection.start();
+                Loggers.addAppender(LogManager.getLogger(LagDetector.class), mockLogAppenderForLagDetection);
                 mockLogAppenderForLagDetection.addExpectation(new MockLogAppender.SeenEventExpectation("warning",
                     LagDetector.class.getCanonicalName(), Level.WARN,
                     "node [" + brokenNode + "] is lagging at cluster state version [*], " +
@@ -1320,8 +1314,8 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                     + defaultMillis(LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING), "waiting for warning to be emitted");
                 mockLogAppenderForLagDetection.assertAllExpectationsMatched();
             } finally {
-                mockLogAppenderForLagDetection.stop();
                 Loggers.removeAppender(LogManager.getLogger(LagDetector.class), mockLogAppenderForLagDetection);
+                mockLogAppenderForLagDetection.stop();
             }
         }
     }

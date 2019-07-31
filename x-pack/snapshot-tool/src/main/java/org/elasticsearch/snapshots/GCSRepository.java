@@ -41,7 +41,6 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
 import static java.net.HttpURLConnection.HTTP_NOT_FOUND;
 
@@ -161,12 +160,11 @@ public class GCSRepository extends AbstractRepository {
         return null;
     }
 
-    private void deleteFiles(List<String> blobNames) {
-        terminal.println(Terminal.Verbosity.VERBOSE, "Batch removing the following files " + blobNames);
-        if (blobNames.isEmpty()) {
+    private void deleteFiles(List<BlobId> blobIdsToDelete) {
+        terminal.println(Terminal.Verbosity.VERBOSE, "Batch removing the following files " + blobIdsToDelete);
+        if (blobIdsToDelete.isEmpty()) {
             return;
         }
-        final List<BlobId> blobIdsToDelete = blobNames.stream().map(blob -> BlobId.of(bucket, blob)).collect(Collectors.toList());
         final List<BlobId> failedBlobs = Collections.synchronizedList(new ArrayList<>());
         final AtomicReference<StorageException> ioe = new AtomicReference<>();
         final StorageBatch batch = storage.batch();
@@ -204,15 +202,15 @@ public class GCSRepository extends AbstractRepository {
         final String prefix = fullPath("indices/" + indexDirectoryName);
         Page<Blob> page = storage.get(bucket).list(Storage.BlobListOption.prefix(prefix));
         do {
-            final List<String> blobsToDelete = new ArrayList<>();
+            final List<BlobId> blobIdsToDelete = new ArrayList<>();
 
             page.getValues().forEach(b -> {
-                blobsToDelete.add(b.getName());
+                blobIdsToDelete.add(BlobId.of(bucket, b.getName()));
                 removedFilesCount.getAndIncrement();
                 filesSize.getAndAdd(b.getSize());
             });
 
-            deleteFiles(blobsToDelete);
+            deleteFiles(blobIdsToDelete);
             page = page.getNextPage();
         } while (page != null);
 

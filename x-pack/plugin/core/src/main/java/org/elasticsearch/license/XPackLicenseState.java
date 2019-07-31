@@ -723,7 +723,7 @@ public class XPackLicenseState {
     }
 
     /**
-     * Rollup is always available as long as there is a valid license
+     * Datascience is always available as long as there is a valid license
      *
      * @return true if the license is active
      */

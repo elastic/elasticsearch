@@ -70,7 +70,7 @@ public class CumulativeCardinalityPipelineAggregator extends PipelineAggregator 
             for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
                 HyperLogLogPlusPlus bucketHll = resolveBucketValue(histo, bucket, bucketsPaths()[0]);
                 if (hll == null && bucketHll != null) {
-                    // We have to clone the HLL because otherwise it will alter the
+                    // We have to create a new HLL because otherwise it will alter the
                     // existing cardinality sketch and bucket value
                     hll = new HyperLogLogPlusPlus(bucketHll.precision(), reduceContext.bigArrays(), 1);
                 }

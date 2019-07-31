@@ -126,32 +126,48 @@ public class CumulativeCardinalityAggregatorTests extends AggregatorTestCase {
         });
     }
 
-    /**
-     * The validation should verify the parent aggregation is allowed.
-     */
-    public void testValidate() throws IOException {
-        final Set<PipelineAggregationBuilder> aggBuilders = new HashSet<>();
-        aggBuilders.add(new CumulativeCardinalityPipelineAggregationBuilder("cusum", "sum"));
+    public void testParentValidations() throws IOException {
+        ValuesSourceConfig<ValuesSource.Numeric> numericVS = new ValuesSourceConfig<>(ValuesSourceType.NUMERIC);
 
-        final CumulativeCardinalityPipelineAggregationBuilder builder
+        // Histogram
+        Set<PipelineAggregationBuilder> aggBuilders = new HashSet<>();
+        aggBuilders.add(new CumulativeCardinalityPipelineAggregationBuilder("cumulative_card", "sum"));
+        AggregatorFactory parent = new HistogramAggregatorFactory("name", numericVS, 0.0d, 0.0d,
+            mock(InternalOrder.class), false, 0L, 0.0d, 1.0d, mock(SearchContext.class), null,
+            new AggregatorFactories.Builder(), Collections.emptyMap());
+        CumulativeCardinalityPipelineAggregationBuilder builder
             = new CumulativeCardinalityPipelineAggregationBuilder("name", "valid");
-        builder.validate(getRandomSequentiallyOrderedParentAgg(), Collections.emptySet(), aggBuilders);
-    }
+        builder.validate(parent, Collections.emptySet(), aggBuilders);
 
-    /**
-     * The validation should throw an IllegalArgumentException, since parent
-     * aggregation is not a type of HistogramAggregatorFactory,
-     * DateHistogramAggregatorFactory or AutoDateHistogramAggregatorFactory.
-     */
-    public void testValidateException() throws IOException {
-        final Set<PipelineAggregationBuilder> aggBuilders = new HashSet<>();
+        // Date Histogram
+        aggBuilders.clear();
+        aggBuilders.add(new CumulativeCardinalityPipelineAggregationBuilder("cumulative_card", "sum"));
+        parent = new DateHistogramAggregatorFactory("name", numericVS, 0L,
+            mock(InternalOrder.class), false, 0L, mock(Rounding.class), mock(Rounding.class),
+            mock(ExtendedBounds.class), mock(SearchContext.class), mock(AggregatorFactory.class),
+            new AggregatorFactories.Builder(), Collections.emptyMap());
+        builder = new CumulativeCardinalityPipelineAggregationBuilder("name", "valid");
+        builder.validate(parent, Collections.emptySet(), aggBuilders);
+
+        // Auto Date Histogram
+        aggBuilders.clear();
+        aggBuilders.add(new CumulativeCardinalityPipelineAggregationBuilder("cumulative_card", "sum"));
+        AutoDateHistogramAggregationBuilder.RoundingInfo[] roundings = new AutoDateHistogramAggregationBuilder.RoundingInfo[1];
+        parent = new AutoDateHistogramAggregatorFactory("name", numericVS,
+            1, roundings,
+            mock(SearchContext.class), null, new AggregatorFactories.Builder(), Collections.emptyMap());
+        builder = new CumulativeCardinalityPipelineAggregationBuilder("name", "valid");
+        builder.validate(parent, Collections.emptySet(), aggBuilders);
+
+        // Mocked "test" agg, should fail validation
+        aggBuilders.clear();
         aggBuilders.add(new CumulativeCardinalityPipelineAggregationBuilder("cumulative_card", "sum"));
         TestAggregatorFactory parentFactory = TestAggregatorFactory.createInstance();
 
-        final CumulativeCardinalityPipelineAggregationBuilder builder
+        CumulativeCardinalityPipelineAggregationBuilder failBuilder
             = new CumulativeCardinalityPipelineAggregationBuilder("name", "invalid_agg>metric");
         IllegalStateException ex = expectThrows(IllegalStateException.class,
-            () -> builder.validate(parentFactory, Collections.emptySet(), aggBuilders));
+            () -> failBuilder.validate(parentFactory, Collections.emptySet(), aggBuilders));
         assertEquals("cumulative_cardinality aggregation [name] must have a histogram, date_histogram or auto_date_histogram as parent",
             ex.getMessage());
     }
@@ -191,6 +207,7 @@ public class CumulativeCardinalityAggregatorTests extends AggregatorTestCase {
 
     private void executeTestCase(Query query, AggregationBuilder aggBuilder, Consumer<InternalAggregation> verify,
                                  CheckedConsumer<RandomIndexWriter, IOException> setup) throws IOException {
+
 
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {

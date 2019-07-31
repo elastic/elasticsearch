@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.dataframe.transforms.pivot;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -144,7 +145,7 @@ public class PivotTests extends ESTestCase {
             AggregationConfig aggregationConfig = getAggregationConfig(agg);
 
             Pivot pivot = new Pivot(getValidPivotConfig(aggregationConfig));
-            RuntimeException ex = expectThrows(RuntimeException.class, pivot::validateConfig);
+            ElasticsearchException ex = expectThrows(ElasticsearchException.class, pivot::validateConfig);
             assertThat("expected aggregations to be unsupported, but they were", ex, is(notNullValue()));
         }
     }

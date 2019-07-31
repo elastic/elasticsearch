@@ -779,6 +779,6 @@ public class ShapeBuilderTests extends ESTestCase {
     }
 
     public Object buildGeometry(ShapeBuilder<?, ?, ?> builder) {
-        return new GeoShapeIndexer(true).prepareForIndexing(builder.buildGeometry());
+        return new GeoShapeIndexer(true, "name").prepareForIndexing(builder.buildGeometry());
     }
 }

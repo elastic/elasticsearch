@@ -53,6 +53,10 @@ public class CertParsingUtils {
         return environment.configFile().resolve(path);
     }
 
+    static List<Path> resolvePaths(List<String> certPaths, Environment environment) {
+        return certPaths.stream().map(p -> environment.configFile().resolve(p)).collect(Collectors.toList());
+    }
+
     public static KeyStore readKeyStore(Path path, String type, char[] password)
             throws IOException, KeyStoreException, CertificateException, NoSuchAlgorithmException {
         try (InputStream in = Files.newInputStream(path)) {
@@ -67,12 +71,12 @@ public class CertParsingUtils {
      * Reads the provided paths and parses them into {@link Certificate} objects
      *
      * @param certPaths   the paths to the PEM encoded certificates
-     * @param environment the environment to resolve files against. May be {@code null}
+     * @param environment the environment to resolve files against. May be not be {@code null}
      * @return an array of {@link Certificate} objects
      */
-    public static Certificate[] readCertificates(List<String> certPaths, @Nullable Environment environment)
+    public static Certificate[] readCertificates(List<String> certPaths, Environment environment)
             throws CertificateException, IOException {
-        final List<Path> resolvedPaths = certPaths.stream().map(p -> environment.configFile().resolve(p)).collect(Collectors.toList());
+        final List<Path> resolvedPaths = resolvePaths(certPaths, environment);
         return readCertificates(resolvedPaths);
     }
 

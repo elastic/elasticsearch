@@ -325,8 +325,10 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.graphql.pubsub.PubSub;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.reactivestreams.Subscriber;
 
 import java.util.Map;
 
@@ -337,12 +339,36 @@ public abstract class AbstractClient implements Client {
     protected final Settings settings;
     private final ThreadPool threadPool;
     private final Admin admin;
+    private final PubSub pubsub = new PubSub();
+
+    private interface OnResponse<T> {
+        void onResponse(T response);
+    }
+
+    private static <Response extends ActionResponse> ActionListener<Response> onResponse(ActionListener<Response> listener, OnResponse<Response> fn) {
+        return new ActionListener<Response>() {
+            @Override
+            public void onResponse(Response r) {
+                listener.onResponse(r);
+                fn.onResponse(r);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        };
+    }
 
     public AbstractClient(Settings settings, ThreadPool threadPool) {
         this.settings = settings;
         this.threadPool = threadPool;
         this.admin = new Admin(this);
         this.logger =LogManager.getLogger(this.getClass());
+    }
+
+    public PubSub.Subscription subscribe(String channel, Subscriber<Object> subscriber) {
+        return pubsub.subscribe(channel, subscriber);
     }
 
     @Override
@@ -412,7 +438,9 @@ public abstract class AbstractClient implements Client {
 
     @Override
     public void update(final UpdateRequest request, final ActionListener<UpdateResponse> listener) {
-        execute(UpdateAction.INSTANCE, request, listener);
+        execute(UpdateAction.INSTANCE, request, onResponse(listener, response -> {
+            pubsub.publish("update:" + request.id(), null);
+        }));
     }
 
     @Override

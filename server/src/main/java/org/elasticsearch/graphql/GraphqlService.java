@@ -37,8 +37,8 @@ final public class GraphqlService {
     private static final Logger logger = LogManager.getLogger(GraphqlService.class);
 
     private NodeClient client;
-    private List<NetworkPlugin> networkPlugins;
     private ActionModule actionModule;
+    private List<NetworkPlugin> networkPlugins;
 
     private GqlApi api;
     private GqlServer gqlServer;

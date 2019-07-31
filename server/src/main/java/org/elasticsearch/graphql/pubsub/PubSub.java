@@ -37,26 +37,24 @@ public class PubSub {
         if (!subscribers.containsKey(channel)) {
             final List<Subscriber<Object>> list = new LinkedList<Subscriber<Object>>();
             subscribers.put(channel, list);
-            list.add(subscriber);
-            return () -> {
-                list.remove(subscriber);
-                if (list.isEmpty()) {
-                    subscribers.remove(channel);
-                }
-            };
+            return subscribe0(list, channel, subscriber);
         } else {
-            final List<Subscriber<Object>> list = subscribers.get(channel);
-            list.add(subscriber);
-            return () -> {
-                list.remove(subscriber);
-                if (list.isEmpty()) {
-                    subscribers.remove(channel);
-                }
-            };
+            return subscribe0(subscribers.get(channel), channel, subscriber);
         }
     }
 
+    private Subscription subscribe0(List<Subscriber<Object>> list, String channel, Subscriber<Object> subscriber) {
+        list.add(subscriber);
+        return () -> {
+            list.remove(subscriber);
+            if (list.isEmpty()) {
+                subscribers.remove(channel);
+            }
+        };
+    }
+
     public void publish(String channel, Object message) {
+        System.out.println("publishing " + channel + " "  + message);
         final List<Subscriber<Object>> list = subscribers.get(channel);
         if (list == null) return;
         for (Subscriber<Object> subscriber : list) {

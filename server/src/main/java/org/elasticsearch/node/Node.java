@@ -497,7 +497,6 @@ public class Node implements Closeable {
             RestoreService restoreService = new RestoreService(clusterService, repositoryService, clusterModule.getAllocationService(),
                 metaDataCreateIndexService, metaDataIndexUpgradeService, clusterService.getClusterSettings());
 
-
             final GraphqlService graphqlService = new GraphqlService(client, actionModule, pluginsService.filterPlugins(NetworkPlugin.class));
 
             final RerouteService rerouteService

@@ -78,6 +78,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.OptionalLong;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -196,7 +197,6 @@ public class RecoverySourceHandler {
             }
 
             final StepListener<SendFileResult> sendFileStep = new StepListener<>();
-            final StepListener<ReplicationResponse> establishRetentionLeaseStep = new StepListener<>();
             final StepListener<TimeValue> prepareEngineStep = new StepListener<>();
             final StepListener<SendSnapshotResult> sendSnapshotStep = new StepListener<>();
             final StepListener<Void> finalizeStep = new StepListener<>();
@@ -264,7 +264,16 @@ public class RecoverySourceHandler {
 
                     deleteRetentionLeaseStep.whenComplete(ignored -> {
                         assert Transports.assertNotTransportThread(RecoverySourceHandler.this + "[phase1]");
-                        phase1(safeCommitRef.getIndexCommit(), shard.getLastKnownGlobalCheckpoint(), () -> estimateNumOps, sendFileStep);
+
+                        final Consumer<ActionListener<Long>> getGlobalCheckpoint;
+                        if (useRetentionLeases) {
+                            getGlobalCheckpoint = l -> createRetentionLease(startingSeqNo, l);
+                        } else {
+                            final long globalCheckpoint = shard.getLastKnownGlobalCheckpoint();
+                            getGlobalCheckpoint = l -> l.onResponse(globalCheckpoint);
+                        }
+
+                        phase1(safeCommitRef.getIndexCommit(), getGlobalCheckpoint, () -> estimateNumOps, sendFileStep);
                     }, onFailure);
 
                 } catch (final Exception e) {
@@ -274,41 +283,6 @@ public class RecoverySourceHandler {
             assert startingSeqNo >= 0 : "startingSeqNo must be non negative. got: " + startingSeqNo;
 
             sendFileStep.whenComplete(r -> {
-                if (useRetentionLeases && isSequenceNumberBasedRecovery == false) {
-                    // We can in general use retention leases for peer recovery, but there is no lease for the target node right now.
-                    runUnderPrimaryPermit(() -> {
-                            // Clone the peer recovery retention lease belonging to the source shard. We are retaining history between the
-                            // the local checkpoint of the safe commit we're creating and this lease's retained seqno with the retention
-                            // lock, and by cloning an existing lease we (approximately) know that all our peers are also retaining history
-                            // as requested by the cloned lease. If the recovery now fails before copying enough history over then a
-                            // subsequent attempt will find this lease, determine it is not enough, and fall back to a file-based recovery.
-                            //
-                            // (approximately) because we do not guarantee to be able to satisfy every lease on every peer.
-                            logger.trace("cloning primary's retention lease");
-                            try {
-                                final RetentionLease clonedLease = shard.cloneLocalPeerRecoveryRetentionLease(request.targetNode().getId(),
-                                    new ThreadedActionListener<>(logger, shard.getThreadPool(),
-                                        ThreadPool.Names.GENERIC, establishRetentionLeaseStep, false));
-                                logger.trace("cloned primary's retention lease as [{}]", clonedLease);
-                            } catch (RetentionLeaseNotFoundException e) {
-                                // it's possible that the primary has no retention lease yet if we are doing a rolling upgrade from a
-                                // version before 7.4, and in that case we just create a lease using the local checkpoint of the safe commit
-                                // which we're using for recovery as a conservative estimate for the global checkpoint.
-                                assert shard.indexSettings().getIndexVersionCreated().before(Version.V_7_4_0);
-                                final long estimatedGlobalCheckpoint = startingSeqNo - 1;
-                                shard.addPeerRecoveryRetentionLease(request.targetNode().getId(),
-                                    estimatedGlobalCheckpoint, new ThreadedActionListener<>(logger, shard.getThreadPool(),
-                                        ThreadPool.Names.GENERIC, establishRetentionLeaseStep, false));
-                                logger.trace("created retention lease with estimated checkpoint of [{}]", estimatedGlobalCheckpoint);
-                            }
-                    }, shardId + " establishing retention lease for [" + request.targetAllocationId() + "]",
-                        shard, cancellableThreads, logger);
-                } else {
-                    establishRetentionLeaseStep.onResponse(null);
-                }
-            }, onFailure);
-
-            establishRetentionLeaseStep.whenComplete(r -> {
                 assert Transports.assertNotTransportThread(RecoverySourceHandler.this + "[prepareTargetForTranslog]");
                 // For a sequence based recovery, the target can keep its local translog
                 prepareTargetForTranslog(isSequenceNumberBasedRecovery == false,
@@ -455,7 +429,8 @@ public class RecoverySourceHandler {
      * segments that are missing. Only segments that have the same size and
      * checksum can be reused
      */
-    void phase1(IndexCommit snapshot, long globalCheckpoint, IntSupplier translogOps, ActionListener<SendFileResult> listener) {
+    void phase1(IndexCommit snapshot, Consumer<ActionListener<Long>> getGlobalCheckpoint,
+                IntSupplier translogOps, ActionListener<SendFileResult> listener) {
         cancellableThreads.checkForCancel();
         // Total size of segment files that are recovered
         long totalSizeInBytes = 0;
@@ -518,6 +493,7 @@ public class RecoverySourceHandler {
                     phase1ExistingFileNames.size(), new ByteSizeValue(existingTotalSizeInBytes));
                 final StepListener<Void> sendFileInfoStep = new StepListener<>();
                 final StepListener<Void> sendFilesStep = new StepListener<>();
+                final StepListener<Long> getGlobalCheckpointStep = new StepListener<>();
                 final StepListener<Void> cleanFilesStep = new StepListener<>();
                 cancellableThreads.execute(() ->
                     recoveryTarget.receiveFileInfo(phase1FileNames, phase1FileSizes, phase1ExistingFileNames,
@@ -526,7 +502,9 @@ public class RecoverySourceHandler {
                 sendFileInfoStep.whenComplete(r ->
                     sendFiles(store, phase1Files.toArray(new StoreFileMetaData[0]), translogOps, sendFilesStep), listener::onFailure);
 
-                sendFilesStep.whenComplete(r ->
+                sendFilesStep.whenComplete(r -> getGlobalCheckpoint.accept(getGlobalCheckpointStep), listener::onFailure);
+
+                getGlobalCheckpointStep.whenComplete(globalCheckpoint ->
                     cleanFiles(store, recoverySourceMetadata, translogOps, globalCheckpoint, cleanFilesStep), listener::onFailure);
 
                 final long totalSize = totalSizeInBytes;
@@ -548,6 +526,45 @@ public class RecoverySourceHandler {
         } catch (Exception e) {
             throw new RecoverFilesRecoveryException(request.shardId(), phase1FileNames.size(), new ByteSizeValue(totalSizeInBytes), e);
         }
+    }
+
+    private void createRetentionLease(final long startingSeqNo, ActionListener<Long> listener) {
+        runUnderPrimaryPermit(() -> {
+                // Clone the peer recovery retention lease belonging to the source shard. We are retaining history between the the local
+                // checkpoint of the safe commit we're creating and this lease's retained seqno with the retention lock, and by cloning an
+                // existing lease we (approximately) know that all our peers are also retaining history as requested by the cloned lease. If
+                // the recovery now fails before copying enough history over then a subsequent attempt will find this lease, determine it is
+                // not enough, and fall back to a file-based recovery.
+                //
+                // (approximately) because we do not guarantee to be able to satisfy every lease on every peer.
+                logger.trace("cloning primary's retention lease");
+                try {
+                    final StepListener<ReplicationResponse> cloneRetentionLeaseStep = new StepListener<>();
+                    final RetentionLease clonedLease
+                        = shard.cloneLocalPeerRecoveryRetentionLease(request.targetNode().getId(),
+                        new ThreadedActionListener<>(logger, shard.getThreadPool(),
+                            ThreadPool.Names.GENERIC, cloneRetentionLeaseStep, false));
+                    logger.trace("cloned primary's retention lease as [{}]", clonedLease);
+                    cloneRetentionLeaseStep.whenComplete(
+                        rr -> listener.onResponse(clonedLease.retainingSequenceNumber() - 1),
+                        listener::onFailure);
+                } catch (RetentionLeaseNotFoundException e) {
+                    // it's possible that the primary has no retention lease yet if we are doing a rolling upgrade from a version before
+                    // 7.4, and in that case we just create a lease using the local checkpoint of the safe commit which we're using for
+                    // recovery as a conservative estimate for the global checkpoint.
+                    assert shard.indexSettings().getIndexVersionCreated().before(Version.V_7_4_0);
+                    final StepListener<ReplicationResponse> addRetentionLeaseStep = new StepListener<>();
+                    final long estimatedGlobalCheckpoint = startingSeqNo - 1;
+                    shard.addPeerRecoveryRetentionLease(request.targetNode().getId(),
+                        estimatedGlobalCheckpoint, new ThreadedActionListener<>(logger, shard.getThreadPool(),
+                            ThreadPool.Names.GENERIC, addRetentionLeaseStep, false));
+                    addRetentionLeaseStep.whenComplete(
+                        rr -> listener.onResponse(estimatedGlobalCheckpoint),
+                        listener::onFailure);
+                    logger.trace("created retention lease with estimated checkpoint of [{}]", estimatedGlobalCheckpoint);
+                }
+            }, shardId + " establishing retention lease for [" + request.targetAllocationId() + "]",
+            shard, cancellableThreads, logger);
     }
 
     boolean canSkipPhase1(Store.MetadataSnapshot source, Store.MetadataSnapshot target) {

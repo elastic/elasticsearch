@@ -134,6 +134,7 @@ import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
 import static org.elasticsearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class EngineTestCase extends ESTestCase {
@@ -1069,15 +1070,18 @@ public abstract class EngineTestCase extends ESTestCase {
             || (engine instanceof InternalEngine) == false) {
             return;
         }
+        final long maxSeqNo = ((InternalEngine) engine).getLocalCheckpointTracker().getMaxSeqNo();
         final List<Translog.Operation> translogOps = new ArrayList<>();
         try (Translog.Snapshot snapshot = EngineTestCase.getTranslog(engine).newSnapshot()) {
             Translog.Operation op;
             while ((op = snapshot.next()) != null) {
+                assertThat(op.toString(), op.seqNo(), lessThanOrEqualTo(maxSeqNo));
                 translogOps.add(op);
             }
         }
         final Map<Long, Translog.Operation> luceneOps = readAllOperationsInLucene(engine, mapper).stream()
             .collect(Collectors.toMap(Translog.Operation::seqNo, Function.identity()));
+        luceneOps.values().forEach(op -> assertThat(op.toString(), op.seqNo(), lessThanOrEqualTo(maxSeqNo)));
         final long globalCheckpoint = EngineTestCase.getTranslog(engine).getLastSyncedGlobalCheckpoint();
         final long retainedOps = engine.config().getIndexSettings().getSoftDeleteRetentionOperations();
         final long seqNoForRecovery;
@@ -1089,7 +1093,6 @@ public abstract class EngineTestCase extends ESTestCase {
             final Translog.Operation luceneOp = luceneOps.get(translogOp.seqNo());
             if (luceneOp == null) {
                 if (minSeqNoToRetain <= translogOp.seqNo()) {
-                    final long maxSeqNo = ((InternalEngine) engine).getLocalCheckpointTracker().getMaxSeqNo();
                     fail("Operation not found seq# [" + translogOp.seqNo() + "], global checkpoint [" + globalCheckpoint + "], " +
                         "retention policy [" + retainedOps + "], maxSeqNo [" + maxSeqNo + "], translog op [" + translogOp + "]");
                 } else {

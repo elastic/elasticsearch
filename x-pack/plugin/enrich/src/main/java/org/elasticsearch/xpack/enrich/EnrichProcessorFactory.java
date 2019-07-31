@@ -38,11 +38,35 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
         boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, tag, config, "ignore_missing", false);
 
         final List<EnrichSpecification> specifications;
-        final List<Map<?, ?>> specificationConfig = ConfigurationUtils.readList(TYPE, tag, config, "enrich_values");
-        specifications = specificationConfig.stream()
+        final List<?> specificationConfig = ConfigurationUtils.readList(TYPE, tag, config, "enrich_values");
+        if (specificationConfig.isEmpty()) {
+            throw new IllegalArgumentException("provided enrich_values is empty");
+        } else if (specificationConfig.get(0) instanceof String) {
+            specifications = specificationConfig.stream()
+                .map(value -> {
+                    // Throw a nice error instead of class cast exception:
+                    if ((value instanceof String) == false) {
+                        throw new IllegalArgumentException("unsupported enrich values type [" + value.getClass()  + "]");
+                    }
+                    return (String) value;
+                })
+                .map(value -> new EnrichSpecification(value, value))
+                .collect(Collectors.toList());
+        } else if (specificationConfig.get(0) instanceof Map) {
             // TODO: Add templating support in enrich_values source and target options
-            .map(entry -> new EnrichSpecification((String) entry.get("source"), (String) entry.get("target")))
-            .collect(Collectors.toList());
+            specifications = specificationConfig.stream()
+                .map(value -> {
+                    // Throw a nice error instead of class cast exception:
+                    if ((value instanceof Map) == false) {
+                        throw new IllegalArgumentException("unsupported enrich values type [" + value.getClass()  + "]");
+                    }
+                    return (Map) value;
+                })
+                .map(entry -> new EnrichSpecification((String) entry.get("source"), (String) entry.get("target")))
+                .collect(Collectors.toList());
+        } else {
+            throw new IllegalArgumentException("unsupported enrich values type [" + specificationConfig.get(0).getClass()  + "]");
+        }
 
         for (EnrichSpecification specification : specifications) {
             if (policy.getEnrichValues().contains(specification.sourceField) == false) {

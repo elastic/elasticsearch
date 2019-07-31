@@ -169,4 +169,64 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("source field [rank] does not exist in policy [majestic]"));
     }
 
+    public void testCompactEnrichValuesFormat() throws Exception {
+        List<String> enrichValues = List.of("globalRank", "tldRank", "tld");
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, List.of("source_index"), "host",
+            enrichValues);
+        EnrichProcessorFactory factory = new EnrichProcessorFactory(null);
+        factory.policies = Map.of("majestic", policy);
+
+        Map<String, Object> config = new HashMap<>();
+        config.put("policy_name", "majestic");
+        config.put("enrich_values", enrichValues);
+
+        ExactMatchProcessor result = (ExactMatchProcessor) factory.create(Collections.emptyMap(), "_tag", config);
+        assertThat(result, notNullValue());
+        assertThat(result.getPolicyName(), equalTo("majestic"));
+        assertThat(result.getEnrichKey(), equalTo("host"));
+        assertThat(result.getSpecifications().size(), equalTo(enrichValues.size()));
+        for (int i = 0; i < enrichValues.size(); i++) {
+            EnrichSpecification actual = result.getSpecifications().get(i);
+            String expected = enrichValues.get(i);
+            assertThat(actual.sourceField, equalTo(expected));
+            assertThat(actual.targetField, equalTo(expected));
+        }
+    }
+
+    public void testNoEnrichValues() throws Exception {
+        List<String> enrichValues = List.of("globalRank", "tldRank", "tld");
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, List.of("source_index"), "host",
+            enrichValues);
+        EnrichProcessorFactory factory = new EnrichProcessorFactory(null);
+        factory.policies = Map.of("majestic", policy);
+
+        Map<String, Object> config = new HashMap<>();
+        config.put("policy_name", "majestic");
+        config.put("enrich_values", List.of());
+
+        Exception e = expectThrows(IllegalArgumentException.class, () -> factory.create(Collections.emptyMap(), "_tag", config));
+        assertThat(e.getMessage(), equalTo("provided enrich_values is empty"));
+    }
+
+    public void testIllegalEnrichValues() throws Exception {
+        List<String> enrichValues = List.of("globalRank", "tldRank", "tld");
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, List.of("source_index"), "host",
+            enrichValues);
+        EnrichProcessorFactory factory = new EnrichProcessorFactory(null);
+        factory.policies = Map.of("majestic", policy);
+
+        Map<String, Object> config1 = new HashMap<>();
+        config1.put("policy_name", "majestic");
+        config1.put("enrich_values", List.of(1L));
+
+        Exception e = expectThrows(IllegalArgumentException.class, () -> factory.create(Collections.emptyMap(), "_tag", config1));
+        assertThat(e.getMessage(), equalTo("unsupported enrich values type [class java.lang.Long]"));
+
+        Map<String, Object> config2 = new HashMap<>();
+        config2.put("policy_name", "majestic");
+        config2.put("enrich_values", List.of("tld", true));
+        e = expectThrows(IllegalArgumentException.class, () -> factory.create(Collections.emptyMap(), "_tag", config2));
+        assertThat(e.getMessage(), equalTo("unsupported enrich values type [class java.lang.Boolean]"));
+    }
+
 }

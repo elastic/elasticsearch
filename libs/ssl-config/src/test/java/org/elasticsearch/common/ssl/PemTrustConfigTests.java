@@ -87,7 +87,6 @@ public class PemTrustConfigTests extends ESTestCase {
         assertFileNotFound(trustConfig, cert2);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/42509")
     public void testTrustConfigReloadsFileContents() throws Exception {
         final Path cert1 = getDataPath("/certs/ca1/ca.crt");
         final Path cert2 = getDataPath("/certs/ca2/ca.crt");

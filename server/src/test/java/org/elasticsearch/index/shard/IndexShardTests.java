@@ -54,6 +54,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -94,6 +95,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -139,7 +141,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -161,6 +162,7 @@ import java.util.function.LongFunction;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -2608,25 +2610,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 numCorruptEntries++;
             }
         }
-
-        Iterator<Translog.Operation> iterator = operations.iterator();
-        Translog.Snapshot snapshot = new Translog.Snapshot() {
-
-            @Override
-            public void close() {
-
-            }
-
-            @Override
-            public int totalOperations() {
-                return numTotalEntries;
-            }
-
-            @Override
-            public Translog.Operation next() throws IOException {
-                return iterator.hasNext() ? iterator.next() : null;
-            }
-        };
+        Translog.Snapshot snapshot = TestTranslog.newSnapshotFromOperations(operations);
         primary.markAsRecovering("store", new RecoveryState(primary.routingEntry(),
             getFakeDiscoNode(primary.routingEntry().currentNodeId()),
             null));
@@ -3913,6 +3897,37 @@ public class IndexShardTests extends IndexShardTestCase {
         snapshotThread.join();
 
         closeShard(shard, false);
+    }
+
+    public void testResetEngineWithBrokenTranslog() throws Exception {
+        IndexShard shard = newStartedShard(false);
+        updateMappings(shard, IndexMetaData.builder(shard.indexSettings.getIndexMetaData())
+            .putMapping("_doc", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}").build());
+        final List<Translog.Operation> operations = Stream.concat(
+            IntStream.range(0, randomIntBetween(0, 10)).mapToObj(n -> new Translog.Index("_doc", "1", 0, shard.getPendingPrimaryTerm(), 1,
+                "{\"foo\" : \"bar\"}".getBytes(Charset.forName("UTF-8")), null, -1)),
+            // entries with corrupted source
+            IntStream.range(0, randomIntBetween(1, 10)).mapToObj(n -> new Translog.Index("_doc", "1", 0, shard.getPendingPrimaryTerm(), 1,
+                "{\"foo\" : \"bar}".getBytes(Charset.forName("UTF-8")), null, -1))).collect(Collectors.toList());
+        Randomness.shuffle(operations);
+        final CountDownLatch engineResetLatch = new CountDownLatch(1);
+        shard.acquireAllReplicaOperationsPermits(shard.getOperationPrimaryTerm(), shard.getLastKnownGlobalCheckpoint(), 0L,
+            ActionListener.wrap(
+                r -> {
+                    try (r) {
+                        Translog.Snapshot snapshot = TestTranslog.newSnapshotFromOperations(operations);
+                        final MapperParsingException error = expectThrows(MapperParsingException.class,
+                            () -> shard.runTranslogRecovery(shard.getEngine(), snapshot, Engine.Operation.Origin.LOCAL_RESET, () -> {}));
+                        assertThat(error.getMessage(), containsString("failed to parse field [foo] of type [text]"));
+                    } finally {
+                        engineResetLatch.countDown();
+                    }
+                },
+                e -> {
+                    throw new AssertionError(e);
+                }), TimeValue.timeValueMinutes(1));
+        engineResetLatch.await();
+        closeShards(shard);
     }
 
     public void testConcurrentAcquireAllReplicaOperationsPermitsWithPrimaryTermUpdate() throws Exception {

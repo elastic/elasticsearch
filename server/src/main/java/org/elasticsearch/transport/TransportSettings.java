@@ -119,9 +119,4 @@ public final class TransportSettings {
 
     private TransportSettings() {
     }
-
-    private static  <T> Setting<T> fallback(String key, Setting.AffixSetting<T> affixSetting, String regex, String replacement) {
-        return "_na_".equals(key) ? affixSetting.getConcreteSettingForNamespace(key)
-            : affixSetting.getConcreteSetting(key.replaceAll(regex, replacement));
-    }
 }

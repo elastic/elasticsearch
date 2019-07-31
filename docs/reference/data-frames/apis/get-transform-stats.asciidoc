@@ -126,16 +126,7 @@ The API returns the following results:
   "transforms" : [
     {
       "id" : "ecommerce_transform",
-      "state" : {
-        "task_state" : "started",
-        "indexer_state" : "started",
-        "checkpoint" : 1,
-        "progress" : {
-          "total_docs" : 1220,
-          "docs_remaining" : 0,
-          "percent_complete" : 100.0
-        }
-      },
+      "task_state" : "started",
       "stats" : {
         "pages_processed" : 2,
         "documents_processed" : 1220,
@@ -149,10 +140,31 @@ The API returns the following results:
         "search_failures" : 0
       },
       "checkpointing" : {
-        "current" : {
-          "timestamp_millis" : 1557474786393
+        "last" : {
+          "checkpoint" : 100,
+          "timestamp_millis" : 1561740252497,
+          "time_upper_bound_millis" : 1561740192497
         },
-        "operations_behind" : 0
+        "next" : {
+          "checkpoint" : 101,
+          "indexer_state" : "started",
+          "position" : {
+            "indexer_position" : {
+              "hashtag" : "abcd1234"
+            },
+            "buckets_position" : {
+              "hashtag" : "abcd5678"
+            }
+          },
+          "checkpoint_progress" : {
+            "total_docs" : 1900883,
+            "docs_remaining" : 1722762,
+            "percent_complete" : 9.370434687458408
+          },
+          "timestamp_millis" : 1561740629172,
+          "time_upper_bound_millis" : 1561740569172
+        },
+        "operations_behind": 27000
       }
     }
   ]

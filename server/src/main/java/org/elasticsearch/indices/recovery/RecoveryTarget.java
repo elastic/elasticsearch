@@ -159,10 +159,6 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         return store;
     }
 
-    public RecoveryState.Stage stage() {
-        return state().getStage();
-    }
-
     /**
      * Closes the current recovery target and waits up to a certain timeout for resources to be freed.
      * Returns true if resetting the recovery was successful, false if the recovery target is already cancelled / failed or marked as done.

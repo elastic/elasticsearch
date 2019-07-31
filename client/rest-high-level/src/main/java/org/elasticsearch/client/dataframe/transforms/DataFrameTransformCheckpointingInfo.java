@@ -27,14 +27,13 @@ import java.util.Objects;
 
 public class DataFrameTransformCheckpointingInfo {
 
-    public static final ParseField CURRENT_CHECKPOINT = new ParseField("current");
-    public static final ParseField IN_PROGRESS_CHECKPOINT = new ParseField("in_progress");
+    public static final ParseField LAST_CHECKPOINT = new ParseField("last", "current");
+    public static final ParseField NEXT_CHECKPOINT = new ParseField("next", "in_progress");
     public static final ParseField OPERATIONS_BEHIND = new ParseField("operations_behind");
 
-    private final DataFrameTransformCheckpointStats current;
-    private final DataFrameTransformCheckpointStats inProgress;
+    private final DataFrameTransformCheckpointStats last;
+    private final DataFrameTransformCheckpointStats next;
     private final long operationsBehind;
-
 
     private static final ConstructingObjectParser<DataFrameTransformCheckpointingInfo, Void> LENIENT_PARSER =
             new ConstructingObjectParser<>(
@@ -48,25 +47,25 @@ public class DataFrameTransformCheckpointingInfo {
 
     static {
         LENIENT_PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> DataFrameTransformCheckpointStats.fromXContent(p), CURRENT_CHECKPOINT);
+                (p, c) -> DataFrameTransformCheckpointStats.fromXContent(p), LAST_CHECKPOINT);
         LENIENT_PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> DataFrameTransformCheckpointStats.fromXContent(p), IN_PROGRESS_CHECKPOINT);
+                (p, c) -> DataFrameTransformCheckpointStats.fromXContent(p), NEXT_CHECKPOINT);
         LENIENT_PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), OPERATIONS_BEHIND);
     }
 
-    public DataFrameTransformCheckpointingInfo(DataFrameTransformCheckpointStats current, DataFrameTransformCheckpointStats inProgress,
+    public DataFrameTransformCheckpointingInfo(DataFrameTransformCheckpointStats last, DataFrameTransformCheckpointStats next,
             long operationsBehind) {
-        this.current = Objects.requireNonNull(current);
-        this.inProgress = Objects.requireNonNull(inProgress);
+        this.last = Objects.requireNonNull(last);
+        this.next = Objects.requireNonNull(next);
         this.operationsBehind = operationsBehind;
     }
 
-    public DataFrameTransformCheckpointStats getCurrent() {
-        return current;
+    public DataFrameTransformCheckpointStats getLast() {
+        return last;
     }
 
-    public DataFrameTransformCheckpointStats getInProgress() {
-        return inProgress;
+    public DataFrameTransformCheckpointStats getNext() {
+        return next;
     }
 
     public long getOperationsBehind() {
@@ -79,7 +78,7 @@ public class DataFrameTransformCheckpointingInfo {
 
     @Override
     public int hashCode() {
-        return Objects.hash(current, inProgress, operationsBehind);
+        return Objects.hash(last, next, operationsBehind);
     }
 
     @Override
@@ -94,8 +93,8 @@ public class DataFrameTransformCheckpointingInfo {
 
         DataFrameTransformCheckpointingInfo that = (DataFrameTransformCheckpointingInfo) other;
 
-        return Objects.equals(this.current, that.current) &&
-                Objects.equals(this.inProgress, that.inProgress) &&
+        return Objects.equals(this.last, that.last) &&
+                Objects.equals(this.next, that.next) &&
                 this.operationsBehind == that.operationsBehind;
     }
 

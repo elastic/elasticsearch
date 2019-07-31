@@ -123,7 +123,7 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
                     Arrays.asList(intermediateCA, clientCertificate));
             ValidationException e2 = expectThrows(ValidationException.class,
                     () -> restClient.security().delegatePkiAuthentication(delegatePkiRequest2, optionsBuilder.build()));
-            assertThat(e2.getMessage(), is("Validation Failed: 1: certificates chain must be ordered;"));
+            assertThat(e2.getMessage(), is("Validation Failed: 1: certificates chain must be an ordered chain;"));
 
             // bogus certificate
             DelegatePkiAuthenticationRequest delegatePkiRequest3 = new DelegatePkiAuthenticationRequest(Arrays.asList(bogusCertificate));

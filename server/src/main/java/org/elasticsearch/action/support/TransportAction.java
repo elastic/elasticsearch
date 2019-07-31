@@ -64,14 +64,20 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
         execute(task, request, new ActionListener<Response>() {
             @Override
             public void onResponse(Response response) {
-                taskManager.unregister(task);
-                listener.onResponse(response);
+                try {
+                    taskManager.unregister(task);
+                } finally {
+                    listener.onResponse(response);
+                }
             }
 
             @Override
             public void onFailure(Exception e) {
-                taskManager.unregister(task);
-                listener.onFailure(e);
+                try {
+                    taskManager.unregister(task);
+                } finally {
+                    listener.onFailure(e);
+                }
             }
         });
         return task;
@@ -86,18 +92,20 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
         execute(task, request, new ActionListener<Response>() {
             @Override
             public void onResponse(Response response) {
-                if (task != null) {
+                try {
                     taskManager.unregister(task);
+                } finally {
+                    listener.onResponse(task, response);
                 }
-                listener.onResponse(task, response);
             }
 
             @Override
             public void onFailure(Exception e) {
-                if (task != null) {
+                try {
                     taskManager.unregister(task);
+                } finally {
+                    listener.onFailure(task, e);
                 }
-                listener.onFailure(task, e);
             }
         });
         return task;

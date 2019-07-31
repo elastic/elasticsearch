@@ -1260,62 +1260,59 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
-    public void testLogsWarningPeriodicallyIfPublicationDelayed() throws IllegalAccessException {
-        final long warningDelayMillis;
-        final Settings settings;
-        if (randomBoolean()) {
-            settings = Settings.EMPTY;
-            warningDelayMillis = Coordinator.PUBLISH_REPORT_INTERVAL_SETTING.get(settings).millis();
-        } else {
-            warningDelayMillis = randomLongBetween(1, Coordinator.PUBLISH_REPORT_INTERVAL_SETTING.get(Settings.EMPTY).millis());
-            settings = Settings.builder()
-                .put(Coordinator.PUBLISH_REPORT_INTERVAL_SETTING.getKey(), warningDelayMillis + "ms")
-                .build();
-        }
-        logger.info("--> emitting warnings every [{}ms]", warningDelayMillis);
-
-        try (Cluster cluster = new Cluster(between(3, 5), true, settings)) {
+    public void testLogsMessagesIfPublicationDelayed() throws IllegalAccessException {
+        try (Cluster cluster = new Cluster(between(3, 5))) {
             cluster.runRandomly();
             cluster.stabilise();
-
-            // drop the publication messages to one node, but then restore connectivity so it remains in the cluster and does not fail
-            // health checks
             final ClusterNode brokenNode = cluster.getAnyNodeExcept(cluster.getAnyLeader());
-            brokenNode.blackhole();
-            cluster.getAnyLeader().submitValue(randomLong());
-            cluster.runFor(DEFAULT_CLUSTER_STATE_UPDATE_DELAY, "waiting for publication to start");
-            brokenNode.heal();
 
-            final MockLogAppender mockLogAppenderForDelayedPublication = new MockLogAppender();
+            final MockLogAppender mockLogAppender = new MockLogAppender();
             try {
-                mockLogAppenderForDelayedPublication.start();
-                Loggers.addAppender(LogManager.getLogger(Coordinator.CoordinatorPublication.class), mockLogAppenderForDelayedPublication);
-                mockLogAppenderForDelayedPublication.addExpectation(new MockLogAppender.SeenEventExpectation("warning",
+                mockLogAppender.start();
+                Loggers.addAppender(LogManager.getLogger(Coordinator.CoordinatorPublication.class), mockLogAppender);
+                Loggers.addAppender(LogManager.getLogger(LagDetector.class), mockLogAppender);
+
+                mockLogAppender.addExpectation(new MockLogAppender.SeenEventExpectation("publication info message",
+                    Coordinator.CoordinatorPublication.class.getCanonicalName(), Level.INFO,
+                    "after [*] publication of cluster state version [*] is still waiting for " + brokenNode.getLocalNode() + " ["
+                        + Publication.PublicationTargetState.SENT_PUBLISH_REQUEST + ']'));
+
+                mockLogAppender.addExpectation(new MockLogAppender.SeenEventExpectation("publication warning",
                     Coordinator.CoordinatorPublication.class.getCanonicalName(), Level.WARN,
                     "after [*] publication of cluster state version [*] is still waiting for " + brokenNode.getLocalNode() + " ["
                         + Publication.PublicationTargetState.SENT_PUBLISH_REQUEST + ']'));
-                cluster.runFor(warningDelayMillis + DEFAULT_DELAY_VARIABILITY, "waiting for warning to be emitted");
-                mockLogAppenderForDelayedPublication.assertAllExpectationsMatched();
-            } finally {
-                Loggers.removeAppender(LogManager.getLogger(Coordinator.CoordinatorPublication.class),
-                    mockLogAppenderForDelayedPublication);
-                mockLogAppenderForDelayedPublication.stop();
-            }
 
-            final MockLogAppender mockLogAppenderForLagDetection = new MockLogAppender();
-            try {
-                mockLogAppenderForLagDetection.start();
-                Loggers.addAppender(LogManager.getLogger(LagDetector.class), mockLogAppenderForLagDetection);
-                mockLogAppenderForLagDetection.addExpectation(new MockLogAppender.SeenEventExpectation("warning",
+                mockLogAppender.addExpectation(new MockLogAppender.SeenEventExpectation("lag warning",
                     LagDetector.class.getCanonicalName(), Level.WARN,
                     "node [" + brokenNode + "] is lagging at cluster state version [*], " +
                         "although publication of cluster state version [*] completed [*] ago"));
-                cluster.runFor(defaultMillis(PUBLISH_TIMEOUT_SETTING)
-                    + defaultMillis(LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING), "waiting for warning to be emitted");
-                mockLogAppenderForLagDetection.assertAllExpectationsMatched();
+
+                // drop the publication messages to one node, but then restore connectivity so it remains in the cluster and does not fail
+                // health checks
+                brokenNode.blackhole();
+                cluster.deterministicTaskQueue.scheduleAt(
+                    cluster.deterministicTaskQueue.getCurrentTimeMillis() + DEFAULT_CLUSTER_STATE_UPDATE_DELAY,
+                    new Runnable() {
+                        @Override
+                        public void run() {
+                            brokenNode.heal();
+                        }
+
+                        @Override
+                        public String toString() {
+                            return "healing " + brokenNode;
+                        }
+                    });
+                cluster.getAnyLeader().submitValue(randomLong());
+                cluster.runFor(defaultMillis(PUBLISH_TIMEOUT_SETTING) + 2 * DEFAULT_DELAY_VARIABILITY
+                        + defaultMillis(LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING),
+                    "waiting for messages to be emitted");
+
+                mockLogAppender.assertAllExpectationsMatched();
             } finally {
-                Loggers.removeAppender(LogManager.getLogger(LagDetector.class), mockLogAppenderForLagDetection);
-                mockLogAppenderForLagDetection.stop();
+                Loggers.removeAppender(LogManager.getLogger(Coordinator.CoordinatorPublication.class), mockLogAppender);
+                Loggers.removeAppender(LogManager.getLogger(LagDetector.class), mockLogAppender);
+                mockLogAppender.stop();
             }
         }
     }

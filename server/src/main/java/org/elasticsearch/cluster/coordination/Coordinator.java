@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -94,15 +95,15 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
     private static final Logger logger = LogManager.getLogger(Coordinator.class);
 
+    // the timeout before emitting an info log about a slow-running publication
+    public static final Setting<TimeValue> PUBLISH_INFO_TIMEOUT_SETTING =
+        Setting.timeSetting("cluster.publish.info_timeout",
+            TimeValue.timeValueMillis(10000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
+
     // the timeout for the publication of each value
     public static final Setting<TimeValue> PUBLISH_TIMEOUT_SETTING =
         Setting.timeSetting("cluster.publish.timeout",
             TimeValue.timeValueMillis(30000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
-
-    // the interval between reports of slow publication
-    public static final Setting<TimeValue> PUBLISH_REPORT_INTERVAL_SETTING =
-        Setting.timeSetting("cluster.publish.report_interval",
-            TimeValue.timeValueMillis(10000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
 
     private final Settings settings;
     private final boolean singleNodeDiscovery;
@@ -126,7 +127,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private final ElectionSchedulerFactory electionSchedulerFactory;
     private final SeedHostsResolver configuredHostsResolver;
     private final TimeValue publishTimeout;
-    private final TimeValue publishReportInterval;
+    private final TimeValue publishInfoTimeout;
     private final PublicationTransportHandler publicationHandler;
     private final LeaderChecker leaderChecker;
     private final FollowersChecker followersChecker;
@@ -173,7 +174,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.lastJoin = Optional.empty();
         this.joinAccumulator = new InitialJoinAccumulator();
         this.publishTimeout = PUBLISH_TIMEOUT_SETTING.get(settings);
-        this.publishReportInterval = PUBLISH_REPORT_INTERVAL_SETTING.get(settings);
+        this.publishInfoTimeout = PUBLISH_INFO_TIMEOUT_SETTING.get(settings);
         this.random = random;
         this.electionSchedulerFactory = new ElectionSchedulerFactory(settings, random, transportService.getThreadPool());
         this.preVoteCollector = new PreVoteCollector(transportService, this::startElection, this::updateMaxTermSeen, electionStrategy);
@@ -1216,7 +1217,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         private final ActionListener<Void> publishListener;
         private final PublicationTransportHandler.PublicationContext publicationContext;
         private final Scheduler.ScheduledCancellable timeoutHandler;
-        private final Scheduler.Cancellable delayReporter;
+        private final Scheduler.Cancellable infoTimeoutHandler;
 
         // We may not have accepted our own state before receiving a join from another node, causing its join to be rejected (we cannot
         // safely accept a join whose last-accepted term/version is ahead of ours), so store them up and process them at the end.
@@ -1272,19 +1273,19 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 }
             }, publishTimeout, Names.GENERIC);
 
-            this.delayReporter = transportService.getThreadPool().scheduleWithFixedDelay(new Runnable() {
+            this.infoTimeoutHandler = transportService.getThreadPool().schedule(new Runnable() {
                 @Override
                 public void run() {
                     synchronized (mutex) {
-                        logIncompleteNodes();
+                        logIncompleteNodes(Level.INFO);
                     }
                 }
 
                 @Override
                 public String toString() {
-                    return "periodic reporting for " + CoordinatorPublication.this;
+                    return "scheduled timeout for reporting on " + CoordinatorPublication.this;
                 }
-            }, publishReportInterval, Names.GENERIC);
+            }, publishInfoTimeout, Names.GENERIC);
         }
 
         private void removePublicationAndPossiblyBecomeCandidate(String reason) {
@@ -1327,7 +1328,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                                     removePublicationAndPossiblyBecomeCandidate("clusterApplier#onNewClusterState");
                                 }
                                 timeoutHandler.cancel();
-                                delayReporter.cancel();
+                                infoTimeoutHandler.cancel();
                                 ackListener.onNodeAck(getLocalNode(), e);
                                 publishListener.onFailure(e);
                             }
@@ -1372,10 +1373,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                                         }
                                     }
                                     lagDetector.startLagDetector(publishRequest.getAcceptedState().version());
-                                    logIncompleteNodes();
+                                    logIncompleteNodes(Level.WARN);
                                 }
                                 timeoutHandler.cancel();
-                                delayReporter.cancel();
+                                infoTimeoutHandler.cancel();
                                 ackListener.onNodeAck(getLocalNode(), null);
                                 publishListener.onResponse(null);
                             }
@@ -1387,7 +1388,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
                     removePublicationAndPossiblyBecomeCandidate("Publication.onCompletion(false)");
                     timeoutHandler.cancel();
-                    delayReporter.cancel();
+                    infoTimeoutHandler.cancel();
 
                     final FailedToCommitClusterStateException exception = new FailedToCommitClusterStateException("publication failed", e);
                     ackListener.onNodeAck(getLocalNode(), exception); // other nodes have acked, but not the master.

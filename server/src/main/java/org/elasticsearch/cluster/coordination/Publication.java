@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -195,12 +196,12 @@ public abstract class Publication {
             ", version=" + publishRequest.getAcceptedState().version() + '}';
     }
 
-    void logIncompleteNodes() {
+    void logIncompleteNodes(Level level) {
         final String message = publicationTargets.stream().filter(PublicationTarget::isActive).map(publicationTarget ->
             publicationTarget.getDiscoveryNode() + " [" + publicationTarget.getState() + "]").collect(Collectors.joining(", "));
         if (message.isEmpty() == false) {
             final TimeValue elapsedTime = TimeValue.timeValueMillis(currentTimeSupplier.getAsLong() - startTime);
-            logger.warn("after [{}] publication of cluster state version [{}] is still waiting for {}", elapsedTime,
+            logger.log(level, "after [{}] publication of cluster state version [{}] is still waiting for {}", elapsedTime,
                 publishRequest.getAcceptedState().version(), message);
         }
     }

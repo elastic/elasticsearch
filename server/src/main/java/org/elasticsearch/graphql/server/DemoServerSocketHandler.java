@@ -24,6 +24,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.graphql.api.GqlApiUtils;
 import static org.elasticsearch.graphql.api.GqlApiUtils.*;
+
+import org.elasticsearch.graphql.gql.GqlResult;
 import org.elasticsearch.graphql.gql.GqlServer;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
@@ -176,6 +178,12 @@ public class DemoServerSocketHandler {
         Map<String, Object> variables = payload.get("variables") instanceof Map
             ? (Map<String, Object>) payload.get("variables") : new HashMap();
 
+        GqlResult result = gqlServer.execute(query, operationName, variables);
+        if (!result.isSubscription()) {
+          sendDataOnce(id, result);
+          return;
+        }
+
         Publisher<Map<String, Object>> publisher = gqlServer.execute(query, operationName, variables).getSubscription();
         Subscriber<Map<String, Object>> subscriber = new Subscriber<Map<String, Object>>() {
             AtomicReference<Subscription> subscriptionRef = new AtomicReference<>();
@@ -189,19 +197,12 @@ public class DemoServerSocketHandler {
 
             @Override
             public void onNext(Map<String, Object> payload) {
-                logger.info("GQL_DATA {} ~> {}", id, payload);
-
                 if (completed) {
                     return;
                 }
 
                 try {
-                    send(createJavaUtilBuilder()
-                        .startObject()
-                            .field("type", SocketServerMsgType.DATA.value())
-                            .field("id", id)
-                            .field("payload").map(payload, false)
-                        .endObject());
+                    sendData(id, payload);
                     subscriptionRef.get().request(1);
                 } catch (Exception e) {
                     logger.error(e);
@@ -223,6 +224,11 @@ public class DemoServerSocketHandler {
         };
         subscribers.put(id, subscriber);
         publisher.subscribe(subscriber);
+    }
+
+    private void sendDataOnce(String id, GqlResult result) {
+        sendData(id, result.getSpecification());
+        sendComplete(id);
     }
 
 
@@ -316,6 +322,21 @@ public class DemoServerSocketHandler {
                 .startObject()
                     .field("type", SocketServerMsgType.COMPLETE.value())
                     .field("id", id)
+                .endObject());
+        } catch (Exception e) {
+            logger.error(e);
+        }
+    }
+
+    private void sendData(String id, Map<String, Object> payload) {
+        logger.info("GQL_DATA {} ~> {}", id, payload);
+
+        try {
+            send(createJavaUtilBuilder()
+                .startObject()
+                    .field("type", SocketServerMsgType.DATA.value())
+                    .field("id", id)
+                    .field("payload").map(payload, false)
                 .endObject());
         } catch (Exception e) {
             logger.error(e);

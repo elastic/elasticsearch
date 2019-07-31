@@ -12,7 +12,7 @@ using a <<percolator,`percolator`>> field. Then you can use a `percolate` query
 to return those stored queries based on documents they would match.
 
 
-[[percolate-query-ex-requests]]
+[[percolate-query-ex-request]]
 ==== Example request
 
 [[percolate-query-index-setup]]

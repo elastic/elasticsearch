@@ -23,9 +23,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction;
-import org.elasticsearch.xpack.core.ccr.action.FollowParameters;
 import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction.Response.FollowerInfo;
 import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction.Response.Status;
+import org.elasticsearch.xpack.core.ccr.action.FollowParameters;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -46,11 +46,6 @@ public class TransportFollowInfoAction extends TransportMasterNodeReadAction<Fol
     @Override
     protected String executor() {
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected FollowInfoAction.Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

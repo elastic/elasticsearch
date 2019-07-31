@@ -39,6 +39,7 @@ import org.elasticsearch.geo.geometry.Rectangle;
 import org.elasticsearch.geo.utils.GeographyValidator;
 
 import java.io.IOException;
+import java.text.ParseException;
 import java.util.Arrays;
 import java.util.Collections;
 
@@ -149,7 +150,7 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
     @Override
     public void testParseEnvelope() throws IOException {
         // test #1: envelope with expected coordinate order (TopLeft, BottomRight)
-        XContentBuilder multilinesGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "envelope")
+        XContentBuilder multilinesGeoJson = XContentFactory.jsonBuilder().startObject().field("type", randomBoolean() ? "envelope" : "bbox")
                 .startArray("coordinates")
                 .startArray().value(-50).value(30).endArray()
                 .startArray().value(50).value(-30).endArray()
@@ -159,7 +160,7 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
         assertGeometryEquals(expected, multilinesGeoJson);
 
         // test #2: envelope that spans dateline
-        multilinesGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "envelope")
+        multilinesGeoJson = XContentFactory.jsonBuilder().startObject().field("type", randomBoolean() ? "envelope" : "bbox")
                 .startArray("coordinates")
                 .startArray().value(50).value(30).endArray()
                 .startArray().value(-50).value(-30).endArray()
@@ -170,7 +171,7 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
         assertGeometryEquals(expected, multilinesGeoJson);
 
         // test #3: "envelope" (actually a triangle) with invalid number of coordinates (TopRight, BottomLeft, BottomRight)
-        multilinesGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "envelope")
+        multilinesGeoJson = XContentFactory.jsonBuilder().startObject().field("type", randomBoolean() ? "envelope" : "bbox")
                 .startArray("coordinates")
                 .startArray().value(50).value(30).endArray()
                 .startArray().value(-50).value(-30).endArray()
@@ -184,7 +185,7 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
         }
 
         // test #4: "envelope" with empty coordinates
-        multilinesGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "envelope")
+        multilinesGeoJson = XContentFactory.jsonBuilder().startObject().field("type", randomBoolean() ? "envelope" : "bbox")
                 .startArray("coordinates")
                 .endArray()
                 .endObject();
@@ -618,7 +619,7 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
         assertGeometryEquals(geometryExpected, geometryCollectionGeoJson);
     }
 
-    public void testThatParserExtractsCorrectTypeAndCoordinatesFromArbitraryJson() throws IOException {
+    public void testThatParserExtractsCorrectTypeAndCoordinatesFromArbitraryJson() throws IOException, ParseException {
         XContentBuilder pointGeoJson = XContentFactory.jsonBuilder()
                 .startObject()
                     .startObject("crs")

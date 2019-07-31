@@ -330,14 +330,23 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
             @Override
             public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
                 if (response.hasFailures()) {
-                    Map<String, String> triggeredWatches = Arrays.stream(response.getItems())
+                    Map<String, String> triggeredFailures = Arrays.stream(response.getItems())
                         .filter(BulkItemResponse::isFailed)
                         .filter(r -> r.getIndex().startsWith(TriggeredWatchStoreField.INDEX_NAME))
                         .collect(Collectors.toMap(BulkItemResponse::getId, BulkItemResponse::getFailureMessage));
-                    if (triggeredWatches.isEmpty() == false) {
-                        String failure = triggeredWatches.values().stream().collect(Collectors.joining(", "));
+                    Map<String, String> historyFailures = Arrays.stream(response.getItems())
+                        .filter(BulkItemResponse::isFailed)
+                        .filter(r -> r.getIndex().startsWith(HistoryStoreField.INDEX_PREFIX))
+                        .collect(Collectors.toMap(BulkItemResponse::getId, BulkItemResponse::getFailureMessage));
+                    if (triggeredFailures.isEmpty() == false) {
+                        String failure = triggeredFailures.values().stream().collect(Collectors.joining(", "));
                         logger.error("triggered watches could not be deleted {}, failure [{}]",
-                            triggeredWatches.keySet(), Strings.substring(failure, 0, 2000));
+                            triggeredFailures.keySet(), Strings.substring(failure, 0, 2000));
+                    }
+                    if (historyFailures.isEmpty() == false) {
+                        String failure = historyFailures.values().stream().collect(Collectors.joining(", "));
+                        logger.error("watch history could not be written {}, failure [{}]",
+                            historyFailures.keySet(), Strings.substring(failure, 0, 2000));
                     }
 
                     Map<String, String> overwrittenIds = Arrays.stream(response.getItems())
@@ -506,11 +515,13 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
      * @param settings The current settings
      * @return A number between 5 and the number of processors
      */
-    static int getWatcherThreadPoolSize(Settings settings) {
-        boolean isDataNode = Node.NODE_DATA_SETTING.get(settings);
+    static int getWatcherThreadPoolSize(final Settings settings) {
+        return getWatcherThreadPoolSize(Node.NODE_DATA_SETTING.get(settings), EsExecutors.numberOfProcessors(settings));
+    }
+
+    static int getWatcherThreadPoolSize(final boolean isDataNode, final int numberOfProcessors) {
         if (isDataNode) {
-            int numberOfProcessors = EsExecutors.numberOfProcessors(settings);
-            long size = Math.max(Math.min(5 * numberOfProcessors, 50), numberOfProcessors);
+            final long size = Math.max(Math.min(5 * numberOfProcessors, 50), numberOfProcessors);
             return Math.toIntExact(size);
         } else {
             return 1;

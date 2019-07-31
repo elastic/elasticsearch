@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -211,6 +212,7 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
     }
 
     public void testOverflowToDisk() throws Exception {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/44609", Constants.WINDOWS);
         Detector.Builder detector = new Detector.Builder("mean", "value");
         detector.setByFieldName("clientIP");
 

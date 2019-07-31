@@ -31,8 +31,8 @@ limitation might be removed in the future.
 [[freeze-index-api-path-parms]]
 ==== {api-path-parms-title}
 
-`<index>` (Required)::
-(string) Identifier for the index.
+`<index>`::
+  (Required, string) Identifier for the index.
 
 [[freeze-index-api-examples]]
 ==== {api-examples-title}

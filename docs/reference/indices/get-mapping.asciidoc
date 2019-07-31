@@ -4,6 +4,7 @@
 <titleabbrev>Get mapping</titleabbrev>
 ++++
 
+
 Returns mapping definitions for an index.
 
 [float]
@@ -26,6 +27,7 @@ GET /twitter/_mapping
 [float]
 [[indices-get-mapping-desc]]
 === {api-description-title}
+
 
 You can use the get mapping API to retrieve mapping definitions for one or
 more indices.

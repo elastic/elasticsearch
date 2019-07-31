@@ -58,8 +58,8 @@ replication options and whether the follower indices are active or paused.
 [[ccr-get-follow-info-path-parms]]
 ==== {api-path-parms-title}
 
-`<index>` (Required)::
-  (string) A comma-delimited list of follower index patterns.
+`<index>`::
+  (Required, string) A comma-delimited list of follower index patterns.
 
 [[ccr-get-follow-info-response-body]]
 ==== {api-response-body-title}

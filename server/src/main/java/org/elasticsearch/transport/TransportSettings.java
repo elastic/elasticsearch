@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.transport;
 
-import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAction;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -115,14 +114,9 @@ public final class TransportSettings {
         listSetting("transport.tracer.include", emptyList(), Function.identity(), Setting.Property.Dynamic, Setting.Property.NodeScope);
     public static final Setting<List<String>> TRACE_LOG_EXCLUDE_SETTING =
         listSetting("transport.tracer.exclude",
-            Arrays.asList("internal:coordination/fault_detection/*", TransportLivenessAction.NAME),
+            Arrays.asList("internal:coordination/fault_detection/*"),
             Function.identity(), Setting.Property.Dynamic, Setting.Property.NodeScope);
 
     private TransportSettings() {
-    }
-
-    private static  <T> Setting<T> fallback(String key, Setting.AffixSetting<T> affixSetting, String regex, String replacement) {
-        return "_na_".equals(key) ? affixSetting.getConcreteSettingForNamespace(key)
-            : affixSetting.getConcreteSetting(key.replaceAll(regex, replacement));
     }
 }

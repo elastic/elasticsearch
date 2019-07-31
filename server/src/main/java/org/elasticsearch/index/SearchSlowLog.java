@@ -22,6 +22,7 @@ package org.elasticsearch.index;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -32,7 +33,10 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.tasks.Task;
 
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 
 public final class SearchSlowLog implements SearchOperationListener {
     private long queryWarnThreshold;
@@ -121,49 +125,74 @@ public final class SearchSlowLog implements SearchOperationListener {
         Loggers.setLevel(queryLogger, level.name());
         Loggers.setLevel(fetchLogger, level.name());
     }
+
     @Override
     public void onQueryPhase(SearchContext context, long tookInNanos) {
         if (queryWarnThreshold >= 0 && tookInNanos > queryWarnThreshold) {
-            queryLogger.warn("{}", new SlowLogSearchContextPrinter(context, tookInNanos));
+            queryLogger.warn(new SearchSlowLogMessage(context, tookInNanos));
         } else if (queryInfoThreshold >= 0 && tookInNanos > queryInfoThreshold) {
-            queryLogger.info("{}", new SlowLogSearchContextPrinter(context, tookInNanos));
+            queryLogger.info(new SearchSlowLogMessage(context, tookInNanos));
         } else if (queryDebugThreshold >= 0 && tookInNanos > queryDebugThreshold) {
-            queryLogger.debug("{}", new SlowLogSearchContextPrinter(context, tookInNanos));
+            queryLogger.debug(new SearchSlowLogMessage(context, tookInNanos));
         } else if (queryTraceThreshold >= 0 && tookInNanos > queryTraceThreshold) {
-            queryLogger.trace("{}", new SlowLogSearchContextPrinter(context, tookInNanos));
+            queryLogger.trace(new SearchSlowLogMessage(context, tookInNanos));
         }
     }
 
     @Override
     public void onFetchPhase(SearchContext context, long tookInNanos) {
         if (fetchWarnThreshold >= 0 && tookInNanos > fetchWarnThreshold) {
-            fetchLogger.warn("{}", new SlowLogSearchContextPrinter(context, tookInNanos));
+            fetchLogger.warn(new SearchSlowLogMessage(context, tookInNanos));
         } else if (fetchInfoThreshold >= 0 && tookInNanos > fetchInfoThreshold) {
-            fetchLogger.info("{}", new SlowLogSearchContextPrinter(context, tookInNanos));
+            fetchLogger.info(new SearchSlowLogMessage(context, tookInNanos));
         } else if (fetchDebugThreshold >= 0 && tookInNanos > fetchDebugThreshold) {
-            fetchLogger.debug("{}", new SlowLogSearchContextPrinter(context, tookInNanos));
+            fetchLogger.debug(new SearchSlowLogMessage(context, tookInNanos));
         } else if (fetchTraceThreshold >= 0 && tookInNanos > fetchTraceThreshold) {
-            fetchLogger.trace("{}", new SlowLogSearchContextPrinter(context, tookInNanos));
+            fetchLogger.trace(new SearchSlowLogMessage(context, tookInNanos));
         }
     }
 
-    static final class SlowLogSearchContextPrinter {
-        private final SearchContext context;
-        private final long tookInNanos;
+    static final class SearchSlowLogMessage extends ESLogMessage {
 
-        SlowLogSearchContextPrinter(SearchContext context, long tookInNanos) {
-            this.context = context;
-            this.tookInNanos = tookInNanos;
+        SearchSlowLogMessage(SearchContext context, long tookInNanos) {
+            super(prepareMap(context, tookInNanos), message(context, tookInNanos));
         }
 
-        @Override
-        public String toString() {
+        private static Map<String, Object> prepareMap(SearchContext context, long tookInNanos) {
+            Map<String, Object> messageFields = new HashMap<>();
+            messageFields.put("message", context.indexShard().shardId());
+            messageFields.put("took", TimeValue.timeValueNanos(tookInNanos));
+            messageFields.put("took_millis", TimeUnit.NANOSECONDS.toMillis(tookInNanos));
+            if (context.queryResult().getTotalHits() != null) {
+                messageFields.put("total_hits", context.queryResult().getTotalHits());
+            } else {
+                messageFields.put("total_hits", "-1");
+            }
+            messageFields.put("stats", escapeJson(asJsonArray(
+                context.groupStats() != null ? context.groupStats().stream() : Stream.empty())));
+            messageFields.put("search_type", context.searchType());
+            messageFields.put("total_shards", context.numberOfShards());
+
+            if (context.request().source() != null) {
+                String source = escapeJson(context.request().source().toString(FORMAT_PARAMS));
+
+                messageFields.put("source", source);
+            } else {
+                messageFields.put("source", "{}");
+            }
+
+            messageFields.put("id", context.getTask().getHeader(Task.X_OPAQUE_ID));
+            return messageFields;
+        }
+
+        // Message will be used in plaintext logs
+        private static String message(SearchContext context, long tookInNanos) {
             StringBuilder sb = new StringBuilder();
             sb.append(context.indexShard().shardId())
-                    .append(" ")
-                    .append("took[").append(TimeValue.timeValueNanos(tookInNanos)).append("], ")
-                    .append("took_millis[").append(TimeUnit.NANOSECONDS.toMillis(tookInNanos)).append("], ")
-                    .append("total_hits[");
+                .append(" ")
+                .append("took[").append(TimeValue.timeValueNanos(tookInNanos)).append("], ")
+                .append("took_millis[").append(TimeUnit.NANOSECONDS.toMillis(tookInNanos)).append("], ")
+                .append("total_hits[");
             if (context.queryResult().getTotalHits() != null) {
                 sb.append(context.queryResult().getTotalHits());
             } else {

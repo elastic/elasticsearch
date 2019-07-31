@@ -33,9 +33,11 @@ import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.Closeable;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -56,6 +58,15 @@ public class ConnectionManager implements Closeable {
     private final AbstractRefCounted connectingRefCounter = new AbstractRefCounted("connection manager") {
         @Override
         protected void closeInternal() {
+            Iterator<Map.Entry<DiscoveryNode, Transport.Connection>> iterator = connectedNodes.entrySet().iterator();
+            while (iterator.hasNext()) {
+                Map.Entry<DiscoveryNode, Transport.Connection> next = iterator.next();
+                try {
+                    IOUtils.closeWhileHandlingException(next.getValue());
+                } finally {
+                    iterator.remove();
+                }
+            }
             closeLatch.countDown();
         }
     };
@@ -238,24 +249,32 @@ public class ConnectionManager implements Closeable {
         return connectedNodes.size();
     }
 
+    /**
+     * Returns the set of nodes this manager is connected to.
+     */
+    public Set<DiscoveryNode> connectedNodes() {
+        return Collections.unmodifiableSet(connectedNodes.keySet());
+    }
+
     @Override
     public void close() {
+        internalClose(true);
+    }
+
+    public void closeNoBlock() {
+        internalClose(false);
+    }
+
+    private void internalClose(boolean waitForPendingConnections) {
         assert Transports.assertNotTransportThread("Closing ConnectionManager");
         if (closing.compareAndSet(false, true)) {
             connectingRefCounter.decRef();
-            try {
-                closeLatch.await();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new IllegalStateException(e);
-            }
-            Iterator<Map.Entry<DiscoveryNode, Transport.Connection>> iterator = connectedNodes.entrySet().iterator();
-            while (iterator.hasNext()) {
-                Map.Entry<DiscoveryNode, Transport.Connection> next = iterator.next();
+            if (waitForPendingConnections) {
                 try {
-                    IOUtils.closeWhileHandlingException(next.getValue());
-                } finally {
-                    iterator.remove();
+                    closeLatch.await();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException(e);
                 }
             }
         }

@@ -84,11 +84,6 @@ public final class TransportPutFollowAction
     }
 
     @Override
-    protected PutFollowAction.Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     protected PutFollowAction.Response read(StreamInput in) throws IOException {
         return new PutFollowAction.Response(in);
     }

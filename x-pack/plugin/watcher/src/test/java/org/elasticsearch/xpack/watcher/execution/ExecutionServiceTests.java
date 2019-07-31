@@ -1098,7 +1098,7 @@ public class ExecutionServiceTests extends ESTestCase {
             }
 
             PlainActionFuture<UpdateResponse> future = PlainActionFuture.newFuture();
-            future.onResponse(new UpdateResponse());
+            future.onResponse(new UpdateResponse(null, null, null, null, 0, 0, 0, null));
             return future;
         }).when(client).update(any());
 

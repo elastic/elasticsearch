@@ -8,11 +8,10 @@ package org.elasticsearch.xpack.core.ccr.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
@@ -26,12 +25,7 @@ public class CcrStatsAction extends ActionType<CcrStatsAction.Response> {
     public static final CcrStatsAction INSTANCE = new CcrStatsAction();
 
     private CcrStatsAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, CcrStatsAction.Response::new);
     }
 
     public static class Request extends MasterNodeRequest<Request> {
@@ -80,7 +74,6 @@ public class CcrStatsAction extends ActionType<CcrStatsAction.Response> {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             autoFollowStats.writeTo(out);
             followStats.writeTo(out);
         }

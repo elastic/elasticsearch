@@ -59,3 +59,13 @@ by the `match` query if the total number of hits is not tracked.
 The `cutoff_frequency` parameter has been deprecated for `match` and `multi_match`
 queries. The same functionality can be achieved without any configuration provided
 that the total number of hits is not tracked.
+
+[float]
+[[breaking_73_ccr_changes]]
+=== CCR Changes
+
+[float]
+==== Directly modifying aliases of follower indices is no longer allowed
+
+Aliases are now replicated to a follower from its leader, so directly modifying
+aliases on follower indices is no longer allowed.

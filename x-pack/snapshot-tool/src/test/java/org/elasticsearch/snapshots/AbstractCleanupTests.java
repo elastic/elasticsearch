@@ -113,7 +113,7 @@ public abstract class AbstractCleanupTests extends ESSingleNodeTestCase {
     public void testBasePathTrailingSlash() {
         expectThrows(() ->
                         executeCommand(false, Map.of("base_path", "test/")),
-                "there should be not trailing slash in the base path");
+                "there should be no trailing slash in the base path");
     }
 
     public void testCleanup() throws Throwable {

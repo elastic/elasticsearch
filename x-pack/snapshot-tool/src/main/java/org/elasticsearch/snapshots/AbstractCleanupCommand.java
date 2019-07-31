@@ -60,7 +60,7 @@ public abstract class AbstractCleanupCommand extends Command {
 
         String basePath = basePathOption.value(options);
         if (basePath.endsWith("/")) {
-            throw new ElasticsearchException("there should be not trailing slash in the base path");
+            throw new ElasticsearchException("there should be no trailing slash in the base path");
         }
 
         Long safetyGapMillis = safetyGapMillisOption.value(options);

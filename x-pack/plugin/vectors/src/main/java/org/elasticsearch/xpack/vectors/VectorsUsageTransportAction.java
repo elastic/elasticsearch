@@ -81,8 +81,7 @@ public class VectorsUsageTransportAction extends XPackUsageFeatureTransportActio
             }
         }
         VectorsFeatureSetUsage usage =
-            new VectorsFeatureSetUsage(licenseState.isVectorsAllowed(), XPackSettings.VECTORS_ENABLED.get(settings),
-                numDenseVectorFields, numSparseVectorFields, avgDenseVectorDims);
+            new VectorsFeatureSetUsage(vectorsAvailable, vectorsEnabled, numDenseVectorFields, numSparseVectorFields, avgDenseVectorDims);
         listener.onResponse(new XPackUsageFeatureResponse(usage));
     }
 }

@@ -321,10 +321,8 @@ public class PkiRealm extends Realm implements CachingRealm {
 
     static BytesKey computeTokenFingerprint(X509AuthenticationToken token) throws CertificateEncodingException {
         MessageDigest digest = MessageDigests.sha256();
-        byte i = 1;
         for (X509Certificate certificate : token.credentials()) {
             digest.update(certificate.getEncoded());
-            digest.update(i++);
         }
         return new BytesKey(digest.digest());
     }

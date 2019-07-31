@@ -84,7 +84,6 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.junit.Assert;
 
 import java.io.IOException;
@@ -771,14 +770,14 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         // wait for both to ensure we don't have in-flight operations
         updateSettingsLatch.await();
         refreshLatch.await();
-        // ensure no scheduled refresh to compete with the scheduleRefresh we are going to verify.
-        assertBusy(() -> {
-            for (ThreadPoolStats.Stats stat : indexService.getThreadPool().stats()) {
-                if (stat.getName().equals(ThreadPool.Names.REFRESH) && (stat.getQueue() > 0 || stat.getActive() > 0)) {
-                    throw new AssertionError(); // cause assert busy to retry
-                }
-            }
-        });
+        // We need to ensure a `scheduledRefresh` triggered by the internal refresh setting update is executed before we index a new doc;
+        // otherwise, it will compete with the `scheduledRefresh` that we are going to verify. Since the refresh in single-node tests
+        // is a single thread executor, we can make sure that all scheduled refresh tasks are done by submitting a task then wait until
+        // that task is completed. Note that using ThreadPoolStats is not watertight as both queue and active count can be 0 when
+        // ThreadPoolExecutor(in #runWorker) just takes a task out the queue but before marking it active (i.e., lock the worker).
+        CountDownLatch scheduledRefreshDone = new CountDownLatch(1);
+        indexService.getThreadPool().executor(ThreadPool.Names.REFRESH).execute(scheduledRefreshDone::countDown);
+        scheduledRefreshDone.await();
         client().prepareIndex("test", "test", "2").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
         assertTrue(shard.scheduledRefresh());
         assertTrue(shard.isSearchIdle());

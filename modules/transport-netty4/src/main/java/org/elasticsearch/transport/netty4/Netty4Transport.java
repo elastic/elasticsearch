@@ -21,6 +21,8 @@ package org.elasticsearch.transport.netty4;
 
 import io.netty.bootstrap.Bootstrap;
 import io.netty.bootstrap.ServerBootstrap;
+import io.netty.buffer.ByteBufAllocator;
+import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.channel.AdaptiveRecvByteBufAllocator;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
@@ -149,10 +151,10 @@ public class Netty4Transport extends TcpTransport {
     private Bootstrap createClientBootstrap(NioEventLoopGroup eventLoopGroup) {
         final Bootstrap bootstrap = new Bootstrap();
         bootstrap.group(eventLoopGroup);
-        if (pluginConfig.isDirectBufferPoolingDisabled()) {
-            bootstrap.channel(CopyBytesSocketChannel.class);
-        } else {
+        if (ByteBufAllocator.DEFAULT.isDirectBufferPooled()) {
             bootstrap.channel(NioSocketChannel.class);
+        } else {
+            bootstrap.channel(CopyBytesSocketChannel.class);
         }
 
         bootstrap.option(ChannelOption.TCP_NODELAY, TransportSettings.TCP_NO_DELAY.get(settings));
@@ -172,7 +174,6 @@ public class Netty4Transport extends TcpTransport {
 
         final boolean reuseAddress = TransportSettings.TCP_REUSE_ADDRESS.get(settings);
         bootstrap.option(ChannelOption.SO_REUSEADDR, reuseAddress);
-        bootstrap.option(ChannelOption.ALLOCATOR, pluginConfig.getAllocator());
 
         return bootstrap;
     }
@@ -188,10 +189,10 @@ public class Netty4Transport extends TcpTransport {
         final ServerBootstrap serverBootstrap = new ServerBootstrap();
 
         serverBootstrap.group(eventLoopGroup);
-        if (pluginConfig.isDirectBufferPoolingDisabled()) {
-            serverBootstrap.channel(CopyBytesServerSocketChannel.class);
-        } else {
+        if (ByteBufAllocator.DEFAULT.isDirectBufferPooled()) {
             serverBootstrap.channel(NioServerSocketChannel.class);
+        } else {
+            serverBootstrap.channel(CopyBytesServerSocketChannel.class);
         }
 
         serverBootstrap.childHandler(getServerChannelInitializer(name));
@@ -213,8 +214,6 @@ public class Netty4Transport extends TcpTransport {
 
         serverBootstrap.option(ChannelOption.SO_REUSEADDR, profileSettings.reuseAddress);
         serverBootstrap.childOption(ChannelOption.SO_REUSEADDR, profileSettings.reuseAddress);
-        serverBootstrap.option(ChannelOption.ALLOCATOR, pluginConfig.getAllocator());
-        serverBootstrap.childOption(ChannelOption.ALLOCATOR, pluginConfig.getAllocator());
         serverBootstrap.validate();
 
         serverBootstraps.put(name, serverBootstrap);

@@ -20,6 +20,8 @@
 package org.elasticsearch.http.netty4;
 
 import io.netty.bootstrap.ServerBootstrap;
+import io.netty.buffer.ByteBufAllocator;
+import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandler;
@@ -180,10 +182,11 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
 
             serverBootstrap.group(new NioEventLoopGroup(workerCount, daemonThreadFactory(settings,
                 HTTP_SERVER_WORKER_THREAD_NAME_PREFIX)));
-            if (pluginConfig.isDirectBufferPoolingDisabled()) {
-                serverBootstrap.channel(CopyBytesServerSocketChannel.class);
-            } else {
+
+            if (ByteBufAllocator.DEFAULT.isDirectBufferPooled()) {
                 serverBootstrap.channel(NioServerSocketChannel.class);
+            } else {
+                serverBootstrap.channel(CopyBytesServerSocketChannel.class);
             }
 
             serverBootstrap.childHandler(configureServerChannelHandler());

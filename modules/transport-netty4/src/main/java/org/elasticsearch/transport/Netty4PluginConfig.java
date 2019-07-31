@@ -19,51 +19,20 @@
 
 package org.elasticsearch.transport;
 
-import io.netty.buffer.ByteBufAllocator;
-import io.netty.buffer.PooledByteBufAllocator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 
 public class Netty4PluginConfig {
 
-    private final ByteBufAllocator allocator;
     private final Settings settings;
-    private final Boolean directBufferPoolingDisabled;
 
     public Netty4PluginConfig(Settings settings) {
         Netty4Utils.setAvailableProcessors(EsExecutors.PROCESSORS_SETTING.get(settings));
         this.settings = settings;
-        directBufferPoolingDisabled = Netty4Plugin.NETTY_DISABLE_DIRECT_POOL.get(settings);
-        if (directBufferPoolingDisabled) {
-            allocator = getNoDirectAllocator();
-        } else {
-            allocator = ByteBufAllocator.DEFAULT;
-        }
     }
 
     public Settings getSettings() {
         return settings;
-    }
-
-    public boolean isDirectBufferPoolingDisabled() {
-        return directBufferPoolingDisabled;
-    }
-
-    public ByteBufAllocator getAllocator() {
-        return allocator;
-    }
-
-    private static volatile ByteBufAllocator noDirectAllocator;
-
-    private static synchronized ByteBufAllocator getNoDirectAllocator() {
-        if (noDirectAllocator == null) {
-            noDirectAllocator = new PooledByteBufAllocator(false, PooledByteBufAllocator.defaultNumHeapArena(), 0,
-                PooledByteBufAllocator.defaultPageSize(), PooledByteBufAllocator.defaultMaxOrder(),
-                PooledByteBufAllocator.defaultTinyCacheSize(), PooledByteBufAllocator.defaultSmallCacheSize(),
-                PooledByteBufAllocator.defaultNormalCacheSize(), PooledByteBufAllocator.defaultUseCacheForAllThreads());
-        }
-
-        return noDirectAllocator;
     }
 }

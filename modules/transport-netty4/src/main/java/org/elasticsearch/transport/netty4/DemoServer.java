@@ -29,13 +29,13 @@ import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.http.*;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.WebSocketFrame;
-import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
 import io.netty.handler.codec.http.websocketx.extensions.compression.WebSocketServerCompressionHandler;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
 import io.netty.util.CharsetUtil;
 import org.elasticsearch.graphql.server.*;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.transport.netty4.websocket.WebSocketServerProtocolHandler;
 import org.reactivestreams.Publisher;
 
 import java.util.HashMap;
@@ -71,7 +71,7 @@ public class DemoServer {
                         pipeline.addLast(new WebSocketServerProtocolHandler("/graphql", null, true));
 
                         pipeline.addLast("business-logic", new HttpHandler());
-                        pipeline.addLast(new WebSocketFrameHandler());
+                        pipeline.addLast("websocket-business-logic", new WebSocketFrameHandler());
                     }
                 })
                 .channel(NioServerSocketChannel.class);
@@ -287,6 +287,7 @@ public class DemoServer {
 
         @Override
         protected void channelRead0(ChannelHandlerContext ctx, WebSocketFrame frame) throws Exception {
+            System.out.println("I RECEIVED THE MESSAGE");
             if (frame instanceof TextWebSocketFrame) {
                 String request = ((TextWebSocketFrame) frame).text();
                 incomingMessages.next(request);

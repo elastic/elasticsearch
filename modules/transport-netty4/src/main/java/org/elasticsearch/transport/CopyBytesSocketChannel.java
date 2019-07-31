@@ -163,7 +163,7 @@ public class CopyBytesSocketChannel extends NioSocketChannel {
         }
 
         void setMaxBytesPerGatheringWrite(int maxBytesPerGatheringWrite) {
-            this.maxBytesPerGatheringWrite = maxBytesPerGatheringWrite;
+            this.maxBytesPerGatheringWrite = Math.min(maxBytesPerGatheringWrite, MAX_BYTES_PER_WRITE);
         }
 
         int getMaxBytesPerGatheringWrite() {

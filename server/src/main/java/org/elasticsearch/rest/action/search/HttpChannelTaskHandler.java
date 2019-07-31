@@ -34,10 +34,11 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * This class keeps track of which tasks came in from which {@link HttpChannel}, by allowing to associate
- * an {@link HttpChannel} with a {@link TaskId}, and also to unregister the task once it's complete.
+ * This class executes a request and associates the corresponding {@link Task} with the {@link HttpChannel} that it was originated from,
+ * so that the tasks associated with a certain channel get cancelled when the underlying connection gets closed.
  */
 final class HttpChannelTaskHandler {
     final Map<HttpChannel, CloseListener> httpChannels = new ConcurrentHashMap<>();
@@ -46,6 +47,7 @@ final class HttpChannelTaskHandler {
                                                    ActionType<Response> actionType, ActionListener<Response> listener) {
 
         CloseListener closeListener = httpChannels.computeIfAbsent(httpChannel, channel -> new CloseListener(client));
+        closeListener.maybeRegisterChannel(httpChannel);
         TaskHolder taskHolder = new TaskHolder();
         Task task = client.executeLocally(actionType, request,
             new ActionListener<>() {
@@ -68,7 +70,7 @@ final class HttpChannelTaskHandler {
                 }
             });
 
-        closeListener.registerTask(httpChannel, taskHolder, new TaskId(client.getLocalNodeId(), task.getId()));
+        closeListener.registerTask(taskHolder, new TaskId(client.getLocalNodeId(), task.getId()));
 
         //TODO check that no tasks are left behind through assertions at node close. Not sure how. Couldn't there be in-flight requests
         //causing channels to be in the map when a node gets closed?
@@ -76,29 +78,31 @@ final class HttpChannelTaskHandler {
 
     final class CloseListener implements ActionListener<Void> {
         private final Client client;
+        private final AtomicReference<HttpChannel> channel = new AtomicReference<>();
         final Set<TaskId> taskIds = new HashSet<>();
-        private HttpChannel channel;
 
         CloseListener(Client client) {
             this.client = client;
         }
 
-        synchronized void registerTask(HttpChannel httpChannel, TaskHolder taskHolder, TaskId taskId) {
-            if (channel == null) {
-                channel = httpChannel;
+        void maybeRegisterChannel(HttpChannel httpChannel) {
+            if (channel.compareAndSet(null, httpChannel)) {
                 //In case the channel is already closed when we register the listener, the listener will be immediately executed which will
                 //remove the channel from the map straight-away. That is why we first create the CloseListener and later we associate it
                 //with the channel. This guarantees that the close listener is already in the map when the it gets registered to its
                 //corresponding channel, hence it is always found in the map when it gets invoked if the channel gets closed.
                 httpChannel.addCloseListener(this);
             }
+        }
+
+        synchronized void registerTask(TaskHolder taskHolder, TaskId taskId) {
             taskHolder.taskId = taskId;
             if (taskHolder.completed == false) {
                 this.taskIds.add(taskId);
             }
         }
 
-        private synchronized void unregisterTask(TaskHolder taskHolder) {
+        synchronized void unregisterTask(TaskHolder taskHolder) {
             if (taskHolder.taskId != null) {
                 this.taskIds.remove(taskHolder.taskId);
             }
@@ -109,19 +113,16 @@ final class HttpChannelTaskHandler {
         public synchronized void onResponse(Void aVoid) {
             //When the channel gets closed it won't be reused: we can remove it from the map as there is no chance we will
             //register another close listener to it later.
-            //The channel reference may be null, if the connection gets closed before it got set.
             //TODO Could it be that not all tasks have been registered yet when the close listener is notified. We remove the channel
             // and cancel the tasks that are known up until then. if new tasks come in from the same channel, the channel will be added
             // again to the map, but the close listener will be registered another time to it which is not good.
-            if (channel != null) {
-                httpChannels.remove(channel);
-                for (TaskId previousTaskId : taskIds) {
-                    CancelTasksRequest cancelTasksRequest = new CancelTasksRequest();
-                    cancelTasksRequest.setTaskId(previousTaskId);
-                    //We don't wait for cancel tasks to come back. Task cancellation is just best effort.
-                    //Note that cancel tasks fails if the user sending the search request does not have the permissions to call it.
-                    client.admin().cluster().cancelTasks(cancelTasksRequest, ActionListener.wrap(r -> {}, e -> {}));
-                }
+            httpChannels.remove(channel.get());
+            for (TaskId previousTaskId : taskIds) {
+                CancelTasksRequest cancelTasksRequest = new CancelTasksRequest();
+                cancelTasksRequest.setTaskId(previousTaskId);
+                //We don't wait for cancel tasks to come back. Task cancellation is just best effort.
+                //Note that cancel tasks fails if the user sending the search request does not have the permissions to call it.
+                client.admin().cluster().cancelTasks(cancelTasksRequest, ActionListener.wrap(r -> {}, e -> {}));
             }
         }
 

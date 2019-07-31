@@ -151,8 +151,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
         if (handler instanceof BaseRestHandler) {
             usageService.addRestHandler((BaseRestHandler) handler);
         }
-        handlers.insertOrUpdate(path, new MethodHandlers(path, handler, method), (mHandlers, newMHandler) -> {
-            return mHandlers.addMethods(handler, method);
+        final RestHandler maybeWrappedHandler = handlerWrapper.apply(handler);
+        handlers.insertOrUpdate(path, new MethodHandlers(path, maybeWrappedHandler, method), (mHandlers, newMHandler) -> {
+            return mHandlers.addMethods(maybeWrappedHandler, method);
         });
     }
 
@@ -235,7 +236,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 // iff we could reserve bytes for the request we need to send the response also over this channel
                 responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength);
 
-                final RestHandler wrappedHandler = mHandler.map(h -> handlerWrapper.apply(h)).get();
+                final RestHandler wrappedHandler = mHandler.get();
                 wrappedHandler.handleRequest(request, responseChannel, client);
                 requestHandled = true;
             } catch (Exception e) {

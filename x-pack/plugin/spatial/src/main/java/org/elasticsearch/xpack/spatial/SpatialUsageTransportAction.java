@@ -40,7 +40,8 @@ public class SpatialUsageTransportAction extends XPackUsageFeatureTransportActio
     @Override
     protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
                                    ActionListener<XPackUsageFeatureResponse> listener) {
-        SpatialFeatureSetUsage usage = new SpatialFeatureSetUsage(licenseState.isSpatialAllowed(), true);
+        SpatialFeatureSetUsage usage =
+            new SpatialFeatureSetUsage(licenseState.isSpatialAllowed(), true);
         listener.onResponse(new XPackUsageFeatureResponse(usage));
     }
 }

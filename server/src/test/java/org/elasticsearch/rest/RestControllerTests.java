@@ -58,7 +58,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.UnaryOperator;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -81,7 +80,6 @@ public class RestControllerTests extends ESTestCase {
 
     @Before
     public void setup() {
-        Settings settings = Settings.EMPTY;
         circuitBreakerService = new HierarchyCircuitBreakerService(
             Settings.builder()
                 .put(HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), BREAKER_LIMIT)
@@ -206,16 +204,19 @@ public class RestControllerTests extends ESTestCase {
     public void testRestHandlerWrapper() throws Exception {
         AtomicBoolean handlerCalled = new AtomicBoolean(false);
         AtomicBoolean wrapperCalled = new AtomicBoolean(false);
-        RestHandler handler = (RestRequest request, RestChannel channel, NodeClient client) -> {
-            handlerCalled.set(true);
-        };
-        UnaryOperator<RestHandler> wrapper = h -> {
-            assertSame(handler, h);
-            return (RestRequest request, RestChannel channel, NodeClient client) -> wrapperCalled.set(true);
-        };
-        final RestController restController = new RestController(Collections.emptySet(), wrapper, null,
-                circuitBreakerService, usageService);
-        restController.dispatchRequest(new FakeRestRequest.Builder(xContentRegistry()).build(), null, null, Optional.of(handler));
+        final RestHandler handler = (RestRequest request, RestChannel channel, NodeClient client) -> handlerCalled.set(true);
+        final HttpServerTransport httpServerTransport = new TestHttpServerTransport();
+        final RestController restController =
+            new RestController(Collections.emptySet(),
+                h -> {
+                    assertSame(handler, h);
+                    return (RestRequest request, RestChannel channel, NodeClient client) -> wrapperCalled.set(true);
+                }, null, circuitBreakerService, usageService);
+        restController.registerHandler(RestRequest.Method.GET, "/wrapped", handler);
+        RestRequest request = testRestRequest("/wrapped", "{}", XContentType.JSON);
+        AssertingChannel channel = new AssertingChannel(request, true, RestStatus.BAD_REQUEST);
+        restController.dispatchRequest(request, channel, new ThreadContext(Settings.EMPTY));
+        httpServerTransport.start();
         assertTrue(wrapperCalled.get());
         assertFalse(handlerCalled.get());
     }

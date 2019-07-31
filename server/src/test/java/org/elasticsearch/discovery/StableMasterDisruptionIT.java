@@ -173,6 +173,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
      * Tests that emulates a frozen elected master node that unfreezes and pushes its cluster state to other nodes that already are
      * following another elected master node. These nodes should reject this cluster state and prevent them from following the stale master.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/43387")
     public void testStaleMasterNotHijackingMajority() throws Exception {
         final List<String> nodes = internalCluster().startNodes(3, Settings.builder()
             .put(LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING.getKey(), "1s")

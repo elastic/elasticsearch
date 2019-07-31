@@ -83,6 +83,12 @@ public class EdgeTreeReader implements ShapeTreeReader {
         return containsBottomLeft(readRoot(input.position()), extent);
     }
 
+    boolean containsFully(Extent extent) throws IOException {
+        resetInputPosition();
+        input.position(input.position() + Extent.WRITEABLE_SIZE_IN_BYTES); // skip extent
+        return containsFully(readRoot(input.position()), extent);
+    }
+
     public boolean crosses(Extent extent) throws IOException {
         resetInputPosition();
 
@@ -95,7 +101,11 @@ public class EdgeTreeReader implements ShapeTreeReader {
     }
 
     public Edge readRoot(int position) throws IOException {
-        return readEdge(position);
+        input.position(position);
+        if (input.readBoolean()) {
+            return readEdge(input.position());
+        }
+        return null;
     }
 
     private Edge readEdge(int position) throws IOException {
@@ -129,6 +139,33 @@ public class EdgeTreeReader implements ShapeTreeReader {
             // is bbox-query contained within linearRing
             // cast infinite ray to the right from bottom-left of bbox-query to see if it intersects edge
             if (lineCrossesLineWithBoundary(root.x1, root.y1, root.x2, root.y2, extent.minX, extent.minY, Integer.MAX_VALUE, extent.minY)) {
+                res = true;
+            }
+
+            if (root.rightOffset > 0) { /* has left node */
+                res ^= containsBottomLeft(readLeft(root), extent);
+            }
+
+            if (root.rightOffset > 0 && extent.maxY >= root.minY) { /* no right node if rightOffset == -1 */
+                res ^= containsBottomLeft(readRight(root), extent);
+            }
+        }
+        return res;
+    }
+
+    /**
+     * Returns true if every corner in the rectangle query is contained within the tree's edges.
+     */
+    private boolean containsFully(Edge root, Extent extent) throws IOException {
+        boolean res = false;
+        if (root.maxY >= extent.minY) {
+            // is bbox-query contained within linearRing
+            // cast infinite ray to the right from each corner of the extent
+            if (lineCrossesLineWithBoundary(root.x1, root.y1, root.x2, root.y2, extent.minX, extent.minY, Integer.MAX_VALUE, extent.minY)
+                && lineCrossesLineWithBoundary(root.x1, root.y1, root.x2, root.y2, extent.minX, extent.maxY, Integer.MAX_VALUE, extent.maxY)
+                && lineCrossesLineWithBoundary(root.x1, root.y1, root.x2, root.y2, extent.maxX, extent.minY, Integer.MAX_VALUE, extent.minY)
+                && lineCrossesLineWithBoundary(root.x1, root.y1, root.x2, root.y2, extent.maxX, extent.maxY, Integer.MAX_VALUE, extent.maxY)
+            ) {
                 res = true;
             }
 

@@ -76,7 +76,7 @@ public class GeometryTreeReader {
     private static ShapeTreeReader getReader(ShapeType shapeType, ByteBufferStreamInput input) throws IOException {
         switch (shapeType) {
             case POLYGON:
-                return new EdgeTreeReader(input, true);
+                return new PolygonTreeReader(input);
             case POINT:
             case MULTIPOINT:
                 return new Point2DReader(input);

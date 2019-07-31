@@ -36,6 +36,7 @@ import org.elasticsearch.geo.geometry.Rectangle;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -105,7 +106,7 @@ public class GeometryTreeWriter implements Writeable {
 
         @Override
         public Void visit(Line line) {
-            addWriter(new EdgeTreeWriter(asLonEncodedArray(line.getLons()), asLatEncodedArray(line.getLats()), false));
+            addWriter(new EdgeTreeWriter(asLonEncodedArray(line.getLons()), asLatEncodedArray(line.getLats())));
             return null;
         }
 
@@ -118,15 +119,22 @@ public class GeometryTreeWriter implements Writeable {
                 x.add(asLonEncodedArray(line.getLons()));
                 y.add(asLatEncodedArray(line.getLats()));
             }
-            addWriter(new EdgeTreeWriter(x, y, false));
+            addWriter(new EdgeTreeWriter(x, y));
             return null;
         }
 
         @Override
         public Void visit(Polygon polygon) {
-            // TODO (support holes)
             LinearRing outerShell = polygon.getPolygon();
-            addWriter(new EdgeTreeWriter(asLonEncodedArray(outerShell.getLons()), asLatEncodedArray(outerShell.getLats()), true));
+            int numHoles = polygon.getNumberOfHoles();
+            List<int[]> x = new ArrayList<>(numHoles);
+            List<int[]> y = new ArrayList<>(numHoles);
+            for (int i = 0; i < numHoles; i++) {
+                LinearRing innerRing = polygon.getHole(i);
+                x.add(asLonEncodedArray(innerRing.getLons()));
+                y.add(asLatEncodedArray(innerRing.getLats()));
+            }
+            addWriter(new PolygonTreeWriter(asLonEncodedArray(outerShell.getLons()), asLatEncodedArray(outerShell.getLats()), x, y));
             return null;
         }
 
@@ -146,7 +154,7 @@ public class GeometryTreeWriter implements Writeable {
             int encodedMaxLon = GeoEncodingUtils.encodeLongitude(r.getMaxLon());
             int[] lats = new int[] { encodedMinLat, encodedMinLat, encodedMaxLat, encodedMaxLat, encodedMinLat };
             int[] lons = new int[] { encodedMinLon, encodedMaxLon, encodedMaxLon, encodedMinLon, encodedMinLon };
-            addWriter(new EdgeTreeWriter(lons, lats, true));
+            addWriter(new PolygonTreeWriter(lons, lats, Collections.emptyList(), Collections.emptyList()));
             return null;
         }
 

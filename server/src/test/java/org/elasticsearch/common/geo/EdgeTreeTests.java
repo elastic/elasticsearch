@@ -45,7 +45,7 @@ public class EdgeTreeTests extends ESTestCase {
             int maxY = randomIntBetween(minY + 10, 180);
             int[] x = new int[]{minX, maxX, maxX, minX, minX};
             int[] y = new int[]{minY, minY, maxY, maxY, minY};
-            EdgeTreeWriter writer = new EdgeTreeWriter(x, y, true);
+            EdgeTreeWriter writer = new EdgeTreeWriter(x, y);
             BytesStreamOutput output = new BytesStreamOutput();
             writer.writeTo(output);
             output.close();
@@ -102,7 +102,7 @@ public class EdgeTreeTests extends ESTestCase {
             int[] x = asIntArray(geo.getPolygon().getLons(), GeoEncodingUtils::encodeLongitude);
             int[] y = asIntArray(geo.getPolygon().getLats(), GeoEncodingUtils::encodeLatitude);
 
-            EdgeTreeWriter writer = new EdgeTreeWriter(x, y, true);
+            EdgeTreeWriter writer = new EdgeTreeWriter(x, y);
             BytesStreamOutput output = new BytesStreamOutput();
             writer.writeTo(output);
             output.close();
@@ -134,7 +134,7 @@ public class EdgeTreeTests extends ESTestCase {
         int yMax = 1;//5;
 
         // test cell crossing poly
-        EdgeTreeWriter writer = new EdgeTreeWriter(px, py, true);
+        EdgeTreeWriter writer = new EdgeTreeWriter(px, py);
         BytesStreamOutput output = new BytesStreamOutput();
         writer.writeTo(output);
         output.close();
@@ -144,9 +144,8 @@ public class EdgeTreeTests extends ESTestCase {
 
     public void testGetShapeType() {
         int[] pointCoord = new int[] { 0 };
-        assertThat(new EdgeTreeWriter(pointCoord, pointCoord, true).getShapeType(), equalTo(ShapeType.POLYGON));
-        assertThat(new EdgeTreeWriter(pointCoord, pointCoord, false).getShapeType(), equalTo(ShapeType.LINESTRING));
-        assertThat(new EdgeTreeWriter(List.of(pointCoord, pointCoord), List.of(pointCoord, pointCoord), false).getShapeType(),
+        assertThat(new EdgeTreeWriter(pointCoord, pointCoord).getShapeType(), equalTo(ShapeType.LINESTRING));
+        assertThat(new EdgeTreeWriter(List.of(pointCoord, pointCoord), List.of(pointCoord, pointCoord)).getShapeType(),
             equalTo(ShapeType.MULTILINESTRING));
     }
 

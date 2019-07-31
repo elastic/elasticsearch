@@ -139,6 +139,26 @@ public class GeometryTreeTests extends ESTestCase {
         assertTrue(reader.intersects(new GeoExtent(-5, -6, 2, -2)));
     }
 
+    // adapted from org.apache.lucene.geo.TestPolygon2D#testMultiPolygon
+    public void testPolygonWithHole() throws Exception {
+        Polygon polyWithHole = new Polygon(new LinearRing(new double[] { -50, -50, 50, 50, -50 }, new double[] { -50, 50, 50, -50, -50 }),
+            Collections.singletonList(new LinearRing(new double[] { -10, -10, 10, 10, -10 }, new double[] { -10, 10, 10, -10, -10 })));
+
+        GeometryTreeWriter writer = new GeometryTreeWriter(polyWithHole);
+        BytesStreamOutput output = new BytesStreamOutput();
+        writer.writeTo(output);
+        output.close();
+        GeometryTreeReader reader = new GeometryTreeReader(output.bytes().toBytesRef());
+
+        assertFalse(reader.intersects(new GeoExtent(6, -6, 6, -6))); // in the hole
+        assertTrue(reader.intersects(new GeoExtent(25, -25, 25, -25))); // on the mainland
+        assertFalse(reader.intersects(new GeoExtent(51, 51, 52, 52))); // outside of mainland
+        assertTrue(reader.intersects(new GeoExtent(-60, -60, 60, 60))); // enclosing us completely
+        assertTrue(reader.intersects(new GeoExtent(49, 49, 51, 51))); // overlapping the mainland
+        assertTrue(reader.intersects(new GeoExtent(9, 9, 11, 11))); // overlapping the hole
+
+    }
+
     public void testPacManClosedLineString() throws Exception {
         // pacman
         double[] px = {0, 10, 10, 0, -8, -10, -8, 0, 10, 10, 0};

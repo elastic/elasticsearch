@@ -30,6 +30,7 @@ import java.util.Objects;
  * {@link GeometryTreeWriter} and {@link EdgeTreeWriter};
  */
 public class Extent implements Writeable {
+    static final int WRITEABLE_SIZE_IN_BYTES = 16;
     public final int minX;
     public final int minY;
     public final int maxX;

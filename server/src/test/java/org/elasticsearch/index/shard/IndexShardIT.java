@@ -100,6 +100,7 @@ import java.util.Locale;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -127,6 +128,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoSe
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -771,17 +773,37 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         updateSettingsLatch.await();
         refreshLatch.await();
         // We need to ensure a `scheduledRefresh` triggered by the internal refresh setting update is executed before we index a new doc;
-        // otherwise, it will compete with the `scheduledRefresh` that we are going to verify. Since the refresh in single-node tests
-        // is a single thread executor, we can make sure that all scheduled refresh tasks are done by submitting a task then wait until
-        // that task is completed. Note that using ThreadPoolStats is not watertight as both queue and active count can be 0 when
-        // ThreadPoolExecutor(in #runWorker) just takes a task out the queue but before marking it active (i.e., lock the worker).
-        CountDownLatch scheduledRefreshDone = new CountDownLatch(1);
-        indexService.getThreadPool().executor(ThreadPool.Names.REFRESH).execute(scheduledRefreshDone::countDown);
-        scheduledRefreshDone.await();
+        // otherwise, it will compete to call `Engine#maybeRefresh` with the `scheduledRefresh` that we are going to verify.
+        ensureNoPendingScheduledRefresh(indexService.getThreadPool());
         client().prepareIndex("test", "test", "2").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
         assertTrue(shard.scheduledRefresh());
         assertTrue(shard.isSearchIdle());
         assertHitCount(client().prepareSearch().get(), 3);
+    }
+
+    private void ensureNoPendingScheduledRefresh(ThreadPool threadPool) throws Exception {
+        // We can make sure that all scheduled refresh tasks are done by submitting some tasks (> maximumPoolSize so at least one task
+        // will be in the queue) to the refresh thread pool then wait until all of them are completed. Note that using ThreadPoolStats
+        // alone is not enough as both queue and active count can be 0 when ThreadPoolExecutor(see ThreadPoolExecutor#runWorker) just
+        // takes a task out the queue but before marking it active (i.e., lock the corresponding worker).
+        ThreadPoolExecutor refreshThreadPoolExecutor = (ThreadPoolExecutor) threadPool.executor(ThreadPool.Names.REFRESH);
+        int numTasks = refreshThreadPoolExecutor.getMaximumPoolSize() + 1;
+        CountDownLatch latch = new CountDownLatch(1);
+        for (int i = 0; i < numTasks; i++) {
+            refreshThreadPoolExecutor.execute(() -> {
+                try {
+                    latch.await();
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
+            });
+        }
+        assertThat(refreshThreadPoolExecutor.getQueue().size(), greaterThanOrEqualTo(1));
+        latch.countDown();
+        assertBusy(() -> {
+            assertThat(refreshThreadPoolExecutor.getActiveCount(), equalTo(0));
+            assertThat(refreshThreadPoolExecutor.getQueue(), empty());
+        });
     }
 
     public void testGlobalCheckpointListeners() throws Exception {

@@ -13,15 +13,22 @@ import org.elasticsearch.xpack.sql.session.Cursor;
 
 import java.util.Arrays;
 import java.util.BitSet;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 /**
  * Extracts rows from an array of {@link SearchHit}.
  */
 class SearchHitRowSet extends ResultRowSet<HitExtractor> {
     private final SearchHit[] hits;
+    private final Map<SearchHit, Map<String, SearchHit[]>> flatInnerHits = new HashMap<>();
     private final Cursor cursor;
     private final Set<String> innerHits = new LinkedHashSet<>();
     private final String innerHit;
@@ -60,12 +67,13 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
 
             sz = 0;
             for (SearchHit hit : hits) {
+                Map<String, SearchHit[]> innerHitsPerPath = new HashMap<>(innerHits.size());
                 for (String ih : innerHits) {
-                    SearchHits sh = hit.getInnerHits().get(ih);
-                    if (sh != null) {
-                        sz += sh.getHits().length;
-                    }
+                    SearchHit[] sh = getAllInnerHits(hit, ih);
+                    innerHitsPerPath.put(ih, sh);
+                    sz += sh.length;
                 }
+                flatInnerHits.put(hit, innerHitsPerPath);
             }
         }
         // page size
@@ -102,13 +110,59 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
         for (int lvl = 0; lvl <= extractorLevel ; lvl++) {
             // TODO: add support for multi-nested doc
             if (hit != null) {
-                SearchHits innerHits = hit.getInnerHits().get(innerHit);
-                sh = innerHits == null ? SearchHits.EMPTY : innerHits.getHits();
+                SearchHit[] innerHits = flatInnerHits.get(hit).get(innerHit);
+                sh = innerHits == null ? SearchHits.EMPTY : innerHits;
             }
             hit = sh[indexPerLevel[lvl]];
         }
 
         return e.extract(hit);
+    }
+
+    private SearchHit[] getAllInnerHits(SearchHit hit, String path) {
+        if (hit == null) {
+            return null;
+        }
+        List<SearchHits> list = hit.getInnerHits().entrySet().stream().filter(entry -> {
+            try {
+                // the name of an inner_hits section is "[path]_[number]", so keep all inner_hits matching this rule
+                Long.valueOf(entry.getKey().substring(path.length() + 1));
+            } catch(NumberFormatException nfe) {
+                return false;
+            }
+            return entry.getKey().startsWith(path);
+        }).map(Map.Entry::getValue).collect(Collectors.toList());
+
+        // multiple inner_hits results sections can match the same nested documents, thus we eliminate the duplicates by
+        // using the offset as the "deduplicator" in a HashMap
+        HashMap<Integer, SearchHit> lhm = new HashMap<>();
+        for(SearchHits s : list) {
+            SearchHit[] h = s.getHits();
+            for(int i = 0; i < h.length; i++) {
+                lhm.put(h[i].getNestedIdentity().getOffset(), h[i]);
+            }
+        }
+        // Then sort the resulting List based on the offset of the same inner hit. Each inner_hit match will have an offset value,
+        // relative to its location in the _source
+        SortedSet<SearchHit> tree = new TreeSet<SearchHit>(new NestedHitOffsetComparator());
+        tree.addAll(lhm.values());
+
+        return tree.stream().toArray(SearchHit[]::new);
+    }
+    
+    private class NestedHitOffsetComparator implements Comparator<SearchHit> {
+        @Override
+        public int compare(SearchHit sh1, SearchHit sh2) {
+            if (sh1 == null && sh2 == null) {
+                return 0;
+            } else if (sh1 == null) {
+                return -1;
+            } else if (sh2 == null) {
+                return 1;
+            }
+
+            return Integer.valueOf(sh1.getNestedIdentity().getOffset()).compareTo(Integer.valueOf(sh2.getNestedIdentity().getOffset()));
+        }
     }
 
     @Override
@@ -139,8 +193,8 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
                     // TODO: improve this for multi-nested responses
                     String path = lvl == 0 ? innerHit : null;
                     if (path != null) {
-                        SearchHits innerHits = h.getInnerHits().get(path);
-                        sh = innerHits == null ? SearchHits.EMPTY : innerHits.getHits();
+                        SearchHit[] innerHits = flatInnerHits.get(h).get(path);
+                        sh = innerHits == null ? SearchHits.EMPTY : innerHits;
                     }
                 }
             }

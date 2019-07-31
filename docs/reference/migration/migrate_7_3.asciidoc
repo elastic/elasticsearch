@@ -15,18 +15,19 @@ coming[7.3.0]
 //Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
+[discrete]
+[[breaking_73_api_changes]]
+=== API changes
+
+[discrete]
+==== {dataframe-transform-cap} API changes
+
+It is no longer possible to supply the `format` parameter when you define a
+`date_histogram` {dataframe-transform} pivot.
 
 // end::notable-breaking-changes[]
 
 [[breaking_73_mapping_changes]]
-=== API changes
-
-[float]
-==== Data Frame Transform API changes
-
-It is no longer possible to supply the `format` parameter when defining a `date_histogram`
-data frame transform pivot.
-
 === Mapping changes
 `dense_vector` field now requires `dims` parameter, specifying the number of
 dimensions for document and query vectors for this field.

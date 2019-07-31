@@ -126,7 +126,11 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
         // It's possible there could have been a snapshot in progress when the
         // policy is deleted, so wait for it to be finished
         assertBusy(() -> {
-            assertThat(wipeSnapshots().size(), equalTo(0));
+            try {
+                assertThat(wipeSnapshots().size(), equalTo(0));
+            } catch (ResponseException e) {
+                fail(EntityUtils.toString(e.getResponse().getEntity()));
+            }
         });
     }
 
@@ -222,7 +226,11 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
         // It's possible there could have been a snapshot in progress when the
         // policy is deleted, so wait for it to be finished
         assertBusy(() -> {
-            assertThat(wipeSnapshots().size(), equalTo(0));
+            try {
+                assertThat(wipeSnapshots().size(), equalTo(0));
+            } catch (ResponseException e) {
+                fail(EntityUtils.toString(e.getResponse().getEntity()));
+            }
         });
     }
 
@@ -241,7 +249,7 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
 
         // Create a policy with a retention period of 1 millisecond
         createSnapshotPolicy(policyName, "snap", "1 2 3 4 5 ?", repoId, indexName, true,
-            new SnapshotRetentionConfiguration(TimeValue.timeValueMillis(1)));
+            new SnapshotRetentionConfiguration(TimeValue.timeValueMillis(1), null, null));
 
         // Manually create a snapshot
         Response executeResp = client().performRequest(new Request("PUT", "/_slm/policy/" + policyName + "/_execute"));
@@ -298,7 +306,11 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
             // It's possible there could have been a snapshot in progress when the
             // policy is deleted, so wait for it to be finished
             assertBusy(() -> {
-                assertThat(wipeSnapshots().size(), equalTo(0));
+                try {
+                    assertThat(wipeSnapshots().size(), equalTo(0));
+                } catch (ResponseException e) {
+                    fail(EntityUtils.toString(e.getResponse().getEntity()));
+                }
             });
         } finally {
             // Unset retention

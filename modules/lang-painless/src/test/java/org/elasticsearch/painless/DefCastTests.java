@@ -689,7 +689,10 @@ public class DefCastTests extends ScriptTestCase {
         assertEquals(0L, exec(
                 "Instant instant = Instant.ofEpochMilli(434931330000L);" +
                 "def d = new JodaCompatibleZonedDateTime(instant, ZoneId.of('Z'));" +
-                "ZonedDateTime t = d;" +
+                "def x = new HashMap(); x.put('dt', d);" +
+                "ZonedDateTime t = x['dt'];" +
+                "def y = t;" +
+                "t = y;" +
                 "return ChronoUnit.MILLIS.between(d, t);"
         ));
     }

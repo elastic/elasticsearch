@@ -264,14 +264,14 @@ public class RecoverySourceHandler {
                     deleteRetentionLeaseStep.whenComplete(ignored -> {
                         assert Transports.assertNotTransportThread(RecoverySourceHandler.this + "[phase1]");
 
-                        final Consumer<ActionListener<Long>> getInitialGlobalCheckpoint;
+                        final Consumer<ActionListener<RetentionLease>> createRetentionLeaseAsync;
                         if (useRetentionLeases) {
-                            getInitialGlobalCheckpoint = l -> createRetentionLease(startingSeqNo, l);
+                            createRetentionLeaseAsync = l -> createRetentionLease(startingSeqNo, l);
                         } else {
-                            getInitialGlobalCheckpoint = l -> l.onResponse(SequenceNumbers.UNASSIGNED_SEQ_NO);
+                            createRetentionLeaseAsync = l -> l.onResponse(null);
                         }
 
-                        phase1(safeCommitRef.getIndexCommit(), getInitialGlobalCheckpoint, () -> estimateNumOps, sendFileStep);
+                        phase1(safeCommitRef.getIndexCommit(), createRetentionLeaseAsync, () -> estimateNumOps, sendFileStep);
                     }, onFailure);
 
                 } catch (final Exception e) {
@@ -427,7 +427,7 @@ public class RecoverySourceHandler {
      * segments that are missing. Only segments that have the same size and
      * checksum can be reused
      */
-    void phase1(IndexCommit snapshot, Consumer<ActionListener<Long>> getInitialGlobalCheckpoint,
+    void phase1(IndexCommit snapshot, Consumer<ActionListener<RetentionLease>> createRetentionLease,
                 IntSupplier translogOps, ActionListener<SendFileResult> listener) {
         cancellableThreads.checkForCancel();
         // Total size of segment files that are recovered
@@ -491,7 +491,7 @@ public class RecoverySourceHandler {
                     phase1ExistingFileNames.size(), new ByteSizeValue(existingTotalSizeInBytes));
                 final StepListener<Void> sendFileInfoStep = new StepListener<>();
                 final StepListener<Void> sendFilesStep = new StepListener<>();
-                final StepListener<Long> getInitialGlobalCheckpointStep = new StepListener<>();
+                final StepListener<RetentionLease> createRetentionLeaseStep = new StepListener<>();
                 final StepListener<Void> cleanFilesStep = new StepListener<>();
                 cancellableThreads.execute(() ->
                     recoveryTarget.receiveFileInfo(phase1FileNames, phase1FileSizes, phase1ExistingFileNames,
@@ -500,12 +500,19 @@ public class RecoverySourceHandler {
                 sendFileInfoStep.whenComplete(r ->
                     sendFiles(store, phase1Files.toArray(new StoreFileMetaData[0]), translogOps, sendFilesStep), listener::onFailure);
 
-                sendFilesStep.whenComplete(r -> getInitialGlobalCheckpoint.accept(getInitialGlobalCheckpointStep), listener::onFailure);
+                sendFilesStep.whenComplete(r -> createRetentionLease.accept(createRetentionLeaseStep), listener::onFailure);
 
-                getInitialGlobalCheckpointStep.whenComplete(initialGlobalCheckpoint ->
-                        cleanFiles(store, recoverySourceMetadata, translogOps,
-                            Math.max(initialGlobalCheckpoint, Long.parseLong(snapshot.getUserData().get(SequenceNumbers.MAX_SEQ_NO))),
-                            cleanFilesStep),
+                createRetentionLeaseStep.whenComplete(retentionLease ->
+                    {
+                        final long lastKnownGlobalCheckpoint = shard.getLastKnownGlobalCheckpoint();
+                        assert retentionLease == null || retentionLease.retainingSequenceNumber() - 1 <= lastKnownGlobalCheckpoint
+                            : retentionLease + " vs " + lastKnownGlobalCheckpoint;
+                        // Establishes new empty translog on the replica with global checkpoint set to lastKnownGlobalCheckpoint. We want
+                        // the commit we just copied to be a safe commit on the replica, so why not set the global checkpoint on the replica
+                        // to the max seqno of this commit? Because (in rare corner cases) this commit might not be a safe commit here on
+                        // the primary, and in these cases the max seqno would be too high to be valid as a global checkpoint.
+                        cleanFiles(store, recoverySourceMetadata, translogOps, lastKnownGlobalCheckpoint, cleanFilesStep);
+                    },
                     listener::onFailure);
 
                 final long totalSize = totalSizeInBytes;
@@ -529,7 +536,7 @@ public class RecoverySourceHandler {
         }
     }
 
-    private void createRetentionLease(final long startingSeqNo, ActionListener<Long> initialGlobalCheckpointListener) {
+    private void createRetentionLease(final long startingSeqNo, ActionListener<RetentionLease> listener) {
         runUnderPrimaryPermit(() -> {
                 // Clone the peer recovery retention lease belonging to the source shard. We are retaining history between the the local
                 // checkpoint of the safe commit we're creating and this lease's retained seqno with the retention lock, and by cloning an
@@ -546,9 +553,7 @@ public class RecoverySourceHandler {
                         new ThreadedActionListener<>(logger, shard.getThreadPool(),
                             ThreadPool.Names.GENERIC, cloneRetentionLeaseStep, false));
                     logger.trace("cloned primary's retention lease as [{}]", clonedLease);
-                    cloneRetentionLeaseStep.whenComplete(
-                        rr -> initialGlobalCheckpointListener.onResponse(clonedLease.retainingSequenceNumber() - 1),
-                        initialGlobalCheckpointListener::onFailure);
+                    cloneRetentionLeaseStep.whenComplete(rr -> listener.onResponse(clonedLease), listener::onFailure);
                 } catch (RetentionLeaseNotFoundException e) {
                     // it's possible that the primary has no retention lease yet if we are doing a rolling upgrade from a version before
                     // 7.4, and in that case we just create a lease using the local checkpoint of the safe commit which we're using for
@@ -556,12 +561,10 @@ public class RecoverySourceHandler {
                     assert shard.indexSettings().getIndexVersionCreated().before(Version.V_7_4_0);
                     final StepListener<ReplicationResponse> addRetentionLeaseStep = new StepListener<>();
                     final long estimatedGlobalCheckpoint = startingSeqNo - 1;
-                    shard.addPeerRecoveryRetentionLease(request.targetNode().getId(),
+                    final RetentionLease newLease = shard.addPeerRecoveryRetentionLease(request.targetNode().getId(),
                         estimatedGlobalCheckpoint, new ThreadedActionListener<>(logger, shard.getThreadPool(),
                             ThreadPool.Names.GENERIC, addRetentionLeaseStep, false));
-                    addRetentionLeaseStep.whenComplete(
-                        rr -> initialGlobalCheckpointListener.onResponse(estimatedGlobalCheckpoint),
-                        initialGlobalCheckpointListener::onFailure);
+                    addRetentionLeaseStep.whenComplete(rr -> listener.onResponse(newLease), listener::onFailure);
                     logger.trace("created retention lease with estimated checkpoint of [{}]", estimatedGlobalCheckpoint);
                 }
             }, shardId + " establishing retention lease for [" + request.targetAllocationId() + "]",

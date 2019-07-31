@@ -21,12 +21,12 @@ package org.elasticsearch.graphql.server;
 
 public enum SocketServerMsgType {
 
-    CONNECTION_ERROR("GQL_CONNECTION_ERROR"),
-    CONNECTION_ACK("GQL_CONNECTION_ACK"),
-    CONNECTION_KEEP_ALIVE("GQL_CONNECTION_KEEP_ALIVE"),
-    DATA("GQL_DATA"),
-    ERROR("GQL_ERROR"),
-    COMPLETE("GQL_COMPLETE");
+    CONNECTION_ERROR("connection_error"),
+    CONNECTION_ACK("connection_ack"),
+    CONNECTION_KEEP_ALIVE("ka"),
+    DATA("data"),
+    ERROR("error"),
+    COMPLETE("complete");
 
     private String type;
 

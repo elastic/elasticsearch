@@ -21,10 +21,10 @@ package org.elasticsearch.graphql.server;
 
 public enum SocketClientMsgType {
 
-    INIT("GQL_CONNECTION_INIT"),
-    START("GQL_START"),
-    STOP("GQL_STOP"),
-    TERMINATE("GQL_CONNECTION_TERMINATE");
+    INIT("connection_init"),
+    START("start"),
+    STOP("stop"),
+    TERMINATE("connection_terminate");
 
     private String type;
 

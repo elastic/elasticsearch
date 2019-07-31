@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 
 import java.io.ByteArrayInputStream;
@@ -23,13 +24,12 @@ import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
-import java.util.ArrayList;
 import java.util.Base64;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * The request object for {@code TransportDelegatePkiAuthenticationAction} containing the certificate chain for the target subject
@@ -42,26 +42,18 @@ public final class DelegatePkiAuthenticationRequest extends ActionRequest implem
     public static final ConstructingObjectParser<DelegatePkiAuthenticationRequest, Void> PARSER = new ConstructingObjectParser<>(
             "delegate_pki_request", false, a -> {
                 @SuppressWarnings("unchecked")
-                final List<String> encodedCertificatesList = (List<String>) a[0];
-                final List<X509Certificate> certificates = new ArrayList<>(encodedCertificatesList.size());
-                try {
-                    final CertificateFactory certificateFactory = CertificateFactory.getInstance("X.509");
-                    for (int i = 0; i < encodedCertificatesList.size(); i++) {
-                        try (ByteArrayInputStream bis = new ByteArrayInputStream(
-                                Base64.getDecoder().decode(encodedCertificatesList.get(i)))) {
-                            certificates.add((X509Certificate) certificateFactory.generateCertificate(bis));
-                        } catch (CertificateException | IOException e) {
-                            throw new RuntimeException(e);
-                        }
-                    }
-                } catch (CertificateException e) {
-                    throw new RuntimeException(e);
-                }
+                List<X509Certificate> certificates = (List<X509Certificate>) a[0];
                 return new DelegatePkiAuthenticationRequest(certificates);
             });
 
     static {
-        PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), X509_CERTIFICATE_CHAIN_FIELD);
+        PARSER.declareFieldArray(optionalConstructorArg(), (parser,c) -> {
+            try (ByteArrayInputStream bis = new ByteArrayInputStream(Base64.getDecoder().decode(parser.text()))) {
+                return (X509Certificate) CertificateFactory.getInstance("X.509").generateCertificate(bis);
+            } catch (CertificateException | IOException e) {
+                throw new RuntimeException(e);
+            }
+        }, X509_CERTIFICATE_CHAIN_FIELD, ValueType.STRING_ARRAY);
     }
 
     public static DelegatePkiAuthenticationRequest fromXContent(XContentParser parser) throws IOException {
@@ -71,14 +63,14 @@ public final class DelegatePkiAuthenticationRequest extends ActionRequest implem
     private List<X509Certificate> certificateChain;
 
     public DelegatePkiAuthenticationRequest(List<X509Certificate> certificateChain) {
-        this.certificateChain = certificateChain == null ? null : Collections.unmodifiableList(certificateChain);
+        this.certificateChain = List.copyOf(certificateChain);
     }
 
     public DelegatePkiAuthenticationRequest(StreamInput input) throws IOException {
         super(input);
         try {
             final CertificateFactory certificateFactory = CertificateFactory.getInstance("X.509");
-            certificateChain = Collections.unmodifiableList(input.readList(in -> {
+            certificateChain = List.copyOf(input.readList(in -> {
                 try (ByteArrayInputStream bis = new ByteArrayInputStream(in.readByteArray())) {
                     return (X509Certificate) certificateFactory.generateCertificate(bis);
                 } catch (CertificateException e) {
@@ -93,12 +85,10 @@ public final class DelegatePkiAuthenticationRequest extends ActionRequest implem
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (certificateChain == null) {
-            validationException = addValidationError("certificates chain must not be null", validationException);
-        } else if (certificateChain.isEmpty()) {
+        if (certificateChain.isEmpty()) {
             validationException = addValidationError("certificates chain must not be empty", validationException);
         } else if (false == CertParsingUtils.isOrderedCertificateChain(certificateChain)) {
-            validationException = addValidationError("certificates chain must be ordered", validationException);
+            validationException = addValidationError("certificates chain must be an ordered chain", validationException);
         }
         return validationException;
     }
@@ -134,17 +124,15 @@ public final class DelegatePkiAuthenticationRequest extends ActionRequest implem
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        final List<String> encodedCertificates = new ArrayList<>(certificateChain.size());
+        builder.startObject().startArray(X509_CERTIFICATE_CHAIN_FIELD.getPreferredName());
         try {
-            for (int i = 0; i < certificateChain.size(); i++) {
-                encodedCertificates.add(Base64.getEncoder().encodeToString(certificateChain.get(i).getEncoded()));
-            }
-        } catch (CertificateEncodingException e) {
-            throw new IOException(e);
-        }
-        builder.startObject()
-            .field(X509_CERTIFICATE_CHAIN_FIELD.getPreferredName(), encodedCertificates);
-        return builder.endObject();
+            for (X509Certificate cert : certificateChain) {
+                 builder.value(Base64.getEncoder().encodeToString(cert.getEncoded()));
+             }
+         } catch (CertificateEncodingException e) {
+             throw new IOException(e);
+         }
+         return builder.endArray().endObject();
     }
 
 }

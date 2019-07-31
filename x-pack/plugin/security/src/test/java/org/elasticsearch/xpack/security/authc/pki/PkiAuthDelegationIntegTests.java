@@ -73,9 +73,9 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
     }
 
     public void testDelegatePki() throws Exception {
-        X509Certificate clientCertificate = readCert("testClient.crt");
-        X509Certificate intermediateCA = readCert("testIntermediateCA.crt");
-        X509Certificate rootCA = readCert("testRootCA.crt");
+        X509Certificate clientCertificate = readCertForPkiDelegation("testClient.crt");
+        X509Certificate intermediateCA = readCertForPkiDelegation("testIntermediateCA.crt");
+        X509Certificate rootCA = readCertForPkiDelegation("testRootCA.crt");
         RequestOptions.Builder optionsBuilder;
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
             DelegatePkiAuthenticationRequest delegatePkiRequest;
@@ -104,9 +104,9 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
     }
 
     public void testDelegatePkiFailure() throws Exception {
-        X509Certificate clientCertificate = readCert("testClient.crt");
-        X509Certificate intermediateCA = readCert("testIntermediateCA.crt");
-        X509Certificate bogusCertificate = readCert("bogus.crt");
+        X509Certificate clientCertificate = readCertForPkiDelegation("testClient.crt");
+        X509Certificate intermediateCA = readCertForPkiDelegation("testIntermediateCA.crt");
+        X509Certificate bogusCertificate = readCertForPkiDelegation("bogus.crt");
         RequestOptions.Builder optionsBuilder = RequestOptions.DEFAULT.toBuilder();
         optionsBuilder.addHeader("Authorization", basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
                 new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())));
@@ -133,7 +133,7 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
         }
     }
 
-    private X509Certificate readCert(String certName) throws Exception {
+    private X509Certificate readCertForPkiDelegation(String certName) throws Exception {
         Path path = getDataPath("/org/elasticsearch/xpack/security/action/pki_delegation/" + certName);
         try (InputStream in = Files.newInputStream(path)) {
             CertificateFactory factory = CertificateFactory.getInstance("X.509");

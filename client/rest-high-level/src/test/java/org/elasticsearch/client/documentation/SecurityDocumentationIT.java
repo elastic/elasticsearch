@@ -2207,8 +2207,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
     public void testDelegatePkiAuthentication() throws Exception {
         final RestHighLevelClient client = highLevelClient();
-        X509Certificate clientCertificate = readCert("testClient.crt");
-        X509Certificate intermediateCA = readCert("testIntermediateCA.crt");
+        X509Certificate clientCertificate = readCertForPkiDelegation("testClient.crt");
+        X509Certificate intermediateCA = readCertForPkiDelegation("testIntermediateCA.crt");
         {
             //tag::delegate-pki-request
             DelegatePkiAuthenticationRequest request = new DelegatePkiAuthenticationRequest(
@@ -2277,7 +2277,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    private X509Certificate readCert(String certificateName) throws Exception {
+    private X509Certificate readCertForPkiDelegation(String certificateName) throws Exception {
         Path path = getDataPath("/org/elasticsearch/client/security/delegate_pki/" + certificateName);
         try (InputStream in = Files.newInputStream(path)) {
             CertificateFactory factory = CertificateFactory.getInstance("X.509");

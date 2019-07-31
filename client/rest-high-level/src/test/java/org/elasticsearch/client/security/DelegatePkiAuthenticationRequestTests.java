@@ -65,7 +65,7 @@ public class DelegatePkiAuthenticationRequestTests extends AbstractRequestTestCa
         Optional<ValidationException> ve = request.validate();
         assertThat(ve.isPresent(), is(true));
         assertThat(ve.get().validationErrors().size(), is(1));
-        assertThat(ve.get().validationErrors().get(0), is("certificates chain must be ordered"));
+        assertThat(ve.get().validationErrors().get(0), is("certificates chain must be an ordered chain"));
     }
 
     @Override
@@ -89,7 +89,7 @@ public class DelegatePkiAuthenticationRequestTests extends AbstractRequestTestCa
     private List<X509Certificate> randomCertificateList() {
         List<X509Certificate> certificates = Arrays.asList(randomArray(1, 3, X509Certificate[]::new, () -> {
             try {
-                return readCert(randomFrom("testClient.crt", "testIntermediateCA.crt", "testRootCA.crt"));
+                return readCertForPkiDelegation(randomFrom("testClient.crt", "testIntermediateCA.crt", "testRootCA.crt"));
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -97,7 +97,7 @@ public class DelegatePkiAuthenticationRequestTests extends AbstractRequestTestCa
         return certificates;
     }
 
-    private X509Certificate readCert(String certificateName) throws Exception {
+    private X509Certificate readCertForPkiDelegation(String certificateName) throws Exception {
         Path path = getDataPath("/org/elasticsearch/client/security/delegate_pki/" + certificateName);
         try (InputStream in = Files.newInputStream(path)) {
             CertificateFactory factory = CertificateFactory.getInstance("X.509");

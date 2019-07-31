@@ -32,14 +32,10 @@ import static org.mockito.Mockito.when;
 public class DelegatePkiAuthenticationRequestTests extends AbstractXContentTestCase<DelegatePkiAuthenticationRequest> {
 
     public void testRequestValidation() {
-        DelegatePkiAuthenticationRequest request = new DelegatePkiAuthenticationRequest((List<X509Certificate>) null);
-        ActionRequestValidationException ve = request.validate();
-        assertNotNull(ve);
-        assertEquals(1, ve.validationErrors().size());
-        assertThat(ve.validationErrors().get(0), is("certificates chain must not be null"));
+        expectThrows(NullPointerException.class, () -> new DelegatePkiAuthenticationRequest((List<X509Certificate>) null));
 
-        request = new DelegatePkiAuthenticationRequest(Arrays.asList(new X509Certificate[0]));
-        ve = request.validate();
+        DelegatePkiAuthenticationRequest request = new DelegatePkiAuthenticationRequest(Arrays.asList(new X509Certificate[0]));
+        ActionRequestValidationException ve = request.validate();
         assertNotNull(ve);
         assertEquals(1, ve.validationErrors().size());
         assertThat(ve.validationErrors().get(0), is("certificates chain must not be empty"));
@@ -53,7 +49,7 @@ public class DelegatePkiAuthenticationRequestTests extends AbstractXContentTestC
         ve = request.validate();
         assertNotNull(ve);
         assertEquals(1, ve.validationErrors().size());
-        assertThat(ve.validationErrors().get(0), is("certificates chain must be ordered"));
+        assertThat(ve.validationErrors().get(0), is("certificates chain must be an ordered chain"));
 
         request = new DelegatePkiAuthenticationRequest(Arrays.asList(randomArray(1, 3, X509Certificate[]::new, () -> {
             X509Certificate mockX509Certificate = mock(X509Certificate.class);

@@ -27,7 +27,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
-import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Objects;
@@ -48,17 +47,15 @@ public final class DelegatePkiAuthenticationRequest implements Validatable, ToXC
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        final List<String> encodedCertificates = new ArrayList<>(x509CertificateChain.size());
+        builder.startObject().startArray("x509_certificate_chain");
         try {
-            for (int i = 0; i < x509CertificateChain.size(); i++) {
-                encodedCertificates.add(Base64.getEncoder().encodeToString(x509CertificateChain.get(i).getEncoded()));
-            }
-        } catch (CertificateEncodingException e) {
-            throw new IOException(e);
-        }
-        builder.startObject()
-            .field("x509_certificate_chain", encodedCertificates);
-        return builder.endObject();
+            for (X509Certificate cert : x509CertificateChain) {
+                 builder.value(Base64.getEncoder().encodeToString(cert.getEncoded()));
+             }
+         } catch (CertificateEncodingException e) {
+             throw new IOException(e);
+         }
+         return builder.endArray().endObject();
     }
 
     public List<X509Certificate> getCertificateChain() {
@@ -86,7 +83,7 @@ public final class DelegatePkiAuthenticationRequest implements Validatable, ToXC
     public Optional<ValidationException> validate() {
         ValidationException validationException = new ValidationException();
         if (false == isOrderedCertificateChain(x509CertificateChain)) {
-            validationException.addValidationError("certificates chain must be ordered");
+            validationException.addValidationError("certificates chain must be an ordered chain");
         }
         return validationException.validationErrors().isEmpty() ? Optional.empty() : Optional.of(validationException);
     }

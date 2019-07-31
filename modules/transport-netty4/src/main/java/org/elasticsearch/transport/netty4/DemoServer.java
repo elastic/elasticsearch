@@ -68,7 +68,7 @@ public class DemoServer {
                         pipeline.addLast("aggregator", new HttpObjectAggregator(65536));
 
                         pipeline.addLast(new WebSocketServerCompressionHandler());
-                        pipeline.addLast(new WebSocketServerProtocolHandler("/graphql", null, true));
+                        pipeline.addLast(new WebSocketServerProtocolHandler("/graphql", "graphql-ws", true));
 
                         pipeline.addLast("business-logic", new HttpHandler());
                         pipeline.addLast("websocket-business-logic", new WebSocketFrameHandler());
@@ -287,7 +287,6 @@ public class DemoServer {
 
         @Override
         protected void channelRead0(ChannelHandlerContext ctx, WebSocketFrame frame) throws Exception {
-            System.out.println("I RECEIVED THE MESSAGE");
             if (frame instanceof TextWebSocketFrame) {
                 String request = ((TextWebSocketFrame) frame).text();
                 incomingMessages.next(request);

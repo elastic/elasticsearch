@@ -37,6 +37,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -876,6 +877,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(secondNodeToStop));
 
         final long desyncNanoTime = System.nanoTime();
+        //noinspection StatementWithEmptyBody
         while (System.nanoTime() <= desyncNanoTime) {
             // time passes
         }
@@ -1013,6 +1015,40 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             .map(shardStats -> shardStats.getCommitStats().syncId())
             .collect(Collectors.toSet());
         assertThat(syncIds, hasSize(1));
+    }
+
+    public void testRecoveryUsingSyncedFlushWithoutRetentionLease() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        String indexName = "test-index";
+        createIndex(indexName, Settings.builder()
+            .put("index.number_of_shards", 1)
+            .put("index.number_of_replicas", 1)
+            .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "24h") // do not reallocate the lost shard
+            .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING.getKey(), "100ms") // expire leases quickly
+            .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms") // sync frequently
+            .build());
+        int numDocs = randomIntBetween(0, 10);
+        indexRandom(randomBoolean(), false, randomBoolean(), IntStream.range(0, numDocs)
+            .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("num", n)).collect(toList()));
+        ensureGreen(indexName);
+
+        final ShardId shardId = new ShardId(resolveIndex(indexName), 0);
+        assertThat(SyncedFlushUtil.attemptSyncedFlush(logger, internalCluster(), shardId).successfulShards(), equalTo(2));
+
+        final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        final ShardRouting shardToResync = randomFrom(clusterState.routingTable().shardRoutingTable(shardId).activeShards());
+        internalCluster().restartNode(clusterState.nodes().get(shardToResync.currentNodeId()).getName(),
+            new InternalTestCluster.RestartCallback() {
+                @Override
+                public Settings onNodeStopped(String nodeName) throws Exception {
+                    assertBusy(() -> assertFalse(client().admin().indices().prepareStats(indexName).get()
+                        .getShards()[0].getRetentionLeaseStats().retentionLeases().contains(
+                        ReplicationTracker.getPeerRecoveryRetentionLeaseId(shardToResync))));
+                    return super.onNodeStopped(nodeName);
+                }
+            });
+
+        ensureGreen(indexName);
     }
 
     public void testRecoverLocallyUpToGlobalCheckpoint() throws Exception {

@@ -430,14 +430,6 @@ public class RecoverySourceHandler {
     void phase1(IndexCommit snapshot, Consumer<ActionListener<RetentionLease>> createRetentionLease,
                 IntSupplier translogOps, ActionListener<SendFileResult> listener) {
         cancellableThreads.checkForCancel();
-        // Total size of segment files that are recovered
-        long totalSizeInBytes = 0;
-        // Total size of segment files that were able to be re-used
-        long existingTotalSizeInBytes = 0;
-        final List<String> phase1FileNames = new ArrayList<>();
-        final List<Long> phase1FileSizes = new ArrayList<>();
-        final List<String> phase1ExistingFileNames = new ArrayList<>();
-        final List<Long> phase1ExistingFileSizes = new ArrayList<>();
         final Store store = shard.store();
         try {
             StopWatch stopWatch = new StopWatch().start();
@@ -457,6 +449,16 @@ public class RecoverySourceHandler {
                 }
             }
             if (canSkipPhase1(recoverySourceMetadata, request.metadataSnapshot()) == false) {
+                final List<String> phase1FileNames = new ArrayList<>();
+                final List<Long> phase1FileSizes = new ArrayList<>();
+                final List<String> phase1ExistingFileNames = new ArrayList<>();
+                final List<Long> phase1ExistingFileSizes = new ArrayList<>();
+
+                // Total size of segment files that are recovered
+                long totalSizeInBytes = 0;
+                // Total size of segment files that were able to be re-used
+                long existingTotalSizeInBytes = 0;
+
                 // Generate a "diff" of all the identical, different, and missing
                 // segment files on the target node, using the existing files on
                 // the source node
@@ -524,15 +526,21 @@ public class RecoverySourceHandler {
                         phase1ExistingFileSizes, existingTotalSize, took));
                 }, listener::onFailure);
             } else {
-                logger.trace("skipping [phase1]- identical sync id [{}] found on both source and target",
-                    recoverySourceMetadata.getSyncId());
-                final TimeValue took = stopWatch.totalTime();
-                logger.trace("recovery [phase1]: took [{}]", took);
-                listener.onResponse(new SendFileResult(phase1FileNames, phase1FileSizes, totalSizeInBytes, phase1ExistingFileNames,
-                    phase1ExistingFileSizes, existingTotalSizeInBytes, took));
+                logger.trace("skipping [phase1] since source and target have identical sync id [{}]", recoverySourceMetadata.getSyncId());
+
+                // but we must still create a retention lease
+                final StepListener<RetentionLease> createRetentionLeaseStep = new StepListener<>();
+                createRetentionLease.accept(createRetentionLeaseStep);
+                createRetentionLeaseStep.whenComplete(retentionLease -> {
+                    final TimeValue took = stopWatch.totalTime();
+                    logger.trace("recovery [phase1]: took [{}]", took);
+                    listener.onResponse(new SendFileResult(Collections.emptyList(), Collections.emptyList(), 0L, Collections.emptyList(),
+                        Collections.emptyList(), 0L, took));
+                }, listener::onFailure);
+
             }
         } catch (Exception e) {
-            throw new RecoverFilesRecoveryException(request.shardId(), phase1FileNames.size(), new ByteSizeValue(totalSizeInBytes), e);
+            throw new RecoverFilesRecoveryException(request.shardId(), 0, new ByteSizeValue(0L), e);
         }
     }
 

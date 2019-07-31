@@ -57,7 +57,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -364,13 +363,6 @@ public class Reindexer {
                 }
                 return l;
             }
-        }
-
-        private static Map<String, Object> buildConfig(ScriptService scriptService, ReindexSslConfig sslConfig) {
-            HashMap<String, Object> config = new HashMap<>();
-            config.put("SCRIPT_SERVICE", scriptService);
-            config.put("SSL_CONFIG", sslConfig);
-            return config;
         }
     }
 }

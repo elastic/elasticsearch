@@ -67,8 +67,8 @@ class ReindexValidator {
         if (whitelist.run(check)) {
             return;
         }
-        String whiteList = TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey();
-        throw new IllegalArgumentException('[' + check + "] not whitelisted in " + whiteList);
+        String whiteListKey = TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey();
+        throw new IllegalArgumentException('[' + check + "] not whitelisted in " + whiteListKey);
     }
 
     /**

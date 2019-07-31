@@ -5,9 +5,12 @@
  */
 package org.elasticsearch.snapshots;
 
+import com.amazonaws.services.s3.internal.Constants;
 import joptsimple.OptionSet;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.Terminal;
@@ -44,6 +47,17 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
         super.setUp();
         createRepository("test-repo");
         repository = (BlobStoreRepository) getInstanceFromNode(RepositoriesService.class).repository("test-repo");
+        final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        repository.threadPool().generic().execute(new ActionRunnable<>(future) {
+            @Override
+            protected void doRun() throws Exception {
+                repository.blobStore().blobContainer(repository.basePath()).delete();
+                future.onResponse(null);
+            }
+        });
+        future.actionGet();
+        assertBusy(() -> BlobStoreTestUtil.assertBlobsByPrefix(repository, repository.basePath(), "", Collections.emptyMap()), 10L,
+            TimeUnit.MINUTES);
     }
 
     @Override
@@ -80,7 +94,7 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
     }
 
     private String getEndpoint() {
-        return System.getProperty("test.s3.endpoint");
+        return System.getProperty("test.s3.endpoint", Constants.S3_HOSTNAME);
     }
 
     private String getRegion() {

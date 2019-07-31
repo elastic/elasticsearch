@@ -389,7 +389,7 @@ public class Node implements Closeable {
             modules.add(settingsModule);
             List<NamedWriteableRegistry.Entry> namedWriteables = Stream.of(
                 NetworkModule.getNamedWriteables().stream(),
-                indicesModule.getNamedWriteables().stream(),
+                IndicesModule.getNamedWriteables().stream(),
                 searchModule.getNamedWriteables().stream(),
                 pluginsService.filterPlugins(Plugin.class).stream()
                     .flatMap(p -> p.getNamedWriteables().stream()),

@@ -58,7 +58,7 @@ public class RolloverRequestTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        writeableRegistry = new NamedWriteableRegistry(new IndicesModule(Collections.emptyList()).getNamedWriteables());
+        writeableRegistry = new NamedWriteableRegistry(IndicesModule.getNamedWriteables());
     }
 
     public void testConditionsParsing() throws Exception {

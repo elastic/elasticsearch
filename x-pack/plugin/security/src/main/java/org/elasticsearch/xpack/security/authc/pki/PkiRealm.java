@@ -231,7 +231,7 @@ public class PkiRealm extends Realm implements CachingRealm {
             // No extra trust managers specified
             // If the token is NOT delegated then it is authenticated, because the certificate chain has been validated by the TLS channel.
             // Otherwise, if the token is delegated, then it cannot be authenticated without a trustManager
-            return !token.isDelegated();
+            return token.isDelegated() == false;
         } else {
             try {
                 trustManager.checkClientTrusted(token.credentials(), AUTH_TYPE);

@@ -23,7 +23,8 @@ coming[7.3.0]
 ==== {dataframe-transform-cap} API changes
 
 It is no longer possible to supply the `format` parameter when you define a
-`date_histogram` {dataframe-transform} pivot.
+`date_histogram` {dataframe-transform} pivot. Previously constructed transforms 
+will still run but the configured `format` will be ignored.
 
 // end::notable-breaking-changes[]
 

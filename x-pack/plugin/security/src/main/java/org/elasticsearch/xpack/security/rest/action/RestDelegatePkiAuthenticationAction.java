@@ -33,7 +33,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 /**
  * Implements the exchange of an {@code X509Certificate} chain into an access token. The chain is represented as an ordered string array.
  * Each string in the array is a base64-encoded (Section 4 of RFC4648 - not base64url-encoded) DER PKIX certificate value.
- * See {@link TransportDelegatePkiAuthenticationAction}.
+ * See also {@link TransportDelegatePkiAuthenticationAction}.
  */
 public final class RestDelegatePkiAuthenticationAction extends SecurityBaseRestHandler {
 

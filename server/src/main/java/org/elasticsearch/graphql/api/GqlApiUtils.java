@@ -21,11 +21,13 @@ package org.elasticsearch.graphql.api;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.jackson.Log4jJsonObjectMapper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.*;
@@ -156,6 +158,7 @@ public class GqlApiUtils {
         return XContentHelper.convertToMap(JsonXContent.jsonXContent, json, false);
     }
 
+    /*
     public static String serializeJson(Object obj) {
         if (obj instanceof Integer) {
             return obj.toString();
@@ -187,6 +190,18 @@ public class GqlApiUtils {
         } else {
             return "null";
         }
+    }
+     */
+
+    @SuppressWarnings("unchecked")
+    public static String serializeJson(Object obj) throws Exception {
+        XContentBuilder builder = JsonXContent.contentBuilder();
+
+        if (obj instanceof Map) {
+            return Strings.toString(builder.map((Map) obj));
+        }
+
+        return Strings.toString(builder.value(obj));
     }
 
     public static <I, O> Publisher<O> transformPublisher(Publisher<I> publisher, Function<I, O> fn) {

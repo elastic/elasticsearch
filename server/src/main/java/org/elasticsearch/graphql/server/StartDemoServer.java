@@ -60,33 +60,38 @@ public class StartDemoServer {
         });
 
         router.addRoute(POST, "/graphql", (req, res) -> {
-            Map<String, Object> body;
-
             try {
-                body = GqlApiUtils.parseJson(req.body());
+                Map<String, Object> body;
+
+                try {
+                    body = GqlApiUtils.parseJson(req.body());
+                } catch (Exception e) {
+                    res.sendJsonError("Could not parse JSON body.");
+                    logger.error(e);
+                    return;
+                }
+
+                if (!(body.get("query") instanceof String) || (((String) body.get("query")).length() < 3)) {
+                    res.sendJsonError("GraphQL request must have a query.");
+                    return;
+                }
+
+                String query = (String) body.get("query");
+                String operationName = body.get("operationName") instanceof String
+                    ? (String) body.get("operationName") : "";
+                Map<String, Object> variables = body.get("variables") instanceof Map
+                    ? (Map<String, Object>) body.get("variables") : new HashMap();
+
+                GqlResult result = gqlServer.execute(query, operationName, variables);
+
+                if (result.hasDeferredResults()) {
+                    streamExecutionResult(res, result);
+                } else {
+                    sendExecutionResult(res, result);
+                }
             } catch (Exception e) {
-                res.sendJsonError("Could not parse JSON body.");
                 logger.error(e);
-                return;
-            }
-
-            if (!(body.get("query") instanceof String) || (((String) body.get("query")).length() < 3)) {
-                res.sendJsonError("GraphQL request must have a query.");
-                return;
-            }
-
-            String query = (String) body.get("query");
-            String operationName = body.get("operationName") instanceof String
-                ? (String) body.get("operationName") : "";
-            Map<String, Object> variables = body.get("variables") instanceof Map
-                ? (Map<String, Object>) body.get("variables") : new HashMap();
-
-            GqlResult result = gqlServer.execute(query, operationName, variables);
-
-            if (result.hasDeferredResults()) {
-                streamExecutionResult(res, result);
-            } else {
-                sendExecutionResult(res, result);
+                res.send("Error happened while executing GraphQL query.");
             }
         });
 
@@ -125,7 +130,7 @@ public class StartDemoServer {
         }
     }
 
-    private void streamExecutionResult(DemoServerResponse res, GqlResult result) {
+    private void streamExecutionResult(DemoServerResponse res, GqlResult result) throws Exception {
         res.setHeader("Content-Type", "multipart/batch;type=\"application/http;type=1.1\";boundary=-");
         res.setHeader("Mime-Version", "1.0");
         res.sendHeadersChunk();
@@ -150,7 +155,12 @@ public class StartDemoServer {
 
             @Override
             public void onNext(Map<String, Object> data) {
-                String json = GqlApiUtils.serializeJson(data);
+                String json;
+                try {
+                    json = GqlApiUtils.serializeJson(data);
+                } catch (Exception e) {
+                    json = null;
+                }
                 res.sendChunk(
                     "\n---\n" +
                         "Content-Type: application/json\n" +
@@ -179,7 +189,7 @@ public class StartDemoServer {
         });
     }
 
-    private void sendExecutionResult(DemoServerResponse res, GqlResult result) {
+    private void sendExecutionResult(DemoServerResponse res, GqlResult result) throws Exception {
         logger.info("GraphQL result: {}", result);
         logger.info("JSON: {}", GqlApiUtils.serializeJson(result.getSpecification()));
 

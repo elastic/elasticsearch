@@ -40,7 +40,7 @@ These functions support the following properties:
 * `partition_field_name` (optional)
 
 For more information about those properties,
-see {ref}/ml-job-resource.html#ml-detectorconfig[Detector Configuration Objects].
+see {ref}/ml-job-resource.html#ml-detectorconfig[Detector configuration objects].
 
 .Example 1: Analyzing events with the count function
 [source,js]
@@ -65,8 +65,9 @@ This example is probably the simplest possible analysis. It identifies
 time buckets during which the overall count of events is higher or lower than
 usual.
 
-When you use this function in a detector in your job, it models the event rate
-and detects when the event rate is unusual compared to its past behavior.
+When you use this function in a detector in your {anomaly-job}, it models the
+event rate and detects when the event rate is unusual compared to its past
+behavior.
 
 .Example 2: Analyzing errors with the high_count function
 [source,js]
@@ -89,7 +90,7 @@ PUT _ml/anomaly_detectors/example2
 // CONSOLE
 // TEST[skip:needs-licence]
 
-If you use this `high_count` function in a detector in your job, it
+If you use this `high_count` function in a detector in your {anomaly-job}, it
 models the event rate for each error code. It detects users that generate an
 unusually high count of error codes compared to other users.
 
@@ -117,9 +118,9 @@ PUT _ml/anomaly_detectors/example3
 In this example, the function detects when the count of events for a
 status code is lower than usual.
 
-When you use this function in a detector in your job, it models the event rate
-for each status code and detects when a status code has an unusually low count
-compared to its past behavior.
+When you use this function in a detector in your {anomaly-job}, it models the
+event rate for each status code and detects when a status code has an unusually
+low count compared to its past behavior.
 
 .Example 4: Analyzing aggregated data with the count function
 [source,js]
@@ -168,7 +169,7 @@ These functions support the following properties:
 * `partition_field_name` (optional)
 
 For more information about those properties,
-see {ref}/ml-job-resource.html#ml-detectorconfig[Detector Configuration Objects].
+see {ref}/ml-job-resource.html#ml-detectorconfig[Detector configuration objects].
 
 For example, if you have the following number of events per bucket:
 
@@ -206,10 +207,10 @@ PUT _ml/anomaly_detectors/example5
 // CONSOLE
 // TEST[skip:needs-licence]
 
-If you use this `high_non_zero_count` function in a detector in your job, it
-models the count of events for the `signaturename` field. It ignores any buckets
-where the count is zero and detects when a `signaturename` value has an
-unusually high count of events compared to its past behavior.
+If you use this `high_non_zero_count` function in a detector in your
+{anomaly-job}, it models the count of events for the `signaturename` field. It
+ignores any buckets where the count is zero and detects when a `signaturename`
+value has an unusually high count of events compared to its past behavior.
 
 NOTE: Population analysis (using an `over_field_name` property value) is not
 supported for the `non_zero_count`, `high_non_zero_count`, and
@@ -238,7 +239,7 @@ These functions support the following properties:
 * `partition_field_name` (optional)
 
 For more information about those properties,
-see {ref}/ml-job-resource.html#ml-detectorconfig[Detector Configuration Objects].
+see {ref}/ml-job-resource.html#ml-detectorconfig[Detector configuration objects].
 
 .Example 6: Analyzing users with the distinct_count function
 [source,js]
@@ -261,9 +262,9 @@ PUT _ml/anomaly_detectors/example6
 // TEST[skip:needs-licence]
 
 This `distinct_count` function detects when a system has an unusual number
-of logged in users. When you use this function in a detector in your job, it
-models the distinct count of users. It also detects when the distinct number of
-users is unusual compared to the past.
+of logged in users. When you use this function in a detector in your
+{anomaly-job}, it models the distinct count of users. It also detects when the
+distinct number of users is unusual compared to the past.
 
 .Example 7: Analyzing ports with the high_distinct_count function
 [source,js]
@@ -287,6 +288,6 @@ PUT _ml/anomaly_detectors/example7
 // TEST[skip:needs-licence]
 
 This example detects instances of port scanning. When you use this function in a
-detector in your job, it models the distinct count of ports. It also detects the
-`src_ip` values that connect to an unusually high number of different
+detector in your {anomaly-job}, it models the distinct count of ports. It also
+detects the `src_ip` values that connect to an unusually high number of different
 `dst_ports` values compared to other `src_ip` values.

@@ -26,6 +26,7 @@ import io.netty.util.NettyRuntime;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 
 import java.io.IOException;
@@ -108,14 +109,10 @@ public class Netty4Utils {
      * Wraps the given ChannelBuffer with a BytesReference
      */
     public static BytesReference toBytesReference(final ByteBuf buffer) {
-        return toBytesReference(buffer, buffer.readableBytes());
+        final int readableBytes = buffer.readableBytes();
+        if (readableBytes == 0) {
+            return BytesArray.EMPTY;
+        }
+        return new ByteBufBytesReference(buffer, buffer.readableBytes());
     }
-
-    /**
-     * Wraps the given ChannelBuffer with a BytesReference of a given size
-     */
-    static BytesReference toBytesReference(final ByteBuf buffer, final int size) {
-        return new ByteBufBytesReference(buffer, size);
-    }
-
 }

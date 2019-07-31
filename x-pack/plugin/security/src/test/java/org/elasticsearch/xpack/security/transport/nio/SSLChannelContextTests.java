@@ -14,6 +14,7 @@ import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.NioSelector;
 import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.nio.Page;
+import org.elasticsearch.nio.Config;
 import org.elasticsearch.nio.TaskScheduler;
 import org.elasticsearch.nio.WriteOperation;
 import org.elasticsearch.test.ESTestCase;
@@ -23,6 +24,7 @@ import org.mockito.stubbing.Answer;
 
 import javax.net.ssl.SSLException;
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
@@ -55,6 +57,7 @@ public class SSLChannelContextTests extends ESTestCase {
     private Consumer exceptionHandler;
     private SSLDriver sslDriver;
     private int messageLength;
+    private Config.Socket socketConfig;
 
     @Before
     @SuppressWarnings("unchecked")
@@ -73,7 +76,8 @@ public class SSLChannelContextTests extends ESTestCase {
         outboundBuffer = new SSLOutboundBuffer((n) -> new Page(ByteBuffer.allocate(n), () -> {}));
         when(channel.getRawChannel()).thenReturn(rawChannel);
         exceptionHandler = mock(Consumer.class);
-        context = new SSLChannelContext(channel, selector, exceptionHandler, sslDriver, readWriteHandler, channelBuffer);
+        socketConfig = new Config.Socket(randomBoolean(), randomBoolean(), randomBoolean(), -1, -1, mock(InetSocketAddress.class), false);
+        context = new SSLChannelContext(channel, selector, socketConfig, exceptionHandler, sslDriver, readWriteHandler, channelBuffer);
         context.setSelectionKey(mock(SelectionKey.class));
 
         when(selector.isOnCurrentThread()).thenReturn(true);
@@ -180,7 +184,7 @@ public class SSLChannelContextTests extends ESTestCase {
         try (SocketChannel realChannel = SocketChannel.open()) {
             when(channel.getRawChannel()).thenReturn(realChannel);
             TestReadWriteHandler readWriteHandler = new TestReadWriteHandler(readConsumer);
-            context = new SSLChannelContext(channel, selector, exceptionHandler, sslDriver, readWriteHandler, channelBuffer);
+            context = new SSLChannelContext(channel, selector, socketConfig, exceptionHandler, sslDriver, readWriteHandler, channelBuffer);
             when(channel.isOpen()).thenReturn(true);
             context.closeFromSelector();
 
@@ -332,8 +336,10 @@ public class SSLChannelContextTests extends ESTestCase {
         try (SocketChannel realChannel = SocketChannel.open()) {
             when(channel.getRawChannel()).thenReturn(realChannel);
             TestReadWriteHandler readWriteHandler = new TestReadWriteHandler(readConsumer);
-            context = new SSLChannelContext(channel, selector, exceptionHandler, sslDriver, readWriteHandler, channelBuffer);
+
+            context = new SSLChannelContext(channel, selector, socketConfig, exceptionHandler, sslDriver, readWriteHandler, channelBuffer);
             context.setSelectionKey(mock(SelectionKey.class));
+
             context.closeChannel();
             ArgumentCaptor<WriteOperation> captor = ArgumentCaptor.forClass(WriteOperation.class);
             verify(selector).queueWrite(captor.capture());
@@ -373,7 +379,7 @@ public class SSLChannelContextTests extends ESTestCase {
             when(selector.rawSelector()).thenReturn(realSelector);
             when(channel.getRawChannel()).thenReturn(realSocket);
             TestReadWriteHandler readWriteHandler = new TestReadWriteHandler(readConsumer);
-            context = new SSLChannelContext(channel, selector, exceptionHandler, sslDriver, readWriteHandler, channelBuffer);
+            context = new SSLChannelContext(channel, selector, socketConfig, exceptionHandler, sslDriver, readWriteHandler, channelBuffer);
             context.channelActive();
             verify(sslDriver).init();
         }

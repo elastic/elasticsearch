@@ -24,7 +24,6 @@ import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.geo.geometry.Line;
-import org.elasticsearch.geo.geometry.MultiLine;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
@@ -35,9 +34,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-
-import static org.elasticsearch.common.geo.GeoUtils.normalizeLat;
-import static org.elasticsearch.common.geo.GeoUtils.normalizeLon;
 
 public class LineStringBuilder extends ShapeBuilder<JtsGeometry, org.elasticsearch.geo.geometry.Geometry, LineStringBuilder> {
     public static final GeoShapeType TYPE = GeoShapeType.LINESTRING;
@@ -126,18 +122,8 @@ public class LineStringBuilder extends ShapeBuilder<JtsGeometry, org.elasticsear
 
     @Override
     public org.elasticsearch.geo.geometry.Geometry buildGeometry() {
-        // decompose linestrings crossing dateline into array of Lines
-        Coordinate[] coordinates = this.coordinates.toArray(new Coordinate[this.coordinates.size()]);
-        if (wrapdateline) {
-            List<Line> linestrings = decomposeGeometry(coordinates, new ArrayList<>());
-            if (linestrings.size() == 1) {
-                return linestrings.get(0);
-            } else {
-                return new MultiLine(linestrings);
-            }
-        }
-        return new Line(Arrays.stream(coordinates).mapToDouble(i->normalizeLat(i.y)).toArray(),
-            Arrays.stream(coordinates).mapToDouble(i->normalizeLon(i.x)).toArray());
+        return new Line(coordinates.stream().mapToDouble(i->i.y).toArray(),
+            coordinates.stream().mapToDouble(i->i.x).toArray());
     }
 
     static ArrayList<LineString> decomposeS4J(GeometryFactory factory, Coordinate[] coordinates, ArrayList<LineString> strings) {
@@ -147,16 +133,6 @@ public class LineStringBuilder extends ShapeBuilder<JtsGeometry, org.elasticsear
             }
         }
         return strings;
-    }
-
-    static List<Line> decomposeGeometry(Coordinate[] coordinates, List<Line> lines) {
-        for (Coordinate[] part : decompose(+DATELINE, coordinates)) {
-            for (Coordinate[] line : decompose(-DATELINE, part)) {
-                lines.add(new Line(Arrays.stream(line).mapToDouble(i->normalizeLat(i.y)).toArray(),
-                    Arrays.stream(line).mapToDouble(i->normalizeLon(i.x)).toArray()));
-            }
-        }
-        return lines;
     }
 
     /**

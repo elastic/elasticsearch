@@ -28,6 +28,7 @@ import java.nio.file.Paths;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * A standalone process that will reap external services after a build dies.
@@ -71,9 +72,8 @@ public class Reaper implements Closeable {
     }
 
     private void reap() {
-        try {
-            final List<Path> inputFiles = Files.list(inputDir)
-                .filter(p -> p.getFileName().toString().endsWith(".cmd")).collect(Collectors.toList());
+        try (Stream<Path> stream = Files.list(inputDir)){
+            final List<Path> inputFiles = stream.filter(p -> p.getFileName().toString().endsWith(".cmd")).collect(Collectors.toList());
 
             for (Path inputFile : inputFiles) {
                 System.out.println("Process file: " + inputFile);
@@ -118,8 +118,8 @@ public class Reaper implements Closeable {
     @Override
     public void close() {
         if (failed == false) {
-            try {
-                Files.walk(inputDir).sorted(Comparator.reverseOrder()).forEach(this::delete);
+            try (Stream<Path> stream = Files.walk(inputDir)){
+                stream.sorted(Comparator.reverseOrder()).forEach(this::delete);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }

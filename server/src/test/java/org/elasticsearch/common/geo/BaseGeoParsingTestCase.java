@@ -67,7 +67,7 @@ abstract class BaseGeoParsingTestCase extends ESTestCase {
             } else {
                 GeometryParser geometryParser = new GeometryParser(true, true, true);
                 org.elasticsearch.geo.geometry.Geometry shape = geometryParser.parse(parser);
-                shape = new GeoShapeIndexer(true).prepareForIndexing(shape);
+                shape = new GeoShapeIndexer(true, "name").prepareForIndexing(shape);
                 ElasticsearchGeoAssertions.assertEquals(expected, shape);
             }
         }

@@ -264,15 +264,14 @@ public class RecoverySourceHandler {
                     deleteRetentionLeaseStep.whenComplete(ignored -> {
                         assert Transports.assertNotTransportThread(RecoverySourceHandler.this + "[phase1]");
 
-                        final Consumer<ActionListener<Long>> getGlobalCheckpoint;
+                        final Consumer<ActionListener<Long>> getInitialGlobalCheckpoint;
                         if (useRetentionLeases) {
-                            getGlobalCheckpoint = l -> createRetentionLease(startingSeqNo, l);
+                            getInitialGlobalCheckpoint = l -> createRetentionLease(startingSeqNo, l);
                         } else {
-                            final long globalCheckpoint = shard.getLastKnownGlobalCheckpoint();
-                            getGlobalCheckpoint = l -> l.onResponse(globalCheckpoint);
+                            getInitialGlobalCheckpoint = l -> l.onResponse(SequenceNumbers.UNASSIGNED_SEQ_NO);
                         }
 
-                        phase1(safeCommitRef.getIndexCommit(), getGlobalCheckpoint, () -> estimateNumOps, sendFileStep);
+                        phase1(safeCommitRef.getIndexCommit(), getInitialGlobalCheckpoint, () -> estimateNumOps, sendFileStep);
                     }, onFailure);
 
                 } catch (final Exception e) {
@@ -428,7 +427,7 @@ public class RecoverySourceHandler {
      * segments that are missing. Only segments that have the same size and
      * checksum can be reused
      */
-    void phase1(IndexCommit snapshot, Consumer<ActionListener<Long>> getGlobalCheckpoint,
+    void phase1(IndexCommit snapshot, Consumer<ActionListener<Long>> getInitialGlobalCheckpoint,
                 IntSupplier translogOps, ActionListener<SendFileResult> listener) {
         cancellableThreads.checkForCancel();
         // Total size of segment files that are recovered
@@ -492,7 +491,7 @@ public class RecoverySourceHandler {
                     phase1ExistingFileNames.size(), new ByteSizeValue(existingTotalSizeInBytes));
                 final StepListener<Void> sendFileInfoStep = new StepListener<>();
                 final StepListener<Void> sendFilesStep = new StepListener<>();
-                final StepListener<Long> getGlobalCheckpointStep = new StepListener<>();
+                final StepListener<Long> getInitialGlobalCheckpointStep = new StepListener<>();
                 final StepListener<Void> cleanFilesStep = new StepListener<>();
                 cancellableThreads.execute(() ->
                     recoveryTarget.receiveFileInfo(phase1FileNames, phase1FileSizes, phase1ExistingFileNames,
@@ -501,10 +500,13 @@ public class RecoverySourceHandler {
                 sendFileInfoStep.whenComplete(r ->
                     sendFiles(store, phase1Files.toArray(new StoreFileMetaData[0]), translogOps, sendFilesStep), listener::onFailure);
 
-                sendFilesStep.whenComplete(r -> getGlobalCheckpoint.accept(getGlobalCheckpointStep), listener::onFailure);
+                sendFilesStep.whenComplete(r -> getInitialGlobalCheckpoint.accept(getInitialGlobalCheckpointStep), listener::onFailure);
 
-                getGlobalCheckpointStep.whenComplete(globalCheckpoint ->
-                    cleanFiles(store, recoverySourceMetadata, translogOps, globalCheckpoint, cleanFilesStep), listener::onFailure);
+                getInitialGlobalCheckpointStep.whenComplete(initialGlobalCheckpoint ->
+                        cleanFiles(store, recoverySourceMetadata, translogOps,
+                            Math.max(initialGlobalCheckpoint, Long.parseLong(snapshot.getUserData().get(SequenceNumbers.MAX_SEQ_NO))),
+                            cleanFilesStep),
+                    listener::onFailure);
 
                 final long totalSize = totalSizeInBytes;
                 final long existingTotalSize = existingTotalSizeInBytes;
@@ -527,7 +529,7 @@ public class RecoverySourceHandler {
         }
     }
 
-    private void createRetentionLease(final long startingSeqNo, ActionListener<Long> listener) {
+    private void createRetentionLease(final long startingSeqNo, ActionListener<Long> initialGlobalCheckpointListener) {
         runUnderPrimaryPermit(() -> {
                 // Clone the peer recovery retention lease belonging to the source shard. We are retaining history between the the local
                 // checkpoint of the safe commit we're creating and this lease's retained seqno with the retention lock, and by cloning an
@@ -545,8 +547,8 @@ public class RecoverySourceHandler {
                             ThreadPool.Names.GENERIC, cloneRetentionLeaseStep, false));
                     logger.trace("cloned primary's retention lease as [{}]", clonedLease);
                     cloneRetentionLeaseStep.whenComplete(
-                        rr -> listener.onResponse(clonedLease.retainingSequenceNumber() - 1),
-                        listener::onFailure);
+                        rr -> initialGlobalCheckpointListener.onResponse(clonedLease.retainingSequenceNumber() - 1),
+                        initialGlobalCheckpointListener::onFailure);
                 } catch (RetentionLeaseNotFoundException e) {
                     // it's possible that the primary has no retention lease yet if we are doing a rolling upgrade from a version before
                     // 7.4, and in that case we just create a lease using the local checkpoint of the safe commit which we're using for
@@ -558,8 +560,8 @@ public class RecoverySourceHandler {
                         estimatedGlobalCheckpoint, new ThreadedActionListener<>(logger, shard.getThreadPool(),
                             ThreadPool.Names.GENERIC, addRetentionLeaseStep, false));
                     addRetentionLeaseStep.whenComplete(
-                        rr -> listener.onResponse(estimatedGlobalCheckpoint),
-                        listener::onFailure);
+                        rr -> initialGlobalCheckpointListener.onResponse(estimatedGlobalCheckpoint),
+                        initialGlobalCheckpointListener::onFailure);
                     logger.trace("created retention lease with estimated checkpoint of [{}]", estimatedGlobalCheckpoint);
                 }
             }, shardId + " establishing retention lease for [" + request.targetAllocationId() + "]",

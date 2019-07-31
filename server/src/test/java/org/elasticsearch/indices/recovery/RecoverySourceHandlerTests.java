@@ -467,10 +467,10 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 between(1, 8)) {
 
             @Override
-            void phase1(IndexCommit snapshot, Consumer<ActionListener<Long>> getGlobalCheckpoint,
+            void phase1(IndexCommit snapshot, Consumer<ActionListener<Long>> getInitialGlobalCheckpoint,
                         IntSupplier translogOps, ActionListener<SendFileResult> listener) {
                 phase1Called.set(true);
-                super.phase1(snapshot, getGlobalCheckpoint, translogOps, listener);
+                super.phase1(snapshot, getInitialGlobalCheckpoint, translogOps, listener);
             }
 
             @Override

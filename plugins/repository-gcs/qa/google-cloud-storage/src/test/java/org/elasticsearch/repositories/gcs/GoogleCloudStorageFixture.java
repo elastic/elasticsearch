@@ -651,6 +651,6 @@ public class GoogleCloudStorageFixture extends AbstractHttpFixture {
                             .field("timeCreated", DateTimeFormatter.ISO_LOCAL_DATE_TIME.format(item.created))
                             .field("bucket", bucket)
                             .field("size", String.valueOf(item.bytes.length))
-                .endObject();
+                        .endObject();
     }
 }

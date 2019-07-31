@@ -99,7 +99,8 @@ public class GCSRepository extends AbstractRepository {
 
         final String indexFilePrefix = fullPath(BlobStoreRepository.INDEX_FILE_PREFIX);
 
-        for (Blob blob : storage.list(bucket, Storage.BlobListOption.prefix(indexFilePrefix)).iterateAll()) {
+        for (Blob blob : storage.get(bucket).
+                list(Storage.BlobListOption.currentDirectory(), Storage.BlobListOption.prefix(indexFilePrefix)).iterateAll()) {
             String generationStr = blob.getName().substring(indexFilePrefix.length());
             try {
                 long generation = Long.parseLong(generationStr);

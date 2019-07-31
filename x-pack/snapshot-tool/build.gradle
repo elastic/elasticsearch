@@ -80,7 +80,6 @@ dependencyLicenses {
 }
 
 test.enabled = false
-testingConventions.enabled = false
 
 task s3ThirdPartyTests {
   dependsOn check
@@ -130,7 +129,7 @@ def encodedCredentials = {
 }
 
 task thirdPartyTest (type: Test) {
-  include '**/GCSCleanupTests.class', '**/S3CleanupTests.class'
+  include '**/*.class'
   
   systemProperty 'tests.security.manager', false
 

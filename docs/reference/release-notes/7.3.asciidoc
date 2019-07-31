@@ -178,22 +178,19 @@ Infra/Scripting::
 
 Machine Learning::
 * Add version and create_time to data frame analytics config {pull}43683[#43683]
-* Tag destination index with data frame metadata {pull}43567[#43567]
 * Improve message when native controller cannot connect {pull}43565[#43565] (issue: {issue}42341[#42341])
-* Introduce a setting for the process connect timeout {pull}43234[#43234]
 * Report exponential_avg_bucket_processing_time which gives more weight to recent buckets {pull}43189[#43189] (issue: {issue}29857[#29857])
-* Restrict detection of epoch timestamps in find_file_structure {pull}43188[#43188]
 * Adding support for geo_shape, geo_centroid, geo_point in datafeeds {pull}42969[#42969] (issue: {issue}42820[#42820])
-* Add earliest and latest timestamps to field stats {pull}42890[#42890]
-* Change dots in CSV column names to underscores {pull}42839[#42839] (issue: {issue}26800[#26800])
 * Report timing stats as part of the Job stats response {pull}42709[#42709] (issue: {issue}29857[#29857])
-* Better detection of binary input in find_file_structure {pull}42707[#42707]
-* Add a limit on line merging in find_file_structure {pull}42501[#42501] (issue: {issue}38086[#38086])
-* Implement factory methods for ValidationException {pull}41993[#41993]
-* Improve file structure finder timestamp format determination {pull}41948[#41948] (issues: {issue}35132[#35132], {issue}35137[#35137], {issue}38086[#38086])
 * Increase maximum forecast interval to 10 years. {pull}41082[#41082] (issue: {issue}41103[#41103])
 * Upgrade to a newer version of the Apache Portable Runtime library. {ml-pull}495[#495]
 * Improve stability of modelling around change points. {ml-pull}496[#496]
+* Restrict detection of epoch timestamps in find_file_structure {pull}43188[#43188]
+* Better detection of binary input in find_file_structure {pull}42707[#42707]
+* Add a limit on line merging in find_file_structure {pull}42501[#42501] (issue: {issue}38086[#38086])
+* Improve file structure finder timestamp format determination {pull}41948[#41948] (issues: {issue}35132[#35132], {issue}35137[#35137], {issue}38086[#38086])
+* Add earliest and latest timestamps to field stats in find_file_structure response {pull}42890[#42890]
+* Change dots in CSV column names to underscores in find_file_structure response {pull}42839[#42839] (issue: {issue}26800[#26800])
 
 Mapping::
 * Add dims parameter to dense_vector mapping {pull}43444[#43444]
@@ -282,13 +279,11 @@ Data Frame::
 * Data frame task failure do not make a 500 response {pull}44058[#44058] (issue: {issue}44011[#44011])
 * Audit message missing for autostop {pull}43984[#43984] (issue: {issue}43977[#43977])
 * Add data frame transform cluster privileges to HLRC {pull}43879[#43879]
-* Fix progress measurement for continuous transforms {pull}43838[#43838]
 * Improve pivot nested field validations {pull}43548[#43548]
 * Adjusting error message {pull}43455[#43455]
 * Size the GET stats search by number of Ids requested {pull}43206[#43206] (issue: {issue}43203[#43203])
 * Rewrite start and stop to answer with acknowledged {pull}42589[#42589] (issue: {issue}42450[#42450])
-* Set DF task state to stopped when stopping   {pull}42516[#42516] (issue: {issue}42441[#42441])
-* Add support for fixed_interval, calendar_interval, remove interval {pull}42427[#42427] (issues: {issue}33727[#33727], {issue}42297[#42297])
+* Set data frame transform task state to stopped when stopping   {pull}42516[#42516] (issue: {issue}42441[#42441])
 
 Distributed::
 * Fix DefaultShardOperationFailedException subclass xcontent serialization {pull}43435[#43435] (issue: {issue}43423[#43423])
@@ -352,13 +347,9 @@ Infra/Scripting::
 * Allow aggregations using expressions to use _score {pull}42652[#42652]
 
 Machine Learning::
-* Fix test for old cluster version >= 7.3.0 {pull}44437[#44437]
-* Use specific version constant for wire bwc check {pull}44316[#44316] (issue: {issue}42501[#42501])
 * Update .ml-config mappings before indexing job, datafeed or df analytics config {pull}44216[#44216] (issue: {issue}44263[#44263])
 * Wait for .ml-config primary before assigning persistent tasks {pull}44170[#44170] (issue: {issue}44156[#44156])
 * Fix ML memory tracker lockup when inner step fails {pull}44158[#44158] (issue: {issue}44156[#44156])
-* Fix datafeed checks when a concrete remote index is present {pull}43923[#43923] (issue: {issue}42113[#42113])
-* Fix possible race condition when closing an opening job {pull}42506[#42506]
 * Reduce false positives associated with the multi-bucket feature. {ml-pull}491[#491]
 * Reduce false positives for sum and count functions on sparse data. {ml-pull}492[#492]
 * Fix an edge case causing spurious anomalies (false positives) if the variance

@@ -115,9 +115,15 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         Condition rolloverCondition;
 
         switch (randomIntBetween(0, 2)) {
-            case 0 : rolloverCondition = new MaxDocsCondition(randomNonNegativeLong()); break;
-            case 1 : rolloverCondition = new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong())); break;
-            default : rolloverCondition = new MaxAgeCondition(new TimeValue(randomNonNegativeLong())); break;
+            case 0:
+                rolloverCondition = new MaxDocsCondition(randomNonNegativeLong());
+                break;
+            case 1:
+                rolloverCondition = new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong()));
+                break;
+            default:
+                rolloverCondition = new MaxAgeCondition(new TimeValue(randomNonNegativeLong()));
+                break;
         }
 
         final IndexMetaData.Builder metaData = IndexMetaData.builder(routing.getIndexName())

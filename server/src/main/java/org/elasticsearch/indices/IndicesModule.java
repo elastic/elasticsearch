@@ -27,7 +27,6 @@ import org.elasticsearch.action.resync.TransportResyncReplicationAction;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
@@ -63,7 +62,6 @@ import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.plugins.MapperPlugin;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;

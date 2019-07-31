@@ -100,6 +100,7 @@ import java.util.Locale;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.Phaser;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -128,7 +129,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoSe
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -781,29 +781,17 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         assertHitCount(client().prepareSearch().get(), 3);
     }
 
-    private void ensureNoPendingScheduledRefresh(ThreadPool threadPool) throws Exception {
-        // We can make sure that all scheduled refresh tasks are done by submitting some tasks (> maximumPoolSize so at least one task
-        // will be in the queue) to the refresh thread pool then wait until all of them are completed. Note that using ThreadPoolStats
-        // alone is not enough as both queue and active count can be 0 when ThreadPoolExecutor(see ThreadPoolExecutor#runWorker) just
-        // takes a task out the queue but before marking it active (i.e., lock the corresponding worker).
+    private void ensureNoPendingScheduledRefresh(ThreadPool threadPool) {
+        // We can make sure that all scheduled refresh tasks are done by submitting *maximumPoolSize* blocking tasks,
+        // then wait until all of them completed. Note that using ThreadPoolStats is not watertight as both queue and
+        // active count can be 0 when ThreadPoolExecutor just takes a task out the queue but before marking it active.
         ThreadPoolExecutor refreshThreadPoolExecutor = (ThreadPoolExecutor) threadPool.executor(ThreadPool.Names.REFRESH);
-        int numTasks = refreshThreadPoolExecutor.getMaximumPoolSize() + 1;
-        CountDownLatch latch = new CountDownLatch(1);
-        for (int i = 0; i < numTasks; i++) {
-            refreshThreadPoolExecutor.execute(() -> {
-                try {
-                    latch.await();
-                } catch (Exception e) {
-                    throw new AssertionError(e);
-                }
-            });
+        int maximumPoolSize = refreshThreadPoolExecutor.getMaximumPoolSize();
+        Phaser barrier = new Phaser(maximumPoolSize + 1);
+        for (int i = 0; i < maximumPoolSize; i++) {
+            refreshThreadPoolExecutor.execute(barrier::arriveAndAwaitAdvance);
         }
-        assertThat(refreshThreadPoolExecutor.getQueue().size(), greaterThanOrEqualTo(1));
-        latch.countDown();
-        assertBusy(() -> {
-            assertThat(refreshThreadPoolExecutor.getActiveCount(), equalTo(0));
-            assertThat(refreshThreadPoolExecutor.getQueue(), empty());
-        });
+        barrier.arriveAndAwaitAdvance();
     }
 
     public void testGlobalCheckpointListeners() throws Exception {

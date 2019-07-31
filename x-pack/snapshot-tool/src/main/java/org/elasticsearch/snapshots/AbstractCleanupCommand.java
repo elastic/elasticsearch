@@ -23,11 +23,9 @@ public abstract class AbstractCleanupCommand extends Command {
     public AbstractCleanupCommand(String description) {
         super(description, CommandLoggingConfigurator::configureLoggingWithoutConfig);
 
-        bucketOption = parser.accepts("bucket", "Bucket name")
-                .withRequiredArg();
+        bucketOption = parser.accepts("bucket", "Bucket name").withRequiredArg();
 
-        basePathOption = parser.accepts("base_path", "Base path")
-                .withRequiredArg();
+        basePathOption = parser.accepts("base_path", "Base path").withRequiredArg();
 
         safetyGapMillisOption = parser.accepts("safety_gap_millis", "Safety gap to account for clock drift")
                 .withRequiredArg().ofType(Long.class);

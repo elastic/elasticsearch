@@ -252,3 +252,35 @@ setup:
               }
             }
           }
+---
+"Test preview with unsupported agg":
+  - do:
+      catch: bad_request
+      data_frame.preview_data_frame_transform:
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "pipeline": "missing-pipeline" },
+            "pivot": {
+              "group_by": {
+                "time": {"date_histogram": {"fixed_interval": "1h", "field": "time"}}},
+              "aggs": {
+                "vals": {"terms": {"field":"airline"}}
+              }
+            }
+          }
+  - do:
+      catch: /Unsupported aggregation type \[terms\]/
+      data_frame.preview_data_frame_transform:
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "pipeline": "missing-pipeline" },
+            "pivot": {
+              "group_by": {
+                "time": {"date_histogram": {"fixed_interval": "1h", "field": "time"}}},
+              "aggs": {
+                "vals": {"terms": {"field":"airline"}}
+              }
+            }
+          }

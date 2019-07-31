@@ -1426,7 +1426,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
     
     public Geometry parse(XContentParser parser) throws IOException, ParseException {
         GeometryParser geometryParser = new GeometryParser(true, true, true);
-        GeoShapeIndexer indexer = new GeoShapeIndexer(true);
+        GeoShapeIndexer indexer = new GeoShapeIndexer(true, "name");
         return indexer.prepareForIndexing(geometryParser.parse(parser));
     }
 }

@@ -78,11 +78,9 @@ public class VagrantCommandTask extends LoggedExec {
     }
 
     protected OutputStream createLoggerOutputStream() {
-        return new VagrantLoggerOutputStream(
-            command: commandLine.join(' '),
-            factory: getProgressLoggerFactory(),
+        return new VagrantLoggerOutputStream(getProgressLoggerFactory().newOperation(boxName + " " + command).setDescription(boxName),
             /* Vagrant tends to output a lot of stuff, but most of the important
               stuff starts with ==> $box */
-            squashedPrefix: "==> $boxName: ")
+            "==> $boxName: ")
     }
 }

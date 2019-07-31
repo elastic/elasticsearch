@@ -1087,8 +1087,10 @@ public class InternalEngine extends Engine {
      * However, we prefer to fail a request individually (instead of a shard) if we hit a document failure on the primary.
      */
     private boolean treatDocumentFailureAsTragicError(Index index) {
-        // TODO: can we enable this all origins except primary on the leader?
-        return index.origin() == Operation.Origin.REPLICA;
+        // TODO: can we enable this check for all origins except primary on the leader?
+        return index.origin() == Operation.Origin.REPLICA
+            || index.origin() == Operation.Origin.PEER_RECOVERY
+            || index.origin() == Operation.Origin.LOCAL_RESET;
     }
 
     /**
@@ -1895,6 +1897,9 @@ public class InternalEngine extends Engine {
     @Override
     public void forceMerge(final boolean flush, int maxNumSegments, boolean onlyExpungeDeletes,
                            final boolean upgrade, final boolean upgradeOnlyAncientSegments) throws EngineException, IOException {
+        if (onlyExpungeDeletes && maxNumSegments >= 0) {
+            throw new IllegalArgumentException("only_expunge_deletes and max_num_segments are mutually exclusive");
+        }
         /*
          * We do NOT acquire the readlock here since we are waiting on the merges to finish
          * that's fine since the IW.rollback should stop all the threads and trigger an IOException

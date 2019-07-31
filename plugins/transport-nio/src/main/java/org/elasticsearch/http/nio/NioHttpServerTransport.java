@@ -22,6 +22,8 @@ package org.elasticsearch.http.nio;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -33,6 +35,7 @@ import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpServerChannel;
 import org.elasticsearch.nio.BytesChannelContext;
 import org.elasticsearch.nio.ChannelFactory;
+import org.elasticsearch.nio.Config;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.NioGroup;
 import org.elasticsearch.nio.NioSelector;
@@ -130,7 +133,11 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
 
     @Override
     protected HttpServerChannel bind(InetSocketAddress socketAddress) throws IOException {
-        return nioGroup.bindServerChannel(socketAddress, channelFactory);
+        NioHttpServerChannel httpServerChannel = nioGroup.bindServerChannel(socketAddress, channelFactory);
+        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        httpServerChannel.addBindListener(ActionListener.toBiConsumer(future));
+        future.actionGet();
+        return httpServerChannel;
     }
 
     protected ChannelFactory<NioHttpServerChannel, NioHttpChannel> channelFactory() {
@@ -144,27 +151,29 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
     private class HttpChannelFactory extends ChannelFactory<NioHttpServerChannel, NioHttpChannel> {
 
         private HttpChannelFactory() {
-            super(new RawChannelFactory(tcpNoDelay, tcpKeepAlive, reuseAddress, tcpSendBufferSize, tcpReceiveBufferSize));
+            super(tcpNoDelay, tcpKeepAlive, reuseAddress, tcpSendBufferSize, tcpReceiveBufferSize);
         }
 
         @Override
-        public NioHttpChannel createChannel(NioSelector selector, SocketChannel channel) throws IOException {
+        public NioHttpChannel createChannel(NioSelector selector, SocketChannel channel, Config.Socket socketConfig) {
             NioHttpChannel httpChannel = new NioHttpChannel(channel);
-            HttpReadWriteHandler httpReadWritePipeline = new HttpReadWriteHandler(httpChannel,NioHttpServerTransport.this,
+            HttpReadWriteHandler handler = new HttpReadWriteHandler(httpChannel,NioHttpServerTransport.this,
                 handlingSettings, corsConfig, selector.getTaskScheduler(), threadPool::relativeTimeInMillis);
             Consumer<Exception> exceptionHandler = (e) -> onException(httpChannel, e);
-            SocketChannelContext context = new BytesChannelContext(httpChannel, selector, exceptionHandler, httpReadWritePipeline,
+            SocketChannelContext context = new BytesChannelContext(httpChannel, selector, socketConfig, exceptionHandler, handler,
                 new InboundChannelBuffer(pageAllocator));
             httpChannel.setContext(context);
             return httpChannel;
         }
 
         @Override
-        public NioHttpServerChannel createServerChannel(NioSelector selector, ServerSocketChannel channel) throws IOException {
+        public NioHttpServerChannel createServerChannel(NioSelector selector, ServerSocketChannel channel,
+                                                        Config.ServerSocket socketConfig) {
             NioHttpServerChannel httpServerChannel = new NioHttpServerChannel(channel);
             Consumer<Exception> exceptionHandler = (e) -> onServerException(httpServerChannel, e);
             Consumer<NioSocketChannel> acceptor = NioHttpServerTransport.this::acceptChannel;
-            ServerChannelContext context = new ServerChannelContext(httpServerChannel, this, selector, acceptor, exceptionHandler);
+            ServerChannelContext context = new ServerChannelContext(httpServerChannel, this, selector, socketConfig, acceptor,
+                exceptionHandler);
             httpServerChannel.setContext(context);
             return httpServerChannel;
         }

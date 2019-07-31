@@ -106,7 +106,7 @@ public abstract class AbstractCleanupTests extends ESSingleNodeTestCase {
 
     public void testInvalidParallelism() {
         expectThrows(() ->
-                executeCommand(false, Map.of("parallelism", "0")),
+                        executeCommand(false, Map.of("parallelism", "0")),
                 "parallelism should be at least 1");
     }
 

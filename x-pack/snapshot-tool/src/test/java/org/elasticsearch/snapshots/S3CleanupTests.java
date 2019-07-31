@@ -9,18 +9,40 @@ import com.amazonaws.services.s3.internal.Constants;
 import joptsimple.OptionSet;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cli.MockTerminal;
+import org.elasticsearch.common.blobstore.BlobMetaData;
+import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.s3.S3RepositoryPlugin;
 
 import java.util.Collection;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class S3CleanupTests extends AbstractCleanupTests {
+
+    @Override
+    protected void assertBlobsByPrefix(BlobStoreRepository repository, BlobPath path, String prefix, Map<String, BlobMetaData> blobs)
+            throws Exception {
+        assertBusy(() -> super.assertBlobsByPrefix(repository, path, prefix, blobs), 10, TimeUnit.MINUTES);
+    }
+
+    @Override
+    protected void assertCorruptionVisible(BlobStoreRepository repo, Map<String, Set<String>> indexToFiles) throws Exception {
+        assertBusy(() -> super.assertCorruptionVisible(repo, indexToFiles), 10, TimeUnit.MINUTES);
+    }
+
+    @Override
+    protected void assertConsistency(BlobStoreRepository repo, Executor executor) throws Exception {
+        assertBusy(() -> super.assertConsistency(repo, executor), 10, TimeUnit.MINUTES);
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {

@@ -6,9 +6,13 @@
 package org.elasticsearch.snapshots;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.common.blobstore.BlobMetaData;
+import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -22,7 +26,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.Executor;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -33,11 +37,38 @@ public abstract class AbstractCleanupTests extends ESSingleNodeTestCase {
 
     protected BlobStoreRepository repository;
 
+    protected void assertBlobsByPrefix(BlobStoreRepository repository, BlobPath path, String prefix, Map<String, BlobMetaData> blobs)
+            throws Exception {
+        BlobStoreTestUtil.assertBlobsByPrefix(repository, path, prefix, blobs);
+    }
+
+    protected void assertConsistency(BlobStoreRepository repo, Executor executor) throws Exception {
+        BlobStoreTestUtil.assertConsistency(repo, executor);
+    }
+
+    protected void assertCorruptionVisible(BlobStoreRepository repo, Map<String, Set<String>> indexToFiles) throws Exception {
+       BlobStoreTestUtil.assertCorruptionVisible(repo, indexToFiles);
+    }
+
     @Override
     public void setUp() throws Exception {
         super.setUp();
         createRepository("test-repo");
         repository = (BlobStoreRepository) getInstanceFromNode(RepositoriesService.class).repository("test-repo");
+        cleanupRepository(repository);
+    }
+
+    private void cleanupRepository(BlobStoreRepository repository) throws Exception {
+        final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        repository.threadPool().generic().execute(new ActionRunnable<>(future) {
+            @Override
+            protected void doRun() throws Exception {
+                repository.blobStore().blobContainer(repository.basePath()).delete();
+                future.onResponse(null);
+            }
+        });
+        future.actionGet();
+        assertBlobsByPrefix(repository, repository.basePath(), "", Collections.emptyMap());
     }
 
     @Override
@@ -164,7 +195,7 @@ public abstract class AbstractCleanupTests extends ESSingleNodeTestCase {
             assertThat(terminal.getOutput(), containsString("Set of deletion candidates is empty. Exiting"));
 
             logger.info("--> check that there is no inconsistencies after running the tool");
-            BlobStoreTestUtil.assertConsistency(repository, repository.threadPool().executor(ThreadPool.Names.GENERIC));
+            assertConsistency(repository, repository.threadPool().executor(ThreadPool.Names.GENERIC));
 
             logger.info("--> create several dangling indices");
             int numOfFiles = 0;
@@ -184,7 +215,7 @@ public abstract class AbstractCleanupTests extends ESSingleNodeTestCase {
             Set<String> danglingIndices = indexToFiles.keySet();
 
             logger.info("--> ensure dangling index folders are visible");
-            assertBusy(() -> BlobStoreTestUtil.assertCorruptionVisible(repository, indexToFiles), 10L, TimeUnit.MINUTES);
+            assertCorruptionVisible(repository, indexToFiles);
 
             logger.info("--> execute cleanup tool, corruption is created latter than snapshot, there is nothing to cleanup");
             terminal = executeCommand(false);
@@ -231,9 +262,7 @@ public abstract class AbstractCleanupTests extends ESSingleNodeTestCase {
                     containsString("Total bytes freed: " + size));
 
             logger.info("--> verify that there is no inconsistencies");
-            assertBusy(() -> BlobStoreTestUtil.assertConsistency(repository, repository.threadPool().executor(ThreadPool.Names.GENERIC)),
-                10L, TimeUnit.MINUTES);
-
+            assertConsistency(repository, repository.threadPool().executor(ThreadPool.Names.GENERIC));
             logger.info("--> perform cleanup by removing snapshots");
             assertTrue(client().admin()
                     .cluster()

@@ -111,7 +111,7 @@ public class SnapshotLifecyclePolicyMetadataTests extends AbstractSerializingTes
     }
 
     public static SnapshotRetentionConfiguration randomRetention() {
-        return new SnapshotRetentionConfiguration(
+        return rarely() ? null : new SnapshotRetentionConfiguration(
             rarely() ? null : TimeValue.parseTimeValue(randomTimeValue(), "random retention generation"),
             rarely() ? null : randomIntBetween(1, 10),
             rarely() ? null : randomIntBetween(15, 30));

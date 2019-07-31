@@ -63,16 +63,16 @@ public class SnapshotLifecyclePolicy implements ToXContentObject {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), SCHEDULE);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), REPOSITORY);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), CONFIG);
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), SnapshotRetentionConfiguration::parse, RETENTION);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), SnapshotRetentionConfiguration::parse, RETENTION);
     }
 
     public SnapshotLifecyclePolicy(final String id, final String name, final String schedule,
-                                   final String repository, @Nullable Map<String, Object> configuration,
-                                   SnapshotRetentionConfiguration retentionPolicy) {
-        this.id = Objects.requireNonNull(id);
-        this.name = name;
-        this.schedule = schedule;
-        this.repository = repository;
+                                   final String repository, @Nullable final Map<String, Object> configuration,
+                                   @Nullable final SnapshotRetentionConfiguration retentionPolicy) {
+        this.id = Objects.requireNonNull(id, "policy id is required");
+        this.name = Objects.requireNonNull(name, "policy snapshot name is required");
+        this.schedule = Objects.requireNonNull(schedule, "policy schedule is required");
+        this.repository = Objects.requireNonNull(repository, "policy snapshot repository is required");
         this.configuration = configuration;
         this.retentionPolicy = retentionPolicy;
     }
@@ -98,6 +98,7 @@ public class SnapshotLifecyclePolicy implements ToXContentObject {
         return this.configuration;
     }
 
+    @Nullable
     public SnapshotRetentionConfiguration getRetentionPolicy() {
         return this.retentionPolicy;
     }
@@ -115,7 +116,9 @@ public class SnapshotLifecyclePolicy implements ToXContentObject {
         if (this.configuration != null) {
             builder.field(CONFIG.getPreferredName(), this.configuration);
         }
-        builder.field(RETENTION.getPreferredName(), this.retentionPolicy);
+        if (this.retentionPolicy != null) {
+            builder.field(RETENTION.getPreferredName(), this.retentionPolicy);
+        }
         builder.endObject();
         return builder;
     }

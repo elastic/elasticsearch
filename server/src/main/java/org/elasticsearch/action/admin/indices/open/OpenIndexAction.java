@@ -19,25 +19,15 @@
 
 package org.elasticsearch.action.admin.indices.open;
 
-import org.elasticsearch.action.Action;
-import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.action.ActionType;
 
-public class OpenIndexAction extends Action<OpenIndexResponse> {
+public class OpenIndexAction extends ActionType<OpenIndexResponse> {
 
     public static final OpenIndexAction INSTANCE = new OpenIndexAction();
     public static final String NAME = "indices:admin/open";
 
     private OpenIndexAction() {
-        super(NAME);
+        super(NAME, OpenIndexResponse::new);
     }
 
-    @Override
-    public OpenIndexResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
-    public Writeable.Reader<OpenIndexResponse> getResponseReader() {
-        return OpenIndexResponse::new;
-    }
 }

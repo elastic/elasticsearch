@@ -84,7 +84,7 @@ public class SamplerAggregationBuilder extends AbstractAggregationBuilder<Sample
     }
 
     @Override
-    protected SamplerAggregatorFactory doBuild(SearchContext context, AggregatorFactory<?> parent, Builder subFactoriesBuilder)
+    protected SamplerAggregatorFactory doBuild(SearchContext context, AggregatorFactory parent, Builder subFactoriesBuilder)
             throws IOException {
         return new SamplerAggregatorFactory(name, shardSize, context, parent, subFactoriesBuilder, metaData);
     }

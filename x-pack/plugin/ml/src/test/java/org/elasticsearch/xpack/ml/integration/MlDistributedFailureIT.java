@@ -116,6 +116,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/43670")
     public void testCloseUnassignedJobAndDatafeed() throws Exception {
         internalCluster().ensureAtMostNumDataNodes(0);
         logger.info("Starting dedicated master node...");

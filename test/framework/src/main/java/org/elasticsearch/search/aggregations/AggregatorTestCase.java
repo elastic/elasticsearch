@@ -32,7 +32,6 @@ import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.search.XIndexSearcher;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.lease.Releasable;
@@ -47,7 +46,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache.Listener;
 import org.elasticsearch.index.cache.query.DisabledQueryCache;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
@@ -107,24 +105,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
     private List<Releasable> releasables = new ArrayList<>();
     private static final String TYPE_NAME = "type";
 
-    protected AggregatorFactory<?> createAggregatorFactory(AggregationBuilder aggregationBuilder,
-                                                           IndexSearcher indexSearcher,
-                                                           MappedFieldType... fieldTypes) throws IOException {
-        return createAggregatorFactory(aggregationBuilder, indexSearcher, createIndexSettings(),
-            new MultiBucketConsumer(DEFAULT_MAX_BUCKETS), fieldTypes);
-    }
-
-
-    protected AggregatorFactory<?> createAggregatorFactory(AggregationBuilder aggregationBuilder,
-                                                           IndexSearcher indexSearcher,
-                                                           IndexSettings indexSettings,
-                                                           MultiBucketConsumer bucketConsumer,
-                                                           MappedFieldType... fieldTypes) throws IOException {
-        return createAggregatorFactory(null, aggregationBuilder, indexSearcher, indexSettings, bucketConsumer, fieldTypes);
-    }
-
     /** Create a factory for the given aggregation builder. */
-    protected AggregatorFactory<?> createAggregatorFactory(Query query,
+    protected AggregatorFactory createAggregatorFactory(Query query,
                                                            AggregationBuilder aggregationBuilder,
                                                            IndexSearcher indexSearcher,
                                                            IndexSettings indexSettings,
@@ -166,8 +148,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
             .collect(Collectors.toMap(MappedFieldType::name, Function.identity())));
         fieldNameToType.putAll(getFieldAliases(fieldTypes));
 
-        registerFieldTypes(queryShardContext, searchContext, mapperService,
-            circuitBreakerService, fieldNameToType);
+        registerFieldTypes(searchContext, mapperService,
+            fieldNameToType);
 
         return aggregationBuilder.build(searchContext, null);
     }
@@ -180,11 +162,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
         return Collections.emptyMap();
     }
 
-    private void registerFieldTypes(QueryShardContext queryShardContext,
-                                    SearchContext searchContext,
-                                    MapperService mapperService,
-                                    CircuitBreakerService circuitBreakerService,
-                                    Map<String, MappedFieldType> fieldNameToType) {
+    private static void registerFieldTypes(SearchContext searchContext, MapperService mapperService,
+                                           Map<String, MappedFieldType> fieldNameToType) {
         for (Map.Entry<String, MappedFieldType> entry : fieldNameToType.entrySet()) {
             String fieldName = entry.getKey();
             MappedFieldType fieldType = entry.getValue();
@@ -240,7 +219,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
     protected SearchContext createSearchContext(IndexSearcher indexSearcher, IndexSettings indexSettings) {
-        Engine.Searcher searcher = new Engine.Searcher("aggregator_test", indexSearcher, () -> indexSearcher.getIndexReader().close());
         QueryCache queryCache = new DisabledQueryCache(indexSettings);
         QueryCachingPolicy queryCachingPolicy = new QueryCachingPolicy() {
             @Override
@@ -253,7 +231,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 return false;
             }
         };
-        ContextIndexSearcher contextIndexSearcher = new ContextIndexSearcher(searcher, queryCache, queryCachingPolicy);
+        ContextIndexSearcher contextIndexSearcher = new ContextIndexSearcher(indexSearcher.getIndexReader(),
+            indexSearcher.getSimilarity(), queryCache, queryCachingPolicy);
 
         SearchContext searchContext = mock(SearchContext.class);
         when(searchContext.numberOfShards()).thenReturn(1);
@@ -413,7 +392,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     new InternalAggregation.ReduceContext(root.context().bigArrays(), null,
                         reduceBucketConsumer, false);
                 A reduced = (A) aggs.get(0).doReduce(toReduce, context);
-                InternalAggregationTestCase.assertMultiBucketConsumer(reduced, reduceBucketConsumer);
+                doAssertReducedMultiBucketConsumer(reduced, reduceBucketConsumer);
                 aggs = new ArrayList<>(aggs.subList(r, toReduceSize));
                 aggs.add(reduced);
             }
@@ -429,10 +408,14 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     internalAgg = (A) pipelineAggregator.reduce(internalAgg, context);
                 }
             }
-            InternalAggregationTestCase.assertMultiBucketConsumer(internalAgg, reduceBucketConsumer);
+            doAssertReducedMultiBucketConsumer(internalAgg, reduceBucketConsumer);
             return internalAgg;
         }
 
+    }
+
+    protected void doAssertReducedMultiBucketConsumer(Aggregation agg, MultiBucketConsumerService.MultiBucketConsumer bucketConsumer) {
+        InternalAggregationTestCase.assertMultiBucketConsumer(agg, bucketConsumer);
     }
 
     private static class ShardSearcher extends IndexSearcher {
@@ -464,16 +447,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
      */
     protected static IndexSearcher newIndexSearcher(IndexReader indexReader) {
         if (randomBoolean()) {
-            final IndexSearcher delegate = new IndexSearcher(indexReader);
-            final XIndexSearcher wrappedSearcher = new XIndexSearcher(delegate);
             // this executes basic query checks and asserts that weights are normalized only once etc.
-            return new AssertingIndexSearcher(random(), indexReader) {
-                @Override
-                protected void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
-                    // we cannot use the asserting searcher because the weight is created by the ContextIndexSearcher
-                    wrappedSearcher.search(leaves, weight, collector);
-                }
-             };
+            return new AssertingIndexSearcher(random(), indexReader);
         } else {
             return new IndexSearcher(indexReader);
         }

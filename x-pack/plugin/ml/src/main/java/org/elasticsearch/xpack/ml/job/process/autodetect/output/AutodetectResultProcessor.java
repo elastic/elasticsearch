@@ -134,7 +134,7 @@ public class AutodetectResultProcessor {
 
             try {
                 if (processKilled == false) {
-                    timingStatsReporter.flush();
+                    timingStatsReporter.finishReporting();
                     bulkResultsPersister.executeRequest();
                 }
             } catch (Exception e) {
@@ -213,7 +213,7 @@ public class AutodetectResultProcessor {
 
             // persist after deleting interim results in case the new
             // results are also interim
-            timingStatsReporter.reportBucketProcessingTime(bucket.getProcessingTimeMs());
+            timingStatsReporter.reportBucket(bucket);
             bulkResultsPersister.persistBucket(bucket).executeRequest();
 
             ++bucketCount;

@@ -22,7 +22,6 @@ package org.elasticsearch.geo.utils;
 import org.elasticsearch.geo.geometry.Circle;
 import org.elasticsearch.geo.geometry.Geometry;
 import org.elasticsearch.geo.geometry.GeometryCollection;
-import org.elasticsearch.geo.geometry.GeometryUtils;
 import org.elasticsearch.geo.geometry.GeometryVisitor;
 import org.elasticsearch.geo.geometry.Line;
 import org.elasticsearch.geo.geometry.LinearRing;
@@ -58,11 +57,11 @@ public class WellKnownText {
     private final String EOL = "END-OF-LINE";
 
     private final boolean coerce;
-    private final boolean ignoreZValue;
+    private final GeometryValidator validator;
 
-    public WellKnownText(boolean coerce, boolean ignoreZValue) {
+    public WellKnownText(boolean coerce, GeometryValidator validator) {
         this.coerce = coerce;
-        this.ignoreZValue = ignoreZValue;
+        this.validator = validator;
     }
 
     public String toWKT(Geometry geometry) {
@@ -243,7 +242,9 @@ public class WellKnownText {
             tokenizer.whitespaceChars('\r', '\r');
             tokenizer.whitespaceChars('\n', '\n');
             tokenizer.commentChar('#');
-            return parseGeometry(tokenizer);
+            Geometry geometry = parseGeometry(tokenizer);
+            validator.validate(geometry);
+            return geometry;
         } finally {
             reader.close();
         }
@@ -297,7 +298,7 @@ public class WellKnownText {
         double lat = nextNumber(stream);
         Point pt;
         if (isNumberNext(stream)) {
-            pt = new Point(lat, lon, GeometryUtils.checkAltitude(ignoreZValue, nextNumber(stream)));
+            pt = new Point(lat, lon, nextNumber(stream));
         } else {
             pt = new Point(lat, lon);
         }
@@ -318,7 +319,7 @@ public class WellKnownText {
         lons.add(nextNumber(stream));
         lats.add(nextNumber(stream));
         if (isNumberNext(stream)) {
-            alts.add(GeometryUtils.checkAltitude(ignoreZValue, nextNumber(stream)));
+            alts.add(nextNumber(stream));
         }
         if (alts.isEmpty() == false && alts.size() != lons.size()) {
             throw new ParseException("coordinate dimensions do not match: " + tokenString(stream), stream.lineno());

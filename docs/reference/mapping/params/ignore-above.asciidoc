@@ -30,7 +30,7 @@ PUT my_index/_doc/2 <3>
   "message": "Syntax error with some long stacktrace"
 }
 
-GET _search <4>
+GET my_index/_search <4>
 {
   "aggs": {
     "messages": {

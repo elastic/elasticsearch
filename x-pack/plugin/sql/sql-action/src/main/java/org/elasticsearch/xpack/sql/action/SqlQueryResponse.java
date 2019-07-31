@@ -40,7 +40,34 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
     private List<List<Object>> rows;
     private static final String INTERVAL_CLASS_NAME = "Interval";
 
-    public SqlQueryResponse() {
+    public SqlQueryResponse(StreamInput in) throws IOException {
+        super(in);
+        cursor = in.readString();
+        if (in.readBoolean()) {
+            // We might have rows without columns and we might have columns without rows
+            // So we send the column size twice, just to keep the protocol simple
+            int columnCount = in.readVInt();
+            List<ColumnInfo> columns = new ArrayList<>(columnCount);
+            for (int c = 0; c < columnCount; c++) {
+                columns.add(readColumnInfo(in));
+            }
+            this.columns = unmodifiableList(columns);
+        } else {
+            this.columns = null;
+        }
+        int rowCount = in.readVInt();
+        List<List<Object>> rows = new ArrayList<>(rowCount);
+        if (rowCount > 0) {
+            int columnCount = in.readVInt();
+            for (int r = 0; r < rowCount; r++) {
+                List<Object> row = new ArrayList<>(columnCount);
+                for (int c = 0; c < columnCount; c++) {
+                    row.add(in.readGenericValue());
+                }
+                rows.add(unmodifiableList(row));
+            }
+        }
+        this.rows = unmodifiableList(rows);
     }
 
     public SqlQueryResponse(String cursor, Mode mode, boolean columnar, @Nullable List<ColumnInfo> columns, List<List<Object>> rows) {
@@ -88,36 +115,6 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
     public SqlQueryResponse rows(List<List<Object>> rows) {
         this.rows = rows;
         return this;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        cursor = in.readString();
-        if (in.readBoolean()) {
-            // We might have rows without columns and we might have columns without rows
-            // So we send the column size twice, just to keep the protocol simple
-            int columnCount = in.readVInt();
-            List<ColumnInfo> columns = new ArrayList<>(columnCount);
-            for (int c = 0; c < columnCount; c++) {
-                columns.add(readColumnInfo(in));
-            }
-            this.columns = unmodifiableList(columns);
-        } else {
-            this.columns = null;
-        }
-        int rowCount = in.readVInt();
-        List<List<Object>> rows = new ArrayList<>(rowCount);
-        if (rowCount > 0) {
-            int columnCount = in.readVInt();
-            for (int r = 0; r < rowCount; r++) {
-                List<Object> row = new ArrayList<>(columnCount);
-                for (int c = 0; c < columnCount; c++) {
-                    row.add(in.readGenericValue());
-                }
-                rows.add(unmodifiableList(row));
-            }
-        }
-        this.rows = unmodifiableList(rows);
     }
 
     @Override

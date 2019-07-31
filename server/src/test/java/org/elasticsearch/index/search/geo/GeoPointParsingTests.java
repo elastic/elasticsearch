@@ -57,6 +57,22 @@ public class GeoPointParsingTests  extends ESTestCase {
         assertPointsEqual(point.reset(0, 0), point2.reset(0, 0));
         assertPointsEqual(point.resetFromString(Double.toString(lat) + ", " + Double.toHexString(lon)), point2.reset(lat, lon));
         assertPointsEqual(point.reset(0, 0), point2.reset(0, 0));
+        assertPointsEqual(point.resetFromString("POINT(" + lon + " " + lat + ")"), point2.reset(lat, lon));
+    }
+
+    public void testParseWktInvalid() {
+        GeoPoint point = new GeoPoint(0, 0);
+        Exception e = expectThrows(
+            ElasticsearchParseException.class,
+            () -> point.resetFromString("NOT A POINT(1 2)")
+        );
+        assertEquals("Invalid WKT format", e.getMessage());
+
+        Exception e2 = expectThrows(
+            ElasticsearchParseException.class,
+            () -> point.resetFromString("MULTIPOINT(1 2, 3 4)")
+        );
+        assertEquals("[geo_point] supports only POINT among WKT primitives, but found MULTIPOINT", e2.getMessage());
     }
 
     public void testEqualsHashCodeContract() {

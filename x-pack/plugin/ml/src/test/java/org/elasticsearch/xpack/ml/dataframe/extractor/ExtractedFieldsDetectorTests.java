@@ -33,7 +33,7 @@ import static org.mockito.Mockito.when;
 
 public class ExtractedFieldsDetectorTests extends ESTestCase {
 
-    private static final String SOURCE_INDEX = "source_index";
+    private static final String[] SOURCE_INDEX = new String[] { "source_index" };
     private static final String DEST_INDEX = "dest_index";
     private static final String RESULTS_FIELD = "ml";
 
@@ -154,7 +154,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             SOURCE_INDEX, buildAnalyticsConfig(desiredFields), false, 100, fieldCapabilities);
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> extractedFieldsDetector.detect());
 
-        assertThat(e.getMessage(), equalTo("No compatible fields could be detected in index [source_index] with name [your_field1]"));
+        assertThat(e.getMessage(), equalTo("No field [your_field1] could be detected"));
     }
 
     public void testDetectedExtractedFields_GivenExcludeAllValidFields() {
@@ -202,7 +202,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             SOURCE_INDEX, buildAnalyticsConfig(), false, 100, fieldCapabilities);
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> extractedFieldsDetector.detect());
 
-        assertThat(e.getMessage(), equalTo("Index [source_index] already has a field that matches the dest.results_field [ml]; " +
+        assertThat(e.getMessage(), equalTo("A field that matches the dest.results_field [ml] already exists; " +
             "please set a different results_field"));
     }
 

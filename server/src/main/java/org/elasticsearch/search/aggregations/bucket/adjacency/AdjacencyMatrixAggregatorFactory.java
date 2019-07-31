@@ -34,14 +34,14 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class AdjacencyMatrixAggregatorFactory extends AggregatorFactory<AdjacencyMatrixAggregatorFactory> {
+public class AdjacencyMatrixAggregatorFactory extends AggregatorFactory {
 
     private final String[] keys;
     private final Weight[] weights;
     private final String separator;
 
     public AdjacencyMatrixAggregatorFactory(String name, List<KeyedFilter> filters, String separator, 
-            SearchContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactories, 
+            SearchContext context, AggregatorFactory parent, AggregatorFactories.Builder subFactories,
             Map<String, Object> metaData) throws IOException {
         super(name, context, parent, subFactories, metaData);
         IndexSearcher contextSearcher = context.searcher();

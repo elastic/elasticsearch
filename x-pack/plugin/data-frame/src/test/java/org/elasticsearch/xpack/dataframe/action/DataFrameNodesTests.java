@@ -31,10 +31,10 @@ public class DataFrameNodesTests extends ESTestCase {
 
         PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
         tasksBuilder.addTask(dataFrameIdFoo,
-                DataFrameField.TASK_NAME, new DataFrameTransform(dataFrameIdFoo),
+                DataFrameField.TASK_NAME, new DataFrameTransform(dataFrameIdFoo, Version.CURRENT, null),
                 new PersistentTasksCustomMetaData.Assignment("node-1", "test assignment"));
         tasksBuilder.addTask(dataFrameIdBar,
-                DataFrameField.TASK_NAME, new DataFrameTransform(dataFrameIdBar),
+                DataFrameField.TASK_NAME, new DataFrameTransform(dataFrameIdBar, Version.CURRENT, null),
                 new PersistentTasksCustomMetaData.Assignment("node-2", "test assignment"));
         tasksBuilder.addTask("test-task1", "testTasks", new PersistentTaskParams() {
                 @Override

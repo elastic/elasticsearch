@@ -240,8 +240,8 @@ public class PercentileRanksAggregationBuilder extends LeafOnly<ValuesSource.Num
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<Numeric, ?> innerBuild(SearchContext context, ValuesSourceConfig<Numeric> config,
-            AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
+    protected ValuesSourceAggregatorFactory<Numeric> innerBuild(SearchContext context, ValuesSourceConfig<Numeric> config,
+            AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
         switch (method) {
         case TDIGEST:
             return new TDigestPercentileRanksAggregatorFactory(name, config, values, compression, keyed, context, parent,

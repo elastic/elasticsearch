@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.MockLowerCaseFilter;
 import org.apache.lucene.analysis.MockTokenizer;
-import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -69,16 +68,8 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
 
         @Override
         public Map<String, AnalysisModule.AnalysisProvider<TokenizerFactory>> getTokenizers() {
-            return singletonMap("keyword", (indexSettings, environment, name, settings) -> {
-                class Factory implements TokenizerFactory {
-
-                    @Override
-                    public Tokenizer create() {
-                        return new MockTokenizer(MockTokenizer.KEYWORD, false);
-                    }
-                }
-                return new Factory();
-            });
+            return singletonMap("keyword", (indexSettings, environment, name, settings) ->
+                TokenizerFactory.newFactory(name, () -> new MockTokenizer(MockTokenizer.KEYWORD, false)));
         }
 
     }

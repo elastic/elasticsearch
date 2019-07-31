@@ -45,7 +45,6 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 public class DateHistogramGroupSource extends SingleGroupSource implements ToXContentObject {
 
     private static final ParseField TIME_ZONE = new ParseField("time_zone");
-    private static final ParseField FORMAT = new ParseField("format");
 
     // From DateHistogramAggregationBuilder in core, transplanted and modified to a set
     // so we don't need to import a dependency on the class
@@ -195,8 +194,7 @@ public class DateHistogramGroupSource extends SingleGroupSource implements ToXCo
                    }
 
                    ZoneId zoneId = (ZoneId) args[3];
-                   String format = (String) args[4];
-                   return new DateHistogramGroupSource(field, interval, format, zoneId);
+                   return new DateHistogramGroupSource(field, interval, zoneId);
                 });
 
     static {
@@ -212,8 +210,6 @@ public class DateHistogramGroupSource extends SingleGroupSource implements ToXCo
                 return ZoneOffset.ofHours(p.intValue());
             }
         }, TIME_ZONE, ObjectParser.ValueType.LONG);
-
-        PARSER.declareString(optionalConstructorArg(), FORMAT);
     }
 
     public static DateHistogramGroupSource fromXContent(final XContentParser parser) {
@@ -221,13 +217,11 @@ public class DateHistogramGroupSource extends SingleGroupSource implements ToXCo
     }
 
     private final Interval interval;
-    private final String format;
     private final ZoneId timeZone;
 
-    DateHistogramGroupSource(String field, Interval interval, String format, ZoneId timeZone) {
+    DateHistogramGroupSource(String field, Interval interval, ZoneId timeZone) {
         super(field);
         this.interval = interval;
-        this.format = format;
         this.timeZone = timeZone;
     }
 
@@ -238,10 +232,6 @@ public class DateHistogramGroupSource extends SingleGroupSource implements ToXCo
 
     public Interval getInterval() {
         return interval;
-    }
-
-    public String getFormat() {
-        return format;
     }
 
     public ZoneId getTimeZone() {
@@ -257,9 +247,6 @@ public class DateHistogramGroupSource extends SingleGroupSource implements ToXCo
         interval.toXContent(builder, params);
         if (timeZone != null) {
             builder.field(TIME_ZONE.getPreferredName(), timeZone.toString());
-        }
-        if (format != null) {
-            builder.field(FORMAT.getPreferredName(), format);
         }
         builder.endObject();
         return builder;
@@ -279,13 +266,12 @@ public class DateHistogramGroupSource extends SingleGroupSource implements ToXCo
 
         return Objects.equals(this.field, that.field) &&
                 Objects.equals(this.interval, that.interval) &&
-                Objects.equals(this.timeZone, that.timeZone) &&
-                Objects.equals(this.format, that.format);
+                Objects.equals(this.timeZone, that.timeZone);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, interval, timeZone, format);
+        return Objects.hash(field, interval, timeZone);
     }
 
     public static Builder builder() {
@@ -296,7 +282,6 @@ public class DateHistogramGroupSource extends SingleGroupSource implements ToXCo
 
         private String field;
         private Interval interval;
-        private String format;
         private ZoneId timeZone;
 
         /**
@@ -320,16 +305,6 @@ public class DateHistogramGroupSource extends SingleGroupSource implements ToXCo
         }
 
         /**
-         * Set the optional String formatting for the time interval.
-         * @param format The format of the output for the time interval key
-         * @return The {@link Builder} with the format set.
-         */
-        public Builder setFormat(String format) {
-            this.format = format;
-            return this;
-        }
-
-        /**
          * Sets the time zone to use for this aggregation
          * @param timeZone The zoneId for the timeZone
          * @return The {@link Builder} with the timeZone set.
@@ -340,7 +315,7 @@ public class DateHistogramGroupSource extends SingleGroupSource implements ToXCo
         }
 
         public DateHistogramGroupSource build() {
-            return new DateHistogramGroupSource(field, interval, format, timeZone);
+            return new DateHistogramGroupSource(field, interval, timeZone);
         }
     }
 }

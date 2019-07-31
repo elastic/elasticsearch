@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ml.job.results;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
@@ -28,6 +29,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeSta
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshotField;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
+import org.elasticsearch.xpack.core.ml.utils.ExponentialAverageCalculationContext;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -184,6 +186,16 @@ public final class ReservedFieldNames {
             TimingStats.MAX_BUCKET_PROCESSING_TIME_MS.getPreferredName(),
             TimingStats.AVG_BUCKET_PROCESSING_TIME_MS.getPreferredName(),
             TimingStats.EXPONENTIAL_AVG_BUCKET_PROCESSING_TIME_MS.getPreferredName(),
+            TimingStats.EXPONENTIAL_AVG_CALCULATION_CONTEXT.getPreferredName(),
+
+            DatafeedTimingStats.SEARCH_COUNT.getPreferredName(),
+            DatafeedTimingStats.BUCKET_COUNT.getPreferredName(),
+            DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName(),
+            DatafeedTimingStats.EXPONENTIAL_AVG_CALCULATION_CONTEXT.getPreferredName(),
+
+            ExponentialAverageCalculationContext.INCREMENTAL_METRIC_VALUE_MS.getPreferredName(),
+            ExponentialAverageCalculationContext.LATEST_TIMESTAMP.getPreferredName(),
+            ExponentialAverageCalculationContext.PREVIOUS_EXPONENTIAL_AVERAGE_MS.getPreferredName(),
 
             GetResult._ID,
             GetResult._INDEX,
@@ -277,6 +289,8 @@ public final class ReservedFieldNames {
             DataFrameAnalyticsConfig.DEST.getPreferredName(),
             DataFrameAnalyticsConfig.ANALYSIS.getPreferredName(),
             DataFrameAnalyticsConfig.ANALYZED_FIELDS.getPreferredName(),
+            DataFrameAnalyticsConfig.CREATE_TIME.getPreferredName(),
+            DataFrameAnalyticsConfig.VERSION.getPreferredName(),
             DataFrameAnalyticsDest.INDEX.getPreferredName(),
             DataFrameAnalyticsDest.RESULTS_FIELD.getPreferredName(),
             DataFrameAnalyticsSource.INDEX.getPreferredName(),
@@ -284,7 +298,7 @@ public final class ReservedFieldNames {
             OutlierDetection.NAME.getPreferredName(),
             OutlierDetection.N_NEIGHBORS.getPreferredName(),
             OutlierDetection.METHOD.getPreferredName(),
-            OutlierDetection.MINIMUM_SCORE_TO_WRITE_FEATURE_INFLUENCE.getPreferredName(),
+            OutlierDetection.FEATURE_INFLUENCE_THRESHOLD.getPreferredName(),
 
             ElasticsearchMappings.CONFIG_TYPE,
 

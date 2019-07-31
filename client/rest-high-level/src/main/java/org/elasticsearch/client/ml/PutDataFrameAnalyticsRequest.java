@@ -22,6 +22,7 @@ package org.elasticsearch.client.ml;
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -66,5 +67,10 @@ public class PutDataFrameAnalyticsRequest implements ToXContentObject, Validatab
     @Override
     public int hashCode() {
         return Objects.hash(config);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 }

@@ -56,6 +56,14 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
     private Settings settings = EMPTY_SETTINGS;
     private boolean preserveExisting = false;
 
+    public UpdateSettingsRequest(StreamInput in) throws IOException {
+        super(in);
+        indices = in.readStringArray();
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
+        settings = readSettingsFromStream(in);
+        preserveExisting = in.readBoolean();
+    }
+
     public UpdateSettingsRequest() {
     }
 
@@ -164,15 +172,6 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
         return this;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        indices = in.readStringArray();
-        indicesOptions = IndicesOptions.readIndicesOptions(in);
-        settings = readSettingsFromStream(in);
-        preserveExisting = in.readBoolean();
     }
 
     @Override

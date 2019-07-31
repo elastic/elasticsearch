@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -16,15 +17,16 @@ import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StopDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetection;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -97,22 +99,23 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         return response.getResponse().results();
     }
 
-    protected List<String> generateData(long timestamp, TimeValue bucketSpan, int bucketCount,
-                                      Function<Integer, Integer> timeToCountFunction) throws IOException {
-        List<String> data = new ArrayList<>();
-        long now = timestamp;
-        for (int bucketIndex = 0; bucketIndex < bucketCount; bucketIndex++) {
-            for (int count = 0; count < timeToCountFunction.apply(bucketIndex); count++) {
-                Map<String, Object> record = new HashMap<>();
-                record.put("time", now);
-                data.add(createJsonRecord(record));
-            }
-            now += bucketSpan.getMillis();
-        }
-        return data;
-    }
-
     protected static String createJsonRecord(Map<String, Object> keyValueMap) throws IOException {
         return Strings.toString(JsonXContent.contentBuilder().map(keyValueMap)) + "\n";
+    }
+
+    protected static DataFrameAnalyticsConfig buildOutlierDetectionAnalytics(String id, String[] sourceIndex, String destIndex,
+                                                                           @Nullable String resultsField) {
+        DataFrameAnalyticsConfig.Builder configBuilder = new DataFrameAnalyticsConfig.Builder(id);
+        configBuilder.setSource(new DataFrameAnalyticsSource(sourceIndex, null));
+        configBuilder.setDest(new DataFrameAnalyticsDest(destIndex, resultsField));
+        configBuilder.setAnalysis(new OutlierDetection());
+        return configBuilder.build();
+    }
+
+    protected void assertState(String id, DataFrameAnalyticsState state) {
+        List<GetDataFrameAnalyticsStatsAction.Response.Stats> stats = getAnalyticsStats(id);
+        assertThat(stats.size(), equalTo(1));
+        assertThat(stats.get(0).getId(), equalTo(id));
+        assertThat(stats.get(0).getState(), equalTo(state));
     }
 }

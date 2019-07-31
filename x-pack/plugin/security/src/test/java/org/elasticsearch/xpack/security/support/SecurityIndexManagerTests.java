@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.security.support;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -49,6 +49,7 @@ import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -57,6 +58,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_MAIN_TEMPLATE_7;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.TEMPLATE_VERSION_PATTERN;
@@ -67,6 +69,8 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 public class SecurityIndexManagerTests extends ESTestCase {
 
@@ -74,7 +78,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
     private static final ClusterState EMPTY_CLUSTER_STATE = new ClusterState.Builder(CLUSTER_NAME).build();
     private static final String TEMPLATE_NAME = "SecurityIndexManagerTests-template";
     private SecurityIndexManager manager;
-    private Map<Action<?>, Map<ActionRequest, ActionListener<?>>> actions;
+    private Map<ActionType<?>, Map<ActionRequest, ActionListener<?>>> actions;
 
     @Before
     public void setUpManager() {
@@ -90,13 +94,30 @@ public class SecurityIndexManagerTests extends ESTestCase {
         final Client client = new FilterClient(mockClient) {
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse>
-            void doExecute(Action<Response> action, Request request, ActionListener<Response> listener) {
+            void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
                 final Map<ActionRequest, ActionListener<?>> map = actions.getOrDefault(action, new HashMap<>());
                 map.put(request, listener);
                 actions.put(action, map);
             }
         };
         manager = SecurityIndexManager.buildSecurityMainIndexManager(client, clusterService);
+
+    }
+
+    public void testIndexWithFaultyMappingOnDisk() {
+        SecurityIndexManager.State state = new SecurityIndexManager.State(randomBoolean() ? Instant.now() : null, true, randomBoolean(),
+                false, null, "not_important", null, null);
+        Supplier<byte[]> mappingSourceSupplier = () -> {
+            throw new RuntimeException();
+        };
+        Runnable runnable = mock(Runnable.class);
+        manager = new SecurityIndexManager(mock(Client.class), RestrictedIndicesNames.SECURITY_MAIN_ALIAS,
+                RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7, SecurityIndexManager.INTERNAL_MAIN_INDEX_FORMAT,
+                mappingSourceSupplier, state);
+        AtomicReference<Exception> exceptionConsumer = new AtomicReference<>();
+        manager.prepareIndexIfNeededThenExecute(e -> exceptionConsumer.set(e), runnable);
+        verify(runnable, never()).run();
+        assertThat(exceptionConsumer.get(), is(notNullValue()));
     }
 
     public void testIndexWithUpToDateMappingAndTemplate() throws IOException {

@@ -139,4 +139,14 @@ public class BasicAPITests extends ScriptTestCase {
         assertEquals(10, exec("staticAddIntsTest(7, 3)"));
         assertEquals(15.5f, exec("staticAddFloatsTest(6.5f, 9.0f)"));
     }
+
+    // TODO: remove this when the transition from Joda to Java datetimes is completed
+    public void testJCZDTToZonedDateTime() {
+        assertEquals(0L, exec(
+                "Instant instant = Instant.ofEpochMilli(434931330000L);" +
+                "JodaCompatibleZonedDateTime d = new JodaCompatibleZonedDateTime(instant, ZoneId.of('Z'));" +
+                "ZonedDateTime t = d;" +
+                "return ChronoUnit.MILLIS.between(d, t);"
+        ));
+    }
 }

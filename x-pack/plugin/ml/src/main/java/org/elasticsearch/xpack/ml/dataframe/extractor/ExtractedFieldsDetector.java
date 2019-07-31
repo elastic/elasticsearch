@@ -55,13 +55,13 @@ public class ExtractedFieldsDetector {
         COMPATIBLE_FIELD_TYPES = Collections.unmodifiableSet(compatibleTypes);
     }
 
-    private final String index;
+    private final String[] index;
     private final DataFrameAnalyticsConfig config;
     private final boolean isTaskRestarting;
     private final int docValueFieldsLimit;
     private final FieldCapabilitiesResponse fieldCapabilitiesResponse;
 
-    ExtractedFieldsDetector(String index, DataFrameAnalyticsConfig config, boolean isTaskRestarting, int docValueFieldsLimit,
+    ExtractedFieldsDetector(String[] index, DataFrameAnalyticsConfig config, boolean isTaskRestarting, int docValueFieldsLimit,
                             FieldCapabilitiesResponse fieldCapabilitiesResponse) {
         this.index = Objects.requireNonNull(index);
         this.config = Objects.requireNonNull(config);
@@ -74,7 +74,7 @@ public class ExtractedFieldsDetector {
         Set<String> fields = new HashSet<>(fieldCapabilitiesResponse.get().keySet());
         fields.removeAll(IGNORE_FIELDS);
 
-        checkResultsFieldIsNotPresent(fields, index);
+        checkResultsFieldIsNotPresent();
 
         // Ignore fields under the results object
         fields.removeIf(field -> field.startsWith(config.getDest().getResultsField() + "."));
@@ -87,7 +87,7 @@ public class ExtractedFieldsDetector {
         ExtractedFields extractedFields = ExtractedFields.build(sortedFields, Collections.emptySet(), fieldCapabilitiesResponse)
             .filterFields(ExtractedField.ExtractionMethod.DOC_VALUE);
         if (extractedFields.getAllFields().isEmpty()) {
-            throw ExceptionsHelper.badRequestException("No compatible fields could be detected in index [{}]", index);
+            throw ExceptionsHelper.badRequestException("No compatible fields could be detected in index {}", Arrays.toString(index));
         }
         if (extractedFields.getDocValueFields().size() > docValueFieldsLimit) {
             extractedFields = fetchFromSourceIfSupported(extractedFields);
@@ -100,11 +100,16 @@ public class ExtractedFieldsDetector {
         return extractedFields;
     }
 
-    private void checkResultsFieldIsNotPresent(Set<String> fields, String index) {
+    private void checkResultsFieldIsNotPresent() {
         // If the task is restarting we do not mind the index containing the results field, we will overwrite all docs
-        if (isTaskRestarting == false && fields.contains(config.getDest().getResultsField())) {
-            throw ExceptionsHelper.badRequestException("Index [{}] already has a field that matches the {}.{} [{}];" +
-                    " please set a different {}", index, DataFrameAnalyticsConfig.DEST.getPreferredName(),
+        if (isTaskRestarting) {
+            return;
+        }
+
+        Map<String, FieldCapabilities> indexToFieldCaps = fieldCapabilitiesResponse.getField(config.getDest().getResultsField());
+        if (indexToFieldCaps != null && indexToFieldCaps.isEmpty() == false) {
+            throw ExceptionsHelper.badRequestException("A field that matches the {}.{} [{}] already exists;" +
+                    " please set a different {}", DataFrameAnalyticsConfig.DEST.getPreferredName(),
                 DataFrameAnalyticsDest.RESULTS_FIELD.getPreferredName(), config.getDest().getResultsField(),
                 DataFrameAnalyticsDest.RESULTS_FIELD.getPreferredName());
         }
@@ -121,7 +126,7 @@ public class ExtractedFieldsDetector {
         }
     }
 
-    private void includeAndExcludeFields(Set<String> fields, String index) {
+    private void includeAndExcludeFields(Set<String> fields, String[] index) {
         FetchSourceContext analyzedFields = config.getAnalyzedFields();
         if (analyzedFields == null) {
             return;
@@ -136,12 +141,14 @@ public class ExtractedFieldsDetector {
             // If the inclusion set does not match anything, that means the user's desired fields cannot be found in
             // the collection of supported field types. We should let the user know.
             Set<String> includedSet = NameResolver.newUnaliased(fields,
-                (ex) -> new ResourceNotFoundException(Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_BAD_FIELD_FILTER, index, ex)))
+                (ex) -> new ResourceNotFoundException(
+                    Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_BAD_FIELD_FILTER, ex)))
                 .expand(includes, false);
             // If the exclusion set does not match anything, that means the fields are already not present
             // no need to raise if nothing matched
             Set<String> excludedSet = NameResolver.newUnaliased(fields,
-                (ex) -> new ResourceNotFoundException(Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_BAD_FIELD_FILTER, index, ex)))
+                (ex) -> new ResourceNotFoundException(
+                    Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_BAD_FIELD_FILTER, ex)))
                 .expand(excludes, true);
 
             fields.retainAll(includedSet);

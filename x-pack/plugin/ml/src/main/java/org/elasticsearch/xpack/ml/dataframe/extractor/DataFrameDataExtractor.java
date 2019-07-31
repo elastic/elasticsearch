@@ -23,7 +23,7 @@ import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedField;
-import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsFields;
+import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsIndex;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -126,7 +126,7 @@ public class DataFrameDataExtractor {
                 .setScroll(SCROLL_TIMEOUT)
                 // This ensures the search throws if there are failures and the scroll context gets cleared automatically
                 .setAllowPartialSearchResults(false)
-                .addSort(DataFrameAnalyticsFields.ID, SortOrder.ASC)
+                .addSort(DataFrameAnalyticsIndex.ID_COPY, SortOrder.ASC)
                 .setIndices(context.indices)
                 .setSize(context.scrollSize)
                 .setQuery(context.query);

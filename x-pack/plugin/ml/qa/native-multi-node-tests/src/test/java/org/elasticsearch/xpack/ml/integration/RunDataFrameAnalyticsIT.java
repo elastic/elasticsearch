@@ -13,20 +13,14 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
-import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
-import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
-import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetection;
 import org.junit.After;
 
-import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.allOf;
@@ -69,7 +63,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         }
 
         String id = "test_outlier_detection_with_few_docs";
-        DataFrameAnalyticsConfig config = buildOutlierDetectionAnalytics(id, sourceIndex, null);
+        DataFrameAnalyticsConfig config = buildOutlierDetectionAnalytics(id, new String[] {sourceIndex}, sourceIndex + "-results", null);
         registerAnalytics(config);
         putAnalytics(config);
 
@@ -91,10 +85,13 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
                 assertThat(destDoc.get(field), equalTo(sourceDoc.get(field)));
             }
             assertThat(destDoc.containsKey("ml"), is(true));
+
+            @SuppressWarnings("unchecked")
             Map<String, Object> resultsObject = (Map<String, Object>) destDoc.get("ml");
+
             assertThat(resultsObject.containsKey("outlier_score"), is(true));
             double outlierScore = (double) resultsObject.get("outlier_score");
-            assertThat(outlierScore, allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(100.0)));
+            assertThat(outlierScore, allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0)));
             if (hit.getId().equals("outlier")) {
                 scoreOfOutlier = outlierScore;
             } else {
@@ -130,7 +127,8 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         }
 
         String id = "test_outlier_detection_with_enough_docs_to_scroll";
-        DataFrameAnalyticsConfig config = buildOutlierDetectionAnalytics(id, sourceIndex, "custom_ml");
+        DataFrameAnalyticsConfig config = buildOutlierDetectionAnalytics(
+                id, new String[] {sourceIndex}, sourceIndex + "-results", "custom_ml");
         registerAnalytics(config);
         putAnalytics(config);
 
@@ -188,7 +186,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         }
 
         String id = "test_outlier_detection_with_more_fields_than_docvalue_limit";
-        DataFrameAnalyticsConfig config = buildOutlierDetectionAnalytics(id, sourceIndex, null);
+        DataFrameAnalyticsConfig config = buildOutlierDetectionAnalytics(id, new String[] {sourceIndex}, sourceIndex + "-results", null);
         registerAnalytics(config);
         putAnalytics(config);
 
@@ -208,15 +206,19 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
                 assertThat(destDoc.get(field), equalTo(sourceDoc.get(field)));
             }
             assertThat(destDoc.containsKey("ml"), is(true));
+
+            @SuppressWarnings("unchecked")
             Map<String, Object> resultsObject = (Map<String, Object>) destDoc.get("ml");
+
             assertThat(resultsObject.containsKey("outlier_score"), is(true));
             double outlierScore = (double) resultsObject.get("outlier_score");
-            assertThat(outlierScore, allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(100.0)));
+            assertThat(outlierScore, allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0)));
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/43960")
     public void testStopOutlierDetectionWithEnoughDocumentsToScroll() {
-        String sourceIndex = "test-outlier-detection-with-enough-docs-to-scroll";
+        String sourceIndex = "test-stop-outlier-detection-with-enough-docs-to-scroll";
 
         client().admin().indices().prepareCreate(sourceIndex)
             .addMapping("_doc", "numeric_1", "type=double", "numeric_2", "type=float", "categorical_1", "type=keyword")
@@ -236,8 +238,9 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             fail("Failed to index data: " + bulkResponse.buildFailureMessage());
         }
 
-        String id = "test_outlier_detection_with_enough_docs_to_scroll";
-        DataFrameAnalyticsConfig config = buildOutlierDetectionAnalytics(id, sourceIndex, "custom_ml");
+        String id = "test_stop_outlier_detection_with_enough_docs_to_scroll";
+        DataFrameAnalyticsConfig config = buildOutlierDetectionAnalytics(
+                id, new String[] {sourceIndex}, sourceIndex + "-results", "custom_ml");
         registerAnalytics(config);
         putAnalytics(config);
 
@@ -264,18 +267,99 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         }
     }
 
-    private static DataFrameAnalyticsConfig buildOutlierDetectionAnalytics(String id, String sourceIndex, @Nullable String resultsField) {
-        DataFrameAnalyticsConfig.Builder configBuilder = new DataFrameAnalyticsConfig.Builder(id);
-        configBuilder.setSource(new DataFrameAnalyticsSource(sourceIndex, null));
-        configBuilder.setDest(new DataFrameAnalyticsDest(sourceIndex + "-results", resultsField));
-        configBuilder.setAnalysis(new OutlierDetection());
-        return configBuilder.build();
+    public void testOutlierDetectionWithMultipleSourceIndices() throws Exception {
+        String sourceIndex1 = "test-outlier-detection-with-multiple-source-indices-1";
+        String sourceIndex2 = "test-outlier-detection-with-multiple-source-indices-2";
+        String destIndex = "test-outlier-detection-with-multiple-source-indices-results";
+        String[] sourceIndex = new String[] { sourceIndex1, sourceIndex2 };
+
+        client().admin().indices().prepareCreate(sourceIndex1)
+            .addMapping("_doc", "numeric_1", "type=double", "numeric_2", "type=float", "categorical_1", "type=keyword")
+            .get();
+
+        client().admin().indices().prepareCreate(sourceIndex2)
+            .addMapping("_doc", "numeric_1", "type=double", "numeric_2", "type=float", "categorical_1", "type=keyword")
+            .get();
+
+        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
+        bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+
+        for (String index : sourceIndex) {
+            for (int i = 0; i < 5; i++) {
+                IndexRequest indexRequest = new IndexRequest(index);
+                indexRequest.source("numeric_1", randomDouble(), "numeric_2", randomFloat(), "categorical_1", "foo_" + i);
+                bulkRequestBuilder.add(indexRequest);
+            }
+        }
+        BulkResponse bulkResponse = bulkRequestBuilder.get();
+        if (bulkResponse.hasFailures()) {
+            fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+        }
+
+        String id = "test_outlier_detection_with_multiple_source_indices";
+        DataFrameAnalyticsConfig config = buildOutlierDetectionAnalytics(id, sourceIndex, destIndex, null);
+        registerAnalytics(config);
+        putAnalytics(config);
+
+        assertState(id, DataFrameAnalyticsState.STOPPED);
+
+        startAnalytics(id);
+        waitUntilAnalyticsIsStopped(id);
+
+        // Check we've got all docs
+        SearchResponse searchResponse = client().prepareSearch(config.getDest().getIndex()).setTrackTotalHits(true).get();
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) bulkRequestBuilder.numberOfActions()));
+
+        // Check they all have an outlier_score
+        searchResponse = client().prepareSearch(config.getDest().getIndex())
+            .setTrackTotalHits(true)
+            .setQuery(QueryBuilders.existsQuery("ml.outlier_score")).get();
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) bulkRequestBuilder.numberOfActions()));
     }
 
-    private void assertState(String id, DataFrameAnalyticsState state) {
-        List<GetDataFrameAnalyticsStatsAction.Response.Stats> stats = getAnalyticsStats(id);
-        assertThat(stats.size(), equalTo(1));
-        assertThat(stats.get(0).getId(), equalTo(id));
-        assertThat(stats.get(0).getState(), equalTo(state));
+    public void testOutlierDetectionWithPreExistingDestIndex() throws Exception {
+        String sourceIndex = "test-outlier-detection-with-pre-existing-dest-index";
+        String destIndex = "test-outlier-detection-with-pre-existing-dest-index-results";
+
+        client().admin().indices().prepareCreate(sourceIndex)
+            .addMapping("_doc", "numeric_1", "type=double", "numeric_2", "type=float", "categorical_1", "type=keyword")
+            .get();
+
+        client().admin().indices().prepareCreate(destIndex)
+            .addMapping("_doc", "numeric_1", "type=double", "numeric_2", "type=float", "categorical_1", "type=keyword")
+            .get();
+
+        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
+        bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+
+        for (int i = 0; i < 5; i++) {
+            IndexRequest indexRequest = new IndexRequest(sourceIndex);
+            indexRequest.source("numeric_1", randomDouble(), "numeric_2", randomFloat(), "categorical_1", "foo_" + i);
+            bulkRequestBuilder.add(indexRequest);
+        }
+        BulkResponse bulkResponse = bulkRequestBuilder.get();
+        if (bulkResponse.hasFailures()) {
+            fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+        }
+
+        String id = "test_outlier_detection_with_pre_existing_dest_index";
+        DataFrameAnalyticsConfig config = buildOutlierDetectionAnalytics(id, new String[] {sourceIndex}, destIndex, null);
+        registerAnalytics(config);
+        putAnalytics(config);
+
+        assertState(id, DataFrameAnalyticsState.STOPPED);
+
+        startAnalytics(id);
+        waitUntilAnalyticsIsStopped(id);
+
+        // Check we've got all docs
+        SearchResponse searchResponse = client().prepareSearch(config.getDest().getIndex()).setTrackTotalHits(true).get();
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) bulkRequestBuilder.numberOfActions()));
+
+        // Check they all have an outlier_score
+        searchResponse = client().prepareSearch(config.getDest().getIndex())
+            .setTrackTotalHits(true)
+            .setQuery(QueryBuilders.existsQuery("ml.outlier_score")).get();
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) bulkRequestBuilder.numberOfActions()));
     }
 }

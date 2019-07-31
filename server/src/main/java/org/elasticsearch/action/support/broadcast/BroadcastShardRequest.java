@@ -35,7 +35,12 @@ public abstract class BroadcastShardRequest extends TransportRequest implements 
 
     protected OriginalIndices originalIndices;
 
-    public BroadcastShardRequest() {
+    protected BroadcastShardRequest() {}
+
+    public BroadcastShardRequest(StreamInput in) throws IOException {
+        super(in);
+        shardId = new ShardId(in);
+        originalIndices = OriginalIndices.readOriginalIndices(in);
     }
 
     protected BroadcastShardRequest(ShardId shardId, BroadcastRequest<? extends BroadcastRequest<?>> request) {
@@ -55,13 +60,6 @@ public abstract class BroadcastShardRequest extends TransportRequest implements 
     @Override
     public IndicesOptions indicesOptions() {
         return originalIndices.indicesOptions();
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        shardId = new ShardId(in);
-        originalIndices = OriginalIndices.readOriginalIndices(in);
     }
 
     @Override

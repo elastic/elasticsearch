@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ml.dataframe;
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -17,6 +18,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -30,16 +32,18 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetectionTests;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
+import org.junit.Before;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
@@ -49,7 +53,11 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
 
     @Override
     protected DataFrameAnalyticsConfig doParseInstance(XContentParser parser) throws IOException {
-        return DataFrameAnalyticsConfig.STRICT_PARSER.apply(parser, null).build();
+        ObjectParser<DataFrameAnalyticsConfig.Builder, Void> dataFrameAnalyticsConfigParser =
+            lenient
+                ? DataFrameAnalyticsConfig.LENIENT_PARSER
+                : DataFrameAnalyticsConfig.STRICT_PARSER;
+        return dataFrameAnalyticsConfigParser.apply(parser, null).build();
     }
 
     @Override
@@ -70,7 +78,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
 
     @Override
     protected DataFrameAnalyticsConfig createTestInstance() {
-        return createRandom(randomValidId());
+        return createRandom(randomValidId(), lenient);
     }
 
     @Override
@@ -79,10 +87,18 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
     }
 
     public static DataFrameAnalyticsConfig createRandom(String id) {
-        return createRandomBuilder(id).build();
+        return createRandom(id, false);
+    }
+
+    public static DataFrameAnalyticsConfig createRandom(String id, boolean withGeneratedFields) {
+        return createRandomBuilder(id, withGeneratedFields).build();
     }
 
     public static DataFrameAnalyticsConfig.Builder createRandomBuilder(String id) {
+        return createRandomBuilder(id, false);
+    }
+
+    public static DataFrameAnalyticsConfig.Builder createRandomBuilder(String id, boolean withGeneratedFields) {
         DataFrameAnalyticsSource source = DataFrameAnalyticsSourceTests.createRandom();
         DataFrameAnalyticsDest dest = DataFrameAnalyticsDestTests.createRandom();
         DataFrameAnalyticsConfig.Builder builder = new DataFrameAnalyticsConfig.Builder()
@@ -97,6 +113,14 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
         }
         if (randomBoolean()) {
             builder.setModelMemoryLimit(new ByteSizeValue(randomIntBetween(1, 16), randomFrom(ByteSizeUnit.MB, ByteSizeUnit.GB)));
+        }
+        if (withGeneratedFields) {
+            if (randomBoolean()) {
+                builder.setCreateTime(Instant.now());
+            }
+            if (randomBoolean()) {
+                builder.setVersion(Version.CURRENT);
+            }
         }
         return builder;
     }
@@ -121,6 +145,13 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
         "    \"dest\": {\"index\":\"dest-index\"},\n" +
         "    \"analysis\": {\"outlier_detection\": {\"n_neighbors\": 10}}\n" +
         "}";
+
+    private boolean lenient;
+
+    @Before
+    public void chooseStrictOrLenient() {
+        lenient = randomBoolean();
+    }
 
     public void testQueryConfigStoresUserInputOnly() throws IOException {
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)
@@ -243,6 +274,36 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
             () -> new DataFrameAnalyticsConfig.Builder(explicitLimitConfig, maxLimit).build());
         assertThat(e.getMessage(), startsWith("model_memory_limit"));
         assertThat(e.getMessage(), containsString("must be less than the value of the xpack.ml.max_model_memory_limit setting"));
+    }
+
+    public void testPreventCreateTimeInjection() throws IOException {
+        String json = "{"
+            + " \"create_time\" : 123456789 },"
+            + " \"source\" : {\"index\":\"src\"},"
+            + " \"dest\" : {\"index\": \"dest\"},"
+            + "}";
+
+        try (XContentParser parser =
+                 XContentFactory.xContent(XContentType.JSON).createParser(
+                     xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json)) {
+            Exception e = expectThrows(IllegalArgumentException.class, () -> DataFrameAnalyticsConfig.STRICT_PARSER.apply(parser, null));
+            assertThat(e.getMessage(), containsString("unknown field [create_time], parser not found"));
+        }
+    }
+
+    public void testPreventVersionInjection() throws IOException {
+        String json = "{"
+            + " \"version\" : \"7.3.0\","
+            + " \"source\" : {\"index\":\"src\"},"
+            + " \"dest\" : {\"index\": \"dest\"},"
+            + "}";
+
+        try (XContentParser parser =
+                 XContentFactory.xContent(XContentType.JSON).createParser(
+                     xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json)) {
+            Exception e = expectThrows(IllegalArgumentException.class, () -> DataFrameAnalyticsConfig.STRICT_PARSER.apply(parser, null));
+            assertThat(e.getMessage(), containsString("unknown field [version], parser not found"));
+        }
     }
 
     public void assertTooSmall(IllegalArgumentException e) {

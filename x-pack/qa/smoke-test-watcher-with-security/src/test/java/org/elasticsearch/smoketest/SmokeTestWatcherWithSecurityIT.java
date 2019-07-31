@@ -8,6 +8,7 @@ package org.elasticsearch.smoketest;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -330,6 +331,10 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
                 String watchid = objectPath.evaluate("hits.hits.0._source.watch_id");
                 assertThat(watchid, is(watchId));
                 objectPathReference.set(objectPath);
+            } catch (ResponseException e) {
+                final String err = "Failed to perform search of watcher history";
+                logger.info(err, e);
+                fail(err);
             }
         });
         return objectPathReference.get();

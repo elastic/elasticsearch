@@ -546,7 +546,6 @@ public class RemoteClusterServiceTests extends ESTestCase {
         return ActionListener.wrap(x -> latch.countDown(), x -> fail());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/41067")
     public void testCollectNodes() throws InterruptedException, IOException {
         final Settings settings = Settings.EMPTY;
         final List<DiscoveryNode> knownNodes_c1 = new CopyOnWriteArrayList<>();

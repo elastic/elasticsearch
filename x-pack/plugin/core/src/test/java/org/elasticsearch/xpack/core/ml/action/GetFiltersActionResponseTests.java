@@ -5,7 +5,8 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.action.GetFiltersAction.Response;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
@@ -13,7 +14,7 @@ import org.elasticsearch.xpack.core.ml.job.config.MlFilterTests;
 
 import java.util.Collections;
 
-public class GetFiltersActionResponseTests extends AbstractStreamableTestCase<GetFiltersAction.Response> {
+public class GetFiltersActionResponseTests extends AbstractWireSerializingTestCase<Response> {
 
     @Override
     protected Response createTestInstance() {
@@ -24,8 +25,7 @@ public class GetFiltersActionResponseTests extends AbstractStreamableTestCase<Ge
     }
 
     @Override
-    protected Response createBlankInstance() {
-        return new Response();
+    protected Writeable.Reader<Response> instanceReader() {
+        return Response::new;
     }
-
 }

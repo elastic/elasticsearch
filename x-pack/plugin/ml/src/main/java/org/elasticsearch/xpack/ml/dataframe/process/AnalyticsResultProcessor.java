@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.dataframe.process;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.xpack.ml.dataframe.process.results.RowResults;
 
 import java.util.Iterator;
@@ -26,6 +27,7 @@ public class AnalyticsResultProcessor {
     private final Supplier<Boolean> isProcessKilled;
     private final Consumer<Integer> progressConsumer;
     private final CountDownLatch completionLatch = new CountDownLatch(1);
+    private volatile String failure;
 
     public AnalyticsResultProcessor(String dataFrameAnalyticsId, DataFrameRowsJoiner dataFrameRowsJoiner, Supplier<Boolean> isProcessKilled,
                                     Consumer<Integer> progressConsumer) {
@@ -33,6 +35,11 @@ public class AnalyticsResultProcessor {
         this.dataFrameRowsJoiner = Objects.requireNonNull(dataFrameRowsJoiner);
         this.isProcessKilled = Objects.requireNonNull(isProcessKilled);
         this.progressConsumer = Objects.requireNonNull(progressConsumer);
+    }
+
+    @Nullable
+    public String getFailure() {
+        return failure == null ? dataFrameRowsJoiner.getFailure() : failure;
     }
 
     public void awaitForCompletion() {
@@ -59,6 +66,7 @@ public class AnalyticsResultProcessor {
                 // No need to log error as it's due to stopping
             } else {
                 LOGGER.error(new ParameterizedMessage("[{}] Error parsing data frame analytics output", dataFrameAnalyticsId), e);
+                failure = "error parsing data frame analytics output: [" + e.getMessage() + "]";
             }
         } finally {
             completionLatch.countDown();

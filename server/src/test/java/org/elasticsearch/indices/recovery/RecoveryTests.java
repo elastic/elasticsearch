@@ -461,7 +461,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
         }
     }
 
-    public void testTrimTranslogInPeerRecovery() throws Exception {
+    public void testRecoveryTrimsLocalTranslog() throws Exception {
         try (ReplicationGroup shards = createGroup(between(1, 2))) {
             shards.startAll();
             IndexShard oldPrimary = shards.getPrimary();

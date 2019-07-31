@@ -156,9 +156,9 @@ public class InboundHandler {
         final long requestId = message.getRequestId();
         final StreamInput stream = message.getStreamInput();
         final Version version = message.getVersion();
-        messageListener.onRequestReceived(requestId, action);
         TransportChannel transportChannel = null;
         try {
+            messageListener.onRequestReceived(requestId, action);
             if (message.isHandshake()) {
                 handshaker.handleHandshake(version, channel, requestId, stream);
             } else {

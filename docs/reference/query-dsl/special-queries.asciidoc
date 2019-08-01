@@ -2,34 +2,42 @@
 
 == Specialized queries
 
-This group contains queries which do not fit into the other groups:
+**Specialized queries** provide unique functionality, such as modifying
+<<relevance-scores, relevance scores>> or accepting non-standard query formats.
+
+
+[float]
+[[span-query-types]]
+=== Specialized query types
 
 <<query-dsl-distance-feature-query,`distance_feature` query>>::
-A query that computes scores based on the dynamically computed distances
-between the origin and documents' date, date_nanos and geo_point fields.
-It is able to efficiently skip non-competitive hits.
+Boosts the <<relevance-scores, relevance score>> of documents closer to a
+provided `origin` date or point. You can use `distance_feature` query to
+efficiently skip non-competitive hits.
 
 <<query-dsl-mlt-query,`more_like_this` query>>::
-This query finds documents which are similar to the specified text, document,
-or collection of documents.
+Returns documents like a provided text or set of documents.
 
 <<query-dsl-percolate-query,`percolate` query>>::
-This query finds queries that are stored as documents that match with
-the specified document.
+Returns, or percolates, <<percolator,stored queries>> based on documents those
+queries would match. The `percolate` query acts as a reverse search.
 
 <<query-dsl-rank-feature-query,`rank_feature` query>>::
-A query that computes scores based on the values of numeric features and is
-able to efficiently skip non-competitive hits.
+Boosts the <<relevance-scores, relevance score>> of documents based on the
+numeric value of a <<rank-feature,`rank_feature`>> or
+<<rank-features,`rank_features`>> field. You can use `rank_feature` query to
+efficiently skip non-competitive hits.
 
 <<query-dsl-script-query,`script` query>>::
-This query allows a script to act as a filter.  Also see the
-<<query-dsl-function-score-query,`function_score` query>>.
+Filters documents based on a provided <<modules-scripting-using,script>>.
 
 <<query-dsl-script-score-query,`script_score` query>>::
-A query that allows to modify the score of a sub-query with a script.
+Uses a <<modules-scripting,script>> to modify the <<relevance-scores,relevance
+scores>> of another query.
 
 <<query-dsl-wrapper-query,`wrapper` query>>::
-A query that accepts other queries as json or yaml string.
+Accepts any other query as a base64-encoded, JSON-formatted, or YAML-formatted
+string.
 
 
 include::distance-feature-query.asciidoc[]

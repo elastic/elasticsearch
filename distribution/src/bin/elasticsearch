@@ -20,17 +20,15 @@ if [ -z "$ES_TMPDIR" ]; then
   ES_TMPDIR=`"$JAVA" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.TempDirectory`
 fi
 
-ES_JVM_OPTIONS="$ES_PATH_CONF"/jvm.options
-JVM_OPTIONS=`"$JAVA" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.JvmOptionsParser "$ES_JVM_OPTIONS"`
-ES_JAVA_OPTS="${JVM_OPTIONS//\$\{ES_TMPDIR\}/$ES_TMPDIR}"
-
+# get keystore password before setting java options to avoid
+# conflicting GC configurations for the keystore tools
 unset KEYSTORE_PASSWORD
 KEYSTORE_PASSWORD=
 # If keystore exists and is encrypted, prompt for a password
 if [ -f "$ES_PATH_CONF"/elasticsearch.keystore ] \
     && ! echo $* | grep -E '(^-h |-h$| -h |--help$|--help )' >/dev/null 2>&1 \
     && ! echo $* | grep -E '(^-V |-V$| -V |--version$|--version )' >/dev/null 2>&1 \
-    && "`dirname "$0"`"/elasticsearch-keystore ] --help >/dev/null 2>&1 \
+    && "`dirname "$0"`"/elasticsearch-keystore --help >/dev/null 2>&1 \
     && ! "`dirname "$0"`"/elasticsearch-keystore list <&- >/dev/null 2>&1
 then
   if [ -e "$ES_KEYSTORE_PASSPHRASE_FILE" ] ; then
@@ -40,7 +38,7 @@ then
     else
       echo "Reading keystore passphrase from file $ES_KEYSTORE_PASSPHRASE_FILE" 1>&2
     fi
-  read -s KEYSTORE_PASSWORD <"$ES_KEYSTORE_PASSPHRASE_FILE"
+    read -s KEYSTORE_PASSWORD <"$ES_KEYSTORE_PASSPHRASE_FILE"
   else
     # read from standard input
     if ! read -s -p "Elasticsearch keystore password: " KEYSTORE_PASSWORD ; then
@@ -50,6 +48,10 @@ then
     echo
   fi
 fi
+
+ES_JVM_OPTIONS="$ES_PATH_CONF"/jvm.options
+JVM_OPTIONS=`"$JAVA" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.JvmOptionsParser "$ES_JVM_OPTIONS"`
+ES_JAVA_OPTS="${JVM_OPTIONS//\$\{ES_TMPDIR\}/$ES_TMPDIR}"
 
 # manual parsing to find out, if process should be detached
 if ! echo $* | grep -E '(^-d |-d$| -d |--daemonize$|--daemonize )' > /dev/null; then

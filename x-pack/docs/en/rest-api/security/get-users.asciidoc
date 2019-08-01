@@ -5,7 +5,7 @@
 <titleabbrev>Get users</titleabbrev>
 ++++
 
-Retrieves information about users in the native realm. 
+Retrieves information about users in the native realm and built-in users. 
 
 
 ==== Request

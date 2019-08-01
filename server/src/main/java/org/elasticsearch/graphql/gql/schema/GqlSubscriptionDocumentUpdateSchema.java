@@ -21,7 +21,6 @@ package org.elasticsearch.graphql.gql.schema;
 
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.graphql.api.GqlApi;
 import org.elasticsearch.graphql.gql.GqlBuilder;
 import org.reactivestreams.Publisher;
@@ -31,47 +30,52 @@ import org.reactivestreams.Subscription;
 import java.util.Map;
 import java.util.function.Function;
 
-import static graphql.Scalars.*;
+import static graphql.Scalars.GraphQLID;
 import static graphql.schema.GraphQLArgument.newArgument;
 import static graphql.schema.GraphQLFieldDefinition.newFieldDefinition;
 import static graphql.schema.GraphQLNonNull.nonNull;
 import static graphql.schema.GraphQLTypeReference.typeRef;
 
-public class GqlIndexNewDocumentSubscription {
+public class GqlSubscriptionDocumentUpdateSchema {
     GqlApi api;
 
-    public GqlIndexNewDocumentSubscription(GqlApi api) {
+    public GqlSubscriptionDocumentUpdateSchema(GqlApi api) {
         this.api = api;
     }
 
     /**
-     * - Adds `Subscription.indexNewDocument: Document` resolver.
+     * - Adds `Subscription.document(index, id): Document` resolver.
      */
     public Function<GqlBuilder, GqlBuilder> use = builder -> builder
         .subscriptionField(newFieldDefinition()
-            .name("indexNewDocument")
-            .description("Subscription to all new documents in index.")
+            .name("document")
+            .description("Watches for updates on document.")
             .type(typeRef("Document"))
             .argument(newArgument()
                 .name("index")
                 .type(nonNull(GraphQLID))
-                .description("Index name which to listen for new documents.")))
-        .fetcher("Subscription", "indexNewDocument", new DataFetcher() {
+                .description("Index name from which to fetch document."))
+            .argument(newArgument()
+                .name("id")
+                .type(nonNull(GraphQLID))
+                .description("Document ID.")))
+        .fetcher("Subscription", "document", new DataFetcher() {
             @Override
             public Publisher<Map<String, Object>> get(DataFetchingEnvironment environment) {
                 String indexName = environment.getArgument("index");
+                String documentId = environment.getArgument("id");
 
                 return subscriber -> {
-                    api.subscribe("new_doc:" + indexName, new Subscriber<IndexResponse>() {
+                    api.subscribe("update:" + indexName + ":" + documentId, new Subscriber<Object>() {
                         @Override
                         public void onSubscribe(Subscription s) {
                             subscriber.onSubscribe(s);
                         }
 
                         @Override
-                        public void onNext(IndexResponse response) {
+                        public void onNext(Object o) {
                             try {
-                                api.getDocument(indexName, response.getId()).thenApply(result -> {
+                                api.getDocument(indexName, documentId).thenApply(result -> {
                                     subscriber.onNext(result);
                                     return null;
                                 });

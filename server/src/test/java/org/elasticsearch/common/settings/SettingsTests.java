@@ -705,4 +705,28 @@ public class SettingsTests extends ESTestCase {
         assertThat(actual, equalTo(expected));
     }
 
+    public void testProcessSetting() throws IOException {
+        Settings test = Settings.builder()
+            .put("ant", "value1")
+            .put("ant.bee.cat", "value2")
+            .put("bee.cat", "value3")
+            .build();
+        XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
+        builder.startObject();
+        test.toXContent(builder, new ToXContent.MapParams(Collections.emptyMap()));
+        builder.endObject();
+        assertEquals("{\"ant.bee\":{\"cat\":\"value2\"},\"ant\":\"value1\",\"bee\":{\"cat\":\"value3\"}}", Strings.toString(builder));
+
+        test = Settings.builder()
+            .put("ant", "value1")
+            .put("ant.bee.cat", "value2")
+            .put("ant.bee.cat.dog.ewe", "value3")
+            .build();
+        builder = XContentBuilder.builder(XContentType.JSON.xContent());
+        builder.startObject();
+        test.toXContent(builder, new ToXContent.MapParams(Collections.emptyMap()));
+        builder.endObject();
+        assertEquals("{\"ant.bee\":{\"cat.dog\":{\"ewe\":\"value3\"},\"cat\":\"value2\"},\"ant\":\"value1\"}", Strings.toString(builder));
+    }
+
 }

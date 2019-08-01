@@ -35,33 +35,33 @@ GET _search
 `<field>`::
 +
 --
-Field you wish to search.
+(Required, object) Field you wish to search.
 --
 
 [[range-query-field-params]]
 ==== Parameters for `<field>`
 
 `gt`::
-Greater than. Optional.
+(Optional) Greater than.
 
 `gte`::
-Greater than or equal to. Optional.
+(Optional) Greater than or equal to.
 
 `lt`::
-Less than. Optional.
+(Optional) Less than.
 
 `lte`::
-Less than or equal to. Optional.
+(Optional) Less than or equal to.
 
 `format`::
 +
 --
-Date format used to convert `date` values in the query.
+(Optional, string) Date format used to convert `date` values in the query.
 
 By default, {es} uses the <<mapping-date-format,date `format`>> provided in the
 `<field>`'s mapping. This value overrides that mapping format.
 
-For valid syntax, see <<mapping-date-format,`format`>>. Optional.
+For valid syntax, see <<mapping-date-format,`format`>>.
 
 [WARNING]
 ====
@@ -79,8 +79,8 @@ to `1970-01-10T00:00:00.000Z`.
 `relation`::
 +
 --
-Indicates how the range query matches values for `range` fields. Optional. Valid
-values are:
+(Optional, string) Indicates how the range query matches values for `range`
+fields. Valid values are:
 
 `INTERSECTS` (Default)::
 Matches documents with a range field value that intersects the query's range.
@@ -95,10 +95,11 @@ Matches documents with a range field value entirely within the query's range.
 `time_zone`::
 +
 --
+(Optional, string)
 https://en.wikipedia.org/wiki/List_of_UTC_time_offsets[Coordinated Universal
 Time (UTC) offset] or
 https://en.wikipedia.org/wiki/List_of_tz_database_time_zones[IANA time zone]
-used to convert `date` values in the query to UTC. Optional.
+used to convert `date` values in the query to UTC.
 
 Valid values are ISO 8601 UTC offsets, such as `+01:00` or -`08:00`, and IANA
 time zone IDs, such as `America/Los_Angeles`.
@@ -120,9 +121,8 @@ convert a value of `now/d`.
 `boost`::
 +
 --
-Floating point number used to decrease or increase the
-<<query-filter-context, relevance scores>> of a query. Default is `1.0`.
-Optional.
+(Optional, float) Floating point number used to decrease or increase the
+<<query-filter-context, relevance scores>> of a query. Defaults to `1.0`.
 
 You can use the `boost` parameter to adjust relevance scores for searches
 containing two or more queries.

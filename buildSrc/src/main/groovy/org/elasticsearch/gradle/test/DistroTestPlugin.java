@@ -67,6 +67,7 @@ public class DistroTestPlugin implements Plugin<Project> {
     // all distributions used by distro tests. this is temporary until tests are per distribution
     private static final String PACKAGING_DISTRIBUTION = "packaging";
     private static final String COPY_PACKAGING_TASK = "copyPackagingArchives";
+    private static final String IN_VM_SYSPROP = "tests.inVM";
 
     private Version upgradeVersion;
 
@@ -188,8 +189,10 @@ public class DistroTestPlugin implements Plugin<Project> {
         TaskProvider<Test> destructiveTest = project.getTasks().register("destructiveDistroTest", Test.class);
         destructiveTest.configure(t -> {
             t.setMaxParallelForks(1);
+            if (System.getProperty(IN_VM_SYSPROP) == null) {
+                t.dependsOn(COPY_PACKAGING_TASK);
+            }
         });
-        // TODO: need deps to be on inner task, when outside VM
 
         // setup outer task to run
         TaskProvider<GradleDistroTestTask> testCaller = project.getTasks().register("distroTest", GradleDistroTestTask.class);
@@ -197,6 +200,7 @@ public class DistroTestPlugin implements Plugin<Project> {
             t.setGroup(JavaBasePlugin.VERIFICATION_GROUP);
             t.setDescription("Runs distribution tests within vagrant");
             t.setTaskName(project.getPath() + ":" + destructiveTest.getName());
+            t.extraArg("-D" + IN_VM_SYSPROP);
             t.dependsOn(COPY_PACKAGING_TASK);
         });
     }
@@ -213,8 +217,10 @@ public class DistroTestPlugin implements Plugin<Project> {
             t.setUtilsDir(batsDir.dir("utils"));
             t.setArchivesDir(project.getLayout().getBuildDirectory().dir("packaging/archives").get());
             t.setPackageName("elasticsearch" + (type.equals("oss") ? "-oss" : ""));
+            if (System.getProperty(IN_VM_SYSPROP) == null) {
+                t.dependsOn(COPY_PACKAGING_TASK);
+            }
         });
-        // TODO: need deps to be on inner task, when outside VM
 
         // setup outer task to run
         TaskProvider<GradleDistroTestTask> testCaller = project.getTasks().register("batsTest." + type, GradleDistroTestTask.class);
@@ -223,6 +229,7 @@ public class DistroTestPlugin implements Plugin<Project> {
             t.setDescription("Runs bats tests within vagrant");
             t.setTaskName(project.getPath() + ":" + destructiveTest.getName());
             t.setProgressHandler(new BatsProgressLogger(project.getLogger()));
+            t.extraArg("-D" + IN_VM_SYSPROP);
             t.dependsOn(COPY_PACKAGING_TASK);
         });
     }

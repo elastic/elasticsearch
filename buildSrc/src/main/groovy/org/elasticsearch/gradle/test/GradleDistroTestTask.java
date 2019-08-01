@@ -24,6 +24,7 @@ import org.gradle.api.logging.LogLevel;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.options.Option;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -34,6 +35,7 @@ public class GradleDistroTestTask extends VagrantShellTask {
 
     private String taskName;
     private String testClass;
+    private List<String> extraArgs = new ArrayList<>();
 
     public void setTaskName(String taskName) {
         this.taskName = taskName;
@@ -47,6 +49,15 @@ public class GradleDistroTestTask extends VagrantShellTask {
     @Option(option = "tests", description = "Sets test class or method name to be included, '*' is supported.")
     public void setTestClass(String testClass) {
         this.testClass = testClass;
+    }
+
+    @Input
+    public List<String> getExtraArgs() {
+        return extraArgs;
+    }
+
+    public void extraArg(String arg) {
+        this.extraArgs.add(arg);
     }
 
     @Override

@@ -168,24 +168,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
     }
 
     protected void assertBlobsByPrefix(BlobPath path, String prefix, Map<String, BlobMetaData> blobs) throws Exception {
-        final PlainActionFuture<Map<String, BlobMetaData>> future = PlainActionFuture.newFuture();
-        final BlobStoreRepository repository = getRepository();
-        repository.threadPool().generic().execute(new ActionRunnable<>(future) {
-            @Override
-            protected void doRun() throws Exception {
-                final BlobStore blobStore = repository.blobStore();
-                future.onResponse(blobStore.blobContainer(path).listBlobsByPrefix(prefix));
-            }
-        });
-        Map<String, BlobMetaData> foundBlobs = future.actionGet();
-        if (blobs.isEmpty()) {
-            assertThat(foundBlobs.keySet(), empty());
-        } else {
-            assertThat(foundBlobs.keySet(), containsInAnyOrder(blobs.keySet().toArray(Strings.EMPTY_ARRAY)));
-            for (Map.Entry<String, BlobMetaData> entry : foundBlobs.entrySet()) {
-                assertEquals(entry.getValue().length(), blobs.get(entry.getKey()).length());
-            }
-        }
+        BlobStoreTestUtil.assertBlobsByPrefix(getRepository(), path, prefix, blobs);
     }
 
     public void testCleanup() throws Exception {

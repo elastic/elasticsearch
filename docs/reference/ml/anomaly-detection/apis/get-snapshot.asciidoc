@@ -26,7 +26,7 @@ Retrieves information about model snapshots.
 ==== {api-path-parms-title}
 
 `<job_id>`::
-  (Required, string) Identifier for the job.
+  (Required, string) Identifier for the {anomaly-job}.
 
 `<snapshot_id>`::
   (Optional, string) Identifier for the model snapshot. If you do not specify
@@ -61,7 +61,7 @@ The API returns the following information:
 
 `model_snapshots`::
   (array) An array of model snapshot objects. For more information, see
-  <<ml-snapshot-resource,Model Snapshots>>.
+  <<ml-snapshot-resource>>.
 
 [[ml-get-snapshot-example]]
 ==== {api-examples-title}

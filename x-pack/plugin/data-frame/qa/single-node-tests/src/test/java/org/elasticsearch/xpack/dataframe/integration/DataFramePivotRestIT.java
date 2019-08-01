@@ -130,6 +130,49 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         assertThat(actual, equalTo(pipelineValue));
     }
 
+    public void testBucketSelectorPivot() throws Exception {
+        String transformId = "simple_bucket_selector_pivot";
+        String dataFrameIndex = "bucket_selector_idx";
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, dataFrameIndex);
+        final Request createDataframeTransformRequest = createRequestWithAuth("PUT", DATAFRAME_ENDPOINT + transformId,
+            BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
+        String config = "{"
+            + " \"source\": {\"index\":\"" + REVIEWS_INDEX_NAME + "\"},"
+            + " \"dest\": {\"index\":\"" + dataFrameIndex + "\"},"
+            + " \"frequency\": \"1s\","
+            + " \"pivot\": {"
+            + "   \"group_by\": {"
+            + "     \"reviewer\": {"
+            + "       \"terms\": {"
+            + "         \"field\": \"user_id\""
+            + " } } },"
+            + "   \"aggregations\": {"
+            + "     \"avg_rating\": {"
+            + "       \"avg\": {"
+            + "         \"field\": \"stars\""
+            + "    } },"
+            + "     \"over_38\": {"
+            + "         \"bucket_selector\" : {"
+            + "            \"buckets_path\": {\"rating\":\"avg_rating\"}, "
+            + "            \"script\": \"params.rating > 3.8\""
+            + "         }"
+            + "      } } }"
+            + "}";
+        createDataframeTransformRequest.setJsonEntity(config);
+        Map<String, Object> createDataframeTransformResponse = entityAsMap(client().performRequest(createDataframeTransformRequest));
+        assertThat(createDataframeTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        startAndWaitForTransform(transformId, dataFrameIndex);
+        assertTrue(indexExists(dataFrameIndex));
+        // get and check some users
+        assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_11", 3.846153846);
+        assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_26", 3.918918918);
+
+        Map<String, Object> indexStats = getAsMap(dataFrameIndex + "/_stats");
+        // Should be less than the total number of users since we filtered every user who had an average review less than or equal to 3.8
+        assertEquals(21, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
+    }
+
     public void testContinuousPivot() throws Exception {
         String indexName = "continuous_reviews";
         createReviewsIndex(indexName);

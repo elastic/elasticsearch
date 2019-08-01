@@ -1075,13 +1075,15 @@ public abstract class EngineTestCase extends ESTestCase {
         try (Translog.Snapshot snapshot = EngineTestCase.getTranslog(engine).newSnapshot()) {
             Translog.Operation op;
             while ((op = snapshot.next()) != null) {
-                assertThat(op.toString(), op.seqNo(), lessThanOrEqualTo(maxSeqNo));
+                assertThat("translog operation [" + op + "] > max_seq_no[" + maxSeqNo + "]", op.seqNo(), lessThanOrEqualTo(maxSeqNo));
                 translogOps.add(op);
             }
         }
         final Map<Long, Translog.Operation> luceneOps = readAllOperationsInLucene(engine, mapper).stream()
             .collect(Collectors.toMap(Translog.Operation::seqNo, Function.identity()));
-        luceneOps.values().forEach(op -> assertThat(op.toString(), op.seqNo(), lessThanOrEqualTo(maxSeqNo)));
+        for (Translog.Operation op : luceneOps.values()) {
+            assertThat("lucene operation [" + op + "] > max_seq_no[" + maxSeqNo + "]", op.seqNo(), lessThanOrEqualTo(maxSeqNo));
+        }
         final long globalCheckpoint = EngineTestCase.getTranslog(engine).getLastSyncedGlobalCheckpoint();
         final long retainedOps = engine.config().getIndexSettings().getSoftDeleteRetentionOperations();
         final long seqNoForRecovery;

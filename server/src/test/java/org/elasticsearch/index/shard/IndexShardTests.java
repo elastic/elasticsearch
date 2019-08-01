@@ -2754,8 +2754,8 @@ public class IndexShardTests extends IndexShardTestCase {
                 }
 
                 @Override
-                public void finalizeRecovery(long globalCheckpoint, ActionListener<Void> listener) {
-                    super.finalizeRecovery(globalCheckpoint,
+                public void finalizeRecovery(long globalCheckpoint, long startingSeqNo, ActionListener<Void> listener) {
+                    super.finalizeRecovery(globalCheckpoint, startingSeqNo,
                         ActionListener.wrap(
                             r -> {
                                 assertListenerCalled.accept(replica);

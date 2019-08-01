@@ -486,6 +486,9 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             oldPrimary.store().close();
             oldPrimary = shards.addReplicaWithExistingPath(oldPrimary.shardPath(), oldPrimary.routingEntry().currentNodeId());
             shards.recoverReplica(oldPrimary);
+            for (IndexShard shard : shards) {
+                assertConsistentHistoryBetweenTranslogAndLucene(shard);
+            }
             final List<DocIdSeqNoAndSource> docsAfterRecovery = getDocIdAndSeqNos(shards.getPrimary());
             for (IndexShard shard : shards.getReplicas()) {
                 assertThat(shard.routingEntry().toString(), getDocIdAndSeqNos(shard), equalTo(docsAfterRecovery));
@@ -493,6 +496,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             shards.promoteReplicaToPrimary(oldPrimary).get();
             for (IndexShard shard : shards) {
                 assertThat(shard.routingEntry().toString(), getDocIdAndSeqNos(shard), equalTo(docsAfterRecovery));
+                assertConsistentHistoryBetweenTranslogAndLucene(shard);
             }
         }
     }

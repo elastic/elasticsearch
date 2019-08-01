@@ -902,127 +902,127 @@ public class MasterServiceTests extends ESTestCase {
         final DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         final DiscoveryNode node2 = new DiscoveryNode("node2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         final DiscoveryNode node3 = new DiscoveryNode("node3", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
-        MasterService masterService = new MasterService(Settings.builder()
+        try (MasterService masterService = new MasterService(Settings.builder()
             .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), MasterServiceTests.class.getSimpleName())
             .put(Node.NODE_NAME_SETTING.getKey(), "test_node")
-            .build(), new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), threadPool);
-        ClusterState initialClusterState = ClusterState.builder(new ClusterName(MasterServiceTests.class.getSimpleName()))
-            .nodes(DiscoveryNodes.builder()
-                .add(node1)
-                .add(node2)
-                .add(node3)
-                .localNodeId(node1.getId())
-                .masterNodeId(node1.getId()))
-            .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK).build();
-        final AtomicReference<ClusterStatePublisher> publisherRef = new AtomicReference<>();
-        masterService.setClusterStatePublisher((e, pl, al) -> publisherRef.get().publish(e, pl, al));
-        masterService.setClusterStateSupplier(() -> initialClusterState);
-        masterService.start();
+            .build(), new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), threadPool)) {
 
-        // check that we don't time out before even committing the cluster state
-        {
-            final CountDownLatch latch = new CountDownLatch(1);
+            final ClusterState initialClusterState = ClusterState.builder(new ClusterName(MasterServiceTests.class.getSimpleName()))
+                .nodes(DiscoveryNodes.builder()
+                    .add(node1)
+                    .add(node2)
+                    .add(node3)
+                    .localNodeId(node1.getId())
+                    .masterNodeId(node1.getId()))
+                .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK).build();
+            final AtomicReference<ClusterStatePublisher> publisherRef = new AtomicReference<>();
+            masterService.setClusterStatePublisher((e, pl, al) -> publisherRef.get().publish(e, pl, al));
+            masterService.setClusterStateSupplier(() -> initialClusterState);
+            masterService.start();
 
-            publisherRef.set((clusterChangedEvent, publishListener, ackListener) ->
-                publishListener.onFailure(new FailedToCommitClusterStateException("mock exception")));
+            // check that we don't time out before even committing the cluster state
+            {
+                final CountDownLatch latch = new CountDownLatch(1);
 
-            masterService.submitStateUpdateTask("test2", new AckedClusterStateUpdateTask<Void>(null, null) {
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    return ClusterState.builder(currentState).build();
-                }
+                publisherRef.set((clusterChangedEvent, publishListener, ackListener) ->
+                    publishListener.onFailure(new FailedToCommitClusterStateException("mock exception")));
 
-                @Override
-                public TimeValue ackTimeout() {
-                    return TimeValue.ZERO;
-                }
+                masterService.submitStateUpdateTask("test2", new AckedClusterStateUpdateTask<Void>(null, null) {
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+                        return ClusterState.builder(currentState).build();
+                    }
 
-                @Override
-                public TimeValue timeout() {
-                    return null;
-                }
+                    @Override
+                    public TimeValue ackTimeout() {
+                        return TimeValue.ZERO;
+                    }
 
-                @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    fail();
-                }
+                    @Override
+                    public TimeValue timeout() {
+                        return null;
+                    }
 
-                @Override
-                protected Void newResponse(boolean acknowledged) {
-                    fail();
-                    return null;
-                }
+                    @Override
+                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                        fail();
+                    }
 
-                @Override
-                public void onFailure(String source, Exception e) {
-                    latch.countDown();
-                }
+                    @Override
+                    protected Void newResponse(boolean acknowledged) {
+                        fail();
+                        return null;
+                    }
 
-                @Override
-                public void onAckTimeout() {
-                    fail();
-                }
-            });
+                    @Override
+                    public void onFailure(String source, Exception e) {
+                        latch.countDown();
+                    }
 
-            latch.await();
+                    @Override
+                    public void onAckTimeout() {
+                        fail();
+                    }
+                });
+
+                latch.await();
+            }
+
+            // check that we timeout if commit took too long
+            {
+                final CountDownLatch latch = new CountDownLatch(2);
+
+                final TimeValue ackTimeout = TimeValue.timeValueMillis(randomInt(100));
+
+                publisherRef.set((clusterChangedEvent, publishListener, ackListener) -> {
+                    publishListener.onResponse(null);
+                    ackListener.onCommit(TimeValue.timeValueMillis(ackTimeout.millis() + randomInt(100)));
+                    ackListener.onNodeAck(node1, null);
+                    ackListener.onNodeAck(node2, null);
+                    ackListener.onNodeAck(node3, null);
+                });
+
+                masterService.submitStateUpdateTask("test2", new AckedClusterStateUpdateTask<Void>(null, null) {
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+                        return ClusterState.builder(currentState).build();
+                    }
+
+                    @Override
+                    public TimeValue ackTimeout() {
+                        return ackTimeout;
+                    }
+
+                    @Override
+                    public TimeValue timeout() {
+                        return null;
+                    }
+
+                    @Override
+                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                        latch.countDown();
+                    }
+
+                    @Override
+                    protected Void newResponse(boolean acknowledged) {
+                        fail();
+                        return null;
+                    }
+
+                    @Override
+                    public void onFailure(String source, Exception e) {
+                        fail();
+                    }
+
+                    @Override
+                    public void onAckTimeout() {
+                        latch.countDown();
+                    }
+                });
+
+                latch.await();
+            }
         }
-
-        // check that we timeout if commit took too long
-        {
-            final CountDownLatch latch = new CountDownLatch(2);
-
-            final TimeValue ackTimeout = TimeValue.timeValueMillis(randomInt(100));
-
-            publisherRef.set((clusterChangedEvent, publishListener, ackListener) -> {
-                publishListener.onResponse(null);
-                ackListener.onCommit(TimeValue.timeValueMillis(ackTimeout.millis() + randomInt(100)));
-                ackListener.onNodeAck(node1, null);
-                ackListener.onNodeAck(node2, null);
-                ackListener.onNodeAck(node3, null);
-            });
-
-            masterService.submitStateUpdateTask("test2", new AckedClusterStateUpdateTask<Void>(null, null) {
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    return ClusterState.builder(currentState).build();
-                }
-
-                @Override
-                public TimeValue ackTimeout() {
-                    return ackTimeout;
-                }
-
-                @Override
-                public TimeValue timeout() {
-                    return null;
-                }
-
-                @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    latch.countDown();
-                }
-
-                @Override
-                protected Void newResponse(boolean acknowledged) {
-                    fail();
-                    return null;
-                }
-
-                @Override
-                public void onFailure(String source, Exception e) {
-                    fail();
-                }
-
-                @Override
-                public void onAckTimeout() {
-                    latch.countDown();
-                }
-            });
-
-            latch.await();
-        }
-
-        masterService.close();
     }
 
     /**

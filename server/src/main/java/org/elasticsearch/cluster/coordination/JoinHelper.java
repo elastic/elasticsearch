@@ -23,6 +23,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
@@ -41,7 +42,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
-import org.elasticsearch.transport.EmptyTransportResponseHandler;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
@@ -296,17 +296,7 @@ public class JoinHelper {
         transportService.sendRequest(node, VALIDATE_JOIN_ACTION_NAME,
             new ValidateJoinRequest(state),
             TransportRequestOptions.builder().withTimeout(joinTimeout).build(),
-            new EmptyTransportResponseHandler(ThreadPool.Names.GENERIC) {
-                @Override
-                public void handleResponse(TransportResponse.Empty response) {
-                    listener.onResponse(response);
-                }
-
-                @Override
-                public void handleException(TransportException exp) {
-                    listener.onFailure(exp);
-                }
-            });
+            new ActionListenerResponseHandler<>(listener, i -> Empty.INSTANCE, ThreadPool.Names.GENERIC));
     }
 
     public interface JoinCallback {

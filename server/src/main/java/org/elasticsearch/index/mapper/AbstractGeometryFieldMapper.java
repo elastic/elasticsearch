@@ -95,8 +95,13 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
      * interface representing a query builder that generates a query from the given shape
      */
     public interface QueryProcessor {
+        Query process(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context);
 
-        Query process(Geometry shape, String fieldName, SpatialStrategy strategy, ShapeRelation relation, QueryShardContext context);
+        @Deprecated
+        default Query process(Geometry shape, String fieldName, SpatialStrategy strategy, ShapeRelation relation,
+                              QueryShardContext context) {
+            return process(shape, fieldName, relation, context);
+        }
     }
 
     public abstract static class Builder<T extends Builder, Y extends AbstractGeometryFieldMapper>
@@ -379,7 +384,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
     }
 
     @Override
-    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
+    public void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         builder.field("type", contentType());
         AbstractGeometryFieldType ft = (AbstractGeometryFieldType)fieldType();
         if (includeDefaults || ft.orientation() != Defaults.ORIENTATION.value()) {

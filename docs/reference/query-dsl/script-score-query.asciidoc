@@ -245,7 +245,6 @@ the `script_score` query:
 * <<random-score>>
 * <<field-value-factor>>
 * <<decay-functions>>
-* <<vector-functions>>
 
 [[script-score]]
 ====== `script_score`
@@ -329,6 +328,4 @@ through a script:
 The `script_score` query has equivalent <<decay-functions, decay functions>>
 that can be used in script.
 
-:leveloffset: +1
 include::{es-repo-dir}/vectors/vector-functions.asciidoc[]
-:leveloffset: -1

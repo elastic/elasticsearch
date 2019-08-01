@@ -422,13 +422,13 @@ public abstract class StreamInput extends InputStream {
         charsRef.length = charCount;
         int charsProduced = 0;
         int posByteArray = 0;
-        int limitByteArray = 0;
+        int usedByteBuffer = 0;
         int missingFromPartial = 0;
         final byte[] byteBuffer = stringReadBuffer.get();
         final char[] charBuffer = charsRef.chars;
         int charsLeft;
         while ((charsLeft = charCount - charsProduced) > 0) {
-            int bufferFree = byteBuffer.length - limitByteArray;
+            int bufferFree = byteBuffer.length - usedByteBuffer;
             // Determine the minimum amount of bytes that are left in the string
             final int minRemainingBytes;
             if (missingFromPartial > 0) {
@@ -445,8 +445,8 @@ public abstract class StreamInput extends InputStream {
                 // buffer by moving unused bytes that didn't make up a full char in the last iteration to the beginning of the buffer,
                 // if there are any
                 if (posByteArray > 0) {
-                    limitByteArray = limitByteArray - posByteArray;
-                    switch (limitByteArray) { // We only have 0, 1 or 2 => no need to bother with a native call to System#arrayCopy
+                    usedByteBuffer = usedByteBuffer - posByteArray;
+                    switch (usedByteBuffer) { // We only have 0, 1 or 2 => no need to bother with a native call to System#arrayCopy
                         case 1:
                             byteBuffer[0] = byteBuffer[posByteArray];
                             break;
@@ -455,7 +455,7 @@ public abstract class StreamInput extends InputStream {
                             byteBuffer[1] = byteBuffer[posByteArray + 1];
                             break;
                     }
-                    assert limitByteArray <= 2 : "We never copy more than 2 bytes here since a char is 3 bytes max";
+                    assert usedByteBuffer <= 2 : "We never copy more than 2 bytes here since a char is 3 bytes max";
                     toRead = Math.min(bufferFree + posByteArray, minRemainingBytes);
                     posByteArray = 0;
                 } else {
@@ -464,12 +464,12 @@ public abstract class StreamInput extends InputStream {
             } else {
                 toRead = minRemainingBytes;
             }
-            readBytes(byteBuffer, limitByteArray, toRead);
-            limitByteArray += toRead;
+            readBytes(byteBuffer, usedByteBuffer, toRead);
+            usedByteBuffer += toRead;
             int bufferedBytesRemaining;
-            // As long as we at least have three bytes buffered we don't need to do any bounds checking when getting the next byte since we
+            // As long as we at least have three bytes buffered we don't need to do any bounds checking when getting the next char since we
             // read 3 bytes per char/iteration at most
-            while ((bufferedBytesRemaining = (limitByteArray - posByteArray)) > 2) {
+            while ((bufferedBytesRemaining = (usedByteBuffer - posByteArray)) > 2) {
                 final int c = byteBuffer[posByteArray++] & 0xff;
                 switch (c >> 4) {
                     case 0:

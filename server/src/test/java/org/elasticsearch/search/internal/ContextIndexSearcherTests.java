@@ -246,9 +246,9 @@ public class ContextIndexSearcherTests extends ESTestCase {
         assertEquals(1, searcher.count(new CreateScorerOnceQuery(new MatchAllDocsQuery())));
 
         TopDocs topDocs = searcher.search(new BoostQuery(new ConstantScoreQuery(new TermQuery(new Term("foo", "bar"))), 3f), 1);
-        assertEquals(topDocs.totalHits.value, 1);
-        assertEquals(topDocs.scoreDocs.length, 1);
-        assertEquals(topDocs.scoreDocs[0].score, 3f, 0);
+        assertEquals(1, topDocs.totalHits.value);
+        assertEquals(1, topDocs.scoreDocs.length);
+        assertEquals(3f, topDocs.scoreDocs[0].score, 0);
 
         IOUtils.close(reader, w, dir);
     }

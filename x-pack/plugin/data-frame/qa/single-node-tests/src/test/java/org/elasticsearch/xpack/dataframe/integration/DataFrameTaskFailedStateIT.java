@@ -19,6 +19,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -27,11 +28,11 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class DataFrameTaskFailedStateIT extends DataFrameRestTestCase {
 
-    private static final String TRANSFORM_ID = "failure_pivot_1";
-
+    private final List<String> failureTransforms = new ArrayList<>();
     @Before
     public void setClusterSettings() throws IOException {
         // Make sure we never retry on failure to speed up the test
@@ -45,72 +46,78 @@ public class DataFrameTaskFailedStateIT extends DataFrameRestTestCase {
     public void cleanUpPotentiallyFailedTransform() throws Exception {
         // If the tests failed in the middle, we should force stop it. This prevents other transform tests from failing due
         // to this left over transform
-        stopDataFrameTransform(TRANSFORM_ID, true);
-        deleteDataFrameTransform(TRANSFORM_ID);
+        for (String transformId : failureTransforms) {
+            stopDataFrameTransform(transformId, true);
+            deleteDataFrameTransform(transformId);
+        }
     }
 
     public void testForceStopFailedTransform() throws Exception {
+        String transformId = "test-force-stop-failed-transform";
         createReviewsIndex(REVIEWS_INDEX_NAME, 10);
         String dataFrameIndex = "failure_pivot_reviews";
         createDestinationIndexWithBadMapping(dataFrameIndex);
-        createContinuousPivotReviewsTransform(TRANSFORM_ID, dataFrameIndex, null);
-        startDataframeTransform(TRANSFORM_ID, false);
-        awaitState(TRANSFORM_ID, DataFrameTransformTaskState.FAILED);
-        Map<?, ?> fullState = getDataFrameState(TRANSFORM_ID);
+        createContinuousPivotReviewsTransform(transformId, dataFrameIndex, null);
+        failureTransforms.add(transformId);
+        startDataframeTransform(transformId, false);
+        awaitState(transformId, DataFrameTransformTaskState.FAILED);
+        Map<?, ?> fullState = getDataFrameState(transformId);
         final String failureReason = "task encountered more than 0 failures; latest failure: " +
             "Bulk index experienced failures. See the logs of the node running the transform for details.";
         // Verify we have failed for the expected reason
         assertThat(XContentMapValues.extractValue("reason", fullState), equalTo(failureReason));
 
         // verify that we cannot stop a failed transform
-        ResponseException ex = expectThrows(ResponseException.class, () -> stopDataFrameTransform(TRANSFORM_ID, false));
+        ResponseException ex = expectThrows(ResponseException.class, () -> stopDataFrameTransform(transformId, false));
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.CONFLICT.getStatus()));
         assertThat(XContentMapValues.extractValue("error.reason", entityAsMap(ex.getResponse())),
-            equalTo("Unable to stop data frame transform [failure_pivot_1] as it is in a failed state with reason [" +
+            equalTo("Unable to stop data frame transform [test-force-stop-failed-transform] as it is in a failed state with reason [" +
                 failureReason +
                 "]. Use force stop to stop the data frame transform."));
 
         // Verify that we can force stop a failed transform
-        stopDataFrameTransform(TRANSFORM_ID, true);
+        stopDataFrameTransform(transformId, true);
 
-        awaitState(TRANSFORM_ID, DataFrameTransformTaskState.STOPPED);
-        fullState = getDataFrameState(TRANSFORM_ID);
+        awaitState(transformId, DataFrameTransformTaskState.STOPPED);
+        fullState = getDataFrameState(transformId);
         assertThat(XContentMapValues.extractValue("reason", fullState), is(nullValue()));
     }
 
     public void testForceStartFailedTransform() throws Exception {
+        String transformId = "test-force-start-failed-transform";
         createReviewsIndex(REVIEWS_INDEX_NAME, 10);
         String dataFrameIndex = "failure_pivot_reviews";
         createDestinationIndexWithBadMapping(dataFrameIndex);
-        createContinuousPivotReviewsTransform(TRANSFORM_ID, dataFrameIndex, null);
-        startDataframeTransform(TRANSFORM_ID, false);
-        awaitState(TRANSFORM_ID, DataFrameTransformTaskState.FAILED);
-        Map<?, ?> fullState = getDataFrameState(TRANSFORM_ID);
+        createContinuousPivotReviewsTransform(transformId, dataFrameIndex, null);
+        failureTransforms.add(transformId);
+        startDataframeTransform(transformId, false);
+        awaitState(transformId, DataFrameTransformTaskState.FAILED);
+        Map<?, ?> fullState = getDataFrameState(transformId);
         final String failureReason = "task encountered more than 0 failures; latest failure: " +
             "Bulk index experienced failures. See the logs of the node running the transform for details.";
         // Verify we have failed for the expected reason
         assertThat(XContentMapValues.extractValue("reason", fullState), equalTo(failureReason));
 
         // Verify that we cannot start the transform when the task is in a failed state
-        ResponseException ex = expectThrows(ResponseException.class, () -> startDataframeTransform(TRANSFORM_ID, false));
+        ResponseException ex = expectThrows(ResponseException.class, () -> startDataframeTransform(transformId, false));
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.CONFLICT.getStatus()));
         assertThat(XContentMapValues.extractValue("error.reason", entityAsMap(ex.getResponse())),
-            equalTo("Unable to start data frame transform [failure_pivot_1] as it is in a failed state with failure: [" +
+            equalTo("Unable to start data frame transform [test-force-start-failed-transform] as it is in a failed state with failure: [" +
                 failureReason +
                 "]. Use force start to restart data frame transform once error is resolved."));
 
         // Correct the failure by deleting the destination index
         deleteIndex(dataFrameIndex);
         // Force start the data frame to indicate failure correction
-        startDataframeTransform(TRANSFORM_ID, true);
+        startDataframeTransform(transformId, true);
 
         // Verify that we have started and that our reason is cleared
-        fullState = getDataFrameState(TRANSFORM_ID);
+        fullState = getDataFrameState(transformId);
         assertThat(XContentMapValues.extractValue("reason", fullState), is(nullValue()));
         assertThat(XContentMapValues.extractValue("task_state", fullState), equalTo("started"));
-        assertThat(XContentMapValues.extractValue("stats.index_failures", fullState), equalTo(1));
+        assertThat((Integer)XContentMapValues.extractValue("stats.index_failures", fullState), greaterThanOrEqualTo(1));
 
-        stopDataFrameTransform(TRANSFORM_ID, true);
+        stopDataFrameTransform(transformId, true);
     }
 
     private void awaitState(String transformId, DataFrameTransformTaskState state) throws Exception {
@@ -118,14 +125,6 @@ public class DataFrameTaskFailedStateIT extends DataFrameRestTestCase {
             String currentState = getDataFrameTaskState(transformId);
             assertThat(currentState, equalTo(state.value()));
         }, 180, TimeUnit.SECONDS); // It should not take this long, but if the scheduler gets deferred, it could
-    }
-
-    private void assertOnePivotValue(String query, double expected) throws IOException {
-        Map<String, Object> searchResult = getAsMap(query);
-
-        assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
-        double actual = (Double) ((List<?>) XContentMapValues.extractValue("hits.hits._source.avg_rating", searchResult)).get(0);
-        assertEquals(expected, actual, 0.000001);
     }
 
     private void createDestinationIndexWithBadMapping(String indexName) throws IOException {

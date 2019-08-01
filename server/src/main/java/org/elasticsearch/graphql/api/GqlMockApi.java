@@ -59,7 +59,7 @@ public class GqlMockApi implements GqlApi {
     }
     */
 
-    public PubSub.Subscription subscribe(String channel, Subscriber<Object> subscriber) {
+    public <T> PubSub.Subscription subscribe(String channel, Subscriber<T> subscriber) {
         return null;
     }
 

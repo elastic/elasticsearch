@@ -42,7 +42,7 @@ public class GqlElasticsearchApi implements GqlApi {
         this.client = client;
     }
 
-    public PubSub.Subscription subscribe(String channel, Subscriber<Object> subscriber) {
+    public <T> PubSub.Subscription subscribe(String channel, Subscriber<T> subscriber) {
         return client.subscribe(channel, subscriber);
     }
 

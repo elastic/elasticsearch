@@ -28,7 +28,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 public interface GqlApi {
-    PubSub.Subscription subscribe(String channel, Subscriber<Object> subscriber);
+    <T> PubSub.Subscription subscribe(String channel, Subscriber<T> subscriber);
     CompletableFuture<Map<String, Object>> getInfo() throws Exception;
     CompletableFuture<List<Object>> getIndexInfos() throws Exception;
     CompletableFuture<Map<String, Object>> getIndex(String indexName) throws Exception;

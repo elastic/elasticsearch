@@ -367,7 +367,7 @@ public abstract class AbstractClient implements Client {
         this.logger =LogManager.getLogger(this.getClass());
     }
 
-    public PubSub.Subscription subscribe(String channel, Subscriber<Object> subscriber) {
+    public <T> PubSub.Subscription subscribe(String channel, Subscriber<T> subscriber) {
         return pubsub.subscribe(channel, subscriber);
     }
 
@@ -413,7 +413,9 @@ public abstract class AbstractClient implements Client {
 
     @Override
     public void index(final IndexRequest request, final ActionListener<IndexResponse> listener) {
-        execute(IndexAction.INSTANCE, request, listener);
+        execute(IndexAction.INSTANCE, request, onResponse(listener, response -> {
+            pubsub.publish("new_doc:" + request.index(), response);
+        }));
     }
 
     @Override

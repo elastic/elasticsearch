@@ -27,13 +27,13 @@ import java.util.List;
 import java.util.Map;
 
 public class PubSub {
-    Map<String, List<Subscriber<Object>>> subscribers = new HashMap<String, List<Subscriber<Object>>>();
+    private Map<String, List<Subscriber<Object>>> subscribers = new HashMap<String, List<Subscriber<Object>>>();
 
     public interface Subscription {
         void unsubscribe();
     }
 
-    public Subscription subscribe(String channel, Subscriber<Object> subscriber) {
+    public <T> Subscription subscribe(String channel, Subscriber<T> subscriber) {
         if (!subscribers.containsKey(channel)) {
             final List<Subscriber<Object>> list = new LinkedList<Subscriber<Object>>();
             subscribers.put(channel, list);
@@ -43,15 +43,16 @@ public class PubSub {
         }
     }
 
-    private Subscription subscribe0(List<Subscriber<Object>> list, String channel, Subscriber<Object> subscriber) {
-        Subscriber<Object> innerSubscriber = new Subscriber<Object>() {
+    @SuppressWarnings("unchecked")
+    private <T> Subscription subscribe0(List<Subscriber<Object>> list, String channel, Subscriber<T> subscriber) {
+        Subscriber<T> innerSubscriber = new Subscriber<T>() {
             @Override
             public void onSubscribe(org.reactivestreams.Subscription s) {
                 subscriber.onSubscribe(s);
             }
 
             @Override
-            public void onNext(Object o) {
+            public void onNext(T o) {
                 subscriber.onNext(o);
             }
 
@@ -70,7 +71,7 @@ public class PubSub {
             }
         };
 
-        list.add(innerSubscriber);
+        list.add((Subscriber<Object>) innerSubscriber);
         return () -> {
             list.remove(innerSubscriber);
             if (list.isEmpty()) {
@@ -79,12 +80,12 @@ public class PubSub {
         };
     }
 
-    public void publish(String channel, Object message) {
+    public <T> void publish(String channel, T message) {
         System.out.println("publishing " + channel + " "  + message);
         final List<Subscriber<Object>> list = subscribers.get(channel);
         if (list == null) return;
         for (Subscriber<Object> subscriber : list) {
-            subscriber.onNext(message);
+            subscriber.onNext((T) message);
         }
     }
 }

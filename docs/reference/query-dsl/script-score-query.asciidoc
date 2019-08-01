@@ -4,7 +4,8 @@
 <titleabbrev>Script score</titleabbrev>
 ++++
 
-Uses a <<modules-scripting,script>> to provide a custom <<relevance-scores,relevance score>> for returned documents.
+Uses a <<modules-scripting,script>> to provide a custom score for returned
+documents.
 
 The `script_score` query is useful if, for example, a scoring function is expensive and you only need to calculate the score of a filtered set of documents.
 

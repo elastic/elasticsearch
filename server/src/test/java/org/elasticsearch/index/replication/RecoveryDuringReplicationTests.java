@@ -49,6 +49,7 @@ import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.engine.InternalEngineTests;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
@@ -79,6 +80,7 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isIn;
@@ -290,6 +292,15 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                     // We need an extra flush to advance the min_retained_seqno on the new primary so ops-based won't happen.
                     // The min_retained_seqno only advances when a merge asks for the retention query.
                     newPrimary.flush(new FlushRequest().force(true));
+
+                    // We also need to make sure that there is no retention lease holding on to any history. The lease for the old primary
+                    // expires since there are no unassigned shards in this replication group).
+                    assertBusy(() -> {
+                        newPrimary.syncRetentionLeases();
+                        //noinspection OptionalGetWithoutIsPresent since there must be at least one lease
+                        assertThat(newPrimary.getRetentionLeases().leases().stream().mapToLong(RetentionLease::retainingSequenceNumber)
+                            .min().getAsLong(), greaterThan(newPrimary.seqNoStats().getMaxSeqNo()));
+                    });
                 }
                 uncommittedOpsOnPrimary = shards.indexDocs(randomIntBetween(0, 10));
                 totalDocs += uncommittedOpsOnPrimary;

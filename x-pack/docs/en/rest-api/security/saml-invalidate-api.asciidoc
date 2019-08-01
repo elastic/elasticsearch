@@ -10,8 +10,8 @@ LogoutResponse message, so that the user can be redirected back to their IdP.
 
 {es} exposes all the necessary SAML related functionality via the SAML APIs. These APIs
 are used internally by {kib} in order to provide SAML based authentication, but can also be used by other,
-custom web applications or other clients. See also , <<security-saml-authenticate-api,SAML Authenticate API>>,
-<<security-saml-prepare-authentication,SAML Prepare Authentication API>> and <<security-saml-logout,SAML Logout API>>.
+custom web applications or other clients. See also , <<security-api-saml-authenticate-api,SAML Authenticate API>>,
+<<security-api-saml-prepare-authentication,SAML Prepare Authentication API>> and <<security-api-saml-logout,SAML Logout API>>.
 
 ==== Request
 

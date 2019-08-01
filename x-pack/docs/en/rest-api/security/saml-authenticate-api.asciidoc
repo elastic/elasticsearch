@@ -12,8 +12,8 @@ successful authentication in the IdP for {es} access and refresh tokens to be us
 
 {es} exposes all the necessary SAML related functionality via the SAML APIs. These APIs
 are used internally by {kib} in order to provide SAML based authentication, but can also be used by other,
-custom web applications or other clients. See also <<security-saml-prepare-authentication,SAML Prepare Authentication
-API>> , <<security-saml-invalidate,SAML Invalidate API>> and <<security-saml-logout,SAML Logout API>>.
+custom web applications or other clients. See also <<security-api-saml-prepare-authentication,SAML Prepare Authentication
+API>> , <<security-api-saml-invalidate,SAML Invalidate API>> and <<security-api-saml-logout,SAML Logout API>>.
 
 
 ==== Request

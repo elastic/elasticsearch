@@ -4,7 +4,7 @@
 === SAML Authenticate API
 
 Submits a SAML response message to {es} for consumption. This SAML response can be a response to a
-SAML authentication request that was previously created using the <<security-saml-prepare-authentication, SAML
+SAML authentication request that was previously created using the <<security-api-saml-prepare-authentication, SAML
 Prepare Authentication API>> or an unsolicited SAML response in the case of IdP initiated Single Sign On flow.
 Upon successful validation, {es} will respond with an {es} internal access token and refresh token that can be
 subsequently used for authentication. This API endpoint basically exchanges SAML Responses that indicate

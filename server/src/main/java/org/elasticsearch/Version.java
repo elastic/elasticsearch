@@ -44,6 +44,16 @@ public class Version implements Comparable<Version>, ToXContentFragment {
      * The logic for ID is: XXYYZZAA, where XX is major version, YY is minor version, ZZ is revision, and AA is alpha/beta/rc indicator AA
      * values below 25 are for alpha builder (since 5.0), and above 25 and below 50 are beta builds, and below 99 are RC builds, with 99
      * indicating a release the (internal) format of the id is there so we can easily do after/before checks on the id
+     *
+     * IMPORTANT: Unreleased vs. Released Versions
+     *
+     * All listed versions MUST be released versions, except the last major, the last minor and the last revison. ONLY those are required
+     * as unreleased versions.
+     *
+     * Example: assume the last release is 7.3.0
+     * The unreleased last major is the next major release, e.g. _8_.0.0
+     * The unreleased last minor is the current major with a upped minor: 7._4_.0
+     * The unreleased revision is the very release with a upped revision 7.3._1_
      */
     public static final int V_EMPTY_ID = 0;
     public static final Version V_EMPTY = new Version(V_EMPTY_ID, org.apache.lucene.util.Version.LATEST);
@@ -53,7 +63,6 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_7_1_1 = new Version(7010199, org.apache.lucene.util.Version.LUCENE_8_0_0);
     public static final Version V_7_2_0 = new Version(7020099, org.apache.lucene.util.Version.LUCENE_8_0_0);
     public static final Version V_7_2_1 = new Version(7020199, org.apache.lucene.util.Version.LUCENE_8_0_0);
-    public static final Version V_7_2_2 = new Version(7020299, org.apache.lucene.util.Version.LUCENE_8_0_0);
     public static final Version V_7_3_0 = new Version(7030099, org.apache.lucene.util.Version.LUCENE_8_1_0);
     public static final Version V_7_3_1 = new Version(7030199, org.apache.lucene.util.Version.LUCENE_8_1_0);
     public static final Version V_7_4_0 = new Version(7040099, org.apache.lucene.util.Version.LUCENE_8_2_0);

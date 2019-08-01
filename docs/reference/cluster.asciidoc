@@ -108,3 +108,5 @@ include::cluster/remote-info.asciidoc[]
 include::cluster/tasks.asciidoc[]
 
 include::cluster/voting-exclusions.asciidoc[]
+
+include::cluster/nodes-reload-secure-settings.asciidoc[]

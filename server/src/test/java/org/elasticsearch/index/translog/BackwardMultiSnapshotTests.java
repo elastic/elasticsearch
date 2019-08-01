@@ -31,10 +31,10 @@ import java.util.stream.LongStream;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class MultiSnapshotTests extends ESTestCase {
+public class BackwardMultiSnapshotTests extends ESTestCase {
 
     public void testTrackSeqNoSimpleRange() throws Exception {
-        final MultiSnapshot.SeqNoSet bitSet = new MultiSnapshot.SeqNoSet();
+        final BackwardMultiSnapshot.SeqNoSet bitSet = new BackwardMultiSnapshot.SeqNoSet();
         final List<Long> values = LongStream.range(0, 1024).boxed().collect(Collectors.toList());
         Randomness.shuffle(values);
         for (int i = 0; i < 1023; i++) {
@@ -46,7 +46,7 @@ public class MultiSnapshotTests extends ESTestCase {
     }
 
     public void testTrackSeqNoDenseRanges() throws Exception {
-        final MultiSnapshot.SeqNoSet bitSet = new MultiSnapshot.SeqNoSet();
+        final BackwardMultiSnapshot.SeqNoSet bitSet = new BackwardMultiSnapshot.SeqNoSet();
         final LongSet normalSet = new LongHashSet();
         IntStream.range(0, scaledRandomIntBetween(5_000, 10_000)).forEach(i -> {
             long seq = between(0, 5000);
@@ -56,7 +56,7 @@ public class MultiSnapshotTests extends ESTestCase {
     }
 
     public void testTrackSeqNoSparseRanges() throws Exception {
-        final MultiSnapshot.SeqNoSet bitSet = new MultiSnapshot.SeqNoSet();
+        final BackwardMultiSnapshot.SeqNoSet bitSet = new BackwardMultiSnapshot.SeqNoSet();
         final LongSet normalSet = new LongHashSet();
         IntStream.range(0, scaledRandomIntBetween(5_000, 10_000)).forEach(i -> {
             long seq = between(i * 10_000, i * 30_000);
@@ -66,7 +66,7 @@ public class MultiSnapshotTests extends ESTestCase {
     }
 
     public void testTrackSeqNoMimicTranslogRanges() throws Exception {
-        final MultiSnapshot.SeqNoSet bitSet = new MultiSnapshot.SeqNoSet();
+        final BackwardMultiSnapshot.SeqNoSet bitSet = new BackwardMultiSnapshot.SeqNoSet();
         final LongSet normalSet = new LongHashSet();
         long currentSeq = between(10_000_000, 1_000_000_000);
         final int iterations = scaledRandomIntBetween(100, 2000);

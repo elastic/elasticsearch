@@ -938,7 +938,7 @@ order to mitigate against replay attacks.
 Identity Provider they will be redirected back to the Assertion Consumer Service URL. This (`sp.acs`) needs to be
 defined as a URL which the custom we application handles. Upon receiving this HTTP POST request, the
 custom web application will need to parse that and make an HTTP POST request itself to the
-`_security/oidc/authenticate` API, again - authenticating as the `saml-service-user` user - passing
+`_security/saml/authenticate` API, again - authenticating as the `saml-service-user` user - passing
 the Base64 encoded SAML Response that was sent as the body of the request as well as the value for `id` that it had saved in the user's session previously.
 +
 See {ref}/security-api-saml-authenticate.html[SAML Authenticate API] for more details

@@ -155,12 +155,8 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                                 delegatedListener.onFailure(t);
                             }
                         });
-                        threadPool.executor(executor).execute(new ActionRunnable<Response>(delegate) {
-                            @Override
-                            protected void doRun() throws Exception {
-                                masterOperation(task, request, clusterState, delegate);
-                            }
-                        });
+                        threadPool.executor(executor)
+                            .execute(ActionRunnable.wrap(delegate, l -> masterOperation(task, request, clusterState, l)));
                     }
                 } else {
                     if (nodes.getMasterNode() == null) {

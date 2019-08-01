@@ -1,0 +1,9 @@
+
+String boxId = project.properties.get('vagrant.windows-2012r2.id')
+vagrant {
+  vmEnv 'VAGRANT_WINDOWS_2012R2_BOX', boxId
+}
+
+tasks.named('distroTest').configure {
+  onlyIf { boxId != null }
+}

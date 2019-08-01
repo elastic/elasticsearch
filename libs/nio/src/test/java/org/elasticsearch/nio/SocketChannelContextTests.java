@@ -19,12 +19,16 @@
 
 package org.elasticsearch.nio;
 
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.net.Socket;
+import java.net.SocketException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SocketChannel;
@@ -40,11 +44,13 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.isNull;
 import static org.mockito.Matchers.same;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+@SuppressForbidden(reason = "allow call to socket connect")
 public class SocketChannelContextTests extends ESTestCase {
 
     private SocketChannel rawChannel;
@@ -55,6 +61,7 @@ public class SocketChannelContextTests extends ESTestCase {
     private NioSelector selector;
     private NioChannelHandler handler;
     private ByteBuffer ioBuffer = ByteBuffer.allocate(1024);
+    private Socket rawSocket;
 
     @SuppressWarnings("unchecked")
     @Before
@@ -76,6 +83,8 @@ public class SocketChannelContextTests extends ESTestCase {
             ioBuffer.clear();
             return ioBuffer;
         });
+        rawSocket = mock(Socket.class);
+        when(rawChannel.socket()).thenReturn(rawSocket);
     }
 
     public void testIOExceptionSetIfEncountered() throws IOException {
@@ -99,6 +108,31 @@ public class SocketChannelContextTests extends ESTestCase {
         assertFalse(context.closeNow());
         context.read();
         assertTrue(context.closeNow());
+    }
+
+    public void testRegisterInitiatesConnect() throws IOException {
+        InetSocketAddress address = mock(InetSocketAddress.class);
+        boolean isAccepted = randomBoolean();
+        Config.Socket config;
+        boolean tcpNoDelay = randomBoolean();
+        boolean tcpKeepAlive = randomBoolean();
+        boolean tcpReuseAddress = randomBoolean();
+        int tcpSendBufferSize = randomIntBetween(1000, 2000);
+        int tcpReceiveBufferSize = randomIntBetween(1000, 2000);
+        config = new Config.Socket(tcpNoDelay, tcpKeepAlive, tcpReuseAddress, tcpSendBufferSize, tcpReceiveBufferSize, address, isAccepted);
+        InboundChannelBuffer buffer = InboundChannelBuffer.allocatingInstance();
+        TestSocketChannelContext context = new TestSocketChannelContext(channel, selector, exceptionHandler, handler, buffer, config);
+        context.register();
+        if (isAccepted) {
+            verify(rawChannel, times(0)).connect(any(InetSocketAddress.class));
+        } else {
+            verify(rawChannel).connect(same(address));
+        }
+        verify(rawSocket).setTcpNoDelay(tcpNoDelay);
+        verify(rawSocket).setKeepAlive(tcpKeepAlive);
+        verify(rawSocket).setReuseAddress(tcpReuseAddress);
+        verify(rawSocket).setSendBufferSize(tcpSendBufferSize);
+        verify(rawSocket).setReceiveBufferSize(tcpReceiveBufferSize);
     }
 
     public void testConnectSucceeds() throws IOException {
@@ -140,6 +174,29 @@ public class SocketChannelContextTests extends ESTestCase {
         expectThrows(IOException.class, context::connect);
         assertFalse(context.isConnectComplete());
         assertSame(ioException, exception.get());
+    }
+
+    public void testConnectCanSetSocketOptions() throws IOException {
+        InetSocketAddress address = mock(InetSocketAddress.class);
+        Config.Socket config;
+        boolean tcpNoDelay = randomBoolean();
+        boolean tcpKeepAlive = randomBoolean();
+        boolean tcpReuseAddress = randomBoolean();
+        int tcpSendBufferSize = randomIntBetween(1000, 2000);
+        int tcpReceiveBufferSize = randomIntBetween(1000, 2000);
+        config = new Config.Socket(tcpNoDelay, tcpKeepAlive, tcpReuseAddress, tcpSendBufferSize, tcpReceiveBufferSize, address, false);
+        InboundChannelBuffer buffer = InboundChannelBuffer.allocatingInstance();
+        TestSocketChannelContext context = new TestSocketChannelContext(channel, selector, exceptionHandler, handler, buffer, config);
+        doThrow(new SocketException()).doNothing().when(rawSocket).setReuseAddress(tcpReuseAddress);
+        context.register();
+        when(rawChannel.finishConnect()).thenReturn(true);
+        context.connect();
+
+        verify(rawSocket, times(2)).setReuseAddress(tcpReuseAddress);
+        verify(rawSocket).setKeepAlive(tcpKeepAlive);
+        verify(rawSocket).setTcpNoDelay(tcpNoDelay);
+        verify(rawSocket).setSendBufferSize(tcpSendBufferSize);
+        verify(rawSocket).setReceiveBufferSize(tcpReceiveBufferSize);
     }
 
     public void testChannelActiveCallsHandler() throws IOException {
@@ -262,7 +319,8 @@ public class SocketChannelContextTests extends ESTestCase {
             when(channel.getRawChannel()).thenReturn(realChannel);
             when(channel.isOpen()).thenReturn(true);
             InboundChannelBuffer buffer = InboundChannelBuffer.allocatingInstance();
-            BytesChannelContext context = new BytesChannelContext(channel, selector, exceptionHandler, handler, buffer);
+            BytesChannelContext context = new BytesChannelContext(channel, selector, mock(Config.Socket.class), exceptionHandler, handler,
+                buffer);
             context.closeFromSelector();
             verify(handler).close();
         }
@@ -379,11 +437,21 @@ public class SocketChannelContextTests extends ESTestCase {
         assertEquals(1, flushOperation.getBuffersToWrite()[0].position());
     }
 
+    private static Config.Socket getSocketConfig() {
+        return new Config.Socket(randomBoolean(), randomBoolean(), randomBoolean(), -1, -1, mock(InetSocketAddress.class),
+            randomBoolean());
+    }
+
     private static class TestSocketChannelContext extends SocketChannelContext {
 
         private TestSocketChannelContext(NioSocketChannel channel, NioSelector selector, Consumer<Exception> exceptionHandler,
                                          NioChannelHandler readWriteHandler, InboundChannelBuffer channelBuffer) {
-            super(channel, selector, exceptionHandler, readWriteHandler, channelBuffer);
+            this(channel, selector, exceptionHandler, readWriteHandler, channelBuffer, getSocketConfig());
+        }
+
+        private TestSocketChannelContext(NioSocketChannel channel, NioSelector selector, Consumer<Exception> exceptionHandler,
+                                         NioChannelHandler readWriteHandler, InboundChannelBuffer channelBuffer, Config.Socket config) {
+            super(channel, selector, config, exceptionHandler, readWriteHandler, channelBuffer);
         }
 
         @Override

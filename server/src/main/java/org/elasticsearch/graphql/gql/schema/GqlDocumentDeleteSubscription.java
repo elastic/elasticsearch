@@ -30,27 +30,28 @@ import org.reactivestreams.Subscription;
 import java.util.Map;
 import java.util.function.Function;
 
+import static graphql.Scalars.GraphQLBoolean;
 import static graphql.Scalars.GraphQLID;
 import static graphql.schema.GraphQLArgument.newArgument;
 import static graphql.schema.GraphQLFieldDefinition.newFieldDefinition;
 import static graphql.schema.GraphQLNonNull.nonNull;
 import static graphql.schema.GraphQLTypeReference.typeRef;
 
-public class GqlDocumentUpdateSubscription {
+public class GqlDocumentDeleteSubscription {
     GqlApi api;
 
-    public GqlDocumentUpdateSubscription(GqlApi api) {
+    public GqlDocumentDeleteSubscription(GqlApi api) {
         this.api = api;
     }
 
     /**
-     * - Adds `Subscription.document(index, id): Document` resolver.
+     * - Adds `Subscription.documentDelete(index, id): Boolean` resolver.
      */
     public Function<GqlBuilder, GqlBuilder> use = builder -> builder
         .subscriptionField(newFieldDefinition()
-            .name("document")
-            .description("Watches for updates on document.")
-            .type(typeRef("Document"))
+            .name("documentDelete")
+            .description("Subscription fired when document is deleted.")
+            .type(GraphQLBoolean)
             .argument(newArgument()
                 .name("index")
                 .type(nonNull(GraphQLID))
@@ -59,14 +60,14 @@ public class GqlDocumentUpdateSubscription {
                 .name("id")
                 .type(nonNull(GraphQLID))
                 .description("Document ID.")))
-        .fetcher("Subscription", "document", new DataFetcher() {
+        .fetcher("Subscription", "documentDelete", new DataFetcher() {
             @Override
-            public Publisher<Map<String, Object>> get(DataFetchingEnvironment environment) {
+            public Publisher<Boolean> get(DataFetchingEnvironment environment) {
                 String indexName = environment.getArgument("index");
                 String documentId = environment.getArgument("id");
 
                 return subscriber -> {
-                    api.subscribe("update:" + indexName + ":" + documentId, new Subscriber<Object>() {
+                    api.subscribe("delete:" + indexName + ":" + documentId, new Subscriber<Object>() {
                         @Override
                         public void onSubscribe(Subscription s) {
                             subscriber.onSubscribe(s);
@@ -74,14 +75,8 @@ public class GqlDocumentUpdateSubscription {
 
                         @Override
                         public void onNext(Object o) {
-                            try {
-                                api.getDocument(indexName, documentId).thenApply(result -> {
-                                    subscriber.onNext(result);
-                                    return null;
-                                });
-                            } catch (Exception e) {
-                                subscriber.onError(e);
-                            }
+                            subscriber.onNext(true);
+                            subscriber.onComplete();
                         }
 
                         @Override

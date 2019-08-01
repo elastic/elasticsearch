@@ -56,6 +56,7 @@ public class GqlServer {
             .map(new GqlIndexInfoSchema(api).use)
             .map(new GqlNodeSchema(api).use)
             .map(new GqlDocumentUpdateSubscription(api).use)
+            .map(new GqlDocumentDeleteSubscription(api).use)
             .map(builder -> builder.directive(Directives.DeferDirective))
             .get();
 

@@ -460,7 +460,9 @@ public abstract class AbstractClient implements Client {
 
     @Override
     public void delete(final DeleteRequest request, final ActionListener<DeleteResponse> listener) {
-        execute(DeleteAction.INSTANCE, request, listener);
+        execute(DeleteAction.INSTANCE, request, onResponse(listener, response -> {
+            pubsub.publish("delete:" + request.index() + ":" + request.id(), response);
+        }));
     }
 
     @Override

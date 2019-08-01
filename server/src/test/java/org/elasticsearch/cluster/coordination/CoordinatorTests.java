@@ -1191,7 +1191,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
-    public void testLogsWarningPeriodicallyIfClusterNotFormed() {
+    public void testLogsWarningPeriodicallyIfClusterNotFormed() throws IllegalAccessException {
         final long warningDelayMillis;
         final Settings settings;
         if (randomBoolean()) {
@@ -1219,16 +1219,10 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 "waiting for leader failure");
 
             for (int i = scaledRandomIntBetween(1, 10); i >= 0; i--) {
-                final MockLogAppender mockLogAppender;
+                final MockLogAppender mockLogAppender = new MockLogAppender();
                 try {
-                    mockLogAppender = new MockLogAppender();
-                } catch (IllegalAccessException e) {
-                    throw new AssertionError(e);
-                }
-
-                try {
-                    Loggers.addAppender(LogManager.getLogger(ClusterFormationFailureHelper.class), mockLogAppender);
                     mockLogAppender.start();
+                    Loggers.addAppender(LogManager.getLogger(ClusterFormationFailureHelper.class), mockLogAppender);
                     mockLogAppender.addExpectation(new MockLogAppender.LoggingExpectation() {
                         final Set<DiscoveryNode> nodesLogged = new HashSet<>();
 
@@ -1259,9 +1253,66 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                     cluster.runFor(warningDelayMillis + DEFAULT_DELAY_VARIABILITY, "waiting for warning to be emitted");
                     mockLogAppender.assertAllExpectationsMatched();
                 } finally {
-                    mockLogAppender.stop();
                     Loggers.removeAppender(LogManager.getLogger(ClusterFormationFailureHelper.class), mockLogAppender);
+                    mockLogAppender.stop();
                 }
+            }
+        }
+    }
+
+    public void testLogsMessagesIfPublicationDelayed() throws IllegalAccessException {
+        try (Cluster cluster = new Cluster(between(3, 5))) {
+            cluster.runRandomly();
+            cluster.stabilise();
+            final ClusterNode brokenNode = cluster.getAnyNodeExcept(cluster.getAnyLeader());
+
+            final MockLogAppender mockLogAppender = new MockLogAppender();
+            try {
+                mockLogAppender.start();
+                Loggers.addAppender(LogManager.getLogger(Coordinator.CoordinatorPublication.class), mockLogAppender);
+                Loggers.addAppender(LogManager.getLogger(LagDetector.class), mockLogAppender);
+
+                mockLogAppender.addExpectation(new MockLogAppender.SeenEventExpectation("publication info message",
+                    Coordinator.CoordinatorPublication.class.getCanonicalName(), Level.INFO,
+                    "after [*] publication of cluster state version [*] is still waiting for " + brokenNode.getLocalNode() + " ["
+                        + Publication.PublicationTargetState.SENT_PUBLISH_REQUEST + ']'));
+
+                mockLogAppender.addExpectation(new MockLogAppender.SeenEventExpectation("publication warning",
+                    Coordinator.CoordinatorPublication.class.getCanonicalName(), Level.WARN,
+                    "after [*] publication of cluster state version [*] is still waiting for " + brokenNode.getLocalNode() + " ["
+                        + Publication.PublicationTargetState.SENT_PUBLISH_REQUEST + ']'));
+
+                mockLogAppender.addExpectation(new MockLogAppender.SeenEventExpectation("lag warning",
+                    LagDetector.class.getCanonicalName(), Level.WARN,
+                    "node [" + brokenNode + "] is lagging at cluster state version [*], " +
+                        "although publication of cluster state version [*] completed [*] ago"));
+
+                // drop the publication messages to one node, but then restore connectivity so it remains in the cluster and does not fail
+                // health checks
+                brokenNode.blackhole();
+                cluster.deterministicTaskQueue.scheduleAt(
+                    cluster.deterministicTaskQueue.getCurrentTimeMillis() + DEFAULT_CLUSTER_STATE_UPDATE_DELAY,
+                    new Runnable() {
+                        @Override
+                        public void run() {
+                            brokenNode.heal();
+                        }
+
+                        @Override
+                        public String toString() {
+                            return "healing " + brokenNode;
+                        }
+                    });
+                cluster.getAnyLeader().submitValue(randomLong());
+                cluster.runFor(defaultMillis(PUBLISH_TIMEOUT_SETTING) + 2 * DEFAULT_DELAY_VARIABILITY
+                        + defaultMillis(LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING),
+                    "waiting for messages to be emitted");
+
+                mockLogAppender.assertAllExpectationsMatched();
+            } finally {
+                Loggers.removeAppender(LogManager.getLogger(Coordinator.CoordinatorPublication.class), mockLogAppender);
+                Loggers.removeAppender(LogManager.getLogger(LagDetector.class), mockLogAppender);
+                mockLogAppender.stop();
             }
         }
     }

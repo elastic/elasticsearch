@@ -828,10 +828,6 @@ public class InternalEngine extends Engine {
         return localCheckpointTracker.generateSeqNo();
     }
 
-    private long getPrimaryTerm() {
-        return engineConfig.getPrimaryTermSupplier().getAsLong();
-    }
-
     @Override
     public IndexResult index(Index index) throws IOException {
         assert Objects.equals(index.uid().field(), IdFieldMapper.NAME) : index.uid().field();
@@ -895,7 +891,7 @@ public class InternalEngine extends Engine {
                         indexResult = indexIntoLucene(index, plan);
                     } else {
                         indexResult = new IndexResult(
-                            plan.versionForIndexing, getPrimaryTerm(), index.seqNo(), plan.currentNotFoundOrDeleted);
+                            plan.versionForIndexing, index.primaryTerm(), index.seqNo(), plan.currentNotFoundOrDeleted);
                     }
                 }
                 if (index.origin().isFromTranslog() == false) {
@@ -1013,19 +1009,20 @@ public class InternalEngine extends Engine {
             }
             if (index.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO && versionValue == null) {
                 final VersionConflictEngineException e = new VersionConflictEngineException(shardId, index.id(),
-                    index.getIfSeqNo(), index.getIfPrimaryTerm(), SequenceNumbers.UNASSIGNED_SEQ_NO, 0);
-                plan = IndexingStrategy.skipDueToVersionConflict(e, true, currentVersion, getPrimaryTerm());
+                    index.getIfSeqNo(), index.getIfPrimaryTerm(), SequenceNumbers.UNASSIGNED_SEQ_NO,
+                    SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
+                plan = IndexingStrategy.skipDueToVersionConflict(e, true, currentVersion);
             } else if (index.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO && (
                 versionValue.seqNo != index.getIfSeqNo() || versionValue.term != index.getIfPrimaryTerm()
             )) {
                 final VersionConflictEngineException e = new VersionConflictEngineException(shardId, index.id(),
                     index.getIfSeqNo(), index.getIfPrimaryTerm(), versionValue.seqNo, versionValue.term);
-                plan = IndexingStrategy.skipDueToVersionConflict(e, currentNotFoundOrDeleted, currentVersion, getPrimaryTerm());
+                plan = IndexingStrategy.skipDueToVersionConflict(e, currentNotFoundOrDeleted, currentVersion);
             } else if (index.versionType().isVersionConflictForWrites(
                 currentVersion, index.version(), currentNotFoundOrDeleted)) {
                 final VersionConflictEngineException e =
                         new VersionConflictEngineException(shardId, index, currentVersion, currentNotFoundOrDeleted);
-                plan = IndexingStrategy.skipDueToVersionConflict(e, currentNotFoundOrDeleted, currentVersion, getPrimaryTerm());
+                plan = IndexingStrategy.skipDueToVersionConflict(e, currentNotFoundOrDeleted, currentVersion);
             } else {
                 plan = IndexingStrategy.processNormally(currentNotFoundOrDeleted,
                     index.versionType().updateVersion(currentVersion, index.version())
@@ -1167,8 +1164,8 @@ public class InternalEngine extends Engine {
         }
 
         public static IndexingStrategy skipDueToVersionConflict(
-                VersionConflictEngineException e, boolean currentNotFoundOrDeleted, long currentVersion, long term) {
-            final IndexResult result = new IndexResult(e, currentVersion, term);
+                VersionConflictEngineException e, boolean currentNotFoundOrDeleted, long currentVersion) {
+            final IndexResult result = new IndexResult(e, currentVersion);
             return new IndexingStrategy(
                     currentNotFoundOrDeleted, false, false, false,
                 Versions.NOT_FOUND, result);
@@ -1269,7 +1266,7 @@ public class InternalEngine extends Engine {
                     deleteResult = deleteInLucene(delete, plan);
                 } else {
                     deleteResult = new DeleteResult(
-                        plan.versionOfDeletion, getPrimaryTerm(), delete.seqNo(), plan.currentlyDeleted == false);
+                        plan.versionOfDeletion, delete.primaryTerm(), delete.seqNo(), plan.currentlyDeleted == false);
                 }
             }
             if (delete.origin().isFromTranslog() == false && deleteResult.getResultType() == Result.Type.SUCCESS) {
@@ -1350,17 +1347,17 @@ public class InternalEngine extends Engine {
         final DeletionStrategy plan;
         if (delete.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO && versionValue == null) {
             final VersionConflictEngineException e = new VersionConflictEngineException(shardId, delete.id(),
-                delete.getIfSeqNo(), delete.getIfPrimaryTerm(), SequenceNumbers.UNASSIGNED_SEQ_NO, 0);
-            plan = DeletionStrategy.skipDueToVersionConflict(e, currentVersion, getPrimaryTerm(), true);
+                delete.getIfSeqNo(), delete.getIfPrimaryTerm(), SequenceNumbers.UNASSIGNED_SEQ_NO, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
+            plan = DeletionStrategy.skipDueToVersionConflict(e, currentVersion, true);
         } else if (delete.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO && (
             versionValue.seqNo != delete.getIfSeqNo() || versionValue.term != delete.getIfPrimaryTerm()
         )) {
             final VersionConflictEngineException e = new VersionConflictEngineException(shardId, delete.id(),
                 delete.getIfSeqNo(), delete.getIfPrimaryTerm(), versionValue.seqNo, versionValue.term);
-            plan = DeletionStrategy.skipDueToVersionConflict(e, currentVersion, getPrimaryTerm(), currentlyDeleted);
+            plan = DeletionStrategy.skipDueToVersionConflict(e, currentVersion, currentlyDeleted);
         } else if (delete.versionType().isVersionConflictForWrites(currentVersion, delete.version(), currentlyDeleted)) {
             final VersionConflictEngineException e = new VersionConflictEngineException(shardId, delete, currentVersion, currentlyDeleted);
-            plan = DeletionStrategy.skipDueToVersionConflict(e, currentVersion, getPrimaryTerm(), currentlyDeleted);
+            plan = DeletionStrategy.skipDueToVersionConflict(e, currentVersion, currentlyDeleted);
         } else {
             plan = DeletionStrategy.processNormally(currentlyDeleted, delete.versionType().updateVersion(currentVersion, delete.version()));
         }
@@ -1396,7 +1393,7 @@ public class InternalEngine extends Engine {
                         engineConfig.getThreadPool().relativeTimeInMillis()));
             }
             return new DeleteResult(
-                plan.versionOfDeletion, getPrimaryTerm(), delete.seqNo(), plan.currentlyDeleted == false);
+                plan.versionOfDeletion, delete.primaryTerm(), delete.seqNo(), plan.currentlyDeleted == false);
         } catch (Exception ex) {
             if (ex instanceof AlreadyClosedException == false && indexWriter.getTragicException() == null) {
                 throw new AssertionError("delete operation should never fail at document level", ex);
@@ -1428,9 +1425,9 @@ public class InternalEngine extends Engine {
         }
 
         public static DeletionStrategy skipDueToVersionConflict(
-                VersionConflictEngineException e, long currentVersion, long term, boolean currentlyDeleted) {
-            final long unassignedSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
-            final DeleteResult deleteResult = new DeleteResult(e, currentVersion, term, unassignedSeqNo, currentlyDeleted == false);
+                VersionConflictEngineException e, long currentVersion, boolean currentlyDeleted) {
+            final DeleteResult deleteResult = new DeleteResult(e, currentVersion, SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
+                SequenceNumbers.UNASSIGNED_SEQ_NO, currentlyDeleted == false);
             return new DeletionStrategy(false, false, currentlyDeleted, Versions.NOT_FOUND, deleteResult);
         }
 
@@ -1483,7 +1480,8 @@ public class InternalEngine extends Engine {
             final NoOpResult noOpResult;
             final Optional<Exception> preFlightError = preFlightCheckForNoOp(noOp);
             if (preFlightError.isPresent()) {
-                noOpResult = new NoOpResult(getPrimaryTerm(), SequenceNumbers.UNASSIGNED_SEQ_NO, preFlightError.get());
+                noOpResult = new NoOpResult(SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
+                    SequenceNumbers.UNASSIGNED_SEQ_NO, preFlightError.get());
             } else {
                 markSeqNoAsSeen(noOp.seqNo());
                 if (softDeleteEnabled && hasBeenProcessedBefore(noOp) == false) {
@@ -1507,7 +1505,7 @@ public class InternalEngine extends Engine {
                         throw ex;
                     }
                 }
-                noOpResult = new NoOpResult(getPrimaryTerm(), noOp.seqNo());
+                noOpResult = new NoOpResult(noOp.primaryTerm(), noOp.seqNo());
                 if (noOp.origin().isFromTranslog() == false && noOpResult.getResultType() == Result.Type.SUCCESS) {
                     final Translog.Location location = translog.add(new Translog.NoOp(noOp.seqNo(), noOp.primaryTerm(), noOp.reason()));
                     noOpResult.setTranslogLocation(location);

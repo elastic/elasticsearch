@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.core.security.ScrollHelper;
 import org.elasticsearch.xpack.core.security.action.ApiKey;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.GetApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
@@ -645,10 +646,10 @@ public class ApiKeyService {
      * @param username user name
      * @param apiKeyName API key name
      * @param apiKeyId API key id
-     * @param invalidateListener listener for {@link InvalidateApiKeysResult}
+     * @param invalidateListener listener for {@link InvalidateApiKeyResponse}
      */
     public void invalidateApiKeys(String realmName, String username, String apiKeyName, String apiKeyId,
-                                  ActionListener<InvalidateApiKeysResult> invalidateListener) {
+                                  ActionListener<InvalidateApiKeyResponse> invalidateListener) {
         ensureEnabled();
         if (Strings.hasText(realmName) == false && Strings.hasText(username) == false && Strings.hasText(apiKeyName) == false
             && Strings.hasText(apiKeyId) == false) {
@@ -661,7 +662,7 @@ public class ApiKeyService {
                         logger.debug(
                             "No active api keys to invalidate for realm [{}], username [{}], api key name [{}] and api key id [{}]",
                             realmName, username, apiKeyName, apiKeyId);
-                        invalidateListener.onResponse(InvalidateApiKeysResult.EMPTY_RESULT);
+                        invalidateListener.onResponse(InvalidateApiKeyResponse.emptyResponse());
                     } else {
                         invalidateAllApiKeys(apiKeyIds.stream().map(apiKey -> apiKey.getId()).collect(Collectors.toSet()),
                             invalidateListener);
@@ -670,7 +671,7 @@ public class ApiKeyService {
         }
     }
 
-    private void invalidateAllApiKeys(Collection<String> apiKeyIds, ActionListener<InvalidateApiKeysResult> invalidateListener) {
+    private void invalidateAllApiKeys(Collection<String> apiKeyIds, ActionListener<InvalidateApiKeyResponse> invalidateListener) {
         indexInvalidation(apiKeyIds, invalidateListener, null);
     }
 
@@ -745,7 +746,7 @@ public class ApiKeyService {
      * @param previousResult  if this not the initial attempt for invalidation, it contains the result of invalidating
      *                        api keys up to the point of the retry. This result is added to the result of the current attempt
      */
-    private void indexInvalidation(Collection<String> apiKeyIds, ActionListener<InvalidateApiKeysResult> listener,
+    private void indexInvalidation(Collection<String> apiKeyIds, ActionListener<InvalidateApiKeyResponse> listener,
                                    @Nullable InvalidateApiKeyResponse previousResult) {
         maybeStartApiKeyRemover();
         if (apiKeyIds.isEmpty()) {
@@ -787,7 +788,7 @@ public class ApiKeyService {
                                 }
                             }
                         }
-                        InvalidateApiKeysResult result = new InvalidateApiKeysResult(invalidated, previouslyInvalidated,
+                        InvalidateApiKeyResponse result = new InvalidateApiKeyResponse(invalidated, previouslyInvalidated,
                             failedRequestResponses);
                         listener.onResponse(result);
                     }, e -> {
@@ -865,10 +866,10 @@ public class ApiKeyService {
      * @param username user name
      * @param apiKeyName API key name
      * @param apiKeyId API key id
-     * @param listener listener for {@link GetApiKeysResult}
+     * @param listener listener for {@link GetApiKeyResponse}
      */
     public void getApiKeys(String realmName, String username, String apiKeyName, String apiKeyId,
-                           ActionListener<GetApiKeysResult> listener) {
+                           ActionListener<GetApiKeyResponse> listener) {
         ensureEnabled();
         if (Strings.hasText(realmName) == false && Strings.hasText(username) == false && Strings.hasText(apiKeyName) == false
             && Strings.hasText(apiKeyId) == false) {
@@ -879,9 +880,9 @@ public class ApiKeyService {
                     if (apiKeyInfos.isEmpty()) {
                         logger.debug("No active api keys found for realm [{}], user [{}], api key name [{}] and api key id [{}]",
                             realmName, username, apiKeyName, apiKeyId);
-                        listener.onResponse(GetApiKeysResult.EMPTY_RESULT);
+                        listener.onResponse(GetApiKeyResponse.emptyResponse());
                     } else {
-                        listener.onResponse(new GetApiKeysResult(apiKeyInfos));
+                        listener.onResponse(new GetApiKeyResponse(apiKeyInfos));
                     }
                 }, listener::onFailure));
         }
@@ -898,46 +899,6 @@ public class ApiKeyService {
 
         private boolean verify(SecureString password) {
             return hash != null && cacheHasher.verify(password, hash);
-        }
-    }
-
-    public static final class GetApiKeysResult {
-        static final GetApiKeysResult EMPTY_RESULT = new GetApiKeysResult(null);
-        private final Collection<ApiKey> foundApiKeysInfo;
-
-        public GetApiKeysResult(Collection<ApiKey> foundApiKeysInfo) {
-            this.foundApiKeysInfo = (foundApiKeysInfo == null) ? List.of() : foundApiKeysInfo;
-        }
-
-        public Collection<ApiKey> getApiKeyInfos() {
-            return foundApiKeysInfo;
-        }
-    }
-
-    public static final class InvalidateApiKeysResult {
-        static final InvalidateApiKeysResult EMPTY_RESULT = new InvalidateApiKeysResult(null, null, null);
-        private final List<String> invalidatedApiKeys;
-        private final List<String> previouslyInvalidatedApiKeys;
-        private final List<ElasticsearchException> errors;
-
-        public InvalidateApiKeysResult(List<String> invalidatedApiKeys, List<String> previouslyInvalidatedApiKeys,
-                                       List<ElasticsearchException> errors) {
-            this.invalidatedApiKeys = (invalidatedApiKeys == null) ? List.of() : List.copyOf(invalidatedApiKeys);
-            this.previouslyInvalidatedApiKeys = (previouslyInvalidatedApiKeys == null) ? List.of()
-                : List.copyOf(previouslyInvalidatedApiKeys);
-            this.errors = (errors == null) ? List.of() : List.copyOf(errors);
-        }
-
-        public List<String> getInvalidatedApiKeys() {
-            return invalidatedApiKeys;
-        }
-
-        public List<String> getPreviouslyInvalidatedApiKeys() {
-            return previouslyInvalidatedApiKeys;
-        }
-
-        public List<ElasticsearchException> getErrors() {
-            return errors;
         }
     }
 }

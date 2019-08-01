@@ -31,10 +31,7 @@ public final class TransportGetApiKeyAction extends HandledTransportAction<GetAp
 
     @Override
     protected void doExecute(Task task, GetApiKeyRequest request, ActionListener<GetApiKeyResponse> listener) {
-        apiKeyService.getApiKeys(request.getRealmName(), request.getUserName(), request.getApiKeyName(), request.getApiKeyId(),
-            ActionListener.wrap(getApiKeysResult -> {
-                listener.onResponse(new GetApiKeyResponse(getApiKeysResult.getApiKeyInfos()));
-            }, listener::onFailure));
+        apiKeyService.getApiKeys(request.getRealmName(), request.getUserName(), request.getApiKeyName(), request.getApiKeyId(), listener);
     }
 
 }

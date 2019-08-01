@@ -31,11 +31,7 @@ public final class TransportInvalidateApiKeyAction extends HandledTransportActio
 
     @Override
     protected void doExecute(Task task, InvalidateApiKeyRequest request, ActionListener<InvalidateApiKeyResponse> listener) {
-        apiKeyService.invalidateApiKeys(request.getRealmName(), request.getUserName(), request.getName(), request.getId(),
-            ActionListener.wrap(invalidateApiKeysResult -> {
-                listener.onResponse(new InvalidateApiKeyResponse(invalidateApiKeysResult.getInvalidatedApiKeys(),
-                    invalidateApiKeysResult.getPreviouslyInvalidatedApiKeys(), invalidateApiKeysResult.getErrors()));
-            }, listener::onFailure));
+        apiKeyService.invalidateApiKeys(request.getRealmName(), request.getUserName(), request.getName(), request.getId(), listener);
     }
 
 }

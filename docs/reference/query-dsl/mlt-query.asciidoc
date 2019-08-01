@@ -176,9 +176,9 @@ parameter.
 ===== Term selection parameters
 [[mlt-query-analyzer-param]]
 `analyzer`::
-(Optional, string) <<analysis-analyzers,Analyzer>> used to free-form text in the
-<<mlt-query-like-param,`like`>> parameter. Defaults to the analyzer of the first
-field in the <<mlt-query-fields-param,`fields`>> parameter value.
+(Optional, string) <<analysis-analyzers,Analyzer>> used to analyze free-form
+text in the <<mlt-query-like-param,`like`>> parameter. Defaults to the analyzer
+of the first field in the <<mlt-query-fields-param,`fields`>> parameter value.
 
 `max_doc_freq`::
 +

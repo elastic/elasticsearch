@@ -48,14 +48,14 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
             String user;
             String apiKeyId;
             String apiKeyName;
-            boolean ownedApiKeysOnly;
+            boolean ownedByAuthenticatedUser;
 
             Dummy(String[] a) {
                 realm = a[0];
                 user = a[1];
                 apiKeyId = a[2];
                 apiKeyName = a[3];
-                ownedApiKeysOnly = Boolean.parseBoolean(a[4]);
+                ownedByAuthenticatedUser = Boolean.parseBoolean(a[4]);
             }
 
             @Override
@@ -70,7 +70,7 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
                 out.writeOptionalString(user);
                 out.writeOptionalString(apiKeyId);
                 out.writeOptionalString(apiKeyName);
-                out.writeOptionalBoolean(ownedApiKeysOnly);
+                out.writeOptionalBoolean(ownedByAuthenticatedUser);
             }
         }
 
@@ -85,7 +85,7 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
             {randomNullOrEmptyString(), "user", randomNullOrEmptyString(), randomNullOrEmptyString(), "true"},
         };
         String[][] expectedErrorMessages = new String[][]{
-            {"One of [api key id, api key name, username, realm name] must be specified"},
+            {"One of [api key id, api key name, username, realm name] must be specified if [owner] flag is false"},
             {"username or realm name must not be specified when the api key id or api key name is specified",
                 "only one of [api key id, api key name] can be specified"},
             {"username or realm name must not be specified when the api key id or api key name is specified",
@@ -116,8 +116,8 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         final String apiKeyId = randomAlphaOfLength(5);
-        final boolean myApiKeysOnly = true;
-        InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingApiKeyId(apiKeyId, myApiKeysOnly);
+        final boolean ownedByAuthenticatedUser = true;
+        InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingApiKeyId(apiKeyId, ownedByAuthenticatedUser);
         {
             ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
             OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
@@ -129,8 +129,8 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
             InvalidateApiKeyRequest requestFromInputStream = new InvalidateApiKeyRequest(inputStreamStreamInput);
 
             assertThat(requestFromInputStream.getId(), equalTo(invalidateApiKeyRequest.getId()));
-            // old version so the default for `myApiKeysOnly` is false
-            assertThat(requestFromInputStream.myApiKeysOnly(), is(false));
+            // old version so the default for `ownedByAuthenticatedUser` is false
+            assertThat(requestFromInputStream.ownedByAuthenticatedUser(), is(false));
         }
         {
             ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();

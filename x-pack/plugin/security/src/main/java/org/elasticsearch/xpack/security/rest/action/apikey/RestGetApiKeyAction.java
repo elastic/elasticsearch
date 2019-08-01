@@ -39,7 +39,7 @@ public final class RestGetApiKeyAction extends ApiKeyBaseRestHandler {
         final String apiKeyName = request.param("name");
         final String userName = request.param("username");
         final String realmName = request.param("realm_name");
-        final boolean myApiKeysOnly = request.paramAsBoolean("my_api_keys_only", false);
+        final boolean myApiKeysOnly = request.paramAsBoolean("owner", false);
         final GetApiKeyRequest getApiKeyRequest = new GetApiKeyRequest(realmName, userName, apiKeyId, apiKeyName, myApiKeysOnly);
         return channel -> client.execute(GetApiKeyAction.INSTANCE, getApiKeyRequest,
                 new RestBuilderListener<GetApiKeyResponse>(channel) {

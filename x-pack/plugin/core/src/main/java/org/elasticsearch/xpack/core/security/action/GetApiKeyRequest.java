@@ -28,7 +28,7 @@ public final class GetApiKeyRequest extends ActionRequest {
     private final String userName;
     private final String apiKeyId;
     private final String apiKeyName;
-    private final boolean myApiKeysOnly;
+    private final boolean ownedByAuthenticatedUser;
 
     public GetApiKeyRequest() {
         this(null, null, null, null, false);
@@ -41,19 +41,19 @@ public final class GetApiKeyRequest extends ActionRequest {
         apiKeyId = in.readOptionalString();
         apiKeyName = in.readOptionalString();
         if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
-            myApiKeysOnly = in.readOptionalBoolean();
+            ownedByAuthenticatedUser = in.readOptionalBoolean();
         } else {
-            myApiKeysOnly = false;
+            ownedByAuthenticatedUser = false;
         }
     }
 
     public GetApiKeyRequest(@Nullable String realmName, @Nullable String userName, @Nullable String apiKeyId,
-                            @Nullable String apiKeyName, boolean myApiKeysOnly) {
+                            @Nullable String apiKeyName, boolean ownedByAuthenticatedUser) {
         this.realmName = realmName;
         this.userName = userName;
         this.apiKeyId = apiKeyId;
         this.apiKeyName = apiKeyName;
-        this.myApiKeysOnly = myApiKeysOnly;
+        this.ownedByAuthenticatedUser = ownedByAuthenticatedUser;
     }
 
     public String getRealmName() {
@@ -72,8 +72,8 @@ public final class GetApiKeyRequest extends ActionRequest {
         return apiKeyName;
     }
 
-    public boolean myApiKeysOnly() {
-        return myApiKeysOnly;
+    public boolean ownedByAuthenticatedUser() {
+        return ownedByAuthenticatedUser;
     }
 
     /**
@@ -107,30 +107,32 @@ public final class GetApiKeyRequest extends ActionRequest {
     /**
      * Creates get API key request for given api key id
      * @param apiKeyId api key id
-     * @param myApiKeysOnly set {@code true} if the request is only for the API keys owned by current authenticated user else {@code false}
+     * @param ownedByAuthenticatedUser set {@code true} if the request is only for the API keys owned by current authenticated user else
+     * {@code false}
      * @return {@link GetApiKeyRequest}
      */
-    public static GetApiKeyRequest usingApiKeyId(String apiKeyId, boolean myApiKeysOnly) {
-        return new GetApiKeyRequest(null, null, apiKeyId, null, myApiKeysOnly);
+    public static GetApiKeyRequest usingApiKeyId(String apiKeyId, boolean ownedByAuthenticatedUser) {
+        return new GetApiKeyRequest(null, null, apiKeyId, null, ownedByAuthenticatedUser);
     }
 
     /**
      * Creates get api key request for given api key name
      * @param apiKeyName api key name
-     * @param myApiKeysOnly set {@code true} if the request is only for the API keys owned by current authenticated user else {@code false}
+     * @param ownedByAuthenticatedUser set {@code true} if the request is only for the API keys owned by current authenticated user else
+     * {@code false}
      * @return {@link GetApiKeyRequest}
      */
-    public static GetApiKeyRequest usingApiKeyName(String apiKeyName, boolean myApiKeysOnly) {
-        return new GetApiKeyRequest(null, null, null, apiKeyName, myApiKeysOnly);
+    public static GetApiKeyRequest usingApiKeyName(String apiKeyName, boolean ownedByAuthenticatedUser) {
+        return new GetApiKeyRequest(null, null, null, apiKeyName, ownedByAuthenticatedUser);
     }
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (Strings.hasText(realmName) == false && Strings.hasText(userName) == false && Strings.hasText(apiKeyId) == false
-                && Strings.hasText(apiKeyName) == false) {
-            validationException = addValidationError("One of [api key id, api key name, username, realm name] must be specified",
-                    validationException);
+                && Strings.hasText(apiKeyName) == false && ownedByAuthenticatedUser == false) {
+            validationException = addValidationError("One of [api key id, api key name, username, realm name] must be specified if " +
+                    "[owner] flag is false", validationException);
         }
         if (Strings.hasText(apiKeyId) || Strings.hasText(apiKeyName)) {
             if (Strings.hasText(realmName) || Strings.hasText(userName)) {
@@ -139,7 +141,7 @@ public final class GetApiKeyRequest extends ActionRequest {
                         validationException);
             }
         }
-        if (myApiKeysOnly) {
+        if (ownedByAuthenticatedUser) {
             if (Strings.hasText(realmName) || Strings.hasText(userName)) {
                 validationException = addValidationError(
                     "username or realm name must not be specified when retrieving owned API keys",
@@ -160,7 +162,7 @@ public final class GetApiKeyRequest extends ActionRequest {
         out.writeOptionalString(apiKeyId);
         out.writeOptionalString(apiKeyName);
         if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
-            out.writeOptionalBoolean(myApiKeysOnly);
+            out.writeOptionalBoolean(ownedByAuthenticatedUser);
         }
     }
 
@@ -173,7 +175,7 @@ public final class GetApiKeyRequest extends ActionRequest {
             return false;
         }
         GetApiKeyRequest that = (GetApiKeyRequest) o;
-        return myApiKeysOnly == that.myApiKeysOnly &&
+        return ownedByAuthenticatedUser == that.ownedByAuthenticatedUser &&
             Objects.equals(realmName, that.realmName) &&
             Objects.equals(userName, that.userName) &&
             Objects.equals(apiKeyId, that.apiKeyId) &&
@@ -182,6 +184,6 @@ public final class GetApiKeyRequest extends ActionRequest {
 
     @Override
     public int hashCode() {
-        return Objects.hash(realmName, userName, apiKeyId, apiKeyName, myApiKeysOnly);
+        return Objects.hash(realmName, userName, apiKeyId, apiKeyName, ownedByAuthenticatedUser);
     }
 }

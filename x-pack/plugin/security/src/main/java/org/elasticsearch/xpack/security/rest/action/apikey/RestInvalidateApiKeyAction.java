@@ -40,7 +40,7 @@ public final class RestInvalidateApiKeyAction extends ApiKeyBaseRestHandler {
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("username"));
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("id"));
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("name"));
-        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), new ParseField("my_api_keys_only"));
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), new ParseField("owner"));
     }
 
     public RestInvalidateApiKeyAction(Settings settings, RestController controller, XPackLicenseState licenseState) {

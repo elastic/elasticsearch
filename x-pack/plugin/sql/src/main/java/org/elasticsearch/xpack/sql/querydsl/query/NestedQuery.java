@@ -20,7 +20,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicLong;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
@@ -31,7 +30,7 @@ import static org.elasticsearch.index.query.QueryBuilders.nestedQuery;
  * A query to a nested document.
  */
 public class NestedQuery extends Query {
-    private static final AtomicLong COUNTER = new AtomicLong();
+    private static long COUNTER = 0;
     // TODO: make this configurable
     private static final int MAX_INNER_HITS = 99;
     private static final List<String> NO_STORED_FIELD = singletonList(StoredFieldsContext._NONE_);
@@ -114,7 +113,7 @@ public class NestedQuery extends Query {
             InnerHitBuilder ihb = new InnerHitBuilder();
             ihb.setSize(0);
             ihb.setSize(MAX_INNER_HITS);
-            ihb.setName(path + "_" + COUNTER.incrementAndGet());
+            ihb.setName(path + "_" + COUNTER++);
 
             boolean noSourceNeeded = true;
             List<String> sourceFields = new ArrayList<>();

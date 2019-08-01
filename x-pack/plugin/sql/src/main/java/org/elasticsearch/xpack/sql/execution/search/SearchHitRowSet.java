@@ -11,17 +11,17 @@ import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractor;
 import org.elasticsearch.xpack.sql.session.Cursor;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
-import java.util.SortedSet;
-import java.util.TreeSet;
-import java.util.stream.Collectors;
 
 /**
  * Extracts rows from an array of {@link SearchHit}.
@@ -123,31 +123,26 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
         if (hit == null) {
             return null;
         }
-        List<SearchHits> list = hit.getInnerHits().entrySet().stream().filter(entry -> {
-            try {
-                // the name of an inner_hits section is "[path]_[number]", so keep all inner_hits matching this rule
-                Long.valueOf(entry.getKey().substring(path.length() + 1));
-            } catch(NumberFormatException nfe) {
-                return false;
-            }
-            return entry.getKey().startsWith(path);
-        }).map(Map.Entry::getValue).collect(Collectors.toList());
-
+        
         // multiple inner_hits results sections can match the same nested documents, thus we eliminate the duplicates by
         // using the offset as the "deduplicator" in a HashMap
         HashMap<Integer, SearchHit> lhm = new HashMap<>();
-        for(SearchHits s : list) {
-            SearchHit[] h = s.getHits();
-            for(int i = 0; i < h.length; i++) {
-                lhm.put(h[i].getNestedIdentity().getOffset(), h[i]);
+        for(Entry<String, SearchHits> entry : hit.getInnerHits().entrySet()) {
+            int endOfPath = entry.getKey().lastIndexOf('_');
+            if (endOfPath >= 0 && entry.getKey().substring(0, endOfPath).equals(path)) {
+                SearchHit[] h = entry.getValue().getHits();
+                for(int i = 0; i < h.length; i++) {
+                    lhm.put(h[i].getNestedIdentity().getOffset(), h[i]);
+                }
             }
         }
+
         // Then sort the resulting List based on the offset of the same inner hit. Each inner_hit match will have an offset value,
         // relative to its location in the _source
-        SortedSet<SearchHit> tree = new TreeSet<SearchHit>(new NestedHitOffsetComparator());
-        tree.addAll(lhm.values());
+        List<SearchHit> sortedList = new ArrayList<>(lhm.values());
+        Collections.sort(sortedList, new NestedHitOffsetComparator());
 
-        return tree.stream().toArray(SearchHit[]::new);
+        return sortedList.toArray(SearchHit[]::new);
     }
     
     private class NestedHitOffsetComparator implements Comparator<SearchHit> {

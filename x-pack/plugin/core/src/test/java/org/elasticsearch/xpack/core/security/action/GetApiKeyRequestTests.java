@@ -147,6 +147,6 @@ public class GetApiKeyRequestTests extends ESTestCase {
     }
 
     private static String randomNullOrEmptyString() {
-        return randomFrom(new String[]{"", null});
+        return randomBoolean() ? "" : null;
     }
 }

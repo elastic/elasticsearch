@@ -119,7 +119,7 @@ GET /example/_search
                 "indexed_shape": {
                     "index": "shapes",
                     "id": "footprint",
-                    "path": "location"
+                    "path": "geometry"
                 }
             }
         }

@@ -5,7 +5,7 @@
 
 * Combine multiple queries.
 
-* Customize search results and <<query-filter-context, relevance scores>>.
+* Customize search results and <<relevance-scores,relevance scores>>.
 
 * Run queries in a <<query-filter-context,filter context>> to improve
 speed and performance.

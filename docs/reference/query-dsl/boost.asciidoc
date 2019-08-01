@@ -1,7 +1,7 @@
 [[query-dsl-boost]]
 == `boost` parameter
 
-You can use the `boost` parameter to adjust <<query-filter-context,relevance
+You can use the `boost` parameter to adjust <<relevance-scores,relevance
 scores>> for searches containing two or more queries.
 
 The `boost` value is a floating point number used to decrease or increase the

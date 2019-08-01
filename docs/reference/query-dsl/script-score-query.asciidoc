@@ -223,7 +223,7 @@ and default time zone. Also calculations with `now` are not supported.
 
 [[script-score-faster-alt]]
 ===== Faster alternatives
-The `script_score` query calculates the <<relevance-scores,relevance score>> for
+The `script_score` query calculates the score for
 every matching document, or hit. There are faster alternative query types that
 can efficiently skip non-competitive hits:
 

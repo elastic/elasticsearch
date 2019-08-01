@@ -127,11 +127,11 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
         // multiple inner_hits results sections can match the same nested documents, thus we eliminate the duplicates by
         // using the offset as the "deduplicator" in a HashMap
         HashMap<Integer, SearchHit> lhm = new HashMap<>();
-        for(Entry<String, SearchHits> entry : hit.getInnerHits().entrySet()) {
+        for (Entry<String, SearchHits> entry : hit.getInnerHits().entrySet()) {
             int endOfPath = entry.getKey().lastIndexOf('_');
             if (endOfPath >= 0 && entry.getKey().substring(0, endOfPath).equals(path)) {
                 SearchHit[] h = entry.getValue().getHits();
-                for(int i = 0; i < h.length; i++) {
+                for (int i = 0; i < h.length; i++) {
                     lhm.put(h[i].getNestedIdentity().getOffset(), h[i]);
                 }
             }

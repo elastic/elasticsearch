@@ -291,6 +291,36 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     }
 
     /**
+     * Atomically clones an existing retention lease to a new ID.
+     *
+     * @param sourceLeaseId the identifier of the source retention lease
+     * @param targetLeaseId the identifier of the retention lease to create
+     * @param listener      the callback when the retention lease is successfully added and synced to replicas
+     * @return the new retention lease
+     * @throws RetentionLeaseNotFoundException      if the specified source retention lease does not exist
+     * @throws RetentionLeaseAlreadyExistsException if the specified target retention lease already exists
+     */
+    RetentionLease cloneRetentionLease(String sourceLeaseId, String targetLeaseId, ActionListener<ReplicationResponse> listener) {
+        Objects.requireNonNull(listener);
+        final RetentionLease retentionLease;
+        final RetentionLeases currentRetentionLeases;
+        synchronized (this) {
+            assert primaryMode;
+            if (getRetentionLeases().contains(sourceLeaseId) == false) {
+                throw new RetentionLeaseNotFoundException(sourceLeaseId);
+            }
+            final RetentionLease sourceLease = getRetentionLeases().get(sourceLeaseId);
+            retentionLease = innerAddRetentionLease(targetLeaseId, sourceLease.retainingSequenceNumber(), sourceLease.source());
+            currentRetentionLeases = retentionLeases;
+        }
+
+        // Syncing here may not be strictly necessary, because this new lease isn't retaining any extra history that wasn't previously
+        // retained by the source lease; however we prefer to sync anyway since we expect to do so whenever creating a new lease.
+        onSyncRetentionLeases.accept(currentRetentionLeases, listener);
+        return retentionLease;
+    }
+
+    /**
      * Adds a new retention lease, but does not synchronise it with the rest of the replication group.
      *
      * @param id                      the identifier of the retention lease
@@ -442,8 +472,16 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      * containing the persistent node ID calculated by {@link ReplicationTracker#getPeerRecoveryRetentionLeaseId}, and retain operations
      * with sequence numbers strictly greater than the given global checkpoint.
      */
-    public void addPeerRecoveryRetentionLease(String nodeId, long globalCheckpoint, ActionListener<ReplicationResponse> listener) {
-        addRetentionLease(getPeerRecoveryRetentionLeaseId(nodeId), globalCheckpoint + 1, PEER_RECOVERY_RETENTION_LEASE_SOURCE, listener);
+    public RetentionLease addPeerRecoveryRetentionLease(String nodeId, long globalCheckpoint,
+                                                        ActionListener<ReplicationResponse> listener) {
+        return addRetentionLease(getPeerRecoveryRetentionLeaseId(nodeId), globalCheckpoint + 1,
+            PEER_RECOVERY_RETENTION_LEASE_SOURCE, listener);
+    }
+
+    public RetentionLease cloneLocalPeerRecoveryRetentionLease(String nodeId, ActionListener<ReplicationResponse> listener) {
+        return cloneRetentionLease(
+            getPeerRecoveryRetentionLeaseId(routingTable.primaryShard()),
+            getPeerRecoveryRetentionLeaseId(nodeId), listener);
     }
 
     public void removePeerRecoveryRetentionLease(String nodeId, ActionListener<ReplicationResponse> listener) {

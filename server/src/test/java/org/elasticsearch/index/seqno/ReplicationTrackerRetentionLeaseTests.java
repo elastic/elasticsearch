@@ -20,6 +20,8 @@
 package org.elasticsearch.index.seqno;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
@@ -245,6 +247,103 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                     true,
                     false);
         }
+    }
+
+    public void testCloneRetentionLease() {
+        final AllocationId allocationId = AllocationId.newInitializing();
+        final AtomicReference<ReplicationTracker> replicationTrackerRef = new AtomicReference<>();
+        final AtomicLong timeReference = new AtomicLong();
+        final AtomicBoolean synced = new AtomicBoolean();
+        final ReplicationTracker replicationTracker = new ReplicationTracker(
+            new ShardId("test", "_na", 0),
+            allocationId.getId(),
+            IndexSettingsModule.newIndexSettings("test", Settings.EMPTY),
+            randomLongBetween(1, Long.MAX_VALUE),
+            UNASSIGNED_SEQ_NO,
+            value -> {},
+            timeReference::get,
+            (leases, listener) -> {
+                assertFalse(Thread.holdsLock(replicationTrackerRef.get()));
+                assertTrue(synced.compareAndSet(false, true));
+                listener.onResponse(new ReplicationResponse());
+            });
+        replicationTrackerRef.set(replicationTracker);
+        replicationTracker.updateFromMaster(
+            randomNonNegativeLong(),
+            Collections.singleton(allocationId.getId()),
+            routingTable(Collections.emptySet(), allocationId));
+        replicationTracker.activatePrimaryMode(SequenceNumbers.NO_OPS_PERFORMED);
+
+        final long addTime = randomLongBetween(timeReference.get(), Long.MAX_VALUE);
+        timeReference.set(addTime);
+        final long minimumRetainingSequenceNumber = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
+        final PlainActionFuture<ReplicationResponse> addFuture = new PlainActionFuture<>();
+        replicationTracker.addRetentionLease("source", minimumRetainingSequenceNumber, "test-source", addFuture);
+        addFuture.actionGet();
+        assertTrue(synced.get());
+        synced.set(false);
+
+        final long cloneTime = randomLongBetween(timeReference.get(), Long.MAX_VALUE);
+        timeReference.set(cloneTime);
+        final PlainActionFuture<ReplicationResponse> cloneFuture = new PlainActionFuture<>();
+        final RetentionLease clonedLease = replicationTracker.cloneRetentionLease("source", "target", cloneFuture);
+        cloneFuture.actionGet();
+        assertTrue(synced.get());
+        synced.set(false);
+
+        assertThat(clonedLease.id(), equalTo("target"));
+        assertThat(clonedLease.retainingSequenceNumber(), equalTo(minimumRetainingSequenceNumber));
+        assertThat(clonedLease.timestamp(), equalTo(cloneTime));
+        assertThat(clonedLease.source(), equalTo("test-source"));
+
+        assertThat(replicationTracker.getRetentionLeases().get("target"), equalTo(clonedLease));
+    }
+
+    public void testCloneNonexistentRetentionLease() {
+        final AllocationId allocationId = AllocationId.newInitializing();
+        final ReplicationTracker replicationTracker = new ReplicationTracker(
+            new ShardId("test", "_na", 0),
+            allocationId.getId(),
+            IndexSettingsModule.newIndexSettings("test", Settings.EMPTY),
+            randomLongBetween(1, Long.MAX_VALUE),
+            UNASSIGNED_SEQ_NO,
+            value -> {},
+            () -> 0L,
+            (leases, listener) -> { });
+        replicationTracker.updateFromMaster(
+            randomNonNegativeLong(),
+            Collections.singleton(allocationId.getId()),
+            routingTable(Collections.emptySet(), allocationId));
+        replicationTracker.activatePrimaryMode(SequenceNumbers.NO_OPS_PERFORMED);
+
+        assertThat(expectThrows(RetentionLeaseNotFoundException.class,
+            () -> replicationTracker.cloneRetentionLease("nonexistent-lease-id", "target", ActionListener.wrap(() -> {}))).getMessage(),
+            equalTo("retention lease with ID [nonexistent-lease-id] not found"));
+    }
+
+    public void testCloneDuplicateRetentionLease() {
+        final AllocationId allocationId = AllocationId.newInitializing();
+        final ReplicationTracker replicationTracker = new ReplicationTracker(
+            new ShardId("test", "_na", 0),
+            allocationId.getId(),
+            IndexSettingsModule.newIndexSettings("test", Settings.EMPTY),
+            randomLongBetween(1, Long.MAX_VALUE),
+            UNASSIGNED_SEQ_NO,
+            value -> {},
+            () -> 0L,
+            (leases, listener) -> { });
+        replicationTracker.updateFromMaster(
+            randomNonNegativeLong(),
+            Collections.singleton(allocationId.getId()),
+            routingTable(Collections.emptySet(), allocationId));
+        replicationTracker.activatePrimaryMode(SequenceNumbers.NO_OPS_PERFORMED);
+
+        replicationTracker.addRetentionLease("source", randomLongBetween(0L, Long.MAX_VALUE), "test-source", ActionListener.wrap(() -> {}));
+        replicationTracker.addRetentionLease("exists", randomLongBetween(0L, Long.MAX_VALUE), "test-source", ActionListener.wrap(() -> {}));
+
+        assertThat(expectThrows(RetentionLeaseAlreadyExistsException.class,
+            () -> replicationTracker.cloneRetentionLease("source", "exists", ActionListener.wrap(() -> {}))).getMessage(),
+            equalTo("retention lease with ID [exists] already exists"));
     }
 
     public void testRemoveNotFound() {

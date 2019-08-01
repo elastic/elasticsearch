@@ -44,7 +44,7 @@ capitalization.
 +
 --
 (Optional, float) Floating point number used to decrease or increase the
-<<query-filter-context, relevance scores>> of a query. Defaults to `1.0`.
+<<relevance-scores,relevance scores>> of a query. Defaults to `1.0`.
 
 WARNING: When using the `span_term` query with compound <<span-queries,span
 queries>>, like <<query-dsl-span-near-query,`span_near`>>, you can only set a

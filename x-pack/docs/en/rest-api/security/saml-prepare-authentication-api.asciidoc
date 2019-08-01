@@ -1,0 +1,74 @@
+[role="xpack"]
+[[security-api-saml-prepare-authentication]]
+
+=== SAML Prepare Authentication API
+
+Creates a SAML authentication request as a URL string, based on the configuration of the respective
+SAML realm in {es}. The response of this API is a URL that contains a URL pointing to the SAML
+Identity Provider and can be used to redirect the browser of the user in order to continue the
+authentication process. The URL contains a single parameter named `SAMLRequest` that contains
+a SAML Authentication request, deflated and Base64 encoded. If the configuration dictates that
+SAML Authentication requests should be signed, the URL has two extra parameters named
+`SigAlg` and `Signature` that contain the algorithm used for the signature and the signature
+value itself.
+
+{es} exposes all the necessary SAML related functionality via the SAML APIs. These APIs
+are used internally by {kib} in order to provide SAML based authentication, but can also be used by other,
+custom web applications or other clients. See also <<security-saml-authenticate,SAML Authenticate API>>
+, <<security-saml-invalidate,SAML Invalidate API>> and <<security-saml-logout,SAML Logout API>>.
+
+==== Request
+
+`POST /_security/saml/prepare`
+
+
+==== Request Body
+
+The following parameters can be specified in the body of the request:
+
+`realm`::
+The name of the SAML realm in {es} the configuration of which should be used in order to
+generate the authentication request. Either this or `acs` should be specified.
+
+`acs`::
+String value that contains the Assertion Consumer Service URL that matches the one of the SAML
+realm in {es} that should be used in order to generate the authentication request. Either this
+or `realm` should be specified.
+
+==== Examples
+
+The following example generates a SAML authentication request for the SAML realm with name `saml1`
+
+[source,js]
+--------------------------------------------------
+POST /_security/saml/prepare
+{
+  "realm" : "saml1"
+}
+--------------------------------------------------
+// CONSOLE
+
+The following example generates a SAML authentication request for the SAML realm with an Assertion
+Consuming Service URL matching `https://kibana.org/api/security/v1/saml
+
+[source,js]
+--------------------------------------------------
+POST /_security/saml/prepare
+{
+  "acs" : "https://kibana.org/api/security/v1/saml"
+}
+--------------------------------------------------
+// CONSOLE
+
+A successful will return the URL to redirect the user to, an identifier for the SAML Request to be stored by the caller
+of the API and the name of the {es} realm that was used to construct this authentication request
+
+[source,js]
+-------------------------------------------------
+{
+  "redirect": "https://my-idp.org/login?SAMLRequest=fVJdc6IwFP0rmbwDgUKLGbFDtc462%2B06FX3Yl50rBJsKCZsbrPbXL6J22hdfk%2FNx7zl3eL%2BvK7ITBqVWCfVdRolQuS6k2iR0mU2dmN6Phgh1FTQ8be2rehH%2FWoGWdESF%2FPST0NYorgElcgW1QG5zvkh%2FPfHAZbwx2upcV5SkiMLYzmqsFba1MAthdjIXy5enhL5a23DPOyo6W7kGBa7cwhZ2gO7G8OiW%2BR400kORt0bag7fzezAlk24eqcD2OxxlsNN5O3MdsW9c6CZnbq7rntF4d3s0D7BaHTZhIWN52P%2BcjiuGRbDU6cdj%2BEjJbJLQv4N4ADdhxBiEZbQuWclY4Q8iABbCXczCdSiKMAC%2FgyO2YqbQgrIJDZg%2FcFjsMD%2Fzb3gUcBa5sR%2F9oWR%2BzuJBqlPG14Jbn0DIf2TZ3Jn%2FXmSUrC5ddQB6bob37uZrJdeF4dIDHV3iuhb70Ptq83kOz53ubDLXlcwPJK0q%2FT42AqxIaAkVCkqm2tRgr49yfJGFU%2FZQ3hy3QyuUpd7obPv97kb%2FAQ%3D%3D"}",
+  "realm": "saml1",
+  "id": "_989a34500a4f5bf0f00d195aa04a7804b4ed42a1"
+}
+-------------------------------------------------
+// NOTCONSOLE

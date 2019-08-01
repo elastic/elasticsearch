@@ -190,7 +190,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 continue;
             }
             Bits liveDocs = ctx.reader().getLiveDocs();
-            BitSet liveDocsBitSet = getSparseBitSetOrNull(ctx.reader().getLiveDocs());
+            BitSet liveDocsBitSet = getSparseBitSetOrNull(liveDocs);
             if (liveDocsBitSet == null) {
                 BulkScorer bulkScorer = weight.bulkScorer(ctx);
                 if (bulkScorer != null) {
@@ -231,7 +231,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     static void intersectScorerAndBitSet(Scorer scorer, BitSet acceptDocs,
-                                            LeafCollector collector, Runnable checkCancelled) throws IOException {
+                                         LeafCollector collector, Runnable checkCancelled) throws IOException {
+        collector.setScorer(scorer);
         // ConjunctionDISI uses the DocIdSetIterator#cost() to order the iterators, so if roleBits has the lowest cardinality it should
         // be used first:
         DocIdSetIterator iterator = ConjunctionDISI.intersectIterators(Arrays.asList(new BitSetIterator(acceptDocs,

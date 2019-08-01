@@ -14,6 +14,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.http.NullDispatcher;
 import org.elasticsearch.http.nio.NioHttpChannel;
+import org.elasticsearch.nio.Config;
 import org.elasticsearch.nio.NioSelector;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -77,7 +78,7 @@ public class SecurityNioHttpServerTransportTests extends ESTestCase {
         SecurityNioHttpServerTransport.SecurityHttpChannelFactory factory = transport.channelFactory();
         SocketChannel socketChannel = mock(SocketChannel.class);
         when(socketChannel.getRemoteAddress()).thenReturn(address);
-        NioHttpChannel channel = factory.createChannel(mock(NioSelector.class), socketChannel);
+        NioHttpChannel channel = factory.createChannel(mock(NioSelector.class), socketChannel, mock(Config.Socket.class));
         SSLEngine engine = SSLEngineUtils.getSSLEngine(channel);
 
         assertThat(engine.getNeedClientAuth(), is(false));
@@ -99,7 +100,7 @@ public class SecurityNioHttpServerTransportTests extends ESTestCase {
         SecurityNioHttpServerTransport.SecurityHttpChannelFactory factory = transport.channelFactory();
         SocketChannel socketChannel = mock(SocketChannel.class);
         when(socketChannel.getRemoteAddress()).thenReturn(address);
-        NioHttpChannel channel = factory.createChannel(mock(NioSelector.class), socketChannel);
+        NioHttpChannel channel = factory.createChannel(mock(NioSelector.class), socketChannel, mock(Config.Socket.class));
         SSLEngine engine = SSLEngineUtils.getSSLEngine(channel);
         assertThat(engine.getNeedClientAuth(), is(false));
         assertThat(engine.getWantClientAuth(), is(true));
@@ -120,7 +121,7 @@ public class SecurityNioHttpServerTransportTests extends ESTestCase {
         SecurityNioHttpServerTransport.SecurityHttpChannelFactory factory = transport.channelFactory();
         SocketChannel socketChannel = mock(SocketChannel.class);
         when(socketChannel.getRemoteAddress()).thenReturn(address);
-        NioHttpChannel channel = factory.createChannel(mock(NioSelector.class), socketChannel);
+        NioHttpChannel channel = factory.createChannel(mock(NioSelector.class), socketChannel, mock(Config.Socket.class));
         SSLEngine engine = SSLEngineUtils.getSSLEngine(channel);
         assertThat(engine.getNeedClientAuth(), is(true));
         assertThat(engine.getWantClientAuth(), is(false));
@@ -141,7 +142,7 @@ public class SecurityNioHttpServerTransportTests extends ESTestCase {
         SecurityNioHttpServerTransport.SecurityHttpChannelFactory factory = transport.channelFactory();
         SocketChannel socketChannel = mock(SocketChannel.class);
         when(socketChannel.getRemoteAddress()).thenReturn(address);
-        NioHttpChannel channel = factory.createChannel(mock(NioSelector.class), socketChannel);
+        NioHttpChannel channel = factory.createChannel(mock(NioSelector.class), socketChannel, mock(Config.Socket.class));
         SSLEngine engine = SSLEngineUtils.getSSLEngine(channel);
         assertThat(engine.getNeedClientAuth(), is(false));
         assertThat(engine.getWantClientAuth(), is(false));
@@ -159,7 +160,7 @@ public class SecurityNioHttpServerTransportTests extends ESTestCase {
         SecurityNioHttpServerTransport.SecurityHttpChannelFactory factory = transport.channelFactory();
         SocketChannel socketChannel = mock(SocketChannel.class);
         when(socketChannel.getRemoteAddress()).thenReturn(address);
-        NioHttpChannel channel = factory.createChannel(mock(NioSelector.class), socketChannel);
+        NioHttpChannel channel = factory.createChannel(mock(NioSelector.class), socketChannel, mock(Config.Socket.class));
         SSLEngine defaultEngine = SSLEngineUtils.getSSLEngine(channel);
 
         settings = Settings.builder()
@@ -173,7 +174,7 @@ public class SecurityNioHttpServerTransportTests extends ESTestCase {
             new NetworkService(Collections.emptyList()), mock(BigArrays.class), mock(PageCacheRecycler.class), mock(ThreadPool.class),
             xContentRegistry(), new NullDispatcher(), mock(IPFilter.class), sslService, nioGroupFactory);
         factory = transport.channelFactory();
-        channel = factory.createChannel(mock(NioSelector.class), socketChannel);
+        channel = factory.createChannel(mock(NioSelector.class), socketChannel, mock(Config.Socket.class));
         SSLEngine customEngine = SSLEngineUtils.getSSLEngine(channel);
         assertThat(customEngine.getEnabledProtocols(), arrayContaining("TLSv1.2"));
         assertThat(customEngine.getEnabledProtocols(), not(equalTo(defaultEngine.getEnabledProtocols())));

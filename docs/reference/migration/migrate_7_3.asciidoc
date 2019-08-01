@@ -24,6 +24,7 @@ It is no longer possible to supply the `format` parameter when you define a
 `date_histogram` {dataframe-transform} pivot. Previously constructed transforms 
 will still run but the configured `format` will be ignored.
 
+[discrete]
 [[breaking_73_mapping_changes]]
 === Mapping changes
 `dense_vector` field now requires `dims` parameter, specifying the number of

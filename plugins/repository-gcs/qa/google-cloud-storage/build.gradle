@@ -112,6 +112,7 @@ if (useFixture) {
     }
 }
 
+integTest.mustRunAfter(thirdPartyTest)
 check.dependsOn thirdPartyTest
 
 Map<String, Object> expansions = [

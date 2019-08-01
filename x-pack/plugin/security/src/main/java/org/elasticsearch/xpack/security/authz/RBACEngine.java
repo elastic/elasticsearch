@@ -420,7 +420,7 @@ public class RBACEngine implements AuthorizationEngine {
             } else if (privilege instanceof ConfigurableClusterPrivilege) {
                 conditionalCluster.add((ConfigurableClusterPrivilege) privilege);
             } else {
-                logger.trace("found unsupported cluster privilege {}", privilege);
+                throw new IllegalArgumentException("found unsupported cluster privilege : " + privilege);
             }
         }
 

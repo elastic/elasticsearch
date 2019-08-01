@@ -1444,7 +1444,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 opsRecovered++;
                 onOperationRecovered.run();
             } catch (Exception e) {
-                if (ExceptionsHelper.status(e) == RestStatus.BAD_REQUEST) {
+                // TODO: Don't enable this leniency unless users explicitly opt-in
+                if (origin == Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY && ExceptionsHelper.status(e) == RestStatus.BAD_REQUEST) {
                     // mainly for MapperParsingException and Failure to detect xcontent
                     logger.info("ignoring recovery of a corrupt translog entry", e);
                 } else {

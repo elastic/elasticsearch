@@ -65,23 +65,20 @@ class SimulateExecutionService {
     }
 
     public void execute(SimulatePipelineRequest.Parsed request, ActionListener<SimulatePipelineResponse> listener) {
-        threadPool.executor(THREAD_POOL_NAME).execute(new ActionRunnable<SimulatePipelineResponse>(listener) {
-            @Override
-            protected void doRun() {
-                final AtomicInteger counter = new AtomicInteger();
-                final List<SimulateDocumentResult> responses = new CopyOnWriteArrayList<>();
-                for (IngestDocument ingestDocument : request.getDocuments()) {
-                    executeDocument(request.getPipeline(), ingestDocument, request.isVerbose(), (response, e) -> {
-                        if (response != null) {
-                            responses.add(response);
-                        }
-                        if (counter.incrementAndGet() == request.getDocuments().size()) {
-                            listener.onResponse(new SimulatePipelineResponse(request.getPipeline().getId(),
-                                request.isVerbose(), responses));
-                        }
-                    });
-                }
+        threadPool.executor(THREAD_POOL_NAME).execute(ActionRunnable.wrap(listener, l -> {
+            final AtomicInteger counter = new AtomicInteger();
+            final List<SimulateDocumentResult> responses = new CopyOnWriteArrayList<>();
+            for (IngestDocument ingestDocument : request.getDocuments()) {
+                executeDocument(request.getPipeline(), ingestDocument, request.isVerbose(), (response, e) -> {
+                    if (response != null) {
+                        responses.add(response);
+                    }
+                    if (counter.incrementAndGet() == request.getDocuments().size()) {
+                        listener.onResponse(new SimulatePipelineResponse(request.getPipeline().getId(),
+                            request.isVerbose(), responses));
+                    }
+                });
             }
-        });
+        }));
     }
 }

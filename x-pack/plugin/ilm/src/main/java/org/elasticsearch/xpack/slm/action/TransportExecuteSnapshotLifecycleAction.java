@@ -22,10 +22,10 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecycleMetadata;
-import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicyMetadata;
-import org.elasticsearch.xpack.core.snapshotlifecycle.action.ExecuteSnapshotLifecycleAction;
-import org.elasticsearch.xpack.core.snapshotlifecycle.history.SnapshotHistoryStore;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
+import org.elasticsearch.xpack.core.slm.action.ExecuteSnapshotLifecycleAction;
+import org.elasticsearch.xpack.core.slm.history.SnapshotHistoryStore;
 import org.elasticsearch.xpack.slm.SnapshotLifecycleService;
 import org.elasticsearch.xpack.slm.SnapshotLifecycleTask;
 

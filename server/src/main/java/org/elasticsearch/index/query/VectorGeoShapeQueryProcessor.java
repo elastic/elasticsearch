@@ -43,7 +43,7 @@ import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
-import static org.elasticsearch.index.mapper.GeoShapeFieldMapper.toLucenePolygon;
+import static org.elasticsearch.index.mapper.GeoShapeIndexer.toLucenePolygon;
 
 public class VectorGeoShapeQueryProcessor implements AbstractGeometryFieldMapper.QueryProcessor {
 
@@ -59,14 +59,14 @@ public class VectorGeoShapeQueryProcessor implements AbstractGeometryFieldMapper
     }
 
     protected Query getVectorQueryFromShape(Geometry queryShape, String fieldName, ShapeRelation relation, QueryShardContext context) {
-        GeoShapeIndexer geometryIndexer = new GeoShapeIndexer(true);
+        GeoShapeIndexer geometryIndexer = new GeoShapeIndexer(true, fieldName);
 
         Geometry processedShape = geometryIndexer.prepareForIndexing(queryShape);
 
         if (processedShape == null) {
             return new MatchNoDocsQuery();
         }
-        return queryShape.visit(new ShapeVisitor(context, fieldName, relation));
+        return processedShape.visit(new ShapeVisitor(context, fieldName, relation));
     }
 
     private class ShapeVisitor implements GeometryVisitor<Query, RuntimeException> {

@@ -24,11 +24,15 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -38,6 +42,9 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.InternalEngineFactory;
+import org.elasticsearch.index.engine.InternalEngineTests;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.replication.ESIndexLevelReplicationTestCase;
 import org.elasticsearch.index.replication.RecoveryDuringReplicationTests;
@@ -47,11 +54,13 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.SnapshotMatchers;
 import org.elasticsearch.index.translog.Translog;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -403,6 +412,50 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             assertBusy(() -> assertThat(getEngine(replica).shouldPeriodicallyFlush(), equalTo(false)));
             assertThat(getTranslog(replica).totalOperations(), equalTo(numDocs));
             shards.assertAllEqual(numDocs);
+        }
+    }
+
+    public void testFailsToIndexDuringPeerRecovery() throws Exception {
+        AtomicReference<IOException> throwExceptionDuringIndexing = new AtomicReference<>(new IOException("simulated"));
+        try (ReplicationGroup group = new ReplicationGroup(buildIndexMetaData(0)) {
+            @Override
+            protected EngineFactory getEngineFactory(ShardRouting routing) {
+                if (routing.primary()) {
+                    return new InternalEngineFactory();
+                } else {
+                    return config -> InternalEngineTests.createInternalEngine((dir, iwc) -> new IndexWriter(dir, iwc) {
+                        @Override
+                        public long addDocument(Iterable<? extends IndexableField> doc) throws IOException {
+                            final IOException error = throwExceptionDuringIndexing.getAndSet(null);
+                            if (error != null) {
+                                throw error;
+                            }
+                            return super.addDocument(doc);
+                        }
+                    }, null, null, config);
+                }
+            }
+        }) {
+            group.startAll();
+            group.indexDocs(randomIntBetween(1, 10));
+            allowShardFailures();
+            IndexShard replica = group.addReplica();
+            expectThrows(Exception.class, () -> group.recoverReplica(replica,
+                (shard, sourceNode) -> new RecoveryTarget(shard, sourceNode, new PeerRecoveryTargetService.RecoveryListener() {
+                    @Override
+                    public void onRecoveryDone(RecoveryState state) {
+                        throw new AssertionError("recovery must fail");
+                    }
+
+                    @Override
+                    public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, boolean sendShardFailure) {
+                        assertThat(ExceptionsHelper.unwrap(e, IOException.class).getMessage(), equalTo("simulated"));
+                    }
+                })));
+            expectThrows(AlreadyClosedException.class, () -> replica.refresh("test"));
+            group.removeReplica(replica);
+            replica.store().close();
+            closeShards(replica);
         }
     }
 }

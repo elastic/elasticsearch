@@ -91,7 +91,7 @@ public class ReindexTask extends AllocatedPersistentTask {
         @Override
         protected void nodeOperation(AllocatedPersistentTask task, ReindexJob reindexJob, PersistentTaskState state) {
             ReindexTask reindexTask = (ReindexTask) task;
-            reindexTask.startTaskAndNotify(reindexJob);
+            reindexTask.execute(reindexJob);
         }
 
         @Override
@@ -125,23 +125,24 @@ public class ReindexTask extends AllocatedPersistentTask {
         return childTask;
     }
 
-    private void startTaskAndNotify(ReindexJob reindexJob) {
-        updatePersistentTaskState(new ReindexJobState(taskId, null, null), new ActionListener<>() {
+    private void execute(ReindexJob reindexJob) {
+        ThreadContext threadContext = client.threadPool().getThreadContext();
+        Supplier<ThreadContext.StoredContext> context = threadContext.newRestorableContext(false);
+        getReindexRequest(new ActionListener<>() {
             @Override
-            public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
-                doReindex(reindexJob);
+            public void onResponse(ReindexRequest reindexRequest) {
+                Runnable performReindex = () -> performReindex(reindexJob, reindexRequest, context);
+                sendStartedNotification(performReindex);
             }
 
             @Override
             public void onFailure(Exception e) {
-                logger.info("Failed to update reindex persistent task with ephemeral id", e);
+                handleError(reindexJob.shouldStoreResult(), e);
             }
         });
     }
 
-    private void doReindex(ReindexJob reindexJob) {
-        ThreadContext threadContext = client.threadPool().getThreadContext();
-        Supplier<ThreadContext.StoredContext> context = threadContext.newRestorableContext(false);
+    private void getReindexRequest(ActionListener<ReindexRequest> listener) {
         GetRequest getRequest = new GetRequest(REINDEX_INDEX).id(getPersistentTaskId());
         taskClient.get(getRequest, new ActionListener<>() {
             @Override
@@ -152,20 +153,34 @@ public class ReindexTask extends AllocatedPersistentTask {
                     ReindexTaskIndexState taskState = ReindexTaskIndexState.fromXContent(parser);
                     ReindexRequest reindexRequest = taskState.getReindexRequest();
                     reindexRequest.setParentTask(taskId);
-                    submitChildTask(reindexJob, reindexRequest, context);
+                    listener.onResponse(reindexRequest);
                 } catch (IOException e) {
-                    handleError(reindexJob.shouldStoreResult(), e);
+                    listener.onFailure(e);
                 }
             }
 
             @Override
             public void onFailure(Exception e) {
-                handleError(reindexJob.shouldStoreResult(), e);
+                listener.onFailure(e);
             }
         });
     }
 
-    private void submitChildTask(ReindexJob reindexJob, ReindexRequest reindexRequest, Supplier<ThreadContext.StoredContext> context) {
+    private void sendStartedNotification(Runnable listener) {
+        updatePersistentTaskState(new ReindexJobState(taskId, null, null), new ActionListener<>() {
+            @Override
+            public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
+                listener.run();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.info("Failed to update reindex persistent task with ephemeral id", e);
+            }
+        });
+    }
+
+    private void performReindex(ReindexJob reindexJob, ReindexRequest reindexRequest, Supplier<ThreadContext.StoredContext> context) {
         TaskManager taskManager = getTaskManager();
         assert taskManager != null : "TaskManager should have been set before reindex started";
 

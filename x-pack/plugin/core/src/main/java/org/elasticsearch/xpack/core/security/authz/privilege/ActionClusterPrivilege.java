@@ -18,16 +18,31 @@ import java.util.Set;
 public class ActionClusterPrivilege implements NamedClusterPrivilege {
     private final String name;
     private final Set<String> allowedActionPatterns;
-    private final Set<String> excludeActionPatterns;
+    private final Set<String> excludedActionPatterns;
 
+    /**
+     * Constructor for {@link ActionClusterPrivilege} defining what cluster actions are accessible for the user with this privilege.
+     *
+     * @param name                  name for the cluster privilege
+     * @param allowedActionPatterns a set of cluster action patterns that are allowed for the user with this privilege.
+     */
     public ActionClusterPrivilege(final String name, final Set<String> allowedActionPatterns) {
         this(name, allowedActionPatterns, Set.of());
     }
 
-    public ActionClusterPrivilege(final String name, final Set<String> allowedActionPatterns, final Set<String> excludeActionPatterns) {
+    /**
+     * Constructor for {@link ActionClusterPrivilege} that defines what cluster actions are accessible for the
+     * user with this privilege after excluding the action patterns {@code excludedActionPatterns} from the allowed action patterns
+     * {@code allowedActionPatterns}
+     *
+     * @param name                   name for the cluster privilege
+     * @param allowedActionPatterns  a set of cluster action patterns
+     * @param excludedActionPatterns a set of cluster action patterns
+     */
+    public ActionClusterPrivilege(final String name, final Set<String> allowedActionPatterns, final Set<String> excludedActionPatterns) {
         this.name = name;
         this.allowedActionPatterns = allowedActionPatterns;
-        this.excludeActionPatterns = excludeActionPatterns;
+        this.excludedActionPatterns = excludedActionPatterns;
     }
 
     @Override
@@ -40,12 +55,11 @@ public class ActionClusterPrivilege implements NamedClusterPrivilege {
     }
 
     public Set<String> getExcludedActionPatterns() {
-        return excludeActionPatterns;
+        return excludedActionPatterns;
     }
 
     @Override
     public ClusterPermission.Builder buildPermission(final ClusterPermission.Builder builder) {
-        return builder.add(this, allowedActionPatterns, excludeActionPatterns);
+        return builder.add(this, allowedActionPatterns, excludedActionPatterns);
     }
-
 }

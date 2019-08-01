@@ -32,8 +32,8 @@ efficiently skip non-competitive hits.
 Filters documents based on a provided <<modules-scripting-using,script>>.
 
 <<query-dsl-script-score-query,`script_score` query>>::
-Uses a <<modules-scripting,script>> to modify the <<relevance-scores,relevance
-scores>> of another query.
+Uses a <<modules-scripting,script>> to provide a custom score for returned
+documents.
 
 <<query-dsl-wrapper-query,`wrapper` query>>::
 Accepts any other query as a base64-encoded, JSON-formatted, or YAML-formatted

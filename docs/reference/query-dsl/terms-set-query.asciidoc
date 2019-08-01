@@ -155,7 +155,7 @@ GET /job-candidates/_search
 ==== Top-level parameters for `terms_set`
 
 `<field>`::
-Field you wish to search.
+(Required, object) Field you wish to search.
 
 [[terms-set-field-params]]
 ==== Parameters for `<field>`
@@ -163,23 +163,23 @@ Field you wish to search.
 `terms`::
 +
 --
-Array of terms you wish to find in the provided `<field>`. To return a document,
-a required number of terms must exactly match the field values, including
-whitespace and capitalization.
+(Required, array of strings) Array of terms you wish to find in the provided
+`<field>`. To return a document, a required number of terms must exactly match
+the field values, including whitespace and capitalization.
 
 The required number of matching terms is defined in the
 `minimum_should_match_field` or `minimum_should_match_script` parameter.
 --
 
 `minimum_should_match_field`::
-<<number, Numeric>> field containing the number of matching terms
-required to return a document.
+(Optional, string) <<number, Numeric>> field containing the number of matching
+terms required to return a document.
 
 `minimum_should_match_script`::
 +
 --
-Custom script containing the number of matching terms required to return a
-document.
+(Optional, string) Custom script containing the number of matching terms
+required to return a document.
 
 For parameters and valid values, see <<modules-scripting, Scripting>>.
 

@@ -7,7 +7,7 @@ bare_version never includes -alpha or -beta
 :prev-major-version:    6.x
 :lucene_version:        8.1.0
 :lucene_version_path:   8_1_0
-:branch:                7.x
+:branch:                7.3
 :jdk:                   1.8.0_131
 :jdk_major:             8
 :build_flavor:          default
@@ -17,7 +17,7 @@ bare_version never includes -alpha or -beta
 release-state can be: released | prerelease | unreleased
 //////////
 
-:release-state:   unreleased
+:release-state:   released
 
 :issue:           https://github.com/elastic/elasticsearch/issues/
 :ml-issue:        https://github.com/elastic/ml-cpp/issues/

@@ -21,6 +21,7 @@ package org.elasticsearch.gradle.testclusters;
 import org.elasticsearch.gradle.ElasticsearchDistribution;
 import org.elasticsearch.gradle.FileSupplier;
 import org.elasticsearch.gradle.PropertyNormalization;
+import org.elasticsearch.gradle.ReaperService;
 import org.elasticsearch.gradle.http.WaitForHttpResource;
 import org.gradle.api.Named;
 import org.gradle.api.NamedDomainObjectContainer;
@@ -61,19 +62,21 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     private final Function<Integer, ElasticsearchDistribution> distributionFactory;
     private final LinkedHashMap<String, Predicate<TestClusterConfiguration>> waitConditions = new LinkedHashMap<>();
     private final Project project;
+    private final ReaperService reaper;
 
-    public ElasticsearchCluster(String path, String clusterName, Project project,
+    public ElasticsearchCluster(String path, String clusterName, Project project, ReaperService reaper,
                                 Function<Integer, ElasticsearchDistribution> distributionFactory, File workingDirBase) {
         this.path = path;
         this.clusterName = clusterName;
         this.project = project;
+        this.reaper = reaper;
         this.distributionFactory = distributionFactory;
         this.workingDirBase = workingDirBase;
         this.nodes = project.container(ElasticsearchNode.class);
         this.nodes.add(
             new ElasticsearchNode(
                 path, clusterName + "-0",
-                project, workingDirBase, distributionFactory.apply(0)
+                project, reaper, workingDirBase, distributionFactory.apply(0)
                 )
         );
         // configure the cluster name eagerly so nodes know about it
@@ -97,7 +100,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
 
         for (int i = nodes.size() ; i < numberOfNodes; i++) {
             this.nodes.add(new ElasticsearchNode(
-                path, clusterName + "-" + i, project, workingDirBase, distributionFactory.apply(i)
+                path, clusterName + "-" + i, project, reaper, workingDirBase, distributionFactory.apply(i)
                 ));
         }
     }

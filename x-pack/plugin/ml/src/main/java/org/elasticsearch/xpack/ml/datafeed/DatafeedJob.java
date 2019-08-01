@@ -107,6 +107,10 @@ class DatafeedJob {
         return jobId;
     }
 
+    public void finishReportingTimingStats() {
+        timingStatsReporter.finishReporting();
+    }
+
     Long runLookBack(long startTime, Long endTime) throws Exception {
         lookbackStartTimeMs = skipToStartTime(startTime);
         Optional<Long> endMs = Optional.ofNullable(endTime);

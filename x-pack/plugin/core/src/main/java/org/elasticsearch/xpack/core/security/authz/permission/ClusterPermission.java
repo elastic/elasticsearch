@@ -55,13 +55,7 @@ public class ClusterPermission {
             return true;
         } else {
             for (PermissionCheck otherPermissionCheck : otherClusterPermission.checks) {
-                boolean isImplied = false;
-                for (PermissionCheck thisPermissionCheck : this.checks) {
-                    isImplied = thisPermissionCheck.implies(otherPermissionCheck);
-                    if (isImplied) {
-                        break;
-                    }
-                }
+                boolean isImplied = this.checks.stream().anyMatch(thisPermissionCheck -> thisPermissionCheck.implies(otherPermissionCheck));
                 if (isImplied == false) {
                     return false;
                 }

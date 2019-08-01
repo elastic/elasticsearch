@@ -89,4 +89,11 @@ public class GqlElasticsearchApi implements GqlApi {
         return ResolverGetNode2.exec(client, nodeIdOrName)
             .thenApply(logResult(logger, "getNode"));
     }
+
+    @Override
+    public CompletableFuture<Map<String, Object>> search(String indexName, String q) throws Exception {
+        logger.info("search [indexName = {}, q = {}]", indexName, q);
+        return ResolverSearch.exec(client, indexName, q)
+            .thenApply(logResult(logger, "search"));
+    }
 }

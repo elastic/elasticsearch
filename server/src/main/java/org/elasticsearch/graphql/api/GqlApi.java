@@ -35,4 +35,5 @@ public interface GqlApi {
     CompletableFuture<Map<String, Object>> getDocument(String indexName, String documentId) throws Exception;
     CompletableFuture<Map<String, Object>> getNode(String nodeIdOrName) throws Exception;
     CompletableFuture<NodeInfo> getNode2(String nodeIdOrName) throws Exception;
+    CompletableFuture<Map<String, Object>> search(String indexName, String q) throws Exception;
 }

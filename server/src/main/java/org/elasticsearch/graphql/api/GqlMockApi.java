@@ -140,4 +140,9 @@ public class GqlMockApi implements GqlApi {
     public CompletableFuture<NodeInfo> getNode2(String nodeIdOrName) throws Exception {
         return null;
     }
+
+    @Override
+    public CompletableFuture<Map<String, Object>> search(String indexName, String q) throws Exception {
+        return null;
+    }
 }

@@ -52,6 +52,7 @@ public class GqlServer {
             .map(new GqlPingSchema().use)
             .map(new GqlInfoSchema(api).use)
             .map(new GqlDocumentSchema(api).use)
+            .map(new GqlSearchSchema(api).use)
             .map(new GqlIndexSchema(api).use)
             .map(new GqlIndexInfoSchema(api).use)
             .map(new GqlNodeSchema(api).use)

@@ -44,6 +44,7 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -88,10 +89,6 @@ public class PkiRealm extends Realm implements CachingRealm {
     PkiRealm(RealmConfig config, UserRoleMapper roleMapper) {
         super(config);
         this.delegationEnabled = config.getSetting(PkiRealmSettings.DELEGATION_ENABLED_SETTING);
-        if (delegationEnabled && (false == TokenService.isTokenServiceEnabled(config.settings()))) {
-            throw new IllegalStateException("PKI realms with delegation enabled require that the token service be enabled as well ("
-                    + XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey() + ")");
-        }
         this.trustManager = trustManagers(config);
         this.principalPattern = config.getSetting(PkiRealmSettings.USERNAME_PATTERN_SETTING);
         this.roleMapper = roleMapper;
@@ -101,6 +98,7 @@ public class PkiRealm extends Realm implements CachingRealm {
                 .setMaximumWeight(config.getSetting(PkiRealmSettings.CACHE_MAX_USERS_SETTING))
                 .build();
         this.delegatedRealms = null;
+        validateAuthenticationDelegationConfiguration(config);
     }
 
     @Override
@@ -157,10 +155,10 @@ public class PkiRealm extends Realm implements CachingRealm {
                 } else {
                     listener.onResponse(AuthenticationResult.success(user));
                 }
-            } else if (isCertificateChainTrusted(trustManager, token, logger) == false) {
-                listener.onResponse(AuthenticationResult.unsuccessful("Certificate for " + token.dn() + " is not trusted", null));
             } else if (false == delegationEnabled && token.isDelegated()) {
                 listener.onResponse(AuthenticationResult.unsuccessful("Realm does not permit delegation for " + token.dn(), null));
+            } else if (false == isCertificateChainTrusted(token)) {
+                listener.onResponse(AuthenticationResult.unsuccessful("Certificate for " + token.dn() + " is not trusted", null));
             } else {
                 // parse the principal again after validating the cert chain, and do not rely on the token.principal one, because that could
                 // be set by a different realm that failed trusted chain validation. We SHOULD NOT parse the principal BEFORE this step, but
@@ -228,8 +226,13 @@ public class PkiRealm extends Realm implements CachingRealm {
         return principal;
     }
 
-    private static boolean isCertificateChainTrusted(X509TrustManager trustManager, X509AuthenticationToken token, Logger logger) {
-        if (trustManager != null) {
+    private boolean isCertificateChainTrusted(X509AuthenticationToken token) {
+        if (trustManager == null) {
+            // No extra trust managers specified
+            // If the token is NOT delegated then it is authenticated, because the certificate chain has been validated by the TLS channel.
+            // Otherwise, if the token is delegated, then it cannot be authenticated without a trustManager
+            return token.isDelegated() == false;
+        } else {
             try {
                 trustManager.checkClientTrusted(token.credentials(), AUTH_TYPE);
                 return true;
@@ -242,9 +245,6 @@ public class PkiRealm extends Realm implements CachingRealm {
             }
             return false;
         }
-
-        // No extra trust managers specified, so at this point we can be considered authenticated.
-        return true;
     }
 
     private X509TrustManager trustManagers(RealmConfig realmConfig) {
@@ -320,6 +320,28 @@ public class PkiRealm extends Realm implements CachingRealm {
     public void expireAll() {
         try (ReleasableLock ignored = readLock.acquire()) {
             cache.invalidateAll();
+        }
+    }
+
+    private void validateAuthenticationDelegationConfiguration(RealmConfig config) {
+        if (delegationEnabled) {
+            List<String> exceptionMessages = new ArrayList<>(2);
+            if (this.trustManager == null) {
+                exceptionMessages.add("a trust configuration ("
+                        + config.getConcreteSetting(PkiRealmSettings.CAPATH_SETTING).getKey() + " or "
+                        + config.getConcreteSetting(PkiRealmSettings.TRUST_STORE_PATH).getKey() + ")");
+            }
+            if (false == TokenService.isTokenServiceEnabled(config.settings())) {
+                exceptionMessages.add("that the token service be also enabled ("
+                        + XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey() + ")");
+            }
+            if (false == exceptionMessages.isEmpty()) {
+                String message = "PKI realms with delegation enabled require " + exceptionMessages.get(0);
+                if (exceptionMessages.size() == 2) {
+                    message = message + " and " + exceptionMessages.get(1);
+                }
+                throw new IllegalStateException(message);
+            }
         }
     }
 

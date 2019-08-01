@@ -250,7 +250,7 @@ public class PkiRealmTests extends ESTestCase {
         assertThat(user.roles().length, is(0));
     }
 
-    public void testAuthenticationDelegationFailsWithoutTokenService() throws Exception {
+    public void testAuthenticationDelegationFailsWithoutTokenServiceAndTruststore() throws Exception {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         Settings settings = Settings.builder()
                 .put(globalSettings)
@@ -259,8 +259,27 @@ public class PkiRealmTests extends ESTestCase {
         IllegalStateException e = expectThrows(IllegalStateException.class,
                 () -> new PkiRealm(new RealmConfig(new RealmConfig.RealmIdentifier("pki", "my_pki"), settings,
                         TestEnvironment.newEnvironment(globalSettings), threadContext), mock(UserRoleMapper.class)));
-        assertThat(e.getMessage(), is("PKI realms with delegation enabled require that"
-                + " the token service be enabled as well (xpack.security.authc.token.enabled)"));
+        assertThat(e.getMessage(),
+                is("PKI realms with delegation enabled require a trust configuration "
+                        + "(xpack.security.authc.realms.pki.my_pki.certificate_authorities or "
+                        + "xpack.security.authc.realms.pki.my_pki.truststore.path)"
+                        + " and that the token service be also enabled (xpack.security.authc.token.enabled)"));
+    }
+
+    public void testAuthenticationDelegationFailsWithoutTruststore() throws Exception {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        Settings settings = Settings.builder()
+                .put(globalSettings)
+                .put("xpack.security.authc.realms.pki.my_pki.delegation.enabled", true)
+                .put("xpack.security.authc.token.enabled", true)
+                .build();
+        IllegalStateException e = expectThrows(IllegalStateException.class,
+                () -> new PkiRealm(new RealmConfig(new RealmConfig.RealmIdentifier("pki", "my_pki"), settings,
+                        TestEnvironment.newEnvironment(globalSettings), threadContext), mock(UserRoleMapper.class)));
+        assertThat(e.getMessage(),
+                is("PKI realms with delegation enabled require a trust configuration "
+                        + "(xpack.security.authc.realms.pki.my_pki.certificate_authorities "
+                        + "or xpack.security.authc.realms.pki.my_pki.truststore.path)"));
     }
 
     public void testAuthenticationDelegationSuccess() throws Exception {

@@ -27,7 +27,6 @@ import org.elasticsearch.action.resync.TransportResyncReplicationAction;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
@@ -63,7 +62,6 @@ import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.plugins.MapperPlugin;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -79,26 +77,21 @@ import java.util.function.Predicate;
  * Configures classes and services that are shared by indices on each node.
  */
 public class IndicesModule extends AbstractModule {
-    private final List<Entry> namedWritables = new ArrayList<>();
     private final MapperRegistry mapperRegistry;
 
     public IndicesModule(List<MapperPlugin> mapperPlugins) {
         this.mapperRegistry = new MapperRegistry(getMappers(mapperPlugins), getMetadataMappers(mapperPlugins),
                 getFieldFilter(mapperPlugins));
-        registerBuiltinWritables();
     }
 
-    private void registerBuiltinWritables() {
-        namedWritables.add(new NamedWriteableRegistry.Entry(Condition.class, MaxAgeCondition.NAME, MaxAgeCondition::new));
-        namedWritables.add(new NamedWriteableRegistry.Entry(Condition.class, MaxDocsCondition.NAME, MaxDocsCondition::new));
-        namedWritables.add(new NamedWriteableRegistry.Entry(Condition.class, MaxSizeCondition.NAME, MaxSizeCondition::new));
+    public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return Arrays.asList(
+                new NamedWriteableRegistry.Entry(Condition.class, MaxAgeCondition.NAME, MaxAgeCondition::new),
+                new NamedWriteableRegistry.Entry(Condition.class, MaxDocsCondition.NAME, MaxDocsCondition::new),
+                new NamedWriteableRegistry.Entry(Condition.class, MaxSizeCondition.NAME, MaxSizeCondition::new));
     }
 
-    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return namedWritables;
-    }
-
-    public List<NamedXContentRegistry.Entry> getNamedXContents() {
+    public static List<NamedXContentRegistry.Entry> getNamedXContents() {
         return Arrays.asList(
             new NamedXContentRegistry.Entry(Condition.class, new ParseField(MaxAgeCondition.NAME), (p, c) ->
                 MaxAgeCondition.fromXContent(p)),

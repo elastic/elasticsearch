@@ -20,6 +20,7 @@
 package org.elasticsearch.graphql.api;
 
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.graphql.pubsub.PubSub;
 import org.reactivestreams.Subscriber;
 
@@ -35,5 +36,5 @@ public interface GqlApi {
     CompletableFuture<Map<String, Object>> getDocument(String indexName, String documentId) throws Exception;
     CompletableFuture<Map<String, Object>> getNode(String nodeIdOrName) throws Exception;
     CompletableFuture<NodeInfo> getNode2(String nodeIdOrName) throws Exception;
-    CompletableFuture<Map<String, Object>> search(String indexName, String q) throws Exception;
+    CompletableFuture<SearchResponse> search(String indexName, String q) throws Exception;
 }

@@ -24,6 +24,7 @@ import static org.elasticsearch.graphql.api.GqlApiUtils.logResult;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.node.NodeClient;
 
 import org.elasticsearch.graphql.api.resolver.*;
@@ -91,7 +92,7 @@ public class GqlElasticsearchApi implements GqlApi {
     }
 
     @Override
-    public CompletableFuture<Map<String, Object>> search(String indexName, String q) throws Exception {
+    public CompletableFuture<SearchResponse> search(String indexName, String q) throws Exception {
         logger.info("search [indexName = {}, q = {}]", indexName, q);
         return ResolverSearch.exec(client, indexName, q)
             .thenApply(logResult(logger, "search"));

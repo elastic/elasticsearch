@@ -127,6 +127,10 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
         return totalHits;
     }
 
+    public int getTotal() {
+        return (int) totalHits.value;
+    }
+
     /**
      * The maximum score of this query.
      */

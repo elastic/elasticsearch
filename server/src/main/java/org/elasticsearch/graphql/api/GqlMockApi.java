@@ -22,6 +22,7 @@ package org.elasticsearch.graphql.api;
 import static org.elasticsearch.graphql.api.GqlApiUtils.getJavaUtilBuilderResult;
 
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.javautil.JavaUtilXContentGenerator;
 import org.elasticsearch.graphql.pubsub.PubSub;
@@ -142,7 +143,7 @@ public class GqlMockApi implements GqlApi {
     }
 
     @Override
-    public CompletableFuture<Map<String, Object>> search(String indexName, String q) throws Exception {
+    public CompletableFuture<SearchResponse> search(String indexName, String q) throws Exception {
         return null;
     }
 }

@@ -50,11 +50,10 @@ public class Version implements Comparable<Version>, ToXContentFragment {
      * All listed versions MUST be released versions, except the last major, the last minor and the last revison. ONLY those are required
      * as unreleased versions.
      *
-     * Current list of unreleased versions:
-     *
-     * major: 8.0.0
-     * minor: 7.4.0
-     * revision: 7.3.1
+     * Example: assume the last release is 7.3.0
+     * The unreleased last major is the next major release, e.g. _8_.0.0
+     * The unreleased last minor is the current major with a upped minor: 7._4_.0
+     * The unreleased revision is the very release with a upped revision 7.3._1_
      */
     public static final int V_EMPTY_ID = 0;
     public static final Version V_EMPTY = new Version(V_EMPTY_ID, org.apache.lucene.util.Version.LATEST);

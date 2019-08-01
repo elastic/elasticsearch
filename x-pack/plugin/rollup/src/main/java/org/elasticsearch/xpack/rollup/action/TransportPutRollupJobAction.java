@@ -10,6 +10,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
@@ -38,7 +39,9 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -112,7 +115,7 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
             .fields(request.getConfig().getAllFields().toArray(new String[0]));
         fieldCapsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
 
-        client.fieldCaps(fieldCapsRequest, new ActionListener<FieldCapabilitiesResponse>() {
+        client.fieldCaps(fieldCapsRequest, new ActionListener<>() {
             @Override
             public void onResponse(FieldCapabilitiesResponse fieldCapabilitiesResponse) {
                 ActionRequestValidationException validationException = request.validateMappings(fieldCapabilitiesResponse.get());
@@ -149,18 +152,17 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
         return new RollupJob(config, filteredHeaders);
     }
 
-    @SuppressWarnings("unchecked")
     static void createIndex(RollupJob job, ActionListener<AcknowledgedResponse> listener,
                             PersistentTasksService persistentTasksService, Client client, Logger logger) {
 
-        Map<String, Object> jobMetaData = toMap(job.getConfig().toJSONString());
-        Map<String, Object> mapping = toMap(Rollup.DYNAMIC_MAPPING_TEMPLATE);
-
-        ((Map<String, Object>)((Map<String, Object>) ((Map<String, Object>) ((Map<String, Object>) mapping.get("mappings"))
-            .get("_doc")).get("_meta")).get("_rollup")).put(job.getConfig().getId(), jobMetaData);
-
         CreateIndexRequest request = new CreateIndexRequest(job.getConfig().getRollupIndex());
-        request.source(mapping, LoggingDeprecationHandler.INSTANCE);
+        try {
+            XContentBuilder mapping = createMappings(job.getConfig());
+            request.source(mapping);
+        } catch (IOException e) {
+            listener.onFailure(e);
+            return;
+        }
 
         client.execute(CreateIndexAction.INSTANCE, request,
                 ActionListener.wrap(createIndexResponse -> startPersistentTask(job, listener, persistentTasksService), e -> {
@@ -175,8 +177,38 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
                 }));
     }
 
-    private static Map<String, Object> toMap(String s) {
-        return XContentHelper.convertToMap(JsonXContent.jsonXContent, s, false);
+    private static XContentBuilder createMappings(RollupJobConfig config) throws IOException {
+        return XContentBuilder.builder(XContentType.JSON.xContent())
+            .startObject()
+                .startObject("mappings")
+                    .startObject("_doc")
+                        .startObject("_meta")
+                            .field(Rollup.ROLLUP_TEMPLATE_VERSION_FIELD, Version.CURRENT.toString())
+                            .startObject("_rollup")
+                                .field(config.getId(), config)
+                            .endObject()
+                        .endObject()
+                        .startArray("dynamic_templates")
+                            .startObject()
+                                .startObject("strings")
+                                    .field("match_mapping_type", "string")
+                                    .startObject("mapping")
+                                        .field("type", "keyword")
+                                    .endObject()
+                                .endObject()
+                            .endObject()
+                            .startObject()
+                                .startObject("date_histograms")
+                                    .field("path_match", "*.date_histogram.timestamp")
+                                    .startObject("mapping")
+                                        .field("type", "date")
+                                    .endObject()
+                                .endObject()
+                            .endObject()
+                        .endArray()
+                    .endObject()
+                .endObject()
+            .endObject();
     }
 
     @SuppressWarnings("unchecked")

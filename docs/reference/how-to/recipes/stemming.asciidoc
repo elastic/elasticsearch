@@ -228,3 +228,6 @@ In the above case, since `ski` was in-between quotes, it was searched on the
 `body.exact` field due to the `quote_field_suffix` parameter, so only document
 `1` matched. This allows users to mix exact search with stemmed search as they
 like.
+
+NOTE: If the choice of field passed in `quote_field_suffix` does not exist 
+the search will fall back to using the default field for the query string.

@@ -101,7 +101,7 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
         shard.updateShardState(shard.routingEntry(), shard.getPendingPrimaryTerm(), null, 1000L, Collections.singleton(allocationId),
             new IndexShardRoutingTable.Builder(shard.shardId()).addShard(shard.routingEntry()).build());
         shard.updateLocalCheckpointForShard(allocationId, globalCheckPoint);
-        assertEquals(globalCheckPoint, shard.getGlobalCheckpoint());
+        assertEquals(globalCheckPoint, shard.getLastKnownGlobalCheckpoint());
 
         logger.info("Total ops: {}, global checkpoint: {}", numDocs, globalCheckPoint);
 
@@ -197,7 +197,7 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
 
     public void testDoNotSendOperationsWithoutSequenceNumber() throws Exception {
         IndexShard shard = spy(newStartedShard(true));
-        when(shard.getGlobalCheckpoint()).thenReturn(SequenceNumbers.UNASSIGNED_SEQ_NO);
+        when(shard.getLastKnownGlobalCheckpoint()).thenReturn(SequenceNumbers.UNASSIGNED_SEQ_NO);
         int numOps = between(0, 20);
         List<Translog.Operation> operations = new ArrayList<>();
         for (int i = 0; i < numOps; i++) {

@@ -8,14 +8,15 @@ package org.elasticsearch.xpack.dataframe.persistence;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpoint;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointTests;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfigTests;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStats;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStatsTests;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStoredDoc;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStoredDocTests;
 import org.elasticsearch.xpack.dataframe.DataFrameSingleNodeTestCase;
 import org.junit.Before;
 
@@ -158,8 +159,9 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
         assertAsync(listener ->
                 transformsConfigManager.expandTransformIds(transformConfig1.getId(),
                     PageParams.defaultParams(),
+                    true,
                     listener),
-            Collections.singletonList("transform1_expand"),
+            new Tuple<>(1L, Collections.singletonList("transform1_expand")),
             null,
             null);
 
@@ -167,8 +169,9 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
         assertAsync(listener ->
                 transformsConfigManager.expandTransformIds("transform1_expand,transform2_expand",
                     PageParams.defaultParams(),
+                    true,
                     listener),
-            Arrays.asList("transform1_expand", "transform2_expand"),
+            new Tuple<>(2L, Arrays.asList("transform1_expand", "transform2_expand")),
             null,
             null);
 
@@ -176,8 +179,9 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
         assertAsync(listener ->
                 transformsConfigManager.expandTransformIds("transform1*,transform2_expand,transform3_expand",
                     PageParams.defaultParams(),
+                    true,
                     listener),
-            Arrays.asList("transform1_expand", "transform2_expand", "transform3_expand"),
+            new Tuple<>(3L, Arrays.asList("transform1_expand", "transform2_expand", "transform3_expand")),
             null,
             null);
 
@@ -185,8 +189,9 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
         assertAsync(listener ->
                 transformsConfigManager.expandTransformIds("_all",
                     PageParams.defaultParams(),
+                    true,
                     listener),
-            Arrays.asList("transform1_expand", "transform2_expand", "transform3_expand"),
+            new Tuple<>(3L, Arrays.asList("transform1_expand", "transform2_expand", "transform3_expand")),
             null,
             null);
 
@@ -194,8 +199,9 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
         assertAsync(listener ->
                 transformsConfigManager.expandTransformIds("_all",
                     new PageParams(0, 1),
+                    true,
                     listener),
-            Collections.singletonList("transform1_expand"),
+            new Tuple<>(3L, Collections.singletonList("transform1_expand")),
             null,
             null);
 
@@ -203,8 +209,9 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
         assertAsync(listener ->
                 transformsConfigManager.expandTransformIds("_all",
                     new PageParams(1, 2),
+                    true,
                     listener),
-            Arrays.asList("transform2_expand", "transform3_expand"),
+            new Tuple<>(3L, Arrays.asList("transform2_expand", "transform3_expand")),
             null,
             null);
 
@@ -212,8 +219,9 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
         assertAsync(listener ->
                 transformsConfigManager.expandTransformIds("unknown,unknown2",
                     new PageParams(1, 2),
+                    true,
                     listener),
-            (List<String>)null,
+            (Tuple<Long, List<String>>)null,
             null,
             e -> {
                 assertThat(e, instanceOf(ResourceNotFoundException.class));
@@ -221,41 +229,53 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
                     equalTo(DataFrameMessages.getMessage(DataFrameMessages.REST_DATA_FRAME_UNKNOWN_TRANSFORM, "unknown,unknown2")));
             });
 
+        // expand 1 id implicitly that does not exist
+        assertAsync(listener ->
+                transformsConfigManager.expandTransformIds("unknown*",
+                    new PageParams(1, 2),
+                    false,
+                    listener),
+            (Tuple<Long, List<String>>)null,
+            null,
+            e -> {
+                assertThat(e, instanceOf(ResourceNotFoundException.class));
+                assertThat(e.getMessage(),
+                    equalTo(DataFrameMessages.getMessage(DataFrameMessages.REST_DATA_FRAME_UNKNOWN_TRANSFORM, "unknown*")));
+            });
+
     }
 
-    public void testStateAndStats() throws InterruptedException {
-        String transformId = "transform_test_stats_create_read_update";
+    public void testStoredDoc() throws InterruptedException {
+        String transformId = "transform_test_stored_doc_create_read_update";
 
-        DataFrameTransformStateAndStats stateAndStats =
-                DataFrameTransformStateAndStatsTests.randomDataFrameTransformStateAndStats(transformId);
+        DataFrameTransformStoredDoc storedDocs = DataFrameTransformStoredDocTests.randomDataFrameTransformStoredDoc(transformId);
 
-        assertAsync(listener -> transformsConfigManager.putOrUpdateTransformStats(stateAndStats, listener), Boolean.TRUE, null, null);
-        assertAsync(listener -> transformsConfigManager.getTransformStats(transformId, listener), stateAndStats, null, null);
+        assertAsync(listener -> transformsConfigManager.putOrUpdateTransformStoredDoc(storedDocs, listener), Boolean.TRUE, null, null);
+        assertAsync(listener -> transformsConfigManager.getTransformStoredDoc(transformId, listener), storedDocs, null, null);
 
-        DataFrameTransformStateAndStats updated =
-                DataFrameTransformStateAndStatsTests.randomDataFrameTransformStateAndStats(transformId);
-        assertAsync(listener -> transformsConfigManager.putOrUpdateTransformStats(updated, listener), Boolean.TRUE, null, null);
-        assertAsync(listener -> transformsConfigManager.getTransformStats(transformId, listener), updated, null, null);
+        DataFrameTransformStoredDoc updated = DataFrameTransformStoredDocTests.randomDataFrameTransformStoredDoc(transformId);
+        assertAsync(listener -> transformsConfigManager.putOrUpdateTransformStoredDoc(updated, listener), Boolean.TRUE, null, null);
+        assertAsync(listener -> transformsConfigManager.getTransformStoredDoc(transformId, listener), updated, null, null);
     }
 
-    public void testGetStateAndStatsMultiple() throws InterruptedException {
-        int numStats = randomInt(5);
-        List<DataFrameTransformStateAndStats> expectedStats = new ArrayList<>();
+    public void testGetStoredDocMultiple() throws InterruptedException {
+        int numStats = randomIntBetween(10, 15);
+        List<DataFrameTransformStoredDoc> expectedDocs = new ArrayList<>();
         for (int i=0; i<numStats; i++) {
-            DataFrameTransformStateAndStats stat =
-                    DataFrameTransformStateAndStatsTests.randomDataFrameTransformStateAndStats(randomAlphaOfLength(6));
-            expectedStats.add(stat);
-            assertAsync(listener -> transformsConfigManager.putOrUpdateTransformStats(stat, listener), Boolean.TRUE, null, null);
+            DataFrameTransformStoredDoc stat =
+                    DataFrameTransformStoredDocTests.randomDataFrameTransformStoredDoc(randomAlphaOfLength(6));
+            expectedDocs.add(stat);
+            assertAsync(listener -> transformsConfigManager.putOrUpdateTransformStoredDoc(stat, listener), Boolean.TRUE, null, null);
         }
 
-        // remove one of the put stats so we don't retrieve all
-        if (expectedStats.size() > 1) {
-            expectedStats.remove(expectedStats.size() -1);
+        // remove one of the put docs so we don't retrieve all
+        if (expectedDocs.size() > 1) {
+            expectedDocs.remove(expectedDocs.size() - 1);
         }
-        List<String> ids = expectedStats.stream().map(DataFrameTransformStateAndStats::getId).collect(Collectors.toList());
+        List<String> ids = expectedDocs.stream().map(DataFrameTransformStoredDoc::getId).collect(Collectors.toList());
 
-        // get stats will be ordered by id
-        expectedStats.sort(Comparator.comparing(DataFrameTransformStateAndStats::getId));
-        assertAsync(listener -> transformsConfigManager.getTransformStats(ids, listener), expectedStats, null, null);
+        // returned docs will be ordered by id
+        expectedDocs.sort(Comparator.comparing(DataFrameTransformStoredDoc::getId));
+        assertAsync(listener -> transformsConfigManager.getTransformStoredDoc(ids, listener), expectedDocs, null, null);
     }
 }

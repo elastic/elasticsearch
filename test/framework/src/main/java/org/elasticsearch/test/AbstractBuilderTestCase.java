@@ -68,6 +68,9 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.script.MockScriptEngine;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
@@ -95,6 +98,7 @@ import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
 
 public abstract class AbstractBuilderTestCase extends ESTestCase {
@@ -425,7 +429,12 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
 
         ScriptModule createScriptModule(List<ScriptPlugin> scriptPlugins) {
             if (scriptPlugins == null || scriptPlugins.isEmpty()) {
-                return newTestScriptModule();
+                return new ScriptModule(Settings.EMPTY, singletonList(new ScriptPlugin() {
+                    @Override
+                    public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
+                        return new MockScriptEngine(MockScriptEngine.NAME, Collections.singletonMap("1", script -> "1"), emptyMap());
+                    }
+                }));
             }
             return new ScriptModule(Settings.EMPTY, scriptPlugins);
         }

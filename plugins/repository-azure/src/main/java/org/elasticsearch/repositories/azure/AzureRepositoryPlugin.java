@@ -65,6 +65,7 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
         return Arrays.asList(
             AzureStorageSettings.ACCOUNT_SETTING,
             AzureStorageSettings.KEY_SETTING,
+            AzureStorageSettings.SAS_TOKEN_SETTING,
             AzureStorageSettings.ENDPOINT_SUFFIX_SETTING,
             AzureStorageSettings.TIMEOUT_SETTING,
             AzureStorageSettings.MAX_RETRIES_SETTING,

@@ -157,5 +157,13 @@ public class ReindexBasicTests extends ReindexTestCase {
         assertHitCount(client().prepareSearch("dest").setSize(0).get(), allDocs.size());
     }
 
+    public void testMissingSources() {
+        BulkByScrollResponse response = updateByQuery()
+            .source("missing-index-*")
+            .refresh(true)
+            .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES)
+            .get();
+        assertThat(response, matcher().created(0).slices(hasSize(0)));
+    }
 
 }

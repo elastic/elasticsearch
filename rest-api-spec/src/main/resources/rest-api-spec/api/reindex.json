@@ -1,9 +1,9 @@
 {
   "reindex": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-reindex.html",
+    "stability": "stable",
     "methods": ["POST"],
     "url": {
-      "path": "/_reindex",
       "paths": ["/_reindex"],
       "parts": {},
       "params": {

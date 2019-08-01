@@ -1,9 +1,9 @@
 {
   "ml.close_job": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-close-job.html",
+    "stability": "stable",
     "methods": [ "POST" ],
     "url": {
-      "path": "/_ml/anomaly_detectors/{job_id}/_close",
       "paths": [ "/_ml/anomaly_detectors/{job_id}/_close" ],
       "parts": {
         "job_id": {

@@ -42,8 +42,6 @@ public class Point implements Geometry {
     }
 
     public Point(double lat, double lon, double alt) {
-        GeometryUtils.checkLatitude(lat);
-        GeometryUtils.checkLongitude(lon);
         this.lat = lat;
         this.lon = lon;
         this.alt = alt;

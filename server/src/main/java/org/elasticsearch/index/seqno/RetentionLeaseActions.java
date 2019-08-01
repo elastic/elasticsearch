@@ -19,10 +19,10 @@
 
 package org.elasticsearch.index.seqno;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
@@ -44,7 +44,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.function.Supplier;
 
 /**
  * This class holds all actions related to retention leases. Note carefully that these actions are executed under a primary permit. Care is
@@ -70,7 +69,7 @@ public class RetentionLeaseActions {
                 final ActionFilters actionFilters,
                 final IndexNameExpressionResolver indexNameExpressionResolver,
                 final IndicesService indicesService,
-                final Supplier<T> requestSupplier) {
+                final Writeable.Reader<T> requestSupplier) {
             super(
                     name,
                     threadPool,
@@ -124,13 +123,13 @@ public class RetentionLeaseActions {
 
     }
 
-    public static class Add extends Action<Response> {
+    public static class Add extends ActionType<Response> {
 
         public static final Add INSTANCE = new Add();
         public static final String ACTION_NAME = "indices:admin/seq_no/add_retention_lease";
 
         private Add() {
-            super(ACTION_NAME);
+            super(ACTION_NAME, Response::new);
         }
 
         public static class TransportAction extends TransportRetentionLeaseAction<AddRequest> {
@@ -169,21 +168,15 @@ public class RetentionLeaseActions {
             }
 
         }
-
-        @Override
-        public Response newResponse() {
-            return new Response();
-        }
-
     }
 
-    public static class Renew extends Action<Response> {
+    public static class Renew extends ActionType<Response> {
 
         public static final Renew INSTANCE = new Renew();
         public static final String ACTION_NAME = "indices:admin/seq_no/renew_retention_lease";
 
         private Renew() {
-            super(ACTION_NAME);
+            super(ACTION_NAME, Response::new);
         }
 
         public static class TransportAction extends TransportRetentionLeaseAction<RenewRequest> {
@@ -215,21 +208,15 @@ public class RetentionLeaseActions {
             }
 
         }
-
-        @Override
-        public Response newResponse() {
-            return new Response();
-        }
-
     }
 
-    public static class Remove extends Action<Response> {
+    public static class Remove extends ActionType<Response> {
 
         public static final Remove INSTANCE = new Remove();
         public static final String ACTION_NAME = "indices:admin/seq_no/remove_retention_lease";
 
         private Remove() {
-            super(ACTION_NAME);
+            super(ACTION_NAME, Response::new);
         }
 
         public static class TransportAction extends TransportRetentionLeaseAction<RemoveRequest> {
@@ -262,29 +249,26 @@ public class RetentionLeaseActions {
             }
 
         }
-
-        @Override
-        public Response newResponse() {
-            return new Response();
-        }
-
     }
 
     private abstract static class Request<T extends SingleShardRequest<T>> extends SingleShardRequest<T> {
 
-        private ShardId shardId;
+        private final ShardId shardId;
 
         public ShardId getShardId() {
             return shardId;
         }
 
-        private String id;
+        private final String id;
 
         public String getId() {
             return id;
         }
 
-        Request() {
+        Request(StreamInput in) throws IOException {
+            super(in);
+            shardId = new ShardId(in);
+            id = in.readString();
         }
 
         Request(final ShardId shardId, final String id) {
@@ -299,13 +283,6 @@ public class RetentionLeaseActions {
         }
 
         @Override
-        public void readFrom(final StreamInput in) throws IOException {
-            super.readFrom(in);
-            shardId = new ShardId(in);
-            id = in.readString();
-        }
-
-        @Override
         public void writeTo(final StreamOutput out) throws IOException {
             super.writeTo(out);
             shardId.writeTo(out);
@@ -316,19 +293,22 @@ public class RetentionLeaseActions {
 
     private abstract static class AddOrRenewRequest<T extends SingleShardRequest<T>> extends Request<T> {
 
-        private long retainingSequenceNumber;
+        private final long retainingSequenceNumber;
 
         public long getRetainingSequenceNumber() {
             return retainingSequenceNumber;
         }
 
-        private String source;
+        private final String source;
 
         public String getSource() {
             return source;
         }
 
-        AddOrRenewRequest() {
+        AddOrRenewRequest(StreamInput in) throws IOException {
+            super(in);
+            retainingSequenceNumber = in.readZLong();
+            source = in.readString();
         }
 
         AddOrRenewRequest(final ShardId shardId, final String id, final long retainingSequenceNumber, final String source) {
@@ -338,13 +318,6 @@ public class RetentionLeaseActions {
             }
             this.retainingSequenceNumber = retainingSequenceNumber;
             this.source = Objects.requireNonNull(source);
-        }
-
-        @Override
-        public void readFrom(final StreamInput in) throws IOException {
-            super.readFrom(in);
-            retainingSequenceNumber = in.readZLong();
-            source = in.readString();
         }
 
         @Override
@@ -358,7 +331,8 @@ public class RetentionLeaseActions {
 
     public static class AddRequest extends AddOrRenewRequest<AddRequest> {
 
-        public AddRequest() {
+        AddRequest(StreamInput in) throws IOException {
+            super(in);
         }
 
         public AddRequest(final ShardId shardId, final String id, final long retainingSequenceNumber, final String source) {
@@ -369,7 +343,8 @@ public class RetentionLeaseActions {
 
     public static class RenewRequest extends AddOrRenewRequest<RenewRequest> {
 
-        public RenewRequest() {
+        RenewRequest(StreamInput in) throws IOException {
+            super(in);
         }
 
         public RenewRequest(final ShardId shardId, final String id, final long retainingSequenceNumber, final String source) {
@@ -380,7 +355,8 @@ public class RetentionLeaseActions {
 
     public static class RemoveRequest extends Request<RemoveRequest> {
 
-        public RemoveRequest() {
+        RemoveRequest(StreamInput in) throws IOException {
+            super(in);
         }
 
         public RemoveRequest(final ShardId shardId, final String id) {
@@ -391,13 +367,14 @@ public class RetentionLeaseActions {
 
     public static class Response extends ActionResponse {
 
-        public Response() {
-        }
+        public Response() {}
 
         Response(final StreamInput in) throws IOException {
             super(in);
         }
 
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {}
     }
 
 }

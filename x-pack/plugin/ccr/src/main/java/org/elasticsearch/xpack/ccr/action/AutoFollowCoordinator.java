@@ -55,6 +55,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -78,6 +79,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
     private final CcrLicenseChecker ccrLicenseChecker;
     private final LongSupplier relativeMillisTimeProvider;
     private final LongSupplier absoluteMillisTimeProvider;
+    private final Executor executor;
 
     private volatile TimeValue waitForMetadataTimeOut;
     private volatile Map<String, AutoFollower> autoFollowers = Collections.emptyMap();
@@ -89,18 +91,20 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
     private final LinkedHashMap<String, Tuple<Long, ElasticsearchException>> recentAutoFollowErrors;
 
     public AutoFollowCoordinator(
-        Settings settings,
-        Client client,
-        ClusterService clusterService,
-        CcrLicenseChecker ccrLicenseChecker,
-        LongSupplier relativeMillisTimeProvider,
-        LongSupplier absoluteMillisTimeProvider) {
+        final Settings settings,
+        final Client client,
+        final ClusterService clusterService,
+        final CcrLicenseChecker ccrLicenseChecker,
+        final LongSupplier relativeMillisTimeProvider,
+        final LongSupplier absoluteMillisTimeProvider,
+        final Executor executor) {
 
         this.client = client;
         this.clusterService = clusterService;
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker, "ccrLicenseChecker");
         this.relativeMillisTimeProvider = relativeMillisTimeProvider;
         this.absoluteMillisTimeProvider = absoluteMillisTimeProvider;
+        this.executor = Objects.requireNonNull(executor);
         this.recentAutoFollowErrors = new LinkedHashMap<String, Tuple<Long, ElasticsearchException>>() {
             @Override
             protected boolean removeEldestEntry(final Map.Entry<String, Tuple<Long, ElasticsearchException>> eldest) {
@@ -210,7 +214,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
         Map<String, AutoFollower> newAutoFollowers = new HashMap<>(newRemoteClusters.size());
         for (String remoteCluster : newRemoteClusters) {
             AutoFollower autoFollower =
-                new AutoFollower(remoteCluster, this::updateStats, clusterService::state, relativeMillisTimeProvider) {
+                new AutoFollower(remoteCluster, this::updateStats, clusterService::state, relativeMillisTimeProvider, executor) {
 
                 @Override
                 void getRemoteClusterState(final String remoteCluster,
@@ -332,6 +336,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
         private final Consumer<List<AutoFollowResult>> statsUpdater;
         private final Supplier<ClusterState> followerClusterStateSupplier;
         private final LongSupplier relativeTimeProvider;
+        private final Executor executor;
 
         private volatile long lastAutoFollowTimeInMillis = -1;
         private volatile long metadataVersion = 0;
@@ -344,11 +349,13 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
         AutoFollower(final String remoteCluster,
                      final Consumer<List<AutoFollowResult>> statsUpdater,
                      final Supplier<ClusterState> followerClusterStateSupplier,
-                     LongSupplier relativeTimeProvider) {
+                     final LongSupplier relativeTimeProvider,
+                     final Executor executor) {
             this.remoteCluster = remoteCluster;
             this.statsUpdater = statsUpdater;
             this.followerClusterStateSupplier = followerClusterStateSupplier;
             this.relativeTimeProvider = relativeTimeProvider;
+            this.executor = Objects.requireNonNull(executor);
         }
 
         void start() {
@@ -387,6 +394,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             this.autoFollowPatternsCountDown = new CountDown(patterns.size());
             this.autoFollowResults = new AtomicArray<>(patterns.size());
 
+            final Thread thread = Thread.currentThread();
             getRemoteClusterState(remoteCluster, metadataVersion + 1, (remoteClusterStateResponse, remoteError) -> {
                 // Also check removed flag here, as it may take a while for this remote cluster state api call to return:
                 if (removed) {
@@ -403,7 +411,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                     }
                     ClusterState remoteClusterState = remoteClusterStateResponse.getState();
                     metadataVersion = remoteClusterState.metaData().version();
-                    autoFollowIndices(autoFollowMetadata, clusterState, remoteClusterState, patterns);
+                    autoFollowIndices(autoFollowMetadata, clusterState, remoteClusterState, patterns, thread);
                 } else {
                     assert remoteError != null;
                     if (remoteError instanceof NoSuchRemoteClusterException) {
@@ -414,7 +422,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
 
                     for (int i = 0; i < patterns.size(); i++) {
                         String autoFollowPatternName = patterns.get(i);
-                        finalise(i, new AutoFollowResult(autoFollowPatternName, remoteError));
+                        finalise(i, new AutoFollowResult(autoFollowPatternName, remoteError), thread);
                     }
                 }
             });
@@ -428,7 +436,8 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
         private void autoFollowIndices(final AutoFollowMetadata autoFollowMetadata,
                                        final ClusterState clusterState,
                                        final ClusterState remoteClusterState,
-                                       final List<String> patterns) {
+                                       final List<String> patterns,
+                                       final Thread thread) {
             int i = 0;
             for (String autoFollowPatternName : patterns) {
                 final int slot = i;
@@ -439,7 +448,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                 final List<Index> leaderIndicesToFollow =
                     getLeaderIndicesToFollow(autoFollowPattern, remoteClusterState, followedIndices);
                 if (leaderIndicesToFollow.isEmpty()) {
-                    finalise(slot, new AutoFollowResult(autoFollowPatternName));
+                    finalise(slot, new AutoFollowResult(autoFollowPatternName), thread);
                 } else {
                     List<Tuple<String, AutoFollowPattern>> patternsForTheSameRemoteCluster = autoFollowMetadata.getPatterns()
                         .entrySet().stream()
@@ -448,7 +457,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                         .map(item -> new Tuple<>(item.getKey(), item.getValue()))
                         .collect(Collectors.toList());
 
-                    Consumer<AutoFollowResult> resultHandler = result -> finalise(slot, result);
+                    Consumer<AutoFollowResult> resultHandler = result -> finalise(slot, result, thread);
                     checkAutoFollowPattern(autoFollowPatternName, remoteCluster, autoFollowPattern, leaderIndicesToFollow, headers,
                         patternsForTheSameRemoteCluster, remoteClusterState.metaData(), clusterState.metaData(), resultHandler);
                 }
@@ -561,11 +570,23 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             createAndFollow(headers, request, successHandler, onResult);
         }
 
-        private void finalise(int slot, AutoFollowResult result) {
+        private void finalise(int slot, AutoFollowResult result, final Thread thread) {
             assert autoFollowResults.get(slot) == null;
             autoFollowResults.set(slot, result);
             if (autoFollowPatternsCountDown.countDown()) {
                 statsUpdater.accept(autoFollowResults.asList());
+                /*
+                 * In the face of a failure, we could be called back on the same thread. That is, it could be that we
+                 * never fired off the asynchronous remote cluster state call, instead failing beforehand. In this case,
+                 * we will recurse on the same thread. If there are repeated failures, we could blow the stack and
+                 * overflow. A real-world scenario in which this can occur is if the local connect queue is full. To
+                 * avoid this, if we are called back on the same thread, then we truncate the stack by forking to
+                 * another thread.
+                 */
+                if (thread == Thread.currentThread()) {
+                    executor.execute(this::start);
+                    return;
+                }
                 start();
             }
         }

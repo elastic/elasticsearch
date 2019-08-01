@@ -21,7 +21,6 @@ package org.elasticsearch.repositories.gcs;
 
 import com.google.api.client.googleapis.GoogleUtils;
 import com.google.api.client.http.HttpTransport;
-import com.google.api.client.http.javanet.DefaultConnectionFactory;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.google.cloud.http.HttpTransportOptions;
@@ -36,10 +35,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.LazyInitializable;
 
 import java.io.IOException;
-import java.net.HttpURLConnection;
 import java.net.URI;
-import java.net.URISyntaxException;
-import java.net.URL;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -106,10 +102,16 @@ public class GoogleCloudStorageService {
      * @return a new client storage instance that can be used to manage objects
      *         (blobs)
      */
-    private Storage createClient(final String clientName, final GoogleCloudStorageClientSettings clientSettings) throws IOException {
+    private static Storage createClient(String clientName, GoogleCloudStorageClientSettings clientSettings) throws IOException {
         logger.debug(() -> new ParameterizedMessage("creating GCS client with client_name [{}], endpoint [{}]", clientName,
                 clientSettings.getHost()));
-        final HttpTransport httpTransport = SocketAccess.doPrivilegedIOException(() -> createHttpTransport(clientSettings.getHost()));
+        final HttpTransport httpTransport = SocketAccess.doPrivilegedIOException(() -> {
+            final NetHttpTransport.Builder builder = new NetHttpTransport.Builder();
+            // requires java.lang.RuntimePermission "setFactory"
+            // Pin the TLS trust certificates.
+            builder.trustCertificates(GoogleUtils.getCertificateTrustStore());
+            return builder.build();
+        });
         final HttpTransportOptions httpTransportOptions = HttpTransportOptions.newBuilder()
                 .setConnectTimeout(toTimeout(clientSettings.getConnectTimeout()))
                 .setReadTimeout(toTimeout(clientSettings.getReadTimeout()))
@@ -145,54 +147,6 @@ public class GoogleCloudStorageService {
             storageOptionsBuilder.setCredentials(serviceAccountCredentials);
         }
         return storageOptionsBuilder.build().getService();
-    }
-
-    /**
-     * Pins the TLS trust certificates and, more importantly, overrides connection
-     * URLs in the case of a custom endpoint setting because some connections don't
-     * fully honor this setting (bugs in the SDK). The default connection factory
-     * opens a new connection for each request. This is required for the storage
-     * instance to be thread-safe.
-     **/
-    private static HttpTransport createHttpTransport(final String endpoint) throws Exception {
-        final NetHttpTransport.Builder builder = new NetHttpTransport.Builder();
-        // requires java.lang.RuntimePermission "setFactory"
-        builder.trustCertificates(GoogleUtils.getCertificateTrustStore());
-        if (Strings.hasLength(endpoint)) {
-            final URL endpointUrl = URI.create(endpoint).toURL();
-            // it is crucial to open a connection for each URL (see {@code
-            // DefaultConnectionFactory#openConnection}) instead of reusing connections,
-            // because the storage instance has to be thread-safe as it is cached.
-            builder.setConnectionFactory(new DefaultConnectionFactory() {
-                @Override
-                public HttpURLConnection openConnection(final URL originalUrl) throws IOException {
-                    // test if the URL is built correctly, ie following the `host` setting
-                    if (originalUrl.getHost().equals(endpointUrl.getHost()) && originalUrl.getPort() == endpointUrl.getPort()
-                            && originalUrl.getProtocol().equals(endpointUrl.getProtocol())) {
-                        return super.openConnection(originalUrl);
-                    }
-                    // override connection URLs because some don't follow the config. See
-                    // https://github.com/GoogleCloudPlatform/google-cloud-java/issues/3254 and
-                    // https://github.com/GoogleCloudPlatform/google-cloud-java/issues/3255
-                    URI originalUri;
-                    try {
-                        originalUri = originalUrl.toURI();
-                    } catch (final URISyntaxException e) {
-                        throw new RuntimeException(e);
-                    }
-                    String overridePath = "/";
-                    if (originalUri.getRawPath() != null) {
-                        overridePath = originalUri.getRawPath();
-                    }
-                    if (originalUri.getRawQuery() != null) {
-                        overridePath += "?" + originalUri.getRawQuery();
-                    }
-                    return super.openConnection(
-                            new URL(endpointUrl.getProtocol(), endpointUrl.getHost(), endpointUrl.getPort(), overridePath));
-                }
-            });
-        }
-        return builder.build();
     }
 
     /**

@@ -1,9 +1,9 @@
 {
   "update": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/docs-update.html",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-update.html",
+    "stability": "stable",
     "methods": ["POST"],
     "url": {
-      "path": "/{index}/_update/{id}",
       "paths": ["/{index}/_update/{id}"],
       "deprecated_paths" : [
         {

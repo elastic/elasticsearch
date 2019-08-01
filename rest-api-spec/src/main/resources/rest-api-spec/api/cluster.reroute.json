@@ -1,9 +1,9 @@
 {
   "cluster.reroute": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cluster-reroute.html",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/cluster-reroute.html",
+    "stability": "stable",
     "methods": ["POST"],
     "url": {
-      "path": "/_cluster/reroute",
       "paths": ["/_cluster/reroute"],
       "parts": {
       },

@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapMetaDataReso
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
@@ -48,7 +48,7 @@ public class LdapMetaDataResolver {
                         Collection<Attribute> attributes,
                         ActionListener<Map<String, Object>> listener) {
         if (this.attributeNames.length == 0) {
-            listener.onResponse(Collections.emptyMap());
+            listener.onResponse(Map.of());
         } else if (attributes != null) {
             listener.onResponse(toMap(name -> findAttribute(attributes, name)));
         } else {
@@ -56,7 +56,7 @@ public class LdapMetaDataResolver {
                     Math.toIntExact(timeout.seconds()), ignoreReferralErrors,
                     ActionListener.wrap((SearchResultEntry entry) -> {
                         if (entry == null) {
-                            listener.onResponse(Collections.emptyMap());
+                            listener.onResponse(Map.of());
                         } else {
                             listener.onResponse(toMap(entry::getAttribute));
                         }
@@ -71,16 +71,14 @@ public class LdapMetaDataResolver {
     }
 
     private Map<String, Object> toMap(Function<String, Attribute> attributes) {
-        return Collections.unmodifiableMap(
-                Arrays.stream(this.attributeNames).map(attributes).filter(Objects::nonNull)
-                        .collect(Collectors.toMap(
+        return Arrays.stream(this.attributeNames).map(attributes).filter(Objects::nonNull)
+                        .collect(Collectors.toUnmodifiableMap(
                                 attr -> attr.getName(),
                                 attr -> {
                                     final String[] values = attr.getValues();
-                                    return values.length == 1 ? values[0] : Arrays.asList(values);
+                                    return values.length == 1 ? values[0] : List.of(values);
                                 })
-                        )
-        );
+                        );
     }
 
 }

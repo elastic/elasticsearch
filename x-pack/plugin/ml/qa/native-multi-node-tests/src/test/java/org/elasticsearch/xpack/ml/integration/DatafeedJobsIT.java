@@ -10,6 +10,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
@@ -21,12 +22,17 @@ import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
+import org.hamcrest.Matcher;
 import org.junit.After;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -39,6 +45,7 @@ import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.getDataCoun
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.indexDocs;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 
 public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
 
@@ -49,8 +56,8 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
 
     public void testLookbackOnly() throws Exception {
         client().admin().indices().prepareCreate("data-1")
-                .addMapping("type", "time", "type=date")
-                .get();
+            .addMapping("type", "time", "type=date")
+            .get();
         long numDocs = randomIntBetween(32, 2048);
         long now = System.currentTimeMillis();
         long oneWeekAgo = now - 604800000;
@@ -58,8 +65,8 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         indexDocs(logger, "data-1", numDocs, twoWeeksAgo, oneWeekAgo);
 
         client().admin().indices().prepareCreate("data-2")
-                .addMapping("type", "time", "type=date")
-                .get();
+            .addMapping("type", "time", "type=date")
+            .get();
         client().admin().cluster().prepareHealth("data-1", "data-2").setWaitForYellowStatus().get();
         long numDocs2 = randomIntBetween(32, 2048);
         indexDocs(logger, "data-2", numDocs2, oneWeekAgo, now);
@@ -90,6 +97,88 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         }, 60, TimeUnit.SECONDS);
 
         waitUntilJobIsClosed(job.getId());
+    }
+
+    public void testDatafeedTimingStats_DatafeedRecreated() throws Exception {
+        client().admin().indices().prepareCreate("data")
+            .addMapping("type", "time", "type=date")
+            .get();
+        long numDocs = randomIntBetween(32, 2048);
+        Instant now = Instant.now();
+        indexDocs(logger, "data", numDocs, now.minus(Duration.ofDays(14)).toEpochMilli(), now.toEpochMilli());
+
+        Job.Builder job = createScheduledJob("lookback-job-datafeed-recreated");
+
+        String datafeedId = "lookback-datafeed-datafeed-recreated";
+        DatafeedConfig datafeedConfig = createDatafeed(datafeedId, job.getId(), Arrays.asList("data"));
+
+        registerJob(job);
+        putJob(job);
+
+        CheckedRunnable<Exception> openAndRunJob = () -> {
+            openJob(job.getId());
+            assertBusy(() -> assertEquals(getJobStats(job.getId()).get(0).getState(), JobState.OPENED));
+            registerDatafeed(datafeedConfig);
+            putDatafeed(datafeedConfig);
+            // Datafeed did not do anything yet, hence search_count is equal to 0.
+            assertDatafeedStats(datafeedId, DatafeedState.STOPPED, job.getId(), equalTo(0L));
+            startDatafeed(datafeedId, 0L, now.toEpochMilli());
+            assertBusy(() -> {
+                assertThat(getDataCounts(job.getId()).getProcessedRecordCount(), equalTo(numDocs));
+                // Datafeed processed numDocs documents so search_count must be greater than 0.
+                assertDatafeedStats(datafeedId, DatafeedState.STOPPED, job.getId(), greaterThan(0L));
+            }, 60, TimeUnit.SECONDS);
+            deleteDatafeed(datafeedId);
+            waitUntilJobIsClosed(job.getId());
+        };
+
+        openAndRunJob.run();
+        openAndRunJob.run();
+    }
+
+    public void testDatafeedTimingStats_QueryDelayUpdated_TimingStatsNotReset() throws Exception {
+        client().admin().indices().prepareCreate("data")
+            .addMapping("type", "time", "type=date")
+            .get();
+        long numDocs = randomIntBetween(32, 2048);
+        Instant now = Instant.now();
+        indexDocs(logger, "data", numDocs, now.minus(Duration.ofDays(14)).toEpochMilli(), now.toEpochMilli());
+
+        Job.Builder job = createScheduledJob("lookback-job-query-delay-updated");
+        registerJob(job);
+        putJob(job);
+
+        String datafeedId = "lookback-datafeed-query-delay-updated";
+        DatafeedConfig datafeedConfig = createDatafeed(datafeedId, job.getId(), Arrays.asList("data"));
+        registerDatafeed(datafeedConfig);
+        putDatafeed(datafeedConfig);
+
+        openJob(job.getId());
+        assertBusy(() -> assertEquals(getJobStats(job.getId()).get(0).getState(), JobState.OPENED));
+        // Datafeed did not do anything yet, hence search_count is equal to 0.
+        assertDatafeedStats(datafeedId, DatafeedState.STOPPED, job.getId(), equalTo(0L));
+        startDatafeed(datafeedId, 0L, now.toEpochMilli());
+        assertBusy(() -> {
+            assertThat(getDataCounts(job.getId()).getProcessedRecordCount(), equalTo(numDocs));
+            // Datafeed processed numDocs documents so search_count must be greater than 0.
+            assertDatafeedStats(datafeedId, DatafeedState.STOPPED, job.getId(), greaterThan(0L));
+        }, 60, TimeUnit.SECONDS);
+        waitUntilJobIsClosed(job.getId());
+
+        // Change something different than jobId, here: queryDelay.
+        updateDatafeed(new DatafeedUpdate.Builder(datafeedId).setQueryDelay(TimeValue.timeValueSeconds(777)).build());
+        // Search_count is still greater than 0 (i.e. has not been reset by datafeed update)
+        assertDatafeedStats(datafeedId, DatafeedState.STOPPED, job.getId(), greaterThan(0L));
+    }
+
+    private void assertDatafeedStats(String datafeedId, DatafeedState state, String jobId, Matcher<Long> searchCountMatcher) {
+        GetDatafeedsStatsAction.Request request = new GetDatafeedsStatsAction.Request(datafeedId);
+        GetDatafeedsStatsAction.Response response = client().execute(GetDatafeedsStatsAction.INSTANCE, request).actionGet();
+        assertThat(response.getResponse().results(), hasSize(1));
+        GetDatafeedsStatsAction.Response.DatafeedStats stats = response.getResponse().results().get(0);
+        assertThat(stats.getDatafeedState(), equalTo(state));
+        assertThat(stats.getTimingStats().getJobId(), equalTo(jobId));
+        assertThat(stats.getTimingStats().getSearchCount(), searchCountMatcher);
     }
 
     public void testRealtime() throws Exception {

@@ -67,7 +67,7 @@ public class StoredFieldsContext implements Writeable {
     public StoredFieldsContext(StreamInput in) throws IOException {
         this.fetchFields = in.readBoolean();
         if (fetchFields) {
-            this.fieldNames = (List<String>) in.readGenericValue();
+            this.fieldNames = new ArrayList<>((List<String>) in.readGenericValue());
         } else {
             this.fieldNames = null;
         }

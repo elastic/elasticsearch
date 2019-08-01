@@ -33,6 +33,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import java.util.concurrent.Delayed;
 import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionHandler;
+import java.util.concurrent.RunnableFuture;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
@@ -276,7 +277,11 @@ public interface Scheduler {
             if (t != null) return;
             // Scheduler only allows Runnable's so we expect no checked exceptions here. If anyone uses submit directly on `this`, we
             // accept the wrapped exception in the output.
-            ExceptionsHelper.reThrowIfNotNull(EsExecutors.rethrowErrors(r));
+            if (r instanceof RunnableFuture && ((RunnableFuture<?>) r).isDone()) {
+                // only check this if task is done, which it always is except for periodic tasks. Periodic tasks will hang on
+                // RunnableFuture.get()
+                ExceptionsHelper.reThrowIfNotNull(EsExecutors.rethrowErrors(r));
+            }
         }
     }
 }

@@ -40,6 +40,7 @@ public final class CreateTokenRequest implements Validatable, ToXContentObject {
     private final String username;
     private final char[] password;
     private final String refreshToken;
+    private final char[] kerberosTicket;
 
     /**
      * General purpose constructor. This constructor is typically not useful, and one of the following factory methods should be used
@@ -48,10 +49,11 @@ public final class CreateTokenRequest implements Validatable, ToXContentObject {
      * <li>{@link #passwordGrant(String, char[])}</li>
      * <li>{@link #refreshTokenGrant(String)}</li>
      * <li>{@link #clientCredentialsGrant()}</li>
+     * <li>{@link #kerberosGrant(char[])}</li>
      * </ul>
      */
     public CreateTokenRequest(String grantType, @Nullable String scope, @Nullable String username, @Nullable char[] password,
-                              @Nullable String refreshToken) {
+                              @Nullable String refreshToken, @Nullable char[] kerberosTicket) {
         if (Strings.isNullOrEmpty(grantType)) {
             throw new IllegalArgumentException("grant_type is required");
         }
@@ -60,6 +62,7 @@ public final class CreateTokenRequest implements Validatable, ToXContentObject {
         this.password = password;
         this.scope = scope;
         this.refreshToken = refreshToken;
+        this.kerberosTicket = kerberosTicket;
     }
 
     public static CreateTokenRequest passwordGrant(String username, char[] password) {
@@ -69,18 +72,25 @@ public final class CreateTokenRequest implements Validatable, ToXContentObject {
         if (password == null || password.length == 0) {
             throw new IllegalArgumentException("password is required");
         }
-        return new CreateTokenRequest("password", null, username, password, null);
+        return new CreateTokenRequest("password", null, username, password, null, null);
     }
 
     public static CreateTokenRequest refreshTokenGrant(String refreshToken) {
         if (Strings.isNullOrEmpty(refreshToken)) {
             throw new IllegalArgumentException("refresh_token is required");
         }
-        return new CreateTokenRequest("refresh_token", null, null, null, refreshToken);
+        return new CreateTokenRequest("refresh_token", null, null, null, refreshToken, null);
     }
 
     public static CreateTokenRequest clientCredentialsGrant() {
-        return new CreateTokenRequest("client_credentials", null, null, null, null);
+        return new CreateTokenRequest("client_credentials", null, null, null, null, null);
+    }
+
+    public static CreateTokenRequest kerberosGrant(char[] kerberosTicket) {
+        if (kerberosTicket == null || kerberosTicket.length == 0) {
+            throw new IllegalArgumentException("kerberos ticket is required");
+        }
+        return new CreateTokenRequest("_kerberos", null, null, null, null, kerberosTicket);
     }
 
     public String getGrantType() {
@@ -101,6 +111,10 @@ public final class CreateTokenRequest implements Validatable, ToXContentObject {
 
     public String getRefreshToken() {
         return refreshToken;
+    }
+
+    public char[] getKerberosTicket() {
+        return kerberosTicket;
     }
 
     @Override
@@ -124,6 +138,14 @@ public final class CreateTokenRequest implements Validatable, ToXContentObject {
         if (refreshToken != null) {
             builder.field("refresh_token", refreshToken);
         }
+        if (kerberosTicket != null) {
+            byte[] kerberosTicketBytes = CharArrays.toUtf8Bytes(kerberosTicket);
+            try {
+                builder.field("kerberos_ticket").utf8Value(kerberosTicketBytes, 0, kerberosTicketBytes.length);
+            } finally {
+                Arrays.fill(kerberosTicketBytes, (byte) 0);
+            }
+        }
         return builder.endObject();
     }
 
@@ -140,13 +162,15 @@ public final class CreateTokenRequest implements Validatable, ToXContentObject {
             Objects.equals(scope, that.scope) &&
             Objects.equals(username, that.username) &&
             Arrays.equals(password, that.password) &&
-            Objects.equals(refreshToken, that.refreshToken);
+            Objects.equals(refreshToken, that.refreshToken) &&
+            Arrays.equals(kerberosTicket, that.kerberosTicket);
     }
 
     @Override
     public int hashCode() {
         int result = Objects.hash(grantType, scope, username, refreshToken);
         result = 31 * result + Arrays.hashCode(password);
+        result = 31 * result + Arrays.hashCode(kerberosTicket);
         return result;
     }
 }

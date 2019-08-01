@@ -95,6 +95,14 @@ final class S3ClientSettings {
     static final Setting.AffixSetting<Boolean> USE_THROTTLE_RETRIES_SETTING = Setting.affixKeySetting(PREFIX, "use_throttle_retries",
         key -> Setting.boolSetting(key, ClientConfiguration.DEFAULT_THROTTLE_RETRIES, Property.NodeScope));
 
+    /** Whether the s3 client should use path style access. */
+    static final Setting.AffixSetting<Boolean> USE_PATH_STYLE_ACCESS = Setting.affixKeySetting(PREFIX, "path_style_access",
+        key -> Setting.boolSetting(key, false, Property.NodeScope));
+
+    /** Whether chunked encoding should be disabled or not (Default is false). */
+    static final Setting.AffixSetting<Boolean> DISABLE_CHUNKED_ENCODING = Setting.affixKeySetting(PREFIX, "disable_chunked_encoding",
+        key -> Setting.boolSetting(key, false, Property.NodeScope));
+
     /** Credentials to authenticate with s3. */
     final S3BasicCredentials credentials;
 
@@ -127,9 +135,16 @@ final class S3ClientSettings {
     /** Whether the s3 client should use an exponential backoff retry policy. */
     final boolean throttleRetries;
 
+    /** Whether the s3 client should use path style access. */
+    final boolean pathStyleAccess;
+
+    /** Whether chunked encoding should be disabled or not. */
+    final boolean disableChunkedEncoding;
+
     private S3ClientSettings(S3BasicCredentials credentials, String endpoint, Protocol protocol,
                              String proxyHost, int proxyPort, String proxyUsername, String proxyPassword,
-                             int readTimeoutMillis, int maxRetries, boolean throttleRetries) {
+                             int readTimeoutMillis, int maxRetries, boolean throttleRetries,
+                             boolean pathStyleAccess, boolean disableChunkedEncoding) {
         this.credentials = credentials;
         this.endpoint = endpoint;
         this.protocol = protocol;
@@ -140,6 +155,8 @@ final class S3ClientSettings {
         this.readTimeoutMillis = readTimeoutMillis;
         this.maxRetries = maxRetries;
         this.throttleRetries = throttleRetries;
+        this.pathStyleAccess = pathStyleAccess;
+        this.disableChunkedEncoding = disableChunkedEncoding;
     }
 
     /**
@@ -162,6 +179,9 @@ final class S3ClientSettings {
             getRepoSettingOrDefault(READ_TIMEOUT_SETTING, normalizedSettings, TimeValue.timeValueMillis(readTimeoutMillis)).millis());
         final int newMaxRetries = getRepoSettingOrDefault(MAX_RETRIES_SETTING, normalizedSettings, maxRetries);
         final boolean newThrottleRetries = getRepoSettingOrDefault(USE_THROTTLE_RETRIES_SETTING, normalizedSettings, throttleRetries);
+        final boolean usePathStyleAccess = getRepoSettingOrDefault(USE_PATH_STYLE_ACCESS, normalizedSettings, pathStyleAccess);
+        final boolean newDisableChunkedEncoding = getRepoSettingOrDefault(
+            DISABLE_CHUNKED_ENCODING, normalizedSettings, disableChunkedEncoding);
         final S3BasicCredentials newCredentials;
         if (checkDeprecatedCredentials(repoSettings)) {
             newCredentials = loadDeprecatedCredentials(repoSettings);
@@ -170,7 +190,8 @@ final class S3ClientSettings {
         }
         if (Objects.equals(endpoint, newEndpoint) && protocol == newProtocol && Objects.equals(proxyHost, newProxyHost)
             && proxyPort == newProxyPort && newReadTimeoutMillis == readTimeoutMillis && maxRetries == newMaxRetries
-            && newThrottleRetries == throttleRetries && Objects.equals(credentials, newCredentials)) {
+            && newThrottleRetries == throttleRetries && Objects.equals(credentials, newCredentials)
+            && newDisableChunkedEncoding == disableChunkedEncoding) {
             return this;
         }
         return new S3ClientSettings(
@@ -183,7 +204,9 @@ final class S3ClientSettings {
             proxyPassword,
             newReadTimeoutMillis,
             newMaxRetries,
-            newThrottleRetries
+            newThrottleRetries,
+            usePathStyleAccess,
+            newDisableChunkedEncoding
         );
     }
 
@@ -270,7 +293,9 @@ final class S3ClientSettings {
                 proxyPassword.toString(),
                 Math.toIntExact(getConfigValue(settings, clientName, READ_TIMEOUT_SETTING).millis()),
                 getConfigValue(settings, clientName, MAX_RETRIES_SETTING),
-                getConfigValue(settings, clientName, USE_THROTTLE_RETRIES_SETTING)
+                getConfigValue(settings, clientName, USE_THROTTLE_RETRIES_SETTING),
+                getConfigValue(settings, clientName, USE_PATH_STYLE_ACCESS),
+                getConfigValue(settings, clientName, DISABLE_CHUNKED_ENCODING)
             );
         }
     }
@@ -293,13 +318,14 @@ final class S3ClientSettings {
             protocol == that.protocol &&
             Objects.equals(proxyHost, that.proxyHost) &&
             Objects.equals(proxyUsername, that.proxyUsername) &&
-            Objects.equals(proxyPassword, that.proxyPassword);
+            Objects.equals(proxyPassword, that.proxyPassword) &&
+            Objects.equals(disableChunkedEncoding, that.disableChunkedEncoding);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(credentials, endpoint, protocol, proxyHost, proxyPort, proxyUsername, proxyPassword,
-            readTimeoutMillis, maxRetries, throttleRetries);
+            readTimeoutMillis, maxRetries, throttleRetries, disableChunkedEncoding);
     }
 
     private static <T> T getConfigValue(Settings settings, String clientName,

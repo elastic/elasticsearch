@@ -8,13 +8,17 @@ package org.elasticsearch.xpack.watcher.execution;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;
-import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.core.watcher.execution.ActionExecutionMode;
+import org.elasticsearch.xpack.core.watcher.transport.actions.delete.DeleteWatchRequestBuilder;
+import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchRequest;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchResponse;
+import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
+import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsResponse;
 import org.elasticsearch.xpack.watcher.actions.index.IndexAction;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
@@ -55,8 +59,8 @@ public class ExecuteWatchQueuedStatsTests extends AbstractWatcherIntegrationTest
      * happens yet succeeds with the production code change that accompanies this test.
      */
     public void testQueuedStats() throws ExecutionException, InterruptedException {
-        final WatcherClient client = new WatcherClient(client());
-        client.preparePutWatch("id")
+        final Client client = client();
+        new PutWatchRequestBuilder(client, "id")
                 .setActive(true)
                 .setSource(
                         new WatchSourceBuilder()
@@ -90,7 +94,7 @@ public class ExecuteWatchQueuedStatsTests extends AbstractWatcherIntegrationTest
                 }
                 request.setActionMode("_all", ActionExecutionMode.EXECUTE);
                 request.setRecordExecution(true);
-                futures.add(client.executeWatch(request));
+                futures.add(client.execute(ExecuteWatchAction.INSTANCE, request));
             }
         });
         executeWatchThread.start();
@@ -103,7 +107,7 @@ public class ExecuteWatchQueuedStatsTests extends AbstractWatcherIntegrationTest
                 fail(e.toString());
             }
             for (int i = 0; i < numberOfIterations; i++) {
-                final WatcherStatsResponse response = client.prepareWatcherStats().setIncludeQueuedWatches(true).get();
+                final WatcherStatsResponse response = new WatcherStatsRequestBuilder(client).setIncludeQueuedWatches(true).get();
                 failures.addAll(response.failures());
             }
         });
@@ -118,7 +122,7 @@ public class ExecuteWatchQueuedStatsTests extends AbstractWatcherIntegrationTest
 
         assertThat(failures, empty());
 
-        client.prepareDeleteWatch("id").get();
+        new DeleteWatchRequestBuilder(client, "id").get();
     }
 
 }

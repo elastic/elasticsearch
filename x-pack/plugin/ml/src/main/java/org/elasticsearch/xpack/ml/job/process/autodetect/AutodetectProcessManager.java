@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknow
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.TransportOpenJobAction.JobTask;
@@ -56,7 +57,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.ScheduledEventsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.StateStreamer;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
-import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutoDetectResultProcessor;
+import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutodetectResultProcessor;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
@@ -222,7 +223,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
      * @param input            Data input stream
      * @param xContentType     the {@link XContentType} of the input
      * @param params           Data processing parameters
-     * @param handler          Delegate error or datacount results (Count of records, fields, bytes, etc written)
+     * @param handler          Delegate error or datacount results (Count of records, fields, bytes, etc written as a result of this call)
      */
     public void processData(JobTask jobTask, AnalysisRegistry analysisRegistry, InputStream input,
                             XContentType xContentType, DataLoadParams params, BiConsumer<DataCounts, Exception> handler) {
@@ -499,7 +500,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
         }
 
         // A TP with no queue, so that we fail immediately if there are no threads available
-        ExecutorService autoDetectExecutorService = threadPool.executor(MachineLearning.JOB_COMMS_THREAD_POOL_NAME);
+        ExecutorService autodetectExecutorService = threadPool.executor(MachineLearning.JOB_COMMS_THREAD_POOL_NAME);
         DataCountsReporter dataCountsReporter = new DataCountsReporter(job, autodetectParams.dataCounts(), jobDataCountsPersister);
         ScoresUpdater scoresUpdater = new ScoresUpdater(job, jobResultsProvider,
                 new JobRenormalizedResultsPersister(job.getId(), client), normalizerFactory);
@@ -507,14 +508,22 @@ public class AutodetectProcessManager implements ClusterStateListener {
         Renormalizer renormalizer = new ShortCircuitingRenormalizer(jobId, scoresUpdater,
                 renormalizerExecutorService);
 
-        AutodetectProcess process = autodetectProcessFactory.createAutodetectProcess(job, autodetectParams, autoDetectExecutorService,
+        AutodetectProcess process = autodetectProcessFactory.createAutodetectProcess(job, autodetectParams, autodetectExecutorService,
                 onProcessCrash(jobTask));
-        AutoDetectResultProcessor processor = new AutoDetectResultProcessor(
-                client, auditor, jobId, renormalizer, jobResultsPersister, autodetectParams.modelSizeStats());
+        AutodetectResultProcessor processor =
+            new AutodetectResultProcessor(
+                client,
+                auditor,
+                jobId,
+                renormalizer,
+                jobResultsPersister,
+                process,
+                autodetectParams.modelSizeStats(),
+                autodetectParams.timingStats());
         ExecutorService autodetectWorkerExecutor;
         try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
-            autodetectWorkerExecutor = createAutodetectExecutorService(autoDetectExecutorService);
-            autoDetectExecutorService.submit(() -> processor.process(process));
+            autodetectWorkerExecutor = createAutodetectExecutorService(autodetectExecutorService);
+            autodetectExecutorService.submit(processor::process);
         } catch (EsRejectedExecutionException e) {
             // If submitting the operation to read the results from the process fails we need to close
             // the process too, so that other submitted operations to threadpool are stopped.
@@ -716,18 +725,19 @@ public class AutodetectProcessManager implements ClusterStateListener {
         });
     }
 
-    public Optional<Tuple<DataCounts, ModelSizeStats>> getStatistics(JobTask jobTask) {
+    public Optional<Tuple<DataCounts, Tuple<ModelSizeStats, TimingStats>>> getStatistics(JobTask jobTask) {
         AutodetectCommunicator communicator = getAutodetectCommunicator(jobTask);
         if (communicator == null) {
             return Optional.empty();
         }
-        return Optional.of(new Tuple<>(communicator.getDataCounts(), communicator.getModelSizeStats()));
+        return Optional.of(
+            new Tuple<>(communicator.getDataCounts(), new Tuple<>(communicator.getModelSizeStats(), communicator.getTimingStats())));
     }
 
     ExecutorService createAutodetectExecutorService(ExecutorService executorService) {
-        AutodetectWorkerExecutorService autoDetectWorkerExecutor = new AutodetectWorkerExecutorService(threadPool.getThreadContext());
-        executorService.submit(autoDetectWorkerExecutor::start);
-        return autoDetectWorkerExecutor;
+        AutodetectWorkerExecutorService autodetectWorkerExecutor = new AutodetectWorkerExecutorService(threadPool.getThreadContext());
+        executorService.submit(autodetectWorkerExecutor::start);
+        return autodetectWorkerExecutor;
     }
 
     public ByteSizeValue getMinLocalStorageAvailable() {

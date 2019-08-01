@@ -116,7 +116,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         String versionedJavaHome = System.getenv(getJavaHomeEnvVarName(version));
         if (versionedJavaHome == null) {
             throw new GradleException(
-                "$versionedVarName must be set to build Elasticsearch. " +
+                "$" + getJavaHomeEnvVarName(version) + " must be set to build Elasticsearch. " +
                     "Note that if the variable was just set you might have to run `./gradlew --stop` for " +
                     "it to be picked up. See https://github.com/elastic/elasticsearch/issues/31399 details."
             );

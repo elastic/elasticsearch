@@ -67,9 +67,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
 
     private ShardId shardId;
     private ShardRouting routing;
-    private Path dataDir;
     private Environment environment;
-    private Settings settings;
     private ShardPath shardPath;
     private IndexMetaData indexMetaData;
     private IndexShard indexShard;
@@ -86,7 +84,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         routing = TestShardRouting.newShardRouting(shardId, nodeId, true, ShardRoutingState.INITIALIZING,
             RecoverySource.EmptyStoreRecoverySource.INSTANCE);
 
-        dataDir = createTempDir();
+        final Path dataDir = createTempDir();
 
         environment =
             TestEnvironment.newEnvironment(Settings.builder()
@@ -95,7 +93,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
 
         // create same directory structure as prod does
         Files.createDirectories(dataDir);
-        settings = Settings.builder()
+        final Settings settings = Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
@@ -216,7 +214,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         // close shard
         closeShards(indexShard);
 
-        TestTranslog.corruptRandomTranslogFile(logger, random(), Arrays.asList(translogPath));
+        TestTranslog.corruptRandomTranslogFile(logger, random(), translogPath);
 
         // test corrupted shard
         final IndexShard corruptedShard = reopenIndexShard(true);
@@ -282,7 +280,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
             expectThrows(IndexShardRecoveryException.class, () -> newStartedShard(p -> corruptedShard, true));
             closeShards(corruptedShard);
         }
-        TestTranslog.corruptRandomTranslogFile(logger, random(), Arrays.asList(translogPath));
+        TestTranslog.corruptRandomTranslogFile(logger, random(), translogPath);
 
         final RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
         final MockTerminal t = new MockTerminal();

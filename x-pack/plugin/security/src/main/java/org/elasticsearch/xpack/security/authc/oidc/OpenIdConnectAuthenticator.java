@@ -12,7 +12,6 @@ import com.nimbusds.jose.jwk.JWKSelector;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.BadJOSEException;
-import com.nimbusds.jose.proc.BadJWSException;
 import com.nimbusds.jose.proc.JWSVerificationKeySelector;
 import com.nimbusds.jose.proc.SecurityContext;
 import com.nimbusds.jose.util.IOUtils;
@@ -96,6 +95,8 @@ import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+
+import java.net.URLEncoder;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
@@ -241,7 +242,7 @@ public class OpenIdConnectAuthenticator {
                 }
                 claimsListener.onResponse(enrichedVerifiedIdTokenClaims);
             }
-        } catch (BadJWSException e) {
+        } catch (BadJOSEException e) {
             // We only try to update the cached JWK set once if a remote source is used and
             // RSA or ECDSA is used for signatures
             if (shouldRetry
@@ -257,7 +258,7 @@ public class OpenIdConnectAuthenticator {
             } else {
                 claimsListener.onFailure(new ElasticsearchSecurityException("Failed to parse or validate the ID Token", e));
             }
-        } catch (com.nimbusds.oauth2.sdk.ParseException | ParseException | BadJOSEException | JOSEException e) {
+        } catch (com.nimbusds.oauth2.sdk.ParseException | ParseException | JOSEException e) {
             claimsListener.onFailure(new ElasticsearchSecurityException("Failed to parse or validate the ID Token", e));
         }
     }
@@ -466,8 +467,9 @@ public class OpenIdConnectAuthenticator {
             }
             httpPost.setEntity(new UrlEncodedFormEntity(params));
             httpPost.setHeader("Content-type", "application/x-www-form-urlencoded");
-            UsernamePasswordCredentials creds = new UsernamePasswordCredentials(rpConfig.getClientId().getValue(),
-                rpConfig.getClientSecret().toString());
+            UsernamePasswordCredentials creds =
+                new UsernamePasswordCredentials(URLEncoder.encode(rpConfig.getClientId().getValue(), StandardCharsets.UTF_8),
+                    URLEncoder.encode(rpConfig.getClientSecret().toString(), StandardCharsets.UTF_8));
             httpPost.addHeader(new BasicScheme().authenticate(creds, httpPost, null));
             SpecialPermission.check();
             AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
@@ -627,7 +629,7 @@ public class OpenIdConnectAuthenticator {
      * necessary as some OPs return slightly different values for some claims (i.e. Google for the profile picture) and
      * {@link JSONObject#merge(Object)} would throw a runtime exception. The merging is performed based on the following rules:
      * <ul>
-     * <li>If the values for a given claim are primitives (of the the same type), the value from the ID Token is retained</li>
+     * <li>If the values for a given claim are primitives (of the same type), the value from the ID Token is retained</li>
      * <li>If the values for a given claim are Objects, the values are merged</li>
      * <li>If the values for a given claim are Arrays, the values are merged without removing duplicates</li>
      * <li>If the values for a given claim are of different types, an exception is thrown</li>

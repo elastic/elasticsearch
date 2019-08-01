@@ -1,5 +1,8 @@
 [[geo-shape]]
-=== Geo-Shape datatype
+=== Geo-shape datatype
+++++
+<titleabbrev>Geo-shape</titleabbrev>
+++++
 
 The `geo_shape` datatype facilitates the indexing of and searching
 with arbitrary geo shapes such as rectangles and polygons. It should be
@@ -108,6 +111,8 @@ geo-points containing any more than latitude and longitude (two dimensions) valu
 and reject the whole document.
 | `true`
 
+|`coerce` |If `true` unclosed linear rings in polygons will be automatically closed.
+| `false`
 
 |=======================================================================
 
@@ -291,7 +296,7 @@ differs from many Geospatial APIs (e.g., Google Maps) that generally
 use the colloquial latitude, longitude (Y, X).
 =============================================
 
-[[point]]
+[[geo-point-type]]
 [float]
 ===== http://geojson.org/geojson-spec.html#id2[Point]
 
@@ -323,7 +328,7 @@ POST /example/_doc
 // CONSOLE
 
 [float]
-[[linestring]]
+[[geo-linestring]]
 ===== http://geojson.org/geojson-spec.html#id3[LineString]
 
 A `linestring` defined by an array of two or more positions. By
@@ -358,7 +363,7 @@ The above `linestring` would draw a straight line starting at the White
 House to the US Capitol Building.
 
 [float]
-[[polygon]]
+[[geo-polygon]]
 ===== http://www.geojson.org/geojson-spec.html#id4[Polygon]
 
 A polygon is defined by a list of a list of points. The first and last
@@ -475,7 +480,7 @@ POST /example/_doc
 // CONSOLE
 
 [float]
-[[multipoint]]
+[[geo-multipoint]]
 ===== http://www.geojson.org/geojson-spec.html#id5[MultiPoint]
 
 The following is an example of a list of geojson points:
@@ -506,7 +511,7 @@ POST /example/_doc
 // CONSOLE
 
 [float]
-[[multilinestring]]
+[[geo-multilinestring]]
 ===== http://www.geojson.org/geojson-spec.html#id6[MultiLineString]
 
 The following is an example of a list of geojson linestrings:
@@ -539,7 +544,7 @@ POST /example/_doc
 // CONSOLE
 
 [float]
-[[multipolygon]]
+[[geo-multipolygon]]
 ===== http://www.geojson.org/geojson-spec.html#id7[MultiPolygon]
 
 The following is an example of a list of geojson polygons (second polygon contains a hole):
@@ -572,7 +577,7 @@ POST /example/_doc
 // CONSOLE
 
 [float]
-[[geometry_collection]]
+[[geo-geometry_collection]]
 ===== http://geojson.org/geojson-spec.html#geometrycollection[Geometry Collection]
 
 The following is an example of a collection of geojson geometry objects:

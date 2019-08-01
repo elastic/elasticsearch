@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 
@@ -50,7 +49,15 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
         return this;
     }
 
+    /**
+     * @deprecated Use {@link #password(SecureString, Hasher)} instead.
+     */
+    @Deprecated
     public PutUserRequestBuilder password(char[] password, Hasher hasher) {
+        return password(new SecureString(password), hasher);
+    }
+
+    public PutUserRequestBuilder password(SecureString password, Hasher hasher) {
         if (password != null) {
             Validation.Error error = Validation.Users.validatePassword(password);
             if (error != null) {
@@ -59,7 +66,7 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
             if (request.passwordHash() != null) {
                 throw validationException("password_hash has already been set");
             }
-            request.passwordHash(hasher.hash(new SecureString(password)));
+            request.passwordHash(hasher.hash(password));
         } else {
             request.passwordHash(null);
         }
@@ -119,9 +126,9 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
                 } else if (User.Fields.PASSWORD.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (token == XContentParser.Token.VALUE_STRING) {
                         String password = parser.text();
-                        char[] passwordChars = password.toCharArray();
-                        password(passwordChars, hasher);
-                        Arrays.fill(passwordChars, (char) 0);
+                        try(SecureString securePassword = new SecureString(password.toCharArray())) {
+                            password(securePassword, hasher);
+                        }
                     } else {
                         throw new ElasticsearchParseException(
                                 "expected field [{}] to be of type string, but found [{}] instead", currentFieldName, token);

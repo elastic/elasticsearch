@@ -100,7 +100,7 @@ public class GlobalCheckpointSyncActionTests extends ESTestCase {
             lastSyncedGlobalCheckpoint = globalCheckpoint;
         }
 
-        when(indexShard.getGlobalCheckpoint()).thenReturn(globalCheckpoint);
+        when(indexShard.getLastKnownGlobalCheckpoint()).thenReturn(globalCheckpoint);
         when(indexShard.getLastSyncedGlobalCheckpoint()).thenReturn(lastSyncedGlobalCheckpoint);
 
         final GlobalCheckpointSyncAction action = new GlobalCheckpointSyncAction(

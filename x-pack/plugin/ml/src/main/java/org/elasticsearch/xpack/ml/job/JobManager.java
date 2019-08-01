@@ -45,6 +45,8 @@ import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -87,6 +89,7 @@ public class JobManager {
 
     private final Environment environment;
     private final JobResultsProvider jobResultsProvider;
+    private final JobResultsPersister jobResultsPersister;
     private final ClusterService clusterService;
     private final Auditor auditor;
     private final Client client;
@@ -101,10 +104,11 @@ public class JobManager {
      * Create a JobManager
      */
     public JobManager(Environment environment, Settings settings, JobResultsProvider jobResultsProvider,
-                      ClusterService clusterService, Auditor auditor, ThreadPool threadPool,
+                      JobResultsPersister jobResultsPersister, ClusterService clusterService, Auditor auditor, ThreadPool threadPool,
                       Client client, UpdateJobProcessNotifier updateJobProcessNotifier, NamedXContentRegistry xContentRegistry) {
         this.environment = environment;
         this.jobResultsProvider = Objects.requireNonNull(jobResultsProvider);
+        this.jobResultsPersister = Objects.requireNonNull(jobResultsPersister);
         this.clusterService = Objects.requireNonNull(clusterService);
         this.auditor = Objects.requireNonNull(auditor);
         this.client = Objects.requireNonNull(client);
@@ -226,7 +230,7 @@ public class JobManager {
         CategorizationAnalyzerConfig categorizationAnalyzerConfig = jobBuilder.getAnalysisConfig().getCategorizationAnalyzerConfig();
         if (categorizationAnalyzerConfig != null) {
             CategorizationAnalyzer.verifyConfigBuilder(new CategorizationAnalyzerConfig.Builder(categorizationAnalyzerConfig),
-                analysisRegistry, environment);
+                analysisRegistry);
         }
     }
 
@@ -254,7 +258,7 @@ public class JobManager {
 
         ActionListener<Boolean> putJobListener = new ActionListener<Boolean>() {
             @Override
-            public void onResponse(Boolean indicesCreated) {
+            public void onResponse(Boolean mappingsUpdated) {
 
                 jobConfigProvider.putJob(job, ActionListener.wrap(
                         response -> {
@@ -281,10 +285,23 @@ public class JobManager {
             }
         };
 
+        ActionListener<Boolean> addDocMappingsListener = ActionListener.wrap(
+            indicesCreated -> {
+                if (state == null) {
+                    logger.warn("Cannot update doc mapping because clusterState == null");
+                    putJobListener.onResponse(false);
+                    return;
+                }
+                ElasticsearchMappings.addDocMappingIfMissing(
+                    AnomalyDetectorsIndex.configIndexName(), ElasticsearchMappings::configMapping, client, state, putJobListener);
+            },
+            putJobListener::onFailure
+        );
+
         ActionListener<List<String>> checkForLeftOverDocs = ActionListener.wrap(
                 matchedIds -> {
                     if (matchedIds.isEmpty()) {
-                        jobResultsProvider.createJobResultIndex(job, state, putJobListener);
+                        jobResultsProvider.createJobResultIndex(job, state, addDocMappingsListener);
                     } else {
                         // A job has the same Id as one of the group names
                         // error with the first in the list
@@ -573,12 +590,11 @@ public class JobManager {
             ModelSnapshot modelSnapshot) {
 
         final ModelSizeStats modelSizeStats = modelSnapshot.getModelSizeStats();
-        final JobResultsPersister persister = new JobResultsPersister(client);
 
         // Step 3. After the model size stats is persisted, also persist the snapshot's quantiles and respond
         // -------
         CheckedConsumer<IndexResponse, Exception> modelSizeStatsResponseHandler = response -> {
-            persister.persistQuantiles(modelSnapshot.getQuantiles(), WriteRequest.RefreshPolicy.IMMEDIATE,
+            jobResultsPersister.persistQuantiles(modelSnapshot.getQuantiles(), WriteRequest.RefreshPolicy.IMMEDIATE,
                     ActionListener.wrap(quantilesResponse -> {
                         // The quantiles can be large, and totally dominate the output -
                         // it's clearer to remove them as they are not necessary for the revert op
@@ -593,7 +609,7 @@ public class JobManager {
         CheckedConsumer<Boolean, Exception> updateHandler = response -> {
             if (response) {
                 ModelSizeStats revertedModelSizeStats = new ModelSizeStats.Builder(modelSizeStats).setLogTime(new Date()).build();
-                persister.persistModelSizeStats(revertedModelSizeStats, WriteRequest.RefreshPolicy.IMMEDIATE, ActionListener.wrap(
+                jobResultsPersister.persistModelSizeStats(revertedModelSizeStats, WriteRequest.RefreshPolicy.IMMEDIATE, ActionListener.wrap(
                         modelSizeStatsResponseHandler, actionListener::onFailure));
             }
         };

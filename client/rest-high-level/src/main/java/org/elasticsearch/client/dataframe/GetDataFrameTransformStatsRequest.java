@@ -29,6 +29,7 @@ import java.util.Optional;
 public class GetDataFrameTransformStatsRequest implements Validatable {
     private final String id;
     private PageParams pageParams;
+    private Boolean allowNoMatch;
 
     public GetDataFrameTransformStatsRequest(String id) {
         this.id = id;
@@ -46,6 +47,14 @@ public class GetDataFrameTransformStatsRequest implements Validatable {
         this.pageParams = pageParams;
     }
 
+    public Boolean getAllowNoMatch() {
+        return allowNoMatch;
+    }
+
+    public void setAllowNoMatch(Boolean allowNoMatch) {
+        this.allowNoMatch = allowNoMatch;
+    }
+
     @Override
     public Optional<ValidationException> validate() {
         if (id == null) {
@@ -59,7 +68,7 @@ public class GetDataFrameTransformStatsRequest implements Validatable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, pageParams);
+        return Objects.hash(id, pageParams, allowNoMatch);
     }
 
     @Override
@@ -72,6 +81,8 @@ public class GetDataFrameTransformStatsRequest implements Validatable {
             return false;
         }
         GetDataFrameTransformStatsRequest other = (GetDataFrameTransformStatsRequest) obj;
-        return Objects.equals(id, other.id) && Objects.equals(pageParams, other.pageParams);
+        return Objects.equals(id, other.id)
+            && Objects.equals(pageParams, other.pageParams)
+            && Objects.equals(allowNoMatch, other.allowNoMatch);
     }
 }

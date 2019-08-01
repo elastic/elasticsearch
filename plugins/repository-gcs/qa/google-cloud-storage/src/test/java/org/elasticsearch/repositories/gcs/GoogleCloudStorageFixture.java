@@ -38,9 +38,11 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.GZIPInputStream;
@@ -343,17 +345,39 @@ public class GoogleCloudStorageFixture extends AbstractHttpFixture {
             final XContentBuilder builder = jsonBuilder();
             builder.startObject();
             builder.field("kind", "storage#objects");
+            final Set<String> prefixes = new HashSet<>();
             {
                 builder.startArray("items");
 
                 final String prefixParam = request.getParam("prefix");
+                final String delimiter = request.getParam("delimiter");
+
                 for (final Map.Entry<String, byte[]> object : bucket.objects.entrySet()) {
-                    if ((prefixParam != null) && (object.getKey().startsWith(prefixParam) == false)) {
+                    String objectKey = object.getKey();
+                    if ((prefixParam != null) && (objectKey.startsWith(prefixParam) == false)) {
                         continue;
                     }
-                    buildObjectResource(builder, bucket.name, object.getKey(), object.getValue());
+
+                    if (Strings.isNullOrEmpty(delimiter)) {
+                        buildObjectResource(builder, bucket.name, objectKey, object.getValue());
+                    } else {
+                        int prefixLength = prefixParam.length();
+                        String rest = objectKey.substring(prefixLength);
+                        int delimiterPos;
+                        if ((delimiterPos = rest.indexOf(delimiter)) != -1) {
+                            String key = objectKey.substring(0, prefixLength + delimiterPos + 1);
+                            prefixes.add(key);
+                        } else {
+                            buildObjectResource(builder, bucket.name, objectKey, object.getValue());
+                        }
+                    }
                 }
                 builder.endArray();
+            }
+            {
+                if (prefixes.isEmpty() == false) {
+                    builder.array("prefixes", prefixes.toArray());
+                }
             }
             builder.endObject();
             return newResponse(RestStatus.OK, emptyMap(), builder);

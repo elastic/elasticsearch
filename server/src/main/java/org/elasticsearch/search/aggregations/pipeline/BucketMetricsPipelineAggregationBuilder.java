@@ -107,7 +107,7 @@ public abstract class BucketMetricsPipelineAggregationBuilder<AF extends BucketM
     protected abstract PipelineAggregator createInternal(Map<String, Object> metaData);
 
     @Override
-    public void doValidate(AggregatorFactory<?> parent, Collection<AggregationBuilder> aggBuilders,
+    public void doValidate(AggregatorFactory parent, Collection<AggregationBuilder> aggBuilders,
             Collection<PipelineAggregationBuilder> pipelineAggregatorFactories) {
         if (bucketsPaths.length != 1) {
             throw new IllegalStateException(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
@@ -147,21 +147,19 @@ public abstract class BucketMetricsPipelineAggregationBuilder<AF extends BucketM
     protected abstract XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException;
 
     @Override
-    protected final int doHashCode() {
-        return Objects.hash(format, gapPolicy, innerHashCode());
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), format, gapPolicy);
     }
 
-    protected abstract int innerHashCode();
-
     @Override
-    protected final boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         @SuppressWarnings("unchecked")
         BucketMetricsPipelineAggregationBuilder<AF> other = (BucketMetricsPipelineAggregationBuilder<AF>) obj;
         return Objects.equals(format, other.format)
-                && Objects.equals(gapPolicy, other.gapPolicy)
-                && innerEquals(other);
+            && Objects.equals(gapPolicy, other.gapPolicy);
     }
-
-    protected abstract boolean innerEquals(BucketMetricsPipelineAggregationBuilder<AF> other);
 
 }

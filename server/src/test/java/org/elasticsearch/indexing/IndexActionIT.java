@@ -29,7 +29,6 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -50,7 +49,6 @@ public class IndexActionIT extends ESIntegTestCase {
      * while the index is being created.
      */
 
-    @TestLogging("_root:DEBUG,org.elasticsearch.index.shard.IndexShard:TRACE,org.elasticsearch.action.search:TRACE")
     public void testAutoGenerateIdNoDuplicates() throws Exception {
         int numberOfIterations = scaledRandomIntBetween(10, 50);
         for (int i = 0; i < numberOfIterations; i++) {

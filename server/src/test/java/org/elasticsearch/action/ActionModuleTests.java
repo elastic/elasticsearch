@@ -88,14 +88,9 @@ public class ActionModuleTests extends ESTestCase {
             protected void doExecute(Task task, FakeRequest request, ActionListener<ActionResponse> listener) {
             }
         }
-        class FakeAction extends Action<ActionResponse> {
+        class FakeAction extends ActionType<ActionResponse> {
             protected FakeAction() {
-                super("fake");
-            }
-
-            @Override
-            public ActionResponse newResponse() {
-                return null;
+                super("fake", null);
             }
         }
         FakeAction action = new FakeAction();

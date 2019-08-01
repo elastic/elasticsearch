@@ -34,6 +34,7 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.NodeConfigurationSource;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportService;
 
@@ -59,7 +60,7 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                 .builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("discovery.type", "single-node")
-                .put("transport.port", "0")
+                .put("transport.port", MockTransportService.getPortRange())
                 .build();
     }
 
@@ -189,7 +190,6 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
     public void testStatePersistence() throws Exception {
         createIndex("test");
         internalCluster().fullRestart();
-        assertTrue(client().admin().indices().prepareExists("test").get().isExists());
+        assertTrue(indexExists("test"));
     }
-
 }

@@ -19,10 +19,10 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
-import org.elasticsearch.common.compress.NotCompressedException;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -31,10 +31,6 @@ import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Set;
-import java.util.TreeSet;
 
 public abstract class InboundMessage extends NetworkMessage implements Closeable {
 
@@ -75,11 +71,8 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
                 final boolean isHandshake = TransportStatus.isHandshake(status);
                 ensureVersionCompatibility(remoteVersion, version, isHandshake);
                 if (TransportStatus.isCompress(status) && hasMessageBytesToRead && streamInput.available() > 0) {
-                    Compressor compressor;
-                    try {
-                        final int bytesConsumed = TcpHeader.REQUEST_ID_SIZE + TcpHeader.STATUS_SIZE + TcpHeader.VERSION_ID_SIZE;
-                        compressor = CompressorFactory.compressor(reference.slice(bytesConsumed, reference.length() - bytesConsumed));
-                    } catch (NotCompressedException ex) {
+                    Compressor compressor = getCompressor(reference);
+                    if (compressor == null) {
                         int maxToRead = Math.min(reference.length(), 10);
                         StringBuilder sb = new StringBuilder("stream marked as compressed, but no compressor found, first [")
                             .append(maxToRead).append("] content bytes out of [").append(reference.length())
@@ -99,9 +92,12 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
 
                 InboundMessage message;
                 if (TransportStatus.isRequest(status)) {
-                    final Set<String> features = Collections.unmodifiableSet(new TreeSet<>(Arrays.asList(streamInput.readStringArray())));
+                    if (remoteVersion.before(Version.V_8_0_0)) {
+                        // discard features
+                        streamInput.readStringArray();
+                    }
                     final String action = streamInput.readString();
-                    message = new Request(threadContext, remoteVersion, status, requestId, action, features, streamInput);
+                    message = new Request(threadContext, remoteVersion, status, requestId, action, streamInput);
                 } else {
                     message = new Response(threadContext, remoteVersion, status, requestId, streamInput);
                 }
@@ -113,6 +109,13 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
                 }
             }
         }
+    }
+
+    @Nullable
+    static Compressor getCompressor(BytesReference message) {
+        final int offset = TcpHeader.REQUEST_ID_SIZE + TcpHeader.STATUS_SIZE + TcpHeader.VERSION_ID_SIZE;
+        return CompressorFactory.COMPRESSOR.isCompressed(message.slice(offset, message.length() - offset))
+            ? CompressorFactory.COMPRESSOR : null;
     }
 
     @Override
@@ -136,22 +139,17 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
     public static class Request extends InboundMessage {
 
         private final String actionName;
-        private final Set<String> features;
 
-        Request(ThreadContext threadContext, Version version, byte status, long requestId, String actionName, Set<String> features,
+        Request(ThreadContext threadContext, Version version, byte status, long requestId, String actionName,
                 StreamInput streamInput) {
             super(threadContext, version, status, requestId, streamInput);
             this.actionName = actionName;
-            this.features = features;
         }
 
         String getActionName() {
             return actionName;
         }
 
-        Set<String> getFeatures() {
-            return features;
-        }
     }
 
     public static class Response extends InboundMessage {

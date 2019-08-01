@@ -37,14 +37,14 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource, DiversifiedAggregatorFactory> {
+public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource> {
 
     private final int shardSize;
     private final int maxDocsPerValue;
     private final String executionHint;
 
     DiversifiedAggregatorFactory(String name, ValuesSourceConfig<ValuesSource> config, int shardSize, int maxDocsPerValue,
-            String executionHint, SearchContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder,
+            String executionHint, SearchContext context, AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
             Map<String, Object> metaData) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metaData);
         this.shardSize = shardSize;

@@ -587,6 +587,20 @@
     - length: { tokens: 1 }
     - match:  { tokens.0.token: avion }
 
+    - do:
+        catch: bad_request
+        indices.create:
+          index: test2
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_elision:
+                    type: elision
+    - match: { status: 400 }
+    - match: { error.type: illegal_argument_exception }
+    - match: { error.reason: "elision filter requires [articles] or [articles_path] setting" }
+
 ---
 "stemmer":
     - do:

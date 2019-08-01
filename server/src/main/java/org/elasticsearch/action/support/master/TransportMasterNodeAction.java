@@ -37,7 +37,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
@@ -50,7 +49,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
 
 /**
  * A base class for operations that needs to be performed on the master node.
@@ -67,26 +65,8 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
 
     protected TransportMasterNodeAction(String actionName, TransportService transportService,
                                         ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
-                                        IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request) {
-        this(actionName, true, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, request);
-    }
-
-    protected TransportMasterNodeAction(String actionName, TransportService transportService,
-                                        ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
                                         Writeable.Reader<Request> request, IndexNameExpressionResolver indexNameExpressionResolver) {
         this(actionName, true, transportService, clusterService, threadPool, actionFilters, request, indexNameExpressionResolver);
-    }
-
-    protected TransportMasterNodeAction(String actionName, boolean canTripCircuitBreaker,
-                                        TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                        Supplier<Request> request) {
-        super(actionName, canTripCircuitBreaker, transportService, actionFilters, request);
-        this.transportService = transportService;
-        this.clusterService = clusterService;
-        this.threadPool = threadPool;
-        this.indexNameExpressionResolver = indexNameExpressionResolver;
-        this.executor = executor();
     }
 
     protected TransportMasterNodeAction(String actionName, boolean canTripCircuitBreaker,
@@ -103,29 +83,10 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
 
     protected abstract String executor();
 
-    /**
-     * @deprecated new implementors should override {@link #read(StreamInput)} and use the
-     *             {@link Writeable.Reader} interface.
-     * @return a new response instance. Typically this is used for serialization using the
-     *         {@link Streamable#readFrom(StreamInput)} method.
-     */
-    @Deprecated
-    protected abstract Response newResponse();
+    protected abstract Response read(StreamInput in) throws IOException;
 
-    protected Response read(StreamInput in) throws IOException {
-        Response response = newResponse();
-        response.readFrom(in);
-        return response;
-    }
-
-    protected abstract void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception;
-
-    /**
-     * Override this operation if access to the task parameter is needed
-     */
-    protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
-        masterOperation(request, state, listener);
-    }
+    protected abstract void masterOperation(Task task, Request request, ClusterState state,
+                                            ActionListener<Response> listener) throws Exception;
 
     protected boolean localExecute(Request request) {
         return false;
@@ -194,12 +155,8 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                                 delegatedListener.onFailure(t);
                             }
                         });
-                        threadPool.executor(executor).execute(new ActionRunnable<Response>(delegate) {
-                            @Override
-                            protected void doRun() throws Exception {
-                                masterOperation(task, request, clusterState, delegate);
-                            }
-                        });
+                        threadPool.executor(executor)
+                            .execute(ActionRunnable.wrap(delegate, l -> masterOperation(task, request, clusterState, l)));
                     }
                 } else {
                     if (nodes.getMasterNode() == null) {

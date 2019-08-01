@@ -22,6 +22,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
+import org.elasticsearch.xpack.watcher.ClockHolder;
 import org.elasticsearch.xpack.watcher.test.WatchExecutionContextMockBuilder;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
 import org.junit.Before;
@@ -75,7 +76,7 @@ public class TransportPutWatchActionTests extends ESTestCase {
         }).when(client).execute(any(), any(), any());
 
         action = new TransportPutWatchAction(transportService, threadPool, new ActionFilters(Collections.emptySet()),
-            new ClockMock(), new XPackLicenseState(Settings.EMPTY), parser, client);
+            new ClockHolder(new ClockMock()), new XPackLicenseState(Settings.EMPTY), parser, client);
     }
 
     public void testHeadersAreFilteredWhenPuttingWatches() throws Exception {

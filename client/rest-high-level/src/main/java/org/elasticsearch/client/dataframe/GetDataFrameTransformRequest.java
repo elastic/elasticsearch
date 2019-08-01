@@ -30,6 +30,7 @@ import java.util.Optional;
 
 public class GetDataFrameTransformRequest implements Validatable {
 
+    public static final String ALLOW_NO_MATCH = "allow_no_match";
     /**
      * Helper method to create a request that will get ALL Data Frame Transforms
      * @return new {@link GetDataFrameTransformRequest} object for the id "_all"
@@ -40,6 +41,7 @@ public class GetDataFrameTransformRequest implements Validatable {
 
     private final List<String> ids;
     private PageParams pageParams;
+    private Boolean allowNoMatch;
 
     public GetDataFrameTransformRequest(String... ids) {
         this.ids = Arrays.asList(ids);
@@ -57,6 +59,14 @@ public class GetDataFrameTransformRequest implements Validatable {
         this.pageParams = pageParams;
     }
 
+    public Boolean getAllowNoMatch() {
+        return allowNoMatch;
+    }
+
+    public void setAllowNoMatch(Boolean allowNoMatch) {
+        this.allowNoMatch = allowNoMatch;
+    }
+
     @Override
     public Optional<ValidationException> validate() {
         if (ids == null || ids.isEmpty()) {
@@ -70,7 +80,7 @@ public class GetDataFrameTransformRequest implements Validatable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(ids, pageParams);
+        return Objects.hash(ids, pageParams, allowNoMatch);
     }
 
     @Override
@@ -83,6 +93,8 @@ public class GetDataFrameTransformRequest implements Validatable {
             return false;
         }
         GetDataFrameTransformRequest other = (GetDataFrameTransformRequest) obj;
-        return Objects.equals(ids, other.ids) && Objects.equals(pageParams, other.pageParams);
+        return Objects.equals(ids, other.ids)
+            && Objects.equals(pageParams, other.pageParams)
+            && Objects.equals(allowNoMatch, other.allowNoMatch);
     }
 }

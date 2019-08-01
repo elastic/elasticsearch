@@ -34,6 +34,7 @@ public class ClientYamlSuiteRestApiParserFailingTests extends ESTestCase {
        parseAndExpectFailure("{\n" +
                "  \"ping\": {" +
                "    \"documentation\": \"http://www.elasticsearch.org/guide/\"," +
+               "    \"stability\": \"stable\",\n" +
                "    \"methods\": [\"PUT\", \"PUT\"]," +
                "    \"url\": {" +
                "      \"path\": \"/\"," +
@@ -54,6 +55,7 @@ public class ClientYamlSuiteRestApiParserFailingTests extends ESTestCase {
         parseAndExpectFailure("{\n" +
                 "  \"ping\": {" +
                 "    \"documentation\": \"http://www.elasticsearch.org/guide/\"," +
+                "    \"stability\": \"stable\",\n" +
                 "    \"methods\": [\"PUT\"]," +
                 "    \"url\": {" +
                 "      \"path\": \"/pingone\"," +
@@ -94,6 +96,7 @@ public class ClientYamlSuiteRestApiParserFailingTests extends ESTestCase {
     private static final String BROKEN_SPEC_PARAMS = "{\n" +
             "  \"ping\": {" +
             "    \"documentation\": \"http://www.elasticsearch.org/guide/\"," +
+            "    \"stability\": \"stable\",\n" +
             "    \"methods\": [\"HEAD\"]," +
             "    \"url\": {" +
             "      \"path\": \"/\"," +
@@ -113,6 +116,7 @@ public class ClientYamlSuiteRestApiParserFailingTests extends ESTestCase {
     private static final String BROKEN_SPEC_PARTS = "{\n" +
             "  \"ping\": {" +
             "    \"documentation\": \"http://www.elasticsearch.org/guide/\"," +
+            "    \"stability\": \"stable\",\n" +
             "    \"methods\": [\"HEAD\"]," +
             "    \"url\": {" +
             "      \"path\": \"/\"," +

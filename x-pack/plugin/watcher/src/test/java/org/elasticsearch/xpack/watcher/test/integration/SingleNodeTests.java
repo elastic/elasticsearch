@@ -11,6 +11,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
@@ -50,7 +51,7 @@ public class SingleNodeTests extends AbstractWatcherIntegrationTestCase {
 
         String watchId = randomAlphaOfLength(20);
         // now we start with an empty set up, store a watch and expected it to be executed
-        PutWatchResponse putWatchResponse = watcherClient().preparePutWatch(watchId)
+        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client()).setId(watchId)
             .setSource(watchBuilder()
                 .trigger(schedule(interval(1, IntervalSchedule.Interval.Unit.SECONDS)))
                 .input(simpleInput())

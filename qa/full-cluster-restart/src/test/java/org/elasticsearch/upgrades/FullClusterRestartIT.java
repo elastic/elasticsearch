@@ -1048,19 +1048,26 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
     private void checkSnapshot(final String snapshotName, final int count, final Version tookOnVersion) throws IOException {
         // Check the snapshot metadata, especially the version
         Request listSnapshotRequest = new Request("GET", "/_snapshot/repo/" + snapshotName);
-        Map<String, Object> listSnapshotResponse = entityAsMap(client().performRequest(listSnapshotRequest));
-        assertEquals(singletonList(snapshotName), XContentMapValues.extractValue("snapshots.snapshot", listSnapshotResponse));
-        assertEquals(singletonList("SUCCESS"), XContentMapValues.extractValue("snapshots.state", listSnapshotResponse));
-        assertEquals(singletonList(tookOnVersion.toString()), XContentMapValues.extractValue("snapshots.version", listSnapshotResponse));
+        Map<String, Object> responseMap = entityAsMap(client().performRequest(listSnapshotRequest));
+        Map<String, Object> snapResponse;
+        if (responseMap.get("responses") != null) {
+            snapResponse = (Map<String, Object>) ((List<Object>) responseMap.get("responses")).get(0);
+        } else {
+            snapResponse = responseMap;
+        }
+
+        assertEquals(singletonList(snapshotName), XContentMapValues.extractValue("snapshots.snapshot", snapResponse));
+        assertEquals(singletonList("SUCCESS"), XContentMapValues.extractValue("snapshots.state", snapResponse));
+        assertEquals(singletonList(tookOnVersion.toString()), XContentMapValues.extractValue("snapshots.version", snapResponse));
 
         // Remove the routing setting and template so we can test restoring them.
         Request clearRoutingFromSettings = new Request("PUT", "/_cluster/settings");
         clearRoutingFromSettings.setJsonEntity("{\"persistent\":{\"cluster.routing.allocation.exclude.test_attr\": null}}");
         client().performRequest(clearRoutingFromSettings);
-
         client().performRequest(new Request("DELETE", "/_template/test_template"));
 
         // Restore

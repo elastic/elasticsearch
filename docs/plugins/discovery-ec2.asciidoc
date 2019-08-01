@@ -181,8 +181,8 @@ discovery. For instance, the following settings will only use nodes with a
 
 [source,yaml]
 ----
-discovery.ec2.tags.role: master
-discovery.ec2.tags.environment: dev,staging
+discovery.ec2.tag.role: master
+discovery.ec2.tag.environment: dev,staging
 ----
 
 NOTE: The names of tags used for discovery may only contain ASCII letters,

@@ -28,9 +28,13 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.snapshots.RestoreService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.io.IOException;
 
 /**
  * Transport action for restore snapshot operation
@@ -55,8 +59,8 @@ public class TransportRestoreSnapshotAction extends TransportMasterNodeAction<Re
     }
 
     @Override
-    protected RestoreSnapshotResponse newResponse() {
-        return new RestoreSnapshotResponse();
+    protected RestoreSnapshotResponse read(StreamInput in) throws IOException {
+        return new RestoreSnapshotResponse(in);
     }
 
     @Override
@@ -72,7 +76,7 @@ public class TransportRestoreSnapshotAction extends TransportMasterNodeAction<Re
     }
 
     @Override
-    protected void masterOperation(final RestoreSnapshotRequest request, final ClusterState state,
+    protected void masterOperation(Task task, final RestoreSnapshotRequest request, final ClusterState state,
                                    final ActionListener<RestoreSnapshotResponse> listener) {
         restoreService.restoreSnapshot(request, ActionListener.delegateFailure(listener,
             (delegatedListener, restoreCompletionResponse) -> {

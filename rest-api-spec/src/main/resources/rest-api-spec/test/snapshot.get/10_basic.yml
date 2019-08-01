@@ -11,6 +11,9 @@ setup:
 
 ---
 "Get snapshot info":
+  - skip:
+      version: " - 7.9.99"
+      reason: "8.0 changes get snapshots response format"
 
   - do:
       indices.create:
@@ -31,8 +34,8 @@ setup:
         repository: test_repo_get_1
         snapshot: test_snapshot
 
-  - is_true: snapshots
-  - is_true: snapshots.0.failures
+  - is_true: responses.0.snapshots
+  - is_true: responses.0.snapshots.0.failures
 
   - do:
       snapshot.delete:
@@ -41,15 +44,23 @@ setup:
 
 ---
 "Get missing snapshot info throws an exception":
+  - skip:
+      version: " - 7.9.99"
+      reason: "8.0 changes get snapshots response format"
 
   - do:
-      catch: /snapshot_missing_exception.+ is missing/
       snapshot.get:
         repository: test_repo_get_1
         snapshot: test_nonexistent_snapshot
 
+  - is_true: responses.0.error
+  - match: { responses.0.error.type: snapshot_missing_exception }
+
 ---
 "Get missing snapshot info succeeds when ignore_unavailable is true":
+  - skip:
+      version: " - 7.9.99"
+      reason: "8.0 changes get snapshots response format"
 
   - do:
       snapshot.get:
@@ -57,10 +68,14 @@ setup:
         snapshot: test_nonexistent_snapshot
         ignore_unavailable: true
 
-  - is_true: snapshots
+  - is_true: responses.0.snapshots
 
 ---
 "Get snapshot info when verbose is false":
+  - skip:
+      version: " - 7.9.99"
+      reason: "8.0 changes get snapshots response format"
+
   - do:
       indices.create:
         index: test_index
@@ -81,13 +96,13 @@ setup:
         snapshot: test_snapshot
         verbose: false
 
-  - is_true: snapshots
-  - match: { snapshots.0.snapshot: test_snapshot }
-  - match: { snapshots.0.state: SUCCESS }
-  - is_false: snapshots.0.failures
-  - is_false: snapshots.0.shards
-  - is_false: snapshots.0.version
-  - is_false: snapshots.0._meta
+  - is_true: responses.0.snapshots
+  - match: { responses.0.snapshots.0.snapshot: test_snapshot }
+  - match: { responses.0.snapshots.0.state: SUCCESS }
+  - is_false: responses.0.snapshots.0.failures
+  - is_false: responses.0.snapshots.0.shards
+  - is_false: responses.0.snapshots.0.version
+  - is_false: responses.0.snapshots.0._meta
 
   - do:
       snapshot.delete:
@@ -96,6 +111,9 @@ setup:
 
 ---
 "Get snapshot info contains include_global_state":
+  - skip:
+      version: " - 7.9.99"
+      reason: "8.0 changes get snapshots response format"
 
   - do:
       indices.create:
@@ -118,10 +136,10 @@ setup:
         repository: test_repo_get_1
         snapshot: test_snapshot_with_include_global_state
 
-  - is_true: snapshots
-  - match: { snapshots.0.snapshot: test_snapshot_with_include_global_state }
-  - match: { snapshots.0.state: SUCCESS }
-  - match: { snapshots.0.include_global_state: true }
+  - is_true: responses.0.snapshots
+  - match: { responses.0.snapshots.0.snapshot: test_snapshot_with_include_global_state }
+  - match: { responses.0.snapshots.0.state: SUCCESS }
+  - match: { responses.0.snapshots.0.include_global_state: true }
 
   - do:
       snapshot.delete:
@@ -141,10 +159,10 @@ setup:
         repository: test_repo_get_1
         snapshot: test_snapshot_without_include_global_state
 
-  - is_true: snapshots
-  - match: { snapshots.0.snapshot: test_snapshot_without_include_global_state }
-  - match: { snapshots.0.state: SUCCESS }
-  - match: { snapshots.0.include_global_state: false }
+  - is_true: responses.0.snapshots
+  - match: { responses.0.snapshots.0.snapshot: test_snapshot_without_include_global_state }
+  - match: { responses.0.snapshots.0.state: SUCCESS }
+  - match: { responses.0.snapshots.0.include_global_state: false }
 
   - do:
       snapshot.delete:
@@ -154,8 +172,8 @@ setup:
 ---
 "Get snapshot info with metadata":
   - skip:
-      version: " - 7.2.99"
-      reason: "metadata field was added in 7.3"
+      version: " - 7.9.99"
+      reason: "8.0 changes get snapshots response format"
 
   - do:
       indices.create:
@@ -178,11 +196,11 @@ setup:
         repository: test_repo_get_1
         snapshot: test_snapshot_with_metadata
 
-  - is_true: snapshots
-  - match: { snapshots.0.snapshot: test_snapshot_with_metadata }
-  - match: { snapshots.0.state: SUCCESS }
-  - match: { snapshots.0.metadata.taken_by: test }
-  - match: { snapshots.0.metadata.foo.bar: baz }
+  - is_true: responses.0.snapshots
+  - match: { responses.0.snapshots.0.snapshot: test_snapshot_with_metadata }
+  - match: { responses.0.snapshots.0.state: SUCCESS }
+  - match: { responses.0.snapshots.0.metadata.taken_by: test }
+  - match: { responses.0.snapshots.0.metadata.foo.bar: baz }
 
   - do:
       snapshot.delete:

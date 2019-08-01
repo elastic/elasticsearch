@@ -21,16 +21,21 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class HistogramAggregatorTests extends AggregatorTestCase {
 
@@ -186,6 +191,83 @@ public class HistogramAggregatorTests extends AggregatorTestCase {
                 assertTrue(AggregationInspectionHelper.hasValue(histogram));
             }
         }
+    }
+
+    public void testMissingUnmappedField() throws Exception {
+        try (Directory dir = newDirectory();
+             RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+            for (int i = 0; i < 7; i ++) {
+                Document doc = new Document();
+                w.addDocument(doc);
+            }
+
+            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
+                .field("field")
+                .interval(5)
+                .missing(2d);
+            MappedFieldType type = null;
+            try (IndexReader reader = w.getReader()) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+                InternalHistogram histogram = search(searcher, new MatchAllDocsQuery(), aggBuilder, type);
+
+                assertEquals(1, histogram.getBuckets().size());
+
+                assertEquals(0d, histogram.getBuckets().get(0).getKey());
+                assertEquals(7, histogram.getBuckets().get(0).getDocCount());
+
+                assertTrue(AggregationInspectionHelper.hasValue(histogram));
+            }
+        }
+    }
+
+    public void testMissingUnmappedFieldBadType() throws Exception {
+        try (Directory dir = newDirectory();
+             RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+            for (int i = 0; i < 7; i ++) {
+                w.addDocument(new Document());
+            }
+
+            String missingValue = "🍌🍌🍌";
+            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
+                .field("field")
+                .interval(5)
+                .missing(missingValue);
+            MappedFieldType type = null;
+            try (IndexReader reader = w.getReader()) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+                Throwable t = expectThrows(IllegalArgumentException.class, () -> {
+                    search(searcher, new MatchAllDocsQuery(), aggBuilder, type);
+                });
+                // This throws a number format exception (which is a subclass of IllegalArgumentException) and might be ok?
+                assertThat(t.getMessage(), containsString(missingValue));
+            }
+        }
+    }
+
+    public void testIncorrectFieldType() throws Exception {
+        try (Directory dir = newDirectory();
+             RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+            for (String value : new String[] {"foo", "bar", "baz", "quux"}) {
+                Document doc = new Document();
+                doc.add(new SortedSetDocValuesField("field", new BytesRef(value)));
+                w.addDocument(doc);
+            }
+
+            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
+                .field("field")
+                .interval(5);
+            MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType();
+            fieldType.setName("field");
+            fieldType.setHasDocValues(true);
+            try (IndexReader reader = w.getReader()) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+
+                expectThrows(IllegalArgumentException.class, () -> {
+                    search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                });
+            }
+        }
+
     }
 
     public void testOffset() throws Exception {

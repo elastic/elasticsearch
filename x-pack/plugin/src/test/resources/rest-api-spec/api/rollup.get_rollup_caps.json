@@ -1,9 +1,9 @@
 {
   "rollup.get_rollup_caps": {
     "documentation": "",
+    "stability" : "experimental",
     "methods": [ "GET" ],
     "url": {
-      "path": "/_rollup/data/{id}",
       "paths": [ "/_rollup/data/{id}", "/_rollup/data/" ],
       "parts": {
         "id": {

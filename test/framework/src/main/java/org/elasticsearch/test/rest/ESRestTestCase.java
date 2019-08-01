@@ -140,11 +140,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             assert clusterHosts == null;
             assert hasXPack == null;
             assert nodeVersions == null;
-            String cluster = System.getProperty("tests.rest.cluster");
-            if (cluster == null) {
-                throw new RuntimeException("Must specify [tests.rest.cluster] system property with a comma delimited list of [host:port] "
-                        + "to which to send REST requests");
-            }
+            String cluster = getTestRestCluster();
             String[] stringUrls = cluster.split(",");
             List<HttpHost> hosts = new ArrayList<>(stringUrls.length);
             for (String stringUrl : stringUrls) {
@@ -181,6 +177,15 @@ public abstract class ESRestTestCase extends ESTestCase {
         assert clusterHosts != null;
         assert hasXPack != null;
         assert nodeVersions != null;
+    }
+
+    protected String getTestRestCluster() {
+        String cluster = System.getProperty("tests.rest.cluster");
+        if (cluster == null) {
+            throw new RuntimeException("Must specify [tests.rest.cluster] system property with a comma delimited list of [host:port] "
+                + "to which to send REST requests");
+        }
+        return cluster;
     }
     
     /**
@@ -530,7 +535,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * the snapshots intact in the repository.
      * @return Map of repository name to list of snapshots found in unfinished state
      */
-    private Map<String, List<Map<?, ?>>> wipeSnapshots() throws IOException {
+    protected Map<String, List<Map<?, ?>>> wipeSnapshots() throws IOException {
         final Map<String, List<Map<?, ?>>> inProgressSnapshots = new HashMap<>();
         for (Map.Entry<String, ?> repo : entityAsMap(adminClient.performRequest(new Request("GET", "/_snapshot/_all"))).entrySet()) {
             String repoName = repo.getKey();
@@ -540,7 +545,16 @@ public abstract class ESRestTestCase extends ESTestCase {
                 // All other repo types we really don't have a chance of being able to iterate properly, sadly.
                 Request listRequest = new Request("GET", "/_snapshot/" + repoName + "/_all");
                 listRequest.addParameter("ignore_unavailable", "true");
-                List<?> snapshots = (List<?>) entityAsMap(adminClient.performRequest(listRequest)).get("snapshots");
+
+                Map<?, ?> response = entityAsMap(adminClient.performRequest(listRequest));
+                Map<?, ?> oneRepoResponse;
+                if (response.containsKey("responses")) {
+                    oneRepoResponse = ((Map<?,?>)((List<?>) response.get("responses")).get(0));
+                } else {
+                    oneRepoResponse = response;
+                }
+
+                List<?> snapshots = (List<?>) oneRepoResponse.get("snapshots");
                 for (Object snapshot : snapshots) {
                     Map<?, ?> snapshotInfo = (Map<?, ?>) snapshot;
                     String name = (String) snapshotInfo.get("snapshot");
@@ -933,6 +947,9 @@ public abstract class ESRestTestCase extends ESTestCase {
             return true;
         }
         if (name.startsWith(".watch") || name.startsWith(".triggered_watches")) {
+            return true;
+        }
+        if (name.startsWith(".data-frame-")) {
             return true;
         }
         if (name.startsWith(".ml-")) {

@@ -141,7 +141,7 @@ public class ClusterPermission {
         /**
          * Checks whether specified {@link PermissionCheck} is implied by this {@link PermissionCheck}.<br>
          * This is important method to be considered during implementation as it compares {@link PermissionCheck}s.
-         * It is used in scenario's to test if one is granted a permission does that also grant other permission.
+         * It is used in scenarios to test if one is granted a permission does that also grant other permission.
          *
          * @param permissionCheck {@link PermissionCheck}
          * @return {@code true} if the specified permission is implied by this {@link PermissionCheck} else

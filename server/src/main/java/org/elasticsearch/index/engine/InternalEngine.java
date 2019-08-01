@@ -895,7 +895,7 @@ public class InternalEngine extends Engine {
                         indexResult = indexIntoLucene(index, plan);
                     } else {
                         indexResult = new IndexResult(
-                            plan.versionForIndexing, getPrimaryTerm(), index.seqNo(), plan.currentNotFoundOrDeleted);
+                            plan.versionForIndexing, index.primaryTerm(), index.seqNo(), plan.currentNotFoundOrDeleted);
                     }
                 }
                 if (index.origin().isFromTranslog() == false) {
@@ -1269,7 +1269,7 @@ public class InternalEngine extends Engine {
                     deleteResult = deleteInLucene(delete, plan);
                 } else {
                     deleteResult = new DeleteResult(
-                        plan.versionOfDeletion, getPrimaryTerm(), delete.seqNo(), plan.currentlyDeleted == false);
+                        plan.versionOfDeletion, delete.primaryTerm(), delete.seqNo(), plan.currentlyDeleted == false);
                 }
             }
             if (delete.origin().isFromTranslog() == false && deleteResult.getResultType() == Result.Type.SUCCESS) {
@@ -1396,7 +1396,7 @@ public class InternalEngine extends Engine {
                         engineConfig.getThreadPool().relativeTimeInMillis()));
             }
             return new DeleteResult(
-                plan.versionOfDeletion, getPrimaryTerm(), delete.seqNo(), plan.currentlyDeleted == false);
+                plan.versionOfDeletion, delete.primaryTerm(), delete.seqNo(), plan.currentlyDeleted == false);
         } catch (Exception ex) {
             if (ex instanceof AlreadyClosedException == false && indexWriter.getTragicException() == null) {
                 throw new AssertionError("delete operation should never fail at document level", ex);
@@ -1507,7 +1507,7 @@ public class InternalEngine extends Engine {
                         throw ex;
                     }
                 }
-                noOpResult = new NoOpResult(getPrimaryTerm(), noOp.seqNo());
+                noOpResult = new NoOpResult(noOp.primaryTerm(), noOp.seqNo());
                 if (noOp.origin().isFromTranslog() == false && noOpResult.getResultType() == Result.Type.SUCCESS) {
                     final Translog.Location location = translog.add(new Translog.NoOp(noOp.seqNo(), noOp.primaryTerm(), noOp.reason()));
                     noOpResult.setTranslogLocation(location);

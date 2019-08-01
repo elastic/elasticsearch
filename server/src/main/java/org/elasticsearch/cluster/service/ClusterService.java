@@ -68,7 +68,7 @@ public class ClusterService extends AbstractLifecycleComponent {
     private final String nodeName;
 
     public ClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
-        this(settings, clusterSettings, new MasterService(Node.NODE_NAME_SETTING.get(settings), settings, threadPool),
+        this(settings, clusterSettings, new MasterService(settings, clusterSettings, threadPool),
             new ClusterApplierService(Node.NODE_NAME_SETTING.get(settings), settings, clusterSettings, threadPool));
     }
 
@@ -88,7 +88,6 @@ public class ClusterService extends AbstractLifecycleComponent {
     }
 
     private void setSlowTaskLoggingThreshold(TimeValue slowTaskLoggingThreshold) {
-        masterService.setSlowTaskLoggingThreshold(slowTaskLoggingThreshold);
         clusterApplierService.setSlowTaskLoggingThreshold(slowTaskLoggingThreshold);
     }
 

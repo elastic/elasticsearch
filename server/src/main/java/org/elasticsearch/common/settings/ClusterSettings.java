@@ -55,6 +55,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationD
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
@@ -270,6 +271,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             IndexModule.NODE_STORE_ALLOW_MMAP,
             ClusterService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
             ClusterService.USER_DEFINED_META_DATA,
+            MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
             SearchService.DEFAULT_SEARCH_TIMEOUT_SETTING,
             SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS,
             TransportSearchAction.SHARD_COUNT_LIMIT_SETTING,

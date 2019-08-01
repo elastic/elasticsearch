@@ -55,7 +55,7 @@ GET /_search
 (Required, query object) Contains a <<span-queries,span query>>.
 
 While returned results are based on this query, the `field_masking_span` query
-calculates <<query-filter-context, relevance scores>> using norms of the field
+calculates <<relevance-scores,relevance scores>> using norms of the field
 in the `field` parameter. This can result in unexpected relevance scoring.
 --
 

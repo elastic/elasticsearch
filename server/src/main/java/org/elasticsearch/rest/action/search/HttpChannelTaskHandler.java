@@ -40,14 +40,23 @@ import java.util.concurrent.atomic.AtomicReference;
  * This class executes a request and associates the corresponding {@link Task} with the {@link HttpChannel} that it was originated from,
  * so that the tasks associated with a certain channel get cancelled when the underlying connection gets closed.
  */
-final class HttpChannelTaskHandler {
+public final class HttpChannelTaskHandler {
+
+    private static final HttpChannelTaskHandler INSTANCE = new HttpChannelTaskHandler();
+
     final Map<HttpChannel, CloseListener> httpChannels = new ConcurrentHashMap<>();
+
+    private HttpChannelTaskHandler() {
+    }
+
+    public static HttpChannelTaskHandler get() {
+        return INSTANCE;
+    }
 
     <Response extends ActionResponse> void execute(NodeClient client, HttpChannel httpChannel, ActionRequest request,
                                                    ActionType<Response> actionType, ActionListener<Response> listener) {
 
         CloseListener closeListener = httpChannels.computeIfAbsent(httpChannel, channel -> new CloseListener(client));
-        closeListener.maybeRegisterChannel(httpChannel);
         TaskHolder taskHolder = new TaskHolder();
         Task task = client.executeLocally(actionType, request,
             new ActionListener<>() {
@@ -69,11 +78,12 @@ final class HttpChannelTaskHandler {
                     }
                 }
             });
-
         closeListener.registerTask(taskHolder, new TaskId(client.getLocalNodeId(), task.getId()));
+        closeListener.maybeRegisterChannel(httpChannel);
+    }
 
-        //TODO check that no tasks are left behind through assertions at node close. Not sure how. Couldn't there be in-flight requests
-        //causing channels to be in the map when a node gets closed?
+    public int getNumChannels() {
+        return httpChannels.size();
     }
 
     final class CloseListener implements ActionListener<Void> {
@@ -111,13 +121,10 @@ final class HttpChannelTaskHandler {
 
         @Override
         public synchronized void onResponse(Void aVoid) {
-            //When the channel gets closed it won't be reused: we can remove it from the map as there is no chance we will
-            //register another close listener to it later.
-            //TODO Could it be that not all tasks have been registered yet when the close listener is notified. We remove the channel
-            // and cancel the tasks that are known up until then. if new tasks come in from the same channel, the channel will be added
-            // again to the map, but the close listener will be registered another time to it which is not good.
+            //When the channel gets closed it won't be reused: we can remove it from the map and forget about it.
             httpChannels.remove(channel.get());
             for (TaskId previousTaskId : taskIds) {
+                //TODO what thread context should this be run on?
                 CancelTasksRequest cancelTasksRequest = new CancelTasksRequest();
                 cancelTasksRequest.setTaskId(previousTaskId);
                 //We don't wait for cancel tasks to come back. Task cancellation is just best effort.

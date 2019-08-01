@@ -52,6 +52,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -71,17 +72,20 @@ public class HttpChannelTaskHandlerTests extends ESTestCase {
 
     /**
      * This test verifies that no tasks are left in the map where channels and their corresponding tasks are tracked.
-     * Through the {@link TestClient} we simulate a scenario where the task listener can be called before the task has been
-     * associated with its channel. Either way, we need to make sure that no tasks are left in the map.
+     * Through the {@link TestClient} we simulate a scenario where the task may complete even before it has been
+     * associated with its corresponding channel. Either way, we need to make sure that no tasks are left in the map.
      */
-    public void testLinkAndUnlink() throws Exception {
-        try (TestClient testClient = new TestClient(Settings.EMPTY, threadPool)) {
-            HttpChannelTaskHandler httpChannelTaskHandler = new HttpChannelTaskHandler();
+    public void testCompletedTasks() throws Exception {
+        try (TestClient testClient = new TestClient(Settings.EMPTY, threadPool, false)) {
+            HttpChannelTaskHandler httpChannelTaskHandler = HttpChannelTaskHandler.get();
+            int initialHttpChannels = httpChannelTaskHandler.httpChannels.size();
+            int totalSearches = 0;
             List<Future<?>> futures = new ArrayList<>();
             int numChannels = randomIntBetween(1, 30);
             for (int i = 0; i < numChannels; i++) {
                 int numTasks = randomIntBetween(1, 30);
                 TestHttpChannel channel = new TestHttpChannel();
+                totalSearches += numTasks;
                 for (int j = 0; j < numTasks; j++) {
                     PlainListenableActionFuture<SearchResponse> actionFuture = PlainListenableActionFuture.newListenableFuture();
                     threadPool.generic().submit(() -> httpChannelTaskHandler.execute(testClient, channel, new SearchRequest(),
@@ -92,67 +96,84 @@ public class HttpChannelTaskHandlerTests extends ESTestCase {
             for (Future<?> future : futures) {
                 future.get();
             }
-            //no channels get closed in this test
-            assertEquals(numChannels, httpChannelTaskHandler.httpChannels.size());
+            //no channels get closed in this test, hence we expect as many channels as we created in the map
+            assertEquals(initialHttpChannels + numChannels, httpChannelTaskHandler.httpChannels.size());
             for (Map.Entry<HttpChannel, HttpChannelTaskHandler.CloseListener> entry : httpChannelTaskHandler.httpChannels.entrySet()) {
                 assertEquals(0, entry.getValue().taskIds.size());
             }
+            assertEquals(totalSearches, testClient.searchRequests.get());
         }
     }
 
-    public void testChannelClose() throws Exception {
-        try (TestClient testClient = new TestClient(Settings.EMPTY, threadPool)) {
-            testClient.timeout.set(true);
-            HttpChannelTaskHandler httpChannelTaskHandler = new HttpChannelTaskHandler();
+    /**
+     * This test verifies the behaviour when the channel gets closed. The channel is expected to be
+     * removed and all of its corresponding tasks get cancelled.
+     */
+    public void testCancelledTasks() throws Exception {
+        try (TestClient testClient = new TestClient(Settings.EMPTY, threadPool, true)) {
+            HttpChannelTaskHandler httpChannelTaskHandler = HttpChannelTaskHandler.get();
+            int initialHttpChannels = httpChannelTaskHandler.httpChannels.size();
             int numChannels = randomIntBetween(1, 30);
-            int totalTasks = 0;
+            int totalSearches = 0;
             List<TestHttpChannel> channels = new ArrayList<>(numChannels);
             for (int i = 0; i < numChannels; i++) {
                 TestHttpChannel channel = new TestHttpChannel();
                 channels.add(channel);
                 int numTasks = randomIntBetween(1, 30);
-                totalTasks += numTasks;
+                totalSearches += numTasks;
                 for (int j = 0; j < numTasks; j++) {
                     httpChannelTaskHandler.execute(testClient, channel, new SearchRequest(), SearchAction.INSTANCE, null);
                 }
                 assertEquals(numTasks, httpChannelTaskHandler.httpChannels.get(channel).taskIds.size());
             }
-            assertEquals(numChannels, httpChannelTaskHandler.httpChannels.size());
+            assertEquals(initialHttpChannels + numChannels, httpChannelTaskHandler.httpChannels.size());
             for (TestHttpChannel channel : channels) {
                 channel.awaitClose();
             }
-            assertEquals(0, httpChannelTaskHandler.httpChannels.size());
-            assertEquals(totalTasks, testClient.cancelledTasks.size());
+            assertEquals(initialHttpChannels, httpChannelTaskHandler.httpChannels.size());
+            assertEquals(totalSearches, testClient.searchRequests.get());
+            assertEquals(totalSearches, testClient.cancelledTasks.size());
         }
     }
 
+    /**
+     * This test verified what happens when a request comes through yet its corresponding http channel is already closed.
+     * The close listener is straight-away executed, the task is cancelled. This can even happen multiple times, it's the only case
+     * where we may end up registering a close listener multiple times to the channel, but the channel is already closed hence only
+     * the newly added listener will be invoked at registration time.
+     */
     public void testChannelAlreadyClosed() {
-        try (TestClient testClient = new TestClient(Settings.EMPTY, threadPool)) {
-            testClient.timeout.set(true);
-
+        try (TestClient testClient = new TestClient(Settings.EMPTY, threadPool, true)) {
+            HttpChannelTaskHandler httpChannelTaskHandler = HttpChannelTaskHandler.get();
+            int initialHttpChannels = httpChannelTaskHandler.httpChannels.size();
             int numChannels = randomIntBetween(1, 30);
-            HttpChannelTaskHandler httpChannelTaskHandler = new HttpChannelTaskHandler();
+            int totalSearches = 0;
             for (int i = 0; i < numChannels; i++) {
                 TestHttpChannel channel = new TestHttpChannel();
                 //no need to wait here, there will be no close listener registered, nothing to wait for.
                 channel.close();
-                //here the channel will be first registered, then straight-away removed from the map as the close listener is invoked
-                //TODO is it possible that more tasks are started from a closed channel? In that case we would end up registering the close
-                //listener multiple times as the channel is unknown
-                httpChannelTaskHandler.execute(testClient, channel, new SearchRequest(), SearchAction.INSTANCE, null);
+                int numTasks = randomIntBetween(1, 5);
+                totalSearches += numTasks;
+                for (int j = 0; j < numTasks; j++) {
+                    //here the channel will be first registered, then straight-away removed from the map as the close listener is invoked
+                    httpChannelTaskHandler.execute(testClient, channel, new SearchRequest(), SearchAction.INSTANCE, null);
+                }
             }
-            assertEquals(0, httpChannelTaskHandler.httpChannels.size());
-            assertEquals(0, testClient.cancelledTasks.size());
+            assertEquals(initialHttpChannels, httpChannelTaskHandler.httpChannels.size());
+            assertEquals(totalSearches, testClient.searchRequests.get());
+            assertEquals(totalSearches, testClient.cancelledTasks.size());
         }
     }
 
     private static class TestClient extends NodeClient {
         private final AtomicLong counter = new AtomicLong(0);
-        private final AtomicBoolean timeout = new AtomicBoolean(false);
         private final Set<TaskId> cancelledTasks = new CopyOnWriteArraySet<>();
+        private final AtomicInteger searchRequests = new AtomicInteger(0);
+        private final boolean timeout;
 
-        TestClient(Settings settings, ThreadPool threadPool) {
+        TestClient(Settings settings, ThreadPool threadPool, boolean timeout) {
             super(settings, threadPool);
+            this.timeout = timeout;
         }
 
         @Override
@@ -173,8 +194,9 @@ public class HttpChannelTaskHandlerTests extends ESTestCase {
 
                     return task;
                 case SearchAction.NAME:
+                    searchRequests.incrementAndGet();
                     Task searchTask = request.createTask(counter.getAndIncrement(), "search", action.name(), null, Collections.emptyMap());
-                    if (timeout.get() == false) {
+                    if (timeout == false) {
                         if (rarely()) {
                             //make sure that search is sometimes also called from the same thread before the task is returned
                             listener.onResponse(null);
@@ -245,11 +267,13 @@ public class HttpChannelTaskHandlerTests extends ESTestCase {
 
         @Override
         public void addCloseListener(ActionListener<Void> listener) {
-            if (closeListener.compareAndSet(null, listener) == false) {
-                throw new IllegalStateException("close listener already set, only one is allowed!");
-            }
+            //if the channel is already closed, the listener gets notified immediately, from the same thread.
             if (open.get() == false) {
                 listener.onResponse(null);
+            } else {
+                if (closeListener.compareAndSet(null, listener) == false) {
+                    throw new IllegalStateException("close listener already set, only one is allowed!");
+                }
             }
         }
     }

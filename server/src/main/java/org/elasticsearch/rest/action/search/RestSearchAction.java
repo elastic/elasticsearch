@@ -64,8 +64,6 @@ public class RestSearchAction extends BaseRestHandler {
     public static final String TYPED_KEYS_PARAM = "typed_keys";
     private static final Set<String> RESPONSE_PARAMS;
 
-    private final HttpChannelTaskHandler httpChannelTaskHandler = new HttpChannelTaskHandler();
-
     static {
         final Set<String> responseParams = new HashSet<>(Arrays.asList(TYPED_KEYS_PARAM, TOTAL_HITS_AS_INT_PARAM));
         RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);
@@ -105,7 +103,7 @@ public class RestSearchAction extends BaseRestHandler {
 
         return channel -> {
             RestStatusToXContentListener<SearchResponse> listener = new RestStatusToXContentListener<>(channel);
-            httpChannelTaskHandler.execute(client, request.getHttpChannel(), searchRequest, SearchAction.INSTANCE, listener);
+            HttpChannelTaskHandler.get().execute(client, request.getHttpChannel(), searchRequest, SearchAction.INSTANCE, listener);
         };
     }
 

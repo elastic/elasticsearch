@@ -258,4 +258,24 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         assertThat(replica.getLastKnownGlobalCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
         closeShards(replica);
     }
+
+    public void testResetStartingSeqNoIfLastCommitCorrupted() throws Exception {
+        IndexShard shard = newStartedShard(false);
+        populateRandomData(shard);
+        DiscoveryNode pNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(),
+            Collections.emptyMap(), Collections.emptySet(), Version.CURRENT);
+        DiscoveryNode rNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(),
+            Collections.emptyMap(), Collections.emptySet(), Version.CURRENT);
+        shard = reinitShard(shard, ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.PeerRecoverySource.INSTANCE));
+        shard.markAsRecovering("peer recovery", new RecoveryState(shard.routingEntry(), pNode, rNode));
+        shard.prepareForIndexRecovery();
+        long startingSeqNo = shard.recoverLocallyUpToGlobalCheckpoint();
+        shard.store().markStoreCorrupted(new IOException("simulated"));
+        RecoveryTarget recoveryTarget = new RecoveryTarget(shard, null, null);
+        StartRecoveryRequest request = PeerRecoveryTargetService.getStartRecoveryRequest(logger, rNode, recoveryTarget, startingSeqNo);
+        assertThat(request.startingSeqNo(), equalTo(UNASSIGNED_SEQ_NO));
+        assertThat(request.metadataSnapshot().size(), equalTo(0));
+        recoveryTarget.decRef();
+        closeShards(shard);
+    }
 }

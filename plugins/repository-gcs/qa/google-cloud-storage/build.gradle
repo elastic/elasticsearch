@@ -93,6 +93,10 @@ task thirdPartyTest (type: Test) {
     nonInputProperties.systemProperty 'test.google.account', "${ -> encodedCredentials.call() }"
 }
 
+task gcsThirdPartyTests {
+    dependsOn check
+}
+
 if (useFixture) {
     // TODO think about running the fixture in the same JVM as tests
     thirdPartyTest.dependsOn createServiceAccountFile, googleCloudStorageFixture
@@ -109,6 +113,13 @@ if (useFixture) {
     thirdPartyTest {
         nonInputProperties.systemProperty 'test.google.endpoint', "${ -> fixtureEndpoint.call() }"
         nonInputProperties.systemProperty 'test.google.tokenURI', "${ -> tokenURI.call() }"
+    }
+
+    gradle.taskGraph.whenReady {
+        if (it.hasTask(gcsThirdPartyTests)) {
+            throw new IllegalStateException("Tried to run third party tests but not all of the necessary environment variables 'google_storage_service_account', " +
+                    "'google_storage_bucket', 'google_storage_base_path' are set.")
+        }
     }
 }
 

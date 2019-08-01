@@ -693,7 +693,7 @@ public class MasterServiceTests extends ESTestCase {
         }
     }
 
-    @TestLogging(value = "org.elasticsearch.cluster.service:INFO", reason = "to ensure that we log cluster state events on WARN level")
+    @TestLogging(value = "org.elasticsearch.cluster.service:WARN", reason = "to ensure that we log cluster state events on WARN level")
     public void testLongClusterStateUpdateLogging() throws Exception {
         MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.start();

@@ -75,7 +75,7 @@ public class Netty4BadRequestTests extends ESTestCase {
             }
 
             @Override
-            public void dispatchBadRequest(RestRequest request, RestChannel channel, ThreadContext threadContext, Throwable cause) {
+            public void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause) {
                 try {
                     final Exception e = cause instanceof Exception ? (Exception) cause : new ElasticsearchException(cause);
                     channel.sendResponse(new BytesRestResponse(channel, RestStatus.BAD_REQUEST, e));

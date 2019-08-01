@@ -181,7 +181,6 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         assertEquals("invalid IP address [192.168.1.1.] for [" + filterSetting.getKey() + ipKey + "]", e.getMessage());
     }
 
-    @AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/45003")
     public void testTransientSettingsStillApplied() {
         List<String> nodes = internalCluster().startNodes(6);
         Set<String> excludeNodes = new HashSet<>(nodes.subList(0, 3));

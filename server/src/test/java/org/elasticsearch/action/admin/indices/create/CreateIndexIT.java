@@ -105,8 +105,8 @@ public class CreateIndexIT extends ESIntegTestCase {
         }
         try {
             prepareCreate("test")
-                    .addMapping("type1", jsonBuilder())
-                    .addMapping("type1", jsonBuilder());
+                    .addMapping("type1", jsonBuilder().startObject().endObject())
+                    .addMapping("type1", jsonBuilder().startObject().endObject());
             fail("did not hit expected exception");
         } catch (IllegalStateException ise) {
             // expected

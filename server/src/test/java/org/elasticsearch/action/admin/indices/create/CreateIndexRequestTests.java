@@ -46,7 +46,7 @@ public class CreateIndexRequestTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         CreateIndexRequest request = new CreateIndexRequest("foo");
-        String mapping = Strings.toString(JsonXContent.contentBuilder().startObject().startObject("type").endObject().endObject());
+        String mapping = Strings.toString(JsonXContent.contentBuilder().startObject().startObject("my_type").endObject().endObject());
         request.mapping("my_type", mapping, XContentType.JSON);
 
         try (BytesStreamOutput output = new BytesStreamOutput()) {
@@ -86,7 +86,7 @@ public class CreateIndexRequestTests extends ESTestCase {
     public void testToXContent() throws IOException {
         CreateIndexRequest request = new CreateIndexRequest("foo");
 
-        String mapping = Strings.toString(JsonXContent.contentBuilder().startObject().startObject("type").endObject().endObject());
+        String mapping = Strings.toString(JsonXContent.contentBuilder().startObject().startObject("my_type").endObject().endObject());
         request.mapping("my_type", mapping, XContentType.JSON);
 
         Alias alias = new Alias("test_alias");
@@ -102,7 +102,7 @@ public class CreateIndexRequestTests extends ESTestCase {
         String actualRequestBody = Strings.toString(request);
 
         String expectedRequestBody = "{\"settings\":{\"index\":{\"number_of_shards\":\"10\"}}," +
-            "\"mappings\":{\"my_type\":{\"type\":{}}}," +
+            "\"mappings\":{\"my_type\":{\"my_type\":{}}}," +
             "\"aliases\":{\"test_alias\":{\"filter\":{\"term\":{\"year\":2016}},\"routing\":\"1\",\"is_write_index\":true}}}";
 
         assertEquals(expectedRequestBody, actualRequestBody);

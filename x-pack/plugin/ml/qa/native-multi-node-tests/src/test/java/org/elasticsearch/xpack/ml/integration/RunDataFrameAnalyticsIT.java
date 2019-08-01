@@ -13,20 +13,14 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
-import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
-import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
-import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetection;
 import org.junit.After;
 
-import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.allOf;
@@ -97,7 +91,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
 
             assertThat(resultsObject.containsKey("outlier_score"), is(true));
             double outlierScore = (double) resultsObject.get("outlier_score");
-            assertThat(outlierScore, allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(100.0)));
+            assertThat(outlierScore, allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0)));
             if (hit.getId().equals("outlier")) {
                 scoreOfOutlier = outlierScore;
             } else {
@@ -218,7 +212,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
 
             assertThat(resultsObject.containsKey("outlier_score"), is(true));
             double outlierScore = (double) resultsObject.get("outlier_score");
-            assertThat(outlierScore, allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(100.0)));
+            assertThat(outlierScore, allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0)));
         }
     }
 
@@ -367,21 +361,5 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             .setTrackTotalHits(true)
             .setQuery(QueryBuilders.existsQuery("ml.outlier_score")).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) bulkRequestBuilder.numberOfActions()));
-    }
-
-    private static DataFrameAnalyticsConfig buildOutlierDetectionAnalytics(String id, String[] sourceIndex, String destIndex,
-                                                                           @Nullable String resultsField) {
-        DataFrameAnalyticsConfig.Builder configBuilder = new DataFrameAnalyticsConfig.Builder(id);
-        configBuilder.setSource(new DataFrameAnalyticsSource(sourceIndex, null));
-        configBuilder.setDest(new DataFrameAnalyticsDest(destIndex, resultsField));
-        configBuilder.setAnalysis(new OutlierDetection());
-        return configBuilder.build();
-    }
-
-    private void assertState(String id, DataFrameAnalyticsState state) {
-        List<GetDataFrameAnalyticsStatsAction.Response.Stats> stats = getAnalyticsStats(id);
-        assertThat(stats.size(), equalTo(1));
-        assertThat(stats.get(0).getId(), equalTo(id));
-        assertThat(stats.get(0).getState(), equalTo(state));
     }
 }

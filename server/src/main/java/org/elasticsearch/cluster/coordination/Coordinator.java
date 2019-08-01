@@ -695,6 +695,15 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
     @Override
     protected void doClose() {
+        final CoordinationState coordinationState = this.coordinationState.get();
+        if (coordinationState != null) {
+            // This looks like a race that might leak an unclosed CoordinationState if it's created while execution is here, but this method
+            // is synchronized on AbstractLifecycleComponent#lifestyle, as is the doStart() method that creates the CoordinationState, so
+            // it's all ok.
+            synchronized (mutex) {
+                coordinationState.close();
+            }
+        }
     }
 
     public void invariant() {

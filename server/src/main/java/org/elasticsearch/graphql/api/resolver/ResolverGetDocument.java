@@ -34,7 +34,7 @@ import static org.elasticsearch.graphql.api.GqlApiUtils.*;
 public class ResolverGetDocument {
 
     @SuppressWarnings("unchecked")
-    private static Map<String, Object> transformDocumentData(Map<String, Object> obj) throws Exception {
+    public static Map<String, Object> transformDocumentData(Map<String, Object> obj) throws Exception {
         /*
             {_index=twitter, _type=_doc, _id=1, _version=1, _seq_no=0, _primary_term=1, found=true, _source={
        │          "user" : "kimchy",

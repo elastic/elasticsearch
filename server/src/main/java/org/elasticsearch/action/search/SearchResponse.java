@@ -157,6 +157,10 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         return new TimeValue(tookInMillis);
     }
 
+    public int getTookMs() {
+        return (int) tookInMillis;
+    }
+
     /**
      * The total number of shards the search was executed on.
      */
@@ -173,7 +177,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
 
 
     /**
-     * The number of shards skipped due to pre-filtering
+     * The number of shards skipped due to pre-filtering.
      */
     public int getSkippedShards() {
         return skippedShards;

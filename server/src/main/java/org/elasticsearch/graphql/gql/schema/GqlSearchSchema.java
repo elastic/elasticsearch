@@ -21,8 +21,15 @@ package org.elasticsearch.graphql.gql.schema;
 
 import graphql.scalars.ExtendedScalars;
 import org.elasticsearch.graphql.api.GqlApi;
+import org.elasticsearch.graphql.api.GqlApiUtils;
+import org.elasticsearch.graphql.api.resolver.ResolverGetDocument;
 import org.elasticsearch.graphql.gql.GqlBuilder;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 
 import static graphql.Scalars.*;
@@ -47,25 +54,6 @@ public class GqlSearchSchema {
      */
     public Function<GqlBuilder, GqlBuilder> use = builder -> builder
         .type(newObject()
-            .name("SearchResultShards")
-            .description(String.join("\n" , ""
-                , "Search shard statistics."
-            ))
-            .field(newFieldDefinition()
-                .name("total")
-                .description("Number of shards used.")
-                .type(GraphQLInt))
-            .field(newFieldDefinition()
-                .name("successful")
-                .type(GraphQLInt))
-            .field(newFieldDefinition()
-                .name("skipped")
-                .type(GraphQLInt))
-            .field(newFieldDefinition()
-                .name("failed")
-                .type(GraphQLInt))
-            .build())
-        .type(newObject()
             .name("SearchHits")
             .description(String.join("\n" , ""
                 , "Search hit statistics."
@@ -77,6 +65,15 @@ public class GqlSearchSchema {
                     , "is disabled in the request."
                 ))
                 .type(GraphQLInt))
+            .field(newFieldDefinition()
+                .name("maxScore")
+                .description("Max search score.")
+                .type(GraphQLFloat))
+            .field(newFieldDefinition()
+                .name("documents")
+                .description("List of found documents.")
+                .type(nonNull(list(nonNull(typeRef("Document"))))))
+//                .type(nonNull(list(nonNull(ExtendedScalars.Json)))))
             .build())
         .type(newObject()
             .name("SearchResult")
@@ -84,7 +81,7 @@ public class GqlSearchSchema {
                 , "Result of a search query."
             ))
             .field(newFieldDefinition()
-                .name("took")
+                .name("tookMs")
                 .description("Number of milliseconds it took to execute the query.")
                 .type(GraphQLInt))
             .field(newFieldDefinition()
@@ -92,25 +89,25 @@ public class GqlSearchSchema {
                 .description("Whether query did time out.")
                 .type(GraphQLBoolean))
             .field(newFieldDefinition()
+                .name("totalShards")
+                .description("The total number of shards the search was executed on.")
+                .type(GraphQLInt))
+            .field(newFieldDefinition()
+                .name("successfulShards")
+                .description("The successful number of shards the search was executed on.")
+                .type(GraphQLInt))
+            .field(newFieldDefinition()
+                .name("skippedShards")
+                .description("The number of shards skipped due to pre-filtering.")
+                .type(GraphQLInt))
+            .field(newFieldDefinition()
+                .name("failedShards")
+                .description("The failed number of shards the search was executed on.")
+                .type(GraphQLInt))
+            .field(newFieldDefinition()
                 .name("hits")
                 .description("Search hit statistics.")
                 .type(typeRef("SearchHits")))
-            .field(newFieldDefinition()
-                .name("maxScore")
-                .description("Max search score.")
-                .type(GraphQLInt))
-            .field(newFieldDefinition()
-                .name("total")
-                .description("Total number of hits.")
-                .type(GraphQLInt))
-            .field(newFieldDefinition()
-                .name("shards")
-                .description("Query execution shard statistics.")
-                .type(typeRef("SearchResultShards")))
-            .field(newFieldDefinition()
-                .name("documents")
-                .description("List of found documents.")
-                .type(nonNull(list(nonNull(typeRef("Document"))))))
             .build())
         .queryField(newFieldDefinition()
             .name("search")
@@ -128,5 +125,21 @@ public class GqlSearchSchema {
             String indexName = environment.getArgument("index");
             String q = environment.getArgument("q");
             return api.search(indexName, q);
+        })
+        .fetcher("SearchHits", "documents", environment -> {
+            SearchHits hits = environment.getSource();
+            List<Map<String, Object>> list = new LinkedList<Map<String, Object>>();
+
+            if (hits == null) {
+                return list;
+            }
+
+            for (SearchHit hit : hits.getHits()) {
+                Map<String, Object> document = GqlApiUtils.toMap(hit);
+                document = ResolverGetDocument.transformDocumentData(document);
+                list.add(document);
+            }
+
+            return list;
         });
 }

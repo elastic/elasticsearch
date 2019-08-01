@@ -52,32 +52,27 @@ public abstract class Boilerplate {
 
     }
 
-    public static TaskProvider<?> maybeConfigure(TaskContainer tasks, String name, Action<? super Task> config) {
+    public static void maybeConfigure(TaskContainer tasks, String name, Action<? super Task> config) {
         TaskProvider<?> task;
         try {
             task = tasks.named(name);
         } catch (UnknownTaskException e) {
-            return null;
+            return;
         }
 
         task.configure(config);
-        return task;
     }
 
-    public static <T extends Task> TaskProvider<? extends T> maybeConfigure(
+    public static <T extends Task> void maybeConfigure(
         TaskContainer tasks, String name,
         Class<? extends T> type,
         Action<? super T> config
     ) {
-        TaskProvider<? extends T> task;
-        try {
-            task = tasks.withType(type).named(name);
-        } catch (UnknownTaskException e) {
-            return null;
-        }
-
-        task.configure(config);
-        return task;
+        tasks.withType(type).configureEach(task -> {
+            if (task.getName().equals(name)) {
+                config.execute(task);
+            }
+        });
     }
 
     public static TaskProvider<?> findByName(TaskContainer tasks, String name) {

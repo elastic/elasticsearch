@@ -19,7 +19,6 @@
 
 package org.elasticsearch.snapshots;
 
-import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -3514,7 +3513,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
     }
 
     public void testSnapshotStatusOnFailedIndex() throws Exception {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/44671", Constants.WINDOWS);
         logger.info("--> creating repository");
         final Path repoPath = randomRepoPath();
         final Client client = client();

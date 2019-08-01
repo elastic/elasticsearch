@@ -1618,12 +1618,37 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                         }
                     });
 
+                latch.await();
                 assertFalse(requestProcessed.get());
 
                 service.acceptIncomingRequests();
-                assertBusy(() -> assertTrue(requestProcessed.get()));
 
-                latch.await();
+                CountDownLatch latch2 = new CountDownLatch(1);
+                serviceA.sendRequest(connection, "internal:action", new TestRequest(), TransportRequestOptions.EMPTY,
+                    new TransportResponseHandler<TestResponse>() {
+                        @Override
+                        public TestResponse read(StreamInput in) throws IOException {
+                            return new TestResponse(in);
+                        }
+
+                        @Override
+                        public void handleResponse(TestResponse response) {
+                            latch2.countDown();
+                        }
+
+                        @Override
+                        public void handleException(TransportException exp) {
+                            latch2.countDown();
+                        }
+
+                        @Override
+                        public String executor() {
+                            return ThreadPool.Names.SAME;
+                        }
+                    });
+
+                latch2.await();
+                assertBusy(() -> assertTrue(requestProcessed.get()));
             }
         }
     }
@@ -1995,8 +2020,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             DiscoveryNode node =
                 new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(), version0);
             ConnectTransportException exception = expectThrows(ConnectTransportException.class, () -> serviceA.connectToNode(node));
-            assertTrue(exception.getCause() instanceof TransportException);
-            assertEquals("handshake failed because connection reset", exception.getCause().getMessage());
+            assertThat(exception.getCause(), instanceOf(IllegalStateException.class));
+            assertEquals("handshake failed", exception.getCause().getMessage());
         }
 
         ConnectionProfile connectionProfile = ConnectionProfile.buildDefaultConnectionProfile(Settings.EMPTY);

@@ -166,7 +166,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
     public DataFrameIndexerTransformStats getStats() {
         if (getIndexer() == null) {
-            return new DataFrameIndexerTransformStats(getTransformId());
+            return new DataFrameIndexerTransformStats();
         } else {
             return getIndexer().getStats();
         }
@@ -425,7 +425,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
         ClientDataFrameIndexerBuilder(String transformId) {
             this.transformId = transformId;
-            this.initialStats = new DataFrameIndexerTransformStats(transformId);
+            this.initialStats = new DataFrameIndexerTransformStats();
         }
 
         ClientDataFrameIndexer build(DataFrameTransformTask parentTask) {
@@ -551,7 +551,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 fieldMappings,
                 ExceptionsHelper.requireNonNull(initialState, "initialState"),
                 initialPosition,
-                initialStats == null ? new DataFrameIndexerTransformStats(transformId) : initialStats,
+                initialStats == null ? new DataFrameIndexerTransformStats() : initialStats,
                 transformProgress,
                 lastCheckpoint,
                 nextCheckpoint);
@@ -746,6 +746,16 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 nextCheckpoint = null;
                 // Reset our failure count as we have finished and may start again with a new checkpoint
                 failureCount.set(0);
+
+                // TODO: progress hack to get around bucket_selector filtering out buckets
+                // With bucket_selector we could have read all the buckets and completed the transform
+                // but not "see" all the buckets since they were filtered out. Consequently, progress would
+                // show less than 100% even though we are done.
+                // NOTE: this method is called in the same thread as the processing thread.
+                // Theoretically, there should not be a race condition with updating progress here.
+                if (progress != null && progress.getRemainingDocs() > 0) {
+                    progress.docsProcessed(progress.getRemainingDocs());
+                }
                 if (shouldAuditOnFinish(checkpoint)) {
                     auditor.info(transformTask.getTransformId(),
                         "Finished indexing for data frame transform checkpoint [" + checkpoint + "].");

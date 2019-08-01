@@ -310,25 +310,6 @@ public class PeerRecoveryTargetService implements IndexEventListener {
     }
 
     /**
-     * Obtains a snapshot of the store metadata for the recovery target.
-     *
-     * @param recoveryTarget the target of the recovery
-     * @return a snapshot of the store metadata
-     */
-    private static Store.MetadataSnapshot getStoreMetadataSnapshot(final Logger logger, final RecoveryTarget recoveryTarget) {
-        try {
-            return recoveryTarget.indexShard().snapshotStoreMetadata();
-        } catch (final org.apache.lucene.index.IndexNotFoundException e) {
-            // happens on an empty folder. no need to log
-            logger.trace("{} shard folder empty, recovering all files", recoveryTarget);
-            return Store.MetadataSnapshot.EMPTY;
-        } catch (final IOException e) {
-            logger.warn("error while listing local files, recovering as if there are none", e);
-            return Store.MetadataSnapshot.EMPTY;
-        }
-    }
-
-    /**
      * Prepare the start recovery request.
      *
      * @param logger         the logger
@@ -343,7 +324,24 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         final StartRecoveryRequest request;
         logger.trace("{} collecting local files for [{}]", recoveryTarget.shardId(), recoveryTarget.sourceNode());
 
-        final Store.MetadataSnapshot metadataSnapshot = getStoreMetadataSnapshot(logger, recoveryTarget);
+        Store.MetadataSnapshot metadataSnapshot;
+        try {
+            metadataSnapshot = recoveryTarget.indexShard().snapshotStoreMetadata();
+        } catch (final org.apache.lucene.index.IndexNotFoundException e) {
+            // happens on an empty folder. no need to log
+            assert startingSeqNo == UNASSIGNED_SEQ_NO : startingSeqNo;
+            logger.trace("{} shard folder empty, recovering all files", recoveryTarget);
+            metadataSnapshot = Store.MetadataSnapshot.EMPTY;
+        } catch (final IOException e) {
+            if (startingSeqNo != UNASSIGNED_SEQ_NO) {
+                logger.warn(new ParameterizedMessage("error while listing local files, resetting the starting sequence number from {} " +
+                    "to unassigned and recovering as if there are none", startingSeqNo), e);
+                startingSeqNo = UNASSIGNED_SEQ_NO;
+            } else {
+                logger.warn("error while listing local files, recovering as if there are none", e);
+            }
+            metadataSnapshot = Store.MetadataSnapshot.EMPTY;
+        }
         logger.trace("{} local file count [{}]", recoveryTarget.shardId(), metadataSnapshot.size());
         request = new StartRecoveryRequest(
             recoveryTarget.shardId(),

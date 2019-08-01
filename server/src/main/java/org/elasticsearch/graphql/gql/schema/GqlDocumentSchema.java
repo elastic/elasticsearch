@@ -23,6 +23,7 @@ import graphql.scalars.ExtendedScalars;
 import org.elasticsearch.graphql.api.GqlApi;
 import org.elasticsearch.graphql.gql.GqlBuilder;
 
+import java.util.Map;
 import java.util.function.Function;
 
 import static graphql.Scalars.*;
@@ -43,6 +44,7 @@ public class GqlDocumentSchema {
     /**
      * - Creates `Document` GraphQL type that represents an Elasticsearch document.
      * - Adds `Query.document(index, id): Document` resolver.
+     * - Adds `Document.index: Index` resolver.
      */
     public Function<GqlBuilder, GqlBuilder> use = builder -> builder
         .type(newObject()
@@ -58,6 +60,10 @@ public class GqlDocumentSchema {
                 .name("indexName")
                 .description("Document index name.")
                 .type(GraphQLID))
+            .field(newFieldDefinition()
+                .name("index")
+                .description("Index where this object is stored.")
+                .type(typeRef("Index")))
             .field(newFieldDefinition()
                 .name("type")
                 .description("Type of the document.")
@@ -104,5 +110,9 @@ public class GqlDocumentSchema {
             String documentId = environment.getArgument("id");
             return api.getDocument(indexName, documentId);
         })
-        .fetcher("Document", "_", environment -> environment.getSource());
+        .fetcher("Document", "_", environment -> environment.getSource())
+        .fetcher("Document", "index", environment -> {
+            Map<String, Object> document = environment.getSource();
+            return api.getIndex((String) document.get("indexName"));
+        });
 }

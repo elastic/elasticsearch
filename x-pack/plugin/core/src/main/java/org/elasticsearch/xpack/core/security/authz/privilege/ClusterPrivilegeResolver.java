@@ -152,7 +152,7 @@ public class ClusterPrivilegeResolver {
         }
         throw new IllegalArgumentException("unknown cluster privilege [" + name + "]. a privilege must be either " +
             "one of the predefined fixed cluster privileges [" +
-            Strings.collectionToCommaDelimitedString(VALUES.entrySet()) + "] or a pattern over one of the available " +
+            Strings.collectionToCommaDelimitedString(VALUES.keySet()) + "] or a pattern over one of the available " +
             "cluster actions");
 
     }

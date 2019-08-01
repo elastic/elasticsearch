@@ -30,6 +30,6 @@ GET /_search
 `boost`::
 +
 --
-(Optional, float) <<query-filter-context, Relevance score>> for all returned
+(Optional, float) <<relevance-scores,Relevance score>> for all returned
 documents. Defaults to `1.0`.
 --

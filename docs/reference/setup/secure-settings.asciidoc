@@ -33,28 +33,28 @@ bin/elasticsearch-keystore create -p
 
 You will be prompted to enter the keystore password and the file `elasticsearch.keystore` will be created alongside `elasticsearch.yml`, protected with the password you specified.
 
-NOTE: If you don't specify the `-p` flag or if you enter an empty password, the elasticsearch keystore will be obfuscated but not password protected.
+NOTE: If you don't specify the `-p` flag or if you enter an empty password, the {es} keystore will be obfuscated but not password protected.
 
 [float]
 [[changing-keystore-password]]
 === Changing the password of the keystore
 
 To change the password of the `elasticsearch.keystore`, use the `passwd` command.
-If the elasticsearch keystore is password protected, you will be prompted to enter the current password and then enter the new one
+If the {es} keystore is password protected, you will be prompted to enter the current password and then enter the new one
 
 [source,sh]
 ----------------------------------------------------------------
 bin/elasticsearch-keystore passwd
 ----------------------------------------------------------------
 
-You can use the `passwd` subcommand to set a password to a previously obfuscated only keystore, but also to remove the password from an encrypted keystore by setting it to an empty string.
+You can use the `passwd` subcommand to set a password to a previously obfuscated-only keystore, and remove the password from an encrypted keystore by setting it to an empty string.
 
 [float]
 [[list-settings]]
 === Listing settings in the keystore
 
 A list of the settings in the keystore is available with the `list` command.
-If the elasticsearch keystore is password protected, you will be prompted to enter the password:
+If the {es} keystore is password protected, you will be prompted to enter the password:
 
 [source,sh]
 ----------------------------------------------------------------
@@ -66,7 +66,7 @@ bin/elasticsearch-keystore list
 === Adding string settings
 
 Sensitive string settings, like authentication credentials for cloud plugins, can be added using the `add` command.
-If the elasticsearch keystore is password protected, you will be prompted to enter the password:
+If the {es} keystore is password protected, you will be prompted to enter the password:
 
 [source,sh]
 ----------------------------------------------------------------
@@ -96,7 +96,7 @@ NOTE: The `-f` flag will also force the creation of an obfuscated-only keystore,
 You can add sensitive files, like authentication key files for cloud plugins,
 using the `add-file` command. Be sure to include your file path as an argument
 after the setting name.
-If the elasticsearch keystore is password protected, you will be prompted to enter the password:
+If the {es} keystore is password protected, you will be prompted to enter the password:
 
 [source,sh]
 ----------------------------------------------------------------
@@ -108,7 +108,7 @@ bin/elasticsearch-keystore add-file the.setting.name.to.set /path/example-file.j
 === Removing settings
 
 To remove a setting from the keystore, use the `remove` command.
-If the elasticsearch keystore is password protected, you will be prompted to enter the password:
+If the {es} keystore is password protected, you will be prompted to enter the password:
 
 [source,sh]
 ----------------------------------------------------------------
@@ -137,7 +137,7 @@ POST _nodes/reload_secure_settings
 ----
 // NOTCONSOLE
 
-<1> The password that the elasticsearch keystore is encrypted with.
+<1> The password that the {es} keystore is encrypted with.
 
 This API will decrypt and re-read the entire keystore, on every cluster node, but only the *reloadable* secure settings will be applied.
 Changes to other settings will not go into effect until the next restart.

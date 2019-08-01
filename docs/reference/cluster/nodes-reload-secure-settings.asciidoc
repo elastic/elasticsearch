@@ -16,12 +16,12 @@ The first command reloads the keystore on each node. The seconds allows
 to selectively target `nodeId1` and `nodeId2`. The node selection options are
 detailed <<cluster-nodes,here>>.
 
-NOTE: It is an error if secure settings are inconsistent across the cluster nodes, yet this consistency is not enforced
-whatsoever. Hence, reloading specific nodes is not standard.It is only justifiable when retrying failed reload operations.
+NOTE: {es} requires consistent secure settings across the cluster nodes, but this consistency is not enforced.
+Hence, reloading specific nodes is not standard. It is only justifiable when retrying failed reload operations.
 
 ==== Reload Password Protected Secure Settings
 
-When the elasticsearch keystore is password protected and not simply obfuscated, the password for the keystore needs
+When the {es} keystore is password protected and not simply obfuscated, the password for the keystore needs
 to be provided in the request to reload the secure settings.
 Reloading the settings for the whole cluster assumes that all nodes' keystores are protected with the same password
 and is only allowed when {ref}/configuring-tls.html#tls-transport[node to node communications are encrypted]
@@ -35,10 +35,10 @@ POST _nodes/reload_secure_settings
 --------------------------------------------------
 // NOTCONSOLE
 
-<1> The common password that the elasticsearch keystore is encrypted with in every node of the cluster.
+<1> The common password that the {es} keystore is encrypted with in every node of the cluster.
 
 Alternatively the secure settings can be reloaded on a per node basis, locally accessing the API and passing the
-node-specific elasticsearch keystore password.
+node-specific {es} keystore password.
 
 [source,js]
 --------------------------------------------------
@@ -49,7 +49,7 @@ POST _nodes/_local/reload_secure_settings
 --------------------------------------------------
 // NOTCONSOLE
 
-<1> The password that the elasticsearch keystore is encrypted with on the local node.
+<1> The password that the {es} keystore is encrypted with on the local node.
 
 
 [float]

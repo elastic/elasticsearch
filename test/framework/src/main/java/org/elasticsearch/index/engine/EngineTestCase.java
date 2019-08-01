@@ -129,6 +129,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.shuffle;
+import static org.elasticsearch.index.engine.Engine.Operation.Origin.PEER_RECOVERY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
 import static org.elasticsearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
@@ -847,14 +848,15 @@ public abstract class EngineTestCase extends ESTestCase {
                 switch (opType) {
                     case INDEX:
                         operations.add(new Engine.Index(EngineTestCase.newUid(doc), doc, seqNo, primaryTerm.get(),
-                            i, null, Engine.Operation.Origin.REPLICA, startTime, -1, true, SequenceNumbers.UNASSIGNED_SEQ_NO, 0));
+                            i, null, randomFrom(REPLICA, PEER_RECOVERY), startTime, -1, true, SequenceNumbers.UNASSIGNED_SEQ_NO, 0));
                         break;
                     case DELETE:
                         operations.add(new Engine.Delete(doc.type(), doc.id(), EngineTestCase.newUid(doc), seqNo, primaryTerm.get(),
-                            i, null, Engine.Operation.Origin.REPLICA, startTime, SequenceNumbers.UNASSIGNED_SEQ_NO, 0));
+                            i, null, randomFrom(REPLICA, PEER_RECOVERY), startTime, SequenceNumbers.UNASSIGNED_SEQ_NO, 0));
                         break;
                     case NO_OP:
-                        operations.add(new Engine.NoOp(seqNo, primaryTerm.get(), Engine.Operation.Origin.REPLICA, startTime, "test-" + i));
+                        operations.add(new Engine.NoOp(seqNo, primaryTerm.get(),
+                            randomFrom(REPLICA, PEER_RECOVERY), startTime, "test-" + i));
                         break;
                     default:
                         throw new IllegalStateException("Unknown operation type [" + opType + "]");

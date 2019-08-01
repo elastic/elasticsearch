@@ -151,8 +151,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
         if (handler instanceof BaseRestHandler) {
             usageService.addRestHandler((BaseRestHandler) handler);
         }
-        handlers.insertOrUpdate(path, new MethodHandlers(path, handler, method), (mHandlers, newMHandler) -> {
-            return mHandlers.addMethods(handler, method);
+        final RestHandler maybeWrappedHandler = handlerWrapper.apply(handler);
+        handlers.insertOrUpdate(path, new MethodHandlers(path, maybeWrappedHandler, method), (mHandlers, newMHandler) -> {
+            return mHandlers.addMethods(maybeWrappedHandler, method);
         });
     }
 
@@ -235,7 +236,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 // iff we could reserve bytes for the request we need to send the response also over this channel
                 responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength);
 
-                final RestHandler wrappedHandler = mHandler.map(h -> handlerWrapper.apply(h)).get();
+                final RestHandler wrappedHandler = mHandler.get();
                 wrappedHandler.handleRequest(request, responseChannel, client);
                 requestHandled = true;
             } catch (Exception e) {
@@ -361,11 +362,12 @@ public class RestController implements HttpServerTransport.Dispatcher {
         // Between retrieving the correct path, we need to reset the parameters,
         // otherwise parameters are parsed out of the URI that aren't actually handled.
         final Map<String, String> originalParams = new HashMap<>(request.params());
+        final Map<String, String> requestParamsRef = request.params();
         return handlers.retrieveAll(getPath(request), () -> {
             // PathTrie modifies the request, so reset the params between each iteration
-            request.params().clear();
-            request.params().putAll(originalParams);
-            return request.params();
+            requestParamsRef.clear();
+            requestParamsRef.putAll(originalParams);
+            return requestParamsRef;
         });
     }
 

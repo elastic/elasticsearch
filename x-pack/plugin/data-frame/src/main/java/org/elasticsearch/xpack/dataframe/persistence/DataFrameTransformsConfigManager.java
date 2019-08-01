@@ -106,14 +106,32 @@ public class DataFrameTransformsConfigManager {
      * @param listener listener to call after request
      */
     public void putTransformConfiguration(DataFrameTransformConfig transformConfig, ActionListener<Boolean> listener) {
+        putTransformConfiguration(transformConfig, DocWriteRequest.OpType.CREATE, listener);
+    }
+
+    /**
+     * Update the transform configuration in the internal index.
+     *
+     * Essentially the same as {@link DataFrameTransformsConfigManager#putTransformConfiguration(DataFrameTransformConfig, ActionListener)}
+     * but is an index operation and does not care if the document already exists.
+     * @param transformConfig the @link{DataFrameTransformConfig}
+     * @param listener listener to call after request
+     */
+    public void updateTransformConfiguration(DataFrameTransformConfig transformConfig, ActionListener<Boolean> listener) {
+        putTransformConfiguration(transformConfig, DocWriteRequest.OpType.INDEX, listener);
+    }
+
+    private void putTransformConfiguration(DataFrameTransformConfig transformConfig,
+                                           DocWriteRequest.OpType optType,
+                                           ActionListener<Boolean> listener) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = transformConfig.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
 
             IndexRequest indexRequest = new IndexRequest(DataFrameInternalIndex.INDEX_NAME)
-                    .opType(DocWriteRequest.OpType.CREATE)
-                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                    .id(DataFrameTransformConfig.documentId(transformConfig.getId()))
-                    .source(source);
+                .opType(optType)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .id(DataFrameTransformConfig.documentId(transformConfig.getId()))
+                .source(source);
 
             executeAsyncWithOrigin(client, DATA_FRAME_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(r -> {
                 listener.onResponse(true);
@@ -121,18 +139,18 @@ public class DataFrameTransformsConfigManager {
                 if (e instanceof VersionConflictEngineException) {
                     // the transform already exists
                     listener.onFailure(new ResourceAlreadyExistsException(
-                            DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_TRANSFORM_EXISTS,
-                                    transformConfig.getId())));
+                        DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_TRANSFORM_EXISTS,
+                            transformConfig.getId())));
                 } else {
                     listener.onFailure(
-                            new RuntimeException(DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_PERSIST_TRANSFORM_CONFIGURATION, e));
+                        new RuntimeException(DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_PERSIST_TRANSFORM_CONFIGURATION, e));
                 }
             }));
         } catch (IOException e) {
             // not expected to happen but for the sake of completeness
             listener.onFailure(new ElasticsearchParseException(
-                    DataFrameMessages.getMessage(DataFrameMessages.REST_DATA_FRAME_FAILED_TO_SERIALIZE_TRANSFORM, transformConfig.getId()),
-                    e));
+                DataFrameMessages.getMessage(DataFrameMessages.REST_DATA_FRAME_FAILED_TO_SERIALIZE_TRANSFORM, transformConfig.getId()),
+                e));
         }
     }
 

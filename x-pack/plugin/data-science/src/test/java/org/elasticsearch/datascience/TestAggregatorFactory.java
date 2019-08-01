@@ -26,7 +26,7 @@ import static org.mockito.Mockito.when;
 /**
  * Test implementation for AggregatorFactory.
  */
-public class TestAggregatorFactory extends AggregatorFactory<TestAggregatorFactory> {
+public class TestAggregatorFactory extends AggregatorFactory {
 
     private final Aggregator aggregator;
 

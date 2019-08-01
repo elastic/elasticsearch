@@ -103,7 +103,7 @@ public class CumulativeCardinalityPipelineAggregationBuilder
     }
 
     @Override
-    public void doValidate(AggregatorFactory<?> parent, Collection<AggregationBuilder> aggFactories,
+    public void doValidate(AggregatorFactory parent, Collection<AggregationBuilder> aggFactories,
                            Collection<PipelineAggregationBuilder> pipelineAggregatorFactories) {
         if (bucketsPaths.length != 1) {
             throw new IllegalStateException(BUCKETS_PATH.getPreferredName()

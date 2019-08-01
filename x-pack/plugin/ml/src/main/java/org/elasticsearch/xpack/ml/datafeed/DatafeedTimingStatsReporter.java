@@ -21,9 +21,10 @@ import java.util.Objects;
 public class DatafeedTimingStatsReporter {
 
     /** Interface used for persisting current timing stats to the results index. */
+    @FunctionalInterface
     public interface DatafeedTimingStatsPersister {
         /** Does nothing by default. This behavior is useful when creating fake {@link DatafeedTimingStatsReporter} objects. */
-        default void persistDatafeedTimingStats(DatafeedTimingStats timingStats, WriteRequest.RefreshPolicy refreshPolicy) {}
+        void persistDatafeedTimingStats(DatafeedTimingStats timingStats, WriteRequest.RefreshPolicy refreshPolicy);
     }
 
     /** Persisted timing stats. May be stale. */

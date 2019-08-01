@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter.DatafeedTimingStatsPersister;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
@@ -82,7 +81,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
                                     jobBuilder.build(),
                                     xContentRegistry,
                                     // Fake DatafeedTimingStatsReporter that does not have access to results index
-                                    new DatafeedTimingStatsReporter(timingStats, new DatafeedTimingStatsPersister() {}),
+                                    new DatafeedTimingStatsReporter(timingStats, (ts, refreshPolicy) -> {}),
                                     new ActionListener<>() {
                                         @Override
                                         public void onResponse(DataExtractorFactory dataExtractorFactory) {

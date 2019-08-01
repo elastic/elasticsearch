@@ -53,7 +53,6 @@ import org.elasticsearch.xpack.ml.MlConfigMigrationEligibilityCheck;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedNodeSelector;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter.DatafeedTimingStatsPersister;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
@@ -250,7 +249,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             job,
             xContentRegistry,
             // Fake DatafeedTimingStatsReporter that does not have access to results index
-            new DatafeedTimingStatsReporter(new DatafeedTimingStats(job.getId()), new DatafeedTimingStatsPersister() {}),
+            new DatafeedTimingStatsReporter(new DatafeedTimingStats(job.getId()), (ts, refreshPolicy) -> {}),
             ActionListener.wrap(
                 unused ->
                     persistentTasksService.sendStartRequest(

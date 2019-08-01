@@ -21,7 +21,7 @@ For nested span queries, you can only set the `boost` parameter on the outermost
 span query.
 
 Compound span queries, like `span_near`, only use matching spans from inner
-queries to find their own spans. <<query-filter-context, Relevance scores>> are
+queries to find their own spans. <<relevance-scores,Relevance scores>> are
 not calculated for inner span queries, which is why the `boost` parameter is not
 allowed.
 

@@ -362,11 +362,12 @@ public class RestController implements HttpServerTransport.Dispatcher {
         // Between retrieving the correct path, we need to reset the parameters,
         // otherwise parameters are parsed out of the URI that aren't actually handled.
         final Map<String, String> originalParams = new HashMap<>(request.params());
+        final Map<String, String> requestParamsRef = request.params();
         return handlers.retrieveAll(getPath(request), () -> {
             // PathTrie modifies the request, so reset the params between each iteration
-            request.params().clear();
-            request.params().putAll(originalParams);
-            return request.params();
+            requestParamsRef.clear();
+            requestParamsRef.putAll(originalParams);
+            return requestParamsRef;
         });
     }
 

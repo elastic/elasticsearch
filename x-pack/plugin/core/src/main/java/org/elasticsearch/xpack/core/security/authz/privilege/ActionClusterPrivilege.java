@@ -13,9 +13,9 @@ import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import java.util.Set;
 
 /**
- * A {@link NameableClusterPrivilege} that can be used to define an access to cluster level actions.
+ * A {@link NamedClusterPrivilege} that can be used to define an access to cluster level actions.
  */
-public class ActionClusterPrivilege implements NameableClusterPrivilege {
+public class ActionClusterPrivilege implements NamedClusterPrivilege {
     private final String name;
     private final Set<String> allowedActionPatterns;
     private final Set<String> excludeActionPatterns;

@@ -14,6 +14,6 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
  * A {@link ClusterPrivilege} that has a name. The named cluster privileges can be referred simply by name within a
  * {@link RoleDescriptor#getClusterPrivileges()}.
  */
-public interface NameableClusterPrivilege extends ClusterPrivilege {
+public interface NamedClusterPrivilege extends ClusterPrivilege {
     String name();
 }

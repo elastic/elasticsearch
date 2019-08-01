@@ -67,43 +67,43 @@ public class ClusterPrivilegeResolver {
         Set.of("cluster:admin/slm/*", StartILMAction.NAME, StopILMAction.NAME, GetStatusAction.NAME);
     private static final Set<String> READ_SLM_PATTERN = Set.of(GetSnapshotLifecycleAction.NAME, GetStatusAction.NAME);
 
-    public static final NameableClusterPrivilege NONE = new ActionClusterPrivilege("none", Set.of(), Set.of());
-    public static final NameableClusterPrivilege ALL = new ActionClusterPrivilege("all", ALL_CLUSTER_PATTERN);
-    public static final NameableClusterPrivilege MONITOR = new ActionClusterPrivilege("monitor", MONITOR_PATTERN);
-    public static final NameableClusterPrivilege MONITOR_ML = new ActionClusterPrivilege("monitor_ml", MONITOR_ML_PATTERN);
-    public static final NameableClusterPrivilege MONITOR_DATA_FRAME =
+    public static final NamedClusterPrivilege NONE = new ActionClusterPrivilege("none", Set.of(), Set.of());
+    public static final NamedClusterPrivilege ALL = new ActionClusterPrivilege("all", ALL_CLUSTER_PATTERN);
+    public static final NamedClusterPrivilege MONITOR = new ActionClusterPrivilege("monitor", MONITOR_PATTERN);
+    public static final NamedClusterPrivilege MONITOR_ML = new ActionClusterPrivilege("monitor_ml", MONITOR_ML_PATTERN);
+    public static final NamedClusterPrivilege MONITOR_DATA_FRAME =
         new ActionClusterPrivilege("monitor_data_frame_transforms", MONITOR_DATA_FRAME_PATTERN);
-    public static final NameableClusterPrivilege MONITOR_WATCHER = new ActionClusterPrivilege("monitor_watcher", MONITOR_WATCHER_PATTERN);
-    public static final NameableClusterPrivilege MONITOR_ROLLUP = new ActionClusterPrivilege("monitor_rollup", MONITOR_ROLLUP_PATTERN);
-    public static final NameableClusterPrivilege MANAGE = new ActionClusterPrivilege("manage",
+    public static final NamedClusterPrivilege MONITOR_WATCHER = new ActionClusterPrivilege("monitor_watcher", MONITOR_WATCHER_PATTERN);
+    public static final NamedClusterPrivilege MONITOR_ROLLUP = new ActionClusterPrivilege("monitor_rollup", MONITOR_ROLLUP_PATTERN);
+    public static final NamedClusterPrivilege MANAGE = new ActionClusterPrivilege("manage",
         ALL_CLUSTER_PATTERN, MANAGE_SECURITY_PATTERN);
-    public static final NameableClusterPrivilege MANAGE_ML = new ActionClusterPrivilege("manage_ml", MANAGE_ML_PATTERN);
-    public static final NameableClusterPrivilege MANAGE_DATA_FRAME =
+    public static final NamedClusterPrivilege MANAGE_ML = new ActionClusterPrivilege("manage_ml", MANAGE_ML_PATTERN);
+    public static final NamedClusterPrivilege MANAGE_DATA_FRAME =
         new ActionClusterPrivilege("manage_data_frame_transforms", MANAGE_DATA_FRAME_PATTERN);
-    public static final NameableClusterPrivilege MANAGE_TOKEN = new ActionClusterPrivilege("manage_token", MANAGE_TOKEN_PATTERN);
-    public static final NameableClusterPrivilege MANAGE_WATCHER = new ActionClusterPrivilege("manage_watcher", MANAGE_WATCHER_PATTERN);
-    public static final NameableClusterPrivilege MANAGE_ROLLUP = new ActionClusterPrivilege("manage_rollup", MANAGE_ROLLUP_PATTERN);
-    public static final NameableClusterPrivilege MANAGE_IDX_TEMPLATES =
+    public static final NamedClusterPrivilege MANAGE_TOKEN = new ActionClusterPrivilege("manage_token", MANAGE_TOKEN_PATTERN);
+    public static final NamedClusterPrivilege MANAGE_WATCHER = new ActionClusterPrivilege("manage_watcher", MANAGE_WATCHER_PATTERN);
+    public static final NamedClusterPrivilege MANAGE_ROLLUP = new ActionClusterPrivilege("manage_rollup", MANAGE_ROLLUP_PATTERN);
+    public static final NamedClusterPrivilege MANAGE_IDX_TEMPLATES =
         new ActionClusterPrivilege("manage_index_templates", MANAGE_IDX_TEMPLATE_PATTERN);
-    public static final NameableClusterPrivilege MANAGE_INGEST_PIPELINES =
+    public static final NamedClusterPrivilege MANAGE_INGEST_PIPELINES =
         new ActionClusterPrivilege("manage_ingest_pipelines", MANAGE_INGEST_PIPELINE_PATTERN);
-    public static final NameableClusterPrivilege TRANSPORT_CLIENT = new ActionClusterPrivilege("transport_client",
+    public static final NamedClusterPrivilege TRANSPORT_CLIENT = new ActionClusterPrivilege("transport_client",
         TRANSPORT_CLIENT_PATTERN);
-    public static final NameableClusterPrivilege MANAGE_SECURITY = new ActionClusterPrivilege("manage_security", MANAGE_SECURITY_PATTERN);
-    public static final NameableClusterPrivilege MANAGE_SAML = new ActionClusterPrivilege("manage_saml", MANAGE_SAML_PATTERN);
-    public static final NameableClusterPrivilege MANAGE_OIDC = new ActionClusterPrivilege("manage_oidc", MANAGE_OIDC_PATTERN);
-    public static final NameableClusterPrivilege MANAGE_API_KEY = new ActionClusterPrivilege("manage_api_key", MANAGE_API_KEY_PATTERN);
-    public static final NameableClusterPrivilege MANAGE_PIPELINE = new ActionClusterPrivilege("manage_pipeline", Set.of("cluster:admin" +
+    public static final NamedClusterPrivilege MANAGE_SECURITY = new ActionClusterPrivilege("manage_security", MANAGE_SECURITY_PATTERN);
+    public static final NamedClusterPrivilege MANAGE_SAML = new ActionClusterPrivilege("manage_saml", MANAGE_SAML_PATTERN);
+    public static final NamedClusterPrivilege MANAGE_OIDC = new ActionClusterPrivilege("manage_oidc", MANAGE_OIDC_PATTERN);
+    public static final NamedClusterPrivilege MANAGE_API_KEY = new ActionClusterPrivilege("manage_api_key", MANAGE_API_KEY_PATTERN);
+    public static final NamedClusterPrivilege MANAGE_PIPELINE = new ActionClusterPrivilege("manage_pipeline", Set.of("cluster:admin" +
         "/ingest/pipeline/*"));
-    public static final NameableClusterPrivilege MANAGE_CCR =            new ActionClusterPrivilege("manage_ccr", MANAGE_CCR_PATTERN);
-    public static final NameableClusterPrivilege READ_CCR = new ActionClusterPrivilege("read_ccr", READ_CCR_PATTERN);
-    public static final NameableClusterPrivilege CREATE_SNAPSHOT = new ActionClusterPrivilege("create_snapshot", CREATE_SNAPSHOT_PATTERN);
-    public static final NameableClusterPrivilege MANAGE_ILM = new ActionClusterPrivilege("manage_ilm", MANAGE_ILM_PATTERN);
-    public static final NameableClusterPrivilege READ_ILM = new ActionClusterPrivilege("read_ilm", READ_ILM_PATTERN);
-    public static final NameableClusterPrivilege MANAGE_SLM = new ActionClusterPrivilege("manage_slm", MANAGE_SLM_PATTERN);
-    public static final NameableClusterPrivilege READ_SLM = new ActionClusterPrivilege("read_slm", READ_SLM_PATTERN);
+    public static final NamedClusterPrivilege MANAGE_CCR =            new ActionClusterPrivilege("manage_ccr", MANAGE_CCR_PATTERN);
+    public static final NamedClusterPrivilege READ_CCR = new ActionClusterPrivilege("read_ccr", READ_CCR_PATTERN);
+    public static final NamedClusterPrivilege CREATE_SNAPSHOT = new ActionClusterPrivilege("create_snapshot", CREATE_SNAPSHOT_PATTERN);
+    public static final NamedClusterPrivilege MANAGE_ILM = new ActionClusterPrivilege("manage_ilm", MANAGE_ILM_PATTERN);
+    public static final NamedClusterPrivilege READ_ILM = new ActionClusterPrivilege("read_ilm", READ_ILM_PATTERN);
+    public static final NamedClusterPrivilege MANAGE_SLM = new ActionClusterPrivilege("manage_slm", MANAGE_SLM_PATTERN);
+    public static final NamedClusterPrivilege READ_SLM = new ActionClusterPrivilege("read_slm", READ_SLM_PATTERN);
 
-    private static final Map<String, NameableClusterPrivilege> VALUES = Stream.of(
+    private static final Map<String, NamedClusterPrivilege> VALUES = Stream.of(
         NONE,
         ALL,
         MONITOR,
@@ -131,22 +131,22 @@ public class ClusterPrivilegeResolver {
         MANAGE_ILM,
         READ_ILM,
         MANAGE_SLM,
-        READ_SLM).collect(Collectors.toUnmodifiableMap(NameableClusterPrivilege::name, Function.identity()));
+        READ_SLM).collect(Collectors.toUnmodifiableMap(NamedClusterPrivilege::name, Function.identity()));
 
     /**
-     * Resolves a {@link NameableClusterPrivilege} from a given name if it exists.
+     * Resolves a {@link NamedClusterPrivilege} from a given name if it exists.
      * If the name is a cluster action, then it converts the name to pattern and creates a {@link ActionClusterPrivilege}
      *
      * @param name either {@link ClusterPrivilegeResolver#names()} or cluster action {@link #isClusterAction(String)}
-     * @return instance of {@link NameableClusterPrivilege}
+     * @return instance of {@link NamedClusterPrivilege}
      */
-    public static NameableClusterPrivilege resolve(String name) {
+    public static NamedClusterPrivilege resolve(String name) {
         name = Objects.requireNonNull(name).toLowerCase(Locale.ROOT);
         if (isClusterAction(name)) {
             name = actionToPattern(name);
             return new ActionClusterPrivilege(name, Set.of(name));
         }
-        final NameableClusterPrivilege fixedPrivilege = VALUES.get(name);
+        final NamedClusterPrivilege fixedPrivilege = VALUES.get(name);
         if (fixedPrivilege != null) {
             return fixedPrivilege;
         }

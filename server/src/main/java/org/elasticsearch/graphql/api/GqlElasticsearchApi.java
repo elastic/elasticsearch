@@ -27,6 +27,8 @@ import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.client.node.NodeClient;
 
 import org.elasticsearch.graphql.api.resolver.*;
+import org.elasticsearch.graphql.pubsub.PubSub;
+import org.reactivestreams.Subscriber;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -38,6 +40,10 @@ public class GqlElasticsearchApi implements GqlApi {
 
     public GqlElasticsearchApi(NodeClient client) {
         this.client = client;
+    }
+
+    public PubSub.Subscription subscribe(String channel, Subscriber<Object> subscriber) {
+        return client.subscribe(channel, subscriber);
     }
 
     @Override

@@ -44,9 +44,35 @@ public class PubSub {
     }
 
     private Subscription subscribe0(List<Subscriber<Object>> list, String channel, Subscriber<Object> subscriber) {
-        list.add(subscriber);
+        Subscriber<Object> innerSubscriber = new Subscriber<Object>() {
+            @Override
+            public void onSubscribe(org.reactivestreams.Subscription s) {
+                subscriber.onSubscribe(s);
+            }
+
+            @Override
+            public void onNext(Object o) {
+                subscriber.onNext(o);
+            }
+
+            @Override
+            public void onError(Throwable t) {
+                subscriber.onError(t);
+            }
+
+            @Override
+            public void onComplete() {
+                list.remove(this);
+                if (list.isEmpty()) {
+                    subscribers.remove(channel);
+                }
+                subscriber.onComplete();
+            }
+        };
+
+        list.add(innerSubscriber);
         return () -> {
-            list.remove(subscriber);
+            list.remove(innerSubscriber);
             if (list.isEmpty()) {
                 subscribers.remove(channel);
             }

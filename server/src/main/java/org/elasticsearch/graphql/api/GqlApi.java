@@ -20,12 +20,15 @@
 package org.elasticsearch.graphql.api;
 
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
+import org.elasticsearch.graphql.pubsub.PubSub;
+import org.reactivestreams.Subscriber;
 
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 public interface GqlApi {
+    PubSub.Subscription subscribe(String channel, Subscriber<Object> subscriber);
     CompletableFuture<Map<String, Object>> getInfo() throws Exception;
     CompletableFuture<List<Object>> getIndexInfos() throws Exception;
     CompletableFuture<Map<String, Object>> getIndex(String indexName) throws Exception;

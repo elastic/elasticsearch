@@ -203,7 +203,9 @@ public class DemoServerSocketHandler {
 
                 try {
                     sendData(id, payload);
-                    subscriptionRef.get().request(1);
+                    if (subscriptionRef.get() != null) {
+                        subscriptionRef.get().request(1);
+                    }
                 } catch (Exception e) {
                     logger.error(e);
                     sendError(id, "Error while emitting data.");

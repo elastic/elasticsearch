@@ -24,6 +24,8 @@ import static org.elasticsearch.graphql.api.GqlApiUtils.getJavaUtilBuilderResult
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.javautil.JavaUtilXContentGenerator;
+import org.elasticsearch.graphql.pubsub.PubSub;
+import org.reactivestreams.Subscriber;
 
 import java.util.HashMap;
 import java.util.List;
@@ -56,6 +58,10 @@ public class GqlMockApi implements GqlApi {
         return result;
     }
     */
+
+    public PubSub.Subscription subscribe(String channel, Subscriber<Object> subscriber) {
+        return null;
+    }
 
     @Override
     @SuppressWarnings("unchecked")

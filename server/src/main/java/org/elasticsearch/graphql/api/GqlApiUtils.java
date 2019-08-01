@@ -158,41 +158,6 @@ public class GqlApiUtils {
         return XContentHelper.convertToMap(JsonXContent.jsonXContent, json, false);
     }
 
-    /*
-    public static String serializeJson(Object obj) {
-        if (obj instanceof Integer) {
-            return obj.toString();
-        } else if (obj instanceof String) {
-            return "\"" + ((String) obj).replaceAll("\"", "\\\\\"") + "\"";
-        } else if (obj instanceof Boolean) {
-            return (Boolean) obj ? "true" : "false";
-        } else if (obj instanceof List) {
-            String str = "[";
-            Iterator it = ((List) obj).iterator();
-            while (it.hasNext()) {
-                str += serializeJson(it.next());
-                if (it.hasNext()) {
-                    str += ",";
-                }
-            }
-            return str + "]";
-        } else if (obj instanceof Map) {
-            String str = "{";
-            Iterator it = ((Map) obj).keySet().iterator();
-            while (it.hasNext()) {
-                String key = it.next().toString();
-                str += serializeJson(key) + ":" + serializeJson(((Map) obj).get(key));
-                if (it.hasNext()) {
-                    str += ",";
-                }
-            }
-            return str + "}";
-        } else {
-            return "null";
-        }
-    }
-     */
-
     @SuppressWarnings("unchecked")
     public static String serializeJson(Object obj) throws Exception {
         XContentBuilder builder = JsonXContent.contentBuilder();

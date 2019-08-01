@@ -439,7 +439,7 @@ public abstract class AbstractClient implements Client {
     @Override
     public void update(final UpdateRequest request, final ActionListener<UpdateResponse> listener) {
         execute(UpdateAction.INSTANCE, request, onResponse(listener, response -> {
-            pubsub.publish("update:" + request.id(), null);
+            pubsub.publish("update:" + request.index() + ":" + request.id(), null);
         }));
     }
 

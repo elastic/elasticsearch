@@ -139,7 +139,7 @@ public class GetApiKeyRequestTests extends ESTestCase {
             getApiKeyRequest.writeTo(out);
 
             InputStreamStreamInput inputStreamStreamInput = new InputStreamStreamInput(new ByteArrayInputStream(outBuffer.toByteArray()));
-            inputStreamStreamInput.setVersion(randomFrom(Version.V_7_4_0, Version.CURRENT));
+            inputStreamStreamInput.setVersion(VersionUtils.randomVersionBetween(random(), Version.V_7_4_0,  null));
             GetApiKeyRequest requestFromInputStream = new GetApiKeyRequest(inputStreamStreamInput);
 
             assertThat(requestFromInputStream, equalTo(getApiKeyRequest));

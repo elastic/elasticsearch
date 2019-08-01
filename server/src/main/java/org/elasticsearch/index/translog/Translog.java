@@ -22,7 +22,6 @@ package org.elasticsearch.index.translog;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -132,11 +131,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     private final String translogUUID;
     private final TranslogDeletionPolicy deletionPolicy;
     private final LongConsumer persistedSequenceNumberConsumer;
-
-    // We can read translog either forward or in backward. Most of the time, we will read translog forward.
-    // This setting is merely to force exercising the backward implementation more often until we no longer need it.
-    // TODO: Remove this in 9.0
-    public static final String FORCE_READING_TRANSLOG_IN_BACKWARD = "index.translog.read_in_backward";
 
     /**
      * Creates a new Translog instance. This method will create a new transaction log unless the given {@link TranslogGeneration} is
@@ -682,13 +676,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
         boolean success = false;
         try {
-            final Snapshot result;
-            if (indexSettings.getSettings().getAsBoolean(FORCE_READING_TRANSLOG_IN_BACKWARD, false)
-                || indexSettings.getIndexVersionCreated().before(Version.V_8_0_0)) {
-                result = new BackwardMultiSnapshot(snapshots, onClose);
-            } else {
-                result = new MultiSnapshot(snapshots, onClose);
-            }
+            Snapshot result = new MultiSnapshot(snapshots, onClose);
             success = true;
             return result;
         } finally {

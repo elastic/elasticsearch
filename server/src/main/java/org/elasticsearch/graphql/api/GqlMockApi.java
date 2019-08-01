@@ -143,7 +143,7 @@ public class GqlMockApi implements GqlApi {
     }
 
     @Override
-    public CompletableFuture<SearchResponse> search(String indexName, String q) throws Exception {
+    public CompletableFuture<SearchResponse> search(String[] indices, String q) throws Exception {
         return null;
     }
 }

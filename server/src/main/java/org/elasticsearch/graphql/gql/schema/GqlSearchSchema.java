@@ -27,6 +27,7 @@ import org.elasticsearch.graphql.gql.GqlBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 
+import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -115,16 +116,32 @@ public class GqlSearchSchema {
             .type(typeRef("SearchResult"))
             .argument(newArgument()
                 .name("index")
-                .type(nonNull(GraphQLID))
+                .type(GraphQLID)
                 .description("Index name from which to fetch document."))
+            .argument(newArgument()
+                .name("indices")
+                .type(list(nonNull(GraphQLID)))
+                .description("Index names from which to fetch document."))
             .argument(newArgument()
                 .name("q")
                 .type(nonNull(GraphQLString))
                 .description("Elasticsearch query string to use for matching.")))
         .fetcher("Query", "search", environment -> {
-            String indexName = environment.getArgument("index");
+            String index = environment.getArgument("index");
+            List<String> indices = environment.getArgument("indices");
+
+            if (indices == null) {
+                indices = new ArrayList<>();
+            }
+
+            if (index != null) {
+                indices.add(index);
+            }
+
             String q = environment.getArgument("q");
-            return api.search(indexName, q);
+            String[] indexArray = {};
+            indexArray = indices.toArray(indexArray);
+            return api.search(indexArray, q);
         })
         .fetcher("SearchHits", "documents", environment -> {
             SearchHits hits = environment.getSource();

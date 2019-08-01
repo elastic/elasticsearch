@@ -35,8 +35,8 @@ import static org.elasticsearch.search.suggest.SuggestBuilders.termSuggestion;
 public class ResolverSearch {
 
     @SuppressWarnings("unchecked")
-    public static CompletableFuture<SearchResponse> exec(NodeClient client, String indexName, String q) throws Exception {
-        SearchRequest searchRequest = new SearchRequest(indexName);
+    public static CompletableFuture<SearchResponse> exec(NodeClient client, String[] indices, String q) throws Exception {
+        SearchRequest searchRequest = new SearchRequest(indices);
 
         if (q.length() < 1) {
             throw new Exception("No query provided");

@@ -9,7 +9,7 @@ dependencies {
     compile project(":plugins:repository-s3")
     testCompile project(":test:framework")
     testCompile project(':x-pack:snapshot-tool')
-    testCompile files(project(':x-pack:snapshot-tool').sourceSets.test.output)
+    testCompile project(path: ':x-pack:snapshot-tool', configuration: 'testArtifacts')
 }
 
 test.enabled = false

@@ -82,6 +82,19 @@ dependencyLicenses {
 test.enabled = false
 testingConventions.enabled = false
 
+// We make AbstractCleanupTests class available to qa submodules by creating testArtifacts configuration
+configurations {
+  testArtifacts
+}
+
+task jarTest (type: Jar) {
+  from sourceSets.test.output
+}
+
+artifacts {
+  testArtifacts jarTest
+}
+
 task unpackArchive(dependsOn: tasks.assemble, type: Copy) {
   from tarTree("${project.buildDir}/snapshot-tool-${project.version}.tgz")
   into "${project.buildDir}"

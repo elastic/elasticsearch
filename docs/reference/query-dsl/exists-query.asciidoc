@@ -32,9 +32,10 @@ GET /_search
 [[exists-query-top-level-params]]
 ==== Top-level parameters for `exists`
 `field`::
-Name of the field you wish to search.
+(Required, string) Name of the field you wish to search.
 +
-While a field is deemed non-existant if the JSON value is `null` or `[]`, these values will indicate the field does exist:
+While a field is deemed non-existant if the JSON value is `null` or `[]`, these
+values will indicate the field does exist:
 +
 * Empty strings, such as `""` or `"-"`
 * Arrays containing `null` and another value, such as `[null, "foo"]`

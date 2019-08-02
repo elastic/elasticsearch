@@ -21,7 +21,7 @@ functions in one or more detectors.
 * <<ml-configuring-transform8>>
 * <<ml-configuring-transform9>>
 
-The following indices APIs create and add content to an index that is used in
+The following index APIs create and add content to an index that is used in
 subsequent examples:
 
 [source,js]

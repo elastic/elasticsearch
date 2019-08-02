@@ -58,8 +58,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class MovFnUnitTests extends AggregatorTestCase {
 
@@ -92,32 +95,50 @@ public class MovFnUnitTests extends AggregatorTestCase {
     }
 
     public void testMatchAllDocs() throws IOException {
-        Query query = new MatchAllDocsQuery();
+        check(0, List.of(Double.NaN, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0));
+    }
 
+    public void testShift() throws IOException {
+        check(1, List.of(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0));
+        check(5, List.of(5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 10.0, 10.0, Double.NaN, Double.NaN));
+        check(-5, List.of(Double.NaN, Double.NaN, Double.NaN, Double.NaN, Double.NaN, Double.NaN, 1.0, 2.0, 3.0, 4.0));
+    }
+
+    public void testWideWindow() throws IOException {
+        Script script = new Script(Script.DEFAULT_SCRIPT_TYPE, "painless", "test", Collections.emptyMap());
+        MovFnPipelineAggregationBuilder builder = new MovFnPipelineAggregationBuilder("mov_fn", "avg", script, 100);
+        builder.setShift(50);
+        check(builder, script, List.of(10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0));
+    }
+
+    private void check(int shift, List<Double> expected) throws IOException {
+        Script script = new Script(Script.DEFAULT_SCRIPT_TYPE, "painless", "test", Collections.emptyMap());
+        MovFnPipelineAggregationBuilder builder = new MovFnPipelineAggregationBuilder("mov_fn", "avg", script, 3);
+        builder.setShift(shift);
+        check(builder, script, expected);
+    }
+
+    private void check(MovFnPipelineAggregationBuilder builder, Script script, List<Double> expected) throws IOException {
+        Query query = new MatchAllDocsQuery();
         DateHistogramAggregationBuilder aggBuilder = new DateHistogramAggregationBuilder("histo");
         aggBuilder.calendarInterval(DateHistogramInterval.DAY).field(DATE_FIELD);
         aggBuilder.subAggregation(new AvgAggregationBuilder("avg").field(VALUE_FIELD));
-        Script script = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "test", Collections.emptyMap());
-        aggBuilder.subAggregation(new MovFnPipelineAggregationBuilder("mov_fn", "avg", script, 3));
+        aggBuilder.subAggregation(builder);
 
         executeTestCase(query, aggBuilder, histogram -> {
-                assertEquals(10, histogram.getBuckets().size());
                 List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
-                for (int i = 0; i < buckets.size(); i++) {
-                    if (i == 0) {
-                        assertThat(((InternalSimpleValue)(buckets.get(i).getAggregations().get("mov_fn"))).value(), equalTo(Double.NaN));
-                    } else {
-                        assertThat(((InternalSimpleValue)(buckets.get(i).getAggregations().get("mov_fn"))).value(), equalTo(((double) i)));
-                    }
-
-                }
-            });
+                List<Double> actual = buckets.stream()
+                    .map(bucket -> ((InternalSimpleValue) (bucket.getAggregations().get("mov_fn"))).value())
+                    .collect(Collectors.toList());
+                assertThat(actual, equalTo(expected));
+            }, 1000, script);
     }
 
 
     private void executeTestCase(Query query,
                                  DateHistogramAggregationBuilder aggBuilder,
-                                 Consumer<Histogram> verify) throws IOException {
+                                 Consumer<Histogram> verify,
+                                 int maxBucket, Script script) throws IOException {
 
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
@@ -137,6 +158,20 @@ public class MovFnUnitTests extends AggregatorTestCase {
                     counter += 1;
                 }
             }
+
+            ScriptService scriptService = mock(ScriptService.class);
+            MovingFunctionScript.Factory factory = mock(MovingFunctionScript.Factory.class);
+            when(scriptService.compile(script, MovingFunctionScript.CONTEXT)).thenReturn(factory);
+
+            MovingFunctionScript scriptInstance = new MovingFunctionScript() {
+                @Override
+                public double execute(Map<String, Object> params, double[] values) {
+                    assertNotNull(values);
+                    return MovingFunctions.max(values);
+                }
+            };
+
+            when(factory.newInstance()).thenReturn(scriptInstance);
 
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);

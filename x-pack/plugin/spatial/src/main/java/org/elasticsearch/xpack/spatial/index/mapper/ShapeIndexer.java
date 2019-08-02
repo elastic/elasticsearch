@@ -19,6 +19,7 @@ import org.elasticsearch.geo.geometry.MultiPoint;
 import org.elasticsearch.geo.geometry.MultiPolygon;
 import org.elasticsearch.geo.geometry.Point;
 import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper;
+import org.elasticsearch.index.mapper.BinaryGeoShapeDocValuesField;
 import org.elasticsearch.index.mapper.ParseContext;
 
 import java.util.ArrayList;
@@ -47,6 +48,17 @@ public class ShapeIndexer implements AbstractGeometryFieldMapper.Indexer<Geometr
         LuceneGeometryVisitor visitor = new LuceneGeometryVisitor(name);
         shape.visit(visitor);
         return visitor.fields;
+    }
+
+    @Override
+    public void indexDocValueField(ParseContext context, Geometry shape) {
+        BinaryGeoShapeDocValuesField docValuesField = (BinaryGeoShapeDocValuesField) context.doc().getByKey(name);
+        if (docValuesField == null) {
+            docValuesField = new BinaryGeoShapeDocValuesField(name, shape);
+            context.doc().addWithKey(name, docValuesField);
+        } else {
+            docValuesField.add(shape);
+        }
     }
 
     private class LuceneGeometryVisitor implements GeometryVisitor<Void, RuntimeException> {

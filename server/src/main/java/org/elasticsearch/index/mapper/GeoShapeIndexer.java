@@ -195,10 +195,10 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
 
     @Override
     public void indexDocValueField(ParseContext context, Geometry shape) {
-        GeoShapeFieldMapper.BinaryGeoShapeDocValuesField docValuesField =
-            (GeoShapeFieldMapper.BinaryGeoShapeDocValuesField) context.doc().getByKey(name);
+        BinaryGeoShapeDocValuesField docValuesField =
+            (BinaryGeoShapeDocValuesField) context.doc().getByKey(name);
         if (docValuesField == null) {
-            docValuesField = new GeoShapeFieldMapper.BinaryGeoShapeDocValuesField(name, shape);
+            docValuesField = new BinaryGeoShapeDocValuesField(name, shape);
             context.doc().addWithKey(name, docValuesField);
         } else {
             docValuesField.add(shape);

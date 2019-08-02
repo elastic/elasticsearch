@@ -23,26 +23,17 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeometryParser;
-import org.elasticsearch.common.geo.GeometryTreeWriter;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.geo.geometry.Geometry;
-import org.elasticsearch.geo.geometry.GeometryCollection;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.AbstractLatLonShapeDVIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.VectorGeoShapeQueryProcessor;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * FieldMapper for indexing {@link LatLonShape}s.
@@ -156,37 +147,4 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
         return CONTENT_TYPE;
     }
 
-    static class BinaryGeoShapeDocValuesField extends CustomDocValuesField {
-
-        private List<Geometry> geometries;
-
-        BinaryGeoShapeDocValuesField(String name, Geometry geometry) {
-            super(name);
-            this.geometries = new ArrayList<>(1);
-            add(geometry);
-        }
-
-        void add(Geometry geometry) {
-            geometries.add(geometry);
-        }
-
-        @Override
-        public BytesRef binaryValue() {
-            try {
-                final Geometry geometry;
-                if (geometries.size() > 1) {
-                    geometry = new GeometryCollection(geometries);
-                } else {
-                    geometry = geometries.get(0);
-                }
-                final GeometryTreeWriter writer = new GeometryTreeWriter(geometry);
-                BytesStreamOutput output = new BytesStreamOutput();
-                writer.writeTo(output);
-                return output.bytes().toBytesRef();
-            } catch (IOException e) {
-                throw new ElasticsearchException("failed to encode shape", e);
-            }
-        }
-
-    }
 }

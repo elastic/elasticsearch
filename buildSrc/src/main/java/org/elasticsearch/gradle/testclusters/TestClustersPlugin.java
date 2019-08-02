@@ -21,6 +21,8 @@ package org.elasticsearch.gradle.testclusters;
 import groovy.lang.Closure;
 import org.elasticsearch.gradle.DistributionDownloadPlugin;
 import org.elasticsearch.gradle.ElasticsearchDistribution;
+import org.elasticsearch.gradle.ReaperPlugin;
+import org.elasticsearch.gradle.ReaperService;
 import org.elasticsearch.gradle.test.RestTestRunnerTask;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
@@ -56,14 +58,17 @@ public class TestClustersPlugin implements Plugin<Project> {
     private final Set<ElasticsearchCluster> runningClusters = new HashSet<>();
     private final Boolean allowClusterToSurvive = Boolean.valueOf(System.getProperty(TESTCLUSTERS_INSPECT_FAILURE, "false"));
 
+    private ReaperService reaper;
+
     @Override
     public void apply(Project project) {
         project.getPlugins().apply(DistributionDownloadPlugin.class);
 
+        project.getRootProject().getPluginManager().apply(ReaperPlugin.class);
+        reaper = project.getRootProject().getExtensions().getByType(ReaperService.class);
+
         // enable the DSL to describe clusters
         NamedDomainObjectContainer<ElasticsearchCluster> container = createTestClustersContainerExtension(project);
-
-        TestClustersCleanupExtension.createExtension(project);
 
         // provide a task to be able to list defined clusters.
         createListClustersTask(project, container);
@@ -94,6 +99,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                 project.getPath(),
                 name,
                 project,
+                reaper,
                 i -> distros.create(name + "-" + i),
                 new File(project.getBuildDir(), "testclusters")
             )
@@ -181,10 +187,6 @@ public class TestClustersPlugin implements Plugin<Project> {
                         .filter(cluster -> runningClusters.contains(cluster) == false)
                         .collect(Collectors.toList());
 
-                    project.getRootProject().getExtensions()
-                        .getByType(TestClustersCleanupExtension.class)
-                        .getCleanupThread()
-                        .watch(neededButNotRunning);
                     neededButNotRunning
                         .forEach(elasticsearchCluster -> {
                             elasticsearchCluster.start();
@@ -233,11 +235,6 @@ public class TestClustersPlugin implements Plugin<Project> {
                             stopCluster(cluster, false);
                             runningClusters.remove(cluster);
                         });
-
-                        project.getRootProject().getExtensions()
-                            .getByType(TestClustersCleanupExtension.class)
-                            .getCleanupThread()
-                            .unWatch(stoppingClusers);
                     }
                 }
                 @Override

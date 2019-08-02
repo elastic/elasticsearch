@@ -904,7 +904,7 @@ POST /_security/role/saml-service-role
 POST /_security/user/saml-service-user
 {
   "password" : "<somePasswordHere>",
-  "roles"    : [ "saml-service-role"]
+  "roles"    : ["saml-service-role"]
 }
 --------------------------------------------------
 // CONSOLE
@@ -947,12 +947,12 @@ See {ref}/security-api-saml-authenticate.html[SAML Authenticate API] for more de
 -----------------------------------------------------------------------
 POST /_security/saml/authenticate
 {
-  "content" : "PHNhbWxwOlJlc3BvbnNlIHhtbG5zOnNhbWxwPSJ1cm46b2FzaXM6bmFtZXM6dGM6U0FNTDoyLjA6cHJvdG9jb2wiIHhtbG5zOnNhbWw9InVybjpvYXNpczpuYW1lczp0YzpTQU1MOjIuMD....."
+  "content" : "PHNhbWxwOlJlc3BvbnNlIHhtbG5zOnNhbWxwPSJ1cm46b2FzaXM6bmFtZXM6dGM6U0FNTDoyLjA6cHJvdG9jb2wiIHhtbG5zOnNhbWw9InVybjpvYXNpczpuYW1lczp0YzpTQU1MOjIuMD.....",
   "ids" : ["4fee3b046395c4e751011e97f8900b5273d56685"]
 }
 -----------------------------------------------------------------------
 // CONSOLE
-// NOTEST
+// TEST[skip:handled in IT]
 +
 Elasticsearch will validate this and if all is correct will respond with an access token that can be used
 as a `Bearer` token for subsequent requests and a refresh token that can be later used to refresh the given
@@ -975,7 +975,7 @@ POST /_security/saml/logout
 }
 --------------------------------------------------
 // CONSOLE
-// NOTEST
+// TEST[skip:handled in IT]
 +
 If the SAML realm is configured accordingly and the IdP supports it, this request will trigger a SAML
 SP-initiated Single Logout. In this case, the response will include a `redirect`
@@ -989,12 +989,12 @@ using the {ref}/security-api-saml-invalidate.html[SAML Invalidate API]
 --------------------------------------------------
 POST /_security/saml/invalidate
 {
-  "query" : "SAMLRequest=nZFda4MwFIb%2FiuS%2BmviRpqFaClKQdbvo2g12M2KMraCJ9cRR9utnW4Wyi13sMie873MeznJ1aWrnS3VQGR0j4mLkKC1NUeljjA77zYyhVbIE0dR%2By7fmaHq7U%2BdegXWGpAZ%2B%2F4pR32luBFTAtWgUcCv56%2Fp5y30X87Yz1khTIycdgpUW9kY7WdsC9zxoXTvMvWuVV98YyMnSGH2SYE5pwALBIr9QKiwDGpW0oGVUznGeMyJZKFkQ4jBf5HnhUymjIhzCAL3KNFihbYx8TBYzzGaY7EnIyZwHzCWMfiDnbRIftkSjJr%2BFu0e9v%2B0EgOquRiiZjKpiVFp6j50T4WXoyNJ%2FEWC9fdqc1t%2F1%2B2F3aUpjzhPiXpqMz1%2FHSn4A&SigAlg=http%3A%2F%2Fwww.w3.org%2F2001%2F04%2Fxmldsig-more%23rsa-sha256&Signature=MsAYz2NFdovMG2mXf6TSpu5vlQQyEJAg%2B4KCwBqJTmrb3yGXKUtIgvjqf88eCAK32v3eN8vupjPC8LglYmke1ZnjK0%2FKxzkvSjTVA7mMQe2AQdKbkyC038zzRq%2FYHcjFDE%2Bz0qISwSHZY2NyLePmwU7SexEXnIz37jKC6NMEhus%3D"
+  "query" : "SAMLRequest=nZFda4MwFIb%2FiuS%2BmviRpqFaClKQdbvo2g12M2KMraCJ9cRR9utnW4Wyi13sMie873MeznJ1aWrnS3VQGR0j4mLkKC1NUeljjA77zYyhVbIE0dR%2By7fmaHq7U%2BdegXWGpAZ%2B%2F4pR32luBFTAtWgUcCv56%2Fp5y30X87Yz1khTIycdgpUW9kY7WdsC9zxoXTvMvWuVV98YyMnSGH2SYE5pwALBIr9QKiwDGpW0oGVUznGeMyJZKFkQ4jBf5HnhUymjIhzCAL3KNFihbYx8TBYzzGaY7EnIyZwHzCWMfiDnbRIftkSjJr%2BFu0e9v%2B0EgOquRiiZjKpiVFp6j50T4WXoyNJ%2FEWC9fdqc1t%2F1%2B2F3aUpjzhPiXpqMz1%2FHSn4A&SigAlg=http%3A%2F%2Fwww.w3.org%2F2001%2F04%2Fxmldsig-more%23rsa-sha256&Signature=MsAYz2NFdovMG2mXf6TSpu5vlQQyEJAg%2B4KCwBqJTmrb3yGXKUtIgvjqf88eCAK32v3eN8vupjPC8LglYmke1ZnjK0%2FKxzkvSjTVA7mMQe2AQdKbkyC038zzRq%2FYHcjFDE%2Bz0qISwSHZY2NyLePmwU7SexEXnIz37jKC6NMEhus%3D",
   "realm" : "saml1"
 }
 --------------------------------------------------
 // CONSOLE
-// NOTEST
+// TEST[skip:handled in IT]
 +
 The custom web application will then need to also handle the response, which will include a `redirect`
 parameter with a URL in the IdP that contains the SAML Logout response and should redirect the user

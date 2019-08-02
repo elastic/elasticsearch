@@ -38,12 +38,12 @@ with a successful SAML response.
 --------------------------------------------------
 POST /_security/saml/logout
 {
-  "token" : "46ToAxZVaXVVZTVKOVF5YU04ZFJVUDVSZlV3"
+  "token" : "46ToAxZVaXVVZTVKOVF5YU04ZFJVUDVSZlV3",
   "refresh_token" : "mJdXLtmvTUSpoLwMvdBt_w"
 }
 --------------------------------------------------
 // CONSOLE
-// NOTEST
+// TEST[skip:handled in IT]
 
 A successful response would include a URL containing a SAML logout request as a parameter so that the user can be
 redirected back to the SAML IdP and initiate Single Logout
@@ -51,7 +51,7 @@ redirected back to the SAML IdP and initiate Single Logout
 [source,js]
 --------------------------------------------------
 {
-  "redirect" : "https://my-idp.org/logout/SAMLRequest=....",
+  "redirect" : "https://my-idp.org/logout/SAMLRequest=...."
 }
 --------------------------------------------------
 // NOTCONSOLE

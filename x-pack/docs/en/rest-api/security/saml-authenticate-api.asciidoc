@@ -40,11 +40,12 @@ for an {es} access token and refresh token to be used in subsequent requests.
 --------------------------------------------------
 POST /_security/saml/authenticate
 {
-  "content" : "PHNhbWxwOlJlc3BvbnNlIHhtbG5zOnNhbWxwPSJ1cm46b2FzaXM6bmFtZXM6dGM6U0FNTDoyLjA6cHJvdG9jb2wiIHhtbG5zOnNhbWw9InVybjpvYXNpczpuYW1lczp0YzpTQU1MOjIuMD....."
+  "content" : "PHNhbWxwOlJlc3BvbnNlIHhtbG5zOnNhbWxwPSJ1cm46b2FzaXM6bmFtZXM6dGM6U0FNTDoyLjA6cHJvdG9jb2wiIHhtbG5zOnNhbWw9InVybjpvYXNpczpuYW1lczp0YzpTQU1MOjIuMD.....",
   "ids" : ["4fee3b046395c4e751011e97f8900b5273d56685"]
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:handled in IT]
 
 The following example output contains the access token and refresh token that were generated in response,
 the authenticated user's username, and the amount of time (inseconds) that the token expires in.

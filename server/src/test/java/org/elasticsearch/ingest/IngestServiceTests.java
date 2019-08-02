@@ -263,6 +263,33 @@ public class IngestServiceTests extends ESTestCase {
         ingestService.validatePipeline(Collections.singletonMap(discoveryNode, ingestInfo), putRequest);
     }
 
+    public void testHasProcessor() throws Exception {
+        IngestService ingestService = createWithProcessors();
+        String id = "_id";
+        Pipeline pipeline = ingestService.getPipeline(id);
+        assertThat(pipeline, nullValue());
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
+
+        PutPipelineRequest putRequest = new PutPipelineRequest("_id", new BytesArray(
+            "{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\", \"tag\": \"tag1\"}}," +
+                "{\"remove\" : {\"field\": \"_field\", \"tag\": \"tag2\"}}]}"),
+            XContentType.JSON);
+        ClusterState previousClusterState = clusterState;
+        clusterState = IngestService.innerPut(putRequest, clusterState);
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+        pipeline = ingestService.getPipeline(id);
+        assertThat(pipeline, notNullValue());
+
+        assertTrue(ingestService.hasProcessor(id, Processor.class));
+        assertTrue(ingestService.hasProcessor(id, WrappedProcessorImpl.class));
+        assertTrue(ingestService.hasProcessor(id, WrappedProcessor.class));
+        assertTrue(ingestService.hasProcessor(id, FakeProcessor.class));
+        assertTrue(ingestService.hasProcessor(id, FakeProcessor.class));
+
+        // Validate the negative scenario by passing in a class that the processor will never be.
+        assertFalse(ingestService.hasProcessor(id, ConditionalProcessor.class));
+    }
+
     public void testCrud() throws Exception {
         IngestService ingestService = createWithProcessors();
         String id = "_id";
@@ -946,7 +973,7 @@ public class IngestServiceTests extends ESTestCase {
         assertThat(IngestService.getProcessorName(processor), equalTo(name + ":" + tag));
 
         ConditionalProcessor conditionalProcessor = mock(ConditionalProcessor.class);
-        when(conditionalProcessor.getProcessor()).thenReturn(processor);
+        when(conditionalProcessor.getInnerProcessor()).thenReturn(processor);
         assertThat(IngestService.getProcessorName(conditionalProcessor), equalTo(name + ":" + tag));
 
         PipelineProcessor pipelineProcessor = mock(PipelineProcessor.class);
@@ -1012,42 +1039,11 @@ public class IngestServiceTests extends ESTestCase {
         processors.put("set", (factories, tag, config) -> {
             String field = (String) config.remove("field");
             String value = (String) config.remove("value");
-            return new Processor() {
-                @Override
-                public IngestDocument execute(IngestDocument ingestDocument) {
-                    ingestDocument.setFieldValue(field, value);
-                    return ingestDocument;
-                }
-
-                @Override
-                public String getType() {
-                    return "set";
-                }
-
-                @Override
-                public String getTag() {
-                    return tag;
-                }
-            };
+            return new FakeProcessor("set", tag, (ingestDocument) ->ingestDocument.setFieldValue(field, value));
         });
         processors.put("remove", (factories, tag, config) -> {
             String field = (String) config.remove("field");
-            return new Processor() {
-                @Override
-                public IngestDocument execute(IngestDocument ingestDocument) {
-                    ingestDocument.removeField(field);
-                    return ingestDocument;
-                }
-
-                @Override
-                public String getType() {
-                    return "remove";
-                }
-
-                @Override
-                public String getTag() {
-                    return tag;
-                }
+            return new WrappedProcessorImpl("remove", tag, (ingestDocument -> ingestDocument.removeField(field))) {
             };
         });
         return createWithProcessors(processors);

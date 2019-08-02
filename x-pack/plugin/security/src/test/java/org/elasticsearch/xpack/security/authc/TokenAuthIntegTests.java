@@ -268,6 +268,23 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                 .admin().cluster().prepareHealth().get());
     }
 
+    public void testAuthenticateWithWrongToken() throws IOException {
+        final RestHighLevelClient restClient = new TestRestHighLevelClient();
+        CreateTokenResponse response = restClient.security().createToken(CreateTokenRequest.passwordGrant(
+            SecuritySettingsSource.TEST_USER_NAME, SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()), SECURITY_REQUEST_OPTIONS);
+        assertNotNull(response.getRefreshToken());
+        // First check that the correct access token works by getting cluster health with token
+        assertNoTimeout(client()
+            .filterWithHeader(Collections.singletonMap("Authorization", "Bearer " + response.getAccessToken()))
+            .admin().cluster().prepareHealth().get());
+        // Now attempt to authenticate with an invalid access token string
+        RequestOptions wrongAuthOptions =
+            RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + randomAlphaOfLengthBetween(0, 128)).build();
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
+            () -> restClient.security().authenticate(wrongAuthOptions));
+        assertEquals(RestStatus.UNAUTHORIZED, e.status());
+    }
+
     public void testRefreshingInvalidatedToken() throws IOException {
         final RestHighLevelClient restClient = new TestRestHighLevelClient();
         CreateTokenResponse createTokenResponse = restClient.security().createToken(CreateTokenRequest.passwordGrant(

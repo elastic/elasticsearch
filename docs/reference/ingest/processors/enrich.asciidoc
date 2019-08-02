@@ -8,8 +8,10 @@ that is managed by an enrich policy prior to indexing.
 
 The data that is used by the enrich index is managed by the user in a regular indices.
 An enrich policy is configuration that indicates how an enrich index is created from
-the data from in the user's maintained indices. When an enrich policy is executed
+the data  in the user's maintained indices. When an enrich policy is executed
 a new enrich index is created for that policy, which the enrich process can then use.
+
+An enrich policy also controls what kind of enrichment the `enrich` processor is able to do.
 
 [[enrich-options]]
 .Enrich Options
@@ -17,7 +19,7 @@ a new enrich index is created for that policy, which the enrich process can then
 |======
 | Name               | Required  | Default              | Description
 | `policy_name`      | yes       | -                    | The name of the enrich policy to use.
-| `enrich_key`       | no        | Policy enrich key    | The field to get the value from for the enrich lookup.
+| `enrich_key`       | no        | Policy enrich_key    | The field to get the value from for the enrich lookup.
 | `ignore_missing`   | no        | `false`              | If `true` and `enrich_key` does not exist, the processor quietly exits without modifying the document
 | `enrich_values`    | yes       | -                    | Describes what fields should be added to the document being indexed from the lookup document
 include::common-options.asciidoc[]
@@ -35,11 +37,21 @@ The main piece to configure is the enrich policy:
 |======
 | Name               | Required  | Default              | Description
 | `type`             | yes       | -                    | The policy type.
-| `indices`          | yes       | -                    | The indices to fetch the data from
-| `query`            | no        | `match_all` query    | The query used to select which documents are included
+| `indices`          | yes       | -                    | The indices to fetch the data from.
+| `query`            | no        | `match_all` query    | The query to be used to select which documents are included.
 | `enrich_key`       | yes       | -                    | The field that the enrich processor will query against.
 | `enrich_values`    | yes       | -                    | The fields to include in the enrich index.
 |======
+
+[[enrich-policy-types]]
+===== Policy types
+
+An enrich processor is associated with a policy via the `policy_name` option.
+The policy type of the policy determines what kind of enrichment an `enrich` processor is able to do.
+
+The following policy types are currently supported:
+
+* `exact_match` - Can lookup exactly one document and use its content to enrich the document being ingested.
 
 [[enrich-processor-getting-started]]
 ==== Getting started
@@ -198,6 +210,10 @@ Also there are several APIs in order to manage and execute enrich policies:
 * <<delete-policy-api,Delete policy api>>.
 * <<execute-policy-api,Execute policy api>>.
 * <<list-policies-api,List policies api>>.
+
+If security is enabled then the user managing enrich policies will need to have
+the `enrich_user` builtin role. Also the user will need to have read privileges
+for the indices the enrich policy is referring to.
 
 [[put-policy-api]]
 ===== Put Policy API

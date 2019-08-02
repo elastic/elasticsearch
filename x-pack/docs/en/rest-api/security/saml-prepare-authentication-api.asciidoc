@@ -1,41 +1,62 @@
 [role="xpack"]
 [[security-api-saml-prepare-authentication]]
+=== SAML prepare authentication API
 
-=== SAML Prepare Authentication API
+Creates a SAML authentication request as a URL string, based on the
+configuration of the respective SAML realm in {es}. 
 
-Creates a SAML authentication request as a URL string, based on the configuration of the respective
-SAML realm in {es}. The response of this API is a URL that contains a URL pointing to the SAML
-Identity Provider and can be used to redirect the browser of the user in order to continue the
-authentication process. The URL contains a single parameter named `SAMLRequest` that contains
-a SAML Authentication request, deflated and Base64 encoded. If the configuration dictates that
-SAML Authentication requests should be signed, the URL has two extra parameters named
-`SigAlg` and `Signature` that contain the algorithm used for the signature and the signature
-value itself.
-
-{es} exposes all the necessary SAML related functionality via the SAML APIs. These APIs
-are used internally by {kib} in order to provide SAML based authentication, but can also be used by other,
-custom web applications or other clients. See also <<security-api-saml-authenticate,SAML Authenticate API>>
-, <<security-api-saml-invalidate,SAML Invalidate API>> and <<security-api-saml-logout,SAML Logout API>>.
-
-==== Request
+[[security-api-saml-prepare-authentication-request]]
+==== {api-request-title}
 
 `POST /_security/saml/prepare`
 
+[[security-api-saml-prepare-authentication-desc]]
+==== {api-description-title}
 
-==== Request Body
+This API returns a URL that contains a URL pointing to the SAML Identity
+Provider. You can use the URL to redirect the browser of the user in order to
+continue the authentication process. The URL contains a single parameter named `SAMLRequest`, which contains a SAML Authentication request that is deflated and
+Base64 encoded. If the configuration dictates that SAML authentication requests
+should be signed, the URL has two extra parameters named `SigAlg` and
+`Signature`. These parameters contain the algorithm used for the signature and
+the signature value itself.
 
-The following parameters can be specified in the body of the request:
+{es} exposes all the necessary SAML related functionality via the SAML APIs.
+These APIs are used internally by {kib} in order to provide SAML based
+authentication, but can also be used by other custom web applications or other
+clients. See also <<security-api-saml-authenticate,SAML authenticate API>>,
+<<security-api-saml-invalidate,SAML invalidate API>>, and
+<<security-api-saml-logout,SAML logout API>>.
 
-`realm`::
-The name of the SAML realm in {es} the configuration of which should be used in order to
-generate the authentication request. Either this or `acs` should be specified.
+[[security-api-saml-prepare-authentication-request-body]]
+==== {api-request-body-title}
 
 `acs`::
-String value that contains the Assertion Consumer Service URL that matches the one of the SAML
-realm in {es} that should be used in order to generate the authentication request. Either this
-or `realm` should be specified.
+  (string) The Assertion Consumer Service URL that matches the one of the SAML
+  realms in {es}. The realm is used to generate the authentication request.
+  Either this or `realm` should be specified.
 
-==== Examples
+`realm`::
+  (string) The name of the SAML realm in {es} for which the configuration is
+  used to generate the authentication request. Either this or `acs` should be
+  specified.
+
+[[security-api-saml-prepare-authentication-response-body]]
+==== {api-response-body-title}  
+
+`id`::
+  (string) An identifier for the SAML Request to be stored by the caller
+  of the API.
+
+`realm`::
+  (string) The name of the {es} realm that was used to construct the
+  authentication request.
+
+`redirect`::
+  (string) The URL to redirect the user to.
+
+[[security-api-saml-prepare-authentication-example]]
+==== {api-examples-title}
 
 The following example generates a SAML authentication request for the SAML realm with name `saml1`
 
@@ -60,8 +81,7 @@ POST /_security/saml/prepare
 --------------------------------------------------
 // CONSOLE
 
-A successful will return the URL to redirect the user to, an identifier for the SAML Request to be stored by the caller
-of the API and the name of the {es} realm that was used to construct this authentication request
+This API returns the following response:
 
 [source,js]
 -------------------------------------------------

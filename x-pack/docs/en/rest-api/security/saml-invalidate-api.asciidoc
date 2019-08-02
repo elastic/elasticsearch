@@ -1,45 +1,69 @@
 [role="xpack"]
 [[security-api-saml-invalidate]]
+=== SAML invalidate API
 
-=== SAML Invalidate API
+Submits a SAML LogoutRequest message to {es} for consumption. 
 
-Submits a SAML LogoutRequest message to {es} for consumption. The logout request comes from the SAML IdP during
-an IdP initiated Single Logout. Upon successful validation of the request, {es} will invalidate the access token
-and refresh token that corresponds to that specific SAML principal and provide a URL that contains a SAML
-LogoutResponse message, so that the user can be redirected back to their IdP.
-
-{es} exposes all the necessary SAML related functionality via the SAML APIs. These APIs
-are used internally by {kib} in order to provide SAML based authentication, but can also be used by other,
-custom web applications or other clients. See also
-<<security-api-saml-authenticate,SAML Authenticate API>>,
-<<security-api-saml-prepare-authentication,SAML Prepare Authentication API>> and <<security-api-saml-logout,SAML Logout API>>.
-
-==== Request
+[[security-api-saml-invalidate-request]]
+==== {api-request-title}
 
 `POST /_security/saml/invalidate`
 
+[[security-api-saml-invalidate-desc]]
+==== {api-description-title}
 
-==== Request Body
+The logout request comes from the SAML IdP during an IdP initiated Single Logout.
+After successful validation of the request, {es} invalidates the access token
+and refresh token that corresponds to that specific SAML principal and provides
+a URL that contains a SAML LogoutResponse message, so that the user can be
+redirected back to their IdP.
 
-The following parameters can be specified in the body of the request:
+{es} exposes all the necessary SAML related functionality via the SAML APIs.
+These APIs are used internally by {kib} in order to provide SAML based
+authentication, but can also be used by other custom web applications or other
+clients. See also <<security-api-saml-authenticate,SAML authenticate API>>,
+<<security-api-saml-prepare-authentication,SAML prepare authentication API>>,
+and <<security-api-saml-logout,SAML logout API>>.
 
-`queryString`:: The query part of the URL that the user was redirected to by the SAML IdP to initiate the Single
-Logout. This query should include a single parameter named `SAMLRequest` that contains
-a SAML logout request, deflated and Base64 encoded. If the SAML IdP has signed the logout request,
-the URL should include two extra parameters named `SigAlg` and `Signature` that contain the algorithm used for
-the signature and the signature value itself.
-
-`realm`::
-The name of the SAML realm in {es} the configuration. Either this or `acs` should be specified.
+[[security-api-saml-invalidate-request-body]]
+==== {api-request-body-title}
 
 `acs`::
-String value that contains the Assertion Consumer Service URL that matches the one of the SAML
-realm in {es} that should be used. Either this or `realm` should be specified.
+  (string) The Assertion Consumer Service URL that matches the one of the SAML
+  realm in {es} that should be used. Either this or `realm` should be specified.
 
-==== Example
+`queryString`:: 
+  (string) The query part of the URL that the user was redirected to by the SAML
+  IdP to initiate the Single Logout. This query should include a single
+  parameter named `SAMLRequest` that contains a SAML logout request that is
+  deflated and Base64 encoded. If the SAML IdP has signed the logout request, 
+  the URL should include two extra parameters named `SigAlg` and `Signature`
+  that contain the algorithm used for the signature and the signature value
+  itself.
 
-The following example invalidates all the tokens for realm `saml1` pertaining to the user that is identified in the SAML Logout
-Request
+`realm`::
+  (string) The name of the SAML realm in {es} the configuration. Either this or
+  `acs` should be specified.
+
+[[security-api-saml-invalidate-response-body]]
+==== {api-response-body-title}  
+
+`invalidated`::
+  The number of tokens that were invalidated as part of this logout.
+
+`realm`:: 
+  The realm name of the SAML realm in {es} that authenticated the user.
+
+`redirect`::
+  (string) A SAML logout response as a parameter so that the user can be
+  redirected back to the SAML IdP.
+
+
+[[security-api-saml-invalidate-example]]
+==== {api-examples-title}
+
+The following example invalidates all the tokens for realm `saml1` pertaining to
+the user that is identified in the SAML Logout Request:
 
 [source,js]
 --------------------------------------------------
@@ -51,10 +75,6 @@ POST /_security/saml/invalidate
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:handled in IT]
-
-A successful response would include a URL containing a SAML logout response as a parameter so that the user can be
-redirected back to the SAML IdP. It also contains the number of tokens that were invalidated as part of this logout
-and the realm name of the SAML Realm in {es} in which the user was authenticated.
 
 [source,js]
 --------------------------------------------------

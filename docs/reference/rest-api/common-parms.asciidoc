@@ -42,6 +42,7 @@ headers. Defaults to `false`.
 end::cat-v[]
 
 tag::timeoutparms[]
+
 `timeout`::
 (Optional, <<time-units, time units>>) Specifies the period of time to wait for
 a response. If no response is received before the timeout expires, the request

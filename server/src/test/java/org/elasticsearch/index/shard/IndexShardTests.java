@@ -3000,7 +3000,7 @@ public class IndexShardTests extends IndexShardTestCase {
             // Do some updates and deletes, then recheck the correlation again.
             for (int i = 0; i < numDoc / 2; i++) {
                 if (randomBoolean()) {
-                    deleteDoc(indexShard, "doc", Integer.toString(i));
+                    deleteDoc(indexShard, "_doc", Integer.toString(i));
                 } else {
                     indexDoc(indexShard, "_doc", Integer.toString(i), "{\"foo\": \"bar\"}");
                 }
@@ -3728,7 +3728,7 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testSupplyTombstoneDoc() throws Exception {
         IndexShard shard = newStartedShard();
         String id = randomRealisticUnicodeOfLengthBetween(1, 10);
-        ParsedDocument deleteTombstone = shard.getEngine().config().getTombstoneDocSupplier().newDeleteTombstoneDoc("doc", id);
+        ParsedDocument deleteTombstone = shard.getEngine().config().getTombstoneDocSupplier().newDeleteTombstoneDoc("_doc", id);
         assertThat(deleteTombstone.docs(), hasSize(1));
         ParseContext.Document deleteDoc = deleteTombstone.docs().get(0);
         assertThat(deleteDoc.getFields().stream().map(IndexableField::name).collect(Collectors.toList()),

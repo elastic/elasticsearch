@@ -207,14 +207,13 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             Future<Void> fut = shards.asyncRecoverReplica(replica,
                 (shard, node) -> new RecoveryTarget(shard, node, recoveryListener) {
                     @Override
-                    public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps,
-                                                             ActionListener<Void> listener) {
+                    public void prepareForTranslogOperations(int totalTranslogOps, ActionListener<Void> listener) {
                         try {
                             indexedOnPrimary.await();
                         } catch (InterruptedException e) {
                             throw new AssertionError(e);
                         }
-                        super.prepareForTranslogOperations(fileBasedRecovery, totalTranslogOps, listener);
+                        super.prepareForTranslogOperations(totalTranslogOps, listener);
                     }
                 });
             fut.get();

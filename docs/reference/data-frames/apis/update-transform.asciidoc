@@ -121,7 +121,7 @@ delays.
 
 [source,js]
 --------------------------------------------------
-POST _data_frame/transforms/ecommerce_transform/_update
+POST _data_frame/transforms/simple-kibana-ecomm-pivot/_update
 {
   "source": {
     "index": "kibana_sample_data_ecommerce",

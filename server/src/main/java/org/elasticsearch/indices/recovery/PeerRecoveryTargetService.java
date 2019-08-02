@@ -22,8 +22,6 @@ package org.elasticsearch.indices.recovery;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.RateLimiter;
 import org.elasticsearch.ElasticsearchException;
@@ -44,18 +42,14 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.engine.CombinedDeletionPolicy;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.mapper.MapperException;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.indices.recovery.RecoveriesCollection.RecoveryRef;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -68,12 +62,11 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.List;
-import java.util.StringJoiner;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 /**
  * The recovery target handles recoveries of peer shards of the shard+node to recover to.
@@ -178,9 +171,12 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             cancellableThreads = recoveryTarget.cancellableThreads();
             try {
                 assert recoveryTarget.sourceNode() != null : "can not do a recovery without a source node";
-                request = getStartRecoveryRequest(recoveryTarget);
                 logger.trace("{} preparing shard for peer recovery", recoveryTarget.shardId());
                 recoveryTarget.indexShard().prepareForIndexRecovery();
+                final long startingSeqNo = recoveryTarget.indexShard().recoverLocallyUpToGlobalCheckpoint();
+                assert startingSeqNo == UNASSIGNED_SEQ_NO || recoveryTarget.state().getStage() == RecoveryState.Stage.TRANSLOG :
+                    "unexpected recovery stage [" + recoveryTarget.state().getStage() + "] starting seqno [ " + startingSeqNo + "]";
+                request = getStartRecoveryRequest(logger, clusterService.localNode(), recoveryTarget, startingSeqNo);
             } catch (final Exception e) {
                 // this will be logged as warning later on...
                 logger.trace("unexpected error while preparing shard for peer recovery, failing recovery", e);
@@ -314,108 +310,49 @@ public class PeerRecoveryTargetService implements IndexEventListener {
     }
 
     /**
-     * Obtains a snapshot of the store metadata for the recovery target.
-     *
-     * @param recoveryTarget the target of the recovery
-     * @return a snapshot of the store metadata
-     */
-    private Store.MetadataSnapshot getStoreMetadataSnapshot(final RecoveryTarget recoveryTarget) {
-        try {
-            return recoveryTarget.indexShard().snapshotStoreMetadata();
-        } catch (final org.apache.lucene.index.IndexNotFoundException e) {
-            // happens on an empty folder. no need to log
-            logger.trace("{} shard folder empty, recovering all files", recoveryTarget);
-            return Store.MetadataSnapshot.EMPTY;
-        } catch (final IOException e) {
-            logger.warn("error while listing local files, recovering as if there are none", e);
-            return Store.MetadataSnapshot.EMPTY;
-        }
-    }
-
-    /**
      * Prepare the start recovery request.
      *
+     * @param logger         the logger
+     * @param localNode      the local node of the recovery target
      * @param recoveryTarget the target of the recovery
+     * @param startingSeqNo  a sequence number that an operation-based peer recovery can start with.
+     *                       This is the first operation after the local checkpoint of the safe commit if exists.
      * @return a start recovery request
      */
-    private StartRecoveryRequest getStartRecoveryRequest(final RecoveryTarget recoveryTarget) {
+    public static StartRecoveryRequest getStartRecoveryRequest(Logger logger, DiscoveryNode localNode,
+                                                               RecoveryTarget recoveryTarget, long startingSeqNo) {
         final StartRecoveryRequest request;
         logger.trace("{} collecting local files for [{}]", recoveryTarget.shardId(), recoveryTarget.sourceNode());
 
-        final Store.MetadataSnapshot metadataSnapshot = getStoreMetadataSnapshot(recoveryTarget);
+        Store.MetadataSnapshot metadataSnapshot;
+        try {
+            metadataSnapshot = recoveryTarget.indexShard().snapshotStoreMetadata();
+        } catch (final org.apache.lucene.index.IndexNotFoundException e) {
+            // happens on an empty folder. no need to log
+            assert startingSeqNo == UNASSIGNED_SEQ_NO : startingSeqNo;
+            logger.trace("{} shard folder empty, recovering all files", recoveryTarget);
+            metadataSnapshot = Store.MetadataSnapshot.EMPTY;
+        } catch (final IOException e) {
+            if (startingSeqNo != UNASSIGNED_SEQ_NO) {
+                logger.warn(new ParameterizedMessage("error while listing local files, resetting the starting sequence number from {} " +
+                    "to unassigned and recovering as if there are none", startingSeqNo), e);
+                startingSeqNo = UNASSIGNED_SEQ_NO;
+            } else {
+                logger.warn("error while listing local files, recovering as if there are none", e);
+            }
+            metadataSnapshot = Store.MetadataSnapshot.EMPTY;
+        }
         logger.trace("{} local file count [{}]", recoveryTarget.shardId(), metadataSnapshot.size());
-
-        final long startingSeqNo;
-        if (metadataSnapshot.size() > 0) {
-            startingSeqNo = getStartingSeqNo(logger, recoveryTarget);
-        } else {
-            startingSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
-        }
-
-        if (startingSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO) {
-            logger.trace("{} preparing for file-based recovery from [{}]", recoveryTarget.shardId(), recoveryTarget.sourceNode());
-        } else {
-            logger.trace(
-                "{} preparing for sequence-number-based recovery starting at sequence number [{}] from [{}]",
-                recoveryTarget.shardId(),
-                startingSeqNo,
-                recoveryTarget.sourceNode());
-        }
-
         request = new StartRecoveryRequest(
             recoveryTarget.shardId(),
             recoveryTarget.indexShard().routingEntry().allocationId().getId(),
             recoveryTarget.sourceNode(),
-            clusterService.localNode(),
+            localNode,
             metadataSnapshot,
             recoveryTarget.state().getPrimary(),
             recoveryTarget.recoveryId(),
             startingSeqNo);
         return request;
-    }
-
-    /**
-     * Get the starting sequence number for a sequence-number-based request.
-     *
-     * @param recoveryTarget the target of the recovery
-     * @return the starting sequence number or {@link SequenceNumbers#UNASSIGNED_SEQ_NO} if obtaining the starting sequence number
-     * failed
-     */
-    public static long getStartingSeqNo(final Logger logger, final RecoveryTarget recoveryTarget) {
-        try {
-            final Store store = recoveryTarget.store();
-            final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
-            final long globalCheckpoint = Translog.readGlobalCheckpoint(recoveryTarget.translogLocation(), translogUUID);
-            final List<IndexCommit> existingCommits = DirectoryReader.listCommits(store.directory());
-            final IndexCommit safeCommit = CombinedDeletionPolicy.findSafeCommitPoint(existingCommits, globalCheckpoint);
-            final SequenceNumbers.CommitInfo seqNoStats = Store.loadSeqNoInfo(safeCommit);
-            if (logger.isTraceEnabled()) {
-                final StringJoiner descriptionOfExistingCommits = new StringJoiner(",");
-                for (IndexCommit commit : existingCommits) {
-                    descriptionOfExistingCommits.add(CombinedDeletionPolicy.commitDescription(commit));
-                }
-                logger.trace("Calculate starting seqno based on global checkpoint [{}], safe commit [{}], existing commits [{}]",
-                    globalCheckpoint, CombinedDeletionPolicy.commitDescription(safeCommit), descriptionOfExistingCommits);
-            }
-            if (seqNoStats.maxSeqNo <= globalCheckpoint) {
-                assert seqNoStats.localCheckpoint <= globalCheckpoint;
-                /*
-                 * Commit point is good for sequence-number based recovery as the maximum sequence number included in it is below the global
-                 * checkpoint (i.e., it excludes any operations that may not be on the primary). Recovery will start at the first operation
-                 * after the local checkpoint stored in the commit.
-                 */
-                return seqNoStats.localCheckpoint + 1;
-            } else {
-                return SequenceNumbers.UNASSIGNED_SEQ_NO;
-            }
-        } catch (final TranslogCorruptedException | IOException e) {
-            /*
-             * This can happen, for example, if a phase one of the recovery completed successfully, a network partition happens before the
-             * translog on the recovery target is opened, the recovery enters a retry loop seeing now that the index files are on disk and
-             * proceeds to attempt a sequence-number-based recovery.
-             */
-            return SequenceNumbers.UNASSIGNED_SEQ_NO;
-        }
     }
 
     public interface RecoveryListener {

@@ -518,8 +518,8 @@ public abstract class Engine implements Closeable {
         /**
          * use in case of the index operation failed before getting to internal engine
          **/
-        public IndexResult(Exception failure, long version, long term) {
-            this(failure, version, term, UNASSIGNED_SEQ_NO);
+        public IndexResult(Exception failure, long version) {
+            this(failure, version, UNASSIGNED_PRIMARY_TERM, UNASSIGNED_SEQ_NO);
         }
 
         public IndexResult(Exception failure, long version, long term, long seqNo) {

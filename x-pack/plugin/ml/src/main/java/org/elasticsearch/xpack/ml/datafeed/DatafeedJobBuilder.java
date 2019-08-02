@@ -69,10 +69,20 @@ public class DatafeedJobBuilder {
             TimeValue queryDelay = datafeedConfigHolder.get().getQueryDelay();
             DelayedDataDetector delayedDataDetector =
                     DelayedDataDetectorFactory.buildDetector(jobHolder.get(), datafeedConfigHolder.get(), client, xContentRegistry);
-            DatafeedJob datafeedJob = new DatafeedJob(jobHolder.get().getId(), buildDataDescription(jobHolder.get()),
-                    frequency.millis(), queryDelay.millis(),
-                    context.dataExtractorFactory, client, auditor, currentTimeSupplier, delayedDataDetector,
-                    context.latestFinalBucketEndMs, context.latestRecordTimeMs);
+            DatafeedJob datafeedJob =
+                new DatafeedJob(
+                    jobHolder.get().getId(),
+                    buildDataDescription(jobHolder.get()),
+                    frequency.millis(),
+                    queryDelay.millis(),
+                    context.dataExtractorFactory,
+                    context.timingStatsReporter,
+                    client,
+                    auditor,
+                    currentTimeSupplier,
+                    delayedDataDetector,
+                    context.latestFinalBucketEndMs,
+                    context.latestRecordTimeMs);
 
             listener.onResponse(datafeedJob);
         };
@@ -91,13 +101,15 @@ public class DatafeedJobBuilder {
         );
 
         // Create data extractor factory
-        Consumer<DatafeedTimingStats> datafeedTimingStatsHandler = timingStats -> {
+        Consumer<DatafeedTimingStats> datafeedTimingStatsHandler = initialTimingStats -> {
+            context.timingStatsReporter =
+                new DatafeedTimingStatsReporter(initialTimingStats, jobResultsPersister::persistDatafeedTimingStats);
             DataExtractorFactory.create(
                 client,
                 datafeedConfigHolder.get(),
                 jobHolder.get(),
                 xContentRegistry,
-                new DatafeedTimingStatsReporter(timingStats, jobResultsPersister),
+                context.timingStatsReporter,
                 dataExtractorFactoryHandler);
         };
 
@@ -189,5 +201,6 @@ public class DatafeedJobBuilder {
         volatile long latestFinalBucketEndMs = -1L;
         volatile long latestRecordTimeMs = -1L;
         volatile DataExtractorFactory dataExtractorFactory;
+        volatile DatafeedTimingStatsReporter timingStatsReporter;
     }
 }

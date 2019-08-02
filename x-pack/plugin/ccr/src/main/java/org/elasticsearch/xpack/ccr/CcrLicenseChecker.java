@@ -7,10 +7,10 @@
 package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
+import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -61,7 +62,7 @@ import java.util.stream.Collectors;
 /**
  * Encapsulates licensing checking for CCR.
  */
-public final class CcrLicenseChecker {
+public class CcrLicenseChecker {
 
     private final BooleanSupplier isCcrAllowed;
     private final BooleanSupplier isAuthAllowed;
@@ -307,9 +308,12 @@ public final class CcrLicenseChecker {
             return;
         }
 
-        ThreadContext threadContext = remoteClient.threadPool().getThreadContext();
-        SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
-        String username = securityContext.getUser().principal();
+        final User user = getUser(remoteClient);
+        if (user == null) {
+            handler.accept(new IllegalStateException("missing or unable to read authentication info on request"));
+            return;
+        }
+        String username = user.principal();
 
         RoleDescriptor.IndicesPrivileges privileges = RoleDescriptor.IndicesPrivileges.builder()
             .indices(indices)
@@ -342,6 +346,12 @@ public final class CcrLicenseChecker {
             }
         };
         remoteClient.execute(HasPrivilegesAction.INSTANCE, request, ActionListener.wrap(responseHandler, handler));
+    }
+
+    User getUser(final Client remoteClient) {
+        final ThreadContext threadContext = remoteClient.threadPool().getThreadContext();
+        final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
+        return securityContext.getUser();
     }
 
     public static Client wrapClient(Client client, Map<String, String> headers) {

@@ -1,5 +1,5 @@
-[[search-request-scroll]]
-=== Scroll
+[[request-body-search-scroll]]
+==== Scroll
 
 While a `search` request returns a single ``page'' of results, the `scroll`
 API can be used to retrieve large numbers of results (or even all results)
@@ -101,7 +101,7 @@ GET /_search?scroll=1m
 // TEST[setup:twitter]
 
 [[scroll-search-context]]
-==== Keeping the search context alive
+===== Keeping the search context alive
 
 A scroll returns all the documents which matched the search at the time of the
 initial search request. It ignores any subsequent changes to these documents.
@@ -148,7 +148,7 @@ GET /_nodes/stats/indices/search
 ---------------------------------------
 // CONSOLE
 
-==== Clear scroll API
+===== Clear scroll API
 
 Search context are automatically removed when the `scroll` timeout has been
 exceeded. However keeping scrolls open has a cost, as discussed in the
@@ -200,7 +200,7 @@ DELETE /_search/scroll/DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMN
 // TEST[catch:missing]
 
 [[sliced-scroll]]
-==== Sliced Scroll
+===== Sliced Scroll
 
 For scroll queries that return a lot of documents it is possible to split the scroll in multiple slices which
 can be consumed independently:

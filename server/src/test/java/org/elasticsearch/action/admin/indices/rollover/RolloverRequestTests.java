@@ -43,7 +43,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -58,7 +57,7 @@ public class RolloverRequestTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        writeableRegistry = new NamedWriteableRegistry(new IndicesModule(Collections.emptyList()).getNamedWriteables());
+        writeableRegistry = new NamedWriteableRegistry(IndicesModule.getNamedWriteables());
     }
 
     public void testConditionsParsing() throws Exception {
@@ -124,8 +123,7 @@ public class RolloverRequestTests extends ESTestCase {
             originalRequest.writeTo(out);
             BytesReference bytes = out.bytes();
             try (StreamInput in = new NamedWriteableAwareStreamInput(bytes.streamInput(), writeableRegistry)) {
-                RolloverRequest cloneRequest = new RolloverRequest();
-                cloneRequest.readFrom(in);
+                RolloverRequest cloneRequest = new RolloverRequest(in);
                 assertThat(cloneRequest.getNewIndexName(), equalTo(originalRequest.getNewIndexName()));
                 assertThat(cloneRequest.getAlias(), equalTo(originalRequest.getAlias()));
                 for (Map.Entry<String, Condition<?>> entry : cloneRequest.getConditions().entrySet()) {

@@ -22,12 +22,13 @@ package org.elasticsearch.action.admin.indices.mapping.get;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.io.IOException;
@@ -39,7 +40,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class GetMappingsResponseTests extends AbstractStreamableXContentTestCase<GetMappingsResponse> {
+public class GetMappingsResponseTests extends AbstractSerializingTestCase<GetMappingsResponse> {
 
     @Override
     protected boolean supportsUnknownFields() {
@@ -57,8 +58,8 @@ public class GetMappingsResponseTests extends AbstractStreamableXContentTestCase
     }
 
     @Override
-    protected GetMappingsResponse createBlankInstance() {
-        return new GetMappingsResponse();
+    protected Writeable.Reader<GetMappingsResponse> instanceReader() {
+        return GetMappingsResponse::new;
     }
 
     private static GetMappingsResponse mutate(GetMappingsResponse original) throws IOException {

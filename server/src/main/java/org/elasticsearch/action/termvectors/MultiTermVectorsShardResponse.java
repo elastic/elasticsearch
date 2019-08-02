@@ -54,7 +54,7 @@ public class MultiTermVectorsShardResponse extends ActionResponse {
                 responses.add(null);
             }
             if (in.readBoolean()) {
-                failures.add(MultiTermVectorsResponse.Failure.readFailure(in));
+                failures.add(new MultiTermVectorsResponse.Failure(in));
             } else {
                 failures.add(null);
             }
@@ -71,11 +71,6 @@ public class MultiTermVectorsShardResponse extends ActionResponse {
         locations.add(location);
         responses.add(null);
         failures.add(failure);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

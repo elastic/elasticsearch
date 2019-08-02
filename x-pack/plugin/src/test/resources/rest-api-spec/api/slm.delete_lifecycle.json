@@ -1,0 +1,20 @@
+{
+  "slm.delete_lifecycle": {
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/slm-api-delete.html",
+    "stability": "stable",
+    "methods": [ "DELETE" ],
+    "url": {
+      "path": "/_slm/policy/{policy_id}",
+      "paths": ["/_slm/policy/{policy_id}"],
+      "parts": {
+        "policy_id": {
+          "type" : "string",
+          "description" : "The id of the snapshot lifecycle policy to remove"
+        }
+      },
+      "params": {
+      }
+    },
+    "body": null
+  }
+}

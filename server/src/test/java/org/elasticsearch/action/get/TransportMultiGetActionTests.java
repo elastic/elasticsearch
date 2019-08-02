@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -183,7 +184,7 @@ public class TransportMultiGetActionTests extends ESTestCase {
             }
         };
 
-        transportAction.execute(task, request.request(), new ActionListenerAdapter());
+        ActionTestUtils.execute(transportAction, task, request.request(), new ActionListenerAdapter());
         assertTrue(shardActionInvoked.get());
     }
 
@@ -210,7 +211,7 @@ public class TransportMultiGetActionTests extends ESTestCase {
             }
         };
 
-        transportAction.execute(task, request.request(), new ActionListenerAdapter());
+        ActionTestUtils.execute(transportAction, task, request.request(), new ActionListenerAdapter());
         assertTrue(shardActionInvoked.get());
 
     }

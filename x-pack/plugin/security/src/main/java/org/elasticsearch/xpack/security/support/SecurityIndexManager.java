@@ -118,7 +118,8 @@ public class SecurityIndexManager implements ClusterStateListener {
         clusterService.addListener(this);
     }
 
-    private SecurityIndexManager(Client client, String aliasName, String internalIndexName, int internalIndexFormat,
+    // protected for testing
+    protected SecurityIndexManager(Client client, String aliasName, String internalIndexName, int internalIndexFormat,
                                  Supplier<byte[]> mappingSourceSupplier, State indexState) {
         this.aliasName = aliasName;
         this.internalIndexName = internalIndexName;
@@ -346,65 +347,68 @@ public class SecurityIndexManager implements ClusterStateListener {
      */
     public void prepareIndexIfNeededThenExecute(final Consumer<Exception> consumer, final Runnable andThen) {
         final State indexState = this.indexState; // use a local copy so all checks execute against the same state!
-        // TODO we should improve this so we don't fire off a bunch of requests to do the same thing (create or update mappings)
-        if (indexState == State.UNRECOVERED_STATE) {
-            consumer.accept(new ElasticsearchStatusException(
-                    "Cluster state has not been recovered yet, cannot write to the [" + indexState.concreteIndexName + "] index",
-                    RestStatus.SERVICE_UNAVAILABLE));
-        } else if (indexState.indexExists() && indexState.isIndexUpToDate == false) {
-            consumer.accept(new IllegalStateException(
-                    "Index [" + indexState.concreteIndexName + "] is not on the current version."
-                            + "Security features relying on the index will not be available until the upgrade API is run on the index"));
-        } else if (indexState.indexExists() == false) {
-            assert indexState.concreteIndexName != null;
-            logger.info("security index does not exist. Creating [{}] with alias [{}]", indexState.concreteIndexName, this.aliasName);
-            final byte[] mappingSource = mappingSourceSupplier.get();
-            final Tuple<String, Settings> mappingAndSettings = parseMappingAndSettingsFromTemplateBytes(mappingSource);
-            CreateIndexRequest request = new CreateIndexRequest(indexState.concreteIndexName)
-                    .alias(new Alias(this.aliasName))
-                    .mapping(MapperService.SINGLE_MAPPING_NAME, mappingAndSettings.v1(), XContentType.JSON)
-                    .waitForActiveShards(ActiveShardCount.ALL)
-                    .settings(mappingAndSettings.v2());
-            executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
-                    new ActionListener<CreateIndexResponse>() {
-                        @Override
-                        public void onResponse(CreateIndexResponse createIndexResponse) {
-                            if (createIndexResponse.isAcknowledged()) {
-                                andThen.run();
-                            } else {
-                                consumer.accept(new ElasticsearchException("Failed to create security index"));
-                            }
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            final Throwable cause = ExceptionsHelper.unwrapCause(e);
-                            if (cause instanceof ResourceAlreadyExistsException) {
-                                // the index already exists - it was probably just created so this
-                                // node hasn't yet received the cluster state update with the index
-                                andThen.run();
-                            } else {
-                                consumer.accept(e);
-                            }
-                        }
-                    }, client.admin().indices()::create);
-        } else if (indexState.mappingUpToDate == false) {
-            logger.info("Index [{}] (alias [{}]) is not up to date. Updating mapping", indexState.concreteIndexName, this.aliasName);
-            final byte[] mappingSource = mappingSourceSupplier.get();
-            final Tuple<String, Settings> mappingAndSettings = parseMappingAndSettingsFromTemplateBytes(mappingSource);
-            PutMappingRequest request = new PutMappingRequest(indexState.concreteIndexName)
-                    .source(mappingAndSettings.v1(), XContentType.JSON)
-                    .type(MapperService.SINGLE_MAPPING_NAME);
-            executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
-                    ActionListener.<AcknowledgedResponse>wrap(putMappingResponse -> {
-                        if (putMappingResponse.isAcknowledged()) {
+        try {
+            // TODO we should improve this so we don't fire off a bunch of requests to do the same thing (create or update mappings)
+            if (indexState == State.UNRECOVERED_STATE) {
+                throw new ElasticsearchStatusException(
+                        "Cluster state has not been recovered yet, cannot write to the [" + indexState.concreteIndexName + "] index",
+                        RestStatus.SERVICE_UNAVAILABLE);
+            } else if (indexState.indexExists() && indexState.isIndexUpToDate == false) {
+                throw new IllegalStateException("Index [" + indexState.concreteIndexName + "] is not on the current version."
+                        + "Security features relying on the index will not be available until the upgrade API is run on the index");
+            } else if (indexState.indexExists() == false) {
+                assert indexState.concreteIndexName != null;
+                logger.info("security index does not exist. Creating [{}] with alias [{}]", indexState.concreteIndexName, this.aliasName);
+                final byte[] mappingSource = mappingSourceSupplier.get();
+                final Tuple<String, Settings> mappingAndSettings = parseMappingAndSettingsFromTemplateBytes(mappingSource);
+                CreateIndexRequest request = new CreateIndexRequest(indexState.concreteIndexName)
+                        .alias(new Alias(this.aliasName))
+                        .mapping(MapperService.SINGLE_MAPPING_NAME, mappingAndSettings.v1(), XContentType.JSON)
+                        .waitForActiveShards(ActiveShardCount.ALL)
+                        .settings(mappingAndSettings.v2());
+                executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
+                        new ActionListener<CreateIndexResponse>() {
+                    @Override
+                    public void onResponse(CreateIndexResponse createIndexResponse) {
+                        if (createIndexResponse.isAcknowledged()) {
                             andThen.run();
                         } else {
-                            consumer.accept(new IllegalStateException("put mapping request was not acknowledged"));
+                            consumer.accept(new ElasticsearchException("Failed to create security index"));
                         }
-                    }, consumer), client.admin().indices()::putMapping);
-        } else {
-            andThen.run();
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        final Throwable cause = ExceptionsHelper.unwrapCause(e);
+                        if (cause instanceof ResourceAlreadyExistsException) {
+                            // the index already exists - it was probably just created so this
+                            // node hasn't yet received the cluster state update with the index
+                            andThen.run();
+                        } else {
+                            consumer.accept(e);
+                        }
+                    }
+                }, client.admin().indices()::create);
+            } else if (indexState.mappingUpToDate == false) {
+                logger.info("Index [{}] (alias [{}]) is not up to date. Updating mapping", indexState.concreteIndexName, this.aliasName);
+                final byte[] mappingSource = mappingSourceSupplier.get();
+                final Tuple<String, Settings> mappingAndSettings = parseMappingAndSettingsFromTemplateBytes(mappingSource);
+                PutMappingRequest request = new PutMappingRequest(indexState.concreteIndexName)
+                        .source(mappingAndSettings.v1(), XContentType.JSON)
+                        .type(MapperService.SINGLE_MAPPING_NAME);
+                executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
+                        ActionListener.<AcknowledgedResponse>wrap(putMappingResponse -> {
+                            if (putMappingResponse.isAcknowledged()) {
+                                andThen.run();
+                            } else {
+                                consumer.accept(new IllegalStateException("put mapping request was not acknowledged"));
+                            }
+                        }, consumer), client.admin().indices()::putMapping);
+            } else {
+                andThen.run();
+            }
+        } catch (Exception e) {
+            consumer.accept(e);
         }
     }
 
@@ -428,7 +432,7 @@ public class SecurityIndexManager implements ClusterStateListener {
                 SecurityIndexManager.TEMPLATE_VERSION_PATTERN).getBytes(StandardCharsets.UTF_8);
     }
 
-    private static Tuple<String, Settings> parseMappingAndSettingsFromTemplateBytes(byte[] template) {
+    private static Tuple<String, Settings> parseMappingAndSettingsFromTemplateBytes(byte[] template) throws IOException {
         final PutIndexTemplateRequest request = new PutIndexTemplateRequest("name_is_not_important").source(template, XContentType.JSON);
         final String mappingSource = request.mappings().get(MapperService.SINGLE_MAPPING_NAME);
         try (XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
@@ -441,8 +445,6 @@ public class SecurityIndexManager implements ClusterStateListener {
             XContentBuilder builder = JsonXContent.contentBuilder();
             builder.generator().copyCurrentStructure(parser);
             return new Tuple<>(Strings.toString(builder), request.settings());
-        } catch (IOException e) {
-            throw ExceptionsHelper.convertToRuntime(e);
         }
     }
 

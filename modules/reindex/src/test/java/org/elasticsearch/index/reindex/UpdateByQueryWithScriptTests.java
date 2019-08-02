@@ -61,7 +61,7 @@ public class UpdateByQueryWithScriptTests
         TransportService transportService = mock(TransportService.class);
         TransportUpdateByQueryAction transportAction = new TransportUpdateByQueryAction(threadPool,
             new ActionFilters(Collections.emptySet()), null, transportService, scriptService, null);
-        return new TransportUpdateByQueryAction.AsyncIndexBySearchAction(task, logger, null, threadPool, transportAction, request,
+        return new TransportUpdateByQueryAction.AsyncIndexBySearchAction(task, logger, null, threadPool, scriptService, request,
                 ClusterState.EMPTY_STATE, listener());
     }
 }

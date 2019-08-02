@@ -20,6 +20,7 @@
 package org.elasticsearch.rest.action.document;
 
 import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -83,6 +84,12 @@ public class RestUpdateAction extends BaseRestHandler {
         }
 
         updateRequest.retryOnConflict(request.paramAsInt("retry_on_conflict", updateRequest.retryOnConflict()));
+        if (request.hasParam("version") || request.hasParam("version_type")) {
+            final ActionRequestValidationException versioningError = new ActionRequestValidationException();
+            versioningError.addValidationError("internal versioning can not be used for optimistic concurrency control. " +
+                "Please use `if_seq_no` and `if_primary_term` instead");
+            throw versioningError;
+        }
 
         updateRequest.setIfSeqNo(request.paramAsLong("if_seq_no", updateRequest.ifSeqNo()));
         updateRequest.setIfPrimaryTerm(request.paramAsLong("if_primary_term", updateRequest.ifPrimaryTerm()));

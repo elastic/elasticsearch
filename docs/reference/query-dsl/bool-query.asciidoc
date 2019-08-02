@@ -1,5 +1,8 @@
 [[query-dsl-bool-query]]
-=== Bool Query
+=== Boolean query
+++++
+<titleabbrev>Boolean</titleabbrev>
+++++
 
 A query that matches documents matching boolean combinations of other
 queries. The bool query maps to Lucene `BooleanQuery`. It is built using
@@ -134,5 +137,5 @@ GET _search
 
 If you need to know which of the clauses in the bool query matched the documents
 returned from the query, you can use
-<<search-request-named-queries-and-filters,named queries>> to assign a name to
+<<request-body-search-queries-and-filters,named queries>> to assign a name to
 each clause.

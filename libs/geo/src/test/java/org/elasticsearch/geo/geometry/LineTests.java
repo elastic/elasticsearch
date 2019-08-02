@@ -19,6 +19,7 @@
 
 package org.elasticsearch.geo.geometry;
 
+import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.utils.GeographyValidator;
 import org.elasticsearch.geo.utils.GeometryValidator;
 import org.elasticsearch.geo.utils.StandardValidator;
@@ -30,7 +31,7 @@ import java.text.ParseException;
 public class LineTests extends BaseGeometryTestCase<Line> {
     @Override
     protected Line createTestInstance(boolean hasAlt) {
-        return randomLine(hasAlt);
+        return GeometryTestUtils.randomLine(hasAlt);
     }
 
     public void testBasicSerialization() throws IOException, ParseException {

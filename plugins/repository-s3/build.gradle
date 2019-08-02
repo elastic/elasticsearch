@@ -298,7 +298,7 @@ task s3ThirdPartyTests {
 if (useFixture) {
   task integTestECS(type: RestIntegTestTask.class) {
     description = "Runs tests using the ECS repository."
-    dependsOn(project.s3Fixture)
+    dependsOn(project.s3Fixture, 'bundlePlugin')
     runner {
       systemProperty 'tests.rest.blacklist', [
               'repository_s3/10_basic/*',

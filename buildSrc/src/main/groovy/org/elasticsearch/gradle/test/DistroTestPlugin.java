@@ -194,54 +194,54 @@ public class DistroTestPlugin implements Plugin<Project> {
         BuildPlugin.configureTestTasks(project);
         BuildPlugin.configureInputNormalization(project);
 
-        TaskProvider<Test> destructiveTest = project.getTasks().register("destructiveDistroTest", Test.class);
-        destructiveTest.configure(t -> {
-            t.setMaxParallelForks(1);
-            if (System.getProperty(IN_VM_SYSPROP) == null) {
-                t.dependsOn(COPY_PACKAGING_TASK);
-            }
-        });
+        TaskProvider<Test> destructiveTest = project.getTasks().register("destructiveDistroTest", Test.class,
+            t -> {
+                t.setMaxParallelForks(1);
+                if (System.getProperty(IN_VM_SYSPROP) == null) {
+                    t.dependsOn(COPY_PACKAGING_TASK);
+                }
+            });
 
         // setup outer task to run
-        TaskProvider<GradleDistroTestTask> testCaller = project.getTasks().register("distroTest", GradleDistroTestTask.class);
-        testCaller.configure(t -> {
-            t.setGroup(JavaBasePlugin.VERIFICATION_GROUP);
-            t.setDescription("Runs distribution tests within vagrant");
-            t.setTaskName(project.getPath() + ":" + destructiveTest.getName());
-            t.extraArg("-D" + IN_VM_SYSPROP);
-            t.dependsOn(COPY_PACKAGING_TASK);
-        });
+        project.getTasks().register("distroTest", GradleDistroTestTask.class,
+            t -> {
+                t.setGroup(JavaBasePlugin.VERIFICATION_GROUP);
+                t.setDescription("Runs distribution tests within vagrant");
+                t.setTaskName(project.getPath() + ":" + destructiveTest.getName());
+                t.extraArg("-D" + IN_VM_SYSPROP);
+                t.dependsOn(COPY_PACKAGING_TASK);
+            });
     }
 
     private static void configureBatsTest(Project project, String type) {
 
         // destructive task to run inside
-        TaskProvider<BatsTestTask> destructiveTest = project.getTasks().register("destructiveBatsTest." + type, BatsTestTask.class);
-        destructiveTest.configure(t -> {
-            // this is hacky for shared source, but bats are a temporary thing we are removing, so it is not worth
-            // the overhead of a real project dependency
-            Directory batsDir = project.getParent().getLayout().getProjectDirectory().dir("bats");
-            t.setTestsDir(batsDir.dir(type));
-            t.setUtilsDir(batsDir.dir("utils"));
-            t.setArchivesDir(project.getLayout().getBuildDirectory().dir("packaging/archives").get());
-            t.setPackageName("elasticsearch" + (type.equals("oss") ? "-oss" : ""));
-            if (System.getProperty(IN_VM_SYSPROP) == null) {
-                t.dependsOn(COPY_PACKAGING_TASK);
-            }
-        });
+        TaskProvider<BatsTestTask> destructiveTest = project.getTasks().register("destructiveBatsTest." + type, BatsTestTask.class,
+            t -> {
+                // this is hacky for shared source, but bats are a temporary thing we are removing, so it is not worth
+                // the overhead of a real project dependency
+                Directory batsDir = project.getParent().getLayout().getProjectDirectory().dir("bats");
+                t.setTestsDir(batsDir.dir(type));
+                t.setUtilsDir(batsDir.dir("utils"));
+                t.setArchivesDir(project.getLayout().getBuildDirectory().dir("packaging/archives").get());
+                t.setPackageName("elasticsearch" + (type.equals("oss") ? "-oss" : ""));
+                if (System.getProperty(IN_VM_SYSPROP) == null) {
+                    t.dependsOn(COPY_PACKAGING_TASK);
+                }
+            });
 
         VagrantExtension vagrant = project.getExtensions().getByType(VagrantExtension.class);
         // setup outer task to run
-        TaskProvider<GradleDistroTestTask> testCaller = project.getTasks().register("batsTest." + type, GradleDistroTestTask.class);
-        testCaller.configure(t -> {
-            t.setGroup(JavaBasePlugin.VERIFICATION_GROUP);
-            t.setDescription("Runs bats tests within vagrant");
-            t.setTaskName(project.getPath() + ":" + destructiveTest.getName());
-            t.setProgressHandler(new BatsProgressLogger(project.getLogger()));
-            t.extraArg("-D" + IN_VM_SYSPROP);
-            t.dependsOn(COPY_PACKAGING_TASK);
-            t.onlyIf(spec -> vagrant.isWindowsVM() == false); // bats doesn't run on windows
-        });
+        project.getTasks().register("batsTest." + type, GradleDistroTestTask.class,
+            t -> {
+                t.setGroup(JavaBasePlugin.VERIFICATION_GROUP);
+                t.setDescription("Runs bats tests within vagrant");
+                t.setTaskName(project.getPath() + ":" + destructiveTest.getName());
+                t.setProgressHandler(new BatsProgressLogger(project.getLogger()));
+                t.extraArg("-D" + IN_VM_SYSPROP);
+                t.dependsOn(COPY_PACKAGING_TASK);
+                t.onlyIf(spec -> vagrant.isWindowsVM() == false); // bats doesn't run on windows
+            });
     }
     
     private void configureDistributions(Project project) {

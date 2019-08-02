@@ -45,8 +45,8 @@ public class AsyncRecoveryTarget implements RecoveryTargetHandler {
     }
 
     @Override
-    public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps, ActionListener<Void> listener) {
-        executor.execute(() -> target.prepareForTranslogOperations(fileBasedRecovery, totalTranslogOps, listener));
+    public void prepareForTranslogOperations(int totalTranslogOps, ActionListener<Void> listener) {
+        executor.execute(() -> target.prepareForTranslogOperations(totalTranslogOps, listener));
     }
 
     @Override

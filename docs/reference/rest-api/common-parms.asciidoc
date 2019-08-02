@@ -25,7 +25,7 @@ the master node.
 end::local[]
 
 tag::name[]
-`name`::
+`{name}`::
 (Optional, string) Comma-separated list of alias names to return.
 end::name[]
 

@@ -143,8 +143,7 @@ public class ClusterPrivilegeResolver {
     public static NamedClusterPrivilege resolve(String name) {
         name = Objects.requireNonNull(name).toLowerCase(Locale.ROOT);
         if (isClusterAction(name)) {
-            name = actionToPattern(name);
-            return new ActionClusterPrivilege(name, Set.of(name));
+            return new ActionClusterPrivilege(name, Set.of(actionToPattern(name)));
         }
         final NamedClusterPrivilege fixedPrivilege = VALUES.get(name);
         if (fixedPrivilege != null) {

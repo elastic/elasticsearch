@@ -66,13 +66,18 @@ if (JavaVersion.current() < JavaVersion.VERSION_11) {
   throw new GradleException('At least Java 11 is required to build elasticsearch gradle tools')
 }
 
-// Keep compatibility with Java 8 for external users of build-tools that haven't migrated to Java 11
-targetCompatibility = '11'
-sourceCompatibility = '11'
+allprojects {
+  targetCompatibility = '11'
+  sourceCompatibility = '11'
+}
 
 sourceSets {
     // We have a few classes that need to be compiled for older java versions
     minimumRuntime { }
+}
+
+configurations {
+  reaper
 }
 
 compileMinimumRuntimeJava {
@@ -82,6 +87,9 @@ compileMinimumRuntimeJava {
 
 jar {
     from sourceSets.minimumRuntime.output
+    into('META-INF') {
+        from configurations.reaper
+    }
 }
 
 javadoc {
@@ -119,6 +127,7 @@ dependencies {
   testCompile "junit:junit:${props.getProperty('junit')}"
   testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${props.getProperty('randomizedrunner')}"
   testCompile 'com.github.tomakehurst:wiremock-jre8-standalone:2.23.2'
+  reaper project('reaper')
   minimumRuntimeCompile "junit:junit:${props.getProperty('junit')}"
   minimumRuntimeCompile localGroovy()
   minimumRuntimeCompile gradleApi()

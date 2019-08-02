@@ -347,6 +347,7 @@ public class DatafeedManager {
                     }
                     auditor.info(datafeedJob.getJobId(),
                             Messages.getMessage(isIsolated() ? Messages.JOB_AUDIT_DATAFEED_ISOLATED : Messages.JOB_AUDIT_DATAFEED_STOPPED));
+                    datafeedJob.finishReportingTimingStats();
                     finishHandler.accept(e);
                     logger.info("[{}] datafeed [{}] for job [{}] has been stopped{}", source, datafeedId, datafeedJob.getJobId(),
                             acquired ? "" : ", but there may be pending tasks as the timeout [" + timeout.getStringRep() + "] expired");

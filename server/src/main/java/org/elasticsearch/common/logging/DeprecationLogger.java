@@ -152,7 +152,7 @@ public class DeprecationLogger {
                     "299 Elasticsearch-%s%s-%s",
                     Version.CURRENT.toString(),
                     Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "",
-                    Build.CURRENT.shortHash());
+                    Build.CURRENT.hash());
 
     /**
      * Regular expression to test if a string matches the RFC7234 specification for warning headers. This pattern assumes that the warn code

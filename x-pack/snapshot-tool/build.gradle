@@ -25,7 +25,6 @@ dependencies {
   compile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   compile 'com.fasterxml.jackson.core:jackson-databind:2.8.11.3'
   compile "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
-  testCompile project(":plugins:repository-s3")
 
   // GCS dependencies
   compile 'com.google.cloud:google-cloud-storage:1.77.0'
@@ -57,7 +56,6 @@ dependencies {
   compile 'io.opencensus:opencensus-api:0.18.0'
   compile 'io.opencensus:opencensus-contrib-http-util:0.18.0'
   compile 'com.google.apis:google-api-services-storage:v1-rev20190426-1.28.0'
-  testCompile project(":plugins:repository-gcs")
 
   // HACK: javax.xml.bind was removed from default modules in java 9, so we pull the api in here,
   // and whitelist this hack in JarHell
@@ -79,134 +77,10 @@ dependencyLicenses {
   mapping from: /proto-google.*/, to: 'proto-google'
 }
 
+// TODO: Investigate using the new Gradle test-fixture plugin here after the upgrade to 5.6
+// There is only AbstractCleanupTests class in test directory and it's abstract
 test.enabled = false
-
-task s3ThirdPartyTests {
-  dependsOn check
-}
-
-task gcsThirdPartyTests {
-  dependsOn check
-}
-
-boolean useS3Fixture = false
-
-String s3PermanentAccessKey = System.getenv("amazon_s3_access_key")
-String s3PermanentSecretKey = System.getenv("amazon_s3_secret_key")
-String s3PermanentBucket = System.getenv("amazon_s3_bucket")
-String s3PermanentBasePath = System.getenv("amazon_s3_base_path")
-
-if (!s3PermanentAccessKey && !s3PermanentSecretKey && !s3PermanentBucket && !s3PermanentBasePath) {
-  s3PermanentAccessKey = 's3_integration_test_permanent_access_key'
-  s3PermanentSecretKey = 's3_integration_test_permanent_secret_key'
-  s3PermanentBucket = 'permanent-bucket-test'
-  s3PermanentBasePath = 'integration_test'
-
-  useS3Fixture = true
-} else if (!s3PermanentAccessKey || !s3PermanentSecretKey || !s3PermanentBucket || !s3PermanentBasePath) {
-  throw new IllegalArgumentException("not all options specified to run against external S3 service as permanent credentials are present")
-}
-
-boolean useGCSFixture = false
-
-String gcsServiceAccount = System.getenv("google_storage_service_account")
-String gcsBucket = System.getenv("google_storage_bucket")
-String gcsBasePath = System.getenv("google_storage_base_path")
-
-if (!gcsServiceAccount && !gcsBucket && !gcsBasePath) {
-  gcsServiceAccount = new File(project(':plugins:repository-gcs:qa:google-cloud-storage').buildDir,
-          'generated-resources/service_account_test.json').path
-  gcsBucket = 'bucket_test'
-  gcsBasePath = 'integration_test'
-
-  useGCSFixture = true
-} else if (!gcsServiceAccount || !gcsBucket || !gcsBasePath) {
-  throw new IllegalArgumentException("not all options specified to run thirdPartyTestGCS against external GCS service are present")
-}
-
-def encodedCredentials = {
-  Base64.encoder.encodeToString(Files.readAllBytes(file(gcsServiceAccount).toPath()))
-}
-
-task thirdPartyTest (type: Test) {
-  include '**/*.class'
-  
-  systemProperty 'tests.security.manager', false
-
-  systemProperty 'test.s3.account', s3PermanentAccessKey
-  systemProperty 'test.s3.key', s3PermanentSecretKey
-  systemProperty 'test.s3.bucket', s3PermanentBucket
-  systemProperty 'test.s3.base', s3PermanentBasePath
-  
-  systemProperty 'test.google.bucket', gcsBucket
-  systemProperty 'test.google.base', gcsBasePath
-  nonInputProperties.systemProperty 'test.google.account', "${-> encodedCredentials.call()}"
-}
-
-if (useS3Fixture) {
-  apply plugin: 'elasticsearch.test.fixtures'
-
-  task writeDockerFile {
-    File minioDockerfile = new File("${project.buildDir}/minio-docker/Dockerfile")
-    outputs.file(minioDockerfile)
-    doLast {
-      minioDockerfile.parentFile.mkdirs()
-      minioDockerfile.text =
-        "FROM minio/minio:RELEASE.2019-01-23T23-18-58Z\n" +
-          "RUN mkdir -p /minio/data/${s3PermanentBucket}\n" +
-          "ENV MINIO_ACCESS_KEY ${s3PermanentAccessKey}\n" +
-          "ENV MINIO_SECRET_KEY ${s3PermanentSecretKey}"
-    }
-  }
-
-  preProcessFixture {
-    dependsOn(writeDockerFile)
-  }
-
-  def minioAddress = {
-    int minioPort = postProcessFixture.ext."test.fixtures.minio-fixture.tcp.9000"
-    assert minioPort > 0
-    'http://127.0.0.1:' + minioPort
-  }
-
-  thirdPartyTest {
-    dependsOn tasks.postProcessFixture
-    nonInputProperties.systemProperty 'test.s3.endpoint', "${ -> minioAddress.call() }"
-  }
-
-  gradle.taskGraph.whenReady {
-    if (it.hasTask(s3ThirdPartyTests)) {
-      throw new IllegalStateException("Tried to run third party tests but not all of the necessary environment variables 'amazon_s3_access_key', " +
-        "'amazon_s3_secret_key', 'amazon_s3_bucket', and 'amazon_s3_base_path' are set.");
-    }
-  }
-}
-
-if (useGCSFixture) {
-  thirdPartyTest.dependsOn(':plugins:repository-gcs:qa:google-cloud-storage:createServiceAccountFile',
-          ':plugins:repository-gcs:qa:google-cloud-storage:googleCloudStorageFixture')
-  thirdPartyTest.finalizedBy(':plugins:repository-gcs:qa:google-cloud-storage:googleCloudStorageFixture#stop')
-
-  def fixtureEndpoint = {
-    "http://${project(':plugins:repository-gcs:qa:google-cloud-storage').googleCloudStorageFixture.addressAndPort}"
-  }
-
-  def tokenURI = {
-    "http://${project(':plugins:repository-gcs:qa:google-cloud-storage').googleCloudStorageFixture.addressAndPort}/o/oauth2/token"
-  }
-
-  thirdPartyTest {
-    nonInputProperties.systemProperty 'test.google.endpoint', "${-> fixtureEndpoint.call()}"
-    nonInputProperties.systemProperty 'test.google.tokenURI', "${-> tokenURI.call()}"
-  }
-
-  gradle.taskGraph.whenReady {
-    if (it.hasTask(gcsThirdPartyTests)) {
-      throw new IllegalStateException("Tried to run third party tests but not all of the necessary environment variables 'google_storage_service_account', " +
-              "'google_storage_bucket', 'google_storage_base_path' are set.")
-    }
-  }
-}
+testingConventions.enabled = false
 
 task unpackArchive(dependsOn: tasks.assemble, type: Copy) {
   from tarTree("${project.buildDir}/snapshot-tool-${project.version}.tgz")
@@ -219,8 +93,9 @@ task smokeTest(type: Exec) {
   commandLine "${project.buildDir}/snapshot-tool-${project.version}/bin/elasticsearch-snapshot", "-h"
 }
 
-check.dependsOn(thirdPartyTest)
-check.dependsOn(smokeTest)
+check {
+  dependsOn smokeTest, 'qa:google-cloud-storage:check', 'qa:s3:check'
+}
 
 def vendorPath = Paths.get("${project.buildDir}/libs/vendor")
 

@@ -19,7 +19,7 @@ using simple `test1,test2,test3` notation (or `_all` for all indices). It also
 supports wildcards, for example: `test*` or `*test` or `te*t` or `*test*`, and the
 ability to "exclude" (`-`), for example: `test*,-test3`.
 
-All multi indices APIs support the following url query string parameters:
+All multi index APIs support the following url query string parameters:
 
 [horizontal]
 `ignore_unavailable`::

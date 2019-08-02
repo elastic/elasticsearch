@@ -36,6 +36,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -653,13 +654,16 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     /**
      * Handles inbound message that has been decoded.
      *
-     * @param channel the channel the message is from
-     * @param message the message
+     * @param channel    the channel the message is from
+     * @param message    the message
+     * @param releasable a releasable to close once the message contents are no longer needed because they have been deserialized
+     *                   or discarded
      */
-    public void inboundMessage(TcpChannel channel, BytesReference message) {
+    public void inboundMessage(TcpChannel channel, BytesReference message, Releasable releasable) {
         try {
-            inboundHandler.inboundMessage(channel, message);
+            inboundHandler.inboundMessage(channel, message, releasable);
         } catch (Exception e) {
+            releasable.close();
             onException(channel, e);
         }
     }
@@ -682,7 +686,13 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         if (message == null) {
             return 0;
         } else {
-            inboundMessage(channel, message);
+            final Releasable releasable;
+            if (bytesReference instanceof Releasable) {
+                releasable = (Releasable) bytesReference;
+            } else {
+                releasable = () -> {};
+            }
+            inboundMessage(channel, message, releasable);
             return message.length() + BYTES_NEEDED_FOR_MESSAGE_SIZE;
         }
     }

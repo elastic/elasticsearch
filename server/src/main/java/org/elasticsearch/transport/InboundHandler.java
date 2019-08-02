@@ -26,6 +26,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.Maps;
@@ -95,29 +96,30 @@ public class InboundHandler {
         }
     }
 
-    void inboundMessage(TcpChannel channel, BytesReference message) throws Exception {
+    void inboundMessage(TcpChannel channel, BytesReference message, Releasable releasable) throws Exception {
         channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
         transportLogger.logInboundMessage(channel, message);
         readBytesMetric.inc(message.length() + TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE);
         // Message length of 0 is a ping
         if (message.length() != 0) {
-            messageReceived(message, channel);
+            messageReceived(message, channel, releasable);
         } else {
+            releasable.close();
             keepAlive.receiveKeepAlive(channel);
         }
     }
 
-    private void messageReceived(BytesReference reference, TcpChannel channel) throws IOException {
+    private void messageReceived(BytesReference reference, TcpChannel channel, Releasable releasable) throws IOException {
         InetSocketAddress remoteAddress = channel.getRemoteAddress();
 
         ThreadContext threadContext = threadPool.getThreadContext();
-        try (ThreadContext.StoredContext existing = threadContext.stashContext();
-             InboundMessage message = reader.deserialize(reference)) {
+        try (ThreadContext.StoredContext existing = threadContext.stashContext()) {
+            InboundMessage message = reader.deserialize(reference);
             // Place the context with the headers from the message
             message.getStoredContext().restore();
             threadContext.putTransient("_remote_address", remoteAddress);
             if (message.isRequest()) {
-                handleRequest(channel, (InboundMessage.Request) message, reference.length());
+                handleRequest(channel, (InboundMessage.Request) message, reference.length(), releasable);
             } else {
                 final TransportResponseHandler<?> handler;
                 long requestId = message.getRequestId();
@@ -135,32 +137,31 @@ public class InboundHandler {
                 // ignore if its null, the service logs it
                 if (handler != null) {
                     if (message.isError()) {
-                        handlerResponseError(message.getStreamInput(), handler);
+                        handlerResponseError(message, handler, releasable);
                     } else {
-                        handleResponse(remoteAddress, message.getStreamInput(), handler);
+                        handleResponse(remoteAddress, message, handler, releasable);
                     }
-                    // Check the entire message has been read
-                    final int nextByte = message.getStreamInput().read();
-                    // calling read() is useful to make sure the message is fully read, even if there is an EOS marker
-                    if (nextByte != -1) {
-                        throw new IllegalStateException("Message not fully read (response) for requestId [" + requestId + "], handler ["
-                            + handler + "], error [" + message.isError() + "]; resetting");
-                    }
+                } else {
+                    releasable.close();
                 }
             }
+        } catch (Exception e) {
+            releasable.close();
+            throw e;
         }
     }
 
-    private void handleRequest(TcpChannel channel, InboundMessage.Request message, int messageLengthBytes) {
+    private void handleRequest(TcpChannel channel, InboundMessage.Request message, int messageLengthBytes, Releasable releasable) {
         final String action = message.getActionName();
         final long requestId = message.getRequestId();
         final StreamInput stream = message.getStreamInput();
         final Version version = message.getVersion();
-        TransportChannel transportChannel = null;
+        final TransportChannel transportChannel;
         try {
             messageListener.onRequestReceived(requestId, action);
             if (message.isHandshake()) {
                 handshaker.handleHandshake(version, channel, requestId, stream);
+                releasable.close();
             } else {
                 final RequestHandlerRegistry reg = getRequestHandler(action);
                 if (reg == null) {
@@ -172,25 +173,49 @@ public class InboundHandler {
                 } else {
                     breaker.addWithoutBreaking(messageLengthBytes);
                 }
-                transportChannel = new TcpTransportChannel(outboundHandler, channel, action, requestId, version,
-                    circuitBreakerService, messageLengthBytes, message.isCompress());
-                final TransportRequest request = reg.newRequest(stream);
-                request.remoteAddress(new TransportAddress(channel.getRemoteAddress()));
-                // in case we throw an exception, i.e. when the limit is hit, we don't want to verify
-                final int nextByte = stream.read();
-                // calling read() is useful to make sure the message is fully read, even if there some kind of EOS marker
-                if (nextByte != -1) {
-                    throw new IllegalStateException("Message not fully read (request) for requestId [" + requestId + "], action [" + action
-                        + "], available [" + stream.available() + "]; resetting");
-                }
-                threadPool.executor(reg.getExecutor()).execute(new RequestHandler(reg, request, transportChannel));
+                threadPool.executor(reg.getExecutor()).execute(new AbstractRunnable() {
+
+                    private boolean released;
+
+                    private final TcpTransportChannel transportChannel = new TcpTransportChannel(outboundHandler, channel, action,
+                        requestId, version, circuitBreakerService, messageLengthBytes, message.isCompress());
+
+                    @SuppressWarnings("unchecked")
+                    @Override
+                    protected void doRun() throws Exception {
+                        final TransportRequest request;
+                        request = reg.newRequest(stream);
+                        ensureFullyRead(message, reg, releasable);
+                        released = true;
+                        request.remoteAddress(new TransportAddress(channel.getRemoteAddress()));
+                        reg.processMessageReceived(request, transportChannel);
+                    }
+
+                    @Override
+                    public boolean isForceExecution() {
+                        return reg.isForceExecution();
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        if (released == false) {
+                            releasable.close();
+                        }
+                        try {
+                            transportChannel.sendResponse(e);
+                        } catch (IOException inner) {
+                            inner.addSuppressed(e);
+                            logger.warn(() ->
+                                new ParameterizedMessage("Failed to send error message back to client for action [{}]", action), inner);
+                        }
+                    }
+                });
             }
         } catch (Exception e) {
+            releasable.close();
             // the circuit breaker tripped
-            if (transportChannel == null) {
-                transportChannel = new TcpTransportChannel(outboundHandler, channel, action, requestId, version,
-                    circuitBreakerService, 0, message.isCompress());
-            }
+            transportChannel = new TcpTransportChannel(outboundHandler, channel, action, requestId, version,
+                circuitBreakerService, 0, message.isCompress());
             try {
                 transportChannel.sendResponse(e);
             } catch (IOException inner) {
@@ -200,17 +225,8 @@ public class InboundHandler {
         }
     }
 
-    private <T extends TransportResponse> void handleResponse(InetSocketAddress remoteAddress, final StreamInput stream,
-                                                              final TransportResponseHandler<T> handler) {
-        final T response;
-        try {
-            response = handler.read(stream);
-            response.remoteAddress(new TransportAddress(remoteAddress));
-        } catch (Exception e) {
-            handleException(handler, new TransportSerializationException(
-                "Failed to deserialize response from handler [" + handler.getClass().getName() + "]", e));
-            return;
-        }
+    private <T extends TransportResponse> void handleResponse(InetSocketAddress remoteAddress, InboundMessage message,
+                                                              TransportResponseHandler<T> handler, Releasable releasable) {
         threadPool.executor(handler.executor()).execute(new AbstractRunnable() {
             @Override
             public void onFailure(Exception e) {
@@ -218,20 +234,45 @@ public class InboundHandler {
             }
 
             @Override
-            protected void doRun() {
+            protected void doRun() throws IOException {
+                final T response;
+                try {
+                    response = handler.read(message.getStreamInput());
+                } catch (Exception e) {
+                    releasable.close();
+                    handleException(handler, new TransportSerializationException(
+                        "Failed to deserialize response from handler [" + handler.getClass().getName() + "]", e));
+                    return;
+                }
+                ensureFullyRead(message, handler, releasable);
+                response.remoteAddress(new TransportAddress(remoteAddress));
                 handler.handleResponse(response);
             }
         });
     }
 
-    private void handlerResponseError(StreamInput stream, final TransportResponseHandler handler) {
+    private static void ensureFullyRead(InboundMessage message, Object handler, Releasable releasable) throws IOException {
+        try (releasable) {
+            // Check the entire message has been read
+            final int nextByte = message.getStreamInput().read();
+            // calling read() is useful to make sure the message is fully read, even if there is an EOS marker
+            if (nextByte != -1) {
+                throw new IllegalStateException(
+                    "Message not fully read (response) for requestId [" + message.getRequestId() + "], handler ["
+                        + handler + "], error [" + message.isError() + "]; resetting");
+            }
+        }
+    }
+
+    private void handlerResponseError(InboundMessage message, TransportResponseHandler handler, Releasable releasable) throws IOException {
         Exception error;
         try {
-            error = stream.readException();
+            error = message.getStreamInput().readException();
         } catch (Exception e) {
             error = new TransportSerializationException("Failed to deserialize exception response from stream", e);
         }
         handleException(handler, error);
+        ensureFullyRead(message, handler, releasable);
     }
 
     private void handleException(final TransportResponseHandler handler, Throwable error) {
@@ -246,39 +287,5 @@ public class InboundHandler {
                 logger.error(() -> new ParameterizedMessage("failed to handle exception response [{}]", handler), e);
             }
         });
-    }
-
-    private static class RequestHandler extends AbstractRunnable {
-        private final RequestHandlerRegistry reg;
-        private final TransportRequest request;
-        private final TransportChannel transportChannel;
-
-        RequestHandler(RequestHandlerRegistry reg, TransportRequest request, TransportChannel transportChannel) {
-            this.reg = reg;
-            this.request = request;
-            this.transportChannel = transportChannel;
-        }
-
-        @SuppressWarnings({"unchecked"})
-        @Override
-        protected void doRun() throws Exception {
-            reg.processMessageReceived(request, transportChannel);
-        }
-
-        @Override
-        public boolean isForceExecution() {
-            return reg.isForceExecution();
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            try {
-                transportChannel.sendResponse(e);
-            } catch (Exception inner) {
-                inner.addSuppressed(e);
-                logger.warn(() -> new ParameterizedMessage(
-                    "Failed to send error message back to client for action [{}]", reg.getAction()), inner);
-            }
-        }
     }
 }

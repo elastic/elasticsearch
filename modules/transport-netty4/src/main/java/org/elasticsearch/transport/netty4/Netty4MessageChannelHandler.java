@@ -56,13 +56,9 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
         assert msg instanceof ByteBuf : "Expected message type ByteBuf, found: " + msg.getClass();
 
         final ByteBuf buffer = (ByteBuf) msg;
-        try {
-            Channel channel = ctx.channel();
-            Attribute<Netty4TcpChannel> channelAttribute = channel.attr(Netty4Transport.CHANNEL_KEY);
-            transport.inboundMessage(channelAttribute.get(), Netty4Utils.toBytesReference(buffer));
-        } finally {
-            buffer.release();
-        }
+        Channel channel = ctx.channel();
+        Attribute<Netty4TcpChannel> channelAttribute = channel.attr(Netty4Transport.CHANNEL_KEY);
+        transport.inboundMessage(channelAttribute.get(), Netty4Utils.toBytesReference(buffer), buffer::release);
     }
 
     @Override

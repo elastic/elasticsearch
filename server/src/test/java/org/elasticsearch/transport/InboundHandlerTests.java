@@ -81,7 +81,7 @@ public class InboundHandlerTests extends ESTestCase {
             (request, channel, task) -> channelCaptor.set(channel), ThreadPool.Names.SAME, false, true);
         handler.registerRequestHandler(registry);
 
-        handler.inboundMessage(channel, BytesArray.EMPTY);
+        handler.inboundMessage(channel, BytesArray.EMPTY, () -> {});
         assertEquals(1, handler.getReadBytes().count());
         assertEquals(6, handler.getReadBytes().sum());
         if (channel.isServerChannel()) {
@@ -132,7 +132,7 @@ public class InboundHandlerTests extends ESTestCase {
             new TestRequest(requestValue), version, action, requestId, false, isCompressed);
 
         BytesReference bytes = request.serialize(new BytesStreamOutput());
-        handler.inboundMessage(channel, bytes.slice(6, bytes.length() - 6));
+        handler.inboundMessage(channel, bytes.slice(6, bytes.length() - 6), () -> {});
 
         TransportChannel transportChannel = channelCaptor.get();
         assertEquals(Version.CURRENT, transportChannel.getVersion());
@@ -146,7 +146,7 @@ public class InboundHandlerTests extends ESTestCase {
             transportChannel.sendResponse(new TestResponse(responseValue));
         }
         BytesReference serializedResponse = channel.getMessageCaptor().get();
-        handler.inboundMessage(channel, serializedResponse.slice(6, serializedResponse.length() - 6));
+        handler.inboundMessage(channel, serializedResponse.slice(6, serializedResponse.length() - 6), () -> {});
 
         if (isError) {
             assertTrue(exceptionCaptor.get() instanceof RemoteTransportException);

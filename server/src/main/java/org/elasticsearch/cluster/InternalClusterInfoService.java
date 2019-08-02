@@ -21,6 +21,7 @@ package org.elasticsearch.cluster;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -46,6 +47,8 @@ import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -85,10 +88,9 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
     private final NodeClient client;
-    private final Consumer<ClusterInfo> listener;
+    private final List<Consumer<ClusterInfo>> listeners = Collections.synchronizedList(new ArrayList<>(1));
 
-    public InternalClusterInfoService(Settings settings, ClusterService clusterService, ThreadPool threadPool, NodeClient client,
-                                      Consumer<ClusterInfo> listener) {
+    public InternalClusterInfoService(Settings settings, ClusterService clusterService, ThreadPool threadPool, NodeClient client) {
         this.leastAvailableSpaceUsages = ImmutableOpenMap.of();
         this.mostAvailableSpaceUsages = ImmutableOpenMap.of();
         this.shardRoutingToDataPath = ImmutableOpenMap.of();
@@ -109,7 +111,6 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
         this.clusterService.addLocalNodeMasterListener(this);
         // Add to listen for state changes (when nodes are added)
         this.clusterService.addListener(this);
-        this.listener = listener;
     }
 
     private void setEnabled(boolean enabled) {
@@ -356,12 +357,23 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
             Thread.currentThread().interrupt(); // restore interrupt status
         }
         ClusterInfo clusterInfo = getClusterInfo();
-        try {
-            listener.accept(clusterInfo);
-        } catch (Exception e) {
-            logger.info("Failed executing ClusterInfoService listener", e);
+        boolean anyListeners = false;
+        for (final Consumer<ClusterInfo> listener : listeners) {
+            anyListeners = true;
+            try {
+                logger.trace("notifying [{}] of new cluster info", listener);
+                listener.accept(clusterInfo);
+            } catch (Exception e) {
+                logger.info(new ParameterizedMessage("failed to notify [{}] of new cluster info", listener), e);
+            }
         }
+        assert anyListeners : "expected to notify at least one listener";
         return clusterInfo;
+    }
+
+    @Override
+    public void addListener(Consumer<ClusterInfo> clusterInfoConsumer) {
+        listeners.add(clusterInfoConsumer);
     }
 
     static void buildShardLevelInfo(Logger logger, ShardStats[] stats, ImmutableOpenMap.Builder<String, Long> newShardSizes,

@@ -38,7 +38,7 @@ is ascending.
 [options="header"]
 |===
 |Parameter Name |Description |Required |Default Value
-|`sort` |The list of fields to sort on. See <<search-request-sort,`sort`>> for more details. |Optional |
+|`sort` |The list of fields to sort on. See <<request-body-search-sort,`sort`>> for more details. |Optional |
 |`from` |Buckets in positions prior to the set value will be truncated. |Optional | `0`
 |`size` |The number of buckets to return. Defaults to all buckets of the parent aggregation. |Optional |
 |`gap_policy` |The policy to apply when gaps are found in the data (see <<gap-policy>> for more

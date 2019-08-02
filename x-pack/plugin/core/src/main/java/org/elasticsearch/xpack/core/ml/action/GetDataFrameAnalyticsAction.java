@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -16,20 +16,14 @@ import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 
 import java.io.IOException;
-import java.util.Collections;
 
-public class GetDataFrameAnalyticsAction extends StreamableResponseActionType<GetDataFrameAnalyticsAction.Response> {
+public class GetDataFrameAnalyticsAction extends ActionType<GetDataFrameAnalyticsAction.Response> {
 
     public static final GetDataFrameAnalyticsAction INSTANCE = new GetDataFrameAnalyticsAction();
     public static final String NAME = "cluster:monitor/xpack/ml/data_frame/analytics/get";
 
     private GetDataFrameAnalyticsAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        return new Response(new QueryPage<>(Collections.emptyList(), 0, Response.RESULTS_FIELD));
+        super(NAME, Response::new);
     }
 
     public static class Request extends AbstractGetResourcesRequest {
@@ -46,7 +40,7 @@ public class GetDataFrameAnalyticsAction extends StreamableResponseActionType<Ge
         }
 
         public Request(StreamInput in) throws IOException {
-            readFrom(in);
+            super(in);
         }
 
         @Override
@@ -59,7 +53,9 @@ public class GetDataFrameAnalyticsAction extends StreamableResponseActionType<Ge
 
         public static final ParseField RESULTS_FIELD = new ParseField("data_frame_analytics");
 
-        public Response() {}
+        public Response(StreamInput in) throws IOException {
+            super(in);
+        }
 
         public Response(QueryPage<DataFrameAnalyticsConfig> analytics) {
             super(analytics);

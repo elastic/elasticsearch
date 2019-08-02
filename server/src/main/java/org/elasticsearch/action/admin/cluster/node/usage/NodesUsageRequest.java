@@ -29,8 +29,9 @@ public class NodesUsageRequest extends BaseNodesRequest<NodesUsageRequest> {
 
     private boolean restActions;
 
-    public NodesUsageRequest() {
-        super();
+    public NodesUsageRequest(StreamInput in) throws IOException {
+        super(in);
+        this.restActions = in.readBoolean();
     }
 
     /**
@@ -70,12 +71,6 @@ public class NodesUsageRequest extends BaseNodesRequest<NodesUsageRequest> {
     public NodesUsageRequest restActions(boolean restActions) {
         this.restActions = restActions;
         return this;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        this.restActions = in.readBoolean();
     }
 
     @Override

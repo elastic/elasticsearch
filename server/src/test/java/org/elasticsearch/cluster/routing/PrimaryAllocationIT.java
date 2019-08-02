@@ -90,6 +90,12 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         return Arrays.asList(MockTransportService.TestPlugin.class, InternalSettingsPlugin.class);
     }
 
+    @Override
+    protected boolean addMockInternalEngine() {
+        // testForceStaleReplicaToBePromotedToPrimary replies on the flushing when a shard is no longer assigned.
+        return false;
+    }
+
     public void testBulkWeirdScenario() throws Exception {
         String master = internalCluster().startMasterOnlyNode(Settings.EMPTY);
         internalCluster().startDataOnlyNodes(2);
@@ -222,7 +228,6 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
             .getShards().get(0).primaryShard().unassignedInfo().getReason(), equalTo(UnassignedInfo.Reason.NODE_LEFT));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/44049")
     public void testForceStaleReplicaToBePromotedToPrimary() throws Exception {
         logger.info("--> starting 3 nodes, 1 master, 2 data");
         String master = internalCluster().startMasterOnlyNode(Settings.EMPTY);

@@ -5,22 +5,17 @@
  */
 package org.elasticsearch.xpack.core.security.action.user;
 
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 
 /**
  * ActionType that lists the set of privileges held by a user.
  */
-public final class GetUserPrivilegesAction extends StreamableResponseActionType<GetUserPrivilegesResponse> {
+public final class GetUserPrivilegesAction extends ActionType<GetUserPrivilegesResponse> {
 
     public static final GetUserPrivilegesAction INSTANCE = new GetUserPrivilegesAction();
     public static final String NAME = "cluster:admin/xpack/security/user/list_privileges";
 
     private GetUserPrivilegesAction() {
-        super(NAME);
-    }
-
-    @Override
-    public GetUserPrivilegesResponse newResponse() {
-        return new GetUserPrivilegesResponse();
+        super(NAME, GetUserPrivilegesResponse::new);
     }
 }

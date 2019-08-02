@@ -227,13 +227,6 @@ public class VersionUtils {
         }
     }
 
-    /** returns the first future incompatible version */
-    public static Version incompatibleFutureVersion(Version version) {
-        final Optional<Version> opt = ALL_VERSIONS.stream().filter(version::before).filter(v -> v.isCompatible(version) == false).findAny();
-        assert opt.isPresent() : "no future incompatible version for " + version;
-        return opt.get();
-    }
-
     /** returns the first future compatible version */
     public static Version compatibleFutureVersion(Version version) {
         final Optional<Version> opt = ALL_VERSIONS.stream().filter(version::before).filter(v -> v.isCompatible(version)).findAny();

@@ -36,6 +36,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Map.entry;
@@ -273,19 +274,25 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
     }
 
     public void testTokenizers() {
-        Set<String> missing = new TreeSet<String>(org.apache.lucene.analysis.util.TokenizerFactory.availableTokenizers());
+        Set<String> missing = new TreeSet<String>();
+        missing.addAll(org.apache.lucene.analysis.util.TokenizerFactory.availableTokenizers()
+            .stream().map(key -> key.toLowerCase(Locale.ROOT)).collect(Collectors.toSet()));
         missing.removeAll(getTokenizers().keySet());
         assertTrue("new tokenizers found, please update KNOWN_TOKENIZERS: " + missing.toString(), missing.isEmpty());
     }
 
     public void testCharFilters() {
-        Set<String> missing = new TreeSet<String>(org.apache.lucene.analysis.util.CharFilterFactory.availableCharFilters());
+        Set<String> missing = new TreeSet<String>();
+        missing.addAll(org.apache.lucene.analysis.util.CharFilterFactory.availableCharFilters()
+            .stream().map(key -> key.toLowerCase(Locale.ROOT)).collect(Collectors.toSet()));
         missing.removeAll(getCharFilters().keySet());
         assertTrue("new charfilters found, please update KNOWN_CHARFILTERS: " + missing.toString(), missing.isEmpty());
     }
 
     public void testTokenFilters() {
-        Set<String> missing = new TreeSet<String>(org.apache.lucene.analysis.util.TokenFilterFactory.availableTokenFilters());
+        Set<String> missing = new TreeSet<String>();
+        missing.addAll(org.apache.lucene.analysis.util.TokenFilterFactory.availableTokenFilters()
+            .stream().map(key -> key.toLowerCase(Locale.ROOT)).collect(Collectors.toSet()));
         missing.removeAll(getTokenFilters().keySet());
         assertTrue("new tokenfilters found, please update KNOWN_TOKENFILTERS: " + missing.toString(), missing.isEmpty());
     }

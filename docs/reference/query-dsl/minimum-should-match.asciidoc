@@ -1,5 +1,5 @@
 [[query-dsl-minimum-should-match]]
-== Minimum Should Match
+== `minimum_should_match` parameter
 
 The `minimum_should_match` parameter possible values:
 

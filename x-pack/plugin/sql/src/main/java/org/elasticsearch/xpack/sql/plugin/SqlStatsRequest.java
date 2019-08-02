@@ -19,8 +19,14 @@ import java.io.IOException;
 public class SqlStatsRequest extends BaseNodesRequest<SqlStatsRequest> {
     
     private boolean includeStats;
-    
+
     public SqlStatsRequest() {
+        super((String[]) null);
+    }
+    
+    public SqlStatsRequest(StreamInput in) throws IOException {
+        super(in);
+        includeStats = in.readBoolean();
     }
     
     public boolean includeStats() {
@@ -29,12 +35,6 @@ public class SqlStatsRequest extends BaseNodesRequest<SqlStatsRequest> {
 
     public void includeStats(boolean includeStats) {
         this.includeStats = includeStats;
-    }
-    
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        includeStats = in.readBoolean();
     }
 
     @Override
@@ -51,7 +51,10 @@ public class SqlStatsRequest extends BaseNodesRequest<SqlStatsRequest> {
     static class NodeStatsRequest extends BaseNodeRequest {
         boolean includeStats;
         
-        NodeStatsRequest() {}
+        NodeStatsRequest(StreamInput in) throws IOException {
+            super(in);
+            includeStats = in.readBoolean();
+        }
 
         NodeStatsRequest(SqlStatsRequest request) {
             includeStats = request.includeStats();
@@ -59,12 +62,6 @@ public class SqlStatsRequest extends BaseNodesRequest<SqlStatsRequest> {
         
         public boolean includeStats() {
             return includeStats;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            includeStats = in.readBoolean();
         }
 
         @Override

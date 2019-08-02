@@ -1,5 +1,8 @@
 [[number]]
 === Numeric datatypes
+++++
+<titleabbrev>Numeric</titleabbrev>
+++++
 
 The following numeric types are supported:
 

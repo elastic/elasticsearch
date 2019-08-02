@@ -52,6 +52,15 @@ public final class InvalidateTokenRequest extends ActionRequest {
     private String realmName;
     private String userName;
 
+    public InvalidateTokenRequest(StreamInput in) throws IOException {
+        super(in);
+        tokenString = in.readOptionalString();
+        Integer type = in.readOptionalVInt();
+        tokenType = type == null ? null : Type.values()[type];
+        realmName = in.readOptionalString();
+        userName = in.readOptionalString();
+    }
+
     public InvalidateTokenRequest() {}
 
     /**
@@ -140,15 +149,5 @@ public final class InvalidateTokenRequest extends ActionRequest {
         out.writeOptionalVInt(tokenType == null ? null : tokenType.ordinal());
         out.writeOptionalString(realmName);
         out.writeOptionalString(userName);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        tokenString = in.readOptionalString();
-        Integer type = in.readOptionalVInt();
-        tokenType = type == null ? null : Type.values()[type];
-        realmName = in.readOptionalString();
-        userName = in.readOptionalString();
     }
 }

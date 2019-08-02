@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -33,6 +34,7 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
@@ -459,6 +461,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         private int recovered;
         private int total = UNKNOWN;
         private int totalOnStart = UNKNOWN;
+        private int totalLocal = UNKNOWN;
 
         public Translog() {
         }
@@ -468,6 +471,9 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             recovered = in.readVInt();
             total = in.readVInt();
             totalOnStart = in.readVInt();
+            if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
+                totalLocal = in.readVInt();
+            }
         }
 
         @Override
@@ -476,6 +482,9 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             out.writeVInt(recovered);
             out.writeVInt(total);
             out.writeVInt(totalOnStart);
+            if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
+                out.writeVInt(totalLocal);
+            }
         }
 
         public synchronized void reset() {
@@ -483,6 +492,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             recovered = 0;
             total = UNKNOWN;
             totalOnStart = UNKNOWN;
+            totalLocal = UNKNOWN;
         }
 
         public synchronized void incrementRecoveredOperations() {
@@ -524,8 +534,8 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         }
 
         public synchronized void totalOperations(int total) {
-            this.total = total;
-            assert total == UNKNOWN || total >= recovered : "total, if known, should be > recovered. total [" + total +
+            this.total = totalLocal == UNKNOWN ? total : totalLocal + total;
+            assert total == UNKNOWN || this.total >= recovered : "total, if known, should be > recovered. total [" + total +
                 "], recovered [" + recovered + "]";
         }
 
@@ -540,7 +550,20 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         }
 
         public synchronized void totalOperationsOnStart(int total) {
-            this.totalOnStart = total;
+            this.totalOnStart = totalLocal == UNKNOWN ? total : totalLocal + total;
+        }
+
+        /**
+         * Sets the total number of translog operations to be recovered locally before performing peer recovery
+         * @see IndexShard#recoverLocallyUpToGlobalCheckpoint()
+         */
+        public synchronized void totalLocal(int totalLocal) {
+            assert totalLocal >= recovered : totalLocal + " < " + recovered;
+            this.totalLocal = totalLocal;
+        }
+
+        public synchronized int totalLocal() {
+            return totalLocal;
         }
 
         public synchronized float recoveredPercent() {

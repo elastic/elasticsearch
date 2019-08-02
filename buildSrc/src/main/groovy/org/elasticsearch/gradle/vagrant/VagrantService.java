@@ -133,7 +133,6 @@ public class VagrantService {
             if (vagrantSpec.args != null) {
                 execSpec.args(Arrays.asList(vagrantSpec.args));
             }
-            System.out.println("ARGS: " + execSpec.getArgs());
 
             UnaryOperator<String> progressHandler = vagrantSpec.progressHandler;
             if (progressHandler == null) {
@@ -152,13 +151,11 @@ public class VagrantService {
             return;
         }
 
-        System.out.println("Updating box");
         execute(spec -> {
             spec.setCommand("box");
             spec.setSubcommand("update");
         });
 
-        System.out.println("Destroying VM");
         // Destroying before every execution can be annoying while iterating on tests locally. Therefore, we provide a flag that defaults
         // to true that can be used to control whether or not to destroy any test boxes before test execution.
         boolean destroyVM = Util.getBooleanProperty("vagrant.destroy", true);
@@ -169,7 +166,6 @@ public class VagrantService {
             });
         }
 
-        System.out.println("Destroying VM");
         // We lock the provider to virtualbox because the Vagrantfile specifies lots of boxes that only work
         // properly in virtualbox. Virtualbox is vagrant's default but its possible to change that default and folks do.
         execute(spec -> {

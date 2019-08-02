@@ -21,7 +21,8 @@ public class InferenceProcessor extends AbstractProcessor {
     private static final Logger logger = LogManager.getLogger(InferenceProcessor.class);
     public static final String TYPE = "inference";
     private static final String MODEL_NAME = "model";
-    private static final String TARGET_FIELD = "target_field";
+    private static final String MODEL_TYPE = "model_type";
+    private static final String IGNORE_MISSING = "ignore_missing";
 
 
     private final Model model;
@@ -64,9 +65,16 @@ public class InferenceProcessor extends AbstractProcessor {
         public InferenceProcessor create(Map<String, Processor.Factory> processorFactories, String tag, Map<String, Object> config)
                 throws Exception {
             String modelId = ConfigurationUtils.readStringProperty(TYPE, tag, config, MODEL_NAME);
-            String modelType = ConfigurationUtils.readStringProperty(TYPE, tag, config, TARGET_FIELD);
+            String modelType = ConfigurationUtils.readStringProperty(TYPE, tag, config, MODEL_TYPE);
+            boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, tag, config, IGNORE_MISSING, false);
 
             if (loadedModels.containsKey(modelId)) {
+
+                ModelLoader loader = modelLoaders.get(modelType);
+                // read the model's config even though it isn't use as it is an error
+                // to leave parsed config
+                loader.readConfiguration(tag, config);
+
                 return new InferenceProcessor(tag, modelId, loadedModels.get(modelId));
             } else {
                 ModelLoader loader = modelLoaders.get(modelType);
@@ -74,7 +82,8 @@ public class InferenceProcessor extends AbstractProcessor {
                     throw new IllegalStateException("Cannot find loader for model type " + modelType);
                 }
 
-                Model model = loader.load(modelId, modelType);
+                logger.info("got model loader");
+                Model model = loader.load(modelId, tag, ignoreMissing, config);
                 loadedModels.put(modelId, model);
                 return new InferenceProcessor(tag, modelId, model);
             }

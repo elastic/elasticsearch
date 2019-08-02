@@ -6,6 +6,12 @@
 
 package org.elasticsearch.xpack.ml.inference;
 
+import java.util.Map;
+
 public interface ModelLoader {
-    Model load(String id, String index) throws Exception;
+    Model load(String modelId, String processorTag, boolean ignoreMissing,
+               Map<String, Object> config) throws Exception;
+
+    // parses the config out of the
+    void readConfiguration(String processorTag, Map<String, Object> config);
 }

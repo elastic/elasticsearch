@@ -128,18 +128,42 @@ public class ReindexTask extends AllocatedPersistentTask {
     private void execute(ReindexJob reindexJob) {
         ThreadContext threadContext = client.threadPool().getThreadContext();
         Supplier<ThreadContext.StoredContext> context = threadContext.newRestorableContext(false);
-        getReindexRequest(new ActionListener<>() {
+
+        GetRequest getRequest = new GetRequest(REINDEX_INDEX).id(getPersistentTaskId());
+        taskClient.get(getRequest, ActionListener.map(new ActionListener<>() {
             @Override
             public void onResponse(ReindexRequest reindexRequest) {
                 Runnable performReindex = () -> performReindex(reindexJob, reindexRequest, context);
-                sendStartedNotification(performReindex);
+                reindexer.initTask(childTask, reindexRequest, new ActionListener<>() {
+                    @Override
+                    public void onResponse(Void aVoid) {
+                        sendStartedNotification(performReindex);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        handleError(reindexJob.shouldStoreResult(), e);
+                    }
+                });
             }
 
             @Override
             public void onFailure(Exception e) {
                 handleError(reindexJob.shouldStoreResult(), e);
+
             }
-        });
+        }, this::extractReindexRequest));
+    }
+
+    private ReindexRequest extractReindexRequest(GetResponse response) throws IOException {
+        BytesReference source = response.getSourceAsBytesRef();
+        try (XContentParser parser = XContentHelper.createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, source,
+            XContentType.JSON)) {
+            ReindexTaskIndexState taskState = ReindexTaskIndexState.fromXContent(parser);
+            ReindexRequest reindexRequest = taskState.getReindexRequest();
+            reindexRequest.setParentTask(taskId);
+            return reindexRequest;
+        }
     }
 
     private void getReindexRequest(ActionListener<ReindexRequest> listener) {

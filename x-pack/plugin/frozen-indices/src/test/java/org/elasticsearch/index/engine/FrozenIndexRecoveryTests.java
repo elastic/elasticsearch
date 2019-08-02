@@ -44,6 +44,13 @@ public class FrozenIndexRecoveryTests extends ESIntegTestCase {
         return plugins;
     }
 
+    @Override
+    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(FrozenIndices.class);
+        return plugins;
+    }
+
     public void testRecoverExistingReplica() throws Exception {
         final String indexName = "test-recover-existing-replica";
         internalCluster().ensureAtLeastNumDataNodes(2);

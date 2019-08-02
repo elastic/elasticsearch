@@ -30,7 +30,6 @@ import org.elasticsearch.gradle.Jdk;
 import org.elasticsearch.gradle.JdkDownloadPlugin;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
-import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.vagrant.BatsProgressLogger;
 import org.elasticsearch.gradle.vagrant.VagrantBasePlugin;
 import org.elasticsearch.gradle.vagrant.VagrantExtension;
@@ -44,6 +43,7 @@ import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Copy;
+import org.gradle.api.tasks.TaskInputs;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.testing.Test;
 
@@ -56,8 +56,8 @@ import java.util.List;
 import java.util.Random;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.gradle.vagrant.VagrantService.convertLinuxPath;
-import static org.elasticsearch.gradle.vagrant.VagrantService.convertWindowsPath;
+import static org.elasticsearch.gradle.vagrant.VagrantMachine.convertLinuxPath;
+import static org.elasticsearch.gradle.vagrant.VagrantMachine.convertWindowsPath;
 
 public class DistroTestPlugin implements Plugin<Project> {
 
@@ -69,18 +69,21 @@ public class DistroTestPlugin implements Plugin<Project> {
     private static final String COPY_PACKAGING_TASK = "copyPackagingArchives";
     private static final String IN_VM_SYSPROP = "tests.inVM";
 
-    private Version upgradeVersion;
+    private static Version upgradeVersion;
 
     @Override
     public void apply(Project project) {
-        project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
         project.getPluginManager().apply(JdkDownloadPlugin.class);
         project.getPluginManager().apply(DistributionDownloadPlugin.class);
         project.getPluginManager().apply(VagrantBasePlugin.class);
+        project.getPluginManager().apply(JavaPlugin.class);
         
         configureVM(project);
 
-        this.upgradeVersion = getUpgradeVersion(project);
+        if (upgradeVersion == null) {
+            // just read this once, since it is the same for all projects. this is safe because gradle configuration is single threaded
+            upgradeVersion = getUpgradeVersion(project);
+        }
 
         // setup task to run inside VM
         configureDistributions(project);
@@ -142,34 +145,40 @@ public class DistroTestPlugin implements Plugin<Project> {
             @Override
             public String toString() {
                 if (vagrant.isWindowsVM()) {
-                    return convertWindowsPath(project, jdk.toString()) + additionalWindows;
+                    return convertWindowsPath(project, jdk.getPath()) + additionalWindows;
                 }
-                return convertLinuxPath(project, jdk.toString()) + additionaLinux;
+                return convertLinuxPath(project, jdk.getPath()) + additionaLinux;
             }
         };
     }
 
     private void configureCopyPackagingTask(Project project) {
-
         // temporary, until we have tasks per distribution
         TaskProvider<Copy> copyPackagingArchives = project.getTasks().register(COPY_PACKAGING_TASK, Copy.class);
         copyPackagingArchives.configure(t -> {
             Provider<Directory> archivesDir = project.getLayout().getBuildDirectory().dir("packaging/archives");
             t.into(archivesDir);
             t.from(project.getConfigurations().getByName(PACKAGING_DISTRIBUTION));
+
+            Path archivesPath = archivesDir.get().getAsFile().toPath();
+
+            // write bwc version, and append -SNAPSHOT if it is an unreleased version
+            ExtraPropertiesExtension extraProperties = project.getExtensions().getByType(ExtraPropertiesExtension.class);
+            BwcVersions bwcVersions = (BwcVersions) extraProperties.get("bwcVersions");
+            final String upgradeFromVersion;
+            if (bwcVersions.unreleasedInfo(upgradeVersion) != null) {
+                upgradeFromVersion = upgradeVersion.toString() + "-SNAPSHOT";
+            } else {
+                upgradeFromVersion = upgradeVersion.toString();
+            }
+            TaskInputs inputs = t.getInputs();
+            inputs.property("version", VersionProperties.getElasticsearch());
+            inputs.property("upgrade_from_version", upgradeFromVersion);
+            inputs.property("bwc_versions", bwcVersions);
             t.doLast(action -> {
                 try {
-                    Path archivesPath = archivesDir.get().getAsFile().toPath();
                     Files.writeString(archivesPath.resolve("version"), VersionProperties.getElasticsearch());
-
-                    // write bwc version, and append -SNAPSHOT if it is an unreleased version
-                    ExtraPropertiesExtension extraProperties = project.getExtensions().getByType(ExtraPropertiesExtension.class);
-                    BwcVersions bwcVersions = (BwcVersions) extraProperties.get("bwcVersions");
-                    String version = upgradeVersion.toString();
-                    if (bwcVersions.unreleasedInfo(upgradeVersion) != null) {
-                        version += "-SNAPSHOT";
-                    }
-                    Files.writeString(archivesPath.resolve("upgrade_from_version"), version);
+                    Files.writeString(archivesPath.resolve("upgrade_from_version"), upgradeFromVersion);
                     // this is always true, but bats tests rely on it. It is just temporary until bats is removed.
                     Files.writeString(archivesPath.resolve("upgrade_is_oss"), "");
                 } catch (IOException e) {
@@ -180,7 +189,6 @@ public class DistroTestPlugin implements Plugin<Project> {
     }
 
     private static void configureDistroTest(Project project) {
-        project.getPluginManager().apply(JavaPlugin.class);
         BuildPlugin.configureCompile(project);
         BuildPlugin.configureRepositories(project);
         BuildPlugin.configureTestTasks(project);
@@ -222,6 +230,7 @@ public class DistroTestPlugin implements Plugin<Project> {
             }
         });
 
+        VagrantExtension vagrant = project.getExtensions().getByType(VagrantExtension.class);
         // setup outer task to run
         TaskProvider<GradleDistroTestTask> testCaller = project.getTasks().register("batsTest." + type, GradleDistroTestTask.class);
         testCaller.configure(t -> {
@@ -231,6 +240,7 @@ public class DistroTestPlugin implements Plugin<Project> {
             t.setProgressHandler(new BatsProgressLogger(project.getLogger()));
             t.extraArg("-D" + IN_VM_SYSPROP);
             t.dependsOn(COPY_PACKAGING_TASK);
+            t.onlyIf(spec -> vagrant.isWindowsVM() == false); // bats doesn't run on windows
         });
     }
     

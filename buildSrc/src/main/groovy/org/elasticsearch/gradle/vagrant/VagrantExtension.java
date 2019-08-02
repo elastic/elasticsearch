@@ -21,12 +21,10 @@ package org.elasticsearch.gradle.vagrant;
 
 import org.gradle.api.Project;
 import org.gradle.api.file.RegularFileProperty;
-import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.MapProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Input;
 
-import javax.inject.Inject;
 import java.io.File;
 import java.util.Map;
 
@@ -39,17 +37,12 @@ public class VagrantExtension {
     private boolean isWindowsVM;
 
     public VagrantExtension(Project project) {
-        this.box = getObjectFactory().property(String.class);
-        this.hostEnv = getObjectFactory().mapProperty(String.class, Object.class);
-        this.vmEnv = getObjectFactory().mapProperty(String.class, Object.class);
-        this.vagrantfile = getObjectFactory().fileProperty();
+        this.box = project.getObjects().property(String.class);
+        this.hostEnv = project.getObjects().mapProperty(String.class, Object.class);
+        this.vmEnv = project.getObjects().mapProperty(String.class, Object.class);
+        this.vagrantfile = project.getObjects().fileProperty();
         this.vagrantfile.convention(project.getRootProject().getLayout().getProjectDirectory().file("Vagrantfile"));
         this.isWindowsVM = false;
-    }
-
-    @Inject
-    protected ObjectFactory getObjectFactory() {
-        throw new UnsupportedOperationException();
     }
 
     @Input

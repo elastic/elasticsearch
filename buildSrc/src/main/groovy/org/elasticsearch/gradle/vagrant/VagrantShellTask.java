@@ -28,8 +28,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.UnaryOperator;
 
-import static org.elasticsearch.gradle.vagrant.VagrantService.convertLinuxPath;
-import static org.elasticsearch.gradle.vagrant.VagrantService.convertWindowsPath;
+import static org.elasticsearch.gradle.vagrant.VagrantMachine.convertLinuxPath;
+import static org.elasticsearch.gradle.vagrant.VagrantMachine.convertWindowsPath;
 
 /**
  * A shell script to run within a vagrant VM.
@@ -38,8 +38,8 @@ import static org.elasticsearch.gradle.vagrant.VagrantService.convertWindowsPath
  */
 public abstract class VagrantShellTask extends DefaultTask {
 
-    protected final VagrantExtension extension;
-    protected final VagrantService service;
+    private final VagrantExtension extension;
+    private final VagrantMachine service;
     private UnaryOperator<String> progressHandler = UnaryOperator.identity();
 
     public VagrantShellTask() {
@@ -47,7 +47,7 @@ public abstract class VagrantShellTask extends DefaultTask {
         if (extension == null) {
             throw new IllegalStateException("elasticsearch.vagrant-base must be applied to create " + getClass().getName());
         }
-        service = getProject().getExtensions().getByType(VagrantService.class);
+        service = getProject().getExtensions().getByType(VagrantMachine.class);
     }
 
     protected abstract List<String> getWindowsScript();

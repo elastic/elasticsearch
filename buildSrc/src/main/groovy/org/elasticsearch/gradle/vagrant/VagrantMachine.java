@@ -37,63 +37,12 @@ import java.util.Objects;
 import java.util.function.UnaryOperator;
 
 /**
- * A service to manage a vagrant box.
+ * An helper to manage a vagrant box.
  *
  * This is created alongside a {@link VagrantExtension} for a project to manage starting and
  * stopping a single vagrant box.
  */
-public class VagrantService {
-
-    public static class VagrantExecSpec {
-        private String command;
-        private String subcommand;
-        private String[] args;
-        private UnaryOperator<String> progressHandler;
-
-        private VagrantExecSpec() {}
-
-        public void setCommand(String command) {
-            this.command = command;
-        }
-
-        public void setSubcommand(String subcommand) {
-            this.subcommand = subcommand;
-        }
-
-        public void setArgs(String... args) {
-            this.args = args;
-        }
-
-        public void setProgressHandler(UnaryOperator<String> progressHandler) {
-            this.progressHandler = progressHandler;
-        }
-    }
-
-    private class ProgressOutputStream extends LoggingOutputStream {
-
-        private ProgressLogger progressLogger;
-        private UnaryOperator<String> progressHandler;
-
-        ProgressOutputStream(String command, UnaryOperator<String> progressHandler) {
-            this.progressHandler = progressHandler;
-            this.progressLogger = getProgressLoggerFactory().newOperation("vagrant");
-            progressLogger.start(extension.getBox() + "> " + command, "hello");
-        }
-
-        @Override
-        protected void logLine(String line) {
-            String progress = progressHandler.apply(line);
-            if (progress != null) {
-                progressLogger.progress(progress);
-            }
-            System.out.println(line);
-        }
-
-        @Override
-        public void close() {
-            progressLogger.completed();
-        }
-    }
+public class VagrantMachine {
 
     private Project project;
     private VagrantExtension extension;
@@ -101,7 +50,7 @@ public class VagrantService {
     long refs;
     private boolean isVMStarted = false;
 
-    public VagrantService(Project project, VagrantExtension extension) {
+    public VagrantMachine(Project project, VagrantExtension extension) {
         this.project = project;
         this.extension = extension;
     }
@@ -192,4 +141,62 @@ public class VagrantService {
     public static String convertWindowsPath(Project project, String path) {
         return "C:\\elasticsearch\\" + project.getRootDir().toPath().relativize(Paths.get(path)).toString().replace('/', '\\');
     }
+
+    public static class VagrantExecSpec {
+        private String command;
+        private String subcommand;
+        private String[] args;
+        private UnaryOperator<String> progressHandler;
+
+        private VagrantExecSpec() {}
+
+        public void setCommand(String command) {
+            this.command = command;
+        }
+
+        public void setSubcommand(String subcommand) {
+            this.subcommand = subcommand;
+        }
+
+        public void setArgs(String... args) {
+            this.args = args;
+        }
+
+        /**
+         * A function to translate output from the vagrant command execution to the progress line.
+         *
+         * The function takes the current line of output from vagrant, and returns a new
+         * progress line, or {@code null} if there is no update.
+         */
+        public void setProgressHandler(UnaryOperator<String> progressHandler) {
+            this.progressHandler = progressHandler;
+        }
+    }
+
+    private class ProgressOutputStream extends LoggingOutputStream {
+
+        private ProgressLogger progressLogger;
+        private UnaryOperator<String> progressHandler;
+
+        ProgressOutputStream(String command, UnaryOperator<String> progressHandler) {
+            this.progressHandler = progressHandler;
+            this.progressLogger = getProgressLoggerFactory().newOperation("vagrant");
+            progressLogger.start(extension.getBox() + "> " + command, "hello");
+        }
+
+        @Override
+        protected void logLine(String line) {
+            String progress = progressHandler.apply(line);
+            if (progress != null) {
+                progressLogger.progress(progress);
+            }
+            System.out.println(line);
+        }
+
+        @Override
+        public void close() {
+            progressLogger.completed();
+        }
+    }
+
 }

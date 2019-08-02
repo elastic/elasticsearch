@@ -20,7 +20,6 @@
 package org.elasticsearch.gradle.test;
 
 import org.elasticsearch.gradle.vagrant.VagrantShellTask;
-import org.gradle.api.logging.LogLevel;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.options.Option;
 
@@ -75,9 +74,7 @@ public class GradleDistroTestTask extends VagrantShellTask {
         line.append(gradle);
         line.append(" ");
         line.append(taskName);
-        if (getProject().getGradle().getStartParameter().getLogLevel() == LogLevel.INFO) {
-            line.append(" -i");
-        }
+        line.append("-Dorg.gradle.logging.level=" + getProject().getGradle().getStartParameter().getLogLevel());
         if (testClass != null) {
             line.append(" --tests=");
             line.append(testClass);

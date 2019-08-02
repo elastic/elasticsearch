@@ -22,6 +22,7 @@ package org.elasticsearch.gradle.test;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.Directory;
 import org.gradle.api.tasks.Input;
+import org.gradle.api.tasks.InputDirectory;
 import org.gradle.api.tasks.TaskAction;
 
 import java.util.ArrayList;
@@ -34,7 +35,7 @@ public class BatsTestTask extends DefaultTask {
     private Directory archivesDir;
     private String packageName;
 
-    @Input
+    @InputDirectory
     public Directory getTestsDir() {
         return testsDir;
     }
@@ -43,7 +44,7 @@ public class BatsTestTask extends DefaultTask {
         this.testsDir = testsDir;
     }
 
-    @Input
+    @InputDirectory
     public Directory getUtilsDir() {
         return utilsDir;
     }
@@ -52,7 +53,7 @@ public class BatsTestTask extends DefaultTask {
         this.utilsDir = utilsDir;
     }
 
-    @Input
+    @InputDirectory
     public Directory getArchivesDir() {
         return archivesDir;
     }

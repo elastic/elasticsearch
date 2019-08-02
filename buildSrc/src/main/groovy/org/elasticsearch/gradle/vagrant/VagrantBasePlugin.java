@@ -37,16 +37,36 @@ import java.util.stream.Stream;
 
 public class VagrantBasePlugin implements Plugin<Project> {
 
+    @Override
+    public void apply(Project project) {
+        project.getRootProject().getPluginManager().apply(VagrantSetupCheckerPlugin.class);
+        project.getRootProject().getPluginManager().apply(VagrantManagerPlugin.class);
+
+        VagrantExtension extension = project.getExtensions().create("vagrant", VagrantExtension.class, project);
+        VagrantMachine service = project.getExtensions().create("vagrantService", VagrantMachine.class, project, extension);
+
+        project.getGradle().getTaskGraph().whenReady(graph ->
+            service.refs = graph.getAllTasks().stream()
+                .filter(t -> t instanceof VagrantShellTask)
+                .filter(t -> t.getProject() == project)
+                .count());
+    }
+
+
     /**
      * Check vagrant and virtualbox versions, if any vagrant test tasks will be run.
      */
-    public static class VagrantSetupCheckerPlugin implements Plugin<Project> {
+    static class VagrantSetupCheckerPlugin implements Plugin<Project> {
 
         private static final Pattern VAGRANT_VERSION = Pattern.compile("Vagrant (\\d+\\.\\d+\\.\\d+)");
         private static final Pattern VIRTUAL_BOX_VERSION = Pattern.compile("(\\d+\\.\\d+)");
 
         @Override
         public void apply(Project project) {
+            if (project != project.getRootProject()) {
+                throw new IllegalArgumentException("VagrantSetupCheckerPlugin can only be applied to the root project of a build");
+            }
+
             project.getGradle().getTaskGraph().whenReady(graph -> {
                 boolean needsVagrant = graph.getAllTasks().stream().anyMatch(t -> t instanceof VagrantShellTask);
                 if (needsVagrant) {
@@ -86,16 +106,19 @@ public class VagrantBasePlugin implements Plugin<Project> {
     /**
      * Adds global hooks to manage destroying, starting and updating VMs.
      */
-    public static class VagrantManagerPlugin implements Plugin<Project>, TaskActionListener, TaskExecutionListener {
+    static class VagrantManagerPlugin implements Plugin<Project>, TaskActionListener, TaskExecutionListener {
 
         @Override
         public void apply(Project project) {
+            if (project != project.getRootProject()) {
+                throw new IllegalArgumentException("VagrantManagerPlugin can only be applied to the root project of a build");
+            }
             project.getGradle().addListener(this);
         }
 
-        private void callIfVagrantTask(Task task, Consumer<VagrantService> method) {
+        private void callIfVagrantTask(Task task, Consumer<VagrantMachine> method) {
             if (task instanceof VagrantShellTask) {
-                VagrantService service = task.getProject().getExtensions().getByType(VagrantService.class);
+                VagrantMachine service = task.getProject().getExtensions().getByType(VagrantMachine.class);
                 method.accept(service);
             }
         }
@@ -108,26 +131,13 @@ public class VagrantBasePlugin implements Plugin<Project> {
 
         @Override
         public void beforeActions(Task task) {
-            callIfVagrantTask(task, VagrantService::maybeStartVM);
+            callIfVagrantTask(task, VagrantMachine::maybeStartVM);
         }
 
         @Override
         public void afterExecute(Task task, TaskState state) {
-            callIfVagrantTask(task, plugin -> plugin.maybeStopVM(state.getFailure() != null));
+            callIfVagrantTask(task, service -> service.maybeStopVM(state.getFailure() != null));
         }
     }
-
-    @Override
-    public void apply(Project project) {
-        project.getRootProject().getPluginManager().apply(VagrantSetupCheckerPlugin.class);
-        project.getRootProject().getPluginManager().apply(VagrantManagerPlugin.class);
-
-        VagrantExtension extension = project.getExtensions().create("vagrant", VagrantExtension.class, project);
-        VagrantService service = project.getExtensions().create("vagrantService", VagrantService.class, project, extension);
-
-        project.getGradle().getTaskGraph().whenReady(graph ->
-            service.refs = graph.getAllTasks().stream().filter(t -> t instanceof VagrantShellTask).count());
-    }
-
 
 }

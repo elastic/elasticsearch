@@ -23,7 +23,7 @@ or `STOPPED`. You can change the status of the {ilm-init} plugin with the
 
 ==== Request Parameters
 
-include::{docdir}/rest-api/timeoutparms.asciidoc[]
+include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 ==== Authorization
 

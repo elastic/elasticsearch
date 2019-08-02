@@ -1,13 +1,13 @@
 
 tag::cat-h[]
-`h`::
+`h` (headings)::
 (Optional, string) Comma-separated list of column names to display.
 end::cat-h[]
 
 tag::help[]
 `help`::
-(Optional, boolean) Indicates whether to return help information. Defaults to
-`false`.
+(Optional, boolean) If `true`, the response returns help information. Defaults
+to `false`.
 end::help[]
 
 tag::http-format[]
@@ -19,8 +19,8 @@ end::http-format[]
 
 tag::local[]
 `local`::
-(Optional, boolean) Indicates whether to retrieve information from the local
-node only. Defaults to `false`, which means the information is retrieved from
+(Optional, boolean) If `true`, the request retrieves information from the local
+node only. Defaults to `false`, which means information is retrieved from
 the master node.
 end::local[]
 
@@ -30,15 +30,15 @@ tag::name[]
 end::name[]
 
 tag::cat-s[]
-`s`::
+`s` (sort)::
 (Optional, string) Comma-separated list of column names or column aliases used
 to sort the response.
 end::cat-s[]
 
 tag::cat-v[]
-`v`::
-(Optional, boolean) Indicates whether to display in verbose mode with column
-headers. Defaults to `false`.
+`v` (verbose)::
+(Optional, boolean) If `true`, the response includes column headings. Defaults
+to `false`.
 end::cat-v[]
 
 tag::timeoutparms[]

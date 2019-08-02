@@ -143,7 +143,7 @@ class BulkByScrollParallelizationHelper {
         }
     }
 
-    private static  <Request extends AbstractBulkByScrollRequest<Request>> void setWorkerCount(
+    private static <Request extends AbstractBulkByScrollRequest<Request>> void setWorkerCount(
         Request request,
         BulkByScrollTask task,
         int slices) {

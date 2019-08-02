@@ -25,7 +25,6 @@ dependencies {
   compile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   compile 'com.fasterxml.jackson.core:jackson-databind:2.8.11.3'
   compile "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
-  testCompile project(":plugins:repository-s3")
 
   // GCS dependencies
   compile 'com.google.cloud:google-cloud-storage:1.77.0'
@@ -57,7 +56,6 @@ dependencies {
   compile 'io.opencensus:opencensus-api:0.18.0'
   compile 'io.opencensus:opencensus-contrib-http-util:0.18.0'
   compile 'com.google.apis:google-api-services-storage:v1-rev20190426-1.28.0'
-  testCompile project(":plugins:repository-gcs")
 
   // HACK: javax.xml.bind was removed from default modules in java 9, so we pull the api in here,
   // and whitelist this hack in JarHell
@@ -79,136 +77,10 @@ dependencyLicenses {
   mapping from: /proto-google.*/, to: 'proto-google'
 }
 
+// TODO: Investigate using the new Gradle test-fixture plugin here after the upgrade to 5.6
+// There is only AbstractCleanupTests class in test directory and it's abstract
 test.enabled = false
-
-task s3ThirdPartyTests {
-  dependsOn check
-}
-
-task gcsThirdPartyTests {
-  dependsOn check
-}
-
-boolean useS3Fixture = false
-
-String s3PermanentAccessKey = System.getenv("amazon_s3_access_key")
-String s3PermanentSecretKey = System.getenv("amazon_s3_secret_key")
-String s3PermanentBucket = System.getenv("amazon_s3_bucket")
-String s3PermanentBasePath = System.getenv("amazon_s3_base_path")
-
-if (!s3PermanentAccessKey && !s3PermanentSecretKey && !s3PermanentBucket && !s3PermanentBasePath) {
-  s3PermanentAccessKey = 's3_integration_test_permanent_access_key'
-  s3PermanentSecretKey = 's3_integration_test_permanent_secret_key'
-  s3PermanentBucket = 'permanent-bucket-test'
-  s3PermanentBasePath = 'integration_test'
-
-  useS3Fixture = true
-} else if (!s3PermanentAccessKey || !s3PermanentSecretKey || !s3PermanentBucket || !s3PermanentBasePath) {
-  throw new IllegalArgumentException("not all options specified to run against external S3 service as permanent credentials are present")
-}
-
-boolean useGCSFixture = false
-
-String gcsServiceAccount = System.getenv("google_storage_service_account")
-String gcsBucket = System.getenv("google_storage_bucket")
-String gcsBasePath = System.getenv("google_storage_base_path")
-
-if (!gcsServiceAccount && !gcsBucket && !gcsBasePath) {
-  gcsServiceAccount = new File(project(':plugins:repository-gcs:qa:google-cloud-storage').buildDir,
-          'generated-resources/service_account_test.json').path
-  gcsBucket = 'bucket_test'
-  gcsBasePath = 'integration_test'
-
-  useGCSFixture = true
-} else if (!gcsServiceAccount || !gcsBucket || !gcsBasePath) {
-  throw new IllegalArgumentException("not all options specified to run thirdPartyTestGCS against external GCS service are present")
-}
-
-def encodedCredentials = {
-  Base64.encoder.encodeToString(Files.readAllBytes(file(gcsServiceAccount).toPath()))
-}
-
-task thirdPartyTest (type: Test) {
-  include '**/*.class'
-  
-  systemProperty 'tests.security.manager', false
-
-  systemProperty 'test.s3.account', s3PermanentAccessKey
-  systemProperty 'test.s3.key', s3PermanentSecretKey
-  systemProperty 'test.s3.bucket', s3PermanentBucket
-  systemProperty 'test.s3.base', s3PermanentBasePath
-  
-  systemProperty 'test.google.bucket', gcsBucket
-  systemProperty 'test.google.base', gcsBasePath
-  nonInputProperties.systemProperty 'test.google.account', "${-> encodedCredentials.call()}"
-}
-
-if (useS3Fixture) {
-  apply plugin: 'elasticsearch.test.fixtures'
-
-  testFixtures.useFixture()
-
-  task writeDockerFile {
-    File minioDockerfile = new File("${project.buildDir}/minio-docker/Dockerfile")
-    outputs.file(minioDockerfile)
-    doLast {
-      minioDockerfile.parentFile.mkdirs()
-      minioDockerfile.text =
-        "FROM minio/minio:RELEASE.2019-01-23T23-18-58Z\n" +
-          "RUN mkdir -p /minio/data/${s3PermanentBucket}\n" +
-          "ENV MINIO_ACCESS_KEY ${s3PermanentAccessKey}\n" +
-          "ENV MINIO_SECRET_KEY ${s3PermanentSecretKey}"
-    }
-  }
-
-  preProcessFixture {
-    dependsOn(writeDockerFile)
-  }
-
-  def minioAddress = {
-    int minioPort = postProcessFixture.ext."test.fixtures.minio-fixture.tcp.9000"
-    assert minioPort > 0
-    'http://127.0.0.1:' + minioPort
-  }
-
-  thirdPartyTest {
-    dependsOn tasks.postProcessFixture
-    nonInputProperties.systemProperty 'test.s3.endpoint', "${ -> minioAddress.call() }"
-  }
-
-  gradle.taskGraph.whenReady {
-    if (it.hasTask(s3ThirdPartyTests)) {
-      throw new IllegalStateException("Tried to run third party tests but not all of the necessary environment variables 'amazon_s3_access_key', " +
-        "'amazon_s3_secret_key', 'amazon_s3_bucket', and 'amazon_s3_base_path' are set.");
-    }
-  }
-}
-
-if (useGCSFixture) {
-  thirdPartyTest.dependsOn(':plugins:repository-gcs:qa:google-cloud-storage:createServiceAccountFile',
-          ':plugins:repository-gcs:qa:google-cloud-storage:googleCloudStorageFixture')
-  thirdPartyTest.finalizedBy(':plugins:repository-gcs:qa:google-cloud-storage:googleCloudStorageFixture#stop')
-
-  def fixtureEndpoint = {
-    "http://${project(':plugins:repository-gcs:qa:google-cloud-storage').googleCloudStorageFixture.addressAndPort}"
-  }
-
-  def tokenURI = {
-    "http://${project(':plugins:repository-gcs:qa:google-cloud-storage').googleCloudStorageFixture.addressAndPort}/o/oauth2/token"
-  }
-
-  thirdPartyTest {
-    nonInputProperties.systemProperty 'test.google.endpoint', "${-> fixtureEndpoint.call()}"
-    nonInputProperties.systemProperty 'test.google.tokenURI', "${-> tokenURI.call()}"
-  }
-
-  gradle.taskGraph.whenReady {
-    if (it.hasTask(gcsThirdPartyTests)) {
-      throw new IllegalStateException("Tried to run third party tests but not all of the necessary environment variables 'google_storage_service_account', " +
-              "'google_storage_bucket', 'google_storage_base_path' are set.")
-    }
-  }
-}
+testingConventions.enabled = false
 
 task unpackArchive(dependsOn: tasks.assemble, type: Copy) {
   from tarTree("${project.buildDir}/snapshot-tool-${project.version}.tgz")
@@ -221,8 +93,9 @@ task smokeTest(type: Exec) {
   commandLine "${project.buildDir}/snapshot-tool-${project.version}/bin/elasticsearch-snapshot", "-h"
 }
 
-check.dependsOn(thirdPartyTest)
-check.dependsOn(smokeTest)
+check {
+  dependsOn smokeTest, 'qa:google-cloud-storage:check', 'qa:s3:check'
+}
 
 def vendorPath = Paths.get("${project.buildDir}/libs/vendor")
 
@@ -253,6 +126,7 @@ assemble.dependsOn(buildTarArchive)
 
 thirdPartyAudit.ignoreMissingClasses(
   // classes are missing
+  'javax.activation.DataHandler',
   'javax.servlet.ServletContextEvent',
   'javax.servlet.ServletContextListener',
   'org.apache.avalon.framework.logger.Logger',
@@ -327,114 +201,3 @@ thirdPartyAudit.ignoreViolations(
   'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
   'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
 )
-
-rootProject.globalInfo.ready {
-  if (project.runtimeJavaVersion <= JavaVersion.VERSION_1_8) {
-    thirdPartyAudit.ignoreJarHellWithJDK(
-            'javax.xml.bind.Binder',
-            'javax.xml.bind.ContextFinder$1',
-            'javax.xml.bind.ContextFinder',
-            'javax.xml.bind.DataBindingException',
-            'javax.xml.bind.DatatypeConverter',
-            'javax.xml.bind.DatatypeConverterImpl$CalendarFormatter',
-            'javax.xml.bind.DatatypeConverterImpl',
-            'javax.xml.bind.DatatypeConverterInterface',
-            'javax.xml.bind.Element',
-            'javax.xml.bind.GetPropertyAction',
-            'javax.xml.bind.JAXB$Cache',
-            'javax.xml.bind.JAXB',
-            'javax.xml.bind.JAXBContext',
-            'javax.xml.bind.JAXBElement$GlobalScope',
-            'javax.xml.bind.JAXBElement',
-            'javax.xml.bind.JAXBException',
-            'javax.xml.bind.JAXBIntrospector',
-            'javax.xml.bind.JAXBPermission',
-            'javax.xml.bind.MarshalException',
-            'javax.xml.bind.Marshaller$Listener',
-            'javax.xml.bind.Marshaller',
-            'javax.xml.bind.Messages',
-            'javax.xml.bind.NotIdentifiableEvent',
-            'javax.xml.bind.ParseConversionEvent',
-            'javax.xml.bind.PrintConversionEvent',
-            'javax.xml.bind.PropertyException',
-            'javax.xml.bind.SchemaOutputResolver',
-            'javax.xml.bind.TypeConstraintException',
-            'javax.xml.bind.UnmarshalException',
-            'javax.xml.bind.Unmarshaller$Listener',
-            'javax.xml.bind.Unmarshaller',
-            'javax.xml.bind.UnmarshallerHandler',
-            'javax.xml.bind.ValidationEvent',
-            'javax.xml.bind.ValidationEventHandler',
-            'javax.xml.bind.ValidationEventLocator',
-            'javax.xml.bind.ValidationException',
-            'javax.xml.bind.Validator',
-            'javax.xml.bind.WhiteSpaceProcessor',
-            'javax.xml.bind.annotation.DomHandler',
-            'javax.xml.bind.annotation.W3CDomHandler',
-            'javax.xml.bind.annotation.XmlAccessOrder',
-            'javax.xml.bind.annotation.XmlAccessType',
-            'javax.xml.bind.annotation.XmlAccessorOrder',
-            'javax.xml.bind.annotation.XmlAccessorType',
-            'javax.xml.bind.annotation.XmlAnyAttribute',
-            'javax.xml.bind.annotation.XmlAnyElement',
-            'javax.xml.bind.annotation.XmlAttachmentRef',
-            'javax.xml.bind.annotation.XmlAttribute',
-            'javax.xml.bind.annotation.XmlElement$DEFAULT',
-            'javax.xml.bind.annotation.XmlElement',
-            'javax.xml.bind.annotation.XmlElementDecl$GLOBAL',
-            'javax.xml.bind.annotation.XmlElementDecl',
-            'javax.xml.bind.annotation.XmlElementRef$DEFAULT',
-            'javax.xml.bind.annotation.XmlElementRef',
-            'javax.xml.bind.annotation.XmlElementRefs',
-            'javax.xml.bind.annotation.XmlElementWrapper',
-            'javax.xml.bind.annotation.XmlElements',
-            'javax.xml.bind.annotation.XmlEnum',
-            'javax.xml.bind.annotation.XmlEnumValue',
-            'javax.xml.bind.annotation.XmlID',
-            'javax.xml.bind.annotation.XmlIDREF',
-            'javax.xml.bind.annotation.XmlInlineBinaryData',
-            'javax.xml.bind.annotation.XmlList',
-            'javax.xml.bind.annotation.XmlMimeType',
-            'javax.xml.bind.annotation.XmlMixed',
-            'javax.xml.bind.annotation.XmlNs',
-            'javax.xml.bind.annotation.XmlNsForm',
-            'javax.xml.bind.annotation.XmlRegistry',
-            'javax.xml.bind.annotation.XmlRootElement',
-            'javax.xml.bind.annotation.XmlSchema',
-            'javax.xml.bind.annotation.XmlSchemaType$DEFAULT',
-            'javax.xml.bind.annotation.XmlSchemaType',
-            'javax.xml.bind.annotation.XmlSchemaTypes',
-            'javax.xml.bind.annotation.XmlSeeAlso',
-            'javax.xml.bind.annotation.XmlTransient',
-            'javax.xml.bind.annotation.XmlType$DEFAULT',
-            'javax.xml.bind.annotation.XmlType',
-            'javax.xml.bind.annotation.XmlValue',
-            'javax.xml.bind.annotation.adapters.CollapsedStringAdapter',
-            'javax.xml.bind.annotation.adapters.HexBinaryAdapter',
-            'javax.xml.bind.annotation.adapters.NormalizedStringAdapter',
-            'javax.xml.bind.annotation.adapters.XmlAdapter',
-            'javax.xml.bind.annotation.adapters.XmlJavaTypeAdapter$DEFAULT',
-            'javax.xml.bind.annotation.adapters.XmlJavaTypeAdapter',
-            'javax.xml.bind.annotation.adapters.XmlJavaTypeAdapters',
-            'javax.xml.bind.attachment.AttachmentMarshaller',
-            'javax.xml.bind.attachment.AttachmentUnmarshaller',
-            'javax.xml.bind.helpers.AbstractMarshallerImpl',
-            'javax.xml.bind.helpers.AbstractUnmarshallerImpl',
-            'javax.xml.bind.helpers.DefaultValidationEventHandler',
-            'javax.xml.bind.helpers.Messages',
-            'javax.xml.bind.helpers.NotIdentifiableEventImpl',
-            'javax.xml.bind.helpers.ParseConversionEventImpl',
-            'javax.xml.bind.helpers.PrintConversionEventImpl',
-            'javax.xml.bind.helpers.ValidationEventImpl',
-            'javax.xml.bind.helpers.ValidationEventLocatorImpl',
-            'javax.xml.bind.util.JAXBResult',
-            'javax.xml.bind.util.JAXBSource$1',
-            'javax.xml.bind.util.JAXBSource',
-            'javax.xml.bind.util.Messages',
-            'javax.xml.bind.util.ValidationEventCollector'
-    )
-  } else {
-    thirdPartyAudit.ignoreMissingClasses 'javax.activation.DataHandler'
-  }
-}
-

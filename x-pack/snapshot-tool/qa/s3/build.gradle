@@ -1,0 +1,89 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
+apply plugin: 'elasticsearch.build'
+
+dependencies {
+    compile project(":plugins:repository-s3")
+    testCompile project(":test:framework")
+    testCompile project(':x-pack:snapshot-tool')
+    testCompile files(project(':x-pack:snapshot-tool').sourceSets.test.output)
+}
+
+test.enabled = false
+
+task s3ThirdPartyTests {
+    dependsOn check
+}
+
+boolean useS3Fixture = false
+
+String s3PermanentAccessKey = System.getenv("amazon_s3_access_key")
+String s3PermanentSecretKey = System.getenv("amazon_s3_secret_key")
+String s3PermanentBucket = System.getenv("amazon_s3_bucket")
+String s3PermanentBasePath = System.getenv("amazon_s3_base_path")
+
+if (!s3PermanentAccessKey && !s3PermanentSecretKey && !s3PermanentBucket && !s3PermanentBasePath) {
+    s3PermanentAccessKey = 's3_integration_test_permanent_access_key'
+    s3PermanentSecretKey = 's3_integration_test_permanent_secret_key'
+    s3PermanentBucket = 'permanent-bucket-test'
+    s3PermanentBasePath = 'integration_test'
+
+    useS3Fixture = true
+} else if (!s3PermanentAccessKey || !s3PermanentSecretKey || !s3PermanentBucket || !s3PermanentBasePath) {
+    throw new IllegalArgumentException("not all options specified to run against external S3 service as permanent credentials are present")
+}
+
+task thirdPartyTest (type: Test) {
+    include '**/*.class'
+
+    systemProperty 'tests.security.manager', false
+
+    systemProperty 'test.s3.account', s3PermanentAccessKey
+    systemProperty 'test.s3.key', s3PermanentSecretKey
+    systemProperty 'test.s3.bucket', s3PermanentBucket
+    systemProperty 'test.s3.base', s3PermanentBasePath
+}
+
+if (useS3Fixture) {
+    apply plugin: 'elasticsearch.test.fixtures'
+
+    task writeDockerFile {
+        File minioDockerfile = new File("${project.buildDir}/minio-docker/Dockerfile")
+        outputs.file(minioDockerfile)
+        doLast {
+            minioDockerfile.parentFile.mkdirs()
+            minioDockerfile.text =
+                    "FROM minio/minio:RELEASE.2019-01-23T23-18-58Z\n" +
+                            "RUN mkdir -p /minio/data/${s3PermanentBucket}\n" +
+                            "ENV MINIO_ACCESS_KEY ${s3PermanentAccessKey}\n" +
+                            "ENV MINIO_SECRET_KEY ${s3PermanentSecretKey}"
+        }
+    }
+
+    preProcessFixture {
+        dependsOn(writeDockerFile)
+    }
+
+    def minioAddress = {
+        int minioPort = postProcessFixture.ext."test.fixtures.minio-fixture.tcp.9000"
+        assert minioPort > 0
+        'http://127.0.0.1:' + minioPort
+    }
+
+    thirdPartyTest {
+        dependsOn tasks.postProcessFixture
+        nonInputProperties.systemProperty 'test.s3.endpoint', "${ -> minioAddress.call() }"
+    }
+
+    gradle.taskGraph.whenReady {
+        if (it.hasTask(s3ThirdPartyTests)) {
+            throw new IllegalStateException("Tried to run third party tests but not all of the necessary environment variables 'amazon_s3_access_key', " +
+                    "'amazon_s3_secret_key', 'amazon_s3_bucket', and 'amazon_s3_base_path' are set.");
+        }
+    }
+}
+
+check.dependsOn(thirdPartyTest)

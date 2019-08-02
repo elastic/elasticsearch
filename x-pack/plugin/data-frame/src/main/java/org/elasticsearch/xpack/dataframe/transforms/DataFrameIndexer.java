@@ -176,7 +176,7 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
             logger.info("[" + getJobId() + "] unexpected null aggregations in search response. " +
                 "Concrete indices may have disappeared or have been closed");
             auditor.info(getJobId(),
-                "Data frame transform unexpectedly stopped seeing data. " +
+                "Concrete source indices seem to have gone away. " +
                     "Please verify that these indices exist and are open [" +
                     Strings.arrayToCommaDelimitedString(getConfig().getSource().getIndex()) +
                     "].");

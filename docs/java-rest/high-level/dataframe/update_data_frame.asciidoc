@@ -47,5 +47,5 @@ include::../execution.asciidoc[]
 [id="{upid}-{api}-response"]
 ==== Response
 
-The returned +{response}+ acknowledges the successful creation of
-the new {dataframe-transform} or an error if the configuration is invalid.
+The returned +{response}+ contains the updated {dataframe-transform} configuration 
+or an error if the update failed or is invalid.

@@ -33,7 +33,7 @@ final class RecoveryFinalizeRecoveryRequest extends TransportRequest {
     private final long recoveryId;
     private final ShardId shardId;
     private final long globalCheckpoint;
-    private final long startingSeqNo;
+    private final long trimAboveSeqNo;
 
     RecoveryFinalizeRecoveryRequest(StreamInput in) throws IOException {
         super(in);
@@ -41,9 +41,9 @@ final class RecoveryFinalizeRecoveryRequest extends TransportRequest {
         shardId = new ShardId(in);
         globalCheckpoint = in.readZLong();
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            startingSeqNo = in.readZLong();
+            trimAboveSeqNo = in.readZLong();
         } else {
-            startingSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
+            trimAboveSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
         }
     }
 
@@ -51,7 +51,7 @@ final class RecoveryFinalizeRecoveryRequest extends TransportRequest {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.globalCheckpoint = globalCheckpoint;
-        this.startingSeqNo = startingSeqNo;
+        this.trimAboveSeqNo = startingSeqNo;
     }
 
     public long recoveryId() {
@@ -66,8 +66,8 @@ final class RecoveryFinalizeRecoveryRequest extends TransportRequest {
         return globalCheckpoint;
     }
 
-    public long startingSeqNo() {
-        return startingSeqNo;
+    public long trimAboveSeqNo() {
+        return trimAboveSeqNo;
     }
 
     @Override
@@ -77,7 +77,7 @@ final class RecoveryFinalizeRecoveryRequest extends TransportRequest {
         shardId.writeTo(out);
         out.writeZLong(globalCheckpoint);
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeZLong(startingSeqNo);
+            out.writeZLong(trimAboveSeqNo);
         }
     }
 

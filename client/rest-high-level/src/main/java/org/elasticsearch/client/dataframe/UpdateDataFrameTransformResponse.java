@@ -24,9 +24,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.util.Objects;
 
-
 public class UpdateDataFrameTransformResponse {
-
 
     public static UpdateDataFrameTransformResponse fromXContent(final XContentParser parser) {
         return new UpdateDataFrameTransformResponse(DataFrameTransformConfig.PARSER.apply(parser, null));

@@ -64,7 +64,6 @@ public class DataFrameTransformConfigUpdateTests extends AbstractXContentTestCas
         return randomDataFrameTransformConfigUpdate();
     }
 
-
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());

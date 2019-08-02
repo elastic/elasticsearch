@@ -448,12 +448,6 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
             return this;
         }
 
-        public DataFrameTransformConfig build(Instant createTime) {
-            this.createTime = createTime;
-            this.transformVersion = Version.CURRENT;
-            return build();
-        }
-
         public DataFrameTransformConfig build() {
             return new DataFrameTransformConfig(id,
                 source,

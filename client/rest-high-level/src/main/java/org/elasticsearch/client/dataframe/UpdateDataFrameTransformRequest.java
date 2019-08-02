@@ -31,7 +31,6 @@ import java.util.Optional;
 
 public class UpdateDataFrameTransformRequest implements ToXContentObject, Validatable {
 
-    public static final String DEFER_VALIDATION = "defer_validation";
     private final DataFrameTransformConfigUpdate update;
     private final String id;
     private Boolean deferValidation;
@@ -67,7 +66,6 @@ public class UpdateDataFrameTransformRequest implements ToXContentObject, Valida
         ValidationException validationException = new ValidationException();
         if (update == null) {
             validationException.addValidationError("put requires a non-null data frame config update object");
-            return Optional.of(validationException);
         }
         if (id == null) {
             validationException.addValidationError("data frame transform id cannot be null");

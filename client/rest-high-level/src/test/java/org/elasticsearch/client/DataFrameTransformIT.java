@@ -376,7 +376,6 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
             .setDescription("this is a test transform");
     }
 
-
     // TODO add tests to cover continuous situations
     public void testGetStats() throws Exception {
         String sourceIndex = "transform-source";

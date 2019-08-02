@@ -19,23 +19,18 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.util.Version;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 
 public abstract class AbstractTokenizerFactory extends AbstractIndexComponent implements TokenizerFactory {
-    protected final Version version;
     private final String name;
 
     public AbstractTokenizerFactory(IndexSettings indexSettings, Settings settings, String name) {
         super(indexSettings);
-        this.version = Analysis.parseAnalysisVersion(this.indexSettings.getSettings(), settings, logger);
         this.name = name;
-    }
-
-    public final Version version() {
-        return version;
+        Analysis.deprecateSetting("version", Version.V_8_0_0, indexSettings, settings, name, deprecationLogger);
     }
 
     @Override

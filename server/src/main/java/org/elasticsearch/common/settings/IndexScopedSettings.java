@@ -19,7 +19,6 @@
 package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -186,29 +185,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         // make sure that 'version' is not user-specified
         Setting.groupSetting(
             "index.analysis.",
-            settings -> {
-                ensureSettingNotSet(settings, "index.analysis", "version");
-
-                settings.getGroups("analyzer")
-                    .forEach((analyzerName, analyzerSettings) ->
-                        ensureSettingNotSet(analyzerSettings, "index.analysis.analyzer." + analyzerName, "version"));
-            },
             Property.IndexScope) // this allows analysis settings to be passed
     );
-
-    private static void ensureSettingNotSet(Settings settings, String groupName, String setting) {
-        if (Version.CURRENT.onOrAfter(Version.V_8_0_0)) {
-            if (settings.hasValue(setting)) {
-                throw new IllegalArgumentException(
-                    "illegal settings entry for [" + groupName + "." + setting + "]. " +
-                        "Since version " + Version.V_8_0_0 + " the property is reserved for internal usage only.");
-            }
-        } else {
-            deprecationLogger.deprecated(
-                "Setting value for [{}.{}] is deprecated and starting from version {} will not be allowed any more.",
-                groupName, setting, Version.V_8_0_0);
-        }
-    }
 
     public static final IndexScopedSettings DEFAULT_SCOPED_SETTINGS = new IndexScopedSettings(Settings.EMPTY, BUILT_IN_INDEX_SETTINGS);
 

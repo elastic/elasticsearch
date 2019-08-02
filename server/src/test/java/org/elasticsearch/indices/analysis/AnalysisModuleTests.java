@@ -58,6 +58,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.MatcherAssert;
+import org.junit.Test;
 
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -76,6 +77,7 @@ import java.util.Set;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.apache.lucene.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -154,11 +156,92 @@ public class AnalysisModuleTests extends ESTestCase {
                 indexAnalyzers.get("standard").analyzer().getVersion());
         assertEquals(version.luceneVersion,
                 indexAnalyzers.get("stop").analyzer().getVersion());
+    }
 
-        assertThat(indexAnalyzers.get("custom7").analyzer(), is(instanceOf(StandardAnalyzer.class)));
-        assertEquals(org.apache.lucene.util.Version.LUCENE_7_0_0,
-                indexAnalyzers.get("custom7").analyzer().getVersion());
-        // todo: verify that the message was logged
+    @Test
+    public void defaultAnalyzersVersion_preV8_IsDeprecated() throws Exception {
+        Version versionCreated = VersionUtils.randomVersionBetween(random(),
+            Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_8_0_0));
+
+        // 'version' on the index as default for all analysis components
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put(IndexMetaData.SETTING_VERSION_CREATED, versionCreated)
+            .put("index.analysis.version", Version.V_7_0_0)
+            .put("index.analysis.analyzer.custom.type", "standard")
+            .build();
+
+        IndexAnalyzers indexAnalyzers = getIndexAnalyzers(getNewRegistry(settings), settings);
+
+        assertEquals(versionCreated.luceneVersion, indexAnalyzers.get("standard").analyzer().getVersion());
+        assertWarnings(
+            "Index component 'stop': [version] is deprecated and will be removed in the next major release",
+            "Index component 'shingle': [version] is deprecated and will be removed in the next major release",
+            "Index component 'myfilter': [version] is deprecated and will be removed in the next major release",
+            "Index component 'custom': [version] is deprecated and will be removed in the next major release");
+    }
+
+    @Test
+    public void specificAnalyzersVersion_preV8_IsDeprecated() throws Exception {
+        Version versionCreated = VersionUtils.randomVersionBetween(random(),
+            Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_8_0_0));
+
+        // 'version' on the specific analyzer components
+        Settings settings2 = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put(IndexMetaData.SETTING_VERSION_CREATED, versionCreated)
+            .put("index.analysis.analyzer.very_old.type", "standard")
+            .put("index.analysis.analyzer.very_old.version", Version.fromString("3.6.0"))
+            .put("index.analysis.analyzer.brand_new.type", "standard")
+            .put("index.analysis.analyzer.brand_new.version", Version.CURRENT)
+            .build();
+
+        IndexAnalyzers indexAnalyzers2 = getIndexAnalyzers(getNewRegistry(settings2), settings2);
+
+        assertEquals(versionCreated.luceneVersion, indexAnalyzers2.get("very_old").analyzer().getVersion());
+        assertEquals(versionCreated.luceneVersion, indexAnalyzers2.get("brand_new").analyzer().getVersion());
+
+        assertWarnings(
+            "Index component 'very_old': [version] is deprecated and will be removed in the next major release",
+            "Index component 'brand_new': [version] is deprecated and will be removed in the next major release");
+    }
+
+    @Test
+    public void defaultAnalyzersVersion_sinceV8_IsRemoved() throws Exception {
+        Version versionCreated = VersionUtils.randomVersionBetween(random(),
+            Version.V_8_0_0, Version.CURRENT);
+
+        // 'version' on the index as default for all analysis components
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put(IndexMetaData.SETTING_VERSION_CREATED, versionCreated)
+            .put("index.analysis.version", Version.CURRENT)
+            .put("index.analysis.analyzer.custom.type", "standard")
+            .build();
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> getIndexAnalyzers(getNewRegistry(settings), settings));
+
+        assertThat(e.getMessage(), containsString("[version] is not supported..."));
+    }
+
+    @Test
+    public void specificAnalyzersVersion_sinceV8_IsRemoved() throws Exception {
+        Version versionCreated = VersionUtils.randomVersionBetween(random(),
+            Version.V_8_0_0, Version.CURRENT);
+
+        // 'version' on the specific analyzer component
+        Settings settings2 = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put(IndexMetaData.SETTING_VERSION_CREATED, versionCreated)
+            .put("index.analysis.analyzer.custom.type", "standard")
+            .put("index.analysis.analyzer.custom.version", Version.CURRENT)
+            .build();
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> getIndexAnalyzers(getNewRegistry(settings2), settings2));
+
+        assertThat(e.getMessage(), equalTo("Index component 'custom': [version] is not supported..."));
     }
 
     private void testSimpleConfiguration(Settings settings) throws IOException {

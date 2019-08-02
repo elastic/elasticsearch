@@ -20,7 +20,7 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.util.Version;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
@@ -29,7 +29,7 @@ public abstract class AbstractIndexAnalyzerProvider<T extends Analyzer> extends 
 
     private final String name;
 
-    protected final Version version;
+    protected final org.apache.lucene.util.Version version;
 
     /**
      * Constructs a new analyzer component, with the index name and its settings and the analyzer name.
@@ -40,7 +40,10 @@ public abstract class AbstractIndexAnalyzerProvider<T extends Analyzer> extends 
     public AbstractIndexAnalyzerProvider(IndexSettings indexSettings, String name, Settings settings) {
         super(indexSettings);
         this.name = name;
-        this.version = Analysis.parseAnalysisVersion(this.indexSettings.getSettings(), settings, logger);
+
+        Analysis.deprecateSetting("version", Version.V_8_0_0, indexSettings, settings, name, deprecationLogger);
+        // resolve the analysis version based on the version the index was created with
+        this.version = indexSettings.getIndexVersionCreated().luceneVersion;
     }
 
     /**

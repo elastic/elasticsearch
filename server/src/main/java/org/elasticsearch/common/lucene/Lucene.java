@@ -19,8 +19,6 @@
 
 package org.elasticsearch.common.lucene;
 
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.CodecUtil;
@@ -108,7 +106,6 @@ public class Lucene {
     public static final String LATEST_DOC_VALUES_FORMAT = "Lucene70";
     public static final String LATEST_POSTINGS_FORMAT = "Lucene50";
     public static final String LATEST_CODEC = "Lucene80";
-    private static final Version EARLIEST_SUPPORTED_LUCENE_VERSION = Version.LUCENE_7_0_0;
 
     static {
         Deprecated annotation = PostingsFormat.forName(LATEST_POSTINGS_FORMAT).getClass().getAnnotation(Deprecated.class);
@@ -127,26 +124,6 @@ public class Lucene {
     public static final TopDocs EMPTY_TOP_DOCS = new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), EMPTY_SCORE_DOCS);
 
     private Lucene() {
-    }
-
-    public static Version parseVersion(@Nullable String version, Version defaultVersion, Logger logger) {
-        if (version == null) {
-            return defaultVersion;
-        }
-        try {
-            Version luceneVersion = Version.parse(version);
-            if (luceneVersion.onOrAfter(EARLIEST_SUPPORTED_LUCENE_VERSION)) {
-                return luceneVersion;
-            } else {
-                logger.warn(() -> new ParameterizedMessage(
-                    "Unsupported index version {}, using earliest still supported instead -> {}",
-                    version, EARLIEST_SUPPORTED_LUCENE_VERSION));
-                return EARLIEST_SUPPORTED_LUCENE_VERSION;
-            }
-        } catch (ParseException e) {
-            logger.warn(() -> new ParameterizedMessage("no version match {}, default to {}", version, defaultVersion), e);
-            return defaultVersion;
-        }
     }
 
     /**

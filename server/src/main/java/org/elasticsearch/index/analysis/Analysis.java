@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.ar.ArabicAnalyzer;
 import org.apache.lucene.analysis.bg.BulgarianAnalyzer;
@@ -54,11 +53,12 @@ import org.apache.lucene.analysis.ru.RussianAnalyzer;
 import org.apache.lucene.analysis.sv.SwedishAnalyzer;
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
-import org.apache.lucene.util.Version;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexSettings;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -78,19 +78,20 @@ import static java.util.Map.entry;
 
 public class Analysis {
 
-    public static Version parseAnalysisVersion(Settings indexSettings, Settings settings, Logger logger) {
-        // check for explicit version on the specific analyzer component
-        String sVersion = settings.get("version");
-        if (sVersion != null) {
-            return Lucene.parseVersion(sVersion, Version.LATEST, logger);
+    static void deprecateSetting(String settingName, Version version,
+                                 IndexSettings indexSettings, Settings settings, String componentName,
+                                 DeprecationLogger deprecationLogger) {
+        // check for the setting on the specific index component
+        // and on the index itself as default for all analysis components
+        if (settings.hasValue(settingName) || indexSettings.getSettings().hasValue("index.analysis." + settingName)) {
+            if (indexSettings.getIndexVersionCreated().before(version)) {
+                deprecationLogger.deprecatedAndMaybeLog("analysis_" + settingName,
+                    "Index component '{}': [{}] is deprecated and will be removed in the next major release", componentName, settingName);
+            } else {
+                throw new IllegalArgumentException(String.format(
+                    "Index component '%s': [%s] is not supported...", componentName, settingName));
+            }
         }
-        // check for explicit version on the index itself as default for all analysis components
-        sVersion = indexSettings.get("index.analysis.version");
-        if (sVersion != null) {
-            return Lucene.parseVersion(sVersion, Version.LATEST, logger);
-        }
-        // resolve the analysis version based on the version the index was created with
-        return org.elasticsearch.Version.indexCreated(indexSettings).luceneVersion;
     }
 
     public static boolean isNoStopwords(Settings settings) {

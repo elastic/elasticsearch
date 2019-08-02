@@ -22,8 +22,6 @@ import com.carrotsearch.gradle.junit4.RandomizedTestingTask
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
 import org.apache.commons.io.IOUtils
 import org.apache.tools.ant.taskdefs.condition.Os
-import org.eclipse.jgit.lib.Constants
-import org.eclipse.jgit.lib.RepositoryBuilder
 import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.gradle.api.GradleException
 import org.gradle.api.InvalidUserDataException
@@ -48,6 +46,7 @@ import org.gradle.api.plugins.JavaPlugin
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.publish.maven.plugins.MavenPublishPlugin
 import org.gradle.api.publish.maven.tasks.GenerateMavenPom
+import org.gradle.api.tasks.Exec
 import org.gradle.api.tasks.SourceSet
 import org.gradle.api.tasks.bundling.Jar
 import org.gradle.api.tasks.compile.GroovyCompile
@@ -154,6 +153,7 @@ class BuildPlugin implements Plugin<Project> {
 
             String inFipsJvmScript = 'print(java.security.Security.getProviders()[0].name.toLowerCase().contains("fips"));'
             boolean inFipsJvm = Boolean.parseBoolean(runJavaAsScript(project, runtimeJavaHome, inFipsJvmScript))
+            final String gitRevision = gitRevision(project)
 
             // Build debugging info
             println '======================================='
@@ -171,6 +171,7 @@ class BuildPlugin implements Plugin<Project> {
                 println "  JDK Version           : ${JavaVersion.toVersion(gradleJavaVersion)} (${gradleJavaVersionDetails})"
                 println "  JAVA_HOME             : ${gradleJavaHome}"
             }
+            println "  Git Revision          : ${gitRevision}"
             println "  Random Testing Seed   : ${project.testSeed}"
             println '======================================='
 
@@ -222,6 +223,7 @@ class BuildPlugin implements Plugin<Project> {
             project.rootProject.ext.gradleJavaVersion = JavaVersion.toVersion(gradleJavaVersion)
             project.rootProject.ext.java9Home = "${-> findJavaHome("9")}"
             project.rootProject.ext.defaultParallel = findDefaultParallel(project.rootProject)
+            project.rootProject.ext.gitRevision = gitRevision
         }
 
         project.targetCompatibility = project.rootProject.ext.minimumRuntimeVersion
@@ -234,6 +236,7 @@ class BuildPlugin implements Plugin<Project> {
         project.ext.runtimeJavaVersion = project.rootProject.ext.runtimeJavaVersion
         project.ext.javaVersions = project.rootProject.ext.javaVersions
         project.ext.inFipsJvm = project.rootProject.ext.inFipsJvm
+        project.ext.gitRevision = project.rootProject.ext.gitRevision
         project.ext.gradleJavaVersion = project.rootProject.ext.gradleJavaVersion
         project.ext.java9Home = project.rootProject.ext.java9Home
     }
@@ -841,26 +844,13 @@ class BuildPlugin implements Plugin<Project> {
                 // this doFirst is added before the info plugin, therefore it will run
                 // after the doFirst added by the info plugin, and we can override attributes
                 jarTask.manifest.attributes(
+                        // TODO: remove using the short hash
+                        'Change': ((String)project.gitRevision).substring(0, 7),
                         'X-Compile-Elasticsearch-Version': VersionProperties.elasticsearch.replace("-SNAPSHOT", ""),
                         'X-Compile-Lucene-Version': VersionProperties.lucene,
                         'X-Compile-Elasticsearch-Snapshot': VersionProperties.isElasticsearchSnapshot(),
                         'Build-Date': ZonedDateTime.now(ZoneOffset.UTC),
                         'Build-Java-Version': project.compilerJavaVersion)
-                if (jarTask.manifest.attributes.containsKey('Change') == false) {
-                    logger.warn('Building without git revision id.')
-                    jarTask.manifest.attributes('Change': 'Unknown')
-                } else {
-                    /*
-                     * The info-scm plugin assumes that if GIT_COMMIT is set it was set by Jenkins to the commit hash for this build.
-                     * However, that assumption is wrong as this build could be a sub-build of another Jenkins build for which GIT_COMMIT
-                     * is the commit hash for that build. Therefore, if GIT_COMMIT is set we calculate the commit hash ourselves.
-                     */
-                    if (System.getenv("GIT_COMMIT") != null) {
-                        final String hash = new RepositoryBuilder().findGitDir(project.buildDir).build().resolve(Constants.HEAD).name
-                        final String shortHash = hash?.substring(0, 7)
-                        jarTask.manifest.attributes('Change': shortHash)
-                    }
-                }
                 // Force manifest entries that change by nature to a constant to be able to compare builds more effectively
                 if (System.properties.getProperty("build.compare_friendly", "false") == "true") {
                     jarTask.manifest.getAttributes().clear()
@@ -1073,6 +1063,23 @@ class BuildPlugin implements Plugin<Project> {
             return stdout.toString('UTF-8').trim();
         }
         return 'auto';
+    }
+
+    private static String gitRevision(final Project project) {
+        final ByteArrayOutputStream stdout = new ByteArrayOutputStream();
+        final ByteArrayOutputStream stderr = new ByteArrayOutputStream();
+        final ExecResult result = project.exec({ ExecSpec spec ->
+            spec.setExecutable("git");
+            spec.setArgs(Arrays.asList("rev-parse", "HEAD"));
+            spec.setStandardOutput(stdout);
+            spec.setErrorOutput(stderr);
+            spec.setIgnoreExitValue(true);
+        });
+
+        if (result.getExitValue() != 0) {
+            return "unknown";
+        }
+        return stdout.toString(StandardCharsets.UTF_8).trim();
     }
 
     /** Configures the test task */

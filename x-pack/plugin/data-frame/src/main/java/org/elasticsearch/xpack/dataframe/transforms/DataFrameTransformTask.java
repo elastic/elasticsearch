@@ -591,9 +591,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 nextCheckpoint);
             this.transformId = ExceptionsHelper.requireNonNull(transformId, "transformId");
             this.transformsConfigManager = ExceptionsHelper.requireNonNull(transformsConfigManager, "transformsConfigManager");
-            //this.transformsCheckpointService = ExceptionsHelper.requireNonNull(transformsCheckpointService,
-            //    "transformsCheckpointService");
-            this.checkpointProvider = checkpointProvider;
+            this.checkpointProvider = ExceptionsHelper.requireNonNull(checkpointProvider, "checkpointProvider");
 
             this.client = ExceptionsHelper.requireNonNull(client, "client");
             this.transformTask = parentTask;

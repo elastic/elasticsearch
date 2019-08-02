@@ -47,11 +47,11 @@ final class RecoveryFinalizeRecoveryRequest extends TransportRequest {
         }
     }
 
-    RecoveryFinalizeRecoveryRequest(final long recoveryId, final ShardId shardId, final long globalCheckpoint, final long startingSeqNo) {
+    RecoveryFinalizeRecoveryRequest(final long recoveryId, final ShardId shardId, final long globalCheckpoint, final long trimAboveSeqNo) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.globalCheckpoint = globalCheckpoint;
-        this.trimAboveSeqNo = startingSeqNo;
+        this.trimAboveSeqNo = trimAboveSeqNo;
     }
 
     public long recoveryId() {

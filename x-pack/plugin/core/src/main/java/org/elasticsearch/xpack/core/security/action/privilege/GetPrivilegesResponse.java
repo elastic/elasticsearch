@@ -29,18 +29,13 @@ public final class GetPrivilegesResponse extends ActionResponse {
         this(privileges.toArray(new ApplicationPrivilegeDescriptor[0]));
     }
 
-    public GetPrivilegesResponse() {
-        this(new ApplicationPrivilegeDescriptor[0]);
+    public GetPrivilegesResponse(StreamInput in) throws IOException {
+        super(in);
+        this.privileges = in.readArray(ApplicationPrivilegeDescriptor::new, ApplicationPrivilegeDescriptor[]::new);
     }
 
     public ApplicationPrivilegeDescriptor[] privileges() {
         return privileges;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        this.privileges = in.readArray(ApplicationPrivilegeDescriptor::new, ApplicationPrivilegeDescriptor[]::new);
     }
 
     @Override

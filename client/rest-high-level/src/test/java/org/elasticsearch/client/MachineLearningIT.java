@@ -436,9 +436,10 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testUpdateDatafeed() throws Exception {
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+
         String jobId = randomValidJobId();
         Job job = buildJob(jobId);
-        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
         execute(new PutJobRequest(job), machineLearningClient::putJob, machineLearningClient::putJobAsync);
 
         String datafeedId = "datafeed-" + jobId;

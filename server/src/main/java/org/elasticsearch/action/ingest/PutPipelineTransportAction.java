@@ -54,7 +54,7 @@ public class PutPipelineTransportAction extends TransportMasterNodeAction<PutPip
         IngestService ingestService, NodeClient client) {
         super(
             PutPipelineAction.NAME, transportService, ingestService.getClusterService(),
-            threadPool, actionFilters, indexNameExpressionResolver, PutPipelineRequest::new
+            threadPool, actionFilters, PutPipelineRequest::new, indexNameExpressionResolver
         );
         this.client = client;
         this.ingestService = ingestService;

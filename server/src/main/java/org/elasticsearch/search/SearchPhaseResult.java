@@ -91,11 +91,6 @@ public abstract class SearchPhaseResult extends TransportResponse {
     public FetchSearchResult fetchResult() { return null; }
 
     @Override
-    public final void readFrom(StreamInput in) {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         // TODO: this seems wrong, SearchPhaseResult should have a writeTo?
     }

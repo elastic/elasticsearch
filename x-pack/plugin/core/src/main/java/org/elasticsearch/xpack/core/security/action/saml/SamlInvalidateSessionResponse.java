@@ -20,7 +20,11 @@ public final class SamlInvalidateSessionResponse extends ActionResponse {
     private int count;
     private String redirectUrl;
 
-    public SamlInvalidateSessionResponse() {
+    public SamlInvalidateSessionResponse(StreamInput in) throws IOException {
+        super(in);
+        realmName = in.readString();
+        count = in.readInt();
+        redirectUrl = in.readString();
     }
 
     public SamlInvalidateSessionResponse(String realmName, int count, String redirectUrl) {
@@ -47,13 +51,4 @@ public final class SamlInvalidateSessionResponse extends ActionResponse {
         out.writeInt(count);
         out.writeString(redirectUrl);
     }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        realmName = in.readString();
-        count = in.readInt();
-        redirectUrl = in.readString();
-    }
-
 }

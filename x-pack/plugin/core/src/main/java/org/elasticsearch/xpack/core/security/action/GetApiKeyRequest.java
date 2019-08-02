@@ -139,8 +139,4 @@ public final class GetApiKeyRequest extends ActionRequest {
         out.writeOptionalString(apiKeyName);
     }
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
-}

@@ -1298,17 +1298,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param repositoryStateId the unique id representing the state of the repository at the time the deletion began
      */
     private void deleteSnapshotFromRepository(Snapshot snapshot, @Nullable ActionListener<Void> listener, long repositoryStateId) {
-        threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new ActionRunnable<>(listener) {
-            @Override
-            protected void doRun() {
-                Repository repository = repositoriesService.repository(snapshot.getRepository());
-                repository.deleteSnapshot(snapshot.getSnapshotId(), repositoryStateId, ActionListener.wrap(v -> {
-                        logger.info("snapshot [{}] deleted", snapshot);
-                        removeSnapshotDeletionFromClusterState(snapshot, null, listener);
-                    }, ex -> removeSnapshotDeletionFromClusterState(snapshot, ex, listener)
-                ));
-            }
-        });
+        threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(listener, l -> {
+            Repository repository = repositoriesService.repository(snapshot.getRepository());
+            repository.deleteSnapshot(snapshot.getSnapshotId(), repositoryStateId, ActionListener.wrap(v -> {
+                    logger.info("snapshot [{}] deleted", snapshot);
+                    removeSnapshotDeletionFromClusterState(snapshot, null, l);
+                }, ex -> removeSnapshotDeletionFromClusterState(snapshot, ex, l)
+            ));
+        }));
     }
 
     /**

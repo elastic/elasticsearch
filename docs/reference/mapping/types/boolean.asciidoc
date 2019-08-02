@@ -1,5 +1,8 @@
 [[boolean]]
 === Boolean datatype
+++++
+<titleabbrev>Boolean</titleabbrev>
+++++
 
 Boolean fields accept JSON `true` and `false` values, but can also accept
 strings which are interpreted as either true or false:

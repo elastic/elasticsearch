@@ -39,7 +39,7 @@ public class TransportGetUsersAction extends HandledTransportAction<GetUsersRequ
     @Inject
     public TransportGetUsersAction(Settings settings, ActionFilters actionFilters,
                                    NativeUsersStore usersStore, TransportService transportService, ReservedRealm reservedRealm) {
-        super(GetUsersAction.NAME, transportService, GetUsersRequest::new, actionFilters);
+        super(GetUsersAction.NAME, transportService, actionFilters, GetUsersRequest::new);
         this.settings = settings;
         this.usersStore = usersStore;
         this.reservedRealm = reservedRealm;

@@ -7,13 +7,14 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.StreamableTransportMasterNodeAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -24,7 +25,9 @@ import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.ml.job.JobManager;
 
-public class TransportPutJobAction extends StreamableTransportMasterNodeAction<PutJobAction.Request, PutJobAction.Response> {
+import java.io.IOException;
+
+public class TransportPutJobAction extends TransportMasterNodeAction<PutJobAction.Request, PutJobAction.Response> {
 
     private final JobManager jobManager;
     private final XPackLicenseState licenseState;
@@ -35,8 +38,8 @@ public class TransportPutJobAction extends StreamableTransportMasterNodeAction<P
                                  ThreadPool threadPool, XPackLicenseState licenseState, ActionFilters actionFilters,
                                  IndexNameExpressionResolver indexNameExpressionResolver, JobManager jobManager,
                                  AnalysisRegistry analysisRegistry) {
-        super(PutJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, PutJobAction.Request::new);
+        super(PutJobAction.NAME, transportService, clusterService, threadPool, actionFilters, PutJobAction.Request::new,
+            indexNameExpressionResolver);
         this.licenseState = licenseState;
         this.jobManager = jobManager;
         this.analysisRegistry = analysisRegistry;
@@ -48,8 +51,8 @@ public class TransportPutJobAction extends StreamableTransportMasterNodeAction<P
     }
 
     @Override
-    protected PutJobAction.Response newResponse() {
-        return new PutJobAction.Response();
+    protected PutJobAction.Response read(StreamInput in) throws IOException {
+        return new PutJobAction.Response(in);
     }
 
     @Override

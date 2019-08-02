@@ -35,7 +35,7 @@ public final class TransportSamlPrepareAuthenticationAction
 
     @Inject
     public TransportSamlPrepareAuthenticationAction(TransportService transportService, ActionFilters actionFilters, Realms realms) {
-        super(SamlPrepareAuthenticationAction.NAME, transportService, SamlPrepareAuthenticationRequest::new, actionFilters
+        super(SamlPrepareAuthenticationAction.NAME, transportService, actionFilters, SamlPrepareAuthenticationRequest::new
         );
         this.realms = realms;
     }

@@ -35,12 +35,17 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.GZIPInputStream;
@@ -124,9 +129,9 @@ public class GoogleCloudStorageFixture extends AbstractHttpFixture {
                 return newError(RestStatus.NOT_FOUND, "bucket not found");
             }
 
-            for (final Map.Entry<String, byte[]> object : bucket.objects.entrySet()) {
+            for (final Map.Entry<String, Item> object : bucket.objects.entrySet()) {
                 if (object.getKey().equals(objectName)) {
-                    return newResponse(RestStatus.OK, emptyMap(), buildObjectResource(bucket.name, objectName, object.getValue()));
+                    return newResponse(RestStatus.OK, emptyMap(), buildObjectResource(bucket.name, object.getValue()));
                 }
             }
             return newError(RestStatus.NOT_FOUND, "object not found");
@@ -146,8 +151,8 @@ public class GoogleCloudStorageFixture extends AbstractHttpFixture {
                 return newError(RestStatus.NOT_FOUND, "bucket not found");
             }
 
-            final byte[] bytes = bucket.objects.remove(objectName);
-            if (bytes != null) {
+            final Item item = bucket.objects.remove(objectName);
+            if (item != null) {
                 return new Response(RestStatus.NO_CONTENT.getStatus(), TEXT_PLAIN_CONTENT_TYPE, EMPTY_BYTE);
             }
             return newError(RestStatus.NOT_FOUND, "object not found");
@@ -169,7 +174,7 @@ public class GoogleCloudStorageFixture extends AbstractHttpFixture {
                     return newError(RestStatus.NOT_FOUND, "bucket not found");
                 }
                 if ("0".equals(ifGenerationMatch)) {
-                    if (bucket.objects.putIfAbsent(objectName, EMPTY_BYTE) == null) {
+                    if (bucket.objects.putIfAbsent(objectName, Item.empty(objectName)) == null) {
                         final String location = /*endpoint +*/ "/upload/storage/v1/b/" + bucket.name + "/o?uploadType=resumable&upload_id="
                             + objectName;
                         return newResponse(RestStatus.CREATED, singletonMap("Location", location), jsonBuilder());
@@ -177,7 +182,7 @@ public class GoogleCloudStorageFixture extends AbstractHttpFixture {
                         return newError(RestStatus.PRECONDITION_FAILED, "object already exist");
                     }
                 } else {
-                    bucket.objects.put(objectName, EMPTY_BYTE);
+                    bucket.objects.put(objectName, Item.empty(objectName));
                     final String location = /*endpoint +*/ "/upload/storage/v1/b/" + bucket.name + "/o?uploadType=resumable&upload_id="
                         + objectName;
                     return newResponse(RestStatus.CREATED, singletonMap("Location", location), jsonBuilder());
@@ -298,7 +303,7 @@ public class GoogleCloudStorageFixture extends AbstractHttpFixture {
                     }
                     final byte[] objectData = Arrays.copyOf(temp, temp.length - trailingEnding.length);
                     if ((objectName != null) && (bucketName != null) && (objectData != null)) {
-                        bucket.objects.put(objectName, objectData);
+                        bucket.objects.put(objectName, new Item(objectName, objectData));
                         return new Response(RestStatus.OK.getStatus(), JSON_CONTENT_TYPE, metadata);
                     } else {
                         return newError(RestStatus.INTERNAL_SERVER_ERROR, "error parsing multipart request");
@@ -327,8 +332,10 @@ public class GoogleCloudStorageFixture extends AbstractHttpFixture {
                 return newError(RestStatus.NOT_FOUND, "object name not found");
             }
 
-            bucket.objects.put(objectId, request.getBody());
-            return newResponse(RestStatus.OK, emptyMap(), buildObjectResource(bucket.name, objectId, request.getBody()));
+            final Item item = new Item(objectId, request.getBody());
+
+            bucket.objects.put(objectId, item);
+            return newResponse(RestStatus.OK, emptyMap(), buildObjectResource(bucket.name, item));
         });
 
         // List Objects
@@ -343,17 +350,39 @@ public class GoogleCloudStorageFixture extends AbstractHttpFixture {
             final XContentBuilder builder = jsonBuilder();
             builder.startObject();
             builder.field("kind", "storage#objects");
+            final Set<String> prefixes = new HashSet<>();
             {
                 builder.startArray("items");
 
                 final String prefixParam = request.getParam("prefix");
-                for (final Map.Entry<String, byte[]> object : bucket.objects.entrySet()) {
-                    if ((prefixParam != null) && (object.getKey().startsWith(prefixParam) == false)) {
+                final String delimiter = request.getParam("delimiter");
+
+                for (final Map.Entry<String, Item> object : bucket.objects.entrySet()) {
+                    String objectKey = object.getKey();
+                    if ((prefixParam != null) && (objectKey.startsWith(prefixParam) == false)) {
                         continue;
                     }
-                    buildObjectResource(builder, bucket.name, object.getKey(), object.getValue());
+
+                    if (Strings.isNullOrEmpty(delimiter)) {
+                        buildObjectResource(builder, bucket.name, object.getValue());
+                    } else {
+                        int prefixLength = prefixParam.length();
+                        String rest = objectKey.substring(prefixLength);
+                        int delimiterPos;
+                        if ((delimiterPos = rest.indexOf(delimiter)) != -1) {
+                            String key = objectKey.substring(0, prefixLength + delimiterPos + 1);
+                            prefixes.add(key);
+                        } else {
+                            buildObjectResource(builder, bucket.name, object.getValue());
+                        }
+                    }
                 }
                 builder.endArray();
+            }
+            {
+                if (prefixes.isEmpty() == false) {
+                    builder.array("prefixes", prefixes.toArray());
+                }
             }
             builder.endObject();
             return newResponse(RestStatus.OK, emptyMap(), builder);
@@ -377,7 +406,7 @@ public class GoogleCloudStorageFixture extends AbstractHttpFixture {
                 return newError(RestStatus.NOT_FOUND, "object name not found");
             }
 
-            return new Response(RestStatus.OK.getStatus(), contentType("application/octet-stream"), bucket.objects.get(object));
+            return new Response(RestStatus.OK.getStatus(), contentType("application/octet-stream"), bucket.objects.get(object).bytes);
         });
 
         // Batch
@@ -520,11 +549,27 @@ public class GoogleCloudStorageFixture extends AbstractHttpFixture {
         final String name;
 
         /** Blobs contained in the bucket **/
-        final Map<String, byte[]> objects;
+        final Map<String, Item> objects;
 
         Bucket(final String name) {
             this.name = Objects.requireNonNull(name);
             this.objects = ConcurrentCollections.newConcurrentMap();
+        }
+    }
+
+    static class Item {
+        final String name;
+        final LocalDateTime created;
+        final byte[] bytes;
+
+        Item(String name, byte[] bytes) {
+            this.name = name;
+            this.bytes = bytes;
+            this.created = LocalDateTime.now(ZoneOffset.UTC);
+        }
+
+        public static Item empty(String name) {
+            return new Item(name, EMPTY_BYTE);
         }
     }
 
@@ -588,8 +633,8 @@ public class GoogleCloudStorageFixture extends AbstractHttpFixture {
      * Storage Object JSON representation as defined in
      * https://cloud.google.com/storage/docs/json_api/v1/objects#resource
      */
-    private static XContentBuilder buildObjectResource(final String bucket, final String name, final byte[] bytes) throws IOException {
-        return buildObjectResource(jsonBuilder(), bucket, name, bytes);
+    private static XContentBuilder buildObjectResource(final String bucket, final Item item) throws IOException {
+        return buildObjectResource(jsonBuilder(), bucket, item);
     }
 
     /**
@@ -598,14 +643,14 @@ public class GoogleCloudStorageFixture extends AbstractHttpFixture {
      */
     private static XContentBuilder buildObjectResource(final XContentBuilder builder,
                                                        final String bucket,
-                                                       final String name,
-                                                       final byte[] bytes) throws IOException {
+                                                       final Item item) throws IOException {
         return builder.startObject()
                             .field("kind", "storage#object")
-                            .field("id", String.join("/", bucket, name))
-                            .field("name", name)
+                            .field("id", String.join("/", bucket, item.name))
+                            .field("name", item.name)
+                            .field("timeCreated", DateTimeFormatter.ISO_LOCAL_DATE_TIME.format(item.created))
                             .field("bucket", bucket)
-                            .field("size", String.valueOf(bytes.length))
+                            .field("size", String.valueOf(item.bytes.length))
                         .endObject();
     }
 }

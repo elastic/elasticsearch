@@ -29,7 +29,7 @@ public class TransportGetRoleMappingsAction
     @Inject
     public TransportGetRoleMappingsAction(ActionFilters actionFilters, TransportService transportService,
                                           NativeRoleMappingStore nativeRoleMappingStore) {
-        super(GetRoleMappingsAction.NAME, transportService, GetRoleMappingsRequest::new, actionFilters);
+        super(GetRoleMappingsAction.NAME, transportService, actionFilters, GetRoleMappingsRequest::new);
         this.roleMappingStore = nativeRoleMappingStore;
     }
 

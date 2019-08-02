@@ -30,7 +30,7 @@ public class TransportPostStartBasicAction extends TransportMasterNodeAction<Pos
                                          LicenseService licenseService, ThreadPool threadPool, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver) {
         super(PostStartBasicAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, PostStartBasicRequest::new);
+                PostStartBasicRequest::new, indexNameExpressionResolver);
         this.licenseService = licenseService;
     }
 

@@ -45,8 +45,8 @@ public class AsyncRecoveryTarget implements RecoveryTargetHandler {
     }
 
     @Override
-    public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps, ActionListener<Void> listener) {
-        executor.execute(() -> target.prepareForTranslogOperations(fileBasedRecovery, totalTranslogOps, listener));
+    public void prepareForTranslogOperations(int totalTranslogOps, ActionListener<Void> listener) {
+        executor.execute(() -> target.prepareForTranslogOperations(totalTranslogOps, listener));
     }
 
     @Override
@@ -83,7 +83,6 @@ public class AsyncRecoveryTarget implements RecoveryTargetHandler {
     @Override
     public void writeFileChunk(StoreFileMetaData fileMetaData, long position, BytesReference content,
                                boolean lastChunk, int totalTranslogOps, ActionListener<Void> listener) {
-        // TODO: remove this clone once we send file chunk async
         final BytesReference copy = new BytesArray(BytesRef.deepCopyOf(content.toBytesRef()));
         executor.execute(() -> target.writeFileChunk(fileMetaData, position, copy, lastChunk, totalTranslogOps, listener));
     }

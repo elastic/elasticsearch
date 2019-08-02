@@ -86,6 +86,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         Queue<SearchRequestSlot> searchRequestSlots = new ConcurrentLinkedQueue<>();
         for (int i = 0; i < request.requests().size(); i++) {
             SearchRequest searchRequest = request.requests().get(i);
+            searchRequest.setParentTask(client.getLocalNodeId(), task.getId());
             searchRequestSlots.add(new SearchRequestSlot(searchRequest, i));
         }
 

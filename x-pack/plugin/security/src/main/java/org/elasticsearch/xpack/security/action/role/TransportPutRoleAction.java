@@ -23,7 +23,7 @@ public class TransportPutRoleAction extends HandledTransportAction<PutRoleReques
 
     @Inject
     public TransportPutRoleAction(ActionFilters actionFilters, NativeRolesStore rolesStore, TransportService transportService) {
-        super(PutRoleAction.NAME, transportService, PutRoleRequest::new, actionFilters);
+        super(PutRoleAction.NAME, transportService, actionFilters, PutRoleRequest::new);
         this.rolesStore = rolesStore;
     }
 

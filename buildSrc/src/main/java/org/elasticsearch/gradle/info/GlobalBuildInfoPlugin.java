@@ -42,7 +42,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
 
         File compilerJavaHome = findCompilerJavaHome();
         File runtimeJavaHome = findRuntimeJavaHome(compilerJavaHome);
-        String gitRevision = gitRevision(project);
+        final String gitRevision = gitRevision(project);
 
         final List<JavaHome> javaVersions = new ArrayList<>();
         for (int version = 8; version <= Integer.parseInt(minimumCompilerVersion.getMajorVersion()); version++) {
@@ -205,9 +205,9 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     }
 
     private String gitRevision(final Project project) {
-        ByteArrayOutputStream stdout = new ByteArrayOutputStream();
-        ByteArrayOutputStream stderr = new ByteArrayOutputStream();
-        ExecResult result = project.exec(spec -> {
+        final ByteArrayOutputStream stdout = new ByteArrayOutputStream();
+        final ByteArrayOutputStream stderr = new ByteArrayOutputStream();
+        final ExecResult result = project.exec(spec -> {
             spec.setExecutable("git");
             spec.setArgs(Arrays.asList("rev-parse", "HEAD"));
             spec.setStandardOutput(stdout);

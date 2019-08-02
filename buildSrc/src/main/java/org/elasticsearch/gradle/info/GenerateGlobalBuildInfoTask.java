@@ -148,7 +148,7 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
         JavaVersion runtimeJavaVersionEnum = JavaVersion.current();
         File gradleJavaHome = Jvm.current().getJavaHome();
         boolean inFipsJvm = false;
-        String gitRevsion = gitRevision();
+        final String gitRevision = gitRevision();
 
         try {
             if (Files.isSameFile(compilerJavaHome.toPath(), gradleJavaHome.toPath()) == false) {
@@ -194,7 +194,7 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
                     + " (" + gradleJavaVersionDetails + ")\n");
                 writer.write("  JAVA_HOME             : " + gradleJavaHome + "\n");
             }
-            writer.write("  Git Revision          : " + gitRevsion);
+            writer.write("  Git Revision          : " + gitRevision);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -235,7 +235,7 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
         writeToFile(compilerVersionFile.getAsFile().get(), compilerJavaVersionEnum.name());
         writeToFile(runtimeVersionFile.getAsFile().get(), runtimeJavaVersionEnum.name());
         writeToFile(fipsJvmFile.getAsFile().get(), Boolean.toString(inFipsJvm));
-        writeToFile(gitRevisionFile.getAsFile().get(), gitRevsion);
+        writeToFile(gitRevisionFile.getAsFile().get(), gitRevision);
     }
 
     private void writeToFile(File file, String content) {

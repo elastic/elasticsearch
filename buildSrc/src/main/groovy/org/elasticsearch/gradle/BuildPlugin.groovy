@@ -24,8 +24,6 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import groovy.transform.CompileDynamic
 import groovy.transform.CompileStatic
 import org.apache.commons.io.IOUtils
-import org.eclipse.jgit.lib.Constants
-import org.eclipse.jgit.lib.RepositoryBuilder
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin
 import org.elasticsearch.gradle.info.GlobalInfoExtension
 import org.elasticsearch.gradle.info.JavaHome
@@ -711,26 +709,13 @@ class BuildPlugin implements Plugin<Project> {
                 // after the doFirst added by the info plugin, and we can override attributes
                 JavaVersion compilerJavaVersion = ext.get('compilerJavaVersion') as JavaVersion
                 jarTask.manifest.attributes(
+                        // TODO: remove using the short hash
+                        'Change': ((String)ext.get('gitRevision')).substring(0, 7),
                         'X-Compile-Elasticsearch-Version': VersionProperties.elasticsearch,
                         'X-Compile-Lucene-Version': VersionProperties.lucene,
                         'X-Compile-Elasticsearch-Snapshot': VersionProperties.isElasticsearchSnapshot(),
                         'Build-Date': ZonedDateTime.now(ZoneOffset.UTC),
                         'Build-Java-Version': compilerJavaVersion)
-                if (jarTask.manifest.attributes.containsKey('Change') == false) {
-                    jarTask.logger.warn('Building without git revision id.')
-                    jarTask.manifest.attributes('Change': 'Unknown')
-                } else {
-                    /*
-                     * The info-scm plugin assumes that if GIT_COMMIT is set it was set by Jenkins to the commit hash for this build.
-                     * However, that assumption is wrong as this build could be a sub-build of another Jenkins build for which GIT_COMMIT
-                     * is the commit hash for that build. Therefore, if GIT_COMMIT is set we calculate the commit hash ourselves.
-                     */
-                    if (System.getenv("GIT_COMMIT") != null) {
-                        final String hash = new RepositoryBuilder().findGitDir(project.buildDir).build().resolve(Constants.HEAD).name
-                        final String shortHash = hash?.substring(0, 7)
-                        jarTask.manifest.attributes('Change': shortHash)
-                    }
-                }
             }
 
             // add license/notice files

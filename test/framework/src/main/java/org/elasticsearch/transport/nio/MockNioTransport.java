@@ -230,7 +230,7 @@ public class MockNioTransport extends TcpTransport {
 
         @Override
         public MockServerChannel createServerChannel(NioSelector selector, ServerSocketChannel channel) {
-            MockServerChannel nioServerChannel = new MockServerChannel(profileName, channel);
+            MockServerChannel nioServerChannel = new MockServerChannel(channel);
             Consumer<Exception> exceptionHandler = (e) -> logger.error(() ->
                 new ParameterizedMessage("exception from server channel caught on transport layer [{}]", channel), e);
             ServerChannelContext context = new ServerChannelContext(nioServerChannel, null, selector, null,
@@ -272,21 +272,13 @@ public class MockNioTransport extends TcpTransport {
 
     private static class MockServerChannel extends NioServerSocketChannel implements TcpServerChannel {
 
-        private final String profile;
-
-        MockServerChannel(String profile, ServerSocketChannel channel) {
+        MockServerChannel(ServerSocketChannel channel) {
             super(channel);
-            this.profile = profile;
         }
 
         @Override
         public void close() {
             getContext().closeChannel();
-        }
-
-        @Override
-        public String getProfile() {
-            return profile;
         }
 
         @Override

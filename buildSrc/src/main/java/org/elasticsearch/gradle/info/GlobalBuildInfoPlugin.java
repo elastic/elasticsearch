@@ -7,6 +7,7 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.internal.jvm.Jvm;
+import org.gradle.process.ExecResult;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
@@ -21,6 +22,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private static final String GLOBAL_INFO_EXTENSION_NAME = "globalInfo";
@@ -39,6 +42,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
 
         File compilerJavaHome = findCompilerJavaHome();
         File runtimeJavaHome = findRuntimeJavaHome(compilerJavaHome);
+        final String gitRevision = gitRevision(project);
 
         final List<JavaHome> javaVersions = new ArrayList<>();
         for (int version = 8; version <= Integer.parseInt(minimumCompilerVersion.getMajorVersion()); version++) {
@@ -54,10 +58,12 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
                 task.setMinimumRuntimeVersion(minimumRuntimeVersion);
                 task.setCompilerJavaHome(compilerJavaHome);
                 task.setRuntimeJavaHome(runtimeJavaHome);
+                task.setGitRevision(gitRevision);
                 task.getOutputFile().set(new File(project.getBuildDir(), "global-build-info"));
                 task.getCompilerVersionFile().set(new File(project.getBuildDir(), "java-compiler-version"));
                 task.getRuntimeVersionFile().set(new File(project.getBuildDir(), "java-runtime-version"));
                 task.getFipsJvmFile().set(new File(project.getBuildDir(), "in-fips-jvm"));
+                task.getGitRevisionFile().set(new File(project.getBuildDir(), "git-revision"));
             });
 
         PrintGlobalBuildInfoTask printTask = project.getTasks().create("printGlobalBuildInfo", PrintGlobalBuildInfoTask.class, task -> {
@@ -65,6 +71,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             task.getCompilerVersionFile().set(generateTask.getCompilerVersionFile());
             task.getRuntimeVersionFile().set(generateTask.getRuntimeVersionFile());
             task.getFipsJvmFile().set(generateTask.getFipsJvmFile());
+            task.getGitRevisionFile().set(generateTask.getGitRevisionFile());
             task.setGlobalInfoListeners(extension.listeners);
         });
 
@@ -87,6 +94,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             ext.set("minimumCompilerVersion", minimumCompilerVersion);
             ext.set("minimumRuntimeVersion", minimumRuntimeVersion);
             ext.set("gradleJavaVersion", Jvm.current().getJavaVersion());
+            ext.set("gitRevision", gitRevision);
         });
     }
 
@@ -195,4 +203,22 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
 
         return _defaultParallel;
     }
+
+    private String gitRevision(final Project project) {
+        final ByteArrayOutputStream stdout = new ByteArrayOutputStream();
+        final ByteArrayOutputStream stderr = new ByteArrayOutputStream();
+        final ExecResult result = project.exec(spec -> {
+            spec.setExecutable("git");
+            spec.setArgs(Arrays.asList("rev-parse", "HEAD"));
+            spec.setStandardOutput(stdout);
+            spec.setErrorOutput(stderr);
+            spec.setIgnoreExitValue(true);
+        });
+
+        if (result.getExitValue() != 0) {
+            return "unknown";
+        }
+        return stdout.toString(UTF_8).trim();
+    }
+
 }

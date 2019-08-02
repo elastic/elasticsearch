@@ -22,24 +22,21 @@ bucket results of multiple jobs.
 You can summarize the bucket results for all jobs by using `_all` or by
 specifying `*` as the `<job_id>`.
 
-An overall bucket has a span equal to the largest `bucket_span` value for the
-specified jobs.
+By default, an overall bucket has a span equal to the largest bucket span of the
+specified jobs. To override that behavior, use the optional
+`bucket_span` parameter. To learn more about the concept of buckets, see
+{stack-ov}/ml-buckets.html[Buckets].
 
-The `overall_score` is calculated by combining the scores of all
-the buckets within the overall bucket span. First, the maximum `anomaly_score` per
-job in the overall bucket is calculated. Then the `top_n` of those scores are
+The `overall_score` is calculated by combining the scores of all the buckets
+within the overall bucket span. First, the maximum `anomaly_score` per job in
+the overall bucket is calculated. Then the `top_n` of those scores are
 averaged to result in the `overall_score`. This means that you can fine-tune
-the `overall_score` so that it is more or less sensitive to the number
-of jobs that detect an anomaly at the same time. For example, if you set `top_n`
-to `1`, the `overall_score` is the maximum bucket
-score in the overall bucket. Alternatively, if you set `top_n` to the number of
-jobs, the `overall_score` is high only when all jobs detect anomalies in that
-overall bucket.
-
-In addition, the optional parameter `bucket_span` may be used in order
-to request overall buckets that span longer than the largest job's `bucket_span`.
-When set, the `overall_score` will be the max `overall_score` of the corresponding
-overall buckets with a span equal to the largest job's `bucket_span`.
+the `overall_score` so that it is more or less sensitive to the number of jobs
+that detect an anomaly at the same time. For example, if you set `top_n`
+to `1`, the `overall_score` is the maximum bucket score in the overall bucket. Alternatively, if you set `top_n` to the number of jobs, the `overall_score` is
+high only when all jobs detect anomalies in that overall bucket. If you set the `bucket_span` parameter (to a value greater than its default), the
+`overall_score` is the maximum `overall_score` of the overall buckets that have
+a span equal to the jobs' largest bucket span.
 
 ==== Path Parameters
 
@@ -55,8 +52,8 @@ overall buckets with a span equal to the largest job's `bucket_span`.
 
 `bucket_span`::
   (string) The span of the overall buckets. Must be greater or equal
-  to the largest job's `bucket_span`. Defaults to the largest job's `bucket_span`.
-
+  to the largest bucket span of the specified jobs, which is the default value.
+  
 `end`::
   (string) Returns overall buckets with timestamps earlier than this time.
 

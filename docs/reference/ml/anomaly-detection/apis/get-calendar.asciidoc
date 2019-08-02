@@ -59,7 +59,8 @@ The API returns the following information:
     (string) A numerical character string that uniquely identifies the calendar.
 
   `job_ids`:::
-    (array) An array of job identifiers. For example: `["total-requests"]`.
+    (array) An array of {anomaly-job} identifiers. For example:
+    `["total-requests"]`.
 
 [[ml-get-calendar-example]]
 ==== {api-examples-title}

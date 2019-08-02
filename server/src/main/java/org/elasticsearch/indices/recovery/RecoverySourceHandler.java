@@ -283,8 +283,7 @@ public class RecoverySourceHandler {
             sendFileStep.whenComplete(r -> {
                 assert Transports.assertNotTransportThread(RecoverySourceHandler.this + "[prepareTargetForTranslog]");
                 // For a sequence based recovery, the target can keep its local translog
-                prepareTargetForTranslog(isSequenceNumberBasedRecovery == false,
-                    shard.estimateNumberOfHistoryOperations("peer-recovery", startingSeqNo), prepareEngineStep);
+                prepareTargetForTranslog(shard.estimateNumberOfHistoryOperations("peer-recovery", startingSeqNo), prepareEngineStep);
             }, onFailure);
 
             prepareEngineStep.whenComplete(prepareEngineTime -> {
@@ -599,7 +598,7 @@ public class RecoverySourceHandler {
         return true;
     }
 
-    void prepareTargetForTranslog(boolean fileBasedRecovery, int totalTranslogOps, ActionListener<TimeValue> listener) {
+    void prepareTargetForTranslog(int totalTranslogOps, ActionListener<TimeValue> listener) {
         StopWatch stopWatch = new StopWatch().start();
         final ActionListener<Void> wrappedListener = ActionListener.wrap(
             nullVal -> {
@@ -613,7 +612,7 @@ public class RecoverySourceHandler {
         // garbage collection (not the JVM's GC!) of tombstone deletes.
         logger.trace("recovery [phase1]: prepare remote engine for translog");
         cancellableThreads.execute(() ->
-            recoveryTarget.prepareForTranslogOperations(fileBasedRecovery, totalTranslogOps, wrappedListener));
+            recoveryTarget.prepareForTranslogOperations(totalTranslogOps, wrappedListener));
     }
 
     /**

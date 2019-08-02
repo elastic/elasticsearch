@@ -2727,8 +2727,8 @@ public class IndexShardTests extends IndexShardTestCase {
             new RecoveryTarget(shard, discoveryNode, recoveryListener) {
             // we're only checking that listeners are called when the engine is open, before there is no point
                 @Override
-                public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps, ActionListener<Void> listener) {
-                    super.prepareForTranslogOperations(fileBasedRecovery, totalTranslogOps,
+                public void prepareForTranslogOperations(int totalTranslogOps, ActionListener<Void> listener) {
+                    super.prepareForTranslogOperations(totalTranslogOps,
                         ActionListener.wrap(
                             r -> {
                                 assertListenerCalled.accept(replica);

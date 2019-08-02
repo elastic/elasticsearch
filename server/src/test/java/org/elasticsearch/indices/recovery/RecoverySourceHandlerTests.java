@@ -475,9 +475,9 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             }
 
             @Override
-            void prepareTargetForTranslog(boolean fileBasedRecovery, int totalTranslogOps, ActionListener<TimeValue> listener) {
+            void prepareTargetForTranslog(int totalTranslogOps, ActionListener<TimeValue> listener) {
                 prepareTargetForTranslogCalled.set(true);
-                super.prepareTargetForTranslog(fileBasedRecovery, totalTranslogOps, listener);
+                super.prepareTargetForTranslog(totalTranslogOps, listener);
             }
 
             @Override
@@ -778,7 +778,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
 
     class TestRecoveryTargetHandler implements RecoveryTargetHandler {
         @Override
-        public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps, ActionListener<Void> listener) {
+        public void prepareForTranslogOperations(int totalTranslogOps, ActionListener<Void> listener) {
         }
 
         @Override

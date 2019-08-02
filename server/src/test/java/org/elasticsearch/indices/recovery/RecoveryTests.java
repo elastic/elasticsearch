@@ -340,8 +340,8 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
         updateMappings(replicaShard, primaryShard.indexSettings().getIndexMetaData());
         recoverReplica(replicaShard, primaryShard, (r, sourceNode) -> new RecoveryTarget(r, sourceNode, recoveryListener) {
             @Override
-            public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps, ActionListener<Void> listener) {
-                super.prepareForTranslogOperations(fileBasedRecovery, totalTranslogOps, listener);
+            public void prepareForTranslogOperations(int totalTranslogOps, ActionListener<Void> listener) {
+                super.prepareForTranslogOperations(totalTranslogOps, listener);
                 assertThat(replicaShard.getLastKnownGlobalCheckpoint(), equalTo(primaryShard.getLastKnownGlobalCheckpoint()));
             }
             @Override

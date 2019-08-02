@@ -50,6 +50,7 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.AllocationId;
@@ -672,7 +673,7 @@ public abstract class EngineTestCase extends ESTestCase {
                     SequenceNumbers.NO_OPS_PERFORMED,
                     update -> {},
                     () -> 0L,
-                    (leases, listener) -> {});
+                    (leases, listener) -> listener.onResponse(new ReplicationResponse()));
             globalCheckpointSupplier = replicationTracker;
             retentionLeasesSupplier = replicationTracker::getRetentionLeases;
         } else {

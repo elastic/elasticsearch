@@ -19,25 +19,18 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=name]
 [[cat-alias-api-query-params]]
 ==== {api-query-parms-title}
 
-// Format
 include::{docdir}/rest-api/common-parms.asciidoc[tag=http-format]
 
-// Local
 include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
 
-// Master timeout
 include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
-// h
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-h]
 
-// Help
 include::{docdir}/rest-api/common-parms.asciidoc[tag=help]
 
-// s
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
 
-// v
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 

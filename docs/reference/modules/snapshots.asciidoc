@@ -1,3 +1,4 @@
+
 [[modules-snapshots]]
 == Snapshot And Restore
 
@@ -216,8 +217,7 @@ The following settings are supported:
 [horizontal]
 `location`:: Location of the snapshots. Mandatory.
 `compress`:: Turns on compression of the snapshot files. Compression is applied only to metadata files (index mapping and settings). Data files are not compressed. Defaults to `true`.
-`chunk_size`:: Big files can be broken down into chunks during snapshotting if needed. The chunk size can be specified in bytes or by
- using size value notation, i.e. 1g, 10m, 5k. Defaults to `null` (unlimited chunk size).
+`chunk_size`:: Big files can be broken down into chunks during snapshotting if needed. The chunk size can be specified in bytes for e.g. 1024B for a 1 KB data.Alternatively chunk size can also be specified using size value notation e.g. `1GB`, `10MB`, `5KB`. Defaults to `null` (unlimited chunk size).
 `max_restore_bytes_per_sec`:: Throttles per node restore rate. Defaults to `40mb` per second.
 `max_snapshot_bytes_per_sec`:: Throttles per node snapshot rate. Defaults to `40mb` per second.
 `readonly`:: Makes repository read-only.  Defaults to `false`.

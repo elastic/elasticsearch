@@ -22,6 +22,7 @@ package org.elasticsearch.gradle.vagrant;
 import org.apache.commons.io.output.TeeOutputStream;
 import org.elasticsearch.gradle.LoggedExec;
 import org.elasticsearch.gradle.LoggingOutputStream;
+import org.elasticsearch.gradle.ReaperService;
 import org.elasticsearch.gradle.Util;
 import org.gradle.api.Action;
 import org.gradle.api.Project;
@@ -44,15 +45,17 @@ import java.util.function.UnaryOperator;
  */
 public class VagrantMachine {
 
-    private Project project;
-    private VagrantExtension extension;
+    private final Project project;
+    private final VagrantExtension extension;
+    private final ReaperService reaper;
     // pkg private so plugin can set this after construction
     long refs;
     private boolean isVMStarted = false;
 
-    public VagrantMachine(Project project, VagrantExtension extension) {
+    public VagrantMachine(Project project, VagrantExtension extension, ReaperService reaper) {
         this.project = project;
         this.extension = extension;
+        this.reaper = reaper;
     }
 
     @Inject
@@ -115,6 +118,9 @@ public class VagrantMachine {
             });
         }
 
+        // register box to be shutdown if gradle dies
+        reaper.registerCommand(extension.getBox(), "vagrant", "halt", "-f", extension.getBox());
+
         // We lock the provider to virtualbox because the Vagrantfile specifies lots of boxes that only work
         // properly in virtualbox. Virtualbox is vagrant's default but its possible to change that default and folks do.
         execute(spec -> {
@@ -130,6 +136,7 @@ public class VagrantMachine {
         this.refs--;
         if ((refs == 0 || force) && isVMStarted) {
             execute(spec -> spec.setCommand("halt"));
+            reaper.unregister(extension.getBox());
         }
     }
 

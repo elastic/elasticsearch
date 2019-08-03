@@ -19,6 +19,8 @@
 
 package org.elasticsearch.gradle.vagrant;
 
+import org.elasticsearch.gradle.ReaperPlugin;
+import org.elasticsearch.gradle.ReaperService;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
@@ -41,9 +43,11 @@ public class VagrantBasePlugin implements Plugin<Project> {
     public void apply(Project project) {
         project.getRootProject().getPluginManager().apply(VagrantSetupCheckerPlugin.class);
         project.getRootProject().getPluginManager().apply(VagrantManagerPlugin.class);
+        project.getRootProject().getPluginManager().apply(ReaperPlugin.class);
 
+        ReaperService reaper = project.getRootProject().getExtensions().getByType(ReaperService.class);
         VagrantExtension extension = project.getExtensions().create("vagrant", VagrantExtension.class, project);
-        VagrantMachine service = project.getExtensions().create("vagrantService", VagrantMachine.class, project, extension);
+        VagrantMachine service = project.getExtensions().create("vagrantService", VagrantMachine.class, project, extension, reaper);
 
         project.getGradle().getTaskGraph().whenReady(graph ->
             service.refs = graph.getAllTasks().stream()

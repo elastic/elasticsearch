@@ -709,8 +709,7 @@ class BuildPlugin implements Plugin<Project> {
                 // after the doFirst added by the info plugin, and we can override attributes
                 JavaVersion compilerJavaVersion = ext.get('compilerJavaVersion') as JavaVersion
                 jarTask.manifest.attributes(
-                        // TODO: remove using the short hash
-                        'Change': ((String)ext.get('gitRevision')).substring(0, 7),
+                        'Change': ext.get('gitRevision'),
                         'X-Compile-Elasticsearch-Version': VersionProperties.elasticsearch,
                         'X-Compile-Lucene-Version': VersionProperties.lucene,
                         'X-Compile-Elasticsearch-Snapshot': VersionProperties.isElasticsearchSnapshot(),

@@ -174,7 +174,8 @@ public class DistroTestPlugin implements Plugin<Project> {
             TaskInputs inputs = t.getInputs();
             inputs.property("version", VersionProperties.getElasticsearch());
             inputs.property("upgrade_from_version", upgradeFromVersion);
-            inputs.property("bwc_versions", bwcVersions);
+            // TODO: this is serializable, need to think how to represent this as an input
+            //inputs.property("bwc_versions", bwcVersions);
             t.doLast(action -> {
                 try {
                     Files.writeString(archivesPath.resolve("version"), VersionProperties.getElasticsearch());

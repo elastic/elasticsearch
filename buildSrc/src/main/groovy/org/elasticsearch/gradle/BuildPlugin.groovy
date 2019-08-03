@@ -713,7 +713,7 @@ class BuildPlugin implements Plugin<Project> {
                         'X-Compile-Elasticsearch-Version': VersionProperties.elasticsearch,
                         'X-Compile-Lucene-Version': VersionProperties.lucene,
                         'X-Compile-Elasticsearch-Snapshot': VersionProperties.isElasticsearchSnapshot(),
-                        'Build-Date': ZonedDateTime.now(ZoneOffset.UTC),
+                        'Build-Date': ext.get('buildDate'),
                         'Build-Java-Version': compilerJavaVersion)
             }
 

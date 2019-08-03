@@ -16,6 +16,8 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -95,6 +97,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             ext.set("minimumRuntimeVersion", minimumRuntimeVersion);
             ext.set("gradleJavaVersion", Jvm.current().getJavaVersion());
             ext.set("gitRevision", gitRevision);
+            ext.set("buildDate", ZonedDateTime.now(ZoneOffset.UTC));
         });
     }
 

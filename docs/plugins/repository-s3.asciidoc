@@ -244,9 +244,10 @@ The following settings are supported:
 
 `chunk_size`::
 
-    Big files can be broken down into chunks during snapshotting if needed.  The
-    chunk size can be specified in bytes or by using size value notation, i.e.
-    `1gb`, `10mb`, `5kb`. Defaults to `1gb`.
+    Big files can be broken down into chunks during snapshotting if needed.
+    The chunk size can be specified in bytes for e.g. 1024B for a 1 KB data. 
+    Alternatively chunk size can also be specified using size value notation 
+    e.g. `1GB`, `10MB`, `5KB`. Defaults to `1gb`.
 
 `compress`::
 

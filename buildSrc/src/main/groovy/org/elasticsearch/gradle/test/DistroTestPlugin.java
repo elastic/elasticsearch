@@ -30,6 +30,7 @@ import org.elasticsearch.gradle.Jdk;
 import org.elasticsearch.gradle.JdkDownloadPlugin;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
+import org.elasticsearch.gradle.tool.Boilerplate;
 import org.elasticsearch.gradle.vagrant.BatsProgressLogger;
 import org.elasticsearch.gradle.vagrant.VagrantBasePlugin;
 import org.elasticsearch.gradle.vagrant.VagrantExtension;
@@ -70,6 +71,8 @@ public class DistroTestPlugin implements Plugin<Project> {
     private static final String IN_VM_SYSPROP = "tests.inVM";
 
     private static Version upgradeVersion;
+    private Provider<Directory> archivesDir;
+    private TaskProvider<Copy> copyPackagingArchives;
 
     @Override
     public void apply(Project project) {
@@ -154,43 +157,43 @@ public class DistroTestPlugin implements Plugin<Project> {
     }
 
     private void configureCopyPackagingTask(Project project) {
+        this.archivesDir = project.getParent().getLayout().getBuildDirectory().dir("packaging/archives");
         // temporary, until we have tasks per distribution
-        TaskProvider<Copy> copyPackagingArchives = project.getTasks().register(COPY_PACKAGING_TASK, Copy.class);
-        copyPackagingArchives.configure(t -> {
-            Provider<Directory> archivesDir = project.getLayout().getBuildDirectory().dir("packaging/archives");
-            t.into(archivesDir);
-            t.from(project.getConfigurations().getByName(PACKAGING_DISTRIBUTION));
+        this.copyPackagingArchives = Boilerplate.maybeRegister(project.getParent().getTasks(), COPY_PACKAGING_TASK, Copy.class,
+            t -> {
+                t.into(archivesDir);
+                t.from(project.getConfigurations().getByName(PACKAGING_DISTRIBUTION));
 
-            Path archivesPath = archivesDir.get().getAsFile().toPath();
+                Path archivesPath = archivesDir.get().getAsFile().toPath();
 
-            // write bwc version, and append -SNAPSHOT if it is an unreleased version
-            ExtraPropertiesExtension extraProperties = project.getExtensions().getByType(ExtraPropertiesExtension.class);
-            BwcVersions bwcVersions = (BwcVersions) extraProperties.get("bwcVersions");
-            final String upgradeFromVersion;
-            if (bwcVersions.unreleasedInfo(upgradeVersion) != null) {
-                upgradeFromVersion = upgradeVersion.toString() + "-SNAPSHOT";
-            } else {
-                upgradeFromVersion = upgradeVersion.toString();
-            }
-            TaskInputs inputs = t.getInputs();
-            inputs.property("version", VersionProperties.getElasticsearch());
-            inputs.property("upgrade_from_version", upgradeFromVersion);
-            // TODO: this is serializable, need to think how to represent this as an input
-            //inputs.property("bwc_versions", bwcVersions);
-            t.doLast(action -> {
-                try {
-                    Files.writeString(archivesPath.resolve("version"), VersionProperties.getElasticsearch());
-                    Files.writeString(archivesPath.resolve("upgrade_from_version"), upgradeFromVersion);
-                    // this is always true, but bats tests rely on it. It is just temporary until bats is removed.
-                    Files.writeString(archivesPath.resolve("upgrade_is_oss"), "");
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
+                // write bwc version, and append -SNAPSHOT if it is an unreleased version
+                ExtraPropertiesExtension extraProperties = project.getExtensions().getByType(ExtraPropertiesExtension.class);
+                BwcVersions bwcVersions = (BwcVersions) extraProperties.get("bwcVersions");
+                final String upgradeFromVersion;
+                if (bwcVersions.unreleasedInfo(upgradeVersion) != null) {
+                    upgradeFromVersion = upgradeVersion.toString() + "-SNAPSHOT";
+                } else {
+                    upgradeFromVersion = upgradeVersion.toString();
                 }
-            });
+                TaskInputs inputs = t.getInputs();
+                inputs.property("version", VersionProperties.getElasticsearch());
+                inputs.property("upgrade_from_version", upgradeFromVersion);
+                // TODO: this is serializable, need to think how to represent this as an input
+                //inputs.property("bwc_versions", bwcVersions);
+                t.doLast(action -> {
+                    try {
+                        Files.writeString(archivesPath.resolve("version"), VersionProperties.getElasticsearch());
+                        Files.writeString(archivesPath.resolve("upgrade_from_version"), upgradeFromVersion);
+                        // this is always true, but bats tests rely on it. It is just temporary until bats is removed.
+                        Files.writeString(archivesPath.resolve("upgrade_is_oss"), "");
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                });
         });
     }
 
-    private static void configureDistroTest(Project project) {
+    private void configureDistroTest(Project project) {
         BuildPlugin.configureCompile(project);
         BuildPlugin.configureRepositories(project);
         BuildPlugin.configureTestTasks(project);
@@ -199,8 +202,9 @@ public class DistroTestPlugin implements Plugin<Project> {
         TaskProvider<Test> destructiveTest = project.getTasks().register("destructiveDistroTest", Test.class,
             t -> {
                 t.setMaxParallelForks(1);
+                t.setWorkingDir(archivesDir.get());
                 if (System.getProperty(IN_VM_SYSPROP) == null) {
-                    t.dependsOn(COPY_PACKAGING_TASK);
+                    t.dependsOn(copyPackagingArchives);
                 }
             });
 
@@ -211,11 +215,11 @@ public class DistroTestPlugin implements Plugin<Project> {
                 t.setDescription("Runs distribution tests within vagrant");
                 t.setTaskName(project.getPath() + ":" + destructiveTest.getName());
                 t.extraArg("-D'" + IN_VM_SYSPROP + "'");
-                t.dependsOn(COPY_PACKAGING_TASK);
+                t.dependsOn(copyPackagingArchives);
             });
     }
 
-    private static void configureBatsTest(Project project, String type) {
+    private void configureBatsTest(Project project, String type) {
 
         // destructive task to run inside
         TaskProvider<BatsTestTask> destructiveTest = project.getTasks().register("destructiveBatsTest." + type, BatsTestTask.class,
@@ -225,10 +229,10 @@ public class DistroTestPlugin implements Plugin<Project> {
                 Directory batsDir = project.getParent().getLayout().getProjectDirectory().dir("bats");
                 t.setTestsDir(batsDir.dir(type));
                 t.setUtilsDir(batsDir.dir("utils"));
-                t.setArchivesDir(project.getLayout().getBuildDirectory().dir("packaging/archives").get());
+                t.setArchivesDir(archivesDir.get());
                 t.setPackageName("elasticsearch" + (type.equals("oss") ? "-oss" : ""));
                 if (System.getProperty(IN_VM_SYSPROP) == null) {
-                    t.dependsOn(COPY_PACKAGING_TASK);
+                    t.dependsOn(copyPackagingArchives);
                 }
             });
 
@@ -241,7 +245,7 @@ public class DistroTestPlugin implements Plugin<Project> {
                 t.setTaskName(project.getPath() + ":" + destructiveTest.getName());
                 t.setProgressHandler(new BatsProgressLogger(project.getLogger()));
                 t.extraArg("-D'" + IN_VM_SYSPROP + "'");
-                t.dependsOn(COPY_PACKAGING_TASK);
+                t.dependsOn(copyPackagingArchives);
                 t.onlyIf(spec -> vagrant.isWindowsVM() == false); // bats doesn't run on windows
             });
     }

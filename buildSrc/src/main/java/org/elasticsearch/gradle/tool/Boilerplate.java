@@ -21,8 +21,12 @@ package org.elasticsearch.gradle.tool;
 import org.gradle.api.Action;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
+import org.gradle.api.Task;
+import org.gradle.api.UnknownTaskException;
 import org.gradle.api.plugins.JavaPluginConvention;
 import org.gradle.api.tasks.SourceSetContainer;
+import org.gradle.api.tasks.TaskContainer;
+import org.gradle.api.tasks.TaskProvider;
 
 import java.util.Optional;
 
@@ -45,6 +49,14 @@ public abstract class Boilerplate {
                 return result;
             });
 
+    }
+
+    public static <T extends Task> TaskProvider<T> maybeRegister(TaskContainer tasks, String name, Class<T> clazz, Action<T> action) {
+        try {
+            return tasks.named(name, clazz);
+        } catch (UnknownTaskException e) {
+            return tasks.register(name, clazz, action);
+        }
     }
 
 }

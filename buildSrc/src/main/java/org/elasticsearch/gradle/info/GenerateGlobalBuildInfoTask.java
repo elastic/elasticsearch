@@ -102,7 +102,7 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
     }
 
     @Input
-    public String gitRevision() {
+    public String getGitRevision() {
         return gitRevision;
     }
 
@@ -148,7 +148,6 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
         JavaVersion runtimeJavaVersionEnum = JavaVersion.current();
         File gradleJavaHome = Jvm.current().getJavaHome();
         boolean inFipsJvm = false;
-        final String gitRevision = gitRevision();
 
         try {
             if (Files.isSameFile(compilerJavaHome.toPath(), gradleJavaHome.toPath()) == false) {

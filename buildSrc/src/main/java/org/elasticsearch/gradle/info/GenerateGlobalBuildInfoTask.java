@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.io.Writer;
 import java.nio.file.Files;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.List;
 
@@ -39,11 +40,13 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
     private File runtimeJavaHome;
     private List<JavaHome> javaVersions;
     private String gitRevision;
+    private ZonedDateTime buildDate;
     private final RegularFileProperty outputFile;
     private final RegularFileProperty compilerVersionFile;
     private final RegularFileProperty runtimeVersionFile;
     private final RegularFileProperty fipsJvmFile;
     private final RegularFileProperty gitRevisionFile;
+    private final RegularFileProperty buildDateFile;
 
     @Inject
     public GenerateGlobalBuildInfoTask(ObjectFactory objectFactory) {
@@ -52,6 +55,7 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
         this.runtimeVersionFile = objectFactory.fileProperty();
         this.fipsJvmFile = objectFactory.fileProperty();
         this.gitRevisionFile = objectFactory.fileProperty();
+        this.buildDateFile = objectFactory.fileProperty();
     }
 
     @Input
@@ -102,12 +106,21 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
     }
 
     @Input
-    public String gitRevision() {
+    public String getGitRevision() {
         return gitRevision;
     }
 
     public void setGitRevision(final String gitRevision) {
         this.gitRevision = gitRevision;
+    }
+
+    @Input
+    public ZonedDateTime getBuildDate() {
+        return buildDate;
+    }
+
+    public void setBuildDate(final ZonedDateTime buildDate) {
+        this.buildDate = buildDate;
     }
 
     @OutputFile
@@ -135,6 +148,11 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
         return gitRevisionFile;
     }
 
+    @OutputFile
+    public RegularFileProperty getBuildDateFile() {
+        return buildDateFile;
+    }
+
     @TaskAction
     public void generate() {
         String javaVendor = System.getProperty("java.vendor");
@@ -148,7 +166,6 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
         JavaVersion runtimeJavaVersionEnum = JavaVersion.current();
         File gradleJavaHome = Jvm.current().getJavaHome();
         boolean inFipsJvm = false;
-        final String gitRevision = gitRevision();
 
         try {
             if (Files.isSameFile(compilerJavaHome.toPath(), gradleJavaHome.toPath()) == false) {
@@ -194,7 +211,8 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
                     + " (" + gradleJavaVersionDetails + ")\n");
                 writer.write("  JAVA_HOME             : " + gradleJavaHome + "\n");
             }
-            writer.write("  Git Revision          : " + gitRevision);
+            writer.write("  Git Revision          : " + gitRevision + "\n");
+            writer.write("  Build Date            : " + buildDate);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -236,6 +254,7 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
         writeToFile(runtimeVersionFile.getAsFile().get(), runtimeJavaVersionEnum.name());
         writeToFile(fipsJvmFile.getAsFile().get(), Boolean.toString(inFipsJvm));
         writeToFile(gitRevisionFile.getAsFile().get(), gitRevision);
+        writeToFile(buildDateFile.getAsFile().get(), buildDate.toString());
     }
 
     private void writeToFile(File file, String content) {

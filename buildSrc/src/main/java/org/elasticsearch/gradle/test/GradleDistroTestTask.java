@@ -74,7 +74,7 @@ public class GradleDistroTestTask extends VagrantShellTask {
         line.append(gradle);
         line.append(" ");
         line.append(taskName);
-        line.append("-Dorg.gradle.logging.level=" + getProject().getGradle().getStartParameter().getLogLevel());
+        line.append(" -Dorg.gradle.logging.level=" + getProject().getGradle().getStartParameter().getLogLevel());
         if (testClass != null) {
             line.append(" --tests=");
             line.append(testClass);

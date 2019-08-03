@@ -5950,7 +5950,7 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     /**
-     * We can trim translog on the primary promotion and peer recovery based on the fact we add operations with either
+     * We can trim translog on primary promotion and peer recovery based on the fact we add operations with either
      * REPLICA or PEER_RECOVERY origin to translog although they already exist in the engine (i.e. hasProcessed() == true).
      * If we decide not to add those already-processed operations to translog, we need to study carefully the consequence
      * of the translog trimming in these two places.
@@ -5966,7 +5966,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
         primaryTerm.set(randomLongBetween(primaryTerm.get(), Long.MAX_VALUE));
         engine.rollTranslogGeneration();
-        engine.trimOperationsFromTranslog(primaryTerm.get(), NO_OPS_PERFORMED);
+        engine.trimOperationsFromTranslog(primaryTerm.get(), NO_OPS_PERFORMED); // trim everything in translog
         try (Translog.Snapshot snapshot = getTranslog(engine).newSnapshot()) {
             assertThat(snapshot.totalOperations(), equalTo(operations.size()));
             assertNull(snapshot.next());

@@ -137,6 +137,7 @@ public class DistroTestPlugin implements Plugin<Project> {
         vagrant.setBox(box);
         vagrant.vmEnv("SYSTEM_JAVA_HOME", convertPath(project, vagrant, systemJdk, "", ""));
         vagrant.vmEnv("PATH", convertPath(project, vagrant, gradleJdk, "/bin:$PATH", "\\bin;$Env:PATH"));
+        vagrant.setIsWindowsVM(box.contains("windows"));
     }
 
     private static Object convertPath(Project project, VagrantExtension vagrant, Jdk jdk,

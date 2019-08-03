@@ -61,7 +61,7 @@ public class GradleDistroTestTask extends VagrantShellTask {
 
     @Override
     protected List<String> getWindowsScript() {
-        return getScript("gradlew");
+        return getScript("& .\\gradlew");
     }
 
     @Override
@@ -74,11 +74,12 @@ public class GradleDistroTestTask extends VagrantShellTask {
         line.append(gradle);
         line.append(" ");
         line.append(taskName);
-        line.append(" -Dorg.gradle.logging.level=" + getProject().getGradle().getStartParameter().getLogLevel());
+        line.append(" -D'org.gradle.logging.level'=" + getProject().getGradle().getStartParameter().getLogLevel());
         if (testClass != null) {
             line.append(" --tests=");
             line.append(testClass);
         }
+        extraArgs.stream().map(s -> " " + s).forEach(line::append);
         return Collections.singletonList(line.toString());
     }
 }

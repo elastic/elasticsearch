@@ -210,7 +210,7 @@ public class DistroTestPlugin implements Plugin<Project> {
                 t.setGroup(JavaBasePlugin.VERIFICATION_GROUP);
                 t.setDescription("Runs distribution tests within vagrant");
                 t.setTaskName(project.getPath() + ":" + destructiveTest.getName());
-                t.extraArg("-D" + IN_VM_SYSPROP);
+                t.extraArg("-D'" + IN_VM_SYSPROP + "'");
                 t.dependsOn(COPY_PACKAGING_TASK);
             });
     }
@@ -240,7 +240,7 @@ public class DistroTestPlugin implements Plugin<Project> {
                 t.setDescription("Runs bats tests within vagrant");
                 t.setTaskName(project.getPath() + ":" + destructiveTest.getName());
                 t.setProgressHandler(new BatsProgressLogger(project.getLogger()));
-                t.extraArg("-D" + IN_VM_SYSPROP);
+                t.extraArg("-D'" + IN_VM_SYSPROP + "'");
                 t.dependsOn(COPY_PACKAGING_TASK);
                 t.onlyIf(spec -> vagrant.isWindowsVM() == false); // bats doesn't run on windows
             });

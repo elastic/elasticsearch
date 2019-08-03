@@ -224,6 +224,7 @@ class BuildPlugin implements Plugin<Project> {
             project.rootProject.ext.java9Home = "${-> findJavaHome("9")}"
             project.rootProject.ext.defaultParallel = findDefaultParallel(project.rootProject)
             project.rootProject.ext.gitRevision = gitRevision
+            project.rootProject.ext.buildDate = ZonedDateTime.now(ZoneOffset.UTC);
         }
 
         project.targetCompatibility = project.rootProject.ext.minimumRuntimeVersion
@@ -237,6 +238,7 @@ class BuildPlugin implements Plugin<Project> {
         project.ext.javaVersions = project.rootProject.ext.javaVersions
         project.ext.inFipsJvm = project.rootProject.ext.inFipsJvm
         project.ext.gitRevision = project.rootProject.ext.gitRevision
+        project.ext.buildDate = project.rootProject.ext.buildDate
         project.ext.gradleJavaVersion = project.rootProject.ext.gradleJavaVersion
         project.ext.java9Home = project.rootProject.ext.java9Home
     }
@@ -849,7 +851,7 @@ class BuildPlugin implements Plugin<Project> {
                         'X-Compile-Elasticsearch-Version': VersionProperties.elasticsearch.replace("-SNAPSHOT", ""),
                         'X-Compile-Lucene-Version': VersionProperties.lucene,
                         'X-Compile-Elasticsearch-Snapshot': VersionProperties.isElasticsearchSnapshot(),
-                        'Build-Date': ZonedDateTime.now(ZoneOffset.UTC),
+                        'Build-Date': project.buildDate,
                         'Build-Java-Version': project.compilerJavaVersion)
                 // Force manifest entries that change by nature to a constant to be able to compare builds more effectively
                 if (System.properties.getProperty("build.compare_friendly", "false") == "true") {

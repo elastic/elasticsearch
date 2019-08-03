@@ -18,14 +18,12 @@
  */
 package org.elasticsearch.common.settings;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -54,8 +52,6 @@ import java.util.function.Predicate;
  * @see Property#IndexScope
  */
 public final class IndexScopedSettings extends AbstractScopedSettings {
-
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(IndexScopedSettings.class));
 
     public static final Predicate<String> INDEX_SETTINGS_KEY_PREDICATE = (s) -> s.startsWith(IndexMetaData.INDEX_SETTING_PREFIX);
 
@@ -181,12 +177,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                         }
                     },
                     Property.IndexScope), // this allows similarity settings to be passed
-
-        // make sure that 'version' is not user-specified
-        Setting.groupSetting(
-            "index.analysis.",
-            Property.IndexScope) // this allows analysis settings to be passed
-    );
+            Setting.groupSetting("index.analysis.", Property.IndexScope)); // this allows analysis settings to be passed
 
     public static final IndexScopedSettings DEFAULT_SCOPED_SETTINGS = new IndexScopedSettings(Settings.EMPTY, BUILT_IN_INDEX_SETTINGS);
 

@@ -246,7 +246,148 @@ TRUNCATE(YEAR("birth_date"), -2)
 null
 1900
 ;
+// Fails for H2
+groupByCastScalarWithNumericRef
+SELECT CAST(ABS(EXTRACT(YEAR FROM "birth_date")) AS BIGINT) FROM test_emp GROUP BY 1 ORDER BY 1 NULLS FIRST;
 
+CAST(ABS(EXTRACT(YEAR FROM "birth_date")) AS BIGINT):l
+------------------------------------------------------
+null
+1952
+1953
+1954
+1955
+1956
+1957
+1958
+1959
+1960
+1961
+1962
+1963
+1964
+1965
+;
+
+groupByConvertScalar
+SELECT CONVERT(ABS(EXTRACT(YEAR FROM "birth_date")), SQL_BIGINT) FROM test_emp GROUP BY CONVERT(ABS(EXTRACT(YEAR FROM "birth_date")), SQL_BIGINT) ORDER BY CONVERT(ABS(EXTRACT(YEAR FROM "birth_date")), SQL_BIGINT) NULLS FIRST;
+
+
+CONVERT(ABS(EXTRACT(YEAR FROM "birth_date")), SQL_BIGINT):l
+-----------------------------------------------------------
+null
+1952
+1953
+1954
+1955
+1956
+1957
+1958
+1959
+1960
+1961
+1962
+1963
+1964
+1965
+;
+
+
+groupByConvertScalarWithAlias
+SELECT CONVERT(ABS(EXTRACT(YEAR FROM "birth_date")), SQL_BIGINT) as "convert" FROM test_emp GROUP BY "convert" ORDER BY "convert" NULLS FIRST;
+
+convert:l
+---------
+null
+1952
+1953
+1954
+1955
+1956
+1957
+1958
+1959
+1960
+1961
+1962
+1963
+1964
+1965
+;
+
+groupByConvertScalarWithNumericRef
+SELECT CONVERT(ABS(EXTRACT(YEAR FROM "birth_date")), SQL_BIGINT) FROM test_emp GROUP BY 1 ORDER BY 1 NULLS FIRST;
+
+CONVERT(ABS(EXTRACT(YEAR FROM "birth_date")), SQL_BIGINT):l
+-----------------------------------------------------------
+null
+1952
+1953
+1954
+1955
+1956
+1957
+1958
+1959
+1960
+1961
+1962
+1963
+1964
+1965
+;
+
+// AwaitsFix https://github.com/elastic/elasticsearch/issues/36074
+//groupByConstantScalar
+//SELECT PI() * emp_no FROM test_emp GROUP BY PI() * emp_no ORDER BY PI() * emp_no LIMIT 10;
+
+//PI() * emp_no:d
+//---------------
+//31419.0681285515
+//31422.2097212051
+//31425.3513138587
+//31428.4929065123
+//31431.6344991659
+//31434.7760918195
+//31437.9176844731
+//31441.0592771266
+//31444.2008697802
+//31447.3424624338
+//;
+
+groupByConstantScalarWithAlias
+SELECT PI() * emp_no AS "value" FROM test_emp GROUP BY value ORDER BY value LIMIT 10;
+
+value:d
+-------
+31419.0681285515
+31422.2097212051
+31425.3513138587
+31428.4929065123
+31431.6344991659
+31434.7760918195
+31437.9176844731
+31441.0592771266
+31444.2008697802
+31447.3424624338
+;
+
+groupByConstantScalarWithNumericRef
+SELECT PI() * emp_no FROM test_emp GROUP BY 1 ORDER BY 1 LIMIT 10;
+
+PI() * emp_no:d
+---------------
+31419.0681285515
+31422.2097212051
+31425.3513138587
+31428.4929065123
+31431.6344991659
+31434.7760918195
+31437.9176844731
+31441.0592771266
+31444.2008697802
+31447.3424624338
+;
 //
 // Grouping functions
 //

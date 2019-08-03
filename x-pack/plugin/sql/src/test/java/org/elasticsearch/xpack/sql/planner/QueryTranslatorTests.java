@@ -1132,20 +1132,73 @@ public class QueryTranslatorTests extends ESTestCase {
                         + "\"gap_policy\":\"skip\"}}}}}"));
     }
 
-    public void testGroupSelection() {
+    public void testGroupByCastScalar() {
+        PhysicalPlan p = optimizeAndPlan("SELECT CAST(ABS(EXTRACT(YEAR FROM date)) AS BIGINT) FROM test " +
+            "GROUP BY CAST(ABS(EXTRACT(YEAR FROM date)) AS BIGINT) ORDER BY CAST(ABS(EXTRACT(YEAR FROM date)) AS BIGINT) NULLS FIRST");
+        assertEquals(EsQueryExec.class, p.getClass());
+        assertEquals(1, p.output().size());
+        assertEquals("CAST(ABS(EXTRACT(YEAR FROM date)) AS BIGINT)", p.output().get(0).qualifiedName());
+        assertEquals(DataType.LONG, p.output().get(0).dataType());
+        assertThat(
+            ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
+                .replaceAll("\\s+", ""),
+            endsWith("{\"source\":\"InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeChrono" +
+                "(InternalSqlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)),params.v3)\",\"lang\":\"painless\"," +
+                "\"params\":{\"v0\":\"date\",\"v1\":\"Z\",\"v2\":\"YEAR\",\"v3\":\"LONG\"}},\"missing_bucket\":true," +
+                "\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}")
+        );
+    }
+
+    public void testGroupByCastScalarWithAlias() {
+        PhysicalPlan p = optimizeAndPlan("SELECT CAST(ABS(EXTRACT(YEAR FROM date)) AS BIGINT) as \"cast\"  FROM test " +
+            "GROUP BY \"cast\" ORDER BY \"cast\" NULLS FIRST");
+        assertEquals(EsQueryExec.class, p.getClass());
+        assertEquals(1, p.output().size());
+        assertEquals("cast", p.output().get(0).qualifiedName());
+        assertEquals(DataType.LONG, p.output().get(0).dataType());
+        assertThat(
+            ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
+                .replaceAll("\\s+", ""),
+            endsWith("{\"source\":\"InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeChrono" +
+                "(InternalSqlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)),params.v3)\",\"lang\":\"painless\"," +
+                "\"params\":{\"v0\":\"date\",\"v1\":\"Z\",\"v2\":\"YEAR\",\"v3\":\"LONG\"}},\"missing_bucket\":true," +
+                "\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}")
+        );
+    }
+
+    public void testGroupByCastScalarWithNumericRef() {
+        PhysicalPlan p = optimizeAndPlan("SELECT CAST(ABS(EXTRACT(YEAR FROM date)) AS BIGINT) FROM test " +
+            "GROUP BY 1 ORDER BY 1 NULLS FIRST");
+        assertEquals(EsQueryExec.class, p.getClass());
+        assertEquals(1, p.output().size());
+        assertEquals("CAST(ABS(EXTRACT(YEAR FROM date)) AS BIGINT)", p.output().get(0).qualifiedName());
+        assertEquals(DataType.LONG, p.output().get(0).dataType());
+        assertThat(
+            ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
+                .replaceAll("\\s+", ""),
+            endsWith("{\"source\":\"InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeChrono" +
+                "(InternalSqlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)),params.v3)\",\"lang\":\"painless\"," +
+                "\"params\":{\"v0\":\"date\",\"v1\":\"Z\",\"v2\":\"YEAR\",\"v3\":\"LONG\"}},\"missing_bucket\":true," +
+                "\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}")
+        );
+    }
+
+    public void testGroupByConvertScalar() {
         {
-            PhysicalPlan p = optimizeAndPlan("SELECT EXTRACT(MINUTE FROM CONVERT(date, SQL_TIMESTAMP)) x FROM test GROUP BY x");
+            PhysicalPlan p = optimizeAndPlan("SELECT CONVERT(ABS(EXTRACT(YEAR FROM date)), SQL_BIGINT) FROM test " +
+                "GROUP BY CONVERT(ABS(EXTRACT(YEAR FROM date)), SQL_BIGINT) ORDER BY CONVERT(ABS(EXTRACT(YEAR FROM date)), SQL_BIGINT) " +
+                "NULLS FIRST");
             assertEquals(EsQueryExec.class, p.getClass());
             assertEquals(1, p.output().size());
-            assertEquals("x", p.output().get(0).qualifiedName());
-            assertEquals(DataType.INTEGER, p.output().get(0).dataType());
+            assertEquals("CONVERT(ABS(EXTRACT(YEAR FROM date)), SQL_BIGINT)", p.output().get(0).qualifiedName());
+            assertEquals(DataType.LONG, p.output().get(0).dataType());
             assertThat(
                 ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
                     .replaceAll("\\s+", ""),
-                endsWith("{\"source\":\"InternalSqlScriptUtils.dateTimeChrono(" +
-                    "InternalSqlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)\",\"lang\":\"painless\"," +
-                    "\"params\":{\"v0\":\"date\",\"v1\":\"Z\",\"v2\":\"MINUTE_OF_HOUR\"}}," +
-                    "\"missing_bucket\":true,\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}")
+                endsWith("{\"source\":\"InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeChrono" +
+                    "(InternalSqlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)),params.v3)\",\"lang\":\"painless\"," +
+                    "\"params\":{\"v0\":\"date\",\"v1\":\"Z\",\"v2\":\"YEAR\",\"v3\":\"LONG\"}},\"missing_bucket\":true," +
+                    "\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}")
             );
         }
         {
@@ -1162,6 +1215,125 @@ public class QueryTranslatorTests extends ESTestCase {
                     "InternalSqlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)\",\"lang\":\"painless\"," +
                     "\"params\":{\"v0\":\"date\",\"v1\":\"Z\",\"v2\":\"HOUR_OF_DAY\"}},\"missing_bucket\":true," +
                     "\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}")
+            );
+        }
+    }
+
+    public void testGroupByConvertScalarWithAlias() {
+        {
+            PhysicalPlan p = optimizeAndPlan("SELECT CONVERT(ABS(EXTRACT(YEAR FROM date)), SQL_BIGINT) as \"convert\" FROM test " +
+                "GROUP BY \"convert\" ORDER BY \"convert\" NULLS FIRST");
+            assertEquals(EsQueryExec.class, p.getClass());
+            assertEquals(1, p.output().size());
+            assertEquals("convert", p.output().get(0).qualifiedName());
+            assertEquals(DataType.LONG, p.output().get(0).dataType());
+            assertThat(
+                ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
+                    .replaceAll("\\s+", ""),
+                endsWith("{\"source\":\"InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeChrono" +
+                    "(InternalSqlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)),params.v3)\",\"lang\":\"painless\"," +
+                    "\"params\":{\"v0\":\"date\",\"v1\":\"Z\",\"v2\":\"YEAR\",\"v3\":\"LONG\"}},\"missing_bucket\":true," +
+                    "\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}")
+            );
+        }
+        {
+            PhysicalPlan p = optimizeAndPlan("SELECT EXTRACT(MINUTE FROM CONVERT(date, SQL_TIMESTAMP)) x FROM test GROUP BY x");
+            assertEquals(EsQueryExec.class, p.getClass());
+            assertEquals(1, p.output().size());
+            assertEquals("x", p.output().get(0).qualifiedName());
+            assertEquals(DataType.INTEGER, p.output().get(0).dataType());
+            assertThat(
+                ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
+                    .replaceAll("\\s+", ""),
+                endsWith("{\"source\":\"InternalSqlScriptUtils.dateTimeChrono(" +
+                    "InternalSqlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)\",\"lang\":\"painless\"," +
+                    "\"params\":{\"v0\":\"date\",\"v1\":\"Z\",\"v2\":\"MINUTE_OF_HOUR\"}}," +
+                    "\"missing_bucket\":true,\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}")
+            );
+        }
+    }
+
+    public void testGroupByConvertScalarWithNumericRef() {
+        PhysicalPlan p = optimizeAndPlan("SELECT CONVERT(ABS(EXTRACT(YEAR FROM date)), SQL_BIGINT) FROM test " +
+            "GROUP BY 1 ORDER BY 1 NULLS FIRST");
+        assertEquals(EsQueryExec.class, p.getClass());
+        assertEquals(1, p.output().size());
+        assertEquals("CONVERT(ABS(EXTRACT(YEAR FROM date)), SQL_BIGINT)", p.output().get(0).qualifiedName());
+        assertEquals(DataType.LONG, p.output().get(0).dataType());
+        assertThat(
+            ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
+                .replaceAll("\\s+", ""),
+            endsWith("{\"source\":\"InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeChrono" +
+                "(InternalSqlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)),params.v3)\",\"lang\":\"painless\"," +
+                "\"params\":{\"v0\":\"date\",\"v1\":\"Z\",\"v2\":\"YEAR\",\"v3\":\"LONG\"}},\"missing_bucket\":true," +
+                "\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}")
+        );
+    }
+
+    public void testGroupByConstantScalar() {
+        // FIXME: same query with order by PI() * int still fails
+        PhysicalPlan p = optimizeAndPlan("SELECT PI() * int FROM test GROUP BY PI() * int LIMIT 10");
+        assertEquals(EsQueryExec.class, p.getClass());
+        assertEquals(1, p.output().size());
+        assertEquals("PI() * int", p.output().get(0).qualifiedName());
+        assertEquals(DataType.DOUBLE, p.output().get(0).dataType());
+        assertThat(
+            ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
+                .replaceAll("\\s+", ""),
+            endsWith("{\"script\":{\"source\":\"InternalSqlScriptUtils.mul(params.v0,InternalSqlScriptUtils.docValue(doc,params.v1))\"," +
+                "\"lang\":\"painless\",\"params\":{\"v0\":3.141592653589793,\"v1\":\"int\"}},\"missing_bucket\":true," +
+                "\"value_type\":\"double\",\"order\":\"asc\"}}}]}}}")
+        );
+    }
+
+
+    public void testGroupByConstantScalarWithAlias() {
+        {
+            PhysicalPlan p = optimizeAndPlan("SELECT PI() * int AS \"value\"  FROM test GROUP BY \"value\" ORDER BY \"value\" LIMIT 10");
+            assertEquals(EsQueryExec.class, p.getClass());
+            assertEquals(1, p.output().size());
+            assertEquals("value", p.output().get(0).qualifiedName());
+            assertEquals(DataType.DOUBLE, p.output().get(0).dataType());
+            assertThat(
+                ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
+                    .replaceAll("\\s+", ""),
+                endsWith("{\"script\":{\"source\":\"InternalSqlScriptUtils.mul(params.v0,InternalSqlScriptUtils.docValue(doc,params.v1))" +
+                    "\",\"lang\":\"painless\",\"params\":{\"v0\":3.141592653589793,\"v1\":\"int\"}},\"missing_bucket\":true," +
+                    "\"value_type\":\"double\",\"order\":\"asc\"}}}]}}}")
+            );
+        }
+        {
+            PhysicalPlan p = optimizeAndPlan("select (3 < int) as multi_language, count(*) from test group by multi_language");
+            assertEquals(EsQueryExec.class, p.getClass());
+            assertEquals(2, p.output().size());
+            assertEquals("multi_language", p.output().get(0).qualifiedName());
+            assertEquals(DataType.BOOLEAN, p.output().get(0).dataType());
+            assertEquals("count(*)", p.output().get(1).qualifiedName());
+            assertEquals(DataType.LONG, p.output().get(1).dataType());
+            assertThat(
+                ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
+                    .replaceAll("\\s+", ""),
+                endsWith("{\"source\":\"InternalSqlScriptUtils.gt(InternalSqlScriptUtils.docValue(doc,params.v0),params.v1)\"," +
+                    "\"lang\":\"painless\",\"params\":{\"v0\":\"int\",\"v1\":3}}," +
+                    "\"missing_bucket\":true,\"value_type\":\"boolean\",\"order\":\"asc\"}}}]}}}")
+            );
+        }
+    }
+
+
+    public void testGroupByConstantScalarWithNumericRef() {
+        {
+            PhysicalPlan p = optimizeAndPlan("SELECT PI() * int FROM test GROUP BY 1 ORDER BY 1 LIMIT 10");
+            assertEquals(EsQueryExec.class, p.getClass());
+            assertEquals(1, p.output().size());
+            assertEquals("PI() * int", p.output().get(0).qualifiedName());
+            assertEquals(DataType.DOUBLE, p.output().get(0).dataType());
+            assertThat(
+                ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
+                    .replaceAll("\\s+", ""),
+                endsWith("{\"script\":{\"source\":\"InternalSqlScriptUtils.mul(params.v0,InternalSqlScriptUtils.docValue(doc,params.v1))" +
+                    "\",\"lang\":\"painless\",\"params\":{\"v0\":3.141592653589793,\"v1\":\"int\"}},\"missing_bucket\":true," +
+                    "\"value_type\":\"double\",\"order\":\"asc\"}}}]}}}")
             );
         }
         {
@@ -1191,22 +1363,6 @@ public class QueryTranslatorTests extends ESTestCase {
                     "InternalSqlScriptUtils.intervalDayTime(params.v1,params.v2))\"," +
                     "\"lang\":\"painless\",\"params\":{\"v0\":\"date\",\"v1\":\"PT24H\",\"v2\":\"INTERVAL_DAY\"}}," +
                     "\"missing_bucket\":true,\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}")
-            );
-        }
-        {
-            PhysicalPlan p = optimizeAndPlan("select (3 < int) as multi_language, count(*) from test group by multi_language");
-            assertEquals(EsQueryExec.class, p.getClass());
-            assertEquals(2, p.output().size());
-            assertEquals("multi_language", p.output().get(0).qualifiedName());
-            assertEquals(DataType.BOOLEAN, p.output().get(0).dataType());
-            assertEquals("count(*)", p.output().get(1).qualifiedName());
-            assertEquals(DataType.LONG, p.output().get(1).dataType());
-            assertThat(
-                ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
-                    .replaceAll("\\s+", ""),
-                endsWith("{\"source\":\"InternalSqlScriptUtils.gt(InternalSqlScriptUtils.docValue(doc,params.v0),params.v1)\"," +
-                    "\"lang\":\"painless\",\"params\":{\"v0\":\"int\",\"v1\":3}}," +
-                    "\"missing_bucket\":true,\"value_type\":\"boolean\",\"order\":\"asc\"}}}]}}}")
             );
         }
     }

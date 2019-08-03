@@ -289,15 +289,23 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     }
 
     @Override
-    public void finalizeRecovery(final long globalCheckpoint, ActionListener<Void> listener) {
+    public void finalizeRecovery(final long globalCheckpoint, final long trimAboveSeqNo, ActionListener<Void> listener) {
         ActionListener.completeWith(listener, () -> {
-            final IndexShard indexShard = indexShard();
             indexShard.updateGlobalCheckpointOnReplica(globalCheckpoint, "finalizing recovery");
             // Persist the global checkpoint.
             indexShard.sync();
             indexShard.persistRetentionLeases();
             if (hasUncommittedOperations()) {
                 indexShard.flush(new FlushRequest().force(true).waitIfOngoing(true));
+            }
+            if (trimAboveSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                // We should erase all translog operations above trimAboveSeqNo as we have received either the same or a newer copy
+                // from the recovery source in phase2. Rolling a new translog generation is not strictly required here for we won't
+                // trim the current generation. It's merely to satisfy the assumption that the current generation does not have any
+                // operation that would be trimmed (see TranslogWriter#assertNoSeqAbove). This assumption does not hold for peer
+                // recovery because we could have received operations above startingSeqNo from the previous primary terms.
+                indexShard.rollTranslogGeneration();
+                indexShard.trimOperationOfPreviousPrimaryTerms(trimAboveSeqNo);
             }
             indexShard.finalizeRecovery();
             return null;

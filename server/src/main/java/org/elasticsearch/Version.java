@@ -338,7 +338,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
             Build.CURRENT.getQualifiedVersion(),
                 Build.CURRENT.flavor().displayName(),
                 Build.CURRENT.type().displayName(),
-                Build.CURRENT.shortHash(),
+                Build.CURRENT.hash(),
                 Build.CURRENT.date(),
                 JvmInfo.jvmInfo().version());
         System.out.println(versionOutput);

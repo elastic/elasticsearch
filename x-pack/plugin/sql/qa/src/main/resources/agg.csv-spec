@@ -337,23 +337,22 @@ null
 1965
 ;
 
-// AwaitsFix https://github.com/elastic/elasticsearch/issues/36074
-//groupByConstantScalar
-//SELECT PI() * emp_no FROM test_emp GROUP BY PI() * emp_no ORDER BY PI() * emp_no LIMIT 10;
+groupByConstantScalar
+SELECT PI() * emp_no FROM test_emp GROUP BY PI() * emp_no ORDER BY PI() * emp_no LIMIT 10;
 
-//PI() * emp_no:d
-//---------------
-//31419.0681285515
-//31422.2097212051
-//31425.3513138587
-//31428.4929065123
-//31431.6344991659
-//31434.7760918195
-//31437.9176844731
-//31441.0592771266
-//31444.2008697802
-//31447.3424624338
-//;
+PI() * emp_no:d
+---------------
+31419.0681285515
+31422.2097212051
+31425.3513138587
+31428.4929065123
+31431.6344991659
+31434.7760918195
+31437.9176844731
+31441.0592771266
+31444.2008697802
+31447.3424624338
+;
 
 groupByConstantScalarWithAlias
 SELECT PI() * emp_no AS "value" FROM test_emp GROUP BY value ORDER BY value LIMIT 10;

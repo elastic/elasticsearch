@@ -24,4 +24,16 @@ abstract class Param<T> {
     public String toString() {
         return format(null, "{{}={}}", prefix(), value);
     }
+
+
+    @Override
+    public int hashCode() {
+        return this.value.hashCode();
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if(!(obj instanceof  Param)) return false;
+        return this.value.equals(((Param)obj).value);
+    }
 }

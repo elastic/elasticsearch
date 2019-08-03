@@ -124,4 +124,15 @@ public class Params {
     public String toString() {
         return params.toString();
     }
+
+    @Override
+    public int hashCode() {
+        return this.params.hashCode();
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if(!(obj instanceof  Params)) return false;
+        return this.params.equals(((Params)obj).params);
+    }
 }

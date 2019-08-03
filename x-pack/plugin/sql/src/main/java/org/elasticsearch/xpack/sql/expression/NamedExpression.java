@@ -81,7 +81,6 @@ public abstract class NamedExpression extends Expression {
 
         NamedExpression other = (NamedExpression) obj;
         return Objects.equals(synthetic, other.synthetic)
-                && Objects.equals(id, other.id)
                 /*
                  * It is important that the line below be `name`
                  * and not `name()` because subclasses might override

@@ -1271,8 +1271,7 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     public void testGroupByConstantScalar() {
-        // FIXME: same query with order by PI() * int still fails
-        PhysicalPlan p = optimizeAndPlan("SELECT PI() * int FROM test GROUP BY PI() * int LIMIT 10");
+        PhysicalPlan p = optimizeAndPlan("SELECT PI() * int FROM test GROUP BY PI() * int ORDER BY PI() * int LIMIT 10");
         assertEquals(EsQueryExec.class, p.getClass());
         assertEquals(1, p.output().size());
         assertEquals("PI() * int", p.output().get(0).qualifiedName());

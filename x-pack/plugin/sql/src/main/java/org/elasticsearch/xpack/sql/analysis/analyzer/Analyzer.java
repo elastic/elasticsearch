@@ -609,8 +609,9 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         .map(or -> tryResolveExpression(or, o.child()))
                         .collect(toList());
 
-                AttributeSet resolvedRefs = Expressions.references(maybeResolved.stream()
+                AttributeSet resolvedRefs = new AttributeSet(maybeResolved.stream()
                         .filter(Expression::resolved)
+                        .map(exp->Expressions.attribute(exp.child()))
                         .collect(toList()));
 
 

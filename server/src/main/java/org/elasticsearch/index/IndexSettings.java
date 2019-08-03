@@ -196,24 +196,6 @@ public final class IndexSettings {
             Property.Dynamic, Property.IndexScope);
 
     /**
-     * Controls how long translog files that are no longer needed for persistence reasons
-     * will be kept around before being deleted. A longer retention policy is useful to increase
-     * the chance of ops based recoveries.
-     **/
-    public static final Setting<TimeValue> INDEX_TRANSLOG_RETENTION_AGE_SETTING =
-        Setting.timeSetting("index.translog.retention.age", TimeValue.timeValueHours(12), TimeValue.timeValueMillis(-1),
-            Property.Dynamic, Property.IndexScope);
-
-    /**
-     * Controls how many translog files that are no longer needed for persistence reasons
-     * will be kept around before being deleted. Keeping more files is useful to increase
-     * the chance of ops based recoveries.
-     **/
-    public static final Setting<ByteSizeValue> INDEX_TRANSLOG_RETENTION_SIZE_SETTING =
-        Setting.byteSizeSetting("index.translog.retention.size", new ByteSizeValue(512, ByteSizeUnit.MB), Property.Dynamic,
-            Property.IndexScope);
-
-    /**
      * The maximum size of a translog generation. This is independent of the maximum size of
      * translog operations that have not been flushed.
      */
@@ -257,6 +239,23 @@ public final class IndexSettings {
     public static final Setting<Long> INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING =
         Setting.longSetting("index.soft_deletes.retention.operations", 0, 0,
             Property.IndexScope, Property.Dynamic);
+
+    /**
+     * Controls how long translog files that are no longer needed for persistence reasons
+     * will be kept around before being deleted.
+     **/
+    public static final Setting<TimeValue> INDEX_TRANSLOG_RETENTION_AGE_SETTING =
+        Setting.timeSetting("index.translog.retention.age",
+            settings -> INDEX_SOFT_DELETES_SETTING.get(settings) ? TimeValue.ZERO : TimeValue.timeValueHours(12), TimeValue.MINUS_ONE,
+            Property.Dynamic, Property.IndexScope);
+
+    /**
+     * Controls how many translog files that are no longer needed for persistence reasons
+     * will be kept around before being deleted.
+     **/
+    public static final Setting<ByteSizeValue> INDEX_TRANSLOG_RETENTION_SIZE_SETTING =
+        Setting.byteSizeSetting("index.translog.retention.size", settings -> INDEX_SOFT_DELETES_SETTING.get(settings) ? "0b" : "512mb",
+            Property.Dynamic, Property.IndexScope);
 
     /**
      * Controls the maximum length of time since a retention lease is created or renewed before it is considered expired.

@@ -21,6 +21,7 @@ package org.elasticsearch.painless;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 public class BasicAPITests extends ScriptTestCase {
 
@@ -148,5 +149,21 @@ public class BasicAPITests extends ScriptTestCase {
                 "ZonedDateTime t = d;" +
                 "return ChronoUnit.MILLIS.between(d, t);"
         ));
+    }
+
+    public void testRandomUUID() {
+        assertTrue(
+                Pattern.compile("\\p{XDigit}{8}(-\\p{XDigit}{4}){3}-\\p{XDigit}{12}").matcher(
+                    (String)exec(
+                            "UUID a = UUID.randomUUID();" +
+                            "String s = a.toString(); " +
+                            "UUID b = UUID.fromString(s);" +
+                            "if (a.equals(b) == false) {" +
+                            "   throw new RuntimeException('uuids did not match');" +
+                            "}" +
+                            "return s;"
+                    )
+                ).matches()
+        );
     }
 }

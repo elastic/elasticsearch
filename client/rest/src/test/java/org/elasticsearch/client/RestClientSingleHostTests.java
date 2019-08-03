@@ -526,7 +526,8 @@ public class RestClientSingleHostTests extends RestClientTestCase {
      * cases. We don't have that available because we're testing against 1.7.
      */
     private static String formatWarning(String warningBody) {
-        return "299 Elasticsearch-1.2.2-SNAPSHOT-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee \"" + warningBody + "\" \"Mon, 01 Jan 2001 00:00:00 GMT\"";
+        final String hash = new String(new byte[40]).replace('\0', 'e');
+        return "299 Elasticsearch-1.2.2-SNAPSHOT-" + hash + " \"" + warningBody + "\" \"Mon, 01 Jan 2001 00:00:00 GMT\"";
     }
 
     private HttpUriRequest performRandomRequest(String method) throws Exception {

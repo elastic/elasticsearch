@@ -86,8 +86,8 @@ LABEL org.label-schema.build-date=${build_date} \
   org.opencontainers.image.source="https://github.com/elastic/elasticsearch" \
   org.opencontainers.image.title="Elasticsearch" \
   org.opencontainers.image.url="https://www.elastic.co/products/elasticsearch" \
-  org.opencontainers.image.vendor="Elastic"
-  org.opencontainers.image.version="${version}" \
+  org.opencontainers.image.vendor="Elastic" \
+  org.opencontainers.image.version="${version}"
 
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 # Dummy overridable parameter parsed by entrypoint

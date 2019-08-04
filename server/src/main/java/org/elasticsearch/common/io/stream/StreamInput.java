@@ -466,11 +466,10 @@ public abstract class StreamInput extends InputStream {
             }
             readBytes(byteBuffer, sizeByteArray, toRead);
             sizeByteArray += toRead;
-            int bufferedBytesRemaining;
             // As long as we at least have three bytes buffered we don't need to do any bounds checking when getting the next char since we
             // read 3 bytes per char/iteration at most
-            while ((bufferedBytesRemaining = (sizeByteArray - offsetByteArray)) > 2) {
-                final int c = byteBuffer[offsetByteArray++] & 0xff;
+            for (; offsetByteArray < sizeByteArray - 2; offsetByteArray++) {
+                final int c = byteBuffer[offsetByteArray] & 0xff;
                 switch (c >> 4) {
                     case 0:
                     case 1:
@@ -484,17 +483,18 @@ public abstract class StreamInput extends InputStream {
                         break;
                     case 12:
                     case 13:
-                        charBuffer[charsOffset++] = (char) ((c & 0x1F) << 6 | byteBuffer[offsetByteArray++] & 0x3F);
+                        charBuffer[charsOffset++] = (char) ((c & 0x1F) << 6 | byteBuffer[++offsetByteArray] & 0x3F);
                         break;
                     case 14:
                         charBuffer[charsOffset++] = (char) (
-                            (c & 0x0F) << 12 | (byteBuffer[offsetByteArray++] & 0x3F) << 6 | (byteBuffer[offsetByteArray++] & 0x3F));
+                            (c & 0x0F) << 12 | (byteBuffer[++offsetByteArray] & 0x3F) << 6 | (byteBuffer[++offsetByteArray] & 0x3F));
                         break;
                     default:
                         throwOnBrokenChar(c);
                 }
             }
             // try to extract chars from remaining bytes with bounds checks for multi-byte chars
+            final int bufferedBytesRemaining = sizeByteArray - offsetByteArray;
             for (int i = 0; i < bufferedBytesRemaining; i++) {
                 final int c = byteBuffer[offsetByteArray] & 0xff;
                 switch (c >> 4) {

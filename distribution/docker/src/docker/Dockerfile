@@ -69,7 +69,7 @@ RUN chgrp 0 /usr/local/bin/docker-entrypoint.sh && \
 
 EXPOSE 9200 9300
 
-LABEL org.label-schema.build-date=${build_date} \
+LABEL org.label-schema.build-date="${build_date}" \
   org.label-schema.license="${license}" \
   org.label-schema.name="Elasticsearch" \
   org.label-schema.schema-version="1.0" \
@@ -79,7 +79,7 @@ LABEL org.label-schema.build-date=${build_date} \
   org.label-schema.vcs-url="https://github.com/elastic/elasticsearch" \
   org.label-schema.vendor="Elastic" \
   org.label-schema.version="${version}" \
-  org.opencontainers.image.created=${build_date} \
+  org.opencontainers.image.created="${build_date}" \
   org.opencontainers.image.documentation="https://www.elastic.co/guide/en/elasticsearch/reference/index.html" \
   org.opencontainers.image.licenses="${license}" \
   org.opencontainers.image.revision="${git_revision}" \

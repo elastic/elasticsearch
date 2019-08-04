@@ -166,7 +166,7 @@ final class StoreRecovery {
         }
 
         try (IndexWriter writer = new IndexWriter(new StatsDirectoryWrapper(hardLinkOrCopyTarget, indexRecoveryStats), iwc)) {
-            writer.addIndexes(sources);/
+            writer.addIndexes(sources);
             if (split) {
                 writer.deleteDocuments(new ShardSplittingQuery(indexMetaData, shardId, hasNested));
             }

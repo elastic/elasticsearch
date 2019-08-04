@@ -142,6 +142,7 @@ integTest.runner  {
     'ml/start_data_frame_analytics/Test start given missing source index',
     'ml/start_data_frame_analytics/Test start given source index has no compatible fields',
     'ml/start_data_frame_analytics/Test start with inconsistent body/param ids',
+    'ml/start_data_frame_analytics/Test start given dest index is not empty',
     'ml/start_stop_datafeed/Test start datafeed job, but not open',
     'ml/start_stop_datafeed/Test start non existing datafeed',
     'ml/start_stop_datafeed/Test stop non existing datafeed',
@@ -166,7 +167,7 @@ integTest.runner  {
 
 
 testClusters.integTest  {
-  distribution = 'DEFAULT'
+  testDistribution = 'DEFAULT'
   extraConfigFile 'roles.yml', file('roles.yml')
   user username: "x_pack_rest_user", password: "x-pack-test-password"
   user username: "ml_admin", password: "x-pack-test-password", role: "minimal,machine_learning_admin"

@@ -1,0 +1,35 @@
+--
+:api: slm-put-snapshot-lifecycle-policy
+:request: PutSnapshotLifecyclePolicyRequest
+:response: AcknowledgedResponse
+--
+
+[id="{upid}-{api}"]
+=== Put Snapshot Lifecycle Policy API
+
+
+[id="{upid}-{api}-request"]
+==== Request
+
+The Put Snapshot Lifecycle Policy API allows you to add of update the definition of a Snapshot
+Lifecycle Management Policy in the cluster.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ indicates if the put snapshot lifecycle policy request was received.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Whether or not the put snapshot lifecycle policy was acknowledged.
+
+include::../execution.asciidoc[]
+
+

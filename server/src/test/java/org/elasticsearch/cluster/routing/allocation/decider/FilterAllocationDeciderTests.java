@@ -97,14 +97,14 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
         assertEquals(routingTable.index("idx").shard(0).primaryShard().state(), INITIALIZING);
         assertEquals(routingTable.index("idx").shard(0).primaryShard().currentNodeId(), "node2");
 
-        state = service.applyStartedShards(state, routingTable.index("idx").shard(0).shardsWithState(INITIALIZING));
+        state = startShardsAndReroute(service, state, routingTable.index("idx").shard(0).shardsWithState(INITIALIZING));
         routingTable = state.routingTable();
 
         // ok now we are started and can be allocated anywhere!! lets see...
         // first create another copy
         assertEquals(routingTable.index("idx").shard(0).replicaShards().get(0).state(), INITIALIZING);
         assertEquals(routingTable.index("idx").shard(0).replicaShards().get(0).currentNodeId(), "node1");
-        state = service.applyStartedShards(state, routingTable.index("idx").shard(0).replicaShardsWithState(INITIALIZING));
+        state = startShardsAndReroute(service, state, routingTable.index("idx").shard(0).replicaShardsWithState(INITIALIZING));
         routingTable = state.routingTable();
         assertEquals(routingTable.index("idx").shard(0).replicaShards().get(0).state(), STARTED);
         assertEquals(routingTable.index("idx").shard(0).replicaShards().get(0).currentNodeId(), "node1");

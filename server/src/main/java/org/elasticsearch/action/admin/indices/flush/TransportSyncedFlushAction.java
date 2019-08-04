@@ -37,7 +37,7 @@ public class TransportSyncedFlushAction extends HandledTransportAction<SyncedFlu
     @Inject
     public TransportSyncedFlushAction(TransportService transportService, ActionFilters actionFilters,
                                       SyncedFlushService syncedFlushService) {
-        super(SyncedFlushAction.NAME, transportService, SyncedFlushRequest::new, actionFilters);
+        super(SyncedFlushAction.NAME, transportService, actionFilters, SyncedFlushRequest::new);
         this.syncedFlushService = syncedFlushService;
     }
 

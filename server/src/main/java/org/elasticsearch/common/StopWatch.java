@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common;
 
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.text.NumberFormat;
@@ -51,8 +52,6 @@ public class StopWatch {
      */
     private final String id;
 
-    private boolean keepTaskList = true;
-
     private final List<TaskInfo> taskList = new LinkedList<>();
 
     /**
@@ -71,8 +70,6 @@ public class StopWatch {
     private String currentTaskName;
 
     private TaskInfo lastTaskInfo;
-
-    private int taskCount;
 
     /**
      * Total running time
@@ -96,16 +93,6 @@ public class StopWatch {
      */
     public StopWatch(String id) {
         this.id = id;
-    }
-
-    /**
-     * Determine whether the TaskInfo array is built over time. Set this to
-     * "false" when using a StopWatch for millions of intervals, or the task
-     * info structure will consume excessive memory. Default is "true".
-     */
-    public StopWatch keepTaskList(boolean keepTaskList) {
-        this.keepTaskList = keepTaskList;
-        return this;
     }
 
     /**
@@ -138,7 +125,7 @@ public class StopWatch {
     /**
      * Stop the current task. The results are undefined if timing
      * methods are called without invoking at least one pair
-     * {@link #start()} / {@link #stop()} methods.
+     * {@link #start()} / {@code #stop()} methods.
      *
      * @see #start()
      */
@@ -149,13 +136,15 @@ public class StopWatch {
         long lastTimeNS = System.nanoTime() - this.startTimeNS;
         this.totalTimeNS += lastTimeNS;
         this.lastTaskInfo = new TaskInfo(this.currentTaskName, TimeValue.nsecToMSec(lastTimeNS));
-        if (this.keepTaskList) {
-            this.taskList.add(lastTaskInfo);
-        }
-        ++this.taskCount;
+        this.taskList.add(lastTaskInfo);
         this.running = false;
         this.currentTaskName = null;
         return this;
+    }
+
+    public Releasable timing(String taskName) {
+        start(taskName);
+        return this::stop;
     }
 
     /**
@@ -176,16 +165,6 @@ public class StopWatch {
     }
 
     /**
-     * Return the name of the last task.
-     */
-    public String lastTaskName() throws IllegalStateException {
-        if (this.lastTaskInfo == null) {
-            throw new IllegalStateException("No tests run: can't get last interval");
-        }
-        return this.lastTaskInfo.getTaskName();
-    }
-
-    /**
      * Return the total time for all tasks.
      */
     public TimeValue totalTime() {
@@ -193,20 +172,10 @@ public class StopWatch {
     }
 
     /**
-     * Return the number of tasks timed.
-     */
-    public int taskCount() {
-        return taskCount;
-    }
-
-    /**
      * Return an array of the data for tasks performed.
      */
     public TaskInfo[] taskInfo() {
-        if (!this.keepTaskList) {
-            throw new UnsupportedOperationException("Task info is not being kept!");
-        }
-        return this.taskList.toArray(new TaskInfo[this.taskList.size()]);
+        return this.taskList.toArray(new TaskInfo[0]);
     }
 
     /**
@@ -223,23 +192,19 @@ public class StopWatch {
     public String prettyPrint() {
         StringBuilder sb = new StringBuilder(shortSummary());
         sb.append('\n');
-        if (!this.keepTaskList) {
-            sb.append("No task info kept");
-        } else {
-            sb.append("-----------------------------------------\n");
-            sb.append("ms     %     Task name\n");
-            sb.append("-----------------------------------------\n");
-            NumberFormat nf = NumberFormat.getNumberInstance(Locale.ROOT);
-            nf.setMinimumIntegerDigits(5);
-            nf.setGroupingUsed(false);
-            NumberFormat pf = NumberFormat.getPercentInstance(Locale.ROOT);
-            pf.setMinimumIntegerDigits(3);
-            pf.setGroupingUsed(false);
-            for (TaskInfo task : taskInfo()) {
-                sb.append(nf.format(task.getTime().millis())).append("  ");
-                sb.append(pf.format(task.getTime().secondsFrac() / totalTime().secondsFrac())).append("  ");
-                sb.append(task.getTaskName()).append("\n");
-            }
+        sb.append("-----------------------------------------\n");
+        sb.append("ms     %     Task name\n");
+        sb.append("-----------------------------------------\n");
+        NumberFormat nf = NumberFormat.getNumberInstance(Locale.ROOT);
+        nf.setMinimumIntegerDigits(5);
+        nf.setGroupingUsed(false);
+        NumberFormat pf = NumberFormat.getPercentInstance(Locale.ROOT);
+        pf.setMinimumIntegerDigits(3);
+        pf.setGroupingUsed(false);
+        for (TaskInfo task : taskInfo()) {
+            sb.append(nf.format(task.getTime().millis())).append("  ");
+            sb.append(pf.format(task.getTime().secondsFrac() / totalTime().secondsFrac())).append("  ");
+            sb.append(task.getTaskName()).append("\n");
         }
         return sb.toString();
     }
@@ -251,14 +216,10 @@ public class StopWatch {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder(shortSummary());
-        if (this.keepTaskList) {
-            for (TaskInfo task : taskInfo()) {
-                sb.append("; [").append(task.getTaskName()).append("] took ").append(task.getTime());
-                long percent = Math.round((100.0f * task.getTime().millis()) / totalTime().millis());
-                sb.append(" = ").append(percent).append("%");
-            }
-        } else {
-            sb.append("; no task info kept");
+        for (TaskInfo task : taskInfo()) {
+            sb.append("; [").append(task.getTaskName()).append("] took ").append(task.getTime());
+            long percent = Math.round((100.0f * task.getTime().millis()) / totalTime().millis());
+            sb.append(" = ").append(percent).append("%");
         }
         return sb.toString();
     }

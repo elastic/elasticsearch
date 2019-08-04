@@ -159,11 +159,6 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public BytesReference cacheKey() throws IOException {
         return shardSearchLocalRequest.cacheKey();
     }

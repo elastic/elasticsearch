@@ -28,7 +28,7 @@ public class TransportPutPrivilegesAction extends HandledTransportAction<PutPriv
     @Inject
     public TransportPutPrivilegesAction(ActionFilters actionFilters, NativePrivilegeStore privilegeStore,
                                         TransportService transportService) {
-        super(PutPrivilegesAction.NAME, transportService, PutPrivilegesRequest::new, actionFilters);
+        super(PutPrivilegesAction.NAME, transportService, actionFilters, PutPrivilegesRequest::new);
         this.privilegeStore = privilegeStore;
     }
 

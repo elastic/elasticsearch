@@ -153,7 +153,6 @@ class BuildPlugin implements Plugin<Project> {
 
             String inFipsJvmScript = 'print(java.security.Security.getProviders()[0].name.toLowerCase().contains("fips"));'
             boolean inFipsJvm = Boolean.parseBoolean(runJavaAsScript(project, runtimeJavaHome, inFipsJvmScript))
-            final String gitRevision = gitRevision(project)
 
             // Build debugging info
             println '======================================='
@@ -171,7 +170,6 @@ class BuildPlugin implements Plugin<Project> {
                 println "  JDK Version           : ${JavaVersion.toVersion(gradleJavaVersion)} (${gradleJavaVersionDetails})"
                 println "  JAVA_HOME             : ${gradleJavaHome}"
             }
-            println "  Git Revision          : ${gitRevision}"
             println "  Random Testing Seed   : ${project.testSeed}"
             println '======================================='
 
@@ -223,7 +221,7 @@ class BuildPlugin implements Plugin<Project> {
             project.rootProject.ext.gradleJavaVersion = JavaVersion.toVersion(gradleJavaVersion)
             project.rootProject.ext.java9Home = "${-> findJavaHome("9")}"
             project.rootProject.ext.defaultParallel = findDefaultParallel(project.rootProject)
-            project.rootProject.ext.gitRevision = gitRevision
+            project.rootProject.ext.gitRevision = gitRevision(project)
             project.rootProject.ext.buildDate = ZonedDateTime.now(ZoneOffset.UTC);
         }
 

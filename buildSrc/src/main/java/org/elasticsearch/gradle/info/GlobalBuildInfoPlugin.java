@@ -44,7 +44,6 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
 
         File compilerJavaHome = findCompilerJavaHome();
         File runtimeJavaHome = findRuntimeJavaHome(compilerJavaHome);
-        final String gitRevision = gitRevision(project);
 
         final List<JavaHome> javaVersions = new ArrayList<>();
         for (int version = 8; version <= Integer.parseInt(minimumCompilerVersion.getMajorVersion()); version++) {
@@ -60,12 +59,10 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
                 task.setMinimumRuntimeVersion(minimumRuntimeVersion);
                 task.setCompilerJavaHome(compilerJavaHome);
                 task.setRuntimeJavaHome(runtimeJavaHome);
-                task.setGitRevision(gitRevision);
                 task.getOutputFile().set(new File(project.getBuildDir(), "global-build-info"));
                 task.getCompilerVersionFile().set(new File(project.getBuildDir(), "java-compiler-version"));
                 task.getRuntimeVersionFile().set(new File(project.getBuildDir(), "java-runtime-version"));
                 task.getFipsJvmFile().set(new File(project.getBuildDir(), "in-fips-jvm"));
-                task.getGitRevisionFile().set(new File(project.getBuildDir(), "git-revision"));
             });
 
         PrintGlobalBuildInfoTask printTask = project.getTasks().create("printGlobalBuildInfo", PrintGlobalBuildInfoTask.class, task -> {
@@ -73,7 +70,6 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             task.getCompilerVersionFile().set(generateTask.getCompilerVersionFile());
             task.getRuntimeVersionFile().set(generateTask.getRuntimeVersionFile());
             task.getFipsJvmFile().set(generateTask.getFipsJvmFile());
-            task.getGitRevisionFile().set(generateTask.getGitRevisionFile());
             task.setGlobalInfoListeners(extension.listeners);
         });
 
@@ -96,7 +92,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             ext.set("minimumCompilerVersion", minimumCompilerVersion);
             ext.set("minimumRuntimeVersion", minimumRuntimeVersion);
             ext.set("gradleJavaVersion", Jvm.current().getJavaVersion());
-            ext.set("gitRevision", gitRevision);
+            ext.set("gitRevision", gitRevision(project));
             ext.set("buildDate", ZonedDateTime.now(ZoneOffset.UTC));
         });
     }

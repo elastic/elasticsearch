@@ -38,12 +38,10 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
     private File compilerJavaHome;
     private File runtimeJavaHome;
     private List<JavaHome> javaVersions;
-    private String gitRevision;
     private final RegularFileProperty outputFile;
     private final RegularFileProperty compilerVersionFile;
     private final RegularFileProperty runtimeVersionFile;
     private final RegularFileProperty fipsJvmFile;
-    private final RegularFileProperty gitRevisionFile;
 
     @Inject
     public GenerateGlobalBuildInfoTask(ObjectFactory objectFactory) {
@@ -51,7 +49,6 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
         this.compilerVersionFile = objectFactory.fileProperty();
         this.runtimeVersionFile = objectFactory.fileProperty();
         this.fipsJvmFile = objectFactory.fileProperty();
-        this.gitRevisionFile = objectFactory.fileProperty();
     }
 
     @Input
@@ -101,15 +98,6 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
         this.javaVersions = javaVersions;
     }
 
-    @Input
-    public String getGitRevision() {
-        return gitRevision;
-    }
-
-    public void setGitRevision(final String gitRevision) {
-        this.gitRevision = gitRevision;
-    }
-
     @OutputFile
     public RegularFileProperty getOutputFile() {
         return outputFile;
@@ -128,11 +116,6 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
     @OutputFile
     public RegularFileProperty getFipsJvmFile() {
         return fipsJvmFile;
-    }
-
-    @OutputFile
-    public RegularFileProperty getGitRevisionFile() {
-        return gitRevisionFile;
     }
 
     @TaskAction
@@ -187,13 +170,12 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
                 writer.write("  Runtime java.home     : " + runtimeJavaHome + "\n");
                 writer.write("  Gradle JDK Version    : " + JavaVersion.toVersion(gradleJavaVersion)
                     + " (" + gradleJavaVersionDetails + ")\n");
-                writer.write("  Gradle java.home      : " + gradleJavaHome + "\n");
+                writer.write("  Gradle java.home      : " + gradleJavaHome);
             } else {
                 writer.write("  JDK Version           : " + JavaVersion.toVersion(gradleJavaVersion)
                     + " (" + gradleJavaVersionDetails + ")\n");
-                writer.write("  JAVA_HOME             : " + gradleJavaHome + "\n");
+                writer.write("  JAVA_HOME             : " + gradleJavaHome);
             }
-            writer.write("  Git Revision          : " + gitRevision);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -234,7 +216,6 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
         writeToFile(compilerVersionFile.getAsFile().get(), compilerJavaVersionEnum.name());
         writeToFile(runtimeVersionFile.getAsFile().get(), runtimeJavaVersionEnum.name());
         writeToFile(fipsJvmFile.getAsFile().get(), Boolean.toString(inFipsJvm));
-        writeToFile(gitRevisionFile.getAsFile().get(), gitRevision);
     }
 
     private void writeToFile(File file, String content) {

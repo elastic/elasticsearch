@@ -18,7 +18,6 @@ public class PrintGlobalBuildInfoTask extends DefaultTask {
     private final RegularFileProperty compilerVersionFile;
     private final RegularFileProperty runtimeVersionFile;
     private final RegularFileProperty fipsJvmFile;
-    private final RegularFileProperty gitRevisionFile;
     private List<Runnable> globalInfoListeners = new ArrayList<>();
 
     @Inject
@@ -27,7 +26,6 @@ public class PrintGlobalBuildInfoTask extends DefaultTask {
         this.compilerVersionFile = objectFactory.fileProperty();
         this.runtimeVersionFile = objectFactory.fileProperty();
         this.fipsJvmFile = objectFactory.fileProperty();
-        this.gitRevisionFile = objectFactory.fileProperty();
     }
 
     @InputFile
@@ -48,11 +46,6 @@ public class PrintGlobalBuildInfoTask extends DefaultTask {
     @InputFile
     public RegularFileProperty getFipsJvmFile() {
         return fipsJvmFile;
-    }
-
-    @InputFile
-    public RegularFileProperty getGitRevisionFile() {
-        return gitRevisionFile;
     }
 
     public void setGlobalInfoListeners(List<Runnable> globalInfoListeners) {
@@ -86,7 +79,6 @@ public class PrintGlobalBuildInfoTask extends DefaultTask {
             ext.set("compilerJavaVersion", JavaVersion.valueOf(getFileText(getCompilerVersionFile()).asString()));
             ext.set("runtimeJavaVersion", JavaVersion.valueOf(getFileText(getRuntimeVersionFile()).asString()));
             ext.set("inFipsJvm", Boolean.valueOf(getFileText(getFipsJvmFile()).asString()));
-            ext.set("gitRevision", getFileText(getGitRevisionFile()).asString());
         });
     }
 }

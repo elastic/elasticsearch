@@ -394,6 +394,9 @@ public abstract class StreamInput extends InputStream {
     // Maximum char-count to de-serialize via the thread-local CharsRef buffer
     private static final int SMALL_STRING_LIMIT = 1024;
 
+    // Reusable bytes for deserializing strings
+    private static final ThreadLocal<byte[]> stringReadBuffer = ThreadLocal.withInitial(() -> new byte[1024]);
+
     // Thread-local buffer for smaller strings
     private static final ThreadLocal<CharsRef> smallSpare = ThreadLocal.withInitial(() -> new CharsRef(SMALL_STRING_LIMIT));
 
@@ -403,8 +406,6 @@ public abstract class StreamInput extends InputStream {
     private CharsRef largeSpare;
 
     public String readString() throws IOException {
-        // TODO it would be nice to not call readByte() for every character but we don't know how much to read up-front
-        // we can make the loop much more complicated but that won't buy us much compared to the bounds checks in readByte()
         final int charCount = readArraySize();
         final CharsRef charsRef;
         if (charCount > SMALL_STRING_LIMIT) {
@@ -419,32 +420,118 @@ public abstract class StreamInput extends InputStream {
             charsRef = smallSpare.get();
         }
         charsRef.length = charCount;
-        final char[] buffer = charsRef.chars;
-        for (int i = 0; i < charCount; i++) {
-            final int c = readByte() & 0xff;
-            switch (c >> 4) {
-                case 0:
-                case 1:
-                case 2:
-                case 3:
-                case 4:
-                case 5:
-                case 6:
-                case 7:
-                    buffer[i] = (char) c;
-                    break;
-                case 12:
-                case 13:
-                    buffer[i] = ((char) ((c & 0x1F) << 6 | readByte() & 0x3F));
-                    break;
-                case 14:
-                    buffer[i] = ((char) ((c & 0x0F) << 12 | (readByte() & 0x3F) << 6 | (readByte() & 0x3F) << 0));
-                    break;
-                default:
-                    throw new IOException("Invalid string; unexpected character: " + c + " hex: " + Integer.toHexString(c));
+        int charsOffset = 0;
+        int offsetByteArray = 0;
+        int sizeByteArray = 0;
+        int missingFromPartial = 0;
+        final byte[] byteBuffer = stringReadBuffer.get();
+        final char[] charBuffer = charsRef.chars;
+        for (; charsOffset < charCount; ) {
+            final int charsLeft = charCount - charsOffset;
+            int bufferFree = byteBuffer.length - sizeByteArray;
+            // Determine the minimum amount of bytes that are left in the string
+            final int minRemainingBytes;
+            if (missingFromPartial > 0) {
+                // One byte for each remaining char except for the already partially read char
+                minRemainingBytes = missingFromPartial + charsLeft - 1;
+                missingFromPartial = 0;
+            } else {
+                // Each char has at least a single byte
+                minRemainingBytes = charsLeft;
+            }
+            final int toRead;
+            if (bufferFree < minRemainingBytes) {
+                // We don't have enough space left in the byte array to read as much as we'd like to so we free up as many bytes in the
+                // buffer by moving unused bytes that didn't make up a full char in the last iteration to the beginning of the buffer,
+                // if there are any
+                if (offsetByteArray > 0) {
+                    sizeByteArray = sizeByteArray - offsetByteArray;
+                    switch (sizeByteArray) { // We only have 0, 1 or 2 => no need to bother with a native call to System#arrayCopy
+                        case 1:
+                            byteBuffer[0] = byteBuffer[offsetByteArray];
+                            break;
+                        case 2:
+                            byteBuffer[0] = byteBuffer[offsetByteArray];
+                            byteBuffer[1] = byteBuffer[offsetByteArray + 1];
+                            break;
+                    }
+                    assert sizeByteArray <= 2 : "We never copy more than 2 bytes here since a char is 3 bytes max";
+                    toRead = Math.min(bufferFree + offsetByteArray, minRemainingBytes);
+                    offsetByteArray = 0;
+                } else {
+                    toRead = bufferFree;
+                }
+            } else {
+                toRead = minRemainingBytes;
+            }
+            readBytes(byteBuffer, sizeByteArray, toRead);
+            sizeByteArray += toRead;
+            // As long as we at least have three bytes buffered we don't need to do any bounds checking when getting the next char since we
+            // read 3 bytes per char/iteration at most
+            for (; offsetByteArray < sizeByteArray - 2; offsetByteArray++) {
+                final int c = byteBuffer[offsetByteArray] & 0xff;
+                switch (c >> 4) {
+                    case 0:
+                    case 1:
+                    case 2:
+                    case 3:
+                    case 4:
+                    case 5:
+                    case 6:
+                    case 7:
+                        charBuffer[charsOffset++] = (char) c;
+                        break;
+                    case 12:
+                    case 13:
+                        charBuffer[charsOffset++] = (char) ((c & 0x1F) << 6 | byteBuffer[++offsetByteArray] & 0x3F);
+                        break;
+                    case 14:
+                        charBuffer[charsOffset++] = (char) (
+                            (c & 0x0F) << 12 | (byteBuffer[++offsetByteArray] & 0x3F) << 6 | (byteBuffer[++offsetByteArray] & 0x3F));
+                        break;
+                    default:
+                        throwOnBrokenChar(c);
+                }
+            }
+            // try to extract chars from remaining bytes with bounds checks for multi-byte chars
+            final int bufferedBytesRemaining = sizeByteArray - offsetByteArray;
+            for (int i = 0; i < bufferedBytesRemaining; i++) {
+                final int c = byteBuffer[offsetByteArray] & 0xff;
+                switch (c >> 4) {
+                    case 0:
+                    case 1:
+                    case 2:
+                    case 3:
+                    case 4:
+                    case 5:
+                    case 6:
+                    case 7:
+                        charBuffer[charsOffset++] = (char) c;
+                        offsetByteArray++;
+                        break;
+                    case 12:
+                    case 13:
+                        missingFromPartial = 2 - (bufferedBytesRemaining - i);
+                        if (missingFromPartial == 0) {
+                            offsetByteArray++;
+                            charBuffer[charsOffset++] = (char) ((c & 0x1F) << 6 | byteBuffer[offsetByteArray++] & 0x3F);
+                        }
+                        ++i;
+                        break;
+                    case 14:
+                        missingFromPartial = 3 - (bufferedBytesRemaining - i);
+                        ++i;
+                        break;
+                    default:
+                        throwOnBrokenChar(c);
+                }
             }
         }
         return charsRef.toString();
+    }
+
+    private static void throwOnBrokenChar(int c) throws IOException {
+        throw new IOException("Invalid string; unexpected character: " + c + " hex: " + Integer.toHexString(c));
     }
 
     public SecureString readSecureString() throws IOException {

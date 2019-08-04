@@ -420,15 +420,15 @@ public abstract class StreamInput extends InputStream {
             charsRef = smallSpare.get();
         }
         charsRef.length = charCount;
-        int charsProduced = 0;
-        int posByteArray = 0;
-        int usedByteBuffer = 0;
+        int charsOffset = 0;
+        int offsetByteArray = 0;
+        int sizeByteArray = 0;
         int missingFromPartial = 0;
         final byte[] byteBuffer = stringReadBuffer.get();
         final char[] charBuffer = charsRef.chars;
-        int charsLeft;
-        while ((charsLeft = charCount - charsProduced) > 0) {
-            int bufferFree = byteBuffer.length - usedByteBuffer;
+        for (; charsOffset < charCount; ) {
+            final int charsLeft = charCount - charsOffset;
+            int bufferFree = byteBuffer.length - sizeByteArray;
             // Determine the minimum amount of bytes that are left in the string
             final int minRemainingBytes;
             if (missingFromPartial > 0) {
@@ -444,33 +444,33 @@ public abstract class StreamInput extends InputStream {
                 // We don't have enough space left in the byte array to read as much as we'd like to so we free up as many bytes in the
                 // buffer by moving unused bytes that didn't make up a full char in the last iteration to the beginning of the buffer,
                 // if there are any
-                if (posByteArray > 0) {
-                    usedByteBuffer = usedByteBuffer - posByteArray;
-                    switch (usedByteBuffer) { // We only have 0, 1 or 2 => no need to bother with a native call to System#arrayCopy
+                if (offsetByteArray > 0) {
+                    sizeByteArray = sizeByteArray - offsetByteArray;
+                    switch (sizeByteArray) { // We only have 0, 1 or 2 => no need to bother with a native call to System#arrayCopy
                         case 1:
-                            byteBuffer[0] = byteBuffer[posByteArray];
+                            byteBuffer[0] = byteBuffer[offsetByteArray];
                             break;
                         case 2:
-                            byteBuffer[0] = byteBuffer[posByteArray];
-                            byteBuffer[1] = byteBuffer[posByteArray + 1];
+                            byteBuffer[0] = byteBuffer[offsetByteArray];
+                            byteBuffer[1] = byteBuffer[offsetByteArray + 1];
                             break;
                     }
-                    assert usedByteBuffer <= 2 : "We never copy more than 2 bytes here since a char is 3 bytes max";
-                    toRead = Math.min(bufferFree + posByteArray, minRemainingBytes);
-                    posByteArray = 0;
+                    assert sizeByteArray <= 2 : "We never copy more than 2 bytes here since a char is 3 bytes max";
+                    toRead = Math.min(bufferFree + offsetByteArray, minRemainingBytes);
+                    offsetByteArray = 0;
                 } else {
                     toRead = bufferFree;
                 }
             } else {
                 toRead = minRemainingBytes;
             }
-            readBytes(byteBuffer, usedByteBuffer, toRead);
-            usedByteBuffer += toRead;
+            readBytes(byteBuffer, sizeByteArray, toRead);
+            sizeByteArray += toRead;
             int bufferedBytesRemaining;
             // As long as we at least have three bytes buffered we don't need to do any bounds checking when getting the next char since we
             // read 3 bytes per char/iteration at most
-            while ((bufferedBytesRemaining = (usedByteBuffer - posByteArray)) > 2) {
-                final int c = byteBuffer[posByteArray++] & 0xff;
+            while ((bufferedBytesRemaining = (sizeByteArray - offsetByteArray)) > 2) {
+                final int c = byteBuffer[offsetByteArray++] & 0xff;
                 switch (c >> 4) {
                     case 0:
                     case 1:
@@ -480,24 +480,23 @@ public abstract class StreamInput extends InputStream {
                     case 5:
                     case 6:
                     case 7:
-                        charBuffer[charsProduced++] = (char) c;
+                        charBuffer[charsOffset++] = (char) c;
                         break;
                     case 12:
                     case 13:
-                        charBuffer[charsProduced++] = (char) ((c & 0x1F) << 6 | byteBuffer[posByteArray++] & 0x3F);
+                        charBuffer[charsOffset++] = (char) ((c & 0x1F) << 6 | byteBuffer[offsetByteArray++] & 0x3F);
                         break;
                     case 14:
-                        charBuffer[charsProduced++] =
-                            (char) ((c & 0x0F) << 12 | (byteBuffer[posByteArray++] & 0x3F) << 6 | (byteBuffer[posByteArray++] & 0x3F));
+                        charBuffer[charsOffset++] = (char) (
+                            (c & 0x0F) << 12 | (byteBuffer[offsetByteArray++] & 0x3F) << 6 | (byteBuffer[offsetByteArray++] & 0x3F));
                         break;
                     default:
                         throwOnBrokenChar(c);
                 }
             }
             // try to extract chars from remaining bytes with bounds checks for multi-byte chars
-            REMAINING:
-            while (bufferedBytesRemaining > 0) {
-                final int c = byteBuffer[posByteArray] & 0xff;
+            for (int i = 0; i < bufferedBytesRemaining; i++) {
+                final int c = byteBuffer[offsetByteArray] & 0xff;
                 switch (c >> 4) {
                     case 0:
                     case 1:
@@ -507,20 +506,22 @@ public abstract class StreamInput extends InputStream {
                     case 5:
                     case 6:
                     case 7:
-                        charBuffer[charsProduced++] = (char) c;
-                        posByteArray++;
-                        --bufferedBytesRemaining;
+                        charBuffer[charsOffset++] = (char) c;
+                        offsetByteArray++;
                         break;
                     case 12:
                     case 13:
-                        if ((missingFromPartial = 2 - bufferedBytesRemaining) == 0) {
-                            posByteArray++;
-                            charBuffer[charsProduced++] = (char) ((c & 0x1F) << 6 | byteBuffer[posByteArray++] & 0x3F);
+                        missingFromPartial = 2 - (bufferedBytesRemaining - i);
+                        if (missingFromPartial == 0) {
+                            offsetByteArray++;
+                            charBuffer[charsOffset++] = (char) ((c & 0x1F) << 6 | byteBuffer[offsetByteArray++] & 0x3F);
                         }
-                        break REMAINING;
+                        ++i;
+                        break;
                     case 14:
-                        missingFromPartial = 3 - bufferedBytesRemaining;
-                        break REMAINING;
+                        missingFromPartial = 3 - (bufferedBytesRemaining - i);
+                        ++i;
+                        break;
                     default:
                         throwOnBrokenChar(c);
                 }

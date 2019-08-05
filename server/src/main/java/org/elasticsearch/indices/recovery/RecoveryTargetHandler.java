@@ -42,9 +42,11 @@ public interface RecoveryTargetHandler {
      * the global checkpoint.
      *
      * @param globalCheckpoint the global checkpoint on the recovery source
+     * @param trimAboveSeqNo   The recovery target should erase its existing translog above this sequence number
+     *                         from the previous primary terms.
      * @param listener         the listener which will be notified when this method is completed
      */
-    void finalizeRecovery(long globalCheckpoint, ActionListener<Void> listener);
+    void finalizeRecovery(long globalCheckpoint, long trimAboveSeqNo, ActionListener<Void> listener);
 
     /**
      * Handoff the primary context between the relocation source and the relocation target.

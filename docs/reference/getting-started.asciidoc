@@ -34,9 +34,8 @@ trial of Elasticsearch Service] in the cloud.
 
 To take {es} for a test drive, you can create a one-click cloud deployment
 on the <<gs-run-elasticsearch-cloud,Elasticsearch Service>>,
-or set up a basic {es} cluster on your own <<gs-run-elasticsearch-linux,Linux>>,
-<<gs-run-elasticsearch-mac,macOS>>, or
-<<gs-run-elasticsearch-win,Windows>> machine.
+or <<run-elasticsearch-local, set up a basic {es} cluster>> on your own Linux,
+macOS, or Windows machine.
 
 
 [float]
@@ -44,8 +43,8 @@ or set up a basic {es} cluster on your own <<gs-run-elasticsearch-linux,Linux>>,
 === Run {es} locally on Linux, macOS, or Windows
 
 When you create a cluster on the Elasticsearch Service, you automatically
-get a three node cluster. To run a three node {es} cluster locally, you can
-install using the tar or zip archive:
+get a three node cluster. To run a three node {es} cluster locally,
+install {es} using the tar or zip archive:
 
 . Download the Elasticsearch archive for your OS:
 +
@@ -88,6 +87,7 @@ Windows PowerShell:
 +
 ["source","sh",subs="attributes,callouts"]
 -------------------------------------------------
+Expand-Archive elasticsearch-{version}-windows-x86_64.zip
 --------------------------------------------------
 
 . Start elasticsearch from the `bin` directory:
@@ -136,10 +136,11 @@ is automatically assigned a unique ID.
 [[gs-other-install]]
 === Other installation options
 
-You can also run {es} in a Docker container, install {es} using the DEB
-or RPM packages on Linux, install using Homebrew on macOS, and install using the
-MSI package installer on Windows. See <<install-elasticsearch>> for
-information about all of the available installation options.
+Installing {es} from an archive file enables you to easily install and run
+multiple instances locally. To run a single instance, you can  run {es} in a
+Docker container, install {es} using the DEB or RPM packages on Linux, install
+using Homebrew on macOS, or install using the MSI package installer on
+Windows. See <<install-elasticsearch>> for more information.
 
 [[getting-started-explore]]
 == Exploring Your Cluster

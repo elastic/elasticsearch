@@ -33,7 +33,7 @@ public abstract class MovingFunctionScript {
      * @param values The values in the window that we are moving a function across
      * @return A double representing the value from this particular window
      */
-    public abstract double execute(Map<String, Object> params, double[] values);
+    public abstract double execute(Map<String, Object> params, Double[] values);
 
     public interface Factory {
         MovingFunctionScript newInstance();

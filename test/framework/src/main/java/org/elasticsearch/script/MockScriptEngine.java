@@ -272,7 +272,7 @@ public class MockScriptEngine implements ScriptEngine {
         } else if (context.instanceClazz.equals(MovingFunctionScript.class)) {
             MovingFunctionScript.Factory factory = () -> new MovingFunctionScript() {
                 @Override
-                public double execute(Map<String, Object> params1, double[] values) {
+                public double execute(Map<String, Object> params1, Double[] values) {
                     params1.put("_values", values);
                     return (double) script.apply(params1);
                 }

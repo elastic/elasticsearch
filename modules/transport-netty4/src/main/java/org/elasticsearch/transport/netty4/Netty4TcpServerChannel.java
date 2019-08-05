@@ -29,18 +29,11 @@ import java.net.InetSocketAddress;
 public class Netty4TcpServerChannel implements TcpServerChannel {
 
     private final Channel channel;
-    private final String profile;
     private final CompletableContext<Void> closeContext = new CompletableContext<>();
 
-    Netty4TcpServerChannel(Channel channel, String profile) {
+    Netty4TcpServerChannel(Channel channel) {
         this.channel = channel;
-        this.profile = profile;
         Netty4TcpChannel.addListener(this.channel.closeFuture(), closeContext);
-    }
-
-    @Override
-    public String getProfile() {
-        return profile;
     }
 
     @Override

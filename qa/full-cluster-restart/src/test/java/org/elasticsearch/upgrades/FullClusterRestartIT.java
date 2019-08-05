@@ -35,6 +35,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.seqno.RetentionLeaseUtils;
 import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.rest.action.document.RestGetAction;
 import org.elasticsearch.rest.action.document.RestIndexAction;
@@ -89,7 +90,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     private String type;
 
     @Before
-    public void setIndex() throws IOException {
+    public void setIndex() {
         index = getTestName().toLowerCase(Locale.ROOT);
     }
 
@@ -1337,5 +1338,32 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         logger.info("health api response: {}", healthRsp);
         assertEquals("green", healthRsp.get("status"));
         assertFalse((Boolean) healthRsp.get("timed_out"));
+    }
+
+    public void testPeerRecoveryRetentionLeases() throws IOException {
+        assumeTrue(getOldClusterVersion() + " does not support soft deletes", getOldClusterVersion().onOrAfter(Version.V_6_5_0));
+        if (isRunningAgainstOldCluster()) {
+            XContentBuilder settings = jsonBuilder();
+            settings.startObject();
+            {
+                settings.startObject("settings");
+                settings.field("number_of_shards", between(1, 5));
+                settings.field("number_of_replicas", between(0, 1));
+                if (randomBoolean() || getOldClusterVersion().before(Version.V_7_0_0)) {
+                    // this is the default after v7.0.0, but is required before that
+                    settings.field("soft_deletes.enabled", true);
+                }
+                settings.endObject();
+            }
+            settings.endObject();
+
+            Request createIndex = new Request("PUT", "/" + index);
+            createIndex.setJsonEntity(Strings.toString(settings));
+            client().performRequest(createIndex);
+            ensureGreen(index);
+        } else {
+            ensureGreen(index);
+            RetentionLeaseUtils.assertAllCopiesHavePeerRecoveryRetentionLeases(client(), index);
+        }
     }
 }

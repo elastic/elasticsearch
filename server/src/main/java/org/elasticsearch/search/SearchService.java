@@ -341,12 +341,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private <T> void runAsync(long id, Supplier<T> executable, ActionListener<T> listener) {
-        getExecutor(id).execute(new ActionRunnable<T>(listener) {
-            @Override
-            protected void doRun() {
-                listener.onResponse(executable.get());
-            }
-        });
+        getExecutor(id).execute(ActionRunnable.wrap(listener, l -> l.onResponse(executable.get())));
     }
 
     private SearchPhaseResult executeQueryPhase(ShardSearchRequest request, SearchTask task) throws Exception {
@@ -1044,15 +1039,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         IndexShard shard = indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
         Executor executor = getExecutor(shard);
         ActionListener<Rewriteable> actionListener = ActionListener.wrap(r ->
-            // now we need to check if there is a pending refresh and register
-            shard.awaitShardSearchActive(b ->
-                executor.execute(new ActionRunnable<ShardSearchRequest>(listener) {
-                    @Override
-                    protected void doRun() {
-                        listener.onResponse(request);
-                    }
-                })
-            ), listener::onFailure);
+                // now we need to check if there is a pending refresh and register
+                shard.awaitShardSearchActive(b -> executor.execute(ActionRunnable.wrap(listener, l -> l.onResponse(request)))),
+            listener::onFailure);
         // we also do rewrite on the coordinating node (TransportSearchService) but we also need to do it here for BWC as well as
         // AliasFilters that might need to be rewritten. These are edge-cases but we are every efficient doing the rewrite here so it's not
         // adding a lot of overhead

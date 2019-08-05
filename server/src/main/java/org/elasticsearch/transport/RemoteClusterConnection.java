@@ -192,39 +192,52 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
     /**
      * Collects all nodes on the connected cluster and returns / passes a nodeID to {@link DiscoveryNode} lookup function
      * that returns <code>null</code> if the node ID is not found.
+     *
+     * The requests to get cluster state on the connected cluster are made in the system context because logically
+     * they are equivalent to checking a single detail in the local cluster state and should not require that the
+     * user who made the request that is using this method in its implementation is authorized to view the entire
+     * cluster state.
      */
     void collectNodes(ActionListener<Function<String, DiscoveryNode>> listener) {
         Runnable runnable = () -> {
-            final ClusterStateRequest request = new ClusterStateRequest();
-            request.clear();
-            request.nodes(true);
-            request.local(true); // run this on the node that gets the request it's as good as any other
-            final DiscoveryNode node = getAnyConnectedNode();
-            Transport.Connection connection = connectionManager.getConnection(node);
-            transportService.sendRequest(connection, ClusterStateAction.NAME, request, TransportRequestOptions.EMPTY,
-                new TransportResponseHandler<ClusterStateResponse>() {
+            final ThreadContext threadContext = threadPool.getThreadContext();
+            final ContextPreservingActionListener<Function<String, DiscoveryNode>> contextPreservingActionListener =
+                new ContextPreservingActionListener<>(threadContext.newRestorableContext(false), listener);
+            try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+                // we stash any context here since this is an internal execution and should not leak any existing context information
+                threadContext.markAsSystemContext();
 
-                    @Override
-                    public ClusterStateResponse read(StreamInput in) throws IOException {
-                        return new ClusterStateResponse(in);
-                    }
+                final ClusterStateRequest request = new ClusterStateRequest();
+                request.clear();
+                request.nodes(true);
+                request.local(true); // run this on the node that gets the request it's as good as any other
+                final DiscoveryNode node = getAnyConnectedNode();
+                Transport.Connection connection = connectionManager.getConnection(node);
+                transportService.sendRequest(connection, ClusterStateAction.NAME, request, TransportRequestOptions.EMPTY,
+                    new TransportResponseHandler<ClusterStateResponse>() {
 
-                    @Override
-                    public void handleResponse(ClusterStateResponse response) {
-                        DiscoveryNodes nodes = response.getState().nodes();
-                        listener.onResponse(nodes::get);
-                    }
+                        @Override
+                        public ClusterStateResponse read(StreamInput in) throws IOException {
+                            return new ClusterStateResponse(in);
+                        }
 
-                    @Override
-                    public void handleException(TransportException exp) {
-                        listener.onFailure(exp);
-                    }
+                        @Override
+                        public void handleResponse(ClusterStateResponse response) {
+                            DiscoveryNodes nodes = response.getState().nodes();
+                            contextPreservingActionListener.onResponse(nodes::get);
+                        }
 
-                    @Override
-                    public String executor() {
-                        return ThreadPool.Names.SAME;
-                    }
-                });
+                        @Override
+                        public void handleException(TransportException exp) {
+                            contextPreservingActionListener.onFailure(exp);
+                        }
+
+                        @Override
+                        public String executor() {
+                            return ThreadPool.Names.SAME;
+                        }
+                    });
+            }
         };
         try {
             // just in case if we are not connected for some reason we try to connect and if we fail we have to notify the listener
@@ -419,14 +432,6 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
             }
 
             if (seedNodes.hasNext()) {
-                final DiscoveryNode seedNode = maybeAddProxyAddress(proxyAddress, seedNodes.next().get());
-                logger.debug("[{}] opening connection to seed node: [{}] proxy address: [{}]", clusterAlias, seedNode,
-                    proxyAddress);
-                final ConnectionProfile profile = ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.REG);
-
-                final StepListener<Transport.Connection> openConnectionStep = new StepListener<>();
-                connectionManager.openConnection(seedNode, profile, openConnectionStep);
-
                 final Consumer<Exception> onFailure = e -> {
                     if (e instanceof ConnectTransportException ||
                         e instanceof IOException ||
@@ -442,6 +447,17 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
                     logger.warn(() -> new ParameterizedMessage("fetching nodes from external cluster [{}] failed", clusterAlias), e);
                     listener.onFailure(e);
                 };
+
+                final DiscoveryNode seedNode = maybeAddProxyAddress(proxyAddress, seedNodes.next().get());
+                logger.debug("[{}] opening connection to seed node: [{}] proxy address: [{}]", clusterAlias, seedNode,
+                    proxyAddress);
+                final ConnectionProfile profile = ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.REG);
+                final StepListener<Transport.Connection> openConnectionStep = new StepListener<>();
+                try {
+                    connectionManager.openConnection(seedNode, profile, openConnectionStep);
+                } catch (Exception e) {
+                    onFailure.accept(e);
+                }
 
                 final StepListener<TransportService.HandshakeResponse> handShakeStep = new StepListener<>();
                 openConnectionStep.whenComplete(connection -> {

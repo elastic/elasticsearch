@@ -25,9 +25,11 @@ import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.BucketInfluencer;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
+import org.elasticsearch.xpack.core.ml.utils.ExponentialAverageCalculationContext;
 import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
@@ -209,7 +211,9 @@ public class JobResultsPersisterTests extends ESTestCase {
         Client client = mockClient(bulkRequestCaptor);
 
         JobResultsPersister persister = new JobResultsPersister(client);
-        TimingStats timingStats = new TimingStats("foo", 7, 1.0, 2.0, 1.23, 7.89);
+        TimingStats timingStats =
+            new TimingStats(
+                "foo", 7, 1.0, 2.0, 1.23, 7.89, new ExponentialAverageCalculationContext(600.0, Instant.ofEpochMilli(123456789), 60.0));
         persister.bulkPersisterBuilder(JOB_ID).persistTimingStats(timingStats).executeRequest();
 
         verify(client, times(1)).bulk(bulkRequestCaptor.capture());
@@ -226,6 +230,11 @@ public class JobResultsPersisterTests extends ESTestCase {
         expectedSourceAsMap.put("maximum_bucket_processing_time_ms", 2.0);
         expectedSourceAsMap.put("average_bucket_processing_time_ms", 1.23);
         expectedSourceAsMap.put("exponential_average_bucket_processing_time_ms", 7.89);
+        Map<String, Object> calculationContextMap = new HashMap<>();
+        calculationContextMap.put("incremental_metric_value_ms", 600.0);
+        calculationContextMap.put("previous_exponential_average_ms", 60.0);
+        calculationContextMap.put("latest_timestamp", 123456789);
+        expectedSourceAsMap.put("exponential_average_calculation_context", calculationContextMap);
         assertThat(indexRequest.sourceAsMap(), equalTo(expectedSourceAsMap));
 
         verify(client, times(1)).threadPool();
@@ -246,7 +255,9 @@ public class JobResultsPersisterTests extends ESTestCase {
             .when(client).index(any(), any(ActionListener.class));
 
         JobResultsPersister persister = new JobResultsPersister(client);
-        DatafeedTimingStats timingStats = new DatafeedTimingStats("foo", 6, 66, 666.0);
+        DatafeedTimingStats timingStats =
+            new DatafeedTimingStats(
+                "foo", 6, 66, 666.0, new ExponentialAverageCalculationContext(600.0, Instant.ofEpochMilli(123456789), 60.0));
         persister.persistDatafeedTimingStats(timingStats, WriteRequest.RefreshPolicy.IMMEDIATE);
 
         ArgumentCaptor<IndexRequest> indexRequestCaptor = ArgumentCaptor.forClass(IndexRequest.class);
@@ -261,6 +272,11 @@ public class JobResultsPersisterTests extends ESTestCase {
         expectedSourceAsMap.put("search_count", 6);
         expectedSourceAsMap.put("bucket_count", 66);
         expectedSourceAsMap.put("total_search_time_ms", 666.0);
+        Map<String, Object> calculationContextMap = new HashMap<>();
+        calculationContextMap.put("incremental_metric_value_ms", 600.0);
+        calculationContextMap.put("previous_exponential_average_ms", 60.0);
+        calculationContextMap.put("latest_timestamp", 123456789);
+        expectedSourceAsMap.put("exponential_average_calculation_context", calculationContextMap);
         assertThat(indexRequest.sourceAsMap(), equalTo(expectedSourceAsMap));
 
         verify(client, times(1)).threadPool();

@@ -27,7 +27,7 @@ import java.util.List;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING;
+import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING;
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.CLUSTER_SETTINGS_CHECKS;
 import static org.elasticsearch.xpack.deprecation.IndexDeprecationChecksTests.addRandomFields;
 

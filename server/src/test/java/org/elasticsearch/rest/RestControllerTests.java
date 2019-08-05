@@ -53,11 +53,9 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.UnaryOperator;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -80,7 +78,6 @@ public class RestControllerTests extends ESTestCase {
 
     @Before
     public void setup() {
-        Settings settings = Settings.EMPTY;
         circuitBreakerService = new HierarchyCircuitBreakerService(
             Settings.builder()
                 .put(HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), BREAKER_LIMIT)
@@ -139,30 +136,6 @@ public class RestControllerTests extends ESTestCase {
         assertNull(threadContext.getHeader("header.3"));
     }
 
-    public void testCanTripCircuitBreaker() throws Exception {
-        RestController controller = new RestController(Collections.emptySet(), null, null, circuitBreakerService, usageService);
-        // trip circuit breaker by default
-        controller.registerHandler(RestRequest.Method.GET, "/trip", new FakeRestHandler(true));
-        controller.registerHandler(RestRequest.Method.GET, "/do-not-trip", new FakeRestHandler(false));
-
-        RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withPath("/trip").build();
-        for (Iterator<MethodHandlers> it = controller.getAllHandlers(fakeRequest); it.hasNext(); ) {
-            Optional<MethodHandlers> mHandler = Optional.ofNullable(it.next());
-            assertTrue(mHandler.map(mh -> controller.canTripCircuitBreaker(mh.getHandler(RestRequest.Method.GET))).orElse(true));
-        }
-        // assume trip even on unknown paths
-        fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withPath("/unknown-path").build();
-        for (Iterator<MethodHandlers> it = controller.getAllHandlers(fakeRequest); it.hasNext(); ) {
-            Optional<MethodHandlers> mHandler = Optional.ofNullable(it.next());
-            assertTrue(mHandler.map(mh -> controller.canTripCircuitBreaker(mh.getHandler(RestRequest.Method.GET))).orElse(true));
-        }
-        fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withPath("/do-not-trip").build();
-        for (Iterator<MethodHandlers> it = controller.getAllHandlers(fakeRequest); it.hasNext(); ) {
-            Optional<MethodHandlers> mHandler = Optional.ofNullable(it.next());
-            assertFalse(mHandler.map(mh -> controller.canTripCircuitBreaker(mh.getHandler(RestRequest.Method.GET))).orElse(false));
-        }
-    }
-
     public void testRegisterAsDeprecatedHandler() {
         RestController controller = mock(RestController.class);
 
@@ -205,16 +178,19 @@ public class RestControllerTests extends ESTestCase {
     public void testRestHandlerWrapper() throws Exception {
         AtomicBoolean handlerCalled = new AtomicBoolean(false);
         AtomicBoolean wrapperCalled = new AtomicBoolean(false);
-        RestHandler handler = (RestRequest request, RestChannel channel, NodeClient client) -> {
-            handlerCalled.set(true);
-        };
-        UnaryOperator<RestHandler> wrapper = h -> {
-            assertSame(handler, h);
-            return (RestRequest request, RestChannel channel, NodeClient client) -> wrapperCalled.set(true);
-        };
-        final RestController restController = new RestController(Collections.emptySet(), wrapper, null,
-                circuitBreakerService, usageService);
-        restController.dispatchRequest(new FakeRestRequest.Builder(xContentRegistry()).build(), null, null, Optional.of(handler));
+        final RestHandler handler = (RestRequest request, RestChannel channel, NodeClient client) -> handlerCalled.set(true);
+        final HttpServerTransport httpServerTransport = new TestHttpServerTransport();
+        final RestController restController =
+            new RestController(Collections.emptySet(),
+                h -> {
+                    assertSame(handler, h);
+                    return (RestRequest request, RestChannel channel, NodeClient client) -> wrapperCalled.set(true);
+                }, null, circuitBreakerService, usageService);
+        restController.registerHandler(RestRequest.Method.GET, "/wrapped", handler);
+        RestRequest request = testRestRequest("/wrapped", "{}", XContentType.JSON);
+        AssertingChannel channel = new AssertingChannel(request, true, RestStatus.BAD_REQUEST);
+        restController.dispatchRequest(request, channel, new ThreadContext(Settings.EMPTY));
+        httpServerTransport.start();
         assertTrue(wrapperCalled.get());
         assertFalse(handlerCalled.get());
     }
@@ -458,7 +434,6 @@ public class RestControllerTests extends ESTestCase {
         final FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).build();
         final AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.BAD_REQUEST);
         restController.dispatchBadRequest(
-            fakeRestRequest,
             channel,
             new ThreadContext(Settings.EMPTY),
             randomBoolean() ? new IllegalStateException("bad request") : new Throwable("bad request"));
@@ -469,7 +444,7 @@ public class RestControllerTests extends ESTestCase {
     public void testDispatchBadRequestUnknownCause() {
         final FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).build();
         final AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.BAD_REQUEST);
-        restController.dispatchBadRequest(fakeRestRequest, channel, new ThreadContext(Settings.EMPTY), null);
+        restController.dispatchBadRequest(channel, new ThreadContext(Settings.EMPTY), null);
         assertTrue(channel.getSendResponseCalled());
         assertThat(channel.getRestResponse().content().utf8ToString(), containsString("unknown cause"));
     }

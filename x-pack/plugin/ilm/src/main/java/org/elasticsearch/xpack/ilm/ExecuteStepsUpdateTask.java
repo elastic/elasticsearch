@@ -14,11 +14,11 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateActionStep;
-import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateWaitStep;
-import org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionState;
-import org.elasticsearch.xpack.core.indexlifecycle.Step;
-import org.elasticsearch.xpack.core.indexlifecycle.TerminalPolicyStep;
+import org.elasticsearch.xpack.core.ilm.ClusterStateActionStep;
+import org.elasticsearch.xpack.core.ilm.ClusterStateWaitStep;
+import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
+import org.elasticsearch.xpack.core.ilm.Step;
+import org.elasticsearch.xpack.core.ilm.TerminalPolicyStep;
 
 import java.io.IOException;
 import java.util.function.LongSupplier;

@@ -73,6 +73,8 @@ public class DistroTestPlugin implements Plugin<Project> {
     private static Version upgradeVersion;
     private Provider<Directory> archivesDir;
     private TaskProvider<Copy> copyPackagingArchives;
+    private Jdk systemJdk;
+    private Jdk gradleJdk;
 
     @Override
     public void apply(Project project) {
@@ -125,15 +127,15 @@ public class DistroTestPlugin implements Plugin<Project> {
         return indexCompatVersions.get(new Random(seed).nextInt(indexCompatVersions.size()));
     }
 
-    private static void configureVM(Project project) {
+    private void configureVM(Project project) {
         String box = project.getName();
 
         // setup jdks used by the distro tests, and by gradle executing
         
         NamedDomainObjectContainer<Jdk> jdksContainer = JdkDownloadPlugin.getContainer(project);
         String platform = box.contains("windows") ? "windows" : "linux";
-        Jdk systemJdk = createJdk(jdksContainer, "system", SYSTEM_JDK_VERSION, platform);
-        Jdk gradleJdk = createJdk(jdksContainer, "gradle", GRADLE_JDK_VERSION, platform);
+        this.systemJdk = createJdk(jdksContainer, "system", SYSTEM_JDK_VERSION, platform);
+        this.gradleJdk = createJdk(jdksContainer, "gradle", GRADLE_JDK_VERSION, platform);
 
         // setup VM used by these tests
         VagrantExtension vagrant = project.getExtensions().getByType(VagrantExtension.class);
@@ -204,7 +206,7 @@ public class DistroTestPlugin implements Plugin<Project> {
                 t.setMaxParallelForks(1);
                 t.setWorkingDir(archivesDir.get());
                 if (System.getProperty(IN_VM_SYSPROP) == null) {
-                    t.dependsOn(copyPackagingArchives);
+                    t.dependsOn(copyPackagingArchives, systemJdk, gradleJdk);
                 }
             });
 
@@ -215,7 +217,7 @@ public class DistroTestPlugin implements Plugin<Project> {
                 t.setDescription("Runs distribution tests within vagrant");
                 t.setTaskName(project.getPath() + ":" + destructiveTest.getName());
                 t.extraArg("-D'" + IN_VM_SYSPROP + "'");
-                t.dependsOn(copyPackagingArchives);
+                t.dependsOn(copyPackagingArchives, systemJdk, gradleJdk);
             });
     }
 
@@ -232,7 +234,7 @@ public class DistroTestPlugin implements Plugin<Project> {
                 t.setArchivesDir(archivesDir.get());
                 t.setPackageName("elasticsearch" + (type.equals("oss") ? "-oss" : ""));
                 if (System.getProperty(IN_VM_SYSPROP) == null) {
-                    t.dependsOn(copyPackagingArchives);
+                    t.dependsOn(copyPackagingArchives, systemJdk);
                 }
             });
 
@@ -245,7 +247,7 @@ public class DistroTestPlugin implements Plugin<Project> {
                 t.setTaskName(project.getPath() + ":" + destructiveTest.getName());
                 t.setProgressHandler(new BatsProgressLogger(project.getLogger()));
                 t.extraArg("-D'" + IN_VM_SYSPROP + "'");
-                t.dependsOn(copyPackagingArchives);
+                t.dependsOn(copyPackagingArchives, systemJdk);
                 t.onlyIf(spec -> vagrant.isWindowsVM() == false); // bats doesn't run on windows
             });
     }

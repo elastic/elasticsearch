@@ -69,7 +69,7 @@ public class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
     }
 
     @Override
-    public void getCheckpoint(final DataFrameTransformCheckpoint lastCheckpoint,
+    public void createNextCheckpoint(final DataFrameTransformCheckpoint lastCheckpoint,
             final ActionListener<DataFrameTransformCheckpoint> listener) {
         final long timestamp = getTime();
         final long checkpoint = lastCheckpoint != null ? lastCheckpoint.getCheckpoint() + 1 : 1;

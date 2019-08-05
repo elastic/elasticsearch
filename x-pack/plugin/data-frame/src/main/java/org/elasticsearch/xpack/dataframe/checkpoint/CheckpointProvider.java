@@ -19,12 +19,12 @@ import org.elasticsearch.xpack.core.indexing.IndexerState;
 public interface CheckpointProvider {
 
     /**
-     * Get a checkpoint, used to store a checkpoint.
+     * Create a new checkpoint
      *
      * @param lastCheckpoint the last checkpoint
      * @param listener listener to call after inner request returned
      */
-    void getCheckpoint(DataFrameTransformCheckpoint lastCheckpoint, ActionListener<DataFrameTransformCheckpoint> listener);
+    void createNextCheckpoint(DataFrameTransformCheckpoint lastCheckpoint, ActionListener<DataFrameTransformCheckpoint> listener);
 
     /**
      * Determines whether the data frame needs updating

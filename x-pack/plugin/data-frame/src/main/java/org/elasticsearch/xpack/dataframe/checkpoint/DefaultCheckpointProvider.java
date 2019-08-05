@@ -125,7 +125,7 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
     }
 
     @Override
-    public void getCheckpoint(final DataFrameTransformCheckpoint lastCheckpoint,
+    public void createNextCheckpoint(final DataFrameTransformCheckpoint lastCheckpoint,
                               final ActionListener<DataFrameTransformCheckpoint> listener) {
         final long timestamp = System.currentTimeMillis();
         final long checkpoint = lastCheckpoint != null ? lastCheckpoint.getCheckpoint() + 1 : 1;

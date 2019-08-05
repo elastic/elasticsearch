@@ -137,7 +137,7 @@ public class ReindexTask extends AllocatedPersistentTask {
                 reindexer.initTask(childTask, reindexRequest, new ActionListener<>() {
                     @Override
                     public void onResponse(Void aVoid) {
-                        sendStartedNotification(performReindex);
+                        sendStartedNotification(reindexJob.shouldStoreResult(), performReindex);
                     }
 
                     @Override
@@ -166,31 +166,7 @@ public class ReindexTask extends AllocatedPersistentTask {
         }
     }
 
-    private void getReindexRequest(ActionListener<ReindexRequest> listener) {
-        GetRequest getRequest = new GetRequest(REINDEX_INDEX).id(getPersistentTaskId());
-        taskClient.get(getRequest, new ActionListener<>() {
-            @Override
-            public void onResponse(GetResponse response) {
-                BytesReference source = response.getSourceAsBytesRef();
-                try (XContentParser parser = XContentHelper.createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, source,
-                    XContentType.JSON)) {
-                    ReindexTaskIndexState taskState = ReindexTaskIndexState.fromXContent(parser);
-                    ReindexRequest reindexRequest = taskState.getReindexRequest();
-                    reindexRequest.setParentTask(taskId);
-                    listener.onResponse(reindexRequest);
-                } catch (IOException e) {
-                    listener.onFailure(e);
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
-    }
-
-    private void sendStartedNotification(Runnable listener) {
+    private void sendStartedNotification(boolean shouldStoreResult, Runnable listener) {
         updatePersistentTaskState(new ReindexJobState(taskId, null, null), new ActionListener<>() {
             @Override
             public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
@@ -200,6 +176,9 @@ public class ReindexTask extends AllocatedPersistentTask {
             @Override
             public void onFailure(Exception e) {
                 logger.info("Failed to update reindex persistent task with ephemeral id", e);
+                TaskManager taskManager = getTaskManager();
+                assert taskManager != null : "TaskManager should have been set before reindex started";
+                markEphemeralTaskFailed(shouldStoreResult, taskManager, e);
             }
         });
     }
@@ -239,38 +218,14 @@ public class ReindexTask extends AllocatedPersistentTask {
                         @Override
                         public void onFailure(Exception e) {
                             logger.info("Failed to update task state to success", e);
-                            if (shouldStoreResult) {
-                                taskManager.storeResult(ReindexTask.this, e, ActionListener.wrap(() -> markAsFailed(e)));
-                            } else {
-                                markAsFailed(e);
-                            }
+                            markEphemeralTaskFailed(shouldStoreResult, taskManager, e);
                         }
                     });
                 }
 
                 @Override
                 public void onFailure(Exception ex) {
-                    updatePersistentTaskState(new ReindexJobState(taskId, null, wrapException(ex)), new ActionListener<>() {
-                        @Override
-                        public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
-                            if (shouldStoreResult) {
-                                taskManager.storeResult(ReindexTask.this, ex, ActionListener.wrap(() -> markAsFailed(ex)));
-                            } else {
-                                markAsFailed(ex);
-                            }
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            logger.info("Failed to update task state to failed", e);
-                            ex.addSuppressed(e);
-                            if (shouldStoreResult) {
-                                taskManager.storeResult(ReindexTask.this, ex, ActionListener.wrap(() -> markAsFailed(ex)));
-                            } else {
-                                markAsFailed(ex);
-                            }
-                        }
-                    });
+                    handleError(shouldStoreResult, ex);
                 }
             }));
         }
@@ -283,24 +238,24 @@ public class ReindexTask extends AllocatedPersistentTask {
         updatePersistentTaskState(new ReindexJobState(taskId, null, wrapException(ex)), new ActionListener<>() {
             @Override
             public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
-                if (shouldStoreResult) {
-                    taskManager.storeResult(ReindexTask.this, ex, ActionListener.wrap(() -> markAsFailed(ex)));
-                } else {
-                    markAsFailed(ex);
-                }
+                markEphemeralTaskFailed(shouldStoreResult, taskManager, ex);
             }
 
             @Override
             public void onFailure(Exception e) {
                 logger.info("Failed to update task state to failed", e);
                 ex.addSuppressed(e);
-                if (shouldStoreResult) {
-                    taskManager.storeResult(ReindexTask.this, ex, ActionListener.wrap(() -> markAsFailed(ex)));
-                } else {
-                    markAsFailed(ex);
-                }
+                markEphemeralTaskFailed(shouldStoreResult, taskManager, ex);
             }
         });
+    }
+
+    private void markEphemeralTaskFailed(boolean shouldStoreResult, TaskManager taskManager, Exception ex) {
+        if (shouldStoreResult) {
+            taskManager.storeResult(ReindexTask.this, ex, ActionListener.wrap(() -> markAsFailed(ex)));
+        } else {
+            markAsFailed(ex);
+        }
     }
 
     private static ElasticsearchException wrapException(Exception ex) {

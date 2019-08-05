@@ -33,7 +33,6 @@ public class ReindexTaskIndexState implements ToXContentObject {
     public static final ConstructingObjectParser<ReindexTaskIndexState, Void> PARSER =
         new ConstructingObjectParser<>("reindex/index_state", a -> new ReindexTaskIndexState((ReindexRequest) a[0]));
 
-
     private static final String REINDEX_REQUEST = "request";
 
     static {

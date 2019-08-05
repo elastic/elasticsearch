@@ -580,7 +580,9 @@ public class ShrinkIndexIT extends ESIntegTestCase {
             .build()).setResizeType(ResizeType.SHRINK).get());
         ensureGreen();
 
+        final int nodeCount = cluster().size();
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(shrinkNode));
+        ensureStableCluster(nodeCount - 1);
 
         // demonstrate that the index.routing.allocation.initial_recovery setting from the shrink doesn't carry over into the split index,
         // because this would cause the shrink to fail as the initial_recovery node is no longer present.

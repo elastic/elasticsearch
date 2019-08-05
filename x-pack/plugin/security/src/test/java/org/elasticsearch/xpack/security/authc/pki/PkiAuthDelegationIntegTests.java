@@ -189,7 +189,7 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
             assertThat(user.getMetadata().get("pki_dn"), is(notNullValue()));
             assertThat(user.getMetadata().get("pki_dn"), is("O=org, OU=Elasticsearch, CN=Elasticsearch Test Client"));
             assertThat(user.getMetadata().get("pki_delegated_by_user"), is(notNullValue()));
-            assertThat(user.getMetadata().get("pki_delegated_by_user"), is("test_user"));
+            assertThat(user.getMetadata().get("pki_delegated_by_user"), is(delegateeUsername));
             assertThat(user.getMetadata().get("pki_delegated_by_realm"), is(notNullValue()));
             assertThat(user.getMetadata().get("pki_delegated_by_realm"), is("file"));
             // no roles because no role mappings

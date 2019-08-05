@@ -40,7 +40,7 @@ GET /_search
 `<field>`::
 (Required, object) Field you wish to search.
 
-[[match-field-params]]
+[[match-phrase-field-params]]
 ==== Parameters for `<field>`
 `query`::
 +

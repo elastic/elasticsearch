@@ -20,7 +20,6 @@ package org.elasticsearch.common.geo;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.geo.geometry.Polygon;
 import org.elasticsearch.geo.geometry.ShapeType;
 
 import java.io.IOException;
@@ -39,7 +38,6 @@ public class EdgeTreeWriter extends ShapeTreeWriter {
     static final int EDGE_SIZE_IN_BYTES = 28;
 
     private final Extent extent;
-    private final boolean hasArea;
     private final int numShapes;
     final Edge tree;
 
@@ -47,13 +45,12 @@ public class EdgeTreeWriter extends ShapeTreeWriter {
     /**
      * @param x        array of the x-coordinate of points.
      * @param y        array of the y-coordinate of points.
-     * @param hasArea  true if edge-tree represents a {@link Polygon} and has a non-zero area, false otherwise.
      */
-    EdgeTreeWriter(int[] x, int[] y, boolean hasArea) {
-        this(Collections.singletonList(x), Collections.singletonList(y), hasArea);
+    EdgeTreeWriter(int[] x, int[] y) {
+        this(Collections.singletonList(x), Collections.singletonList(y));
     }
 
-    EdgeTreeWriter(List<int[]> x, List<int[]> y, boolean hasArea) {
+    EdgeTreeWriter(List<int[]> x, List<int[]> y) {
         this.numShapes = x.size();
         int minX = Integer.MAX_VALUE;
         int minY = Integer.MAX_VALUE;
@@ -84,7 +81,6 @@ public class EdgeTreeWriter extends ShapeTreeWriter {
         edges.sort(Edge::compareTo);
         this.extent = new Extent(minX, minY, maxX, maxY);
         this.tree = createTree(edges, 0, edges.size() - 1);
-        this.hasArea = hasArea;
     }
 
     @Override
@@ -94,13 +90,13 @@ public class EdgeTreeWriter extends ShapeTreeWriter {
 
     @Override
     public ShapeType getShapeType() {
-        return hasArea ? ShapeType.POLYGON : (numShapes > 1 ? ShapeType.MULTILINESTRING: ShapeType.LINESTRING);
+        return numShapes > 1 ? ShapeType.MULTILINESTRING: ShapeType.LINESTRING;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         extent.writeTo(out);
-        tree.writeTo(out);
+        out.writeOptionalWriteable(tree);
     }
 
     private static Edge createTree(List<Edge> edges, int low, int high) {

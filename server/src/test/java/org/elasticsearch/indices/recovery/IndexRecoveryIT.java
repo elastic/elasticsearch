@@ -1278,12 +1278,19 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
                     /*
                      *     newDocCount >= (ceil(docCount * p) + 1) / (1-p)
+                     *
                      * ==> 0 <= newDocCount * (1-p) - ceil(docCount * p) - 1
                      *       =  newDocCount - (newDocCount * p + ceil(docCount * p) + 1)
                      *       <  newDocCount - (ceil(newDocCount * p) + ceil(docCount * p))
                      *       <= newDocCount -  ceil(newDocCount * p + docCount * p)
-                     * ==> docCount < newDocCount + docCount + 1 - ceil((newDocCount + docCount) * p)
+                     *
+                     * ==> docCount <  newDocCount + docCount - ceil((newDocCount + docCount) * p)
+                     *              == localCheckpoint + 1    - ceil((newDocCount + docCount) * p)
                      *              == firstReasonableSeqNo
+                     *
+                     * The replica has docCount docs, i.e. has operations with seqnos [0..docCount-1], so a seqno-based recovery will start
+                     * from docCount < firstReasonableSeqNo
+                     *
                      * ==> it is unreasonable to recover the replica using a seqno-based recovery
                      */
 

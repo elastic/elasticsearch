@@ -2659,7 +2659,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     firstReasonableSeqNo = localCheckpoint + 1
                         - Math.round(Math.ceil(totalDocs * reasonableOperationsBasedRecoveryProportion));
                     this.generation = generation;
-                    logger.info("updating minimum reasonable retained seqno: " +
+                    logger.trace("updating minimum reasonable retained seqno: " +
                             "generation={}, localCheckpoint={}, totalDocs={}, firstReasonableSeqNo={}",
                             generation, localCheckpoint, totalDocs, firstReasonableSeqNo);
 

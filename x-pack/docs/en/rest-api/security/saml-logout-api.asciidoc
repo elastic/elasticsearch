@@ -35,7 +35,7 @@ and <<security-api-saml-invalidate,SAML invalidate API>>.
   token that was received after refreshing the original one.
 
 `token`::
-  (string) The access token that was returned as a response to calling the
+  (Required, string) The access token that was returned as a response to calling the
   <<security-api-saml-authenticate,SAML authenticate API>>. Alternatively, the
   token that was received after refreshing the original one by using a
   `refresh_token`.

@@ -29,11 +29,11 @@ and <<security-api-saml-logout,SAML logout API>>.
 ==== {api-request-body-title}
 
 `acs`::
-  (string) The Assertion Consumer Service URL that matches the one of the SAML
-  realm in {es} that should be used. Either this or `realm` should be specified.
+  (Optional, string) The Assertion Consumer Service URL that matches the one of the SAML
+  realm in {es} that should be used. You must specify either this parameter or the `realm` parameter.
 
 `queryString`:: 
-  (string) The query part of the URL that the user was redirected to by the SAML
+  (Required, string) The query part of the URL that the user was redirected to by the SAML
   IdP to initiate the Single Logout. This query should include a single
   parameter named `SAMLRequest` that contains a SAML logout request that is
   deflated and Base64 encoded. If the SAML IdP has signed the logout request, 
@@ -42,17 +42,17 @@ and <<security-api-saml-logout,SAML logout API>>.
   itself.
 
 `realm`::
-  (string) The name of the SAML realm in {es} the configuration. Either this or
-  `acs` should be specified.
+  (Optional, string) The name of the SAML realm in {es} the configuration. You must specify
+  either this parameter or the `acs` parameter.
 
 [[security-api-saml-invalidate-response-body]]
 ==== {api-response-body-title}  
 
 `invalidated`::
-  The number of tokens that were invalidated as part of this logout.
+  (integer) The number of tokens that were invalidated as part of this logout.
 
 `realm`:: 
-  The realm name of the SAML realm in {es} that authenticated the user.
+  (string) The realm name of the SAML realm in {es} that authenticated the user.
 
 `redirect`::
   (string) A SAML logout response as a parameter so that the user can be
@@ -81,7 +81,7 @@ POST /_security/saml/invalidate
 {
   "redirect" : "https://my-idp.org/logout/SAMLResponse=....",
   "invalidated" : 2,
-  "realm" : saml1,
+  "realm" : "saml1"
 }
 --------------------------------------------------
 // NOTCONSOLE

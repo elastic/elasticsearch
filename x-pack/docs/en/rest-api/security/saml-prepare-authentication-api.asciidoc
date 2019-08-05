@@ -32,14 +32,14 @@ clients. See also <<security-api-saml-authenticate,SAML authenticate API>>,
 ==== {api-request-body-title}
 
 `acs`::
-  (string) The Assertion Consumer Service URL that matches the one of the SAML
+  (Optional, string) The Assertion Consumer Service URL that matches the one of the SAML
   realms in {es}. The realm is used to generate the authentication request.
-  Either this or `realm` should be specified.
+  You must specify either this parameter or the `realm` parameter.
 
 `realm`::
-  (string) The name of the SAML realm in {es} for which the configuration is
-  used to generate the authentication request. Either this or `acs` should be
-  specified.
+  (Optional, string) The name of the SAML realm in {es} for which the configuration is
+  used to generate the authentication request. You must specify either this parameter or the `acs`
+  parameter.
 
 [[security-api-saml-prepare-authentication-response-body]]
 ==== {api-response-body-title}  

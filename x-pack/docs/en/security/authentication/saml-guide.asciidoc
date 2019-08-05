@@ -863,7 +863,7 @@ suggestions and resolutions for common issues.
 The SAML realm in {es} is designed to allow users to authenticate to {kib} and as
 such, most of the parts of the guide above make the assumption that {kib} is used.
 This section describes how a custom web application could use the relevant SAML
-REST APIs in order to authenticate the users to {es}, with SAML.
+REST APIs in order to authenticate the users to {es} with SAML.
 
 Single sign-on realms such as OpenID Connect and SAML make use of the Token Service in
 {es} and in principle exchange a SAML or OpenID Connect Authentication response for
@@ -871,9 +871,9 @@ an {es} access token and a refresh token. The access token is used as credential
 for subsequent calls to {es}. The refresh token enables the user to get new {es}
 access tokens after the current one expires.
 
-==== SAML Realm
+==== SAML realm
 
-An SAML realm needs to be created and configured accordingly
+You must create a SAML realm and configure it accordingly
 in {es}. See <<saml-guide-authentication>>
 
 ==== Service Account user for accessing the APIs
@@ -883,8 +883,8 @@ acting as an authentication proxy. In this case, the custom web application is t
 authentication proxy handling the authentication of end users ( more correctly,
 "delegating" the authentication to the SAML Identity Provider ). The SAML related
 APIs require authentication and the necessary authorization level for the authenticated
-user. For this reason, a Service Account user needs to be created and assigned a role
-that gives them the `manage_saml` cluster privilege. The use of the `manage_token`
+user. For this reason, you must create a Service Account user and assign it a role
+that gives it the `manage_saml` cluster privilege. The use of the `manage_token`
 cluster privilege will be necessary after the authentication takes place, so that the
 the service account user can maintain access in order refresh access tokens on
 behalf of the authenticated users or to subsequently log them out.
@@ -912,12 +912,12 @@ POST /_security/user/saml-service-user
 ==== Handling the authentication flow
 
 On a high level, the custom web application would need to perform the
-following steps in order to authenticate a user with SAML against {es}
+following steps in order to authenticate a user with SAML against {es}:
 
 . Make an HTTP POST request to `_security/saml/prepare`, authenticating as
-the `saml-service-user` user, using either the name of the SAML realm in the {es} configuration or the value for
+the `saml-service-user` user. Use either the name of the SAML realm in the {es} configuration or the value for
 the Assertion Consumer Service URL in the request body.
-See the {ref}/security-api-saml-prepare-authentication.html[SAML Prepare Authentication API] for more details
+See the {ref}/security-api-saml-prepare-authentication.html[SAML prepare authentication API] for more details.
 +
 [source,js]
 --------------------------------------------------
@@ -931,17 +931,17 @@ POST /_security/saml/prepare
 . Handle the response from `/_security/saml/prepare`. The response from {es} will contain 3 parameters:
   `redirect`, `realm' and `id`. The custom web application would need to store the value for `id`
  in the user's session (client side in a cookie or server side if session information is
-persisted this way) and redirect the user's browser to the URL that will be contained in the
-  `redirect` value. The `id` value should not be disregarded as it is used as a nonce in SAML in
+persisted this way). It must also redirect the user's browser to the URL that  was returned in the 
+  `redirect` parameter. The `id` value should not be disregarded as it is used as a nonce in SAML in
 order to mitigate against replay attacks.
 . Handle a subsequent response from the SAML IdP. After the user is successfully authenticated with the
-Identity Provider they will be redirected back to the Assertion Consumer Service URL. This (`sp.acs`) needs to be
-defined as a URL which the custom we application handles. Upon receiving this HTTP POST request, the
-custom web application will need to parse that and make an HTTP POST request itself to the
-`_security/saml/authenticate` API, again - authenticating as the `saml-service-user` user - passing
-the Base64 encoded SAML Response that was sent as the body of the request as well as the value for `id` that it had saved in the user's session previously.
+Identity Provider they will be redirected back to the Assertion Consumer Service URL. This `sp.acs` needs to be
+defined as a URL which the custom web application handles. When it receives this HTTP POST request, the
+custom web application must parse it and make an HTTP POST request itself to the
+`_security/saml/authenticate` API. It must authenticate as the `saml-service-user` user and pass
+the Base64 encoded SAML Response that was sent as the body of the request. It must also pass the value for `id` that it had saved in the user's session previously.
 +
-See {ref}/security-api-saml-authenticate.html[SAML Authenticate API] for more details
+See {ref}/security-api-saml-authenticate.html[SAML authenticate API] for more details.
 +
 [source,js]
 -----------------------------------------------------------------------
@@ -955,16 +955,16 @@ POST /_security/saml/authenticate
 // TEST[skip:handled in IT]
 +
 Elasticsearch will validate this and if all is correct will respond with an access token that can be used
-as a `Bearer` token for subsequent requests and a refresh token that can be later used to refresh the given
+as a `Bearer` token for subsequent requests. It also supplies a refresh token that can be later used to refresh the given
 access token as described in {ref}/security-api-get-token.html[get token API].
-. The response to calling `/_security/saml/authenticate` will only contain the username of the authenticated
+. The response to calling `/_security/saml/authenticate` will contain only the username of the authenticated
 user. If you need to get the values for the SAML Attributes for that user that were contained in the SAML
 Response, you can call the Authenticate API `/_security/_authenticate/` using the access token as a `Bearer` token
-and the SAML attribute values will be contained in the response as part of the <<saml-user-metadata>>
+and the SAML attribute values will be contained in the response as part of the <<saml-user-metadata>>.
 
 ==== Handling the logout flow
 . At some point, if necessary, the custom web application can log the user out by using the
-  {ref}/security-api-saml-logout.html[SAML Logout API] passing the access token and refresh token as parameters. For example:
+  {ref}/security-api-saml-logout.html[SAML logout API] and passing the access token and refresh token as parameters. For example:
 +
 [source,js]
 --------------------------------------------------
@@ -983,7 +983,7 @@ parameter indicating where the user needs to be redirected at the IdP in order t
 . Alternatively, the IdP might initiate the Single Logout flow at some point. In order to handle this, 
 the Logout URL (`sp.logout`) needs to be handled by the custom web app. The query part of the URL that the
 user will be redirected to will contain a SAML Logout request and this query part needs to be relayed to {es}
-using the {ref}/security-api-saml-invalidate.html[SAML Invalidate API] 
+using the {ref}/security-api-saml-invalidate.html[SAML invalidate API] 
 +
 [source,js]
 --------------------------------------------------
@@ -997,5 +997,5 @@ POST /_security/saml/invalidate
 // TEST[skip:handled in IT]
 +
 The custom web application will then need to also handle the response, which will include a `redirect`
-parameter with a URL in the IdP that contains the SAML Logout response and should redirect the user
+parameter with a URL in the IdP that contains the SAML Logout response. The application should redirect the user
 there to complete the logout. 

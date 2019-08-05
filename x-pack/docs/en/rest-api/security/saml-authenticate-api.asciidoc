@@ -35,7 +35,7 @@ clients. See also
 ==== {api-request-body-title}
 
 `content`::
-  (string) The SAML response as it was sent by the user's browser, usually a
+  (Required, string) The SAML response as it was sent by the user's browser, usually a
   Base64 encoded XML document.
 
 `ids`::

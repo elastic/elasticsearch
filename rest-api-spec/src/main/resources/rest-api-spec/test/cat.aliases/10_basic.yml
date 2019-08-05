@@ -1,5 +1,30 @@
+
 ---
 "Help":
+  - skip:
+      version: " - 7.99.99"
+      reason:  "is_write_index is shown in the cat.aliases starting version 8.0"
+
+  - do:
+      cat.aliases:
+        help: true
+
+  - match:
+      $body: |
+        /^  alias            .+   \n
+            index            .+   \n
+            filter           .+   \n
+            routing.index    .+   \n
+            routing.search   .+   \n
+            is_write_index   .+   \n
+        $/
+
+---
+"Help (pre 8.0)":
+  - skip:
+      version: "8.0.0 - "
+      reason:  "is_write_index is shown in the cat cat.aliases starting version 8.0"
+
   - do:
       cat.aliases:
         help: true
@@ -11,7 +36,6 @@
                    filter           .+   \n
                    routing.index    .+   \n
                    routing.search   .+   \n
-                   is_write_index   .+   \n
                $/
 
 ---
@@ -27,6 +51,9 @@
 
 ---
 "Simple alias":
+  - skip:
+      version: " - 7.99.99"
+      reason:  "is_write_index is shown in the cat.aliases starting version 8.0"
 
   - do:
         indices.create:
@@ -52,7 +79,38 @@
                 $/
 
 ---
+"Simple alias (pre 8.0)":
+  - skip:
+      version: "8.0.0 - "
+      reason:  "is_write_index is shown in the cat cat.aliases starting version 8.0"
+
+  - do:
+      indices.create:
+        index: test
+
+  - do:
+      indices.put_alias:
+        index: test
+        name:  test_alias
+
+  - do:
+      cat.aliases: {}
+
+  - match:
+      $body: |
+        /^
+            test_alias          \s+
+            test                \s+
+            -                   \s+
+            -                   \s+
+            -                   \s+
+        $/
+
+---
 "Complex alias":
+  - skip:
+      version: " - 7.99.99"
+      reason:  "is_write_index is shown in the cat.aliases starting version 8.0"
 
   - do:
         indices.create:
@@ -87,6 +145,44 @@
                     sr1,sr2             \s+
                     true                \s+
                 $/
+
+---
+"Complex alias (pre 8.0)":
+  - skip:
+      version: "8.0.0 - "
+      reason:  "is_write_index is shown in the cat cat.aliases starting version 8.0"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              foo:
+                type: text
+
+  - do:
+      indices.put_alias:
+        index: test
+        name:  test_alias
+        body:
+          index_routing:  ir
+          search_routing: "sr1,sr2"
+          filter:
+            term:
+              foo: bar
+  - do:
+      cat.aliases: {}
+
+  - match:
+      $body: |
+        /^
+            test_alias          \s+
+            test                \s+
+            [*]                 \s+
+            ir                  \s+
+            sr1,sr2             \s+
+        $/
 
 ---
 "Alias name":
@@ -173,6 +269,9 @@
 
 ---
 "Column headers":
+  - skip:
+      version: " - 7.99.99"
+      reason:  "is_write_index is shown in the cat.aliases starting version 8.0"
 
   - do:
         indices.create:
@@ -201,9 +300,43 @@
                    -               \s+
                    -               \s+
                    -               \s+
-                  -               \s+
+                   -               \s+
                $/
 
+---
+"Column headers (pre 8.0)":
+  - skip:
+      version: "8.0.0 - "
+      reason:  "is_write_index is shown in the cat cat.aliases starting version 8.0"
+
+  - do:
+      indices.create:
+        index: test
+
+  - do:
+      indices.put_alias:
+        index: test
+        name:  test_1
+
+  - do:
+      cat.aliases:
+        v: true
+
+  - match:
+      $body: |
+        /^  alias           \s+
+            index           \s+
+            filter          \s+
+            routing.index   \s+
+            routing.search  \s+
+            is_write_index
+            \n
+            test_1          \s+
+            test            \s+
+            -               \s+
+            -               \s+
+            -               \s+
+        $/
 
 ---
 "Select columns":
@@ -238,6 +371,9 @@
 
 ---
 "Alias against closed index":
+  - skip:
+      version: " - 7.99.99"
+      reason:  "is_write_index is shown in the cat.aliases starting version 8.0"
 
   - do:
       indices.create:
@@ -263,6 +399,36 @@
                     -                   \s+
                     -                   \s+
                 $/
+
+---
+"Alias against closed index (pre 8.0)":
+  - skip:
+      version: "8.0.0 - "
+      reason:  "is_write_index is shown in the cat cat.aliases starting version 8.0"
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          aliases:
+            test_alias: {}
+
+  - do:
+      indices.close:
+        index: test_index
+
+  - do:
+      cat.aliases: {}
+
+  - match:
+      $body: |
+        /^
+            test_alias          \s+
+            test_index          \s+
+            -                   \s+
+            -                   \s+
+            -                   \s+
+        $/
 
 ---
 "Alias sorting":

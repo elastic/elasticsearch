@@ -38,6 +38,8 @@ public interface TestClusterConfiguration {
 
     void setVersion(String version);
 
+    void setVersion(List<String> version);
+
     void setTestDistribution(TestDistribution distribution);
 
     void plugin(URI plugin);
@@ -85,6 +87,8 @@ public interface TestClusterConfiguration {
     void start();
 
     void restart();
+
+    void goToNextVersion();
 
     void extraConfigFile(String destination, File from);
 

@@ -252,7 +252,7 @@ POST _reindex
 // CONSOLE
 // TEST[setup:twitter]
 
-
+[[reindex-scripts]]
 Like `_update_by_query`, `_reindex` supports a script that modifies the
 document. Unlike `_update_by_query`, the script is allowed to modify the
 document's metadata. This example bumps the version of the source document:

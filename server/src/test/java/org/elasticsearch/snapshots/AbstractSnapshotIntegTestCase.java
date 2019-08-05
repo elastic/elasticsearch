@@ -20,7 +20,6 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -72,13 +71,13 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     @After
     public void assertRepoConsistency() {
         if (skipRepoConsistencyCheckReason == null) {
-            client().admin().cluster().prepareGetRepositories().get().repositories()
-                .stream()
-                .map(RepositoryMetaData::name)
-                .forEach(name -> {
+            client().admin().cluster().prepareGetRepositories().get().repositories().forEach(repositoryMetaData -> {
+                final String name = repositoryMetaData.name();
+                if (repositoryMetaData.settings().getAsBoolean("readonly", false) == false) {
                     client().admin().cluster().prepareCleanupRepository(name).get();
-                    BlobStoreTestUtil.assertRepoConsistency(internalCluster(), name);
-                });
+                }
+                BlobStoreTestUtil.assertRepoConsistency(internalCluster(), name);
+            });
         } else {
             logger.info("--> skipped repo consistency checks because [{}]", skipRepoConsistencyCheckReason);
         }

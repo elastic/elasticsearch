@@ -437,7 +437,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     /**
-     * Runs all cleanup actions on the repository.
+     * Runs cleanup actions on the repository. Increments the repository state id by one before executing any modifications on the
+     * repository.
      * TODO: Add shard level cleanups
      * <ul>
      *     <li>Deleting stale indices {@link #cleanupStaleIndices}</li>
@@ -448,18 +449,22 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     public void cleanup(long repositoryStateId, ActionListener<RepositoryCleanupResult> listener) {
         ActionListener.completeWith(listener, () -> {
+            if (isReadOnly()) {
+                throw new RepositoryException(metadata.name(), "cannot run cleanup on readonly repository");
+            }
             final RepositoryData repositoryData = getRepositoryData();
             if (repositoryData.getGenId() != repositoryStateId) {
-                // the index file was updated by a concurrent operation, so we were operating on stale
-                // repository data
-                throw new RepositoryException(metadata.name(), "concurrent modification of the repository, expected current generation [" +
-                    repositoryStateId + "], actual current generation [" + repositoryData.getGenId() +
-                    "] - possibly due to simultaneous snapshot deletion or creation requests");
+                // Check that we are working on the expected repository version before gathering the data to clean up
+                throw new RepositoryException(metadata.name(), "concurrent modification of the repository before cleanup started, " +
+                    "expected current generation [" + repositoryStateId + "], actual current generation ["
+                    + repositoryData.getGenId() + "]");
             }
+            Map<String, BlobMetaData> rootBlobs = blobContainer().listBlobs();
             final Map<String, BlobContainer> foundIndices = blobStore().blobContainer(indicesPath()).children();
+            // write new index-N blob to ensure concurrent operations will fail
+            writeIndexGen(repositoryData, repositoryStateId);
             final RepositoryCleanupResult.Progress progress = RepositoryCleanupResult.start();
             cleanupStaleIndices(foundIndices, repositoryData.getIndices(), progress);
-            Map<String, BlobMetaData> rootBlobs = blobContainer().listBlobs();
             List<String> cleaned = cleanupStaleRootFiles(rootBlobs.keySet(), repositoryData);
             for (String name : cleaned) {
                 progress.accept(rootBlobs.get(name).length());

@@ -111,5 +111,10 @@ public final class RepositoryCleanupInProgress extends AbstractNamedDiffable<Clu
             out.writeString(repository);
             out.writeLong(repositoryStateId);
         }
+
+        @Override
+        public String toString() {
+            return "{" + repository + '}' + '{' + repositoryStateId + '}';
+        }
     }
 }

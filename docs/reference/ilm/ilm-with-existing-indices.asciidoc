@@ -351,6 +351,7 @@ PUT _cluster/settings
 -----------------------
 // CONSOLE
 // TEST[skip:don't want to overwrite this setting for other tests]
+<1> This tells ILM to check for rollover conditions every minute
 
 We're now ready to reindex our data using the <<docs-reindex,reindex API>>. If
 you have a timestamp or date field in your documents, as in this example, it may

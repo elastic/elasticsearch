@@ -32,7 +32,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=help]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
 
- include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
+include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 [[cat-allocation-api-example]]
 ==== {api-examples-title}

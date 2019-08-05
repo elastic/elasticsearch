@@ -108,8 +108,10 @@ public class TransportUpdateDataFrameTransformAction extends TransportMasterNode
         String transformId = request.getId();
 
         // GET transform and attempt to update
-        dataFrameTransformsConfigManager.getTransformConfiguration(request.getId(), ActionListener.wrap(
-            config -> {
+        // We don't want the update to complete if the config changed between GET and INDEX
+        dataFrameTransformsConfigManager.getTransformConfigurationForUpdate(request.getId(), ActionListener.wrap(
+            configAndVersion -> {
+                final DataFrameTransformConfig config = configAndVersion.v1();
                 // If it is a noop don't bother even writing the doc, save the cycles, just return here.
                 if (update.isNoop(config)) {
                     listener.onResponse(new Response(config));
@@ -122,7 +124,7 @@ public class TransportUpdateDataFrameTransformAction extends TransportMasterNode
                     return;
                 }
                 DataFrameTransformConfig updatedConfig = update.apply(config);
-                validateAndUpdateDataFrame(request, clusterState, updatedConfig, listener);
+                validateAndUpdateDataFrame(request, clusterState, updatedConfig, configAndVersion.v2(), listener);
             },
             listener::onFailure
         ));
@@ -136,10 +138,11 @@ public class TransportUpdateDataFrameTransformAction extends TransportMasterNode
     private void handlePrivsResponse(String username,
                                      Request request,
                                      DataFrameTransformConfig config,
+                                     DataFrameTransformsConfigManager.SeqNoPrimaryTermPair seqNoPrimaryTermPair,
                                      HasPrivilegesResponse privilegesResponse,
                                      ActionListener<Response> listener) {
         if (privilegesResponse.isCompleteMatch()) {
-            updateDataFrame(request, config, listener);
+            updateDataFrame(request, config, seqNoPrimaryTermPair, listener);
         } else {
             List<String> indices = privilegesResponse.getIndexPrivileges()
                 .stream()
@@ -157,6 +160,7 @@ public class TransportUpdateDataFrameTransformAction extends TransportMasterNode
     private void validateAndUpdateDataFrame(Request request,
                                             ClusterState clusterState,
                                             DataFrameTransformConfig config,
+                                            DataFrameTransformsConfigManager.SeqNoPrimaryTermPair seqNoPrimaryTermPair,
                                             ActionListener<Response> listener) {
         try {
             SourceDestValidator.validate(config, clusterState, indexNameExpressionResolver, request.isDeferValidation());
@@ -170,15 +174,18 @@ public class TransportUpdateDataFrameTransformAction extends TransportMasterNode
             final String username = securityContext.getUser().principal();
             HasPrivilegesRequest privRequest = buildPrivilegeCheck(config, indexNameExpressionResolver, clusterState, username);
             ActionListener<HasPrivilegesResponse> privResponseListener = ActionListener.wrap(
-                r -> handlePrivsResponse(username, request, config, r, listener),
+                r -> handlePrivsResponse(username, request, config, seqNoPrimaryTermPair, r, listener),
                 listener::onFailure);
 
             client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
         } else { // No security enabled, just create the transform
-            updateDataFrame(request, config, listener);
+            updateDataFrame(request, config, seqNoPrimaryTermPair, listener);
         }
     }
-    private void updateDataFrame(Request request, DataFrameTransformConfig config, ActionListener<Response> listener) {
+    private void updateDataFrame(Request request,
+                                 DataFrameTransformConfig config,
+                                 DataFrameTransformsConfigManager.SeqNoPrimaryTermPair seqNoPrimaryTermPair,
+                                 ActionListener<Response> listener) {
 
         final Pivot pivot = new Pivot(config.getPivotConfig());
 
@@ -193,7 +200,9 @@ public class TransportUpdateDataFrameTransformAction extends TransportMasterNode
 
         // <2> Update our transform
         ActionListener<Boolean> pivotValidationListener = ActionListener.wrap(
-            validationResult -> dataFrameTransformsConfigManager.updateTransformConfiguration(config, putTransformConfigurationListener),
+            validationResult -> dataFrameTransformsConfigManager.updateTransformConfiguration(config,
+                seqNoPrimaryTermPair,
+                putTransformConfigurationListener),
             validationException -> {
                 if (validationException instanceof ElasticsearchStatusException) {
                     listener.onFailure(new ElasticsearchStatusException(

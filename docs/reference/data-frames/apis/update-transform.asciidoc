@@ -32,10 +32,13 @@ information, see {stack-ov}/security-privileges.html[Security privileges] and
 ==== {api-description-title}
 
 This API updates an existing {dataframe-transform}. Updates are currently only supported
-on continuous {dataframe-transforms}. Additionally, all settings are not applied until
-after the {dataframe-transform} has been stopped and started again.
+on continuous {dataframe-transforms}. Additionally, all settings except description to not
+take effect until after the {dataframe-transform} reaches the next checkpoint. This is
+so there is consistency with the pivoted data in each checkpoint.
 
-// TODO add more docs
+IMPORTANT: When {es} {security-features} are enabled, your {dataframe-transform}
+remembers which roles the user who updated it had at the time of update and
+runs with those privileges.
 
 IMPORTANT:  You must use {kib} or this API to update a {dataframe-transform}.
             Do not update a {dataframe-transform} directly via
@@ -148,7 +151,7 @@ POST _data_frame/transforms/simple-kibana-ecomm-pivot/_update
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:simple-kibana-continuous-pivot]
+// TEST[setup:simple_kibana_continuous_pivot]
 
 When the transform is updated, you receive the updated configuration:
 [source,js]
@@ -156,7 +159,7 @@ When the transform is updated, you receive the updated configuration:
 {
   "id": "simple-kibana-ecomm-pivot",
   "source": {
-    "index": "kibana_sample_data_ecommerce",
+    "index": ["kibana_sample_data_ecommerce"],
     "query": {
       "term": {
         "geoip.continent_name": {
@@ -183,14 +186,14 @@ When the transform is updated, you receive the updated configuration:
   },
   "description": "Maximum priced ecommerce data by customer_id in Asia",
   "dest": {
-    "index": "kibana_sample_data_ecommerce_transform",
+    "index": "kibana_sample_data_ecommerce_transform_v2",
     "pipeline": "add_timestamp_pipeline"
   },
-  "frequency": "5m",
+  "frequency": "15m",
   "sync": {
     "time": {
       "field": "order_date",
-      "delay": "60s"
+      "delay": "120s"
     }
   },
   "version": "8.0.0-alpha1",

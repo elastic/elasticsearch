@@ -106,23 +106,29 @@ public class DataFrameTransformsConfigManager {
      * @param listener listener to call after request
      */
     public void putTransformConfiguration(DataFrameTransformConfig transformConfig, ActionListener<Boolean> listener) {
-        putTransformConfiguration(transformConfig, DocWriteRequest.OpType.CREATE, listener);
+        putTransformConfiguration(transformConfig, DocWriteRequest.OpType.CREATE, null, listener);
     }
 
     /**
      * Update the transform configuration in the internal index.
      *
      * Essentially the same as {@link DataFrameTransformsConfigManager#putTransformConfiguration(DataFrameTransformConfig, ActionListener)}
-     * but is an index operation and does not care if the document already exists.
+     * but is an index operation that will fail with a version conflict
+     * if the current document seqNo and primaryTerm is not the same as the provided version.
      * @param transformConfig the @link{DataFrameTransformConfig}
+     * @param seqNoPrimaryTermPair an object containing the believed seqNo and primaryTerm for the doc.
+     *                             Used for optimistic concurrency control
      * @param listener listener to call after request
      */
-    public void updateTransformConfiguration(DataFrameTransformConfig transformConfig, ActionListener<Boolean> listener) {
-        putTransformConfiguration(transformConfig, DocWriteRequest.OpType.INDEX, listener);
+    public void updateTransformConfiguration(DataFrameTransformConfig transformConfig,
+                                             SeqNoPrimaryTermPair seqNoPrimaryTermPair,
+                                             ActionListener<Boolean> listener) {
+        putTransformConfiguration(transformConfig, DocWriteRequest.OpType.INDEX, seqNoPrimaryTermPair, listener);
     }
 
     private void putTransformConfiguration(DataFrameTransformConfig transformConfig,
                                            DocWriteRequest.OpType optType,
+                                           SeqNoPrimaryTermPair seqNoPrimaryTermPair,
                                            ActionListener<Boolean> listener) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = transformConfig.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
@@ -132,7 +138,9 @@ public class DataFrameTransformsConfigManager {
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .id(DataFrameTransformConfig.documentId(transformConfig.getId()))
                 .source(source);
-
+            if (seqNoPrimaryTermPair != null) {
+                indexRequest.setIfSeqNo(seqNoPrimaryTermPair.seqNo).setIfPrimaryTerm(seqNoPrimaryTermPair.primaryTerm);
+            }
             executeAsyncWithOrigin(client, DATA_FRAME_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(r -> {
                 listener.onResponse(true);
             }, e -> {
@@ -201,6 +209,39 @@ public class DataFrameTransformsConfigManager {
                         DataFrameMessages.getMessage(DataFrameMessages.REST_DATA_FRAME_UNKNOWN_TRANSFORM, transformId)));
             } else {
                 resultListener.onFailure(e);
+            }
+        }));
+    }
+
+    /**
+     * Get the transform configuration for a given transform id. This function is only for internal use. For transforms returned via GET
+     * data_frame/transforms, see the TransportGetDataFrameTransformsAction
+     *
+     * @param transformId the transform id
+     * @param configAndVersionListener listener to call after inner request has returned
+     */
+    public void getTransformConfigurationForUpdate(String transformId,
+                                                   ActionListener<Tuple<DataFrameTransformConfig,
+                                                       SeqNoPrimaryTermPair>> configAndVersionListener) {
+        GetRequest getRequest = new GetRequest(DataFrameInternalIndex.INDEX_NAME, DataFrameTransformConfig.documentId(transformId));
+        executeAsyncWithOrigin(client, DATA_FRAME_ORIGIN, GetAction.INSTANCE, getRequest, ActionListener.wrap(getResponse -> {
+
+            if (getResponse.isExists() == false) {
+                configAndVersionListener.onFailure(new ResourceNotFoundException(
+                    DataFrameMessages.getMessage(DataFrameMessages.REST_DATA_FRAME_UNKNOWN_TRANSFORM, transformId)));
+                return;
+            }
+            BytesReference source = getResponse.getSourceAsBytesRef();
+            parseTransformLenientlyFromSource(source, transformId, ActionListener.wrap(
+                config -> configAndVersionListener.onResponse(Tuple.tuple(config,
+                    new SeqNoPrimaryTermPair(getResponse.getSeqNo(), getResponse.getPrimaryTerm()))),
+                configAndVersionListener::onFailure));
+        }, e -> {
+            if (e.getClass() == IndexNotFoundException.class) {
+                configAndVersionListener.onFailure(new ResourceNotFoundException(
+                    DataFrameMessages.getMessage(DataFrameMessages.REST_DATA_FRAME_UNKNOWN_TRANSFORM, transformId)));
+            } else {
+                configAndVersionListener.onFailure(e);
             }
         }));
     }
@@ -437,5 +478,23 @@ public class DataFrameTransformsConfigManager {
             }
         }
         return QueryBuilders.constantScoreQuery(queryBuilder);
+    }
+
+    public static class SeqNoPrimaryTermPair {
+        private final long seqNo;
+        private final long primaryTerm;
+
+        public SeqNoPrimaryTermPair(long seqNo, long primaryTerm) {
+            this.seqNo = seqNo;
+            this.primaryTerm = primaryTerm;
+        }
+
+        public long getSeqNo() {
+            return seqNo;
+        }
+
+        public long getPrimaryTerm() {
+            return primaryTerm;
+        }
     }
 }

@@ -1146,10 +1146,11 @@ buildRestTests.setups['kibana_sample_data_ecommerce'] = '''
               number_of_shards: 1
               number_of_replicas: 0
 '''
-buildRestTests.setups['simple-kibana-continuous-pivot'] = buildRestTests.setups['kibana_sample_data_ecommerce'] + '''
+buildRestTests.setups['simple_kibana_continuous_pivot'] = buildRestTests.setups['kibana_sample_data_ecommerce'] + '''
   - do:
-      data_frame.put_data_frame_transform:
-        transform_id: "simple-kibana-ecomm-pivot"
+      raw:
+        method: PUT
+        path: _data_frame/transforms/simple-kibana-ecomm-pivot
         body:  >
           {
             "source": {

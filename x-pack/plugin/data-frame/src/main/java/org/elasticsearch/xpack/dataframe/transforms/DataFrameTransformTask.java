@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.bulk.BulkAction;
@@ -29,6 +30,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
+import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
 import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformTaskAction;
 import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformTaskAction.Response;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerPosition;
@@ -328,6 +330,14 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
     }
 
     synchronized void markAsFailed(String reason, ActionListener<Void> listener) {
+        // If the indexer is `STOPPING` this means that `DataFrameTransformTask#stop` was called previously, but something caused
+        // the indexer to fail. Since `ClientDataFrameIndexer#doSaveState` will persist the state to the index once the indexer stops,
+        // it is probably best to NOT change the internal state of the task and allow the normal stopping logic to continue.
+        if (getIndexer() != null && getIndexer().getState() == IndexerState.STOPPING) {
+            logger.info("Attempt to fail transform [" + getTransformId() + "] with reason [" + reason + "] while it was stopping.");
+            auditor.info(getTransformId(), "Attempted to fail transform with reason [" + reason + "] while in STOPPING state.");
+            return;
+        }
         auditor.error(transform.getId(), reason);
         // We should not keep retrying. Either the task will be stopped, or started
         // If it is started again, it is registered again.
@@ -763,7 +773,30 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 logger.debug(
                     "Finished indexing for data frame transform [" + transformTask.getTransformId() + "] checkpoint [" + checkpoint + "]");
                 auditBulkFailures = true;
-                listener.onResponse(null);
+                if (isContinuous()) {
+                    transformsConfigManager.getTransformConfiguration(getJobId(), ActionListener.wrap(
+                        config -> {
+                            transformConfig = config;
+                            listener.onResponse(null);
+                        },
+                        failure -> {
+                            String msg = DataFrameMessages.getMessage(
+                                DataFrameMessages.FAILED_TO_RELOAD_TRANSFORM_CONFIGURATION,
+                                getJobId());
+                            logger.error(msg, failure);
+                            // If the transform config index or the transform config is gone, something serious occurred
+                            // We are in an unknown state and should fail out
+                            if (failure instanceof ResourceNotFoundException) {
+                                failIndexer(failure.getMessage());
+                            } else {
+                                auditor.warning(getJobId(), msg);
+                                listener.onResponse(null);
+                            }
+                        }
+                    ));
+                } else {
+                    listener.onResponse(null);
+                }
             } catch (Exception e) {
                 listener.onFailure(e);
             }

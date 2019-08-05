@@ -222,7 +222,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
     }
 
     public void testUpdateDataFrameTransform() throws IOException, InterruptedException {
-        createIndex("source-index");
+        createIndex("source-data");
 
         RestHighLevelClient client = highLevelClient();
         QueryConfig queryConfig = new QueryConfig(new MatchAllQueryBuilder());
@@ -248,7 +248,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         DataFrameTransformConfigUpdate update = DataFrameTransformConfigUpdate
             .builder()
             .setSource(SourceConfig.builder()
-                .setIndex("source-index")
+                .setIndex("source-data")
                 .build()) // <1>
             .setDest(DestConfig.builder()
                 .setIndex("pivot-dest")

@@ -402,7 +402,6 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
             this.frequency = config.frequency;
             this.syncConfig = config.syncConfig;
             this.description = config.description;
-            this.headers = config.headers;
             this.transformVersion = config.transformVersion;
             this.createTime = config.createTime;
             this.pivotConfig = config.pivotConfig;

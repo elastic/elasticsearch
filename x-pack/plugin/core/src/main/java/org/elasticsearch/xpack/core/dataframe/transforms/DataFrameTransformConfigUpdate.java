@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.core.dataframe.transforms;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -17,7 +18,9 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
+import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
 
 import java.io.IOException;
 import java.util.Map;
@@ -70,10 +73,10 @@ public class DataFrameTransformConfigUpdate implements Writeable, ToXContentObje
     private Map<String, String> headers;
 
     public DataFrameTransformConfigUpdate(final SourceConfig source,
-                                   final DestConfig dest,
-                                   final TimeValue frequency,
-                                   final SyncConfig syncConfig,
-                                   final String description){
+                                          final DestConfig dest,
+                                          final TimeValue frequency,
+                                          final SyncConfig syncConfig,
+                                          final String description){
         this.source = source;
         this.dest = dest;
         this.frequency = frequency;
@@ -228,6 +231,15 @@ public class DataFrameTransformConfigUpdate implements Writeable, ToXContentObje
             builder.setFrequency(frequency);
         }
         if (syncConfig != null) {
+            String currentConfigName = config.getSyncConfig() == null ? "null" : config.getSyncConfig().getWriteableName();
+            if (syncConfig.getWriteableName().equals(currentConfigName) == false) {
+                throw new ElasticsearchStatusException(
+                    DataFrameMessages.getMessage(DataFrameMessages.DATA_FRAME_UPDATE_CANNOT_CHANGE_SYNC_METHOD,
+                        config.getId(),
+                        currentConfigName,
+                        syncConfig.getWriteableName()),
+                    RestStatus.BAD_REQUEST);
+            }
             builder.setSyncConfig(syncConfig);
         }
         if (description != null) {

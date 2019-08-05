@@ -244,7 +244,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         final long retentionLeaseMillis = indexSettings.getRetentionLeaseMillis();
         final Set<String> leaseIdsForCurrentPeers
             = routingTable.assignedShards().stream().map(ReplicationTracker::getPeerRecoveryRetentionLeaseId).collect(Collectors.toSet());
-        final long minimumReasonableRetainedSeqNo = minimumReasonableRetainedSeqNoSupplier.getAsLong();
+        final boolean allShardsStarted = routingTable.allShardsStarted();
+        final long minimumReasonableRetainedSeqNo = allShardsStarted ? Long.MIN_VALUE : minimumReasonableRetainedSeqNoSupplier.getAsLong();
         final Map<Boolean, List<RetentionLease>> partitionByExpiration = retentionLeases
                 .leases()
                 .stream()
@@ -253,7 +254,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                         if (leaseIdsForCurrentPeers.contains(lease.id())) {
                             return false;
                         }
-                        if (routingTable.allShardsStarted()) {
+                        if (allShardsStarted) {
                             logger.trace("expiring unused [{}]", lease);
                             return true;
                         }

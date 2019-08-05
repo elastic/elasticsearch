@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.action.admin.cluster.repositories.cleanup;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -47,7 +49,9 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 
 public final class TransportCleanupRepositoryAction extends TransportMasterNodeAction<CleanupRepositoryRequest,
-                                                                                      CleanupRepositoryResponse> {
+    CleanupRepositoryResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportCleanupRepositoryAction.class);
 
     private static final Version MIN_VERSION = Version.V_8_0_0;
 
@@ -74,7 +78,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
 
     @Override
     protected void masterOperation(Task task, CleanupRepositoryRequest request, ClusterState state,
-                                   ActionListener<CleanupRepositoryResponse> listener) {
+        ActionListener<CleanupRepositoryResponse> listener) {
         if (state.nodes().getMinNodeVersion().onOrAfter(MIN_VERSION)) {
             cleanupRepo(request.repository(), ActionListener.map(listener, CleanupRepositoryResponse::new));
         } else {
@@ -89,10 +93,8 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 
-
     /**
      * Runs cleanup operations on the given repository.
-     *
      * @param repositoryName Repository to clean up
      * @param listener Listener for cleanup result
      */
@@ -143,8 +145,8 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                 });
             }
 
-            private void after(@Nullable Exception e, @Nullable RepositoryCleanupResult result) {
-                assert e != null || result != null;
+            private void after(@Nullable Exception failure, @Nullable RepositoryCleanupResult result) {
+                assert failure != null || result != null;
                 clusterService.submitStateUpdateTask("Remove repository cleanup task", new ClusterStateUpdateTask() {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
@@ -166,19 +168,18 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                     @Override
                     public void onFailure(String source, Exception e) {
                         logger.warn(() -> new ParameterizedMessage("[{}] failed to remove repository cleanup task", repositoryName), e);
-                        if (listener != null) {
-                            listener.onFailure(e);
+                        if (failure != null) {
+                            e.addSuppressed(failure);
                         }
+                        listener.onFailure(e);
                     }
 
                     @Override
                     public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                        if (listener != null) {
-                            if (e == null) {
-                                listener.onResponse(result);
-                            } else {
-                                listener.onFailure(e);
-                            }
+                        if (failure == null) {
+                            listener.onResponse(result);
+                        } else {
+                            listener.onFailure(failure);
                         }
                     }
                 });

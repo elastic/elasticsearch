@@ -332,6 +332,17 @@ public class PkiRealm extends Realm implements CachingRealm {
         }
     }
 
+    @Override
+    public void usageStats(ActionListener<Map<String, Object>> listener) {
+        super.usageStats(ActionListener.wrap(stats -> {
+            stats.put("has_truststore", trustManager != null);
+            stats.put("has_authorization_realms", delegatedRealms != null && delegatedRealms.hasDelegation());
+            stats.put("has_default_username_pattern", PkiRealmSettings.DEFAULT_USERNAME_PATTERN.equals(principalPattern.pattern()));
+            stats.put("is_authentication_delegated", delegationEnabled);
+            listener.onResponse(stats);
+        }, listener::onFailure));
+    }
+
     private void validateAuthenticationDelegationConfiguration(RealmConfig config) {
         if (delegationEnabled) {
             List<String> exceptionMessages = new ArrayList<>(2);

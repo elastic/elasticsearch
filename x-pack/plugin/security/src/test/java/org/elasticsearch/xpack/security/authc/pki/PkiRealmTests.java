@@ -43,6 +43,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -76,11 +77,12 @@ public class PkiRealmTests extends ESTestCase {
         when(licenseState.isAuthorizationRealmAllowed()).thenReturn(true);
     }
 
-    public void testTokenSupport() {
+    public void testTokenSupport() throws Exception {
         RealmConfig config = new RealmConfig(new RealmConfig.RealmIdentifier("pki", "my_pki"), globalSettings,
                 TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
         PkiRealm realm = new PkiRealm(config, mock(UserRoleMapper.class));
 
+        assertRealmUsageStats(realm, false, false, true, false);
         assertThat(realm.supports(null), is(false));
         assertThat(realm.supports(new UsernamePasswordToken("", new SecureString(new char[0]))), is(false));
         X509AuthenticationToken token = randomBoolean()
@@ -122,7 +124,6 @@ public class PkiRealmTests extends ESTestCase {
         final String expectedUsername = PkiRealm.getPrincipalFromSubjectDN(Pattern.compile(PkiRealmSettings.DEFAULT_USERNAME_PATTERN),
                 token, NoOpLogger.INSTANCE);
         final AuthenticationResult result = authenticate(token, realm);
-        final PlainActionFuture<AuthenticationResult> future;
         assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
         User user = result.getUser();
         assertThat(user, is(notNullValue()));
@@ -207,6 +208,7 @@ public class PkiRealmTests extends ESTestCase {
         X509Certificate certificate = readCert(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
         UserRoleMapper roleMapper = buildRoleMapper();
         PkiRealm realm = buildRealm(roleMapper, settings);
+        assertRealmUsageStats(realm, false, false, false, false);
         threadContext.putTransient(PkiRealm.PKI_CERT_HEADER_NAME, new X509Certificate[] { certificate });
 
         X509AuthenticationToken token = realm.token(threadContext);
@@ -226,6 +228,7 @@ public class PkiRealmTests extends ESTestCase {
         X509Certificate certificate = readCert(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
         UserRoleMapper roleMapper = buildRoleMapper();
         PkiRealm realm = buildRealm(roleMapper, settings);
+        assertRealmUsageStats(realm, false, false, false, false);
         threadContext.putTransient(PkiRealm.PKI_CERT_HEADER_NAME, new X509Certificate[] { certificate });
 
         X509AuthenticationToken token = realm.token(threadContext);
@@ -246,6 +249,7 @@ public class PkiRealmTests extends ESTestCase {
                 .build();
         ThreadContext threadContext = new ThreadContext(globalSettings);
         PkiRealm realm = buildRealm(roleMapper, settings);
+        assertRealmUsageStats(realm, true, false, true, false);
 
         threadContext.putTransient(PkiRealm.PKI_CERT_HEADER_NAME, new X509Certificate[] { certificate });
 
@@ -313,6 +317,8 @@ public class PkiRealmTests extends ESTestCase {
                 .setSecureSettings(secureSettings)
                 .build();
         PkiRealm realmWithDelegation = buildRealm(roleMapper, settings);
+        assertRealmUsageStats(realmWithDelegation, true, false, true, true);
+
         AuthenticationResult result = authenticate(delegatedToken, realmWithDelegation);
         assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.SUCCESS));
         assertThat(result.getUser(), is(notNullValue()));
@@ -338,6 +344,7 @@ public class PkiRealmTests extends ESTestCase {
                 .setSecureSettings(secureSettings)
                 .build();
         PkiRealm realmNoDelegation = buildRealm(roleMapper, settings);
+        assertRealmUsageStats(realmNoDelegation, true, false, true, false);
 
         AuthenticationResult result = authenticate(delegatedToken, realmNoDelegation);
         assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.CONTINUE));
@@ -358,6 +365,7 @@ public class PkiRealmTests extends ESTestCase {
                 .build();
         ThreadContext threadContext = new ThreadContext(settings);
         PkiRealm realm = buildRealm(roleMapper, settings);
+        assertRealmUsageStats(realm, true, false, true, false);
 
         threadContext.putTransient(PkiRealm.PKI_CERT_HEADER_NAME, new X509Certificate[] { certificate });
 
@@ -470,6 +478,7 @@ public class PkiRealmTests extends ESTestCase {
             .build();
         final UserRoleMapper roleMapper = buildRoleMapper(Collections.emptySet(), token.dn());
         final PkiRealm pkiRealm = buildRealm(roleMapper, realmSettings, otherRealm);
+        assertRealmUsageStats(pkiRealm, false, true, true, false);
 
         AuthenticationResult result = authenticate(token, pkiRealm);
         assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.SUCCESS));
@@ -492,6 +501,17 @@ public class PkiRealmTests extends ESTestCase {
         when(mockCertChain[1].getSubjectX500Principal()).thenReturn(new X500Principal("CN=Not Test, OU=elasticsearch, O=org"));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new X509AuthenticationToken(mockCertChain));
         assertThat(e.getMessage(), is("certificates chain array is not ordered"));
+    }
+
+    private void assertRealmUsageStats(Realm realm, Boolean hasTruststore, Boolean hasAuthorizationRealms,
+            Boolean hasDefaultUsernamePattern, Boolean isAuthenticationDelegated) throws Exception {
+        final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
+        realm.usageStats(future);
+        Map<String, Object> usage = future.get();
+        assertThat(usage.get("has_truststore"), is(hasTruststore));
+        assertThat(usage.get("has_authorization_realms"), is(hasAuthorizationRealms));
+        assertThat(usage.get("has_default_username_pattern"), is(hasDefaultUsernamePattern));
+        assertThat(usage.get("is_authentication_delegated"), is(isAuthenticationDelegated));
     }
 
     public void testX509AuthenticationTokenCaching() throws Exception {

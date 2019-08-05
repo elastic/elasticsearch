@@ -428,8 +428,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     .orElse(Collections.emptyList()),
                 snapshotId,
                 ActionListener.map(listener, v -> {
-                    cleanupStaleIndices(foundIndices, survivingIndices, l -> {});
-                    cleanupStaleRootFiles(Sets.difference(rootBlobs, new HashSet<>(snapMetaFilesToDelete)), updatedRepositoryData);
+                    cleanupStaleIndices(foundIndices, survivingIndices.values().stream()
+                        .map(IndexId::getId).collect(Collectors.toSet()), l -> {});
+                    cleanupStaleRootFiles(
+                        staleRootBlobs(updatedRepositoryData, Sets.difference(rootBlobs, new HashSet<>(snapMetaFilesToDelete))));
                     return null;
                 })
             );
@@ -461,11 +463,18 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
             Map<String, BlobMetaData> rootBlobs = blobContainer().listBlobs();
             final Map<String, BlobContainer> foundIndices = blobStore().blobContainer(indicesPath()).children();
+            final Set<String> survivingIndexIds =
+                repositoryData.getIndices().values().stream().map(IndexId::getId).collect(Collectors.toSet());
+            final RepositoryCleanupResult.Progress progress = RepositoryCleanupResult.start();
+            final List<String> staleRootBlobs = staleRootBlobs(repositoryData, rootBlobs.keySet());
+            if (survivingIndexIds.equals(foundIndices.keySet()) && staleRootBlobs.isEmpty()) {
+                // Nothing to clean up we return
+                return progress.finish();
+            }
             // write new index-N blob to ensure concurrent operations will fail
             writeIndexGen(repositoryData, repositoryStateId);
-            final RepositoryCleanupResult.Progress progress = RepositoryCleanupResult.start();
-            cleanupStaleIndices(foundIndices, repositoryData.getIndices(), progress);
-            List<String> cleaned = cleanupStaleRootFiles(rootBlobs.keySet(), repositoryData);
+            cleanupStaleIndices(foundIndices, survivingIndexIds, progress);
+            List<String> cleaned = cleanupStaleRootFiles(staleRootBlobs);
             for (String name : cleaned) {
                 progress.accept(rootBlobs.get(name).length());
             }
@@ -473,10 +482,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         });
     }
 
-    private List<String> cleanupStaleRootFiles(Set<String> rootBlobNames, RepositoryData repositoryData) {
+    private List<String> staleRootBlobs(RepositoryData repositoryData, Set<String> rootBlobNames) {
         final Set<String> allSnapshotIds =
             repositoryData.getSnapshotIds().stream().map(SnapshotId::getUUID).collect(Collectors.toSet());
-        final List<String> blobsToDelete = rootBlobNames.stream().filter(
+        return rootBlobNames.stream().filter(
             blob -> {
                 if (FsBlobContainer.isTempBlobName(blob)) {
                     return true;
@@ -497,6 +506,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 return false;
             }
         ).collect(Collectors.toList());
+    }
+
+    private List<String> cleanupStaleRootFiles(List<String> blobsToDelete) {
         if (blobsToDelete.isEmpty()) {
             return blobsToDelete;
         }
@@ -518,11 +530,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return Collections.emptyList();
     }
 
-    private void cleanupStaleIndices(Map<String, BlobContainer> foundIndices, Map<String, IndexId> survivingIndices,
+    private void cleanupStaleIndices(Map<String, BlobContainer> foundIndices, Set<String> survivingIndexIds,
                                      LongConsumer progress) {
         try {
-            final Set<String> survivingIndexIds = survivingIndices.values().stream()
-                .map(IndexId::getId).collect(Collectors.toSet());
             for (Map.Entry<String, BlobContainer> indexEntry : foundIndices.entrySet()) {
                 final String indexSnId = indexEntry.getKey();
                 try {

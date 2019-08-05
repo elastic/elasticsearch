@@ -146,7 +146,6 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         mapperService = indexService.mapperService();
 
         String mapper = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("doc")
-            .startObject("_field_names").endObject() // makes testing easier
             .startObject("properties")
                 .startObject("field").field("type", "text").endObject()
                 .startObject("field1").field("type", "text").endObject()
@@ -590,7 +589,6 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
     public void testMultiplePercolatorFields() throws Exception {
         String typeName = "doc";
         String percolatorMapper = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject(typeName)
-                .startObject("_field_names").endObject() // makes testing easier
                 .startObject("properties")
                     .startObject("query_field1").field("type", "percolator").endObject()
                     .startObject("query_field2").field("type", "percolator").endObject()
@@ -617,7 +615,6 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
     public void testNestedPercolatorField() throws Exception {
         String typeName = "doc";
         String percolatorMapper = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject(typeName)
-                .startObject("_field_names").endObject() // makes testing easier
                 .startObject("properties")
                 .startObject("object_field")
                     .field("type", "object")

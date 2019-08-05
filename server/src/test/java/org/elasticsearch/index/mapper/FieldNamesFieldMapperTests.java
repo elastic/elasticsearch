@@ -117,14 +117,14 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
         assertWarnings(FieldNamesFieldMapper.TypeParser.ENABLED_DEPRECATION_MESSAGE);
     }
 
-    public void testEnabledSettingLogsDeprecation() throws Exception {
+    public void testDisabled() throws Exception {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_field_names").field("enabled", false).endObject()
             .endObject().endObject());
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser()
             .parse("type", new CompressedXContent(mapping));
         FieldNamesFieldMapper fieldNamesMapper = docMapper.metadataMapper(FieldNamesFieldMapper.class);
-        assertTrue(fieldNamesMapper.fieldType().isEnabled());
+        assertFalse(fieldNamesMapper.fieldType().isEnabled());
 
         ParsedDocument doc = docMapper.parse(new SourceToParse("test", "type", "1",
             BytesReference.bytes(XContentFactory.jsonBuilder()

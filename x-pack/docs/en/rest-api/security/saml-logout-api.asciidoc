@@ -29,16 +29,16 @@ and <<security-api-saml-invalidate,SAML invalidate API>>.
 [[security-api-saml-logout-request-body]]
 ==== {api-request-body-title}
 
-`refresh_token`::
-  (string) The refresh token that was returned as a response to calling the
+token`::
+(Required, string) The access token that was returned as a response to calling the
   <<security-api-saml-authenticate,SAML authenticate API>>. Alternatively, the
-  token that was received after refreshing the original one.
-
-`token`::
-  (Required, string) The access token that was returned as a response to calling the
-  <<security-api-saml-authenticate,SAML authenticate API>>. Alternatively, the
-  token that was received after refreshing the original one by using a
+token that was received after refreshing the original one by using a
   `refresh_token`.
+
+`refresh_token`::
+  (Optional, string) The refresh token that was returned as a response to calling the
+  <<security-api-saml-authenticate,SAML authenticate API>>. Alternatively, the
+  refresh token that was received after refreshing the original access token.
 
 [[security-api-saml-logout-response-body]]
 ==== {api-response-body-title}  

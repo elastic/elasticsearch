@@ -909,7 +909,8 @@ POST /_security/user/saml-service-user
 --------------------------------------------------
 // CONSOLE
 
-==== Handling the authentication flow
+[[saml-sp-init-sso]]
+==== Handling the SP-initiated authentication flow
 
 On a high level, the custom web application would need to perform the
 following steps in order to authenticate a user with SAML against {es}:
@@ -958,9 +959,31 @@ Elasticsearch will validate this and if all is correct will respond with an acce
 as a `Bearer` token for subsequent requests. It also supplies a refresh token that can be later used to refresh the given
 access token as described in {ref}/security-api-get-token.html[get token API].
 . The response to calling `/_security/saml/authenticate` will contain only the username of the authenticated
-user. If you need to get the values for the SAML Attributes for that user that were contained in the SAML
-Response, you can call the Authenticate API `/_security/_authenticate/` using the access token as a `Bearer` token
+user. If you need to get the values for the SAML Attributes that were contained in the SAML
+Response for that user, you can call the Authenticate API `/_security/_authenticate/` using the access token as a `Bearer` token
 and the SAML attribute values will be contained in the response as part of the <<saml-user-metadata>>.
+
+
+==== Handling the IdP-initiated authentication flow
+
+{es} can also handle the IdP-initiated Single Sign On flow of the SAML 2 Web Browser SSO profile. In this
+case the authentication starts with an unsolicited authentication response from the SAML Identity
+Provider. The difference with the <<saml-sp-init-sso, SP initiated SSO>> is that the web application needs to handle
+requests to the `sp.acs` that will not come as responses to previous redirections. As such, it will not have a session
+for the user already, and it will not have any stored values for the `id` parameter. The request to the
+`_security/saml/authenticate` API will look like the one below in this case:
+
+
+[source,js]
+-----------------------------------------------------------------------
+POST /_security/saml/authenticate
+{
+  "content" : "PHNhbWxwOlJlc3BvbnNlIHhtbG5zOnNhbWxwPSJ1cm46b2FzaXM6bmFtZXM6dGM6U0FNTDoyLjA6cHJvdG9jb2wiIHhtbG5zOnNhbWw9InVybjpvYXNpczpuYW1lczp0YzpTQU1MOjIuMD.....",
+  "ids" : []
+}
+-----------------------------------------------------------------------
+// CONSOLE
+// TEST[skip:handled in IT]
 
 ==== Handling the logout flow
 . At some point, if necessary, the custom web application can log the user out by using the

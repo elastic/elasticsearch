@@ -23,7 +23,6 @@
   - match: { indices: ["bar*"] }
   - match: { enrich_key: baz }
   - match: { enrich_values: ["a", "b"] }
-  - is_true: version_created
 
   - do:
       enrich.list_policy: {}
@@ -33,7 +32,6 @@
   - match: { policies.0.indices: ["bar*"] }
   - match: { policies.0.enrich_key: baz }
   - match: { policies.0.enrich_values: ["a", "b"] }
-  - is_true: policies.0.version_created
 
   - do:
       enrich.delete_policy:

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.enrich;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -71,7 +70,6 @@ public class EnrichRestartIT extends ESIntegTestCase {
             assertThat(result.get().getPolicy().getIndices(), equalTo(enrichPolicy.getIndices()));
             assertThat(result.get().getPolicy().getEnrichKey(), equalTo(enrichPolicy.getEnrichKey()));
             assertThat(result.get().getPolicy().getEnrichValues(), equalTo(enrichPolicy.getEnrichValues()));
-            assertThat(result.get().getPolicy().getVersionCreated(), equalTo(Version.CURRENT));
         }
     }
 

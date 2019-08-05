@@ -41,8 +41,8 @@ public final class ClusterPrivilege extends Privilege {
 
     // shared automatons
     private static final Automaton DELEGATE_PKI_AUTOMATON = patterns(DelegatePkiAuthenticationAction.NAME);
-    private static final Automaton MANAGE_SECURITY_AUTOMATON = minusAndMinimize(patterns("cluster:admin/xpack/security/*"),
-            DELEGATE_PKI_AUTOMATON);
+    private static final Automaton ALL_SECURITY_AUTOMATON = patterns("cluster:admin/xpack/security/*");
+    private static final Automaton MANAGE_SECURITY_AUTOMATON = minusAndMinimize(ALL_SECURITY_AUTOMATON, DELEGATE_PKI_AUTOMATON);
     private static final Automaton MANAGE_SAML_AUTOMATON = patterns("cluster:admin/xpack/security/saml/*",
             InvalidateTokenAction.NAME, RefreshTokenAction.NAME);
     private static final Automaton MANAGE_OIDC_AUTOMATON = patterns("cluster:admin/xpack/security/oidc/*");
@@ -54,8 +54,7 @@ public final class ClusterPrivilege extends Privilege {
     private static final Automaton MONITOR_WATCHER_AUTOMATON = patterns("cluster:monitor/xpack/watcher/*");
     private static final Automaton MONITOR_ROLLUP_AUTOMATON = patterns("cluster:monitor/xpack/rollup/*");
     private static final Automaton ALL_CLUSTER_AUTOMATON = patterns("cluster:*", "indices:admin/template/*");
-    private static final Automaton MANAGE_AUTOMATON = minusAndMinimize(minusAndMinimize(ALL_CLUSTER_AUTOMATON, MANAGE_SECURITY_AUTOMATON),
-            DELEGATE_PKI_AUTOMATON);
+    private static final Automaton MANAGE_AUTOMATON = minusAndMinimize(ALL_CLUSTER_AUTOMATON, ALL_SECURITY_AUTOMATON);
     private static final Automaton MANAGE_ML_AUTOMATON = patterns("cluster:admin/xpack/ml/*", "cluster:monitor/xpack/ml/*");
     private static final Automaton MANAGE_DATA_FRAME_AUTOMATON = patterns("cluster:admin/data_frame/*", "cluster:monitor/data_frame/*");
     private static final Automaton MANAGE_WATCHER_AUTOMATON = patterns("cluster:admin/xpack/watcher/*", "cluster:monitor/xpack/watcher/*");

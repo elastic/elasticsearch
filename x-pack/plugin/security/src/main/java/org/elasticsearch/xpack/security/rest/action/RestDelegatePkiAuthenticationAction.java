@@ -19,6 +19,7 @@ import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationRequest;
 import org.elasticsearch.xpack.security.action.TransportDelegatePkiAuthenticationAction;
 import org.elasticsearch.xpack.security.authc.Realms;
@@ -61,7 +62,7 @@ public final class RestDelegatePkiAuthenticationAction extends SecurityBaseRestH
     protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         try (XContentParser parser = request.contentParser()) {
             final DelegatePkiAuthenticationRequest delegatePkiRequest = DelegatePkiAuthenticationRequest.fromXContent(parser);
-            return channel -> client.execute(TransportDelegatePkiAuthenticationAction.TYPE, delegatePkiRequest,
+            return channel -> client.execute(DelegatePkiAuthenticationAction.INSTANCE, delegatePkiRequest,
                     new RestBuilderListener<DelegatePkiAuthenticationResponse>(channel) {
                         @Override
                         public RestResponse buildResponse(DelegatePkiAuthenticationResponse delegatePkiResponse, XContentBuilder builder)

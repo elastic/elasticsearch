@@ -4,10 +4,28 @@
 <titleabbrev>Match boolean prefix</titleabbrev>
 ++++
 
-A `match_bool_prefix` query analyzes its input and constructs a
-<<query-dsl-bool-query,`bool` query>> from the terms. Each term except the last
-is used in a `term` query. The last term is used in a `prefix` query. A
-`match_bool_prefix` query such as
+Returns documents that approximately match a provided text. The last term of the
+provided text is treated as a <<query-dsl-prefix-query,prefix>>, matching any
+words that begin with that term.
+
+Internally, {es} internally converts the `match_bool_prefix` query into a
+<<query-dsl-bool-query,`bool`>> query with the following wrapped queries, or
+query clauses:
+
+* A <<query-dsl-term-query,`term`>> clause for each term in the provided text,
+except the last term
+* A <<query-dsl-prefix-query,`prefix`>> clause for the last term in the provided
+text [[match-bool-prefix-query-ex-request]]
+
+[[match-bool-prefix-ex]]
+==== Example request
+
+The following `match_bool_prefix` search returns documents containing these
+terms:
+
+* `quick`
+* `brown`
+* Words beginning with `f`, such as `fox` or `ferret`
 
 [source,js]
 --------------------------------------------------
@@ -15,15 +33,16 @@ GET /_search
 {
     "query": {
         "match_bool_prefix" : {
-            "message" : "quick brown f"
+            "message": {
+                "query": "quick brown f"
+            }
         }
     }
 }
 --------------------------------------------------
 // CONSOLE
 
-where analysis produces the terms `quick`, `brown`, and `f` is similar to the
-following `bool` query
+This `match_bool_prefix` search is equivalent to the following `bool` query.
 
 [source,js]
 --------------------------------------------------
@@ -42,6 +61,113 @@ GET /_search
 --------------------------------------------------
 // CONSOLE
 
+
+[[match-bool-prefix-top-level-params]]
+==== Top-level parameters for `match_bool_prefix`
+`<field>`::
+(Required, object) Field you wish to search.
+
+[[match-bool-prefix-field-params]]
+==== Parameters for `<field>`
+`query`::
++
+--
+(Required, string) Text you wish to find in the provided `<field>`. 
+
+The `match_bool_prefix` query <<analysis,analyzes>> any provided text into
+tokens before performing a search. The last term of this text is treated as a
+<<query-dsl-prefix-query,prefix>>, matching any words that begin with that term.
+--
+
+`analyzer`::
+(Optional, string) <<analysis,Analyzer>> used to convert the text in the `query`
+value into tokens. Defaults to the <<specify-index-time-analyzer,index-time
+analyzer>> mapped for the `<field>`. If no analyzer is mapped, the index's
+default analyzer is used.
+
+`fuzziness`::
++
+--
+(Optional, string) Maximum edit distance allowed for matching. See <<fuzziness>>
+for valid values and more information. See <<query-dsl-match-query-fuzziness>>
+for an example.
+
+This and other fuzzy parameters do not affect the `query` value's last term,
+which is treated as a <<query-dsl-prefix-query,prefix>>.
+--
+
+`max_expansions`::
++
+--
+(Optional, integer) Maximum number of terms to which the query will
+expand. Defaults to `50`.
+
+This and other fuzzy parameters do not affect the `query` value's last term,
+which is treated as a <<query-dsl-prefix-query,prefix>>.
+--
+
+`prefix_length`::
++
+--
+(Optional, integer) Number of beginning characters left unchanged for fuzzy
+matching. Defaults to `0`.
+
+This parameter does not affect the last term of the `query` value text.
+--
+
+`transpositions`::
++
+--
+(Optional, boolean) If `true`, edits for fuzzy matching include
+transpositions of two adjacent characters (ab → ba). Defaults to `true`.
+
+
+This and other fuzzy parameters do not affect the `query` value's last term,
+which is treated as a <<query-dsl-prefix-query,prefix>>.
+--
+
+`fuzzy_rewrite`::
++
+--
+(Optional, string) Method used to rewrite the query. See the
+<<query-dsl-multi-term-rewrite, `rewrite` parameter>> for valid values and more
+information.
+
+This and other fuzzy parameters do not affect the `query` value's last term,
+which is treated as a <<query-dsl-prefix-query,prefix>>.
+--
+
+`operator`::
++
+--
+(Optional, string) Boolean logic used to interpret text in the `query` value.
+Valid values are:
+
+`OR` (Default)::
+For example, a `query` value of `quick brown f` is interpreted as `quick OR
+brown OR f*`. {es} internally converts the `match_bool_prefix` query into a
+<<query-dsl-bool-query,`bool`>> query with `should` clauses.
+
+`AND`::
+For example, a `query` value of `quick brown f` is interpreted as `quick AND
+brown AND f*`. {es} internally converts the `match_bool_prefix` query into a
+<<query-dsl-bool-query,`bool`>> query with `must` clauses.
+--
+
+`minimum_should_match`::
++
+--
+(Optional, string) Minimum number of clauses that must match for a document to
+be returned. See the <<query-dsl-minimum-should-match, `minimum_should_match`
+parameter>> for valid values and more information.
+--
+
+
+[[match-bool-prefix-notes]]
+==== Notes
+
+[[match-bool-prefix-diff]]
+===== Differences with the match phrase prefix query
 An important difference between the `match_bool_prefix` query and
 <<query-dsl-match-query-phrase-prefix,`match_phrase_prefix`>> is that the
 `match_phrase_prefix` query matches its terms as a phrase, but the
@@ -50,39 +176,3 @@ An important difference between the `match_bool_prefix` query and
 `quick brown fox`, but it could also match `brown fox quick`. It could also
 match a field containing the term `quick`, the term `brown` and a term
 starting with `f`, appearing in any position.
-
-==== Parameters
-
-By default, `match_bool_prefix` queries' input text will be analyzed using the
-analyzer from the queried field's mapping. A different search analyzer can be
-configured with the `analyzer` parameter
-
-[source,js]
---------------------------------------------------
-GET /_search
-{
-    "query": {
-        "match_bool_prefix" : {
-            "message": {
-                "query": "quick brown f",
-                "analyzer": "keyword"
-            }
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
-
-`match_bool_prefix` queries support the
-<<query-dsl-minimum-should-match,`minimum_should_match`>> and `operator`
-parameters as described for the
-<<query-dsl-match-query-boolean,`match` query>>, applying the setting to the
-constructed `bool` query. The number of clauses in the constructed `bool`
-query will in most cases be the number of terms produced by analysis of the
-query text.
-
-The <<query-dsl-match-query-fuzziness,`fuzziness`>>, `prefix_length`,
-`max_expansions`, `fuzzy_transpositions`, and `fuzzy_rewrite` parameters can
-be applied to the `term` subqueries constructed for all terms but the final
-term. They do not have any effect on the prefix query constructed for the
-final term.

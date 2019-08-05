@@ -20,7 +20,7 @@ public class InferenceProcessor extends AbstractProcessor {
 
     private static final Logger logger = LogManager.getLogger(InferenceProcessor.class);
     public static final String TYPE = "inference";
-    private static final String MODEL_NAME = "model";
+    private static final String MODEL_ID = "model_id";
     private static final String MODEL_TYPE = "model_type";
     private static final String IGNORE_MISSING = "ignore_missing";
 
@@ -64,7 +64,7 @@ public class InferenceProcessor extends AbstractProcessor {
         @Override
         public InferenceProcessor create(Map<String, Processor.Factory> processorFactories, String tag, Map<String, Object> config)
                 throws Exception {
-            String modelId = ConfigurationUtils.readStringProperty(TYPE, tag, config, MODEL_NAME);
+            String modelId = ConfigurationUtils.readStringProperty(TYPE, tag, config, MODEL_ID);
             String modelType = ConfigurationUtils.readStringProperty(TYPE, tag, config, MODEL_TYPE);
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, tag, config, IGNORE_MISSING, false);
 

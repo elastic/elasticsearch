@@ -482,6 +482,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         });
     }
 
+    // Finds all blobs directly under the repository root path that are not referenced by the current RepositoryData
     private List<String> staleRootBlobs(RepositoryData repositoryData, Set<String> rootBlobNames) {
         final Set<String> allSnapshotIds =
             repositoryData.getSnapshotIds().stream().map(SnapshotId::getUUID).collect(Collectors.toSet());

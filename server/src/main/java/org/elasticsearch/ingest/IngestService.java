@@ -574,13 +574,18 @@ public class IngestService implements ClusterStateApplier {
         }
 
         for (Processor processor: pipeline.flattenAllProcessors()) {
-            if (processor instanceof WrappedProcessor) {
-                if (clazz.isAssignableFrom(((WrappedProcessor) processor).getInnerProcessor().getClass())) {
+            if (clazz.isAssignableFrom(processor.getClass())) {
+                return true;
+            }
+
+            while (processor instanceof WrappedProcessor) {
+                WrappedProcessor wrappedProcessor = (WrappedProcessor) processor;
+                if (clazz.isAssignableFrom(wrappedProcessor.getInnerProcessor().getClass())) {
                     return true;
                 }
-            } else {
-                if (clazz.isAssignableFrom(processor.getClass())) {
-                    return true;
+                processor = wrappedProcessor.getInnerProcessor();
+                if (wrappedProcessor == processor) {
+                    break;
                 }
             }
         }

@@ -29,6 +29,23 @@ class WrappedProcessorImpl extends FakeProcessor implements WrappedProcessor {
 
     @Override
     public Processor getInnerProcessor() {
-        return this;
+        String theType = getType();
+        String theTag = getTag();
+        return new Processor() {
+            @Override
+            public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
+                return ingestDocument;
+            }
+
+            @Override
+            public String getType() {
+                return theType;
+            }
+
+            @Override
+            public String getTag() {
+                return theTag;
+            }
+        };
     }
 }

@@ -43,10 +43,16 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.plugins.IngestPlugin;
+import org.elasticsearch.script.MockScriptEngine;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -64,6 +70,7 @@ import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.LongSupplier;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -284,10 +291,66 @@ public class IngestServiceTests extends ESTestCase {
         assertTrue(ingestService.hasProcessor(id, WrappedProcessorImpl.class));
         assertTrue(ingestService.hasProcessor(id, WrappedProcessor.class));
         assertTrue(ingestService.hasProcessor(id, FakeProcessor.class));
-        assertTrue(ingestService.hasProcessor(id, FakeProcessor.class));
 
-        // Validate the negative scenario by passing in a class that the processor will never be.
         assertFalse(ingestService.hasProcessor(id, ConditionalProcessor.class));
+    }
+
+    public void testHasProcessorComplexConditional() throws Exception {
+        LongSupplier relativeTimeProvider = mock(LongSupplier.class);
+        String scriptName = "conditionalScript";
+        ScriptService scriptService = new ScriptService(Settings.builder().build(),
+            Collections.singletonMap(
+                Script.DEFAULT_SCRIPT_LANG,
+                new MockScriptEngine(
+                    Script.DEFAULT_SCRIPT_LANG,
+                    Collections.singletonMap(
+                        scriptName, ctx -> {
+                            ctx.get("_type");
+                            return true;
+                        }
+                    ),
+                    Collections.emptyMap()
+                )
+            ),
+            new HashMap<>(ScriptModule.CORE_CONTEXTS)
+        );
+
+        Map<String, Processor.Factory> processors = new HashMap<>();
+        processors.put("complexSet", (factories, tag, config) -> {
+            String field = (String) config.remove("field");
+            String value = (String) config.remove("value");
+
+            return new ConditionalProcessor(randomAlphaOfLength(10),
+                new Script(
+                    ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG,
+                    scriptName, Collections.emptyMap()), scriptService,
+                new ConditionalProcessor(randomAlphaOfLength(10) + "-nested",
+                    new Script(
+                        ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG,
+                        scriptName, Collections.emptyMap()), scriptService,
+                    new FakeProcessor("complexSet", tag, (ingestDocument) -> ingestDocument.setFieldValue(field, value))));
+        });
+
+        IngestService ingestService = createWithProcessors(processors);
+        String id = "_id";
+        Pipeline pipeline = ingestService.getPipeline(id);
+        assertThat(pipeline, nullValue());
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
+
+        PutPipelineRequest putRequest = new PutPipelineRequest(id,
+            new BytesArray("{\"processors\": [{\"complexSet\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}"), XContentType.JSON);
+        ClusterState previousClusterState = clusterState;
+        clusterState = IngestService.innerPut(putRequest, clusterState);
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+        pipeline = ingestService.getPipeline(id);
+        assertThat(pipeline, notNullValue());
+
+        assertTrue(ingestService.hasProcessor(id, Processor.class));
+        assertTrue(ingestService.hasProcessor(id, WrappedProcessor.class));
+        assertTrue(ingestService.hasProcessor(id, FakeProcessor.class));
+        assertTrue(ingestService.hasProcessor(id, ConditionalProcessor.class));
+
+        assertFalse(ingestService.hasProcessor(id, WrappedProcessorImpl.class));
     }
 
     public void testCrud() throws Exception {

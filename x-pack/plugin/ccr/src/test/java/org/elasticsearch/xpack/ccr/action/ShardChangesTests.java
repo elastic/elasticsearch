@@ -15,17 +15,20 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.LocalStateCcr;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
@@ -35,7 +38,7 @@ public class ShardChangesTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singleton(LocalStateCcr.class);
+        return Stream.of(LocalStateCcr.class, InternalSettingsPlugin.class).collect(Collectors.toList());
     }
 
     // this emulates what the CCR persistent task will do for pulling
@@ -102,7 +105,8 @@ public class ShardChangesTests extends ESSingleNodeTestCase {
                 .put("index.soft_deletes.enabled", true)
                 .put("index.soft_deletes.retention.operations", 0)
                 .put("index.number_of_shards", 1)
-                .put("index.number_of_replicas", 0))
+                .put("index.number_of_replicas", 0)
+                .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "200ms"))
             .get();
 
         for (int i = 0; i < 32; i++) {
@@ -111,6 +115,15 @@ public class ShardChangesTests extends ESSingleNodeTestCase {
             client().admin().indices().flush(new FlushRequest("index").force(true)).actionGet();
         }
         client().admin().indices().refresh(new RefreshRequest("index")).actionGet();
+        assertBusy(() -> {
+            final ShardStats[] shardsStats = client().admin().indices().prepareStats("index").get().getIndex("index").getShards();
+            for (final ShardStats shardStats : shardsStats) {
+                final long maxSeqNo = shardStats.getSeqNoStats().getMaxSeqNo();
+                assertTrue(shardStats.getRetentionLeaseStats().retentionLeases().leases().stream()
+                    .allMatch(retentionLease -> retentionLease.retainingSequenceNumber() == maxSeqNo + 1));
+            }
+        });
+
         ForceMergeRequest forceMergeRequest = new ForceMergeRequest("index");
         forceMergeRequest.maxNumSegments(1);
         client().admin().indices().forceMerge(forceMergeRequest).actionGet();

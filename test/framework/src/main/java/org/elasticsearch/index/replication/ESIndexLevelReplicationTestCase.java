@@ -169,7 +169,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         private final AtomicInteger replicaId = new AtomicInteger();
         private final AtomicInteger docId = new AtomicInteger();
         boolean closed = false;
-        private ReplicationTargets replicationTargets;
+        private volatile ReplicationTargets replicationTargets;
 
         private final PrimaryReplicaSyncer primaryReplicaSyncer = new PrimaryReplicaSyncer(
             new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet()),
@@ -288,6 +288,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
         public void startPrimary() throws IOException {
             recoverPrimary(primary);
+            computeReplicationTargets();
             HashSet<String> activeIds = new HashSet<>();
             activeIds.addAll(activeIds());
             activeIds.add(primary.routingEntry().allocationId().getId());
@@ -528,7 +529,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             this.replicationTargets = new ReplicationTargets(this.primary, new ArrayList<>(this.replicas));
         }
 
-        private synchronized ReplicationTargets getReplicationTargets() {
+        private ReplicationTargets getReplicationTargets() {
             return replicationTargets;
         }
 
@@ -812,7 +813,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
     /**
      * indexes the given requests on the supplied primary, modifying it for replicas
      */
-    BulkShardRequest indexOnPrimary(IndexRequest request, IndexShard primary) throws Exception {
+    public BulkShardRequest indexOnPrimary(IndexRequest request, IndexShard primary) throws Exception {
         return executeReplicationRequestOnPrimary(primary, request);
     }
 
@@ -826,7 +827,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
     /**
      * indexes the given requests on the supplied replica shard
      */
-    void indexOnReplica(BulkShardRequest request, ReplicationGroup group, IndexShard replica) throws Exception {
+    public void indexOnReplica(BulkShardRequest request, ReplicationGroup group, IndexShard replica) throws Exception {
         indexOnReplica(request, group, replica, group.primary.getPendingPrimaryTerm());
     }
 

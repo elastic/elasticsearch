@@ -87,16 +87,19 @@ public class Reindexer {
         this.reindexSslConfig = reindexSslConfig;
     }
 
+    public void initTask(BulkByScrollTask task, ReindexRequest request, ActionListener<Void> listener) {
+        BulkByScrollParallelizationHelper.initTaskState(task, request, client, listener);
+    }
+
     public void execute(BulkByScrollTask task, ReindexRequest request, ActionListener<BulkByScrollResponse> listener) {
-        BulkByScrollParallelizationHelper.startSlicedAction(request, task, ReindexAction.INSTANCE, listener, client,
+        BulkByScrollParallelizationHelper.executeSlicedAction(task, request, ReindexAction.INSTANCE, listener, client,
             clusterService.localNode(),
             () -> {
                 ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(), task);
                 AsyncIndexBySearchAction searchAction = new AsyncIndexBySearchAction(task, logger, assigningClient, threadPool,
                     scriptService, reindexSslConfig, request, listener);
                 searchAction.start();
-            }
-        );
+            });
 
     }
 

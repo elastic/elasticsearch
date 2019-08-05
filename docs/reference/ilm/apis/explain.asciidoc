@@ -35,7 +35,7 @@ about any failures.
   ILM and are in an error state, either due to an encountering an error while
   executing the policy, or attempting to use a policy that does not exist.
 
-include::{docdir}/rest-api/timeoutparms.asciidoc[]
+include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 ==== Authorization
 

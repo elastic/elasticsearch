@@ -73,7 +73,8 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
             "user_manage:" + usersPasswdHashed + "\n" +
             "user_manage_security:" + usersPasswdHashed + "\n" +
             "user_delegate_pki:" + usersPasswdHashed + "\n" +
-            "user_all:" + usersPasswdHashed + "\n";
+            "user_all:" + usersPasswdHashed + "\n" +
+            "kibana_system:" + usersPasswdHashed + "\n";
     }
 
     @Override
@@ -98,7 +99,8 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
                 "role_manage:user_manage\n" +
                 "role_manage_security:user_manage_security\n" +
                 "role_delegate_pki:user_delegate_pki\n" +
-                "role_all:user_all\n";
+                "role_all:user_all\n" +
+                "kibana_system:kibana_system\n";
     }
 
     @Override
@@ -124,7 +126,7 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
         }
 
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
-            for (String delegateeUsername : Arrays.asList("user_all", "user_delegate_pki")) {
+            for (String delegateeUsername : Arrays.asList("user_all", "user_delegate_pki", "kibana_system")) {
                 // delegate
                 RequestOptions.Builder optionsBuilder = RequestOptions.DEFAULT.toBuilder();
                 optionsBuilder.addHeader("Authorization",
@@ -161,7 +163,7 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
         }
 
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
-            String delegateeUsername = randomFrom("user_all", "user_delegate_pki");
+            String delegateeUsername = randomFrom("user_all", "user_delegate_pki", "kibana_system");
             // delegate
             RequestOptions.Builder optionsBuilder = RequestOptions.DEFAULT.toBuilder();
             optionsBuilder.addHeader("Authorization",

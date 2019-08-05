@@ -24,7 +24,7 @@ public interface CheckpointProvider {
      * @param lastCheckpoint the last checkpoint
      * @param listener listener to call after inner request returned
      */
-    void getCheckpoint(final DataFrameTransformCheckpoint lastCheckpoint, final ActionListener<DataFrameTransformCheckpoint> listener);
+    void getCheckpoint(DataFrameTransformCheckpoint lastCheckpoint, ActionListener<DataFrameTransformCheckpoint> listener);
 
     /**
      * Determines whether the data frame needs updating
@@ -32,7 +32,7 @@ public interface CheckpointProvider {
      * @param lastCheckpoint the last checkpoint
      * @param listener listener to send the result to
      */
-    void sourceHasChanged(final DataFrameTransformCheckpoint lastCheckpoint, final ActionListener<Boolean> listener);
+    void sourceHasChanged(DataFrameTransformCheckpoint lastCheckpoint, ActionListener<Boolean> listener);
 
     /**
      * Get checkpoint statistics for a running data frame
@@ -46,12 +46,12 @@ public interface CheckpointProvider {
      * @param nextCheckpointProgress progress for the next checkpoint
      * @param listener listener to retrieve the result
      */
-    void getCheckpointingInfo(final DataFrameTransformCheckpoint lastCheckpoint,
-                              final DataFrameTransformCheckpoint nextCheckpoint,
-                              final IndexerState nextCheckpointIndexerState,
-                              final DataFrameIndexerPosition nextCheckpointPosition,
-                              final DataFrameTransformProgress nextCheckpointProgress,
-                              final ActionListener<DataFrameTransformCheckpointingInfo> listener);
+    void getCheckpointingInfo(DataFrameTransformCheckpoint lastCheckpoint,
+                              DataFrameTransformCheckpoint nextCheckpoint,
+                              IndexerState nextCheckpointIndexerState,
+                              DataFrameIndexerPosition nextCheckpointPosition,
+                              DataFrameTransformProgress nextCheckpointProgress,
+                              ActionListener<DataFrameTransformCheckpointingInfo> listener);
 
     /**
      * Get checkpoint statistics for a stopped data frame
@@ -64,9 +64,9 @@ public interface CheckpointProvider {
      * @param nextCheckpointProgress progress for the next checkpoint
      * @param listener listener to retrieve the result
      */
-    void getCheckpointingInfo(final long lastCheckpointNumber,
-                              final IndexerState nextCheckpointIndexerState,
-                              final DataFrameIndexerPosition nextCheckpointPosition,
-                              final DataFrameTransformProgress nextCheckpointProgress,
-                              final ActionListener<DataFrameTransformCheckpointingInfo> listener);
+    void getCheckpointingInfo(long lastCheckpointNumber,
+                              IndexerState nextCheckpointIndexerState,
+                              DataFrameIndexerPosition nextCheckpointPosition,
+                              DataFrameTransformProgress nextCheckpointProgress,
+                              ActionListener<DataFrameTransformCheckpointingInfo> listener);
 }

@@ -156,7 +156,25 @@ public class GeometryTreeTests extends ESTestCase {
         assertTrue(reader.intersects(new GeoExtent(-60, -60, 60, 60))); // enclosing us completely
         assertTrue(reader.intersects(new GeoExtent(49, 49, 51, 51))); // overlapping the mainland
         assertTrue(reader.intersects(new GeoExtent(9, 9, 11, 11))); // overlapping the hole
+    }
 
+    public void testCombPolygon() throws Exception {
+        double[] px = {0, 10, 10, 20, 20, 30, 30, 40, 40, 50, 50,  0, 0};
+        double[] py = {0, 0,  20, 20,  0,  0, 20, 20,  0,  0, 30, 30, 0};
+
+        double[] hx = {21, 21, 29, 29, 21};
+        double[] hy = {1, 20, 20, 1, 1};
+
+        Polygon polyWithHole = new Polygon(new LinearRing(py, px),  Collections.singletonList(new LinearRing(hy, hx)));
+        // test cell crossing poly
+        GeometryTreeWriter writer = new GeometryTreeWriter(polyWithHole);
+        BytesStreamOutput output = new BytesStreamOutput();
+        writer.writeTo(output);
+        output.close();
+        GeometryTreeReader reader = new GeometryTreeReader(output.bytes().toBytesRef());
+        assertTrue(reader.intersects(new GeoExtent(5, 10, 5, 10)));
+        assertFalse(reader.intersects(new GeoExtent(15, 10, 15, 10)));
+        assertFalse(reader.intersects(new GeoExtent(25, 10, 25, 10)));
     }
 
     public void testPacManClosedLineString() throws Exception {

@@ -69,7 +69,6 @@ public class DateHistogramValuesSourceBuilder
         return PARSER.parse(parser, new DateHistogramValuesSourceBuilder(name), null);
     }
 
-    private ZoneId timeZone = null;
     private DateIntervalWrapper dateHistogramInterval = new DateIntervalWrapper();
 
     public DateHistogramValuesSourceBuilder(String name) {
@@ -79,26 +78,21 @@ public class DateHistogramValuesSourceBuilder
     protected DateHistogramValuesSourceBuilder(StreamInput in) throws IOException {
         super(in);
         dateHistogramInterval = new DateIntervalWrapper(in);
-        timeZone = in.readOptionalZoneId();
     }
 
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
         dateHistogramInterval.writeTo(out);
-        out.writeOptionalZoneId(timeZone);
     }
 
     @Override
     protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
         dateHistogramInterval.toXContent(builder, params);
-        if (timeZone != null) {
-            builder.field("time_zone", timeZone.toString());
-        }
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), dateHistogramInterval, timeZone);
+        return Objects.hash(super.hashCode(), dateHistogramInterval);
     }
 
     @Override
@@ -107,8 +101,7 @@ public class DateHistogramValuesSourceBuilder
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
         DateHistogramValuesSourceBuilder other = (DateHistogramValuesSourceBuilder) obj;
-        return Objects.equals(dateHistogramInterval, other.dateHistogramInterval)
-            && Objects.equals(timeZone, other.timeZone);
+        return Objects.equals(dateHistogramInterval, other.dateHistogramInterval);
     }
 
     @Override
@@ -195,24 +188,6 @@ public class DateHistogramValuesSourceBuilder
      */
     public DateHistogramInterval getIntervalAsFixed() {
         return dateHistogramInterval.getAsFixedInterval();
-    }
-
-    /**
-     * Sets the time zone to use for this aggregation
-     */
-    public DateHistogramValuesSourceBuilder timeZone(ZoneId timeZone) {
-        if (timeZone == null) {
-            throw new IllegalArgumentException("[timeZone] must not be null: [" + name + "]");
-        }
-        this.timeZone = timeZone;
-        return this;
-    }
-
-    /**
-     * Gets the time zone to use for this aggregation
-     */
-    public ZoneId timeZone() {
-        return timeZone;
     }
 
     @Override

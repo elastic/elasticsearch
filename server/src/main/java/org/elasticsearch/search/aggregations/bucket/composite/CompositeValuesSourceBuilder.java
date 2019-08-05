@@ -32,6 +32,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.Objects;
 
 /**
@@ -46,6 +47,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
     private boolean missingBucket = false;
     private SortOrder order = SortOrder.ASC;
     private String format = null;
+    private ZoneId timeZone = null;
 
     CompositeValuesSourceBuilder(String name) {
         this(name, null);
@@ -68,6 +70,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         this.missingBucket = in.readBoolean();
         this.order = SortOrder.readFromStream(in);
         this.format = in.readOptionalString();
+        this.timeZone = in.readOptionalZoneId();
     }
 
     @Override
@@ -87,6 +90,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         out.writeBoolean(missingBucket);
         order.writeTo(out);
         out.writeOptionalString(format);
+        out.writeOptionalZoneId(timeZone);
         innerWriteTo(out);
     }
 
@@ -110,6 +114,9 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         if (format != null) {
             builder.field("format", format);
         }
+        if (timeZone != null) {
+            builder.field("time_zone", timeZone.toString());
+        }
         builder.field("order", order);
         doXContentBody(builder, params);
         builder.endObject();
@@ -118,7 +125,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, missingBucket, script, valueType, order, format);
+        return Objects.hash(field, missingBucket, script, valueType, order, format, timeZone);
     }
 
     @Override
@@ -133,7 +140,8 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
             Objects.equals(valueType, that.valueType()) &&
             Objects.equals(missingBucket, that.missingBucket()) &&
             Objects.equals(order, that.order()) &&
-            Objects.equals(format, that.format());
+            Objects.equals(format, that.format()) &&
+            Objects.equals(timeZone, that.timeZone());
     }
 
     public String name() {
@@ -267,6 +275,24 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
     }
 
     /**
+     * Sets the time zone to use for this aggregation
+     */
+    public AB timeZone(ZoneId timeZone) {
+        if (timeZone == null) {
+            throw new IllegalArgumentException("[timeZone] must not be null: [" + name + "]");
+        }
+        this.timeZone = timeZone;
+        return (AB) this;
+    }
+
+    /**
+     * Gets the time zone to use for this aggregation
+     */
+    public ZoneId timeZone() {
+        return timeZone;
+    }
+
+    /**
      * Creates a {@link CompositeValuesSourceConfig} for this source.
      *
      * @param context   The search context for this source.
@@ -276,7 +302,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
 
     public final CompositeValuesSourceConfig build(SearchContext context) throws IOException {
         ValuesSourceConfig<?> config = ValuesSourceConfig.resolve(context.getQueryShardContext(),
-            valueType, field, script, null,null, format);
+            valueType, field, script, null, timeZone, format);
         return innerBuild(context, config);
     }
 }

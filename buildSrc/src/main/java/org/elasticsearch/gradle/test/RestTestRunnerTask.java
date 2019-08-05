@@ -1,12 +1,13 @@
 package org.elasticsearch.gradle.test;
 
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
+import org.elasticsearch.gradle.testclusters.TestClustersTask;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Nested;
 import org.gradle.api.tasks.testing.Test;
 
-import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 
 import static org.elasticsearch.gradle.testclusters.TestDistribution.INTEG_TEST;
 
@@ -16,9 +17,9 @@ import static org.elasticsearch.gradle.testclusters.TestDistribution.INTEG_TEST;
  * {@link Nested} inputs.
  */
 @CacheableTask
-public class RestTestRunnerTask extends Test {
+public class RestTestRunnerTask extends Test implements TestClustersTask {
 
-    private Collection<ElasticsearchCluster> clusters = new ArrayList<>();
+    private Collection<ElasticsearchCluster> clusters = new HashSet<>();
 
     public RestTestRunnerTask() {
         super();
@@ -26,11 +27,18 @@ public class RestTestRunnerTask extends Test {
             task -> clusters.stream().flatMap(c -> c.getNodes().stream()).anyMatch(n -> n.getTestDistribution() != INTEG_TEST));
     }
 
+    @Override
+    public int getMaxParallelForks() {
+        return 1;
+    }
+
     @Nested
+    @Override
     public Collection<ElasticsearchCluster> getClusters() {
         return clusters;
     }
 
+    @Override
     public void testCluster(ElasticsearchCluster cluster) {
         this.clusters.add(cluster);
     }

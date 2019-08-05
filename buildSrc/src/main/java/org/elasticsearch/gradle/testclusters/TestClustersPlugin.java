@@ -23,7 +23,6 @@ import org.elasticsearch.gradle.DistributionDownloadPlugin;
 import org.elasticsearch.gradle.ElasticsearchDistribution;
 import org.elasticsearch.gradle.ReaperPlugin;
 import org.elasticsearch.gradle.ReaperService;
-import org.elasticsearch.gradle.test.RestTestRunnerTask;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -36,8 +35,7 @@ import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.api.tasks.TaskState;
 
 import java.io.File;
-import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -53,7 +51,6 @@ public class TestClustersPlugin implements Plugin<Project> {
     private static final Logger logger =  Logging.getLogger(TestClustersPlugin.class);
     private static final String TESTCLUSTERS_INSPECT_FAILURE = "testclusters.inspect.failure";
 
-    private final Map<Task, List<ElasticsearchCluster>> usedClusters = new HashMap<>();
     private final Map<ElasticsearchCluster, Integer> claimsInventory = new HashMap<>();
     private final Set<ElasticsearchCluster> runningClusters = new HashSet<>();
     private final Boolean allowClusterToSurvive = Boolean.valueOf(System.getProperty(TESTCLUSTERS_INSPECT_FAILURE, "false"));
@@ -123,7 +120,7 @@ public class TestClustersPlugin implements Plugin<Project> {
     private void createUseClusterTaskExtension(Project project, NamedDomainObjectContainer<ElasticsearchCluster> container) {
         // register an extension for all current and future tasks, so that any task can declare that it wants to use a
         // specific cluster.
-        project.getTasks().all((Task task) ->
+        project.getTasks().withType(TestClustersTask.class, (Task task) ->
             task.getExtensions().findByType(ExtraPropertiesExtension.class)
                 .set(
                     "useCluster",
@@ -140,13 +137,11 @@ public class TestClustersPlugin implements Plugin<Project> {
                                 throw new AssertionError("Expected " + thisObject + " to be an instance of " +
                                     "Task, but got: " + thisObject.getClass());
                             }
-                            usedClusters.computeIfAbsent(task, k -> new ArrayList<>()).add(cluster);
                             for (ElasticsearchNode node : cluster.getNodes()) {
                                 ((Task) thisObject).dependsOn(node.getDistribution().getExtracted());
                             }
-                            if (thisObject instanceof RestTestRunnerTask) {
-                                ((RestTestRunnerTask) thisObject).testCluster(cluster);
-                            }
+
+                            ((TestClustersTask) thisObject).testCluster(cluster);
                         }
                     })
         );
@@ -156,17 +151,15 @@ public class TestClustersPlugin implements Plugin<Project> {
         // Once we know all the tasks that need to execute, we claim all the clusters that belong to those and count the
         // claims so we'll know when it's safe to stop them.
         project.getGradle().getTaskGraph().whenReady(taskExecutionGraph -> {
-            Set<String> forExecution = taskExecutionGraph.getAllTasks().stream()
-                .map(Task::getPath)
-                .collect(Collectors.toSet());
+            taskExecutionGraph.getAllTasks().stream()
+                .filter(task -> task instanceof TestClustersTask)
+                .map(task -> (TestClustersTask) task)
+                .flatMap(task -> task.getClusters().stream())
+                .forEach(cluster -> {
+                    cluster.freeze();
+                    claimsInventory.put(cluster, claimsInventory.getOrDefault(cluster, 0) + 1);
+                });
 
-            usedClusters.forEach((task, listOfClusters) ->
-                listOfClusters.forEach(elasticsearchCluster -> {
-                    if (forExecution.contains(task.getPath())) {
-                        elasticsearchCluster.freeze();
-                        claimsInventory.put(elasticsearchCluster, claimsInventory.getOrDefault(elasticsearchCluster, 0) + 1);
-                    }
-                }));
             if (claimsInventory.isEmpty() == false) {
                 logger.info("Claims inventory: {}", claimsInventory);
             }
@@ -178,11 +171,11 @@ public class TestClustersPlugin implements Plugin<Project> {
             new TaskActionListener() {
                 @Override
                 public void beforeActions(Task task) {
+                    if (task instanceof TestClustersTask == false) {
+                        return;
+                    }
                     // we only start the cluster before the actions, so we'll not start it if the task is up-to-date
-                    List<ElasticsearchCluster> neededButNotRunning = usedClusters.getOrDefault(
-                        task,
-                        Collections.emptyList()
-                    )
+                    List<ElasticsearchCluster> neededButNotRunning = ((TestClustersTask) task).getClusters()
                         .stream()
                         .filter(cluster -> runningClusters.contains(cluster) == false)
                         .collect(Collectors.toList());
@@ -204,12 +197,12 @@ public class TestClustersPlugin implements Plugin<Project> {
             new TaskExecutionListener() {
                 @Override
                 public void afterExecute(Task task, TaskState state) {
+                    if (task instanceof TestClustersTask == false) {
+                        return;
+                    }
                     // always unclaim the cluster, even if _this_ task is up-to-date, as others might not have been
                     // and caused the cluster to start.
-                    List<ElasticsearchCluster> clustersUsedByTask = usedClusters.getOrDefault(
-                        task,
-                        Collections.emptyList()
-                    );
+                    Collection<ElasticsearchCluster> clustersUsedByTask = ((TestClustersTask) task).getClusters();
                     if (clustersUsedByTask.isEmpty()) {
                         return;
                     }
@@ -220,7 +213,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                         // executed at all, so we will never be called again to un-claim and terminate it.
                         clustersUsedByTask.forEach(cluster -> stopCluster(cluster, true));
                         permitsToRelease = clustersUsedByTask.stream()
-                            .map(cluster -> cluster.getNumberOfNodes())
+                            .map(ElasticsearchCluster::getNumberOfNodes)
                             .reduce(Integer::sum).get();
                     } else {
                         clustersUsedByTask.forEach(

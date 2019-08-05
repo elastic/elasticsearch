@@ -51,8 +51,10 @@ public abstract class VagrantShellTask extends DefaultTask {
         service = getProject().getExtensions().getByType(VagrantMachine.class);
     }
 
+    @Input
     protected abstract List<String> getWindowsScript();
 
+    @Input
     protected abstract List<String> getLinuxScript();
 
     @Input

@@ -111,23 +111,24 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
     protected final DataFrameTransformsConfigManager dataFrameTransformsConfigManager;
     protected final DataFrameTransformConfig transformConfig;
 
-    public DefaultCheckpointProvider(Client client,
-                                     DataFrameTransformsConfigManager dataFrameTransformsConfigManager,
-                                     DataFrameTransformConfig transformConfig) {
+    public DefaultCheckpointProvider(final Client client,
+                                     final DataFrameTransformsConfigManager dataFrameTransformsConfigManager,
+                                     final DataFrameTransformConfig transformConfig) {
         this.client = client;
         this.dataFrameTransformsConfigManager = dataFrameTransformsConfigManager;
         this.transformConfig = transformConfig;
     }
 
     @Override
-    public void sourceHasChanged(DataFrameTransformCheckpoint lastCheckpoint, ActionListener<Boolean> listener) {
+    public void sourceHasChanged(final DataFrameTransformCheckpoint lastCheckpoint, final ActionListener<Boolean> listener) {
         listener.onResponse(false);
     }
 
     @Override
-    public void getCheckpoint(DataFrameTransformCheckpoint lastCheckpoint, ActionListener<DataFrameTransformCheckpoint> listener) {
-        long timestamp = System.currentTimeMillis();
-        long checkpoint = lastCheckpoint != null ? lastCheckpoint.getCheckpoint() + 1 : 1;
+    public void getCheckpoint(final DataFrameTransformCheckpoint lastCheckpoint,
+                              final ActionListener<DataFrameTransformCheckpoint> listener) {
+        final long timestamp = System.currentTimeMillis();
+        final long checkpoint = lastCheckpoint != null ? lastCheckpoint.getCheckpoint() + 1 : 1;
 
         getIndexCheckpoints(ActionListener.wrap(checkpointsByIndex -> {
             listener.onResponse(new DataFrameTransformCheckpoint(transformConfig.getId(), timestamp, checkpoint, checkpointsByIndex, 0L));
@@ -203,12 +204,12 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
         // 1. GetIndexRequest to retrieve the indices the user has access to
         // 2. IndicesStatsRequest to retrieve stats about indices
         // between 1 and 2 indices could get deleted or created
-        if (DataFrameTransformsCheckpointService.logger.isDebugEnabled()) {
+        if (logger.isDebugEnabled()) {
             Set<String> userIndicesClone = new HashSet<>(userIndices);
 
             userIndicesClone.removeAll(checkpointsByIndex.keySet());
             if (userIndicesClone.isEmpty() == false) {
-                DataFrameTransformsCheckpointService.logger.debug("Original set of user indices contained more indexes [{}]",
+                logger.debug("Original set of user indices contained more indexes [{}]",
                         userIndicesClone);
             }
         }

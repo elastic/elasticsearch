@@ -29,24 +29,26 @@ public class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
 
     private final TimeSyncConfig timeSyncConfig;
 
-    TimeBasedCheckpointProvider(Client client,
-                                DataFrameTransformsConfigManager dataFrameTransformsConfigManager,
-                                DataFrameTransformConfig transformConfig) {
+    TimeBasedCheckpointProvider(final Client client,
+                                final DataFrameTransformsConfigManager dataFrameTransformsConfigManager,
+                                final DataFrameTransformConfig transformConfig) {
         super(client, dataFrameTransformsConfigManager, transformConfig);
-        this.timeSyncConfig = (TimeSyncConfig) transformConfig.getSyncConfig();
+        timeSyncConfig = (TimeSyncConfig) transformConfig.getSyncConfig();
     }
 
     @Override
     public void sourceHasChanged(DataFrameTransformCheckpoint lastCheckpoint,
             ActionListener<Boolean> listener) {
 
-        long timestamp = System.currentTimeMillis();
+        final long timestamp = getTime();
 
         SearchRequest searchRequest = new SearchRequest(transformConfig.getSource().getIndex())
                 .allowPartialSearchResults(false)
                 .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder()
-                .size(0);
+                .size(0)
+                // we only want to know if there is at least 1 new document
+                .trackTotalHitsUpTo(1);
 
         QueryBuilder queryBuilder = transformConfig.getSource().getQueryConfig().getQuery();
         BoolQueryBuilder filteredQuery = new BoolQueryBuilder().
@@ -67,9 +69,10 @@ public class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
     }
 
     @Override
-    public void getCheckpoint(DataFrameTransformCheckpoint lastCheckpoint, ActionListener<DataFrameTransformCheckpoint> listener) {
-        long timestamp = System.currentTimeMillis();
-        long checkpoint = lastCheckpoint != null ? lastCheckpoint.getCheckpoint() + 1 : 1;
+    public void getCheckpoint(final DataFrameTransformCheckpoint lastCheckpoint,
+            final ActionListener<DataFrameTransformCheckpoint> listener) {
+        final long timestamp = getTime();
+        final long checkpoint = lastCheckpoint != null ? lastCheckpoint.getCheckpoint() + 1 : 1;
 
         // for time based synchronization
         long timeUpperBound = timestamp - timeSyncConfig.getDelay().millis();
@@ -78,5 +81,10 @@ public class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
             listener.onResponse(
                     new DataFrameTransformCheckpoint(transformConfig.getId(), timestamp, checkpoint, checkpointsByIndex, timeUpperBound));
         }, listener::onFailure));
+    }
+
+    // for the purpose of testing
+    long getTime() {
+        return System.currentTimeMillis();
     }
 }

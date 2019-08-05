@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigMa
  */
 public class DataFrameTransformsCheckpointService {
 
-    static final Logger logger = LogManager.getLogger(DataFrameTransformsCheckpointService.class);
+    private static final Logger logger = LogManager.getLogger(DataFrameTransformsCheckpointService.class);
 
     private final Client client;
     private final DataFrameTransformsConfigManager dataFrameTransformsConfigManager;
@@ -39,7 +39,7 @@ public class DataFrameTransformsCheckpointService {
         this.dataFrameTransformsConfigManager = dataFrameTransformsConfigManager;
     }
 
-    public CheckpointProvider getCheckpointProvider(DataFrameTransformConfig transformConfig) {
+    public CheckpointProvider getCheckpointProvider(final DataFrameTransformConfig transformConfig) {
         if (transformConfig.getSyncConfig() instanceof TimeSyncConfig) {
             return new TimeBasedCheckpointProvider(client, dataFrameTransformsConfigManager, transformConfig);
         }
@@ -57,12 +57,12 @@ public class DataFrameTransformsCheckpointService {
      * @param nextCheckpointProgress progress for the next checkpoint
      * @param listener listener to retrieve the result
      */
-    public void getCheckpointingInfo(String transformId,
-                                     long lastCheckpointNumber,
-                                     IndexerState nextCheckpointIndexerState,
-                                     DataFrameIndexerPosition nextCheckpointPosition,
-                                     DataFrameTransformProgress nextCheckpointProgress,
-                                     ActionListener<DataFrameTransformCheckpointingInfo> listener) {
+    public void getCheckpointingInfo(final String transformId,
+                                     final long lastCheckpointNumber,
+                                     final IndexerState nextCheckpointIndexerState,
+                                     final DataFrameIndexerPosition nextCheckpointPosition,
+                                     final DataFrameTransformProgress nextCheckpointProgress,
+                                     final ActionListener<DataFrameTransformCheckpointingInfo> listener) {
 
         // we need to retrieve the config first before we can defer the rest to the corresponding provider
         dataFrameTransformsConfigManager.getTransformConfiguration(transformId, ActionListener.wrap(

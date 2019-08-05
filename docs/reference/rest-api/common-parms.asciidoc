@@ -1,12 +1,58 @@
 
+tag::cat-h[]
+`h` (headings)::
+(Optional, string) Comma-separated list of column names to display.
+end::cat-h[]
+
+tag::help[]
+`help`::
+(Optional, boolean) If `true`, the response returns help information. Defaults
+to `false`.
+end::help[]
+
+tag::http-format[]
+`format`::
+(Optional, string) Short version of the
+https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html[HTTP accept header].
+Valid values include JSON, YAML, etc.
+end::http-format[]
+
+tag::local[]
+`local`::
+(Optional, boolean) If `true`, the request retrieves information from the local
+node only. Defaults to `false`, which means information is retrieved from
+the master node.
+end::local[]
+
+tag::name[]
+`{name}`::
+(Optional, string) Comma-separated list of alias names to return.
+end::name[]
+
+tag::cat-s[]
+`s` (sort)::
+(Optional, string) Comma-separated list of column names or column aliases used
+to sort the response.
+end::cat-s[]
+
+tag::cat-v[]
+`v` (verbose)::
+(Optional, boolean) If `true`, the response includes column headings. Defaults
+to `false`.
+end::cat-v[]
+
 tag::timeoutparms[]
+
 `timeout`::
 (Optional, <<time-units, time units>>) Specifies the period of time to wait for
 a response. If no response is received before the timeout expires, the request
 fails and returns an error. Defaults to `30s`.
 
+tag::master-timeout[]
 `master_timeout`::
 (Optional, <<time-units, time units>>) Specifies the period of time to wait for
 a connection to the master node. If no response is received before the timeout
 expires, the request fails and returns an error. Defaults to `30s`.
+end::master-timeout[]
+
 end::timeoutparms[]

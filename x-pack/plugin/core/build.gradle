@@ -146,7 +146,7 @@ task testJar(type: Jar) {
 }
 
 artifacts {
-    // normal es plugins do not publish the jar but we need to since users need it for Transport Clients and extensions
+    // normal es plugins do not publish the jar but we need to since users need it for extensions
     archives jar
     testArtifacts testJar
 }

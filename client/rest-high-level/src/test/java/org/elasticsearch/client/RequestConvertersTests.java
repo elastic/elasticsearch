@@ -427,7 +427,7 @@ public class RequestConvertersTests extends ESTestCase {
             reindexRequest.setDestRouting("=cat");
         }
         if (randomBoolean()) {
-            reindexRequest.setSize(randomIntBetween(100, 1000));
+            reindexRequest.setMaxDocs(randomIntBetween(100, 1000));
         }
         if (randomBoolean()) {
             reindexRequest.setAbortOnVersionConflict(false);
@@ -475,9 +475,9 @@ public class RequestConvertersTests extends ESTestCase {
             expectedParams.put("routing", "=cat");
         }
         if (randomBoolean()) {
-            int size = randomIntBetween(100, 1000);
-            updateByQueryRequest.setSize(size);
-            expectedParams.put("size", Integer.toString(size));
+            int maxDocs = randomIntBetween(100, 1000);
+            updateByQueryRequest.setMaxDocs(maxDocs);
+            expectedParams.put("max_docs", Integer.toString(maxDocs));
         }
         if (randomBoolean()) {
             updateByQueryRequest.setAbortOnVersionConflict(false);
@@ -520,9 +520,9 @@ public class RequestConvertersTests extends ESTestCase {
             expectedParams.put("routing", "=cat");
         }
         if (randomBoolean()) {
-            int size = randomIntBetween(100, 1000);
-            deleteByQueryRequest.setSize(size);
-            expectedParams.put("size", Integer.toString(size));
+            int maxDocs = randomIntBetween(100, 1000);
+            deleteByQueryRequest.setMaxDocs(maxDocs);
+            expectedParams.put("max_docs", Integer.toString(maxDocs));
         }
         if (randomBoolean()) {
             deleteByQueryRequest.setAbortOnVersionConflict(false);

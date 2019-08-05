@@ -31,6 +31,8 @@ for its modifiers:
   This is most useful when you have text and snippets that work together to
   tell the story of some use case because it merges the snippets (and thus the
   use case) into one big test.
+      * You can't use `// TEST[continued]` immediately after `// TESTSETUP` or
+      `// TEARDOWN`.
   * `// TEST[skip:reason]`: Skip this test. Replace `reason` with the actual
   reason to skip the test. Snippets without `// TEST` or `// CONSOLE` aren't
   considered tests anyway but this is useful for explicitly documenting the
@@ -62,9 +64,9 @@ for its modifiers:
     them" which looks like `// TESTRESPONSE[s/\d+/$body.$_path/]`.
   * You can't use `// TESTRESPONSE` immediately after `// TESTSETUP`. Instead,
   consider using `// TEST[continued]` or rearrange your snippets.
-  * `// TESTRESPONSE[_cat]`: Add substitutions for testing `_cat` responses. Use
-  this after all other substitutions so it doesn't make other substitutions
-  difficult.
+  * `// TESTRESPONSE[non_json]`: Add substitutions for testing responses in a
+  format other than JSON. Use this after all other substitutions so it doesn't
+  make other substitutions difficult.
   * `// TESTRESPONSE[skip:reason]`: Skip the assertions specified by this
   response.
 * `// TESTSETUP`: Marks this snippet as the "setup" for all other snippets in
@@ -76,7 +78,11 @@ for its modifiers:
   but rather than the setup defined in `docs/build.gradle` the setup is defined
   right in the documentation file. In general, we should prefer `// TESTSETUP`
   over `// TEST[setup:name]` because it makes it more clear what steps have to
-  be taken before the examples will work.
+  be taken before the examples will work. Tip: `// TESTSETUP` can only be used
+  on the first snippet of a document.
+* `// TEARDOWN`: Ends and cleans up a test series started with `// TESTSETUP` or
+  `// TEST[setup:name]`. You can use `// TEARDOWN` to set up multiple tests in
+  the same file.
 * `// NOTCONSOLE`: Marks this snippet as neither `// CONSOLE` nor
   `// TESTRESPONSE`, excluding it from the list of unconverted snippets. We
   should only use this for snippets that *are* JSON but are *not* responses or

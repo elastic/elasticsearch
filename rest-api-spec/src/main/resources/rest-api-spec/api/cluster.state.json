@@ -1,9 +1,9 @@
 {
   "cluster.state": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cluster-state.html",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/cluster-state.html",
+    "stability" : "stable",
     "methods": ["GET"],
     "url": {
-      "path": "/_cluster/state",
       "paths": [
         "/_cluster/state",
         "/_cluster/state/{metric}",
@@ -57,6 +57,9 @@
         }
       }
     },
-    "body": null
+    "body": null,
+    "response": {
+      "treat_json_as_key_value" : true
+    }
   }
 }

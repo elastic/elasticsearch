@@ -70,7 +70,6 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
                 .withTimeout(recoverySettings.internalActionLongTimeout())
                 .build();
         this.fileChunkRequestOptions = TransportRequestOptions.builder()
-                // we are saving the cpu for other things
                 .withType(TransportRequestOptions.Type.RECOVERY)
                 .withTimeout(recoverySettings.internalActionTimeout())
                 .build();
@@ -78,18 +77,18 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     }
 
     @Override
-    public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps, ActionListener<Void> listener) {
+    public void prepareForTranslogOperations(int totalTranslogOps, ActionListener<Void> listener) {
         transportService.submitRequest(targetNode, PeerRecoveryTargetService.Actions.PREPARE_TRANSLOG,
-            new RecoveryPrepareForTranslogOperationsRequest(recoveryId, shardId, totalTranslogOps, fileBasedRecovery),
+            new RecoveryPrepareForTranslogOperationsRequest(recoveryId, shardId, totalTranslogOps),
             TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionTimeout()).build(),
             new ActionListenerResponseHandler<>(ActionListener.map(listener, r -> null),
                 in -> TransportResponse.Empty.INSTANCE, ThreadPool.Names.GENERIC));
     }
 
     @Override
-    public void finalizeRecovery(final long globalCheckpoint, final ActionListener<Void> listener) {
+    public void finalizeRecovery(final long globalCheckpoint, final long trimAboveSeqNo, final ActionListener<Void> listener) {
         transportService.submitRequest(targetNode, PeerRecoveryTargetService.Actions.FINALIZE,
-            new RecoveryFinalizeRecoveryRequest(recoveryId, shardId, globalCheckpoint),
+            new RecoveryFinalizeRecoveryRequest(recoveryId, shardId, globalCheckpoint, trimAboveSeqNo),
             TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionLongTimeout()).build(),
             new ActionListenerResponseHandler<>(ActionListener.map(listener, r -> null),
                 in -> TransportResponse.Empty.INSTANCE, ThreadPool.Names.GENERIC));
@@ -130,22 +129,23 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
 
     @Override
     public void receiveFileInfo(List<String> phase1FileNames, List<Long> phase1FileSizes, List<String> phase1ExistingFileNames,
-                                List<Long> phase1ExistingFileSizes, int totalTranslogOps) {
-
+                                List<Long> phase1ExistingFileSizes, int totalTranslogOps, ActionListener<Void> listener) {
         RecoveryFilesInfoRequest recoveryInfoFilesRequest = new RecoveryFilesInfoRequest(recoveryId, shardId,
-                phase1FileNames, phase1FileSizes, phase1ExistingFileNames, phase1ExistingFileSizes, totalTranslogOps);
+            phase1FileNames, phase1FileSizes, phase1ExistingFileNames, phase1ExistingFileSizes, totalTranslogOps);
         transportService.submitRequest(targetNode, PeerRecoveryTargetService.Actions.FILES_INFO, recoveryInfoFilesRequest,
-                TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionTimeout()).build(),
-                EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
-
+            TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionTimeout()).build(),
+            new ActionListenerResponseHandler<>(ActionListener.map(listener, r -> null),
+                in -> TransportResponse.Empty.INSTANCE, ThreadPool.Names.GENERIC));
     }
 
     @Override
-    public void cleanFiles(int totalTranslogOps, long globalCheckpoint, Store.MetadataSnapshot sourceMetaData) throws IOException {
+    public void cleanFiles(int totalTranslogOps, long globalCheckpoint, Store.MetadataSnapshot sourceMetaData,
+                           ActionListener<Void> listener) {
         transportService.submitRequest(targetNode, PeerRecoveryTargetService.Actions.CLEAN_FILES,
                 new RecoveryCleanFilesRequest(recoveryId, shardId, sourceMetaData, totalTranslogOps, globalCheckpoint),
                 TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionTimeout()).build(),
-                EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
+                new ActionListenerResponseHandler<>(ActionListener.map(listener, r -> null),
+                    in -> TransportResponse.Empty.INSTANCE, ThreadPool.Names.GENERIC));
     }
 
     @Override
@@ -181,7 +181,7 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
                  * would be in to restart file copy again (new deltas) if we have too many translog ops are piling up.
                  */
                 throttleTimeInNanos), fileChunkRequestOptions, new ActionListenerResponseHandler<>(
-                    ActionListener.map(listener, r -> null), in -> TransportResponse.Empty.INSTANCE));
+                    ActionListener.map(listener, r -> null), in -> TransportResponse.Empty.INSTANCE, ThreadPool.Names.GENERIC));
     }
 
 }

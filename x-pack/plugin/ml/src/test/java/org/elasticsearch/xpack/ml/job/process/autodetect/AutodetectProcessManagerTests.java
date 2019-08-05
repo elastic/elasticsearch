@@ -24,7 +24,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -335,9 +334,6 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         assertEquals(0, manager.numberOfOpenJobs());
     }
 
-    // DEBUG logging makes it possible to see exactly how the two threads
-    // interleaved in the AutodetectProcessManager.close() call
-    @TestLogging("org.elasticsearch.xpack.ml.job.process.autodetect:DEBUG")
     public void testCanCloseClosingJob() throws Exception {
         AtomicInteger numberOfCommunicatorCloses = new AtomicInteger(0);
         doAnswer(invocationOnMock -> {

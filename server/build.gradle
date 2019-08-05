@@ -101,7 +101,7 @@ dependencies {
 
   // utilities
   compile project(":libs:elasticsearch-cli")
-  compile 'com.carrotsearch:hppc:0.7.1'
+  compile 'com.carrotsearch:hppc:0.8.1'
 
   // time handling, remove with java 8 time
   compile "joda-time:joda-time:${versions.joda}"

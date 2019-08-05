@@ -43,11 +43,13 @@ instances:
 `.env`:
 [source,yaml]
 ----
-CERTS_DIR=/usr/share/elasticsearch/config/certificates <1>
-ELASTIC_PASSWORD=PleaseChangeMe <2>
+COMPOSE_PROJECT_NAME=es <1>
+CERTS_DIR=/usr/share/elasticsearch/config/certificates <2>
+ELASTIC_PASSWORD=PleaseChangeMe <3>
 ----
-<1> The path, inside the Docker image, where certificates are expected to be found.
-<2> Initial password for the `elastic` user.
+<1> Use an `es_` prefix for all volumes and networks created by docker-compose.
+<2> The path, inside the Docker image, where certificates are expected to be found.
+<3> Initial password for the `elastic` user.
 
 [[getting-starter-tls-create-certs-composefile]]
 `create-certs.yml`:
@@ -69,21 +71,21 @@ services:
     image: {docker-image}
     command: >
       bash -c '
-        if [[ ! -d config/certificates/certs ]]; then
-          mkdir config/certificates/certs;
+        yum install -y -q -e 0 unzip;
+        if [[ ! -f /certs/bundle.zip ]]; then
+          bin/elasticsearch-certutil cert --silent --pem --in config/certificates/instances.yml -out /certs/bundle.zip;
+          unzip /certs/bundle.zip -d /certs; <1>
         fi;
-        if [[ ! -f /local/certs/bundle.zip ]]; then
-          bin/elasticsearch-certgen --silent --in config/certificates/instances.yml --out config/certificates/certs/bundle.zip;
-          unzip config/certificates/certs/bundle.zip -d config/certificates/certs; <1>
-        fi;
-        chgrp -R 0 config/certificates/certs
+        chown -R 1000:0 /certs
       '
-    user: $\{UID:-1000\}
+    user: "0"
     working_dir: /usr/share/elasticsearch
-    volumes: ['.:/usr/share/elasticsearch/config/certificates']
+    volumes: ['certs:/certs', '.:/usr/share/elasticsearch/config/certificates']
+
+volumes: {"certs"}
 ----
 
-<1> The new node certificates and CA certificate+key are placed under the local directory `certs`.
+<1> The new node certificates and CA certificate+key are placed in a docker volume `es_certs`.
 endif::[]
 
 [[getting-starter-tls-create-docker-compose]]
@@ -106,7 +108,7 @@ services:
     image: {docker-image}
     environment:
       - node.name=es01
-      - discovery.seed_hosts=es02
+      - discovery.seed_hosts=es01,es02
       - cluster.initial_master_nodes=es01,es02
       - ELASTIC_PASSWORD=$ELASTIC_PASSWORD <1>
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
@@ -121,7 +123,7 @@ services:
       - xpack.security.transport.ssl.certificate_authorities=$CERTS_DIR/ca/ca.crt
       - xpack.security.transport.ssl.certificate=$CERTS_DIR/es01/es01.crt
       - xpack.security.transport.ssl.key=$CERTS_DIR/es01/es01.key
-    volumes: ['esdata_01:/usr/share/elasticsearch/data', './certs:$CERTS_DIR']
+    volumes: ['data01:/usr/share/elasticsearch/data', 'certs:$CERTS_DIR']
     ports:
       - 9200:9200
     healthcheck:
@@ -135,7 +137,7 @@ services:
     image: {docker-image}
     environment:
       - node.name=es02
-      - discovery.seed_hosts=es01
+      - discovery.seed_hosts=es01,es02
       - cluster.initial_master_nodes=es01,es02
       - ELASTIC_PASSWORD=$ELASTIC_PASSWORD
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
@@ -150,14 +152,14 @@ services:
       - xpack.security.transport.ssl.certificate_authorities=$CERTS_DIR/ca/ca.crt
       - xpack.security.transport.ssl.certificate=$CERTS_DIR/es02/es02.crt
       - xpack.security.transport.ssl.key=$CERTS_DIR/es02/es02.key
-    volumes: ['esdata_02:/usr/share/elasticsearch/data', './certs:$CERTS_DIR']
+    volumes: ['data02:/usr/share/elasticsearch/data', 'certs:$CERTS_DIR']
 
   wait_until_ready:
     image: {docker-image}
     command: /usr/bin/true
     depends_on: {"es01": {"condition": "service_healthy"}}
 
-volumes: {"esdata_01": {"driver": "local"}, "esdata_02": {"driver": "local"}}
+volumes: {"data01", "data02", "certs"}
 ----
 
 <1> Bootstrap `elastic` with the password defined in `.env`. See
@@ -175,7 +177,7 @@ endif::[]
 --
 ["source","sh"]
 ----
-docker-compose -f create-certs.yml up
+docker-compose -f create-certs.yml run --rm create_certs
 ----
 --
 . Start two {es} nodes configured for SSL/TLS:
@@ -189,9 +191,9 @@ docker-compose up -d
 . Access the {es} API over SSL/TLS using the bootstrapped password:
 +
 --
-["source","sh"]
+["source","sh",subs="attributes"]
 ----
-curl --cacert certs/ca/ca.crt -u elastic:PleaseChangeMe https://localhost:9200
+docker run --rm -v es_certs:/certs --network=es_default {docker-image} curl --cacert /certs/ca/ca.crt -u elastic:PleaseChangeMe https://es01:9200
 ----
 // NOTCONSOLE
 --
@@ -208,5 +210,15 @@ auto --batch \
 -Expack.security.http.ssl.certificate_authorities=certificates/ca/ca.crt \
 -Expack.security.http.ssl.key=certificates/es01/es01.key \
 --url https://localhost:9200"
+----
+--
+
+[float]
+==== Tear everything down
+To remove all the Docker resources created by the example, issue:
+--
+["source","sh"]
+----
+docker-compose down -v
 ----
 --

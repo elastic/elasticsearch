@@ -90,7 +90,7 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
     public RepositoryData getRepositoryData() {
         Map<IndexId, Set<SnapshotId>> map = new HashMap<>();
         map.put(new IndexId(indexName, "blah"), emptySet());
-        return new RepositoryData(EMPTY_REPO_GEN, Collections.emptyMap(), Collections.emptyMap(), map, Collections.emptyList());
+        return new RepositoryData(EMPTY_REPO_GEN, Collections.emptyMap(), Collections.emptyMap(), map);
     }
 
     @Override
@@ -100,7 +100,7 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
     @Override
     public SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, List<IndexId> indices, long startTime, String failure,
                                          int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
-                                         boolean includeGlobalState) {
+                                         boolean includeGlobalState, Map<String, Object> userMetadata) {
         return null;
     }
 

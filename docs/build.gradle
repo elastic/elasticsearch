@@ -1,4 +1,4 @@
-import static org.elasticsearch.gradle.Distribution.DEFAULT
+import static org.elasticsearch.gradle.testclusters.TestDistribution.DEFAULT
 
 /*
  * Licensed to Elasticsearch under one or more contributor
@@ -23,27 +23,28 @@ apply plugin: 'elasticsearch.docs-test'
 
 /* List of files that have snippets that will not work until platinum tests can occur ... */
 buildRestTests.expectedUnconvertedCandidates = [
-        'reference/ml/transforms.asciidoc',
-        'reference/ml/apis/delete-calendar-event.asciidoc',
-        'reference/ml/apis/get-bucket.asciidoc',
-        'reference/ml/apis/get-category.asciidoc',
-        'reference/ml/apis/get-influencer.asciidoc',
-        'reference/ml/apis/get-job-stats.asciidoc',
-        'reference/ml/apis/get-overall-buckets.asciidoc',
-        'reference/ml/apis/get-record.asciidoc',
-        'reference/ml/apis/get-snapshot.asciidoc',
-        'reference/ml/apis/post-data.asciidoc',
-        'reference/ml/apis/revert-snapshot.asciidoc',
-        'reference/ml/apis/update-snapshot.asciidoc',
+        'reference/ml/anomaly-detection/transforms.asciidoc',
+        'reference/ml/anomaly-detection/apis/delete-calendar-event.asciidoc',
+        'reference/ml/anomaly-detection/apis/get-bucket.asciidoc',
+        'reference/ml/anomaly-detection/apis/get-category.asciidoc',
+        'reference/ml/anomaly-detection/apis/get-influencer.asciidoc',
+        'reference/ml/anomaly-detection/apis/get-job-stats.asciidoc',
+        'reference/ml/anomaly-detection/apis/get-overall-buckets.asciidoc',
+        'reference/ml/anomaly-detection/apis/get-record.asciidoc',
+        'reference/ml/anomaly-detection/apis/get-snapshot.asciidoc',
+        'reference/ml/anomaly-detection/apis/post-data.asciidoc',
+        'reference/ml/anomaly-detection/apis/revert-snapshot.asciidoc',
+        'reference/ml/anomaly-detection/apis/update-snapshot.asciidoc',
 ]
 
 testClusters.integTest {
-  if (singleNode().distribution == DEFAULT) {
+  if (singleNode().testDistribution == DEFAULT) {
     setting 'xpack.license.self_generated.type', 'trial'
   }
 
   // enable regexes in painless so our tests don't complain about example snippets that use them
   setting 'script.painless.regex.enabled', 'true'
+  setting 'path.repo', "${buildDir}/cluster/shared/repo"
   Closure configFile = {
     extraConfigFile it, file("src/test/cluster/config/$it")
   }
@@ -1137,3 +1138,61 @@ buildRestTests.setups['seats'] = '''
             {"theatre": "Graye", "cost": 33, "row": 2, "number": 6, "sold": false}
             {"index":{"_id": "4"}}
             {"theatre": "Skyline", "cost": 20, "row": 5, "number": 2, "sold": false}'''
+buildRestTests.setups['kibana_sample_data_ecommerce'] = '''
+  - do:
+        indices.create:
+          index: kibana_sample_data_ecommerce
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+'''
+buildRestTests.setups['setup_logdata'] = '''
+  - do:
+        indices.create:
+          index: logdata
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              properties:
+                grade:
+                  type: byte
+  - do:
+        bulk:
+          index: logdata
+          refresh: true
+          body: |
+            {"index":{}}
+            {"grade": 100, "weight": 2}
+            {"index":{}}
+            {"grade": 50, "weight": 3}
+'''
+buildRestTests.setups['logdata_job'] = buildRestTests.setups['setup_logdata'] + '''
+  - do:
+      ml.put_data_frame_analytics:
+        id: "loganalytics"
+        body:  >
+          {
+            "source": { 
+              "index": "logdata"
+              },
+            "dest": {
+              "index": "logdata_out"
+              },
+            "analysis": {
+              "outlier_detection": {}
+            }
+          }
+'''
+// Used by snapshot lifecycle management docs
+buildRestTests.setups['setup-repository'] = '''
+  - do:
+      snapshot.create_repository:
+        repository: my_repository
+        body:
+          type: fs
+          settings:
+            location: buildDir/cluster/shared/repo
+'''

@@ -76,23 +76,38 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
      * C2id server only supports dynamic registration, so we can't pre-seed it's config with our client data. Execute only once
      */
     @BeforeClass
-    public static void registerClient() throws Exception {
+    public static void registerClients() throws Exception {
         try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
-            HttpPost httpPost = new HttpPost(REGISTRATION_URL);
-            final BasicHttpContext context = new BasicHttpContext();
-            String json = "{" +
-                "\"grant_types\": [\"implicit\", \"authorization_code\"]," +
-                "\"response_types\": [\"code\", \"token id_token\"]," +
+            String codeClient = "{" +
+                "\"grant_types\": [\"authorization_code\"]," +
+                "\"response_types\": [\"code\"]," +
+                "\"preferred_client_id\":\"https://my.elasticsearch.org/rp\"," +
+                "\"preferred_client_secret\":\"b07efb7a1cf6ec9462afe7b6d3ab55c6c7880262aa61ac28dded292aca47c9a2\"," +
+                "\"redirect_uris\": [\"https://my.fantastic.rp/cb\"]" +
+                "}";
+            String implicitClient = "{" +
+                "\"grant_types\": [\"implicit\"]," +
+                "\"response_types\": [\"token id_token\"]," +
                 "\"preferred_client_id\":\"elasticsearch-rp\"," +
                 "\"preferred_client_secret\":\"b07efb7a1cf6ec9462afe7b6d3ab55c6c7880262aa61ac28dded292aca47c9a2\"," +
                 "\"redirect_uris\": [\"https://my.fantastic.rp/cb\"]" +
                 "}";
-            httpPost.setEntity(new StringEntity(json, ContentType.APPLICATION_JSON));
+            HttpPost httpPost = new HttpPost(REGISTRATION_URL);
+            final BasicHttpContext context = new BasicHttpContext();
+            httpPost.setEntity(new StringEntity(codeClient, ContentType.APPLICATION_JSON));
             httpPost.setHeader("Accept", "application/json");
             httpPost.setHeader("Content-type", "application/json");
             httpPost.setHeader("Authorization", "Bearer 811fa888f3e0fdc9e01d4201bfeee46a");
             CloseableHttpResponse response = SocketAccess.doPrivileged(() -> httpClient.execute(httpPost, context));
             assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+            httpPost.setEntity(new StringEntity(implicitClient, ContentType.APPLICATION_JSON));
+            HttpPost httpPost2 = new HttpPost(REGISTRATION_URL);
+            httpPost2.setEntity(new StringEntity(implicitClient, ContentType.APPLICATION_JSON));
+            httpPost2.setHeader("Accept", "application/json");
+            httpPost2.setHeader("Content-type", "application/json");
+            httpPost2.setHeader("Authorization", "Bearer 811fa888f3e0fdc9e01d4201bfeee46a");
+            CloseableHttpResponse response2 = SocketAccess.doPrivileged(() -> httpClient.execute(httpPost2, context));
+            assertThat(response2.getStatusLine().getStatusCode(), equalTo(200));
         }
     }
 

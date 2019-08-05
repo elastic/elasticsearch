@@ -1,9 +1,9 @@
 {
   "cat.aliases": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cat-alias.html",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/cat-alias.html",
+    "stability": "stable",
     "methods": ["GET"],
     "url": {
-      "path": "/_cat/aliases",
       "paths": ["/_cat/aliases", "/_cat/aliases/{name}"],
       "parts": {
         "name": {

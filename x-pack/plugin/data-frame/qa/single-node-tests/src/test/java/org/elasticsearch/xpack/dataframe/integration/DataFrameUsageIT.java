@@ -9,8 +9,9 @@ package org.elasticsearch.xpack.dataframe.integration;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.xpack.core.dataframe.DataFrameField;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStats;
+
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStoredDoc;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex;
 import org.junit.Before;
 
@@ -18,29 +19,16 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.core.dataframe.DataFrameField.INDEX_DOC_TYPE;
-import static org.elasticsearch.xpack.dataframe.DataFrameFeatureSet.PROVIDED_STATS;
+import static org.elasticsearch.xpack.dataframe.DataFrameInfoTransportAction.PROVIDED_STATS;
 
 public class DataFrameUsageIT extends DataFrameRestTestCase {
-    private boolean indicesCreated = false;
-
-    // preserve indices in order to reuse source indices in several test cases
-    @Override
-    protected boolean preserveIndicesUponCompletion() {
-        return true;
-    }
 
     @Before
     public void createIndexes() throws IOException {
-
-        // it's not possible to run it as @BeforeClass as clients aren't initialized then, so we need this little hack
-        if (indicesCreated) {
-            return;
-        }
-
         createReviewsIndex();
-        indicesCreated = true;
     }
 
     public void testUsage() throws Exception {
@@ -55,29 +43,27 @@ public class DataFrameUsageIT extends DataFrameRestTestCase {
 
         // create transforms
         createPivotReviewsTransform("test_usage", "pivot_reviews", null);
-        createPivotReviewsTransform("test_usage_no_task", "pivot_reviews_no_task", null);
-        createPivotReviewsTransform("test_usage_no_stats_or_task", "pivot_reviews_no_stats_or_task", null);
+        createPivotReviewsTransform("test_usage_no_stats", "pivot_reviews_no_stats", null);
+        createContinuousPivotReviewsTransform("test_usage_continuous", "pivot_reviews_continuous", null);
         usageResponse = client().performRequest(new Request("GET", "_xpack/usage"));
         usageAsMap = entityAsMap(usageResponse);
         assertEquals(3, XContentMapValues.extractValue("data_frame.transforms._all", usageAsMap));
         assertEquals(3, XContentMapValues.extractValue("data_frame.transforms.stopped", usageAsMap));
 
-        startAndWaitForTransform("test_usage_no_task", "pivot_reviews_no_task");
-        stopDataFrameTransform("test_usage_no_task", false);
-        // Remove the task, we should still have the transform and its stat doc
-        client().performRequest(new Request("POST", "_tasks/_cancel?actions="+ DataFrameField.TASK_NAME+"*"));
-
         startAndWaitForTransform("test_usage", "pivot_reviews");
+        stopDataFrameTransform("test_usage", false);
 
         Request statsExistsRequest = new Request("GET",
             DataFrameInternalIndex.INDEX_NAME+"/_search?q=" +
                 INDEX_DOC_TYPE.getPreferredName() + ":" +
-                DataFrameTransformStateAndStats.NAME);
-        // Verify that we have our two stats documents
+                DataFrameTransformStoredDoc.NAME);
+        // Verify that we have one stat document
         assertBusy(() -> {
             Map<String, Object> hasStatsMap = entityAsMap(client().performRequest(statsExistsRequest));
-            assertEquals(2, XContentMapValues.extractValue("hits.total.value", hasStatsMap));
+            assertEquals(1, XContentMapValues.extractValue("hits.total.value", hasStatsMap));
         });
+
+        startAndWaitForContinuousTransform("test_usage_continuous", "pivot_reviews_continuous", null);
 
         Request getRequest = new Request("GET", DATAFRAME_ENDPOINT + "test_usage/_stats");
         Map<String, Object> stats = entityAsMap(client().performRequest(getRequest));
@@ -90,26 +76,36 @@ public class DataFrameUsageIT extends DataFrameRestTestCase {
             expectedStats.put(statName, statistic);
         }
 
-        getRequest = new Request("GET", DATAFRAME_ENDPOINT + "test_usage_no_task/_stats");
-        stats = entityAsMap(client().performRequest(getRequest));
-        for(String statName : PROVIDED_STATS) {
-            @SuppressWarnings("unchecked")
-            List<Integer> specificStatistic = ((List<Integer>)XContentMapValues.extractValue("transforms.stats." + statName, stats));
-            assertNotNull(specificStatistic);
-            Integer statistic = (specificStatistic).get(0);
-            expectedStats.merge(statName, statistic, Integer::sum);
-        }
+        // Simply because we wait for continuous to reach checkpoint 1, does not mean that the statistics are written yet.
+        // Since we search against the indices for the statistics, we need to ensure they are written, so we will wait for that
+        // to be the case.
+        assertBusy(() -> {
+            Response response = client().performRequest(new Request("GET", "_xpack/usage"));
+            Map<String, Object> statsMap = entityAsMap(response);
+            // we should see some stats
+            assertEquals(3, XContentMapValues.extractValue("data_frame.transforms._all", statsMap));
+            assertEquals(2, XContentMapValues.extractValue("data_frame.transforms.stopped", statsMap));
+            assertEquals(1, XContentMapValues.extractValue("data_frame.transforms.started", statsMap));
+            for(String statName : PROVIDED_STATS) {
+                if (statName.equals(DataFrameIndexerTransformStats.INDEX_TIME_IN_MS.getPreferredName())
+                    ||statName.equals(DataFrameIndexerTransformStats.SEARCH_TIME_IN_MS.getPreferredName())) {
+                    continue;
+                }
+                assertEquals("Incorrect stat " +  statName,
+                    expectedStats.get(statName) * 2,
+                    XContentMapValues.extractValue("data_frame.stats." + statName, statsMap));
+            }
+            // Refresh the index so that statistics are searchable
+            refreshIndex(DataFrameInternalIndex.INDEX_TEMPLATE_NAME);
+        }, 60, TimeUnit.SECONDS);
+
+
+        stopDataFrameTransform("test_usage_continuous", false);
 
         usageResponse = client().performRequest(new Request("GET", "_xpack/usage"));
-
         usageAsMap = entityAsMap(usageResponse);
-        // we should see some stats
+
         assertEquals(3, XContentMapValues.extractValue("data_frame.transforms._all", usageAsMap));
-        assertEquals(1, XContentMapValues.extractValue("data_frame.transforms.started", usageAsMap));
-        assertEquals(2, XContentMapValues.extractValue("data_frame.transforms.stopped", usageAsMap));
-        for(String statName : PROVIDED_STATS) {
-            assertEquals("Incorrect stat " +  statName,
-                    expectedStats.get(statName), XContentMapValues.extractValue("data_frame.stats." + statName, usageAsMap));
-        }
+        assertEquals(3, XContentMapValues.extractValue("data_frame.transforms.stopped", usageAsMap));
     }
 }

@@ -7,6 +7,7 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.internal.jvm.Jvm;
+import org.gradle.process.ExecResult;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
@@ -15,12 +16,16 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private static final String GLOBAL_INFO_EXTENSION_NAME = "globalInfo";
@@ -87,6 +92,8 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             ext.set("minimumCompilerVersion", minimumCompilerVersion);
             ext.set("minimumRuntimeVersion", minimumRuntimeVersion);
             ext.set("gradleJavaVersion", Jvm.current().getJavaVersion());
+            ext.set("gitRevision", gitRevision(project));
+            ext.set("buildDate", ZonedDateTime.now(ZoneOffset.UTC));
         });
     }
 
@@ -116,7 +123,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         String versionedJavaHome = System.getenv(getJavaHomeEnvVarName(version));
         if (versionedJavaHome == null) {
             throw new GradleException(
-                "$versionedVarName must be set to build Elasticsearch. " +
+                "$" + getJavaHomeEnvVarName(version) + " must be set to build Elasticsearch. " +
                     "Note that if the variable was just set you might have to run `./gradlew --stop` for " +
                     "it to be picked up. See https://github.com/elastic/elasticsearch/issues/31399 details."
             );
@@ -195,4 +202,22 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
 
         return _defaultParallel;
     }
+
+    private String gitRevision(final Project project) {
+        final ByteArrayOutputStream stdout = new ByteArrayOutputStream();
+        final ByteArrayOutputStream stderr = new ByteArrayOutputStream();
+        final ExecResult result = project.exec(spec -> {
+            spec.setExecutable("git");
+            spec.setArgs(Arrays.asList("rev-parse", "HEAD"));
+            spec.setStandardOutput(stdout);
+            spec.setErrorOutput(stderr);
+            spec.setIgnoreExitValue(true);
+        });
+
+        if (result.getExitValue() != 0) {
+            return "unknown";
+        }
+        return stdout.toString(UTF_8).trim();
+    }
+
 }

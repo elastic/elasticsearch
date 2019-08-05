@@ -71,10 +71,6 @@ public class Rectangle implements Geometry {
      * Constructs a bounding box by first validating the provided latitude and longitude coordinates
      */
     public Rectangle(double minLat, double maxLat, double minLon, double maxLon, double minAlt, double maxAlt) {
-        GeometryUtils.checkLatitude(minLat);
-        GeometryUtils.checkLatitude(maxLat);
-        GeometryUtils.checkLongitude(minLon);
-        GeometryUtils.checkLongitude(maxLon);
         this.minLon = minLon;
         this.maxLon = maxLon;
         this.minLat = minLat;
@@ -88,17 +84,6 @@ public class Rectangle implements Geometry {
         if (Double.isNaN(minAlt) != Double.isNaN(maxAlt)) {
             throw new IllegalArgumentException("only one altitude value is specified");
         }
-    }
-
-    public double getWidth() {
-        if (crossesDateline()) {
-            return GeometryUtils.MAX_LON_INCL - minLon + maxLon - GeometryUtils.MIN_LON_INCL;
-        }
-        return maxLon - minLon;
-    }
-
-    public double getHeight() {
-        return maxLat - minLat;
     }
 
     public double getMinLat() {
@@ -154,21 +139,6 @@ public class Rectangle implements Geometry {
         b.append(")");
 
         return b.toString();
-    }
-
-    /**
-     * Returns true if this bounding box crosses the dateline
-     */
-    public boolean crossesDateline() {
-        return maxLon < minLon;
-    }
-
-    /** returns true if rectangle (defined by minLat, maxLat, minLon, maxLon) contains the lat lon point */
-    public boolean containsPoint(final double lat, final double lon) {
-        if (lat >= minLat && lat <= maxLat) {
-            return crossesDateline() ? lon >= minLon || lon <= maxLon : lon >= minLon && lon <= maxLon;
-        }
-        return false;
     }
 
     @Override

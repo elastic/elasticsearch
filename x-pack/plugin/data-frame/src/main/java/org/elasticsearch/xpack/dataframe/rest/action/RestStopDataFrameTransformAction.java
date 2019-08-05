@@ -11,6 +11,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.action.StopDataFrameTransformAction;
 
@@ -30,11 +31,17 @@ public class RestStopDataFrameTransformAction extends BaseRestHandler {
                 StopDataFrameTransformAction.DEFAULT_TIMEOUT);
         boolean waitForCompletion = restRequest.paramAsBoolean(DataFrameField.WAIT_FOR_COMPLETION.getPreferredName(), false);
         boolean force = restRequest.paramAsBoolean(DataFrameField.FORCE.getPreferredName(), false);
+        boolean allowNoMatch = restRequest.paramAsBoolean(DataFrameField.ALLOW_NO_MATCH.getPreferredName(), false);
 
-        StopDataFrameTransformAction.Request request = new StopDataFrameTransformAction.Request(id, waitForCompletion, force, timeout);
+
+        StopDataFrameTransformAction.Request request = new StopDataFrameTransformAction.Request(id,
+            waitForCompletion,
+            force,
+            timeout,
+            allowNoMatch);
 
         return channel -> client.execute(StopDataFrameTransformAction.INSTANCE, request,
-                new BaseTasksResponseToXContentListener<>(channel));
+                new RestToXContentListener<>(channel));
     }
 
     @Override

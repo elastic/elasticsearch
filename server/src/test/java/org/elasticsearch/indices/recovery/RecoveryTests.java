@@ -24,11 +24,16 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -37,7 +42,11 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.InternalEngineFactory;
+import org.elasticsearch.index.engine.InternalEngineTests;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.replication.ESIndexLevelReplicationTestCase;
 import org.elasticsearch.index.replication.RecoveryDuringReplicationTests;
@@ -53,6 +62,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -71,7 +81,8 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             shards.addReplica();
             shards.startAll();
             final IndexShard replica = shards.getReplicas().get(0);
-            assertThat(getTranslog(replica).totalOperations(), equalTo(docs + moreDocs));
+            boolean softDeletesEnabled = replica.indexSettings().isSoftDeleteEnabled();
+            assertThat(getTranslog(replica).totalOperations(), equalTo(softDeletesEnabled ? moreDocs : docs + moreDocs));
             shards.assertAllEqual(docs + moreDocs);
         }
     }
@@ -143,6 +154,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             // index #2
             orgReplica.applyIndexOperationOnReplica(2, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
                 new SourceToParse(indexName, "type", "id-2", new BytesArray("{}"), XContentType.JSON));
+            orgReplica.sync(); // advance local checkpoint
             orgReplica.updateGlobalCheckpointOnReplica(3L, "test");
             // index #5 -> force NoOp #4.
             orgReplica.applyIndexOperationOnReplica(5, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
@@ -207,6 +219,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             // index #2
             orgReplica.applyIndexOperationOnReplica(2, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
                 new SourceToParse(indexName, "type", "id-2", new BytesArray("{}"), XContentType.JSON));
+            orgReplica.sync(); // advance local checkpoint
             orgReplica.updateGlobalCheckpointOnReplica(3L, "test");
             // index #5 -> force NoOp #4.
             orgReplica.applyIndexOperationOnReplica(5, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
@@ -284,7 +297,8 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             shards.recoverReplica(newReplica);
             // file based recovery should be made
             assertThat(newReplica.recoveryState().getIndex().fileDetails(), not(empty()));
-            assertThat(getTranslog(newReplica).totalOperations(), equalTo(numDocs));
+            boolean softDeletesEnabled = replica.indexSettings().isSoftDeleteEnabled();
+            assertThat(getTranslog(newReplica).totalOperations(), equalTo(softDeletesEnabled ? nonFlushedDocs : numDocs));
 
             // history uuid was restored
             assertThat(newReplica.getHistoryUUID(), equalTo(historyUUID));
@@ -328,14 +342,15 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
         updateMappings(replicaShard, primaryShard.indexSettings().getIndexMetaData());
         recoverReplica(replicaShard, primaryShard, (r, sourceNode) -> new RecoveryTarget(r, sourceNode, recoveryListener) {
             @Override
-            public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps, ActionListener<Void> listener) {
-                super.prepareForTranslogOperations(fileBasedRecovery, totalTranslogOps, listener);
-                assertThat(replicaShard.getGlobalCheckpoint(), equalTo(primaryShard.getGlobalCheckpoint()));
+            public void prepareForTranslogOperations(int totalTranslogOps, ActionListener<Void> listener) {
+                super.prepareForTranslogOperations(totalTranslogOps, listener);
+                assertThat(replicaShard.getLastKnownGlobalCheckpoint(), equalTo(primaryShard.getLastKnownGlobalCheckpoint()));
             }
             @Override
-            public void cleanFiles(int totalTranslogOps, long globalCheckpoint, Store.MetadataSnapshot sourceMetaData) throws IOException {
-                assertThat(globalCheckpoint, equalTo(primaryShard.getGlobalCheckpoint()));
-                super.cleanFiles(totalTranslogOps, globalCheckpoint, sourceMetaData);
+            public void cleanFiles(int totalTranslogOps, long globalCheckpoint, Store.MetadataSnapshot sourceMetaData,
+                                   ActionListener<Void> listener) {
+                assertThat(globalCheckpoint, equalTo(primaryShard.getLastKnownGlobalCheckpoint()));
+                super.cleanFiles(totalTranslogOps, globalCheckpoint, sourceMetaData, listener);
             }
         }, true, true);
         List<IndexCommit> commits = DirectoryReader.listCommits(replicaShard.store().directory());
@@ -399,8 +414,93 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             shards.recoverReplica(replica);
             // Make sure the flushing will eventually be completed (eg. `shouldPeriodicallyFlush` is false)
             assertBusy(() -> assertThat(getEngine(replica).shouldPeriodicallyFlush(), equalTo(false)));
-            assertThat(getTranslog(replica).totalOperations(), equalTo(numDocs));
+            boolean softDeletesEnabled = replica.indexSettings().isSoftDeleteEnabled();
+            assertThat(getTranslog(replica).totalOperations(), equalTo(softDeletesEnabled ? 0 : numDocs));
             shards.assertAllEqual(numDocs);
+        }
+    }
+
+    public void testFailsToIndexDuringPeerRecovery() throws Exception {
+        AtomicReference<IOException> throwExceptionDuringIndexing = new AtomicReference<>(new IOException("simulated"));
+        try (ReplicationGroup group = new ReplicationGroup(buildIndexMetaData(0)) {
+            @Override
+            protected EngineFactory getEngineFactory(ShardRouting routing) {
+                if (routing.primary()) {
+                    return new InternalEngineFactory();
+                } else {
+                    return config -> InternalEngineTests.createInternalEngine((dir, iwc) -> new IndexWriter(dir, iwc) {
+                        @Override
+                        public long addDocument(Iterable<? extends IndexableField> doc) throws IOException {
+                            final IOException error = throwExceptionDuringIndexing.getAndSet(null);
+                            if (error != null) {
+                                throw error;
+                            }
+                            return super.addDocument(doc);
+                        }
+                    }, null, null, config);
+                }
+            }
+        }) {
+            group.startAll();
+            group.indexDocs(randomIntBetween(1, 10));
+            allowShardFailures();
+            IndexShard replica = group.addReplica();
+            expectThrows(Exception.class, () -> group.recoverReplica(replica,
+                (shard, sourceNode) -> new RecoveryTarget(shard, sourceNode, new PeerRecoveryTargetService.RecoveryListener() {
+                    @Override
+                    public void onRecoveryDone(RecoveryState state) {
+                        throw new AssertionError("recovery must fail");
+                    }
+
+                    @Override
+                    public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, boolean sendShardFailure) {
+                        assertThat(ExceptionsHelper.unwrap(e, IOException.class).getMessage(), equalTo("simulated"));
+                    }
+                })));
+            expectThrows(AlreadyClosedException.class, () -> replica.refresh("test"));
+            group.removeReplica(replica);
+            replica.store().close();
+            closeShards(replica);
+        }
+    }
+
+    public void testRecoveryTrimsLocalTranslog() throws Exception {
+        try (ReplicationGroup shards = createGroup(between(1, 2))) {
+            shards.startAll();
+            IndexShard oldPrimary = shards.getPrimary();
+            shards.indexDocs(scaledRandomIntBetween(1, 100));
+            if (randomBoolean()) {
+                shards.flush();
+            }
+            int inflightDocs = scaledRandomIntBetween(1, 100);
+            for (int i = 0; i < inflightDocs; i++) {
+                final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "extra_" + i).source("{}", XContentType.JSON);
+                final BulkShardRequest bulkShardRequest = indexOnPrimary(indexRequest, oldPrimary);
+                for (IndexShard replica : randomSubsetOf(shards.getReplicas())) {
+                    indexOnReplica(bulkShardRequest, shards, replica);
+                }
+                if (rarely()) {
+                    shards.flush();
+                }
+            }
+            shards.syncGlobalCheckpoint();
+            shards.promoteReplicaToPrimary(randomFrom(shards.getReplicas())).get();
+            oldPrimary.close("demoted", false);
+            oldPrimary.store().close();
+            oldPrimary = shards.addReplicaWithExistingPath(oldPrimary.shardPath(), oldPrimary.routingEntry().currentNodeId());
+            shards.recoverReplica(oldPrimary);
+            for (IndexShard shard : shards) {
+                assertConsistentHistoryBetweenTranslogAndLucene(shard);
+            }
+            final List<DocIdSeqNoAndSource> docsAfterRecovery = getDocIdAndSeqNos(shards.getPrimary());
+            for (IndexShard shard : shards.getReplicas()) {
+                assertThat(shard.routingEntry().toString(), getDocIdAndSeqNos(shard), equalTo(docsAfterRecovery));
+            }
+            shards.promoteReplicaToPrimary(oldPrimary).get();
+            for (IndexShard shard : shards) {
+                assertThat(shard.routingEntry().toString(), getDocIdAndSeqNos(shard), equalTo(docsAfterRecovery));
+                assertConsistentHistoryBetweenTranslogAndLucene(shard);
+            }
         }
     }
 }

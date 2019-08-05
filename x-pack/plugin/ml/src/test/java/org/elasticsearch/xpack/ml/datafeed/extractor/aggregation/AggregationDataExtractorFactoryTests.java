@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.junit.Before;
 
 import java.util.Arrays;
@@ -29,15 +30,17 @@ import static org.mockito.Mockito.mock;
 public class AggregationDataExtractorFactoryTests extends ESTestCase {
 
     private Client client;
+    private DatafeedTimingStatsReporter timingStatsReporter;
 
     @Before
     public void setUpMocks() {
         client = mock(Client.class);
+        timingStatsReporter = mock(DatafeedTimingStatsReporter.class);
     }
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         return new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 
@@ -76,6 +79,7 @@ public class AggregationDataExtractorFactoryTests extends ESTestCase {
         DatafeedConfig.Builder datafeedConfigBuilder = new DatafeedConfig.Builder("foo-feed", jobBuilder.getId());
         datafeedConfigBuilder.setParsedAggregations(aggs);
         datafeedConfigBuilder.setIndices(Arrays.asList("my_index"));
-        return new AggregationDataExtractorFactory(client, datafeedConfigBuilder.build(), jobBuilder.build(new Date()), xContentRegistry());
+        return new AggregationDataExtractorFactory(
+            client, datafeedConfigBuilder.build(), jobBuilder.build(new Date()), xContentRegistry(), timingStatsReporter);
     }
 }

@@ -66,11 +66,6 @@ public class VersionTests extends ESTestCase {
         assertThat(V_7_2_0.onOrAfter(V_7_2_0), is(true));
         assertThat(V_8_0_0.onOrAfter(V_7_2_0), is(true));
 
-        assertTrue(Version.fromString("5.0.0-alpha2").onOrAfter(Version.fromString("5.0.0-alpha1")));
-        assertTrue(Version.fromString("5.0.0").onOrAfter(Version.fromString("5.0.0-beta2")));
-        assertTrue(Version.fromString("5.0.0-rc1").onOrAfter(Version.fromString("5.0.0-beta24")));
-        assertTrue(Version.fromString("5.0.0-alpha24").before(Version.fromString("5.0.0-beta0")));
-
         assertThat(V_7_2_0, is(lessThan(V_8_0_0)));
         assertThat(V_7_2_0.compareTo(V_7_2_0), is(0));
         assertThat(V_8_0_0, is(greaterThan(V_7_2_0)));
@@ -194,41 +189,12 @@ public class VersionTests extends ESTestCase {
     }
 
     public void testToString() {
-        // with 2.0.beta we lowercase
-        assertEquals("2.0.0-beta1", Version.fromString("2.0.0-beta1").toString());
-        assertEquals("5.0.0-alpha1", Version.fromId(5000001).toString());
+        assertEquals("5.0.0", Version.fromId(5000099).toString());
         assertEquals("2.3.0", Version.fromString("2.3.0").toString());
-        assertEquals("0.90.0.Beta1", Version.fromString("0.90.0.Beta1").toString());
-        assertEquals("1.0.0.Beta1", Version.fromString("1.0.0.Beta1").toString());
-        assertEquals("2.0.0-beta1", Version.fromString("2.0.0-beta1").toString());
-        assertEquals("5.0.0-beta1", Version.fromString("5.0.0-beta1").toString());
-        assertEquals("5.0.0-alpha1", Version.fromString("5.0.0-alpha1").toString());
-    }
-
-    public void testIsBeta() {
-        assertTrue(Version.fromString("2.0.0-beta1").isBeta());
-        assertTrue(Version.fromString("1.0.0.Beta1").isBeta());
-        assertTrue(Version.fromString("0.90.0.Beta1").isBeta());
-    }
-
-
-    public void testIsAlpha() {
-        assertTrue(new Version(5000001, org.apache.lucene.util.Version.LUCENE_7_0_0).isAlpha());
-        assertFalse(new Version(4000002, org.apache.lucene.util.Version.LUCENE_7_0_0).isAlpha());
-        assertTrue(new Version(4000002, org.apache.lucene.util.Version.LUCENE_7_0_0).isBeta());
-        assertTrue(Version.fromString("5.0.0-alpha14").isAlpha());
-        assertEquals(5000014, Version.fromString("5.0.0-alpha14").id);
-        assertTrue(Version.fromId(5000015).isAlpha());
-
-        for (int i = 0 ; i < 25; i++) {
-            assertEquals(Version.fromString("5.0.0-alpha" + i).id, Version.fromId(5000000 + i).id);
-            assertEquals("5.0.0-alpha" + i, Version.fromId(5000000 + i).toString());
-        }
-
-        for (int i = 0 ; i < 25; i++) {
-            assertEquals(Version.fromString("5.0.0-beta" + i).id, Version.fromId(5000000 + i + 25).id);
-            assertEquals("5.0.0-beta" + i, Version.fromId(5000000 + i + 25).toString());
-        }
+        assertEquals("0.90.0", Version.fromString("0.90.0").toString());
+        assertEquals("1.0.0", Version.fromString("1.0.0").toString());
+        assertEquals("2.0.0", Version.fromString("2.0.0").toString());
+        assertEquals("5.0.0", Version.fromString("5.0.0").toString());
     }
 
     public void testParseVersion() {
@@ -288,19 +254,8 @@ public class VersionTests extends ESTestCase {
                 }
                 assertEquals("Version id " + field.getName() + " does not point to " + constantName, v, Version.fromId(versionId));
                 assertEquals("Version " + constantName + " does not have correct id", versionId, v.id);
-                if (v.major >= 2) {
-                    String number = v.toString();
-                    if (v.isBeta()) {
-                        number = number.replace("-beta", "_beta");
-                    } else if (v.isRC()) {
-                        number = number.replace("-rc", "_rc");
-                    } else if (v.isAlpha()) {
-                        number = number.replace("-alpha", "_alpha");
-                    }
-                    assertEquals("V_" + number.replace('.', '_'), constantName);
-                } else {
-                    assertEquals("V_" + v.toString().replace('.', '_'), constantName);
-                }
+                String number = v.toString();
+                assertEquals("V_" + number.replace('.', '_'), constantName);
 
                 // only the latest version for a branch should be a snapshot (ie unreleased)
                 String branchName = "" + v.major + "." + v.minor;
@@ -328,8 +283,7 @@ public class VersionTests extends ESTestCase {
                     assertTrue("lucene versions must be "  + other + " >= " + version,
                         other.luceneVersion.onOrAfter(version.luceneVersion));
                 }
-                if (other.isAlpha() == false && version.isAlpha() == false
-                        && other.major == version.major && other.minor == version.minor) {
+                if (other.major == version.major && other.minor == version.minor) {
                     assertEquals(version + " vs. " + other, other.luceneVersion.major, version.luceneVersion.major);
                     assertEquals(version + " vs. " + other, other.luceneVersion.minor, version.luceneVersion.minor);
                     // should we also assert the lucene bugfix version?

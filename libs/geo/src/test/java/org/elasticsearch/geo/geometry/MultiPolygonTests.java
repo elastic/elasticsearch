@@ -19,6 +19,9 @@
 
 package org.elasticsearch.geo.geometry;
 
+import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.geo.utils.GeographyValidator;
+import org.elasticsearch.geo.utils.StandardValidator;
 import org.elasticsearch.geo.utils.WellKnownText;
 
 import java.io.IOException;
@@ -34,13 +37,13 @@ public class MultiPolygonTests extends BaseGeometryTestCase<MultiPolygon> {
         int size = randomIntBetween(1, 10);
         List<Polygon> arr = new ArrayList<>();
         for (int i = 0; i < size; i++) {
-            arr.add(randomPolygon(hasAlt));
+            arr.add(GeometryTestUtils.randomPolygon(hasAlt));
         }
         return new MultiPolygon(arr);
     }
 
     public void testBasicSerialization() throws IOException, ParseException {
-        WellKnownText wkt = new WellKnownText();
+        WellKnownText wkt = new WellKnownText(true, new GeographyValidator(true));
         assertEquals("multipolygon (((3.0 1.0, 4.0 2.0, 5.0 3.0, 3.0 1.0)))",
             wkt.toWKT(new MultiPolygon(Collections.singletonList(
                 new Polygon(new LinearRing(new double[]{1, 2, 3, 1}, new double[]{3, 4, 5, 3}))))));
@@ -50,5 +53,17 @@ public class MultiPolygonTests extends BaseGeometryTestCase<MultiPolygon> {
 
         assertEquals("multipolygon EMPTY", wkt.toWKT(MultiPolygon.EMPTY));
         assertEquals(MultiPolygon.EMPTY, wkt.fromWKT("multipolygon EMPTY)"));
+    }
+
+    public void testValidation() {
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new StandardValidator(false).validate(
+            new MultiPolygon(Collections.singletonList(
+                new Polygon(new LinearRing(new double[]{1, 2, 3, 1}, new double[]{3, 4, 5, 3}, new double[]{1, 2, 3, 1}))
+            ))));
+        assertEquals("found Z value [1.0] but [ignore_z_value] parameter is [false]", ex.getMessage());
+
+        new StandardValidator(true).validate(
+            new MultiPolygon(Collections.singletonList(
+                new Polygon(new LinearRing(new double[]{1, 2, 3, 1}, new double[]{3, 4, 5, 3}, new double[]{1, 2, 3, 1})))));
     }
 }

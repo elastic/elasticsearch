@@ -23,7 +23,6 @@ import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.SeedUtils;
-import com.carrotsearch.randomizedtesting.SysGlobals;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
@@ -44,7 +43,7 @@ import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNode.Role;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -137,7 +136,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static java.util.Collections.emptyList;
 import static org.apache.lucene.util.LuceneTestCase.TEST_NIGHTLY;
 import static org.apache.lucene.util.LuceneTestCase.rarely;
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
@@ -452,7 +450,7 @@ public final class InternalTestCluster extends TestCluster {
             builder.put(SearchService.DEFAULT_KEEPALIVE_SETTING.getKey(), timeValueSeconds(100 + random.nextInt(5 * 60)).getStringRep());
         }
 
-        builder.put(EsExecutors.PROCESSORS_SETTING.getKey(), 1 + random.nextInt(3));
+        builder.put(EsExecutors.PROCESSORS_SETTING.getKey(), 1 + random.nextInt(Math.min(4, Runtime.getRuntime().availableProcessors())));
         if (random.nextBoolean()) {
             if (random.nextBoolean()) {
                 builder.put("indices.fielddata.cache.size", 1 + random.nextInt(1000), ByteSizeUnit.MB);
@@ -507,8 +505,7 @@ public final class InternalTestCluster extends TestCluster {
 
     public static String clusterName(String prefix, long clusterSeed) {
         StringBuilder builder = new StringBuilder(prefix);
-        final int childVM = RandomizedTest.systemPropertyAsInt(SysGlobals.CHILDVM_SYSPROP_JVM_ID, 0);
-        builder.append("-CHILD_VM=[").append(childVM).append(']');
+        builder.append("-TEST_WORKER_VM=[").append(ESTestCase.TEST_WORKER_VM_ID).append(']');
         builder.append("-CLUSTER_SEED=[").append(clusterSeed).append(']');
         // if multiple maven task run on a single host we better have an identifier that doesn't rely on input params
         builder.append("-HASH=[").append(SeedUtils.formatSeed(System.nanoTime())).append(']');
@@ -697,10 +694,10 @@ public final class InternalTestCluster extends TestCluster {
     private static String getRoleSuffix(Settings settings) {
         String suffix = "";
         if (Node.NODE_MASTER_SETTING.exists(settings) && Node.NODE_MASTER_SETTING.get(settings)) {
-            suffix = suffix + Role.MASTER.getAbbreviation();
+            suffix = suffix + DiscoveryNodeRole.MASTER_ROLE.roleNameAbbreviation();
         }
         if (Node.NODE_DATA_SETTING.exists(settings) && Node.NODE_DATA_SETTING.get(settings)) {
-            suffix = suffix + Role.DATA.getAbbreviation();
+            suffix = suffix + DiscoveryNodeRole.DATA_ROLE.roleNameAbbreviation();
         }
         if (Node.NODE_MASTER_SETTING.exists(settings) && Node.NODE_MASTER_SETTING.get(settings) == false &&
             Node.NODE_DATA_SETTING.exists(settings) && Node.NODE_DATA_SETTING.get(settings) == false
@@ -889,6 +886,7 @@ public final class InternalTestCluster extends TestCluster {
         Settings closeForRestart(RestartCallback callback) throws Exception {
             assert callback != null;
             close();
+            removeNode(this);
             Settings callbackSettings = callback.onNodeStopped(name);
             assert callbackSettings != null;
             Settings.Builder newSettings = Settings.builder();
@@ -1183,7 +1181,7 @@ public final class InternalTestCluster extends TestCluster {
                     }
                 }
             }
-        });
+        }, 60, TimeUnit.SECONDS);
     }
 
     private void assertOpenTranslogReferences() throws Exception {
@@ -1202,7 +1200,7 @@ public final class InternalTestCluster extends TestCluster {
                     }
                 }
             }
-        });
+        }, 60, TimeUnit.SECONDS);
     }
 
     private void assertNoSnapshottedIndexCommit() throws Exception {
@@ -1294,7 +1292,7 @@ public final class InternalTestCluster extends TestCluster {
                     }
                 }
             }
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     /**
@@ -1487,6 +1485,15 @@ public final class InternalTestCluster extends TestCluster {
         ensureOpen();
         NodeAndClient nodeAndClient = getRandomNodeAndClient(nc -> filter.test(nc.node.settings()));
         if (nodeAndClient != null) {
+            if (nodePrefix.equals(ESIntegTestCase.SUITE_CLUSTER_NODE_PREFIX) && nodeAndClient.nodeAndClientId() < sharedNodesSeeds.length
+                && nodeAndClient.isMasterEligible()
+                && autoManageMasterNodes
+                && nodes.values().stream()
+                        .filter(NodeAndClient::isMasterEligible)
+                        .filter(n -> n.nodeAndClientId() < sharedNodesSeeds.length)
+                        .count() == 1) {
+                throw new AssertionError("Tried to stop the only master eligible shared node");
+            }
             logger.info("Closing filtered random node [{}] ", nodeAndClient.name);
             stopNodesAndClient(nodeAndClient);
         }
@@ -1521,7 +1528,6 @@ public final class InternalTestCluster extends TestCluster {
             final int newMasters = (int) nodeAndClients.stream().filter(NodeAndClient::isMasterEligible)
                 .filter(nac -> nodes.containsKey(nac.name) == false) // filter out old masters
                 .count();
-            final int currentMasters = getMasterNodesCount();
             rebuildUnicastHostFiles(nodeAndClients); // ensure that new nodes can find the existing nodes when they start
             List<Future<?>> futures = nodeAndClients.stream().map(node -> executor.submit(node::startNode)).collect(Collectors.toList());
 
@@ -1648,20 +1654,9 @@ public final class InternalTestCluster extends TestCluster {
         final Settings newSettings = nodeAndClient.closeForRestart(callback);
         removeExclusions(excludedNodeIds);
 
-        boolean success = false;
-        try {
-            nodeAndClient.recreateNode(newSettings, () -> rebuildUnicastHostFiles(emptyList()));
-            nodeAndClient.startNode();
-            success = true;
-        } finally {
-            if (success == false) {
-                removeNode(nodeAndClient);
-            }
-        }
-
-        if (activeDisruptionScheme != null) {
-            activeDisruptionScheme.applyToNode(nodeAndClient.name, this);
-        }
+        nodeAndClient.recreateNode(newSettings, () -> rebuildUnicastHostFiles(Collections.singletonList(nodeAndClient)));
+        nodeAndClient.startNode();
+        publishNode(nodeAndClient);
 
         if (callback.validateClusterForming() || excludedNodeIds.isEmpty() == false) {
             // we have to validate cluster size to ensure that the restarted node has rejoined the cluster if it was master-eligible;
@@ -1726,8 +1721,9 @@ public final class InternalTestCluster extends TestCluster {
     public synchronized void fullRestart(RestartCallback callback) throws Exception {
         int numNodesRestarted = 0;
         final Settings[] newNodeSettings = new Settings[nextNodeId.get()];
-        Map<Set<Role>, List<NodeAndClient>> nodesByRoles = new HashMap<>();
+        Map<Set<DiscoveryNodeRole>, List<NodeAndClient>> nodesByRoles = new HashMap<>();
         Set[] rolesOrderedByOriginalStartupOrder = new Set[nextNodeId.get()];
+        final int nodeCount = nodes.size();
         for (NodeAndClient nodeAndClient : nodes.values()) {
             callback.doAfterNodes(numNodesRestarted++, nodeAndClient.nodeClient());
             logger.info("Stopping and resetting node [{}] ", nodeAndClient.name);
@@ -1741,7 +1737,9 @@ public final class InternalTestCluster extends TestCluster {
             nodesByRoles.computeIfAbsent(discoveryNode.getRoles(), k -> new ArrayList<>()).add(nodeAndClient);
         }
 
-        assert nodesByRoles.values().stream().mapToInt(List::size).sum() == nodes.size();
+        callback.onAllNodesStopped();
+
+        assert nodesByRoles.values().stream().mapToInt(List::size).sum() == nodeCount;
 
         // randomize start up order, but making sure that:
         // 1) A data folder that was assigned to a data node will stay so
@@ -2184,6 +2182,9 @@ public final class InternalTestCluster extends TestCluster {
             return Settings.EMPTY;
         }
 
+        public void onAllNodesStopped() throws Exception {
+        }
+
         /**
          * Executed for each node before the {@code n + 1} node is restarted. The given client is
          * an active client to the node that will be restarted next.
@@ -2224,16 +2225,15 @@ public final class InternalTestCluster extends TestCluster {
                 CircuitBreaker fdBreaker = breakerService.getBreaker(CircuitBreaker.FIELDDATA);
                 assertThat("Fielddata breaker not reset to 0 on node: " + name, fdBreaker.getUsed(), equalTo(0L));
 
-                // Mute this assertion until we have a new Lucene snapshot with https://issues.apache.org/jira/browse/LUCENE-8809.
-                // try {
-                //    assertBusy(() -> {
-                //        CircuitBreaker acctBreaker = breakerService.getBreaker(CircuitBreaker.ACCOUNTING);
-                //        assertThat("Accounting breaker not reset to 0 on node: " + name + ", are there still Lucene indices around?",
-                //            acctBreaker.getUsed(), equalTo(0L));
-                //    });
-                // } catch (Exception e) {
-                //    throw new AssertionError("Exception during check for accounting breaker reset to 0", e);
-                // }
+                try {
+                    assertBusy(() -> {
+                        CircuitBreaker acctBreaker = breakerService.getBreaker(CircuitBreaker.ACCOUNTING);
+                        assertThat("Accounting breaker not reset to 0 on node: " + name + ", are there still Lucene indices around?",
+                            acctBreaker.getUsed(), equalTo(0L));
+                    });
+                } catch (Exception e) {
+                    throw new AssertionError("Exception during check for accounting breaker reset to 0", e);
+                }
 
                 // Anything that uses transport or HTTP can increase the
                 // request breaker (because they use bigarrays), because of

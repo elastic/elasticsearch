@@ -192,6 +192,49 @@ of a watch during its execution:
 image::images/action-throttling.jpg[align="center"]
 
 
+[[action-foreach]]
+=== Running an action for each element in an array
+
+You can use the `foreach` field in an action to trigger the configured action
+for every element within that array.
+
+In order to protect from long running watches, after one hundred runs with an
+foreach loop the execution is gracefully stopped.
+
+[source,js]
+--------------------------------------------------
+PUT _watcher/watch/log_event_watch
+{
+  "trigger" : {
+    "schedule" : { "interval" : "5m" }
+  },
+  "input" : {
+    "search" : {
+      "request" : {
+        "indices" : "log-events",
+        "body" : {
+          "query" : { "match" : { "status" : "error" } }
+        }
+      }
+    }
+  },
+  "condition" : {
+    "compare" : { "ctx.payload.hits.total" : { "gt" : 0 } }
+  },
+  "actions" : {
+    "log_hits" : {
+      "foreach" : "ctx.payload.hits.hits", <1>
+      "logging" : {
+        "text" : "Found id {{ctx.payload._id}} with field {{ctx.payload._source.my_field}}"
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+<1> The logging statement will be executed for each of the returned search hits.
+
 [[action-conditions]]
 === Adding conditions to actions
 
@@ -259,25 +302,18 @@ PUT _watcher/watch/log_event_watch
 <1> A `condition` that only applies to the `notify_pager` action, which
     restricts its execution to when the condition succeeds (at least 5 hits in this case).
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/actions/email.asciidoc
 include::actions/email.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/actions/webhook.asciidoc
 include::actions/webhook.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/actions/index.asciidoc
 include::actions/index.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/actions/logging.asciidoc
 include::actions/logging.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/actions/slack.asciidoc
 include::actions/slack.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/actions/pagerduty.asciidoc
 include::actions/pagerduty.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/actions/jira.asciidoc
 include::actions/jira.asciidoc[]
 
 [float]

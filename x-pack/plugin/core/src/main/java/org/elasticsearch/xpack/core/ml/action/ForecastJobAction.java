@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -24,23 +24,13 @@ import org.elasticsearch.xpack.core.ml.job.results.Forecast;
 import java.io.IOException;
 import java.util.Objects;
 
-public class ForecastJobAction extends Action<ForecastJobAction.Response> {
+public class ForecastJobAction extends ActionType<ForecastJobAction.Response> {
 
     public static final ForecastJobAction INSTANCE = new ForecastJobAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/forecast";
 
     private ForecastJobAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, ForecastJobAction.Response::new);
     }
 
     public static class Request extends JobTaskRequest<Request> implements ToXContentObject {

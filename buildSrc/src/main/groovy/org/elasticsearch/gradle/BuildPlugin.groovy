@@ -24,8 +24,6 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import groovy.transform.CompileDynamic
 import groovy.transform.CompileStatic
 import org.apache.commons.io.IOUtils
-import org.eclipse.jgit.lib.Constants
-import org.eclipse.jgit.lib.RepositoryBuilder
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin
 import org.elasticsearch.gradle.info.GlobalInfoExtension
 import org.elasticsearch.gradle.info.JavaHome
@@ -33,6 +31,7 @@ import org.elasticsearch.gradle.precommit.DependencyLicensesTask
 import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.elasticsearch.gradle.test.ErrorReportingTestListener
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
+import org.elasticsearch.gradle.testclusters.TestClustersPlugin
 import org.gradle.api.Action
 import org.gradle.api.GradleException
 import org.gradle.api.InvalidUserDataException
@@ -99,13 +98,17 @@ class BuildPlugin implements Plugin<Project> {
         project.rootProject.pluginManager.apply(GlobalBuildInfoPlugin)
 
         if (project.pluginManager.hasPlugin('elasticsearch.standalone-rest-test')) {
-              throw new InvalidUserDataException('elasticsearch.standalone-test, '
-                + 'elasticsearch.standalone-rest-test, and elasticsearch.build '
-                + 'are mutually exclusive')
+            throw new InvalidUserDataException('elasticsearch.standalone-test, '
+                    + 'elasticsearch.standalone-rest-test, and elasticsearch.build '
+                    + 'are mutually exclusive')
         }
         String minimumGradleVersion = null
         InputStream is = getClass().getResourceAsStream("/minimumGradleVersion")
-        try { minimumGradleVersion = IOUtils.toString(is, StandardCharsets.UTF_8.toString()) } finally { is.close() }
+        try {
+            minimumGradleVersion = IOUtils.toString(is, StandardCharsets.UTF_8.toString())
+        } finally {
+            is.close()
+        }
         if (GradleVersion.current() < GradleVersion.version(minimumGradleVersion.trim())) {
             throw new GradleException(
                     "Gradle ${minimumGradleVersion}+ is required to use elasticsearch.build plugin"
@@ -139,23 +142,25 @@ class BuildPlugin implements Plugin<Project> {
         configurePrecommit(project)
         configureDependenciesInfo(project)
 
-        // Common config when running with a FIPS-140 runtime JVM
-        // Need to do it here to support external plugins
-        if (project == project.rootProject) {
-            GlobalInfoExtension globalInfo = project.extensions.getByType(GlobalInfoExtension)
 
-            // wait until global info is populated because we don't know if we are running in a fips jvm until execution time
-            globalInfo.ready {
-                project.subprojects { Project subproject ->
-                    ExtraPropertiesExtension ext = subproject.extensions.getByType(ExtraPropertiesExtension)
-                    // Common config when running with a FIPS-140 runtime JVM
-                    if (ext.has('inFipsJvm') && ext.get('inFipsJvm')) {
-                        subproject.tasks.withType(Test) { Test task ->
-                            task.systemProperty 'javax.net.ssl.trustStorePassword', 'password'
-                            task.systemProperty 'javax.net.ssl.keyStorePassword', 'password'
-                        }
-                        project.pluginManager.withPlugin("elasticsearch.testclusters") {
-                            NamedDomainObjectContainer<ElasticsearchCluster> testClusters = subproject.extensions.getByName('testClusters') as NamedDomainObjectContainer<ElasticsearchCluster>
+        configureFips140(project)
+    }
+
+    public static void configureFips140(Project project) {
+        // Need to do it here to support external plugins
+        GlobalInfoExtension globalInfo = project.rootProject.extensions.getByType(GlobalInfoExtension)
+        // wait until global info is populated because we don't know if we are running in a fips jvm until execution time
+        globalInfo.ready {
+                ExtraPropertiesExtension ext = project.extensions.getByType(ExtraPropertiesExtension)
+                // Common config when running with a FIPS-140 runtime JVM
+                if (ext.has('inFipsJvm') && ext.get('inFipsJvm')) {
+                    project.tasks.withType(Test) { Test task ->
+                        task.systemProperty 'javax.net.ssl.trustStorePassword', 'password'
+                        task.systemProperty 'javax.net.ssl.keyStorePassword', 'password'
+                    }
+                    project.pluginManager.withPlugin("elasticsearch.testclusters") {
+                        NamedDomainObjectContainer<ElasticsearchCluster> testClusters = project.extensions.findByName(TestClustersPlugin.EXTENSION_NAME) as NamedDomainObjectContainer<ElasticsearchCluster>
+                        if (testClusters != null) {
                             testClusters.all { ElasticsearchCluster cluster ->
                                 cluster.systemProperty 'javax.net.ssl.trustStorePassword', 'password'
                                 cluster.systemProperty 'javax.net.ssl.keyStorePassword', 'password'
@@ -163,7 +168,6 @@ class BuildPlugin implements Plugin<Project> {
                         }
                     }
                 }
-            }
         }
     }
 
@@ -256,15 +260,11 @@ class BuildPlugin implements Plugin<Project> {
             }
         }
 
-        if (ext.get('buildDocker')) {
-            (ext.get('requiresDocker') as List<Task>).add(task)
-        } else {
-            task.onlyIf { false }
-        }
+        (ext.get('requiresDocker') as List<Task>).add(task)
     }
 
     protected static void checkDockerVersionRecent(String dockerVersion) {
-        final Matcher matcher = dockerVersion =~ /Docker version (\d+\.\d+)\.\d+(?:-ce)?, build [0-9a-f]{7,40}/
+        final Matcher matcher = dockerVersion =~ /Docker version (\d+\.\d+)\.\d+(?:-[a-zA-Z0-9]+)?, build [0-9a-f]{7,40}/
         assert matcher.matches(): dockerVersion
         final dockerMajorMinorVersion = matcher.group(1)
         final String[] majorMinor = dockerMajorMinorVersion.split("\\.")
@@ -695,8 +695,11 @@ class BuildPlugin implements Plugin<Project> {
             // we put all our distributable files under distributions
             jarTask.destinationDir = new File(project.buildDir, 'distributions')
             project.plugins.withType(ShadowPlugin).whenPluginAdded {
-                // ensure the original jar task places its output in 'libs' so we don't overwrite it with the shadowjar
-                if (jarTask instanceof ShadowJar == false) {
+                /*
+                 * Ensure the original jar task places its output in 'libs' so that we don't overwrite it with the shadow jar. We only do
+                 * this for tasks named jar to exclude javadoc and sources jars.
+                 */
+                if (jarTask instanceof ShadowJar == false && jarTask.name == JavaPlugin.JAR_TASK_NAME) {
                     jarTask.destinationDir = new File(project.buildDir, 'libs')
                 }
             }
@@ -706,26 +709,12 @@ class BuildPlugin implements Plugin<Project> {
                 // after the doFirst added by the info plugin, and we can override attributes
                 JavaVersion compilerJavaVersion = ext.get('compilerJavaVersion') as JavaVersion
                 jarTask.manifest.attributes(
+                        'Change': ext.get('gitRevision'),
                         'X-Compile-Elasticsearch-Version': VersionProperties.elasticsearch,
                         'X-Compile-Lucene-Version': VersionProperties.lucene,
                         'X-Compile-Elasticsearch-Snapshot': VersionProperties.isElasticsearchSnapshot(),
-                        'Build-Date': ZonedDateTime.now(ZoneOffset.UTC),
+                        'Build-Date': ext.get('buildDate'),
                         'Build-Java-Version': compilerJavaVersion)
-                if (jarTask.manifest.attributes.containsKey('Change') == false) {
-                    jarTask.logger.warn('Building without git revision id.')
-                    jarTask.manifest.attributes('Change': 'Unknown')
-                } else {
-                    /*
-                     * The info-scm plugin assumes that if GIT_COMMIT is set it was set by Jenkins to the commit hash for this build.
-                     * However, that assumption is wrong as this build could be a sub-build of another Jenkins build for which GIT_COMMIT
-                     * is the commit hash for that build. Therefore, if GIT_COMMIT is set we calculate the commit hash ourselves.
-                     */
-                    if (System.getenv("GIT_COMMIT") != null) {
-                        final String hash = new RepositoryBuilder().findGitDir(project.buildDir).build().resolve(Constants.HEAD).name
-                        final String shortHash = hash?.substring(0, 7)
-                        jarTask.manifest.attributes('Change': shortHash)
-                    }
-                }
             }
 
             // add license/notice files
@@ -820,7 +809,7 @@ class BuildPlugin implements Plugin<Project> {
 
                 test.executable = "${ext.get('runtimeJavaHome')}/bin/java"
                 test.workingDir = project.file("${project.buildDir}/testrun/${test.name}")
-                test.maxParallelForks = project.rootProject.extensions.getByType(ExtraPropertiesExtension).get('defaultParallel') as Integer
+                test.maxParallelForks = System.getProperty('tests.jvms', project.rootProject.extensions.extraProperties.get('defaultParallel').toString()) as Integer
 
                 test.exclude '**/*$*.class'
 

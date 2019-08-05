@@ -24,7 +24,6 @@ import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -55,9 +54,6 @@ public class RestMultiTermVectorsAction extends BaseRestHandler {
         MultiTermVectorsRequest multiTermVectorsRequest = new MultiTermVectorsRequest();
         TermVectorsRequest template = new TermVectorsRequest()
             .index(request.param("index"));
-
-
-        template.type(MapperService.SINGLE_MAPPING_NAME);
 
         RestTermVectorsAction.readURIParameters(template, request);
         multiTermVectorsRequest.ids(Strings.commaDelimitedListToStringArray(request.param("ids")));

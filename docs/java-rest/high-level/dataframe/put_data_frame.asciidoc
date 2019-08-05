@@ -4,14 +4,14 @@
 :response: AcknowledgedResponse
 --
 [id="{upid}-{api}"]
-=== Put Data Frame Transform API
+=== Put {dataframe-transform} API
 
-The Put Data Frame Transform API is used to create a new {dataframe-transform}.
+Creates a new {dataframe-transform}.
 
 The API accepts a +{request}+ object as a request and returns a +{response}+.
 
 [id="{upid}-{api}-request"]
-==== Put Data Frame Request
+==== Put {dataframe-transform} request
 
 A +{request}+ requires the following argument:
 
@@ -19,13 +19,17 @@ A +{request}+ requires the following argument:
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
-<1> The configuration of the {dataframe-job} to create
+<1> The configuration of the {dataframe-transform} to create
+<2> Whether or not to wait to run deferrable validations until `_start` is called.
+This option should be used with care as the created {dataframe-transform} will run
+with the privileges of the user creating it. Meaning, if they do not have privileges,
+such an error will not be visible until `_start` is called.
 
 [id="{upid}-{api}-config"]
-==== Data Frame Transform Configuration
+==== {dataframe-transform-cap} configuration
 
-The `DataFrameTransformConfig` object contains all the details about the {dataframe-transform}
-configuration and contains the following arguments:
+The `DataFrameTransformConfig` object contains all the details about the
+{dataframe-transform} configuration and contains the following arguments:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -33,9 +37,10 @@ include-tagged::{doc-tests-file}[{api}-config]
 --------------------------------------------------
 <1> The {dataframe-transform} ID
 <2> The source indices and query from which to gather data
-<3> The destination index
-<4> The PivotConfig
-<5> Optional free text description of the transform
+<3> The destination index and optional pipeline
+<4> How often to check for updates to the source indices
+<5> The PivotConfig
+<6> Optional free text description of the transform
 
 [id="{upid}-{api}-query-config"]
 
@@ -47,6 +52,16 @@ If query is not set, a `match_all` query is used by default.
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-source-config]
+--------------------------------------------------
+
+==== DestConfig
+
+The index where to write the data and the optional pipeline
+through which the docs should be indexed
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-dest-config]
 --------------------------------------------------
 
 ===== QueryConfig

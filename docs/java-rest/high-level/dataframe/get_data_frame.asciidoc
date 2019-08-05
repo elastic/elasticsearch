@@ -4,16 +4,16 @@
 :response: GetDataFrameTransformResponse
 --
 [id="{upid}-{api}"]
-=== Get Data Frame Transform API
+=== Get {dataframe-transform} API
 
-The Get Data Frame Transform API is used get one or more {dataframe-transform}.
+Retrieves configuration information about one or more {dataframe-transforms}.
 The API accepts a +{request}+ object and returns a +{response}+.
 
 [id="{upid}-{api}-request"]
-==== Get Data Frame Request
+==== Get {dataframe-transform} request
 
-A +{request}+ requires either a data frame transform id, a comma separated list of ids or
-the special wildcard `_all` to get all {dataframe-transforms}
+A +{request}+ requires either a {dataframe-transform} ID, a comma separated list
+of ids or the special wildcard `_all` to get all {dataframe-transforms}.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -21,7 +21,7 @@ include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> Constructing a new GET request referencing an existing {dataframe-transform}
 
-==== Optional Arguments
+==== Optional arguments
 
 The following arguments are optional.
 
@@ -32,6 +32,7 @@ include-tagged::{doc-tests-file}[{api}-request-options]
 <1> The page parameters `from` and `size`. `from` specifies the number of
 {dataframe-transforms} to skip. `size` specifies the maximum number of
 {dataframe-transforms} to get. Defaults to `0` and `100` respectively.
+<2> Whether to ignore if a wildcard expression matches no transforms.
 
 
 include::../execution.asciidoc[]
@@ -39,7 +40,7 @@ include::../execution.asciidoc[]
 [id="{upid}-{api}-response"]
 ==== Response
 
-The returned +{response}+ contains the requested {dataframe-transform}s.
+The returned +{response}+ contains the requested {dataframe-transforms}.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

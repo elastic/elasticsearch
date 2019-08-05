@@ -23,6 +23,11 @@ import joptsimple.OptionSet;
 import org.apache.lucene.store.BaseDirectoryWrapper;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.rollover.Condition;
+import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
+import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
+import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
+import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -33,6 +38,8 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
@@ -52,6 +59,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -67,9 +75,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
 
     private ShardId shardId;
     private ShardRouting routing;
-    private Path dataDir;
     private Environment environment;
-    private Settings settings;
     private ShardPath shardPath;
     private IndexMetaData indexMetaData;
     private IndexShard indexShard;
@@ -86,7 +92,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         routing = TestShardRouting.newShardRouting(shardId, nodeId, true, ShardRoutingState.INITIALIZING,
             RecoverySource.EmptyStoreRecoverySource.INSTANCE);
 
-        dataDir = createTempDir();
+        final Path dataDir = createTempDir();
 
         environment =
             TestEnvironment.newEnvironment(Settings.builder()
@@ -95,7 +101,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
 
         // create same directory structure as prod does
         Files.createDirectories(dataDir);
-        settings = Settings.builder()
+        final Settings settings = Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
@@ -104,9 +110,26 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
 
         final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(dataDir);
         shardPath = new ShardPath(false, nodePath.resolve(shardId), nodePath.resolve(shardId), shardId);
+
+        // Adding rollover info to IndexMetaData to check that NamedXContentRegistry is properly configured
+        Condition rolloverCondition;
+
+        switch (randomIntBetween(0, 2)) {
+            case 0:
+                rolloverCondition = new MaxDocsCondition(randomNonNegativeLong());
+                break;
+            case 1:
+                rolloverCondition = new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong()));
+                break;
+            default:
+                rolloverCondition = new MaxAgeCondition(new TimeValue(randomNonNegativeLong()));
+                break;
+        }
+
         final IndexMetaData.Builder metaData = IndexMetaData.builder(routing.getIndexName())
             .settings(settings)
             .primaryTerm(0, randomIntBetween(1, 100))
+            .putRolloverInfo(new RolloverInfo("test", Collections.singletonList(rolloverCondition), randomNonNegativeLong()))
             .putMapping("_doc", "{ \"properties\": {} }");
         indexMetaData = metaData.build();
 
@@ -216,7 +239,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         // close shard
         closeShards(indexShard);
 
-        TestTranslog.corruptRandomTranslogFile(logger, random(), Arrays.asList(translogPath));
+        TestTranslog.corruptRandomTranslogFile(logger, random(), translogPath);
 
         // test corrupted shard
         final IndexShard corruptedShard = reopenIndexShard(true);
@@ -282,7 +305,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
             expectThrows(IndexShardRecoveryException.class, () -> newStartedShard(p -> corruptedShard, true));
             closeShards(corruptedShard);
         }
-        TestTranslog.corruptRandomTranslogFile(logger, random(), Arrays.asList(translogPath));
+        TestTranslog.corruptRandomTranslogFile(logger, random(), translogPath);
 
         final RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
         final MockTerminal t = new MockTerminal();

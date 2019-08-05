@@ -31,7 +31,7 @@ import java.lang.annotation.Annotation;
  * used to create an {@link Injector}. Guice provides this object to your
  * application's {@link Module} implementors so they may each contribute
  * their own bindings and other registrations.
- * <h3>The Guice Binding EDSL</h3>
+ * <h2>The Guice Binding EDSL</h2>
  * <p>
  * Guice uses an <i>embedded domain-specific language</i>, or EDSL, to help you
  * create bindings simply and readably.  This approach is great for overall

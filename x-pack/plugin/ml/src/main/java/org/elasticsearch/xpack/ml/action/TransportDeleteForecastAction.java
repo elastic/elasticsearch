@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
@@ -197,8 +198,8 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
     private DeleteByQueryRequest buildDeleteByQuery(String jobId, List<String> forecastsToDelete) {
         DeleteByQueryRequest request = new DeleteByQueryRequest()
             .setAbortOnVersionConflict(false) //since these documents are not updated, a conflict just means it was deleted previously
-            .setSize(MAX_FORECAST_TO_SEARCH)
-            .setSlices(5);
+            .setMaxDocs(MAX_FORECAST_TO_SEARCH)
+            .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
 
         request.indices(AnomalyDetectorsIndex.jobResultsAliasedName(jobId));
         BoolQueryBuilder innerBoolQuery = QueryBuilders.boolQuery();

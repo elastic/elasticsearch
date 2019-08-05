@@ -98,10 +98,10 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         cis.setN2Usage(realNodeNames.get(1), new DiskUsage(nodes.get(1), "n2", "_na_", 100, 50));
         cis.setN3Usage(realNodeNames.get(2), new DiskUsage(nodes.get(2), "n3", "_na_", 100, 0)); // nothing free on node3
 
+        logger.info("--> waiting for shards to relocate off node [{}]", realNodeNames.get(2));
+
         assertBusy(() -> {
             final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
-            logger.info("--> {}", clusterState.routingTable());
-
             final Map<String, Integer> nodesToShardCount = new HashMap<>();
             for (final RoutingNode node : clusterState.getRoutingNodes()) {
                 logger.info("--> node {} has {} shards",
@@ -117,6 +117,8 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         cis.setN1Usage(realNodeNames.get(0), new DiskUsage(nodes.get(0), "n1", "_na_", 100, 50));
         cis.setN2Usage(realNodeNames.get(1), new DiskUsage(nodes.get(1), "n2", "_na_", 100, 50));
         cis.setN3Usage(realNodeNames.get(2), new DiskUsage(nodes.get(2), "n3", "_na_", 100, 50)); // node3 has free space now
+
+        logger.info("--> waiting for shards to rebalance back onto node [{}]", realNodeNames.get(2));
 
         assertBusy(() -> {
             final Map<String, Integer> nodesToShardCount = new HashMap<>();

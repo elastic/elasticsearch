@@ -1,9 +1,9 @@
 {
   "put_script": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/modules-scripting.html",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/modules-scripting.html",
+    "stability": "stable",
     "methods": ["PUT", "POST"],
     "url": {
-      "path": "/_scripts/{id}",
       "paths": [ "/_scripts/{id}", "/_scripts/{id}/{context}" ],
       "parts": {
         "id": {

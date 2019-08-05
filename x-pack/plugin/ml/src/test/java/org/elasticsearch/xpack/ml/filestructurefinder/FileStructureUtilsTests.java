@@ -323,8 +323,7 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
         sample2.put("nothing", null);
 
         Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats =
-            FileStructureUtils.guessMappingsAndCalculateFieldStats(explanation, Arrays.asList(sample1, sample2),
-                NOOP_TIMEOUT_CHECKER);
+            FileStructureUtils.guessMappingsAndCalculateFieldStats(explanation, Arrays.asList(sample1, sample2), NOOP_TIMEOUT_CHECKER);
         assertNotNull(mappingsAndFieldStats);
 
         Map<String, Object> mappings = mappingsAndFieldStats.v1();
@@ -341,7 +340,8 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
         assertNotNull(fieldStats);
         assertEquals(3, fieldStats.size());
         assertEquals(new FieldStats(2, 2, makeTopHits("not a time", 1, "whatever", 1)), fieldStats.get("foo"));
-        assertEquals(new FieldStats(2, 2, makeTopHits("2018-05-24 17:28:31,735", 1, "2018-05-29 11:53:02,837", 1)), fieldStats.get("time"));
+        assertEquals(new FieldStats(2, 2, "2018-05-24 17:28:31,735", "2018-05-29 11:53:02,837",
+            makeTopHits("2018-05-24 17:28:31,735", 1, "2018-05-29 11:53:02,837", 1)), fieldStats.get("time"));
         assertEquals(new FieldStats(2, 2, 17.0, 42.0, 29.5, 29.5, makeTopHits(17, 1, 42, 1)), fieldStats.get("bar"));
         assertNull(fieldStats.get("nothing"));
     }

@@ -30,6 +30,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
@@ -42,7 +43,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.gateway.CorruptStateException;
 import org.elasticsearch.snapshots.SnapshotInfo;
 
@@ -72,14 +72,10 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
         SNAPSHOT_ONLY_FORMAT_PARAMS = new ToXContent.MapParams(snapshotOnlyParams);
     }
 
-    private static final XContentType DEFAULT_X_CONTENT_TYPE = XContentType.SMILE;
-
     // The format version
     public static final int VERSION = 1;
 
     private static final int BUFFER_SIZE = 4096;
-
-    private final XContentType xContentType;
 
     private final boolean compress;
 
@@ -96,27 +92,14 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
      * @param blobNameFormat format of the blobname in {@link String#format} format
      * @param reader         prototype object that can deserialize T from XContent
      * @param compress       true if the content should be compressed
-     * @param xContentType   content type that should be used for write operations
-     */
-    public ChecksumBlobStoreFormat(String codec, String blobNameFormat, CheckedFunction<XContentParser, T, IOException> reader,
-                                   NamedXContentRegistry namedXContentRegistry, boolean compress, XContentType xContentType) {
-        this.reader = reader;
-        this.blobNameFormat = blobNameFormat;
-        this.namedXContentRegistry = namedXContentRegistry;
-        this.xContentType = xContentType;
-        this.compress = compress;
-        this.codec = codec;
-    }
-
-    /**
-     * @param codec          codec name
-     * @param blobNameFormat format of the blobname in {@link String#format} format
-     * @param reader         prototype object that can deserialize T from XContent
-     * @param compress       true if the content should be compressed
      */
     public ChecksumBlobStoreFormat(String codec, String blobNameFormat, CheckedFunction<XContentParser, T, IOException> reader,
                                    NamedXContentRegistry namedXContentRegistry, boolean compress) {
-        this(codec, blobNameFormat, reader, namedXContentRegistry, compress, DEFAULT_X_CONTENT_TYPE);
+        this.reader = reader;
+        this.blobNameFormat = blobNameFormat;
+        this.namedXContentRegistry = namedXContentRegistry;
+        this.compress = compress;
+        this.codec = codec;
     }
 
     /**
@@ -149,24 +132,21 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
      * @param blobName blob name
      */
     public T readBlob(BlobContainer blobContainer, String blobName) throws IOException {
-        try (InputStream inputStream = blobContainer.readBlob(blobName)) {
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            Streams.copy(inputStream, out);
-            final byte[] bytes = out.toByteArray();
-            final String resourceDesc = "ChecksumBlobStoreFormat.readBlob(blob=\"" + blobName + "\")";
-            try (ByteArrayIndexInput indexInput = new ByteArrayIndexInput(resourceDesc, bytes)) {
-                CodecUtil.checksumEntireFile(indexInput);
-                CodecUtil.checkHeader(indexInput, codec, VERSION, VERSION);
-                long filePointer = indexInput.getFilePointer();
-                long contentSize = indexInput.length() - CodecUtil.footerLength() - filePointer;
-                try (XContentParser parser = XContentHelper.createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE,
-                        new BytesArray(bytes, (int) filePointer, (int) contentSize))) {
-                    return reader.apply(parser);
-                }
-            } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
-                // we trick this into a dedicated exception with the original stacktrace
-                throw new CorruptStateException(ex);
+        final BytesReference bytes = Streams.readFully(blobContainer.readBlob(blobName));
+        final String resourceDesc = "ChecksumBlobStoreFormat.readBlob(blob=\"" + blobName + "\")";
+        try (ByteArrayIndexInput indexInput =
+                 new ByteArrayIndexInput(resourceDesc, BytesReference.toBytes(bytes))) {
+            CodecUtil.checksumEntireFile(indexInput);
+            CodecUtil.checkHeader(indexInput, codec, VERSION, VERSION);
+            long filePointer = indexInput.getFilePointer();
+            long contentSize = indexInput.length() - CodecUtil.footerLength() - filePointer;
+            try (XContentParser parser = XContentHelper.createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE,
+                bytes.slice((int) filePointer, (int) contentSize), XContentType.SMILE)) {
+                return reader.apply(parser);
             }
+        } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
+            // we trick this into a dedicated exception with the original stacktrace
+            throw new CorruptStateException(ex);
         }
     }
 
@@ -240,7 +220,7 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
     }
 
     private void write(T obj, StreamOutput streamOutput) throws IOException {
-        try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType, streamOutput)) {
+        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.SMILE, streamOutput)) {
             builder.startObject();
             obj.toXContent(builder, SNAPSHOT_ONLY_FORMAT_PARAMS);
             builder.endObject();

@@ -24,7 +24,6 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
 import java.io.IOException;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class TcpTransportChannel implements TransportChannel {
@@ -35,15 +34,13 @@ public final class TcpTransportChannel implements TransportChannel {
     private final String action;
     private final long requestId;
     private final Version version;
-    private final Set<String> features;
     private final CircuitBreakerService breakerService;
     private final long reservedBytes;
     private final boolean compressResponse;
 
     TcpTransportChannel(OutboundHandler outboundHandler, TcpChannel channel, String action, long requestId, Version version,
-                        Set<String> features, CircuitBreakerService breakerService, long reservedBytes, boolean compressResponse) {
+                        CircuitBreakerService breakerService, long reservedBytes, boolean compressResponse) {
         this.version = version;
-        this.features = features;
         this.channel = channel;
         this.outboundHandler = outboundHandler;
         this.action = action;
@@ -61,7 +58,7 @@ public final class TcpTransportChannel implements TransportChannel {
     @Override
     public void sendResponse(TransportResponse response) throws IOException {
         try {
-            outboundHandler.sendResponse(version, features, channel, requestId, action, response, compressResponse, false);
+            outboundHandler.sendResponse(version, channel, requestId, action, response, compressResponse, false);
         } finally {
             release(false);
         }
@@ -70,7 +67,7 @@ public final class TcpTransportChannel implements TransportChannel {
     @Override
     public void sendResponse(Exception exception) throws IOException {
         try {
-            outboundHandler.sendErrorResponse(version, features, channel, requestId, action, exception);
+            outboundHandler.sendErrorResponse(version, channel, requestId, action, exception);
         } finally {
             release(true);
         }

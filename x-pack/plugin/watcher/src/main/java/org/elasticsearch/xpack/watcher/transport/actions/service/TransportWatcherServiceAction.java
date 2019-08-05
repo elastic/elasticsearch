@@ -20,13 +20,17 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.watcher.WatcherMetaData;
 import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceRequest;
+
+import java.io.IOException;
 
 public class TransportWatcherServiceAction extends TransportMasterNodeAction<WatcherServiceRequest, AcknowledgedResponse> {
 
@@ -47,7 +51,7 @@ public class TransportWatcherServiceAction extends TransportMasterNodeAction<Wat
                                          ThreadPool threadPool, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver) {
         super(WatcherServiceAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, WatcherServiceRequest::new);
+            WatcherServiceRequest::new, indexNameExpressionResolver);
     }
 
     @Override
@@ -56,12 +60,12 @@ public class TransportWatcherServiceAction extends TransportMasterNodeAction<Wat
     }
 
     @Override
-    protected AcknowledgedResponse newResponse() {
-        return new AcknowledgedResponse();
+    protected AcknowledgedResponse read(StreamInput in) throws IOException {
+        return new AcknowledgedResponse(in);
     }
 
     @Override
-    protected void masterOperation(WatcherServiceRequest request, ClusterState state,
+    protected void masterOperation(Task task, WatcherServiceRequest request, ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) {
         switch (request.getCommand()) {
             case STOP:

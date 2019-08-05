@@ -203,7 +203,8 @@ public class GrokPatternCreatorTests extends FileStructureTestCase {
 
         assertEquals("%{SYSLOGTIMESTAMP:timestamp} .*? .*?\\[%{INT:field}\\]: %{LOGLEVEL:loglevel} \\(.*? .*? .*?\\) .*? " +
                 "%{QUOTEDSTRING:field2}: %{IP:ipaddress}#%{INT:field3}",
-            grokPatternCreator.createGrokPatternFromExamples("SYSLOGTIMESTAMP", "timestamp"));
+            grokPatternCreator.createGrokPatternFromExamples("SYSLOGTIMESTAMP", FileStructureUtils.DATE_MAPPING_WITHOUT_FORMAT,
+                "timestamp"));
         assertEquals(5, mappings.size());
         assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("field"));
         assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("loglevel"));
@@ -229,7 +230,8 @@ public class GrokPatternCreatorTests extends FileStructureTestCase {
             NOOP_TIMEOUT_CHECKER);
 
         assertEquals("%{CATALINA_DATESTAMP:timestamp} .*? .*?\\n%{LOGLEVEL:loglevel}: .*",
-            grokPatternCreator.createGrokPatternFromExamples("CATALINA_DATESTAMP", "timestamp"));
+            grokPatternCreator.createGrokPatternFromExamples("CATALINA_DATESTAMP", FileStructureUtils.DATE_MAPPING_WITHOUT_FORMAT,
+                "timestamp"));
         assertEquals(1, mappings.size());
         assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("loglevel"));
     }
@@ -253,7 +255,8 @@ public class GrokPatternCreatorTests extends FileStructureTestCase {
 
         assertEquals("%{INT:field}\\t%{TIMESTAMP_ISO8601:timestamp}\\t%{TIMESTAMP_ISO8601:extra_timestamp}\\t%{INT:field2}\\t.*?\\t" +
                 "%{IP:ipaddress}\\t.*?\\t%{LOGLEVEL:loglevel}\\t.*",
-            grokPatternCreator.createGrokPatternFromExamples("TIMESTAMP_ISO8601", "timestamp"));
+            grokPatternCreator.createGrokPatternFromExamples("TIMESTAMP_ISO8601", FileStructureUtils.DATE_MAPPING_WITHOUT_FORMAT,
+                "timestamp"));
         assertEquals(5, mappings.size());
         assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("field"));
         Map<String, String> expectedDateMapping = new HashMap<>();
@@ -284,7 +287,8 @@ public class GrokPatternCreatorTests extends FileStructureTestCase {
 
         assertEquals("%{INT:field}\\t%{TIMESTAMP_ISO8601:timestamp}\\t%{DATESTAMP:extra_timestamp}\\t%{INT:field2}\\t.*?\\t" +
                 "%{IP:ipaddress}\\t.*?\\t%{LOGLEVEL:loglevel}\\t.*",
-            grokPatternCreator.createGrokPatternFromExamples("TIMESTAMP_ISO8601", "timestamp"));
+            grokPatternCreator.createGrokPatternFromExamples("TIMESTAMP_ISO8601", FileStructureUtils.DATE_MAPPING_WITHOUT_FORMAT,
+                "timestamp"));
         assertEquals(5, mappings.size());
         assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("field"));
         Map<String, String> expectedDateMapping = new HashMap<>();
@@ -314,9 +318,12 @@ public class GrokPatternCreatorTests extends FileStructureTestCase {
             Collections.singletonMap("CUSTOM_TIMESTAMP", "%{MONTHNUM}/%{MONTHDAY}/%{YEAR} %{HOUR}:%{MINUTE}(?:AM|PM)"),
             NOOP_TIMEOUT_CHECKER);
 
+        Map<String, String> customMapping = new HashMap<>();
+        customMapping.put(FileStructureUtils.MAPPING_TYPE_SETTING, "date");
+        customMapping.put(FileStructureUtils.MAPPING_FORMAT_SETTING, "M/dd/yyyy h:mma");
         assertEquals("%{INT:field}\\t%{CUSTOM_TIMESTAMP:timestamp}\\t%{TIMESTAMP_ISO8601:extra_timestamp}\\t%{INT:field2}\\t.*?\\t" +
                 "%{IP:ipaddress}\\t.*?\\t%{LOGLEVEL:loglevel}\\t.*",
-            grokPatternCreator.createGrokPatternFromExamples("CUSTOM_TIMESTAMP", "timestamp"));
+            grokPatternCreator.createGrokPatternFromExamples("CUSTOM_TIMESTAMP", customMapping, "timestamp"));
         assertEquals(5, mappings.size());
         assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("field"));
         Map<String, String> expectedDateMapping = new HashMap<>();
@@ -347,7 +354,8 @@ public class GrokPatternCreatorTests extends FileStructureTestCase {
 
         assertEquals("%{INT:field}\\t%{TIMESTAMP_ISO8601:timestamp}\\t%{TIME:time}\\t%{INT:field2}\\t.*?\\t" +
                 "%{IP:ipaddress}\\t.*?\\t%{LOGLEVEL:loglevel}\\t.*",
-            grokPatternCreator.createGrokPatternFromExamples("TIMESTAMP_ISO8601", "timestamp"));
+            grokPatternCreator.createGrokPatternFromExamples("TIMESTAMP_ISO8601", FileStructureUtils.DATE_MAPPING_WITHOUT_FORMAT,
+                "timestamp"));
         assertEquals(5, mappings.size());
         assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("field"));
         assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("time"));

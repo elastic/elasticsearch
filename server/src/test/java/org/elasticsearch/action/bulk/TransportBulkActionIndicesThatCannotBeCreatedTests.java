@@ -110,7 +110,7 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
         final ExecutorService direct = EsExecutors.newDirectExecutorService();
         when(threadPool.executor(anyString())).thenReturn(direct);
         TransportBulkAction action = new TransportBulkAction(threadPool, mock(TransportService.class), clusterService,
-                null, null, null, mock(ActionFilters.class), null, null) {
+                null, null, mock(ActionFilters.class), null, null) {
             @Override
             void executeBulk(Task task, BulkRequest bulkRequest, long startTimeNanos, ActionListener<BulkResponse> listener,
                     AtomicArray<BulkItemResponse> responses, Map<String, IndexNotFoundException> indicesThatCannotBeCreated) {

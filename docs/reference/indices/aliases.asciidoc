@@ -1,5 +1,5 @@
 [[indices-aliases]]
-== Index Aliases
+=== Index Aliases
 
 APIs in Elasticsearch accept an index name when working against a
 specific index, and several indices when applicable. The index aliases
@@ -130,7 +130,7 @@ POST /_aliases
 
 [float]
 [[filtered]]
-=== Filtered Aliases
+==== Filtered Aliases
 
 Aliases with filters provide an easy way to create different "views" of
 the same index. The filter can be defined using Query DSL and is applied
@@ -177,7 +177,7 @@ POST /_aliases
 
 [float]
 [[aliases-routing]]
-==== Routing
+===== Routing
 
 It is possible to associate routing values with aliases. This feature
 can be used together with filtering aliases in order to avoid
@@ -244,7 +244,7 @@ GET /alias2/_search?q=user:kimchy&routing=2,3
 
 [float]
 [[aliases-write-index]]
-==== Write Index
+===== Write Index
 
 It is possible to associate the index pointed to by an alias as the write index.
 When specified, all index and update requests against an alias that point to multiple
@@ -342,7 +342,7 @@ writes will be rejected.
 
 [float]
 [[alias-adding]]
-=== Add a single alias
+==== Add a single alias
 
 An alias can also be added with the endpoint
 
@@ -360,7 +360,7 @@ where
 You can also use the plural `_aliases`.
 
 [float]
-==== Examples:
+===== Examples:
 
 Adding time based alias::
 +
@@ -412,7 +412,7 @@ PUT /users/_alias/user_12
 
 [float]
 [[alias-index-creation]]
-=== Aliases during index creation
+==== Aliases during index creation
 
 Aliases can also be specified during <<create-index-aliases,index creation>>:
 
@@ -439,7 +439,7 @@ PUT /logs_20162801
 
 [float]
 [[deleting]]
-=== Delete aliases
+==== Delete aliases
 
 
 The rest endpoint is: `/{index}/_alias/{name}`
@@ -461,7 +461,7 @@ DELETE /logs_20162801/_alias/current_day
 
 [float]
 [[alias-retrieving]]
-=== Retrieving existing aliases
+==== Retrieving existing aliases
 
 The get index alias API allows to filter by
 alias name and index name. This api redirects to the master and fetches
@@ -487,7 +487,7 @@ Possible options:
 The rest endpoint is: `/{index}/_alias/{alias}`.
 
 [float]
-==== Examples:
+===== Examples:
 
 All aliases for the index `logs_20162801`:
 

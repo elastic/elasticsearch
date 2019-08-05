@@ -10,6 +10,7 @@ import com.carrotsearch.hppc.IntObjectHashMap;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.geo.geometry.Geometry;
 import org.elasticsearch.geo.geometry.Point;
+import org.elasticsearch.geo.utils.StandardValidator;
 import org.elasticsearch.geo.utils.WellKnownText;
 import org.elasticsearch.xpack.sql.jdbc.EsType;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
@@ -51,7 +52,7 @@ public class JdbcAssert {
 
     private static final IntObjectHashMap<EsType> SQL_TO_TYPE = new IntObjectHashMap<>();
 
-    private static final WellKnownText WKT = new WellKnownText();
+    private static final WellKnownText WKT = new WellKnownText(true, new StandardValidator(true));
 
     static {
         for (EsType type : EsType.values()) {

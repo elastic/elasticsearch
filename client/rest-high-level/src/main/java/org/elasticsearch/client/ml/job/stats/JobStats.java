@@ -22,6 +22,7 @@ import org.elasticsearch.client.ml.job.config.Job;
 import org.elasticsearch.client.ml.job.config.JobState;
 import org.elasticsearch.client.ml.job.process.DataCounts;
 import org.elasticsearch.client.ml.job.process.ModelSizeStats;
+import org.elasticsearch.client.ml.job.process.TimingStats;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.unit.TimeValue;
@@ -42,6 +43,7 @@ public class JobStats implements ToXContentObject {
 
     private static final ParseField DATA_COUNTS = new ParseField("data_counts");
     private static final ParseField MODEL_SIZE_STATS = new ParseField("model_size_stats");
+    private static final ParseField TIMING_STATS = new ParseField("timing_stats");
     private static final ParseField FORECASTS_STATS = new ParseField("forecasts_stats");
     private static final ParseField STATE = new ParseField("state");
     private static final ParseField NODE = new ParseField("node");
@@ -58,6 +60,7 @@ public class JobStats implements ToXContentObject {
                 JobState jobState = (JobState) a[i++];
                 ModelSizeStats.Builder modelSizeStatsBuilder = (ModelSizeStats.Builder) a[i++];
                 ModelSizeStats modelSizeStats = modelSizeStatsBuilder == null ? null : modelSizeStatsBuilder.build();
+                TimingStats timingStats = (TimingStats) a[i++];
                 ForecastStats forecastStats = (ForecastStats) a[i++];
                 NodeAttributes node = (NodeAttributes) a[i++];
                 String assignmentExplanation = (String) a[i++];
@@ -66,6 +69,7 @@ public class JobStats implements ToXContentObject {
                     dataCounts,
                     jobState,
                     modelSizeStats,
+                    timingStats,
                     forecastStats,
                     node,
                     assignmentExplanation,
@@ -80,6 +84,7 @@ public class JobStats implements ToXContentObject {
             STATE,
             ObjectParser.ValueType.VALUE);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), ModelSizeStats.PARSER, MODEL_SIZE_STATS);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), TimingStats.PARSER, TIMING_STATS);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), ForecastStats.PARSER, FORECASTS_STATS);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), NodeAttributes.PARSER, NODE);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), ASSIGNMENT_EXPLANATION);
@@ -94,22 +99,24 @@ public class JobStats implements ToXContentObject {
     private final DataCounts dataCounts;
     private final JobState state;
     private final ModelSizeStats modelSizeStats;
+    private final TimingStats timingStats;
     private final ForecastStats forecastStats;
     private final NodeAttributes node;
     private final String assignmentExplanation;
     private final TimeValue openTime;
 
     JobStats(String jobId, DataCounts dataCounts, JobState state, @Nullable ModelSizeStats modelSizeStats,
-                    @Nullable ForecastStats forecastStats, @Nullable NodeAttributes node,
-                    @Nullable String assignmentExplanation, @Nullable TimeValue opentime) {
+             @Nullable TimingStats timingStats, @Nullable ForecastStats forecastStats, @Nullable NodeAttributes node,
+             @Nullable String assignmentExplanation, @Nullable TimeValue openTime) {
         this.jobId = Objects.requireNonNull(jobId);
         this.dataCounts = Objects.requireNonNull(dataCounts);
         this.state = Objects.requireNonNull(state);
         this.modelSizeStats = modelSizeStats;
+        this.timingStats = timingStats;
         this.forecastStats = forecastStats;
         this.node = node;
         this.assignmentExplanation = assignmentExplanation;
-        this.openTime = opentime;
+        this.openTime = openTime;
     }
 
     /**
@@ -133,6 +140,10 @@ public class JobStats implements ToXContentObject {
      */
     public ModelSizeStats getModelSizeStats() {
         return modelSizeStats;
+    }
+
+    public TimingStats getTimingStats() {
+        return timingStats;
     }
 
     /**
@@ -182,6 +193,9 @@ public class JobStats implements ToXContentObject {
         if (modelSizeStats != null) {
             builder.field(MODEL_SIZE_STATS.getPreferredName(), modelSizeStats);
         }
+        if (timingStats != null) {
+            builder.field(TIMING_STATS.getPreferredName(), timingStats);
+        }
         if (forecastStats != null) {
             builder.field(FORECASTS_STATS.getPreferredName(), forecastStats);
         }
@@ -199,7 +213,7 @@ public class JobStats implements ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobId, dataCounts, modelSizeStats, forecastStats, state, node, assignmentExplanation, openTime);
+        return Objects.hash(jobId, dataCounts, modelSizeStats, timingStats, forecastStats, state, node, assignmentExplanation, openTime);
     }
 
     @Override
@@ -216,6 +230,7 @@ public class JobStats implements ToXContentObject {
         return Objects.equals(jobId, other.jobId) &&
             Objects.equals(this.dataCounts, other.dataCounts) &&
             Objects.equals(this.modelSizeStats, other.modelSizeStats) &&
+            Objects.equals(this.timingStats, other.timingStats) &&
             Objects.equals(this.forecastStats, other.forecastStats) &&
             Objects.equals(this.state, other.state) &&
             Objects.equals(this.node, other.node) &&

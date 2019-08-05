@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.MockKeywordPlugin;
 import org.hamcrest.core.IsNull;
 
@@ -41,6 +42,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
 
+@ClusterScope(minNumDataNodes = 2)
 public class AnalyzeActionIT extends ESIntegTestCase {
 
     @Override
@@ -345,7 +347,7 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens()[2].getPositionLength(), equalTo(1));
 
         // tokenfilter({"type": "stop", "stopwords": ["foo", "buzz"]})
-        assertThat(analyzeResponse.detail().tokenfilters()[1].getName(), equalTo("_anonymous_tokenfilter"));
+        assertThat(analyzeResponse.detail().tokenfilters()[1].getName(), equalTo("__anonymous__stop"));
         assertThat(analyzeResponse.detail().tokenfilters()[1].getTokens().length, equalTo(1));
 
         assertThat(analyzeResponse.detail().tokenfilters()[1].getTokens()[0].getTerm(), equalTo("test"));
@@ -387,5 +389,16 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         assertThat(token.getPositionLength(), equalTo(1));
     }
 
+    /**
+     * Input text that doesn't produce tokens should return an empty token list
+     */
+    public void testZeroTokenAnalysis() throws IOException {
+        assertAcked(prepareCreate("test"));
+        ensureGreen("test");
+
+        AnalyzeAction.Response analyzeResponse = client().admin().indices().prepareAnalyze("test", ".").get();
+        assertNotNull(analyzeResponse.getTokens());
+        assertThat(analyzeResponse.getTokens().size(), equalTo(0));
+    }
 
 }

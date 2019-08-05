@@ -1,8 +1,8 @@
 [[cluster-nodes-stats]]
-== Nodes Stats
+=== Nodes Stats
 
 [float]
-=== Nodes statistics
+==== Nodes statistics
 
 The cluster nodes stats API allows to retrieve one or more (or all) of
 the cluster nodes statistics.
@@ -85,7 +85,7 @@ All stats can be explicitly requested via `/_nodes/stats/_all` or `/_nodes/stats
 
 [float]
 [[fs-info]]
-==== FS information
+===== FS information
 
 The `fs` flag can be set to retrieve
 information that concern the file system:
@@ -176,7 +176,7 @@ information that concern the file system:
 
 [float]
 [[os-stats]]
-==== Operating System statistics
+===== Operating System statistics
 
 The `os` flag can be set to retrieve statistics that concern
 the operating system:
@@ -280,7 +280,7 @@ and `/sys/fs/cgroup/cpuacct`.
 
 [float]
 [[process-stats]]
-==== Process statistics
+===== Process statistics
 
 The `process` flag can be set to retrieve statistics that concern
 the current running process:
@@ -305,7 +305,7 @@ the current running process:
 
 [float]
 [[node-indices-stats]]
-=== Indices statistics
+==== Indices statistics
 
 You can get information about indices stats on `node`, `indices`, or `shards` level.
 
@@ -346,7 +346,7 @@ Supported metrics are:
 
 [float]
 [[search-groups]]
-=== Search groups
+==== Search groups
 
 You can get statistics about search groups for searches executed
 on this node.
@@ -363,7 +363,7 @@ GET /_nodes/stats/indices?groups=foo,bar
 
 [float]
 [[ingest-stats]]
-=== Ingest statistics
+==== Ingest statistics
 
 The `ingest` flag can be set to retrieve statistics that concern ingest:
 
@@ -383,7 +383,7 @@ On top of these overall ingest statistics, these statistics are also provided on
 
 [float]
 [[adaptive-selection-stats]]
-=== Adaptive selection statistics
+==== Adaptive selection statistics
 
 The `adaptive_selection` flag can be set to retrieve statistics that concern
 <<search-adaptive-replica,adaptive replica selection>>. These statistics are

@@ -31,6 +31,7 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 
 import static org.hamcrest.Matchers.containsString;
@@ -70,7 +71,10 @@ public class PutDataFrameTransformRequestTests extends AbstractXContentTestCase<
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
-        return new NamedXContentRegistry(searchModule.getNamedXContents());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
+        List<NamedXContentRegistry.Entry> namedXContents = searchModule.getNamedXContents();
+        namedXContents.addAll(new DataFrameNamedXContentProvider().getNamedXContentParsers());
+
+        return new NamedXContentRegistry(namedXContents);
     }
 }

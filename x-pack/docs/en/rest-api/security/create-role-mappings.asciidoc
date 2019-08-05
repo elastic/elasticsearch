@@ -7,14 +7,21 @@
 
 Creates and updates role mappings.
 
-==== Request
+[[security-api-put-role-mapping-request]]
+==== {api-request-title}
 
 `POST /_security/role_mapping/<name>` +
 
 `PUT /_security/role_mapping/<name>`
 
 
-==== Description
+[[security-api-put-role-mapping-prereqs]]
+==== {api-prereq-title}
+
+* To use this API, you must have at least the `manage_security` cluster privilege.
+
+[[security-api-put-role-mapping-desc]]
+==== {api-description-title}
 
 Role mappings define which roles are assigned to each user. Each mapping has 
 _rules_ that identify users and a list of _roles_ that are
@@ -28,7 +35,8 @@ For more information, see
 {stack-ov}/mapping-roles.html[Mapping users and groups to roles].
 
 
-==== Path Parameters
+[[security-api-put-role-mapping-path-params]]
+==== {api-path-parms-title}
 
 `name`::
  (string) The distinct name that identifies the role mapping. The name is
@@ -36,14 +44,15 @@ For more information, see
   not affect the behavior of the mapping in any way.
 
 
-==== Request Body
+[[security-api-put-role-mapping-request-body]]
+==== {api-request-body-title}
 
 The following parameters can be specified in the body of a PUT or POST request
 and pertain to adding a role mapping:
 
-`enabled` (required)::
-(boolean)  Mappings that have `enabled` set to `false` are ignored when role
-mapping is performed.
+`enabled`::
+(Required, boolean) Mappings that have `enabled` set to `false` are ignored when
+role mapping is performed.
 
 `metadata`::
 (object) Additional metadata that helps define which roles are assigned to each
@@ -62,10 +71,10 @@ mapping rules.
 The format of these objects is defined below.
 _Exactly one of `roles` or `role_templates` must be specified_.
 
-`rules` (required)::
-(object) The rules that determine which users should be matched by the mapping.
-A rule is a logical condition that is expressed by using a JSON DSL. See 
-<<role-mapping-resources>>. 
+`rules`::
+(Required, object) The rules that determine which users should be matched by the
+mapping. A rule is a logical condition that is expressed by using a JSON DSL.
+See  <<role-mapping-resources>>. 
 
 ==== Role Templates
 
@@ -91,12 +100,8 @@ array of JSON strings for the role name(s).
 
 The Examples section below demonstrates the use of templated role names.
 
-==== Authorization
-
-To use this API, you must have at least the `manage_security` cluster privilege.
-
-
-==== Examples
+[[security-api-put-role-mapping-example]]
+==== {api-examples-title}
 
 The following example assigns the "user" role to all users:
 

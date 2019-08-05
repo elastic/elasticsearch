@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -20,23 +20,22 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
-public class DeleteExpiredDataAction extends Action<DeleteExpiredDataAction.Response> {
+public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.Response> {
 
     public static final DeleteExpiredDataAction INSTANCE = new DeleteExpiredDataAction();
     public static final String NAME = "cluster:admin/xpack/ml/delete_expired_data";
 
     private DeleteExpiredDataAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        return new Response();
+        super(NAME, Response::new);
     }
 
     public static class Request extends ActionRequest {
 
         public Request() {}
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+        }
 
         @Override
         public ActionRequestValidationException validate() {
@@ -61,17 +60,13 @@ public class DeleteExpiredDataAction extends Action<DeleteExpiredDataAction.Resp
             this.deleted = deleted;
         }
 
-        public Response() {}
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public Response(StreamInput in) throws IOException {
+            super(in);
             deleted = in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeBoolean(deleted);
         }
 

@@ -1,9 +1,9 @@
 {
   "sql.clear_cursor": {
     "documentation": "Clear SQL cursor",
+    "stability" : "stable",
     "methods": [ "POST"],
     "url": {
-      "path": "/_sql/close",
       "paths": [ "/_sql/close" ],
       "parts": {}
     },

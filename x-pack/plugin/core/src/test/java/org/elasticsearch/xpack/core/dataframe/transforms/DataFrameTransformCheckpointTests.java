@@ -162,9 +162,10 @@ public class DataFrameTransformCheckpointTests extends AbstractSerializingDataFr
         checkpointsByIndexNew.remove(checkpointsByIndexNew.firstKey());
         assertEquals((indices - 1) * shards * 10L, DataFrameTransformCheckpoint.getBehind(checkpointOld, checkpointTransientNew));
 
-        // remove 1st index from new, now old has 1 index more, behind can not be calculated
+        // remove 1st index from new, now old has 1 index more, which should be ignored
         checkpointsByIndexNew.remove(checkpointsByIndexNew.firstKey());
-        assertEquals(-1L, DataFrameTransformCheckpoint.getBehind(checkpointOld, checkpointTransientNew));
+
+        assertEquals((indices - 2) * shards * 10L, DataFrameTransformCheckpoint.getBehind(checkpointOld, checkpointTransientNew));
     }
 
     private static Map<String, long[]> randomCheckpointsByIndex() {

@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.ack.AckWatchRespon
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsResponse;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
+import org.elasticsearch.xpack.watcher.ClockHolder;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
 import org.junit.Before;
 
@@ -63,7 +64,8 @@ public class TransportAckWatchActionTests extends ESTestCase {
         client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
         action = new TransportAckWatchAction(transportService, new ActionFilters(Collections.emptySet()),
-            Clock.systemUTC(), new XPackLicenseState(Settings.EMPTY), watchParser, client, createClusterService(threadPool));
+            new ClockHolder(Clock.systemUTC()), new XPackLicenseState(Settings.EMPTY),
+            watchParser, client, createClusterService(threadPool));
     }
 
     public void testWatchNotFound() {

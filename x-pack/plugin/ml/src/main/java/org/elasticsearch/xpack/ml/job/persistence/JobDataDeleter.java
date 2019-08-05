@@ -16,10 +16,12 @@ import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
@@ -120,6 +122,20 @@ public class JobDataDeleter {
             LOGGER.error("[" + jobId + "] An error occurred while deleting interim results", e);
         }
     }
+    
+    /**
+     * Delete the datafeed timing stats document from all the job results indices
+     *
+     * @param listener Response listener
+     */
+    public void deleteDatafeedTimingStats(ActionListener<BulkByScrollResponse> listener) {
+        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobResultsAliasedName(jobId))
+            .setRefresh(true)
+            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+            .setQuery(new IdsQueryBuilder().addIds(DatafeedTimingStats.documentId(jobId)));
+
+        executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, deleteByQueryRequest, listener);
+    }
 
     // Wrapper to ensure safety
     private static class DeleteByQueryHolder {
@@ -129,7 +145,7 @@ public class JobDataDeleter {
         private DeleteByQueryHolder(String index) {
             dbqRequest = new DeleteByQueryRequest();
             dbqRequest.indices(index);
-            dbqRequest.setSlices(5);
+            dbqRequest.setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
             dbqRequest.setAbortOnVersionConflict(false);
         }
     }

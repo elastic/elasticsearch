@@ -22,17 +22,20 @@ package org.elasticsearch.index.store.smbmmapfs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.store.MMapDirectory;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.index.store.SmbDirectoryWrapper;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.HashSet;
 
 public final class SmbMmapFsDirectoryFactory extends FsDirectoryFactory {
 
     @Override
     protected Directory newFSDirectory(Path location, LockFactory lockFactory, IndexSettings indexSettings) throws IOException {
-        return new SmbDirectoryWrapper(new MMapDirectory(location, lockFactory));
+        return new SmbDirectoryWrapper(setPreload(new MMapDirectory(location, lockFactory), lockFactory, new HashSet<>(
+            indexSettings.getValue(IndexModule.INDEX_STORE_PRE_LOAD_SETTING))));
     }
 }

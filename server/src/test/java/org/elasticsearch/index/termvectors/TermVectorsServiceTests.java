@@ -69,7 +69,7 @@ public class TermVectorsServiceTests extends ESSingleNodeTestCase {
 
         List<Long> longs = Stream.of(abs(randomLong()), abs(randomLong())).sorted().collect(toList());
 
-        TermVectorsRequest request = new TermVectorsRequest("test", "type1", "0");
+        TermVectorsRequest request = new TermVectorsRequest("test", "0");
         TermVectorsResponse response = TermVectorsService.getTermVectors(shard, request, longs.iterator()::next);
 
         assertThat(response, notNullValue());
@@ -103,22 +103,22 @@ public class TermVectorsServiceTests extends ESSingleNodeTestCase {
         }
         bulk.get();
 
-        TermVectorsRequest request = new TermVectorsRequest("test", "_doc", "0").termStatistics(true);
+        TermVectorsRequest request = new TermVectorsRequest("test", "0").termStatistics(true);
 
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService test = indicesService.indexService(resolveIndex("test"));
         IndexShard shard = test.getShardOrNull(0);
         assertThat(shard, notNullValue());
-        TermVectorsResponse response = TermVectorsService.getTermVectors(shard, request);        
-        assertEquals(1, response.getFields().size());            
+        TermVectorsResponse response = TermVectorsService.getTermVectors(shard, request);
+        assertEquals(1, response.getFields().size());
 
         Terms terms = response.getFields().terms("text");
         TermsEnum iterator = terms.iterator();
         while (iterator.next() != null) {
             assertEquals(max, iterator.docFreq());
         }
-    }  
-    
+    }
+
     public void testWithIndexedPhrases() throws IOException {
         XContentBuilder mapping = jsonBuilder()
             .startObject()
@@ -126,7 +126,7 @@ public class TermVectorsServiceTests extends ESSingleNodeTestCase {
                     .startObject("properties")
                         .startObject("text")
                             .field("type", "text")
-                            .field("index_phrases", true)                            
+                .field("index_phrases", true)
                             .field("term_vector", "with_positions_offsets_payloads")
                         .endObject()
                     .endObject()
@@ -146,13 +146,13 @@ public class TermVectorsServiceTests extends ESSingleNodeTestCase {
         }
         bulk.get();
 
-        TermVectorsRequest request = new TermVectorsRequest("test", "_doc", "0").termStatistics(true);
+        TermVectorsRequest request = new TermVectorsRequest("test", "0").termStatistics(true);
 
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService test = indicesService.indexService(resolveIndex("test"));
         IndexShard shard = test.getShardOrNull(0);
         assertThat(shard, notNullValue());
-        TermVectorsResponse response = TermVectorsService.getTermVectors(shard, request);        
+        TermVectorsResponse response = TermVectorsService.getTermVectors(shard, request);
         assertEquals(2, response.getFields().size());
 
         Terms terms = response.getFields().terms("text");
@@ -160,11 +160,11 @@ public class TermVectorsServiceTests extends ESSingleNodeTestCase {
         while (iterator.next() != null) {
             assertEquals(max, iterator.docFreq());
         }
-                
+
         Terms phrases = response.getFields().terms("text._index_phrase");
         TermsEnum phraseIterator = phrases.iterator();
         while (phraseIterator.next() != null) {
             assertEquals(max, phraseIterator.docFreq());
         }
-    }  
+    }
 }

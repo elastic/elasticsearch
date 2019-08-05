@@ -16,8 +16,8 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;
-import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
+import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.common.http.Scheme;
 import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
@@ -35,7 +35,6 @@ import javax.mail.BodyPart;
 import javax.mail.Multipart;
 import javax.mail.Part;
 import javax.mail.internet.MimeMessage;
-
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
@@ -150,7 +149,6 @@ public class EmailAttachmentTests extends AbstractWatcherIntegrationTestCase {
             latch.countDown();
         });
 
-        WatcherClient watcherClient = watcherClient();
         createIndex("idx");
         // Have a sample document in the index, the watch is going to evaluate
         client().prepareIndex("idx", "type").setSource("field", "value").get();
@@ -181,7 +179,8 @@ public class EmailAttachmentTests extends AbstractWatcherIntegrationTestCase {
                 .addAction("_email", emailAction(emailBuilder).setAuthentication(EmailServer.USERNAME, EmailServer.PASSWORD.toCharArray())
                 .setAttachments(emailAttachments));
 
-        watcherClient.preparePutWatch("_test_id")
+        new PutWatchRequestBuilder(client())
+                .setId("_test_id")
                 .setSource(watchSourceBuilder)
                 .get();
 

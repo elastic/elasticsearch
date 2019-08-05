@@ -20,7 +20,10 @@
 package org.elasticsearch.index;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexReaderContext;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
@@ -29,6 +32,7 @@ import org.elasticsearch.Assertions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
@@ -57,7 +61,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.IndexEventListener;
-import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.IndexingOperationListener;
@@ -89,6 +92,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -103,7 +107,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final NodeEnvironment nodeEnv;
     private final ShardStoreDeleter shardStoreDeleter;
     private final IndexStorePlugin.DirectoryFactory directoryFactory;
-    private final IndexSearcherWrapper searcherWrapper;
+    private final CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper;
     private final IndexCache indexCache;
     private final MapperService mapperService;
     private final NamedXContentRegistry xContentRegistry;
@@ -150,7 +154,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             QueryCache queryCache,
             IndexStorePlugin.DirectoryFactory directoryFactory,
             IndexEventListener eventListener,
-            IndexModule.IndexSearcherWrapperFactory wrapperFactory,
+            Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> wrapperFactory,
             MapperRegistry mapperRegistry,
             IndicesFieldDataCache indicesFieldDataCache,
             List<SearchOperationListener> searchOperationListeners,
@@ -202,7 +206,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.directoryFactory = directoryFactory;
         this.engineFactory = Objects.requireNonNull(engineFactory);
         // initialize this last -- otherwise if the wrapper requires any other member to be non-null we fail with an NPE
-        this.searcherWrapper = wrapperFactory.newWrapper(this);
+        this.readerWrapper = wrapperFactory.apply(this);
         this.searchOperationListeners = Collections.unmodifiableList(searchOperationListeners);
         this.indexingOperationListeners = Collections.unmodifiableList(indexingOperationListeners);
         // kick off async ops for the first shard in this index
@@ -394,10 +398,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
             logger.debug("creating shard_id {}", shardId);
             // if we are on a shared FS we only own the shard (ie. we can safely delete it) if we are the primary.
-            final Engine.Warmer engineWarmer = (searcher) -> {
+            final Engine.Warmer engineWarmer = (reader) -> {
                 IndexShard shard =  getShardOrNull(shardId.getId());
                 if (shard != null) {
-                    warmer.warm(searcher, shard, IndexService.this.indexSettings);
+                    warmer.warm(reader, shard, IndexService.this.indexSettings);
                 }
             };
             Directory directory = directoryFactory.newDirectory(this.indexSettings, path);
@@ -415,7 +419,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     similarityService,
                     engineFactory,
                     eventListener,
-                    searcherWrapper,
+                    readerWrapper,
                     threadPool,
                     bigArrays,
                     engineWarmer,
@@ -517,6 +521,13 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         return indexSettings;
     }
 
+    private IndexSearcher newCachedSearcher(int shardId, IndexReaderContext context) {
+        IndexSearcher searcher = new IndexSearcher(context);
+        searcher.setQueryCache(cache().query());
+        searcher.setQueryCachingPolicy(getShard(shardId).getQueryCachingPolicy());
+        return searcher;
+    }
+
     /**
      * Creates a new QueryShardContext.
      *
@@ -525,10 +536,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
      */
     public QueryShardContext newQueryShardContext(int shardId, IndexReader indexReader, LongSupplier nowInMillis, String clusterAlias) {
         return new QueryShardContext(
-            shardId, indexSettings, indexCache.bitsetFilterCache(), indexFieldData::getForField, mapperService(),
-                similarityService(), scriptService, xContentRegistry,
-               namedWriteableRegistry, client, indexReader,
-            nowInMillis, clusterAlias);
+            shardId, indexSettings, indexCache.bitsetFilterCache(), context -> newCachedSearcher(shardId, context),
+            indexFieldData::getForField, mapperService(), similarityService(), scriptService, xContentRegistry, namedWriteableRegistry,
+            client, indexReader, nowInMillis, clusterAlias);
     }
 
     /**
@@ -744,8 +754,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         return engineFactory;
     }
 
-    final IndexSearcherWrapper getSearcherWrapper() {
-        return searcherWrapper;
+    final CheckedFunction<DirectoryReader, DirectoryReader, IOException> getReaderWrapper() {
+        return readerWrapper;
     } // pkg private for testing
 
     final IndexStorePlugin.DirectoryFactory getDirectoryFactory() {
@@ -931,6 +941,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
 
         @Override
+        protected boolean mustReschedule() {
+            return indexService.closed.get() == false;
+        }
+
+        @Override
         protected void runInternal() {
             indexService.maybeTrimTranslog();
         }
@@ -1021,8 +1036,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         return fsyncTask;
     }
 
-    AsyncGlobalCheckpointTask getGlobalCheckpointTask() {
-        return globalCheckpointTask;
+    AsyncTrimTranslogTask getTrimTranslogTask() { // for tests
+        return trimTranslogTask;
     }
 
     /**

@@ -211,7 +211,6 @@ public class ApiKeyService {
         boolQuery.filter(expiredQuery);
 
         final SearchRequest searchRequest = client.prepareSearch(SECURITY_MAIN_ALIAS)
-            .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
             .setQuery(boolQuery)
             .setVersion(false)
             .setSize(1)
@@ -511,7 +510,7 @@ public class ApiKeyService {
         if (expirationEpochMilli == null || Instant.ofEpochMilli(expirationEpochMilli).isAfter(clock.instant())) {
             final Map<String, Object> creator = Objects.requireNonNull((Map<String, Object>) source.get("creator"));
             final String principal = Objects.requireNonNull((String) creator.get("principal"));
-            final Map<String, Object> metadata = (Map<String, Object>) creator.get("metadata");
+            Map<String, Object> metadata = (Map<String, Object>) creator.get("metadata");
             final Map<String, Object> roleDescriptors = (Map<String, Object>) source.get("role_descriptors");
             final Map<String, Object> limitedByRoleDescriptors = (Map<String, Object>) source.get("limited_by_role_descriptors");
             final String[] roleNames = (roleDescriptors != null) ? roleDescriptors.keySet().toArray(Strings.EMPTY_ARRAY)
@@ -743,27 +742,29 @@ public class ApiKeyService {
             expiredQuery.should(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("expiration_time")));
             boolQuery.filter(expiredQuery);
         }
-        final SearchRequest request = client.prepareSearch(SECURITY_MAIN_ALIAS)
-            .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
-            .setQuery(boolQuery)
-            .setVersion(false)
-            .setSize(1000)
-            .setFetchSource(true)
-            .request();
-        securityIndex.checkIndexVersionThenExecute(listener::onFailure,
-            () -> ScrollHelper.fetchAllByEntity(client, request, listener,
-                        (SearchHit hit) -> {
-                            Map<String, Object> source = hit.getSourceAsMap();
-                            String name = (String) source.get("name");
-                            String id = hit.getId();
-                            Long creation = (Long) source.get("creation_time");
-                            Long expiration = (Long) source.get("expiration_time");
-                            Boolean invalidated = (Boolean) source.get("api_key_invalidated");
-                            String username = (String) ((Map<String, Object>) source.get("creator")).get("principal");
-                            String realm = (String) ((Map<String, Object>) source.get("creator")).get("realm");
-                            return new ApiKey(name, id, Instant.ofEpochMilli(creation),
-                                    (expiration != null) ? Instant.ofEpochMilli(expiration) : null, invalidated, username, realm);
-                        }));
+        try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(SECURITY_ORIGIN)) {
+            final SearchRequest request = client.prepareSearch(SECURITY_MAIN_ALIAS)
+                .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
+                .setQuery(boolQuery)
+                .setVersion(false)
+                .setSize(1000)
+                .setFetchSource(true)
+                .request();
+            securityIndex.checkIndexVersionThenExecute(listener::onFailure,
+                () -> ScrollHelper.fetchAllByEntity(client, request, listener,
+                    (SearchHit hit) -> {
+                        Map<String, Object> source = hit.getSourceAsMap();
+                        String name = (String) source.get("name");
+                        String id = hit.getId();
+                        Long creation = (Long) source.get("creation_time");
+                        Long expiration = (Long) source.get("expiration_time");
+                        Boolean invalidated = (Boolean) source.get("api_key_invalidated");
+                        String username = (String) ((Map<String, Object>) source.get("creator")).get("principal");
+                        String realm = (String) ((Map<String, Object>) source.get("creator")).get("realm");
+                        return new ApiKey(name, id, Instant.ofEpochMilli(creation),
+                            (expiration != null) ? Instant.ofEpochMilli(expiration) : null, invalidated, username, realm);
+                    }));
+        }
     }
 
     private void findApiKeyForApiKeyName(String apiKeyName, boolean filterOutInvalidatedKeys, boolean filterOutExpiredKeys,

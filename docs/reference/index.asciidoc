@@ -10,6 +10,8 @@
 
 include::../Versions.asciidoc[]
 
+include::intro.asciidoc[]
+
 include::getting-started.asciidoc[]
 
 include::setup.asciidoc[]
@@ -20,24 +22,13 @@ include::{xes-repo-dir}/security/configuring-es.asciidoc[]
 
 include::setup/bootstrap-checks-xes.asciidoc[]
 
-:edit_url:
 include::upgrade.asciidoc[]
-
-include::api-conventions.asciidoc[]
-
-include::docs.asciidoc[]
-
-include::search.asciidoc[]
 
 include::aggregations.asciidoc[]
 
-include::indices.asciidoc[]
-
-include::cat.asciidoc[]
-
-include::cluster.asciidoc[]
-
 include::query-dsl.asciidoc[]
+
+include::scripting.asciidoc[]
 
 include::mapping.asciidoc[]
 
@@ -59,16 +50,17 @@ include::rollup/index.asciidoc[]
 
 include::frozen-indices.asciidoc[]
 
-include::rest-api/index.asciidoc[]
+include::administering.asciidoc[]
 
 include::commands/index.asciidoc[]
 
-:edit_url:
 include::how-to.asciidoc[]
 
 include::testing.asciidoc[]
 
 include::glossary.asciidoc[]
+
+include::rest-api/index.asciidoc[]
 
 include::release-notes/highlights.asciidoc[]
 

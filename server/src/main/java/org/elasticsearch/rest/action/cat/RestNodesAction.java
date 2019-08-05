@@ -29,6 +29,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
@@ -278,7 +279,7 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(node.getVersion().toString());
             table.addCell(info == null ? null : info.getBuild().flavor().displayName());
             table.addCell(info == null ? null : info.getBuild().type().displayName());
-            table.addCell(info == null ? null : info.getBuild().shortHash());
+            table.addCell(info == null ? null : info.getBuild().hash());
             table.addCell(jvmInfo == null ? null : jvmInfo.version());
 
 
@@ -298,7 +299,7 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(diskUsed);
             table.addCell(diskAvailable);
             table.addCell(diskUsedPercent);
-            
+
             table.addCell(jvmStats == null ? null : jvmStats.getMem().getHeapUsed());
             table.addCell(jvmStats == null ? null : jvmStats.getMem().getHeapUsedPercent());
             table.addCell(jvmInfo == null ? null : jvmInfo.getMem().getHeapMax());
@@ -324,7 +325,7 @@ public class RestNodesAction extends AbstractCatAction {
             if (node.getRoles().isEmpty()) {
                 roles = "-";
             } else {
-                roles = node.getRoles().stream().map(DiscoveryNode.Role::getAbbreviation).collect(Collectors.joining());
+                roles = node.getRoles().stream().map(DiscoveryNodeRole::roleNameAbbreviation).sorted().collect(Collectors.joining());
             }
             table.addCell(roles);
             table.addCell(masterId == null ? "x" : masterId.equals(node.getId()) ? "*" : "-");

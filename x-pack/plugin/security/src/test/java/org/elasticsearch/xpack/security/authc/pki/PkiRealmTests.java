@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.support.NoOpLogger;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.authc.BytesKey;
 import org.elasticsearch.xpack.security.authc.support.MockLookupRealm;
 import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
 import org.junit.Before;
@@ -47,6 +48,7 @@ import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -250,7 +252,7 @@ public class PkiRealmTests extends ESTestCase {
         assertThat(user.roles().length, is(0));
     }
 
-    public void testAuthenticationDelegationFailsWithoutTokenService() throws Exception {
+    public void testAuthenticationDelegationFailsWithoutTokenServiceAndTruststore() throws Exception {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         Settings settings = Settings.builder()
                 .put(globalSettings)
@@ -259,8 +261,27 @@ public class PkiRealmTests extends ESTestCase {
         IllegalStateException e = expectThrows(IllegalStateException.class,
                 () -> new PkiRealm(new RealmConfig(new RealmConfig.RealmIdentifier("pki", "my_pki"), settings,
                         TestEnvironment.newEnvironment(globalSettings), threadContext), mock(UserRoleMapper.class)));
-        assertThat(e.getMessage(), is("PKI realms with delegation enabled require that"
-                + " the token service be enabled as well (xpack.security.authc.token.enabled)"));
+        assertThat(e.getMessage(),
+                is("PKI realms with delegation enabled require a trust configuration "
+                        + "(xpack.security.authc.realms.pki.my_pki.certificate_authorities or "
+                        + "xpack.security.authc.realms.pki.my_pki.truststore.path)"
+                        + " and that the token service be also enabled (xpack.security.authc.token.enabled)"));
+    }
+
+    public void testAuthenticationDelegationFailsWithoutTruststore() throws Exception {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        Settings settings = Settings.builder()
+                .put(globalSettings)
+                .put("xpack.security.authc.realms.pki.my_pki.delegation.enabled", true)
+                .put("xpack.security.authc.token.enabled", true)
+                .build();
+        IllegalStateException e = expectThrows(IllegalStateException.class,
+                () -> new PkiRealm(new RealmConfig(new RealmConfig.RealmIdentifier("pki", "my_pki"), settings,
+                        TestEnvironment.newEnvironment(globalSettings), threadContext), mock(UserRoleMapper.class)));
+        assertThat(e.getMessage(),
+                is("PKI realms with delegation enabled require a trust configuration "
+                        + "(xpack.security.authc.realms.pki.my_pki.certificate_authorities "
+                        + "or xpack.security.authc.realms.pki.my_pki.truststore.path)"));
     }
 
     public void testAuthenticationDelegationSuccess() throws Exception {
@@ -447,7 +468,7 @@ public class PkiRealmTests extends ESTestCase {
         assertThat(result.getUser(), sameInstance(lookupUser2));
     }
 
-    public void testX509AuthenticationToken() throws Exception {
+    public void testX509AuthenticationTokenOrdered() throws Exception {
         X509Certificate[] mockCertChain = new X509Certificate[2];
         mockCertChain[0] = mock(X509Certificate.class);
         when(mockCertChain[0].getIssuerX500Principal()).thenReturn(new X500Principal("CN=Test, OU=elasticsearch, O=org"));
@@ -455,6 +476,29 @@ public class PkiRealmTests extends ESTestCase {
         when(mockCertChain[1].getSubjectX500Principal()).thenReturn(new X500Principal("CN=Not Test, OU=elasticsearch, O=org"));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new X509AuthenticationToken(mockCertChain));
         assertThat(e.getMessage(), is("certificates chain array is not ordered"));
+    }
+
+    public void testX509AuthenticationTokenCaching() throws Exception {
+        X509Certificate[] mockCertChain = new X509Certificate[2];
+        mockCertChain[0] = mock(X509Certificate.class);
+        when(mockCertChain[0].getSubjectX500Principal()).thenReturn(new X500Principal("CN=Test, OU=elasticsearch, O=org"));
+        when(mockCertChain[0].getIssuerX500Principal()).thenReturn(new X500Principal("CN=Test CA, OU=elasticsearch, O=org"));
+        when(mockCertChain[0].getEncoded()).thenReturn(randomByteArrayOfLength(2));
+        mockCertChain[1] = mock(X509Certificate.class);
+        when(mockCertChain[1].getSubjectX500Principal()).thenReturn(new X500Principal("CN=Test CA, OU=elasticsearch, O=org"));
+        when(mockCertChain[1].getEncoded()).thenReturn(randomByteArrayOfLength(3));
+        BytesKey cacheKey = PkiRealm.computeTokenFingerprint(new X509AuthenticationToken(mockCertChain));
+
+        BytesKey sameCacheKey = PkiRealm
+                .computeTokenFingerprint(new X509AuthenticationToken(new X509Certificate[] { mockCertChain[0], mockCertChain[1] }));
+        assertThat(cacheKey, is(sameCacheKey));
+
+        BytesKey cacheKeyClient = PkiRealm.computeTokenFingerprint(new X509AuthenticationToken(new X509Certificate[] { mockCertChain[0] }));
+        assertThat(cacheKey, is(not(cacheKeyClient)));
+
+        BytesKey cacheKeyRoot = PkiRealm.computeTokenFingerprint(new X509AuthenticationToken(new X509Certificate[] { mockCertChain[1] }));
+        assertThat(cacheKey, is(not(cacheKeyRoot)));
+        assertThat(cacheKeyClient, is(not(cacheKeyRoot)));
     }
 
     static X509Certificate readCert(Path path) throws Exception {

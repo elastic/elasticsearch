@@ -865,7 +865,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             SetOnce<Boolean> changed = new SetOnce<>();
 
             checkpointProvider.sourceHasChanged(getLastCheckpoint(),
-                    new LatchedActionListener<>(ActionListener.wrap(r -> changed.set(r), e -> {
+                    new LatchedActionListener<>(ActionListener.wrap(changed::set, e -> {
                         changed.set(false);
                         logger.warn(
                                 "Failed to detect changes for data frame transform [" + transformId + "], skipping update till next check",

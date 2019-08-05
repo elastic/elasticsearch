@@ -1064,7 +1064,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 onFailureException.get(), hasToString(containsString("operation primary term [" + oldPrimaryTerm + "] is too old")));
         }
 
-        closeShards(indexShard);
+        closeShard(indexShard, false); // skip asserting translog and Lucene as we rolled back Lucene but did not execute resync
     }
 
     public void testAcquireReplicaPermitAdvanceMaxSeqNoOfUpdates() throws Exception {
@@ -2760,8 +2760,8 @@ public class IndexShardTests extends IndexShardTestCase {
                 }
 
                 @Override
-                public void finalizeRecovery(long globalCheckpoint, ActionListener<Void> listener) {
-                    super.finalizeRecovery(globalCheckpoint,
+                public void finalizeRecovery(long globalCheckpoint, long trimAboveSeqNo, ActionListener<Void> listener) {
+                    super.finalizeRecovery(globalCheckpoint, trimAboveSeqNo,
                         ActionListener.wrap(
                             r -> {
                                 assertListenerCalled.accept(replica);

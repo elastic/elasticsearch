@@ -24,7 +24,7 @@ public class X509AuthenticationToken implements AuthenticationToken {
         this(certificates, null);
     }
 
-    public X509AuthenticationToken(X509Certificate[] certificates, Authentication delegateeAuthentication) {
+    private X509AuthenticationToken(X509Certificate[] certificates, Authentication delegateeAuthentication) {
         this.credentials = Objects.requireNonNull(certificates);
         if (false == CertParsingUtils.isOrderedCertificateChain(Arrays.asList(certificates))) {
             throw new IllegalArgumentException("certificates chain array is not ordered");
@@ -32,6 +32,11 @@ public class X509AuthenticationToken implements AuthenticationToken {
         this.dn = certificates.length == 0 ? "" : certificates[0].getSubjectX500Principal().toString();
         this.principal = this.dn;
         this.delegateeAuthentication = delegateeAuthentication;
+    }
+
+    public static X509AuthenticationToken delegated(X509Certificate[] certificates, Authentication delegateeAuthentication) {
+        Objects.requireNonNull(delegateeAuthentication);
+        return new X509AuthenticationToken(certificates, delegateeAuthentication);
     }
 
     @Override

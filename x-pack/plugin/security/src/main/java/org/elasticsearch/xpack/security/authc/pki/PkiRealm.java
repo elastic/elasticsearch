@@ -201,8 +201,8 @@ public class PkiRealm extends Realm implements CachingRealm {
         final Map<String, Object> metadata;
         if (token.isDelegated()) {
             metadata = Map.of("pki_dn", token.dn(),
-                    "pki_delegated_from_user", token.getDelegateeAuthentication().getUser().principal(),
-                    "pki_delegated_from_realm", token.getDelegateeAuthentication().getAuthenticatedBy().getName());
+                    "pki_delegated_by_user", token.getDelegateeAuthentication().getUser().principal(),
+                    "pki_delegated_by_realm", token.getDelegateeAuthentication().getAuthenticatedBy().getName());
         } else {
             metadata = Map.of("pki_dn", token.dn());
         }

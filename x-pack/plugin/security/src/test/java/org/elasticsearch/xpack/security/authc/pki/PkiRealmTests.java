@@ -83,8 +83,10 @@ public class PkiRealmTests extends ESTestCase {
 
         assertThat(realm.supports(null), is(false));
         assertThat(realm.supports(new UsernamePasswordToken("", new SecureString(new char[0]))), is(false));
-        Authentication delegateeAuthentication = randomBoolean() ? mock(Authentication.class) : null;
-        assertThat(realm.supports(new X509AuthenticationToken(new X509Certificate[0], delegateeAuthentication)), is(true));
+        X509AuthenticationToken token = randomBoolean()
+                ? X509AuthenticationToken.delegated(new X509Certificate[0], mock(Authentication.class))
+                : new X509AuthenticationToken(new X509Certificate[0]);
+        assertThat(realm.supports(token), is(true));
     }
 
     public void testExtractToken() throws Exception {
@@ -296,7 +298,8 @@ public class PkiRealmTests extends ESTestCase {
         when(mockRealmRef.getName()).thenReturn("mockup_delegate_realm");
         when(mockAuthentication.getUser()).thenReturn(mockUser);
         when(mockAuthentication.getAuthenticatedBy()).thenReturn(mockRealmRef);
-        X509AuthenticationToken delegatedToken = new X509AuthenticationToken(new X509Certificate[] { certificate }, mockAuthentication);
+        X509AuthenticationToken delegatedToken = X509AuthenticationToken.delegated(new X509Certificate[] { certificate },
+                mockAuthentication);
 
         UserRoleMapper roleMapper = buildRoleMapper();
         MockSecureSettings secureSettings = new MockSecureSettings();
@@ -316,13 +319,13 @@ public class PkiRealmTests extends ESTestCase {
         assertThat(result.getUser().principal(), is("Elasticsearch Test Node"));
         assertThat(result.getUser().roles(), is(notNullValue()));
         assertThat(result.getUser().roles().length, is(0));
-        assertThat(result.getUser().metadata().get("pki_delegated_from_user"), is("mockup_delegate_username"));
-        assertThat(result.getUser().metadata().get("pki_delegated_from_realm"), is("mockup_delegate_realm"));
+        assertThat(result.getUser().metadata().get("pki_delegated_by_user"), is("mockup_delegate_username"));
+        assertThat(result.getUser().metadata().get("pki_delegated_by_realm"), is("mockup_delegate_realm"));
     }
 
     public void testAuthenticationDelegationFailure() throws Exception {
         X509Certificate certificate = readCert(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
-        X509AuthenticationToken delegatedToken = new X509AuthenticationToken(new X509Certificate[] { certificate },
+        X509AuthenticationToken delegatedToken = X509AuthenticationToken.delegated(new X509Certificate[] { certificate },
                 mock(Authentication.class));
 
         UserRoleMapper roleMapper = buildRoleMapper();

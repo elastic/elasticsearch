@@ -412,9 +412,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             replica.indexSettings().updateIndexMetaData(builder.build());
             replica.onSettingsChanged();
             shards.recoverReplica(replica);
-            // trigger a flush if `shouldPeriodicallyFlush` becomes true after we roll a new generation in RecoveryTarget#finalizeRecovery
-            replica.afterWriteOperation();
-            // Make sure that the flushing loop will eventually complete (i.e, `shouldPeriodicallyFlush` becomes false)
+            // Make sure the flushing will eventually be completed (eg. `shouldPeriodicallyFlush` is false)
             assertBusy(() -> assertThat(getEngine(replica).shouldPeriodicallyFlush(), equalTo(false)));
             boolean softDeletesEnabled = replica.indexSettings().isSoftDeleteEnabled();
             assertThat(getTranslog(replica).totalOperations(), equalTo(softDeletesEnabled ? 0 : numDocs));

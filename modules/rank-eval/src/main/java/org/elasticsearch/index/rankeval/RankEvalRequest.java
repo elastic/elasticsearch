@@ -48,7 +48,7 @@ public class RankEvalRequest extends ActionRequest implements IndicesRequest.Rep
     }
 
     RankEvalRequest(StreamInput in) throws IOException {
-        super.readFrom(in);
+        super(in);
         rankingEvaluationSpec = new RankEvalSpec(in);
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
@@ -109,11 +109,6 @@ public class RankEvalRequest extends ActionRequest implements IndicesRequest.Rep
 
     public void indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = Objects.requireNonNull(indicesOptions, "indicesOptions must not be null");
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

@@ -1,4 +1,4 @@
-import static org.elasticsearch.gradle.Distribution.DEFAULT
+import static org.elasticsearch.gradle.testclusters.TestDistribution.DEFAULT
 
 /*
  * Licensed to Elasticsearch under one or more contributor
@@ -23,27 +23,28 @@ apply plugin: 'elasticsearch.docs-test'
 
 /* List of files that have snippets that will not work until platinum tests can occur ... */
 buildRestTests.expectedUnconvertedCandidates = [
-        'reference/ml/transforms.asciidoc',
-        'reference/ml/apis/delete-calendar-event.asciidoc',
-        'reference/ml/apis/get-bucket.asciidoc',
-        'reference/ml/apis/get-category.asciidoc',
-        'reference/ml/apis/get-influencer.asciidoc',
-        'reference/ml/apis/get-job-stats.asciidoc',
-        'reference/ml/apis/get-overall-buckets.asciidoc',
-        'reference/ml/apis/get-record.asciidoc',
-        'reference/ml/apis/get-snapshot.asciidoc',
-        'reference/ml/apis/post-data.asciidoc',
-        'reference/ml/apis/revert-snapshot.asciidoc',
-        'reference/ml/apis/update-snapshot.asciidoc',
+        'reference/ml/anomaly-detection/transforms.asciidoc',
+        'reference/ml/anomaly-detection/apis/delete-calendar-event.asciidoc',
+        'reference/ml/anomaly-detection/apis/get-bucket.asciidoc',
+        'reference/ml/anomaly-detection/apis/get-category.asciidoc',
+        'reference/ml/anomaly-detection/apis/get-influencer.asciidoc',
+        'reference/ml/anomaly-detection/apis/get-job-stats.asciidoc',
+        'reference/ml/anomaly-detection/apis/get-overall-buckets.asciidoc',
+        'reference/ml/anomaly-detection/apis/get-record.asciidoc',
+        'reference/ml/anomaly-detection/apis/get-snapshot.asciidoc',
+        'reference/ml/anomaly-detection/apis/post-data.asciidoc',
+        'reference/ml/anomaly-detection/apis/revert-snapshot.asciidoc',
+        'reference/ml/anomaly-detection/apis/update-snapshot.asciidoc',
 ]
 
 testClusters.integTest {
-  if (singleNode().distribution == DEFAULT) {
+  if (singleNode().testDistribution == DEFAULT) {
     setting 'xpack.license.self_generated.type', 'trial'
   }
 
   // enable regexes in painless so our tests don't complain about example snippets that use them
   setting 'script.painless.regex.enabled', 'true'
+  setting 'path.repo', "${buildDir}/cluster/shared/repo"
   Closure configFile = {
     extraConfigFile it, file("src/test/cluster/config/$it")
   }
@@ -1184,4 +1185,14 @@ buildRestTests.setups['logdata_job'] = buildRestTests.setups['setup_logdata'] + 
               "outlier_detection": {}
             }
           }
+'''
+// Used by snapshot lifecycle management docs
+buildRestTests.setups['setup-repository'] = '''
+  - do:
+      snapshot.create_repository:
+        repository: my_repository
+        body:
+          type: fs
+          settings:
+            location: buildDir/cluster/shared/repo
 '''

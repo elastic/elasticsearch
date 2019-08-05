@@ -47,7 +47,7 @@ Each field has a data `type` which can be:
 * a type which supports the hierarchical nature of JSON such as
   <<object,`object`>> or <<nested,`nested`>>.
 * or a specialised type like <<geo-point,`geo_point`>>,
-  <<geo-shape,`geo_shape`>>, or <<search-suggesters-completion,`completion`>>.
+  <<geo-shape,`geo_shape`>>, or <<completion-suggester,`completion`>>.
 
 It is often useful to index the same field in different ways for different
 purposes. For instance, a `string` field could be <<mapping-index,indexed>> as

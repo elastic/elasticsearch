@@ -1,5 +1,5 @@
 [[cluster-pending]]
-== Pending cluster tasks
+=== Pending cluster tasks
 
 The pending cluster tasks API returns a list of any cluster-level changes
 (e.g. create index, update mapping, allocate or fail shard) which have not yet

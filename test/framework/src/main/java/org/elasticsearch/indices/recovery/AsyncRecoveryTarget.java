@@ -50,8 +50,8 @@ public class AsyncRecoveryTarget implements RecoveryTargetHandler {
     }
 
     @Override
-    public void finalizeRecovery(long globalCheckpoint, ActionListener<Void> listener) {
-        executor.execute(() -> target.finalizeRecovery(globalCheckpoint, listener));
+    public void finalizeRecovery(long globalCheckpoint, long trimAboveSeqNo, ActionListener<Void> listener) {
+        executor.execute(() -> target.finalizeRecovery(globalCheckpoint, trimAboveSeqNo, listener));
     }
 
     @Override

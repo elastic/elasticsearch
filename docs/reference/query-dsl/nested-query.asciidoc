@@ -86,7 +86,7 @@ than root, if it exists within another nested query.
 +
 --
 (Optional, string) Indicates how scores for matching child objects affect the
-root parent document's <<query-filter-context,relevance score>>. Valid values
+root parent document's <<relevance-scores,relevance score>>. Valid values
 are:
 
 `avg` (Default)::

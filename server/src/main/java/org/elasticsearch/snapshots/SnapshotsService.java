@@ -67,10 +67,8 @@ import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
-import org.elasticsearch.repositories.RepositoryCleanupResult;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryMissingException;
-import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -1117,103 +1115,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
         deleteSnapshot(new Snapshot(repositoryName, matchedEntry.get()), listener, repoGenId, immediatePriority);
     }
-
-    /**
-     * Runs cleanup operations on the given repository.
-     *
-     * @param repositoryName Repository to clean up
-     * @param listener Listener for cleanup result
-     */
-    public void cleanupRepo(String repositoryName, ActionListener<RepositoryCleanupResult> listener) {
-        final Repository repository = repositoriesService.repository(repositoryName);
-        if (repository instanceof BlobStoreRepository == false) {
-            listener.onFailure(new IllegalArgumentException("Repository [" + repositoryName + "] does not support repository cleanup"));
-            return;
-        }
-        final long repositoryStateId = repository.getRepositoryData().getGenId();
-        clusterService.submitStateUpdateTask("cleanup repository", new ClusterStateUpdateTask() {
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(SnapshotDeletionsInProgress.TYPE);
-                final RepositoryCleanupInProgress repositoryCleanupInProgress = currentState.custom(RepositoryCleanupInProgress.TYPE);
-                if (repositoryCleanupInProgress != null && repositoryCleanupInProgress.cleanupInProgress() == false) {
-                    throw new IllegalStateException(
-                        "Cannot cleanup [" + repositoryName + "] - a repository cleanup is already in-progress");
-                }
-                if (deletionsInProgress != null && deletionsInProgress.hasDeletionsInProgress()) {
-                    throw new IllegalStateException("Cannot cleanup [" + repositoryName + "] - a snapshot is currently being deleted");
-                }
-                ClusterState.Builder clusterStateBuilder = ClusterState.builder(currentState);
-                SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
-                if (snapshots != null && !snapshots.entries().isEmpty()) {
-                    throw new IllegalStateException("Cannot cleanup [" + repositoryName + "] - a snapshot is currently running");
-                }
-                final RepositoryCleanupInProgress newCleanupInProgress =
-                    new RepositoryCleanupInProgress(RepositoryCleanupInProgress.startedEntry(repositoryName, repositoryStateId));
-                return clusterStateBuilder.putCustom(RepositoryCleanupInProgress.TYPE, newCleanupInProgress).build();
-            }
-
-            @Override
-            public void onFailure(String source, Exception e) {
-                after(e, null);
-            }
-
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new ActionRunnable<>(listener) {
-                    @Override
-                    protected void doRun() {
-                        Repository repository = repositoriesService.repository(repositoryName);
-                        assert repository instanceof BlobStoreRepository;
-                        ((BlobStoreRepository) repository)
-                            .cleanup(repositoryStateId, ActionListener.wrap(result -> after(null, result), e -> after(e, null)));
-                    }
-                });
-            }
-
-            private void after(@Nullable Exception e, @Nullable RepositoryCleanupResult result) {
-                assert e != null || result != null;
-                clusterService.submitStateUpdateTask("Remove repository cleanup task", new ClusterStateUpdateTask() {
-                    @Override
-                    public ClusterState execute(ClusterState currentState) {
-                        RepositoryCleanupInProgress cleanupInProgress = currentState.custom(RepositoryCleanupInProgress.TYPE);
-                        if (cleanupInProgress != null) {
-                            boolean changed = false;
-                            if (cleanupInProgress.cleanupInProgress() == false) {
-                                cleanupInProgress = new RepositoryCleanupInProgress();
-                                changed = true;
-                            }
-                            if (changed) {
-                                return ClusterState.builder(currentState).putCustom(
-                                    RepositoryCleanupInProgress.TYPE, cleanupInProgress).build();
-                            }
-                        }
-                        return currentState;
-                    }
-
-                    @Override
-                    public void onFailure(String source, Exception e) {
-                        logger.warn(() -> new ParameterizedMessage("[{}] failed to remove repository cleanup task", repositoryName), e);
-                        if (listener != null) {
-                            listener.onFailure(e);
-                        }
-                    }
-
-                    @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                        if (listener != null) {
-                            if (e == null) {
-                                listener.onResponse(result);
-                            } else {
-                                listener.onFailure(e);
-                            }
-                        }
-                    }
-                });
-            }
-        });
-    }
-
 
     /**
      * Deletes snapshot from repository.

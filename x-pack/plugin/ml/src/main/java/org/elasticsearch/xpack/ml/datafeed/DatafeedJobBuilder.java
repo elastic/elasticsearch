@@ -101,8 +101,9 @@ public class DatafeedJobBuilder {
         );
 
         // Create data extractor factory
-        Consumer<DatafeedTimingStats> datafeedTimingStatsHandler = timingStats -> {
-            context.timingStatsReporter = new DatafeedTimingStatsReporter(timingStats, jobResultsPersister);
+        Consumer<DatafeedTimingStats> datafeedTimingStatsHandler = initialTimingStats -> {
+            context.timingStatsReporter =
+                new DatafeedTimingStatsReporter(initialTimingStats, jobResultsPersister::persistDatafeedTimingStats);
             DataExtractorFactory.create(
                 client,
                 datafeedConfigHolder.get(),

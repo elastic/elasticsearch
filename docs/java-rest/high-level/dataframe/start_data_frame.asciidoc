@@ -4,13 +4,13 @@
 :response: StartDataFrameTransformResponse
 --
 [id="{upid}-{api}"]
-=== Start Data Frame Transform API
+=== Start {dataframe-transform} API
 
-Start a {dataframe-job}.
+Starts a {dataframe-transform}.
 It accepts a +{request}+ object and responds with a +{response}+ object.
 
 [id="{upid}-{api}-request"]
-==== Start Data Frame Request
+==== Start {dataframe-transform} request
 
 A +{request}+ object requires a non-null `id`.
 
@@ -18,9 +18,10 @@ A +{request}+ object requires a non-null `id`.
 ---------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request]
 ---------------------------------------------------
-<1> Constructing a new start request referencing an existing {dataframe-job}
+<1> Constructing a new start request referencing an existing
+{dataframe-transform}
 
-==== Optional Arguments
+==== Optional arguments
 
 The following arguments are optional.
 
@@ -28,10 +29,11 @@ The following arguments are optional.
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request-options]
 --------------------------------------------------
-<1> Controls the amount of time to wait until the {dataframe-job} starts.
+<1> Controls the amount of time to wait until the {dataframe-transform} starts.
 
 include::../execution.asciidoc[]
 
 ==== Response
 
-The returned +{response}+ object acknowledges the {dataframe-job} has started.
+The returned +{response}+ object acknowledges the {dataframe-transform} has
+started.

@@ -1,12 +1,12 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-delete-job]]
-=== Delete jobs API
+=== Delete {anomaly-jobs} API
 ++++
 <titleabbrev>Delete jobs</titleabbrev>
 ++++
 
-Deletes an existing anomaly detection job.
+Deletes an existing {anomaly-job}.
 
 [[ml-delete-job-request]]
 ==== {api-request-title}
@@ -25,14 +25,14 @@ cluster privileges to use this API. See
 
 All job configuration, model state and results are deleted.
 
-IMPORTANT:  Deleting a job must be done via this API only. Do not delete the
-job directly from the `.ml-*` indices using the Elasticsearch delete document
+IMPORTANT:  Deleting an {anomaly-job} must be done via this API only. Do not
+delete the job directly from the `.ml-*` indices using the {es} delete document
 API. When {es} {security-features} are enabled, make sure no `write` privileges
 are granted to anyone over the `.ml-*` indices.
 
 Before you can delete a job, you must delete the {dfeeds} that are associated
-with it. See <<ml-delete-datafeed,Delete {dfeeds-cap}>>. Unless the `force` parameter
-is used the job must be closed before it can be deleted.
+with it. See <<ml-delete-datafeed,Delete {dfeeds-cap}>>. Unless the `force`
+parameter is used the job must be closed before it can be deleted.
 
 It is not currently possible to delete multiple jobs using wildcards or a comma
 separated list.
@@ -41,7 +41,7 @@ separated list.
 ==== {api-path-parms-title}
 
 `<job_id>`::
-  (Required, string) Identifier for the job.
+  (Required, string) Identifier for the {anomaly-job}.
 
 [[ml-delete-job-query-parms]]
 ==== {api-query-parms-title}

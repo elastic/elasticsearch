@@ -211,6 +211,13 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     private boolean hasAllPeerRecoveryRetentionLeases;
 
     /**
+     * Supplies the minimum reasonable retained seqno for peer recovery retention leases. Leases for inactive shards that are retaining
+     * unreasonable amounts of history are discarded since we prefer a file-based recovery over an unreasonably large operations-based
+     * recovery.
+     */
+    private final LongSupplier minimumReasonableRetainedSeqNoSupplier;
+
+    /**
      * Get all retention leases tracked on this shard.
      *
      * @return the retention leases
@@ -237,6 +244,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         final long retentionLeaseMillis = indexSettings.getRetentionLeaseMillis();
         final Set<String> leaseIdsForCurrentPeers
             = routingTable.assignedShards().stream().map(ReplicationTracker::getPeerRecoveryRetentionLeaseId).collect(Collectors.toSet());
+        final long minimumReasonableRetainedSeqNo = minimumReasonableRetainedSeqNoSupplier.getAsLong();
         final Map<Boolean, List<RetentionLease>> partitionByExpiration = retentionLeases
                 .leases()
                 .stream()
@@ -246,6 +254,11 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                             return false;
                         }
                         if (routingTable.allShardsStarted()) {
+                            logger.trace("expiring unused [{}]", lease);
+                            return true;
+                        }
+                        if (lease.retainingSequenceNumber() < minimumReasonableRetainedSeqNo) {
+                            logger.trace("expiring unreasonable [{}] retaining history before [{}]", lease, minimumReasonableRetainedSeqNo);
                             return true;
                         }
                     }
@@ -839,7 +852,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             final long globalCheckpoint,
             final LongConsumer onGlobalCheckpointUpdated,
             final LongSupplier currentTimeMillisSupplier,
-            final BiConsumer<RetentionLeases, ActionListener<ReplicationResponse>> onSyncRetentionLeases) {
+            final BiConsumer<RetentionLeases, ActionListener<ReplicationResponse>> onSyncRetentionLeases,
+            final LongSupplier minimumReasonableRetainedSeqNoSupplier) {
         super(shardId, indexSettings);
         assert globalCheckpoint >= SequenceNumbers.UNASSIGNED_SEQ_NO : "illegal initial global checkpoint: " + globalCheckpoint;
         this.shardAllocationId = allocationId;
@@ -855,6 +869,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         this.pendingInSync = new HashSet<>();
         this.routingTable = null;
         this.replicationGroup = null;
+        this.minimumReasonableRetainedSeqNoSupplier = minimumReasonableRetainedSeqNoSupplier;
         this.hasAllPeerRecoveryRetentionLeases = indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_4_0);
         assert Version.V_EMPTY.equals(indexSettings.getIndexVersionCreated()) == false;
         assert invariant();

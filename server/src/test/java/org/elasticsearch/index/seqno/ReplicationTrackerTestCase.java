@@ -49,8 +49,11 @@ public abstract class ReplicationTrackerTestCase extends ESTestCase  {
                 UNASSIGNED_SEQ_NO,
                 updatedGlobalCheckpoint,
                 currentTimeMillisSupplier,
-                (leases, listener) -> {});
+                (leases, listener) -> {},
+                OPS_BASED_RECOVERY_ALWAYS_REASONABLE);
     }
+
+    static final LongSupplier OPS_BASED_RECOVERY_ALWAYS_REASONABLE = () -> Long.MIN_VALUE;
 
     static String nodeIdFromAllocationId(final AllocationId allocationId) {
         return "n-" + allocationId.getId().substring(0, 8);

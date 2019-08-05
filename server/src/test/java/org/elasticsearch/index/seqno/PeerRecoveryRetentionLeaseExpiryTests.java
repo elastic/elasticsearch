@@ -48,6 +48,7 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
     private ReplicationTracker replicationTracker;
     private AtomicLong currentTimeMillis;
     private Settings settings;
+    private long minimumReasonableRetainedSeqNo = Long.MIN_VALUE;
 
     @Before
     public void setUpReplicationTracker() throws InterruptedException {
@@ -72,7 +73,8 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
             UNASSIGNED_SEQ_NO,
             value -> { },
             currentTimeMillis::get,
-            (leases, listener) -> { });
+            (leases, listener) -> { },
+            () -> minimumReasonableRetainedSeqNo);
         replicationTracker.updateFromMaster(1L, Collections.singleton(primaryAllocationId.getId()),
             routingTable(Collections.emptySet(), primaryAllocationId));
         replicationTracker.activatePrimaryMode(SequenceNumbers.NO_OPS_PERFORMED);
@@ -109,6 +111,7 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
         }
 
         currentTimeMillis.set(currentTimeMillis.get() + randomLongBetween(0, Long.MAX_VALUE - currentTimeMillis.get()));
+        minimumReasonableRetainedSeqNo = randomNonNegativeLong();
 
         final Tuple<Boolean, RetentionLeases> retentionLeases = replicationTracker.getRetentionLeases(true);
         assertFalse(retentionLeases.v1());
@@ -121,10 +124,12 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
 
     public void testPeerRecoveryRetentionLeasesForUnassignedCopiesDoNotExpireImmediatelyIfShardsNotAllStarted() {
         final String unknownNodeId = randomAlphaOfLength(10);
-        replicationTracker.addPeerRecoveryRetentionLease(unknownNodeId, randomCheckpoint(), EMPTY_LISTENER);
+        final long globalCheckpoint = randomCheckpoint();
+        replicationTracker.addPeerRecoveryRetentionLease(unknownNodeId, globalCheckpoint, EMPTY_LISTENER);
 
         currentTimeMillis.set(currentTimeMillis.get()
             + randomLongBetween(0, IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING.get(settings).millis()));
+        minimumReasonableRetainedSeqNo = randomFrom(globalCheckpoint + 1, randomLongBetween(0L, globalCheckpoint + 1));
 
         final Tuple<Boolean, RetentionLeases> retentionLeases = replicationTracker.getRetentionLeases(true);
         assertFalse("should not have expired anything", retentionLeases.v1());
@@ -167,9 +172,30 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
             (usually()
                 ? randomLongBetween(0, IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING.get(settings).millis())
                 : randomLongBetween(0, Long.MAX_VALUE - currentTimeMillis.get())));
+        minimumReasonableRetainedSeqNo = randomNonNegativeLong();
 
         final Tuple<Boolean, RetentionLeases> retentionLeases = replicationTracker.getRetentionLeases(true);
         assertTrue(retentionLeases.v1());
+
+        final Set<String> leaseIds = retentionLeases.v2().leases().stream().map(RetentionLease::id).collect(Collectors.toSet());
+        assertThat(leaseIds, hasSize(2));
+        assertThat(leaseIds, equalTo(replicationTracker.routingTable.shards().stream()
+            .map(ReplicationTracker::getPeerRecoveryRetentionLeaseId).collect(Collectors.toSet())));
+    }
+
+    public void testPeerRecoveryRetentionLeasesForUnassignedCopiesExpireIfUnreasonable() {
+        if (randomBoolean()) {
+            startReplica();
+        }
+
+        final String unknownNodeId = randomAlphaOfLength(10);
+        final long globalCheckpoint = randomValueOtherThan(SequenceNumbers.NO_OPS_PERFORMED, this::randomCheckpoint);
+        replicationTracker.addPeerRecoveryRetentionLease(unknownNodeId, globalCheckpoint, EMPTY_LISTENER);
+
+        minimumReasonableRetainedSeqNo = randomFrom(globalCheckpoint + 2, randomLongBetween(globalCheckpoint + 2, Long.MAX_VALUE));
+
+        final Tuple<Boolean, RetentionLeases> retentionLeases = replicationTracker.getRetentionLeases(true);
+        assertTrue("should have expired something", retentionLeases.v1());
 
         final Set<String> leaseIds = retentionLeases.v2().leases().stream().map(RetentionLease::id).collect(Collectors.toSet());
         assertThat(leaseIds, hasSize(2));

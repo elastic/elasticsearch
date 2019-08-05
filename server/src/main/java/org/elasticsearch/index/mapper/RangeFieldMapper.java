@@ -51,7 +51,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
-import org.elasticsearch.common.time.RLocale;
+import org.elasticsearch.common.time.Locale;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -69,7 +69,6 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -95,7 +94,7 @@ public class RangeFieldMapper extends FieldMapper {
 
     public static class Builder extends FieldMapper.Builder<Builder, RangeFieldMapper> {
         private Boolean coerce;
-        private Locale locale = RLocale.INS;
+        private java.util.Locale locale = Locale.ISO8601;
         private String pattern;
 
         public Builder(String name, RangeType type) {
@@ -141,7 +140,7 @@ public class RangeFieldMapper extends FieldMapper {
             throw new IllegalArgumentException("Field [" + name() + "] does not support null value.");
         }
 
-        public void locale(Locale locale) {
+        public void locale(java.util.Locale locale) {
             this.locale = locale;
         }
 
@@ -414,7 +413,7 @@ public class RangeFieldMapper extends FieldMapper {
         }
         if (fieldType().rangeType == RangeType.DATE
                 && (includeDefaults || (fieldType().dateTimeFormatter() != null
-                && fieldType().dateTimeFormatter().locale() != RLocale.INS))) {
+                && fieldType().dateTimeFormatter().locale() != Locale.ISO8601))) {
             builder.field("locale", fieldType().dateTimeFormatter().locale());
         }
         if (includeDefaults || coerce.explicit()) {

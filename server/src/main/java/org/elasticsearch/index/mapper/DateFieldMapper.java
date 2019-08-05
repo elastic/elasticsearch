@@ -43,7 +43,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.time.DateUtils;
-import org.elasticsearch.common.time.RLocale;
+import org.elasticsearch.common.time.Locale;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -60,7 +60,6 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -130,13 +129,13 @@ public final class DateFieldMapper extends FieldMapper {
 
         private Boolean ignoreMalformed;
         private Explicit<String> format = new Explicit<>(DEFAULT_DATE_TIME_FORMATTER.pattern(), false);
-        private Locale locale;
+        private java.util.Locale locale;
         private Resolution resolution = Resolution.MILLISECONDS;
 
         public Builder(String name) {
             super(name, new DateFieldType(), new DateFieldType());
             builder = this;
-            locale = RLocale.INS;
+            locale = Locale.ISO8601;
         }
 
         @Override
@@ -159,12 +158,12 @@ public final class DateFieldMapper extends FieldMapper {
             return Defaults.IGNORE_MALFORMED;
         }
 
-        public Builder locale(Locale locale) {
+        public Builder locale(java.util.Locale locale) {
             this.locale = locale;
             return this;
         }
 
-        public Locale locale() {
+        public java.util.Locale locale() {
             return locale;
         }
 

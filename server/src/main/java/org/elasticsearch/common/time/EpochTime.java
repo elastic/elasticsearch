@@ -30,7 +30,6 @@ import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalField;
 import java.time.temporal.TemporalUnit;
 import java.time.temporal.ValueRange;
-import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -125,13 +124,13 @@ class EpochTime {
         .optionalStart() // optional is used so isSupported will be called when printing
         .appendFraction(NANOS_OF_SECOND, 0, 9, true)
         .optionalEnd()
-        .toFormatter(RLocale.INS);
+        .toFormatter(Locale.ISO8601);
 
     // this supports seconds ending in dot
     private static final DateTimeFormatter SECONDS_FORMATTER2 = new DateTimeFormatterBuilder()
         .appendValue(SECONDS, 1, 19, SignStyle.NORMAL)
         .appendLiteral('.')
-        .toFormatter(RLocale.INS);
+        .toFormatter(Locale.ISO8601);
 
     // this supports milliseconds without any fraction
     private static final DateTimeFormatter MILLISECONDS_FORMATTER1 = new DateTimeFormatterBuilder()
@@ -139,13 +138,13 @@ class EpochTime {
         .optionalStart()
         .appendFraction(NANOS_OF_MILLI, 0, 6, true)
         .optionalEnd()
-        .toFormatter(RLocale.INS);
+        .toFormatter(Locale.ISO8601);
 
     // this supports milliseconds ending in dot
     private static final DateTimeFormatter MILLISECONDS_FORMATTER2 = new DateTimeFormatterBuilder()
         .append(MILLISECONDS_FORMATTER1)
         .appendLiteral('.')
-        .toFormatter(RLocale.INS);
+        .toFormatter(Locale.ISO8601);
 
     static final DateFormatter SECONDS_FORMATTER = new JavaDateFormatter("epoch_second", SECONDS_FORMATTER1,
         builder -> builder.parseDefaulting(ChronoField.NANO_OF_SECOND, 999_999_999L),
@@ -168,7 +167,7 @@ class EpochTime {
         }
 
         @Override
-        public String getDisplayName(Locale locale) {
+        public String getDisplayName(java.util.Locale locale) {
             return toString();
         }
 

@@ -29,7 +29,6 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
-import java.util.Locale;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -116,8 +115,8 @@ public class DateFormattersTests extends ESTestCase {
     }
 
     public void testLocales() {
-        assertThat(DateFormatters.forPattern("strict_date_optional_time").locale(), is(RLocale.INS));
-        Locale locale = randomLocale(random());
+        assertThat(DateFormatters.forPattern("strict_date_optional_time").locale(), is(Locale.ISO8601));
+        java.util.Locale locale = randomLocale(random());
         assertThat(DateFormatters.forPattern("strict_date_optional_time").withLocale(locale).locale(), is(locale));
     }
 
@@ -139,8 +138,8 @@ public class DateFormattersTests extends ESTestCase {
         assertThat(DateFormatters.forPattern("YYYY").withZone(ZoneId.of("CET")), not(equalTo(DateFormatters.forPattern("YYYY"))));
 
         // different locale, thus not equals
-        DateFormatter f1 = DateFormatters.forPattern("YYYY").withLocale(Locale.CANADA);
-        DateFormatter f2 = f1.withLocale(Locale.FRENCH);
+        DateFormatter f1 = DateFormatters.forPattern("YYYY").withLocale(java.util.Locale.CANADA);
+        DateFormatter f2 = f1.withLocale(java.util.Locale.FRENCH);
         assertThat(f1, not(equalTo(f2)));
 
         // different pattern, thus not equals
@@ -296,7 +295,7 @@ public class DateFormattersTests extends ESTestCase {
     }
 
     public void testRoundupFormatterLocale() {
-        Locale locale = randomLocale(random());
+        java.util.Locale locale = randomLocale(random());
         String format = randomFrom("epoch_second", "epoch_millis", "strict_date_optional_time", "uuuu-MM-dd'T'HH:mm:ss.SSS",
             "strict_date_optional_time||date_optional_time");
         JavaDateFormatter formatter = (JavaDateFormatter) DateFormatter.forPattern(format).withLocale(locale);

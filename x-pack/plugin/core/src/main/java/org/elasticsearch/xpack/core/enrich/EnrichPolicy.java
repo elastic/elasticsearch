@@ -50,13 +50,13 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
             (QuerySource) args[1],
             (List<String>) args[2],
             (String) args[3],
-            (List<String>) args[4]
+            (List<String>) args[4],
+            (Version) args[5]
         )
     );
 
     static {
         declareCommonConstructorParsingOptions(PARSER);
-        PARSER.declareField(EnrichPolicy::setVersionCreated, ((p, c) -> Version.fromString(p.text())), VERSION_CREATED, ValueType.STRING);
     }
 
     private static <T> void declareCommonConstructorParsingOptions(ConstructingObjectParser<T, ?> parser) {
@@ -69,6 +69,8 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         parser.declareStringArray(ConstructingObjectParser.constructorArg(), INDICES);
         parser.declareString(ConstructingObjectParser.constructorArg(), ENRICH_KEY);
         parser.declareStringArray(ConstructingObjectParser.constructorArg(), ENRICH_VALUES);
+        parser.declareField(ConstructingObjectParser.optionalConstructorArg(), ((p, c) -> Version.fromString(p.text())),
+            VERSION_CREATED, ValueType.STRING);
     }
 
     public static EnrichPolicy fromXContent(XContentParser parser) throws IOException {
@@ -80,7 +82,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
     private final List<String> indices;
     private final String enrichKey;
     private final List<String> enrichValues;
-    private Version versionCreated;
+    private final Version versionCreated;
 
     public EnrichPolicy(StreamInput in) throws IOException {
         this(
@@ -88,11 +90,9 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
             in.readOptionalWriteable(QuerySource::new),
             in.readStringList(),
             in.readString(),
-            in.readStringList()
+            in.readStringList(),
+            in.readBoolean() ? Version.readVersion(in) : null
         );
-        if (in.readBoolean()) {
-            setVersionCreated(Version.readVersion(in));
-        }
     }
 
     public EnrichPolicy(String type,
@@ -106,6 +106,20 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         this.enrichKey = enrichKey;
         this.enrichValues = enrichValues;
         this.versionCreated = null;
+    }
+
+    public EnrichPolicy(String type,
+                        QuerySource query,
+                        List<String> indices,
+                        String enrichKey,
+                        List<String> enrichValues,
+                        Version versionCreated) {
+        this.type = type;
+        this.query = query;
+        this.indices = indices;
+        this.enrichKey = enrichKey;
+        this.enrichValues = enrichValues;
+        this.versionCreated = versionCreated;
     }
 
     public String getType() {
@@ -130,10 +144,6 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
 
     public Version getVersionCreated() {
         return versionCreated;
-    }
-
-    public void setVersionCreated(Version versionCreated) {
-        this.versionCreated = versionCreated;
     }
 
     public static String getBaseName(String policyName) {
@@ -164,7 +174,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         builder.array(INDICES.getPreferredName(), indices.toArray(new String[0]));
         builder.field(ENRICH_KEY.getPreferredName(), enrichKey);
         builder.array(ENRICH_VALUES.getPreferredName(), enrichValues.toArray(new String[0]));
-        if (versionCreated != null) {
+        if (params.paramAsBoolean("include_version", false) && versionCreated != null) {
             builder.field(VERSION_CREATED.getPreferredName(), versionCreated.toString());
         }
         return builder;
@@ -257,15 +267,14 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
                     (QuerySource) args[2],
                     (List<String>) args[3],
                     (String) args[4],
-                    (List<String>) args[5])
+                    (List<String>) args[5],
+                    (Version) args[6])
             )
         );
 
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME);
             declareCommonConstructorParsingOptions(PARSER);
-            PARSER.declareField((policy, version) -> policy.policy.setVersionCreated(version), ((p, c) -> Version.fromString(p.text())),
-                VERSION_CREATED, ValueType.STRING);
         }
 
         private final String name;

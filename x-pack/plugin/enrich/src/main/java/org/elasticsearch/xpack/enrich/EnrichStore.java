@@ -46,15 +46,25 @@ public final class EnrichStore {
         }
         // TODO: add policy validation
 
+        final EnrichPolicy finalPolicy;
         if (policy.getVersionCreated() == null) {
-            policy.setVersionCreated(Version.CURRENT);
+            finalPolicy = new EnrichPolicy(
+                policy.getType(),
+                policy.getQuery(),
+                policy.getIndices(),
+                policy.getEnrichKey(),
+                policy.getEnrichValues(),
+                Version.CURRENT
+            );
+        } else {
+            finalPolicy = policy;
         }
         updateClusterState(clusterService, handler, current -> {
             final Map<String, EnrichPolicy> policies = getPolicies(current);
             if (policies.get(name) != null) {
                 throw new ResourceAlreadyExistsException("policy [{}] already exists", name);
             }
-            policies.put(name, policy);
+            policies.put(name, finalPolicy);
             return policies;
         });
     }

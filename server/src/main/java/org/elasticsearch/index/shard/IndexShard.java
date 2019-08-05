@@ -1099,7 +1099,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Rolls the tranlog generation and cleans unneeded.
      */
-    private void rollTranslogGeneration() {
+    public void rollTranslogGeneration() {
         final Engine engine = getEngine();
         engine.rollTranslogGeneration();
     }
@@ -1434,10 +1434,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             assert newSafeCommit.isPresent() : "no safe commit found after local recovery";
             return newSafeCommit.get().localCheckpoint + 1;
         } catch (Exception e) {
-            if (Assertions.ENABLED) {
-                throw new AssertionError(
-                    "failed to find the safe commit after recovering shard locally up to global checkpoint " + globalCheckpoint, e);
-            }
             logger.debug(new ParameterizedMessage(
                 "failed to find the safe commit after recovering shard locally up to global checkpoint {}", globalCheckpoint), e);
             return UNASSIGNED_SEQ_NO;

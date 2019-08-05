@@ -128,7 +128,7 @@ public class ChannelFactoryTests extends ESTestCase {
     private static class TestChannelFactory extends ChannelFactory<NioServerSocketChannel, NioSocketChannel> {
 
         TestChannelFactory(RawChannelFactory rawChannelFactory) {
-            super(randomBoolean(), randomBoolean(), randomBoolean(), -1, -1, rawChannelFactory);
+            super(randomBoolean(), randomBoolean(), -1, -1, -1, randomBoolean(), -1, -1, rawChannelFactory);
         }
 
         @Override

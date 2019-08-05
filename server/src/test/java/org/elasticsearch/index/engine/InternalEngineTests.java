@@ -134,6 +134,7 @@ import org.elasticsearch.index.shard.ShardUtils;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.SnapshotMatchers;
+import org.elasticsearch.index.translog.TestTranslog;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -184,6 +185,7 @@ import static org.elasticsearch.index.engine.Engine.Operation.Origin.LOCAL_TRANS
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PEER_RECOVERY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
+import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
@@ -5944,6 +5946,36 @@ public class InternalEngineTests extends EngineTestCase {
             expectThrows(IOException.class, () -> engine.index(index));
             assertTrue(engine.isClosed.get());
             assertNotNull(engine.failedEngine.get());
+        }
+    }
+
+    /**
+     * We can trim translog on primary promotion and peer recovery based on the fact we add operations with either
+     * REPLICA or PEER_RECOVERY origin to translog although they already exist in the engine (i.e. hasProcessed() == true).
+     * If we decide not to add those already-processed operations to translog, we need to study carefully the consequence
+     * of the translog trimming in these two places.
+     */
+    public void testAlwaysRecordReplicaOrPeerRecoveryOperationsToTranslog() throws Exception {
+        List<Engine.Operation> operations = generateHistoryOnReplica(between(1, 100), randomBoolean(), randomBoolean(), randomBoolean());
+        applyOperations(engine, operations);
+        Set<Long> seqNos = operations.stream().map(Engine.Operation::seqNo).collect(Collectors.toSet());
+        try (Translog.Snapshot snapshot = getTranslog(engine).newSnapshot()) {
+            assertThat(snapshot.totalOperations(), equalTo(operations.size()));
+            assertThat(TestTranslog.drainSnapshot(snapshot, false).stream().map(Translog.Operation::seqNo).collect(Collectors.toSet()),
+                equalTo(seqNos));
+        }
+        primaryTerm.set(randomLongBetween(primaryTerm.get(), Long.MAX_VALUE));
+        engine.rollTranslogGeneration();
+        engine.trimOperationsFromTranslog(primaryTerm.get(), NO_OPS_PERFORMED); // trim everything in translog
+        try (Translog.Snapshot snapshot = getTranslog(engine).newSnapshot()) {
+            assertThat(snapshot.totalOperations(), equalTo(operations.size()));
+            assertNull(snapshot.next());
+        }
+        applyOperations(engine, operations);
+        try (Translog.Snapshot snapshot = getTranslog(engine).newSnapshot()) {
+            assertThat(snapshot.totalOperations(), equalTo(operations.size() * 2));
+            assertThat(TestTranslog.drainSnapshot(snapshot, false).stream().map(Translog.Operation::seqNo).collect(Collectors.toSet()),
+                equalTo(seqNos));
         }
     }
 }

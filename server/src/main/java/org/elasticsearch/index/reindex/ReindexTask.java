@@ -214,6 +214,8 @@ public class ReindexTask extends AllocatedPersistentTask {
         TaskManager taskManager = getTaskManager();
         assert taskManager != null : "TaskManager should have been set before reindex started";
 
+        ReindexTaskIndexState taskState = new ReindexTaskIndexState(null, null, wrapException(ex));
+
         updatePersistentTaskState(new ReindexJobState(taskId, null, wrapException(ex)), new ActionListener<>() {
             @Override
             public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {

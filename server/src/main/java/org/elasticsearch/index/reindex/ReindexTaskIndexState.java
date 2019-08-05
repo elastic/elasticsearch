@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -33,16 +35,32 @@ public class ReindexTaskIndexState implements ToXContentObject {
         new ConstructingObjectParser<>("reindex/index_state", a -> new ReindexTaskIndexState((ReindexRequest) a[0]));
 
     private static final String REINDEX_REQUEST = "request";
+    private static final String REINDEX_RESPONSE = "response";
+    private static final String REINDEX_EXCEPTION = "exception";
 
     static {
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> ReindexRequest.fromXContentWithParams(p),
             new ParseField(REINDEX_REQUEST));
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> BulkByScrollResponse.fromXContent(p),
+            new ParseField(REINDEX_RESPONSE));
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> ElasticsearchException.fromXContent(p),
+            new ParseField(REINDEX_EXCEPTION));
     }
 
     private final ReindexRequest reindexRequest;
+    private final BulkByScrollResponse reindexResponse;
+    private final ElasticsearchException exception;
 
     public ReindexTaskIndexState(ReindexRequest reindexRequest) {
+        this(reindexRequest, null, null);
+    }
+
+    public ReindexTaskIndexState(ReindexRequest reindexRequest, @Nullable BulkByScrollResponse reindexResponse,
+                                 @Nullable ElasticsearchException exception) {
+        assert (reindexResponse == null) || (exception == null) : "Either response or exception must be null";
         this.reindexRequest = reindexRequest;
+        this.reindexResponse = reindexResponse;
+        this.exception = exception;
     }
 
     @Override
@@ -50,6 +68,14 @@ public class ReindexTaskIndexState implements ToXContentObject {
         builder.startObject();
         builder.field(REINDEX_REQUEST);
         reindexRequest.toXContent(builder, params, true);
+        if (reindexResponse != null) {
+            builder.field(REINDEX_RESPONSE);
+            reindexResponse.toXContent(builder, params);
+        }
+        if (exception != null) {
+            builder.field(REINDEX_EXCEPTION);
+            exception.toXContent(builder, params);
+        }
         return builder.endObject();
     }
 

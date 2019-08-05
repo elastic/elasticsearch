@@ -268,7 +268,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         "cannot snapshot while a snapshot deletion is in-progress");
                 }
                 final RepositoryCleanupInProgress repositoryCleanupInProgress = currentState.custom(RepositoryCleanupInProgress.TYPE);
-                if (repositoryCleanupInProgress != null && repositoryCleanupInProgress.isSafe(repositoryName) == false) {
+                if (repositoryCleanupInProgress != null && repositoryCleanupInProgress.cleanupInProgress() == false) {
                     throw new ConcurrentSnapshotExecutionException(repositoryName, snapshotName,
                         "cannot snapshot while a repository cleanup is in-progress");
                 }
@@ -1131,13 +1131,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             return;
         }
         final long repositoryStateId = repository.getRepositoryData().getGenId();
-        final Snapshot placeHolder = new Snapshot(repositoryName, null);
         clusterService.submitStateUpdateTask("cleanup repository", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(SnapshotDeletionsInProgress.TYPE);
                 final RepositoryCleanupInProgress repositoryCleanupInProgress = currentState.custom(RepositoryCleanupInProgress.TYPE);
-                if (repositoryCleanupInProgress != null && repositoryCleanupInProgress.isSafe(repositoryName) == false) {
+                if (repositoryCleanupInProgress != null && repositoryCleanupInProgress.cleanupInProgress() == false) {
                     throw new IllegalStateException(
                         "Cannot cleanup [" + repositoryName + "] - a repository cleanup is already in-progress");
                 }
@@ -1147,18 +1146,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 ClusterState.Builder clusterStateBuilder = ClusterState.builder(currentState);
                 SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
                 if (snapshots != null && !snapshots.entries().isEmpty()) {
-                    // However other snapshots are running - cannot continue
                     throw new IllegalStateException("Cannot cleanup [" + repositoryName + "] - a snapshot is currently running");
                 }
-                // add the empty snapshot deletion to the cluster state
-                SnapshotDeletionsInProgress.Entry entry = new SnapshotDeletionsInProgress.Entry(
-                    placeHolder, threadPool.absoluteTimeInMillis(), repositoryStateId);
-                if (deletionsInProgress != null) {
-                    deletionsInProgress = deletionsInProgress.withAddedEntry(entry);
-                } else {
-                    deletionsInProgress = SnapshotDeletionsInProgress.newInstance(entry);
-                }
-                return clusterStateBuilder.putCustom(SnapshotDeletionsInProgress.TYPE, deletionsInProgress).build();
+                final RepositoryCleanupInProgress newCleanupInProgress =
+                    new RepositoryCleanupInProgress(RepositoryCleanupInProgress.startedEntry(repositoryName, repositoryStateId));
+                return clusterStateBuilder.putCustom(RepositoryCleanupInProgress.TYPE, newCleanupInProgress).build();
             }
 
             @Override
@@ -1180,8 +1172,44 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
 
             private void after(@Nullable Exception e, @Nullable RepositoryCleanupResult result) {
-                removeSnapshotDeletionFromClusterState(
-                    placeHolder, e, ActionListener.delegateFailure(listener, (l, r) -> l.onResponse(result)));
+                assert e != null || result != null;
+                clusterService.submitStateUpdateTask("Remove repository cleanup task", new ClusterStateUpdateTask() {
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+                        RepositoryCleanupInProgress cleanupInProgress = currentState.custom(RepositoryCleanupInProgress.TYPE);
+                        if (cleanupInProgress != null) {
+                            boolean changed = false;
+                            if (cleanupInProgress.cleanupInProgress() == false) {
+                                cleanupInProgress = new RepositoryCleanupInProgress();
+                                changed = true;
+                            }
+                            if (changed) {
+                                return ClusterState.builder(currentState).putCustom(
+                                    RepositoryCleanupInProgress.TYPE, cleanupInProgress).build();
+                            }
+                        }
+                        return currentState;
+                    }
+
+                    @Override
+                    public void onFailure(String source, Exception e) {
+                        logger.warn(() -> new ParameterizedMessage("[{}] failed to remove repository cleanup task", repositoryName), e);
+                        if (listener != null) {
+                            listener.onFailure(e);
+                        }
+                    }
+
+                    @Override
+                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                        if (listener != null) {
+                            if (e == null) {
+                                listener.onResponse(result);
+                            } else {
+                                listener.onFailure(e);
+                            }
+                        }
+                    }
+                });
             }
         });
     }
@@ -1212,7 +1240,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         "cannot delete - another snapshot is currently being deleted");
                 }
                 final RepositoryCleanupInProgress repositoryCleanupInProgress = currentState.custom(RepositoryCleanupInProgress.TYPE);
-                if (repositoryCleanupInProgress != null && repositoryCleanupInProgress.isSafe(snapshot.getRepository()) == false) {
+                if (repositoryCleanupInProgress != null && repositoryCleanupInProgress.cleanupInProgress() == false) {
                     throw new ConcurrentSnapshotExecutionException(snapshot.getRepository(), snapshot.getSnapshotId().getName(),
                         "cannot delete snapshot while a repository cleanup is in-progress");
                 }

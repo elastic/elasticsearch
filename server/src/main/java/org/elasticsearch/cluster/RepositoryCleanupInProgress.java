@@ -39,7 +39,7 @@ public final class RepositoryCleanupInProgress extends AbstractNamedDiffable<Clu
         this.entries = Arrays.asList(entries);
     }
 
-    public RepositoryCleanupInProgress(StreamInput in) throws IOException {
+    RepositoryCleanupInProgress(StreamInput in) throws IOException {
         this.entries = in.readList(Entry::new);
     }
 
@@ -48,17 +48,12 @@ public final class RepositoryCleanupInProgress extends AbstractNamedDiffable<Clu
     }
 
     public static Entry startedEntry(String repository, long repositoryStateId) {
-        return new Entry(repository, repositoryStateId, false);
+        return new Entry(repository, repositoryStateId);
     }
 
-    public static Entry safeEntry(String repository, long repositoryStateId) {
-        return new Entry(repository, repositoryStateId, true);
-    }
-
-    public boolean isSafe(String repository) {
+    public boolean cleanupInProgress() {
         // TODO: Should we allow parallelism across repositories here maybe?
-        assert repository != null;
-        return entries.stream().noneMatch(entry -> entry.safe == false);
+        return entries.isEmpty();
     }
 
     @Override
@@ -101,18 +96,14 @@ public final class RepositoryCleanupInProgress extends AbstractNamedDiffable<Clu
 
         private final long repositoryStateId;
 
-        private final boolean safe;
-
         private Entry(StreamInput in) throws IOException {
             repository = in.readString();
             repositoryStateId = in.readLong();
-            safe = in.readBoolean();
         }
 
-        private Entry(String repository, long repositoryStateId, boolean safe) {
+        private Entry(String repository, long repositoryStateId) {
             this.repository = repository;
             this.repositoryStateId = repositoryStateId;
-            this.safe = safe;
         }
 
         @Override

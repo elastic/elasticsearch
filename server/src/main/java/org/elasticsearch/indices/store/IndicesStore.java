@@ -90,7 +90,7 @@ public class IndicesStore implements ClusterStateListener, Closeable {
     // Cache successful shard deletion checks to prevent unnecessary file system lookups
     private final Set<ShardId> folderNotFoundCache = new HashSet<>();
 
-    private TimeValue deleteShardTimeout;
+    private final TimeValue deleteShardTimeout;
 
     @Inject
     public IndicesStore(Settings settings, IndicesService indicesService,
@@ -346,10 +346,7 @@ public class IndicesStore implements ClusterStateListener, Closeable {
                         public void sendResult(boolean shardActive) {
                             try {
                                 channel.sendResponse(new ShardActiveResponse(shardActive, clusterService.localNode()));
-                            } catch (IOException e) {
-                                logger.error(() -> new ParameterizedMessage("failed send response for shard active while trying to " +
-                                    "delete shard {} - shard will probably not be removed", request.shardId), e);
-                            } catch (EsRejectedExecutionException e) {
+                            } catch (IOException | EsRejectedExecutionException e) {
                                 logger.error(() -> new ParameterizedMessage("failed send response for shard active while trying to " +
                                     "delete shard {} - shard will probably not be removed", request.shardId), e);
                             }

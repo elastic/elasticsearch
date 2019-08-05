@@ -21,11 +21,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
-import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecycleMetadata;
-import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicy;
-import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotRetentionConfiguration;
-import org.elasticsearch.xpack.core.snapshotlifecycle.history.SnapshotHistoryItem;
-import org.elasticsearch.xpack.core.snapshotlifecycle.history.SnapshotHistoryStore;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
+import org.elasticsearch.xpack.core.slm.SnapshotRetentionConfiguration;
+import org.elasticsearch.xpack.core.slm.history.SnapshotHistoryItem;
+import org.elasticsearch.xpack.core.slm.history.SnapshotHistoryStore;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -206,7 +206,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
             snapshots.forEach(info -> {
                 logger.info("[{}] snapshot retention deleting snapshot [{}]", repo, info.snapshotId());
                 CountDownLatch latch = new CountDownLatch(1);
-                String policyId = (String) info.userMetadata().get("policy"); // TODO NOCOMMIT: Make this less fragile
+                String policyId = (String) info.userMetadata().get("policy"); // TODO: Make this less fragile
                 client.admin().cluster().prepareDeleteSnapshot(repo, info.snapshotId().getName())
                     .execute(new LatchedActionListener<>(new ActionListener<>() {
                         @Override

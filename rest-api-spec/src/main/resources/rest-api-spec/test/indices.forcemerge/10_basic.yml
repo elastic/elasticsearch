@@ -8,3 +8,24 @@
       indices.forcemerge:
         index: testing
         max_num_segments: 1
+
+---
+"Force merge with incompatible only_expunge_deletes and max_num_segments values":
+  - skip:
+      version: " - 7.9.99"
+      reason: only_expunge_deletes and max_num_segments are mutually exclusive since 8.0
+
+  - do:
+      indices.create:
+        index: test
+
+  - do:
+      catch: bad_request
+      indices.forcemerge:
+        index: test
+        max_num_segments: 10
+        only_expunge_deletes: true
+
+  - match: { status: 400 }
+  - match: { error.type: action_request_validation_exception }
+  - match: { error.reason: "Validation Failed: 1: cannot set only_expunge_deletes and max_num_segments at the same time, those two parameters are mutually exclusive;" }

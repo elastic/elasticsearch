@@ -20,13 +20,13 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
+import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
-import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecycleMetadata;
-import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicy;
-import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicyMetadata;
-import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotRetentionConfiguration;
-import org.elasticsearch.xpack.core.snapshotlifecycle.history.SnapshotHistoryStore;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
+import org.elasticsearch.xpack.core.slm.SnapshotRetentionConfiguration;
+import org.elasticsearch.xpack.core.slm.history.SnapshotHistoryStore;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -50,9 +50,9 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
         SnapshotLifecyclePolicy policyWithout = new SnapshotLifecyclePolicy("policyWithout", "snap", "1 * * * * ?",
             "repo", null, SnapshotRetentionConfiguration.EMPTY);
         SnapshotLifecyclePolicy policyWithout2 = new SnapshotLifecyclePolicy("policyWithout2", "snap", "1 * * * * ?",
-            "repo", null, new SnapshotRetentionConfiguration(null));
+            "repo", null, new SnapshotRetentionConfiguration(null, null, null));
         SnapshotLifecyclePolicy policyWith = new SnapshotLifecyclePolicy("policyWith", "snap", "1 * * * * ?",
-            "repo", null, new SnapshotRetentionConfiguration(TimeValue.timeValueDays(30)));
+            "repo", null, new SnapshotRetentionConfiguration(TimeValue.timeValueDays(30), null, null));
 
         // Test with no SLM metadata
         ClusterState state = ClusterState.builder(new ClusterName("cluster")).build();
@@ -78,7 +78,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
 
     public void testSnapshotEligibleForDeletion() {
         SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy("policy", "snap", "1 * * * * ?",
-            "repo", null, new SnapshotRetentionConfiguration(TimeValue.timeValueDays(30)));
+            "repo", null, new SnapshotRetentionConfiguration(TimeValue.timeValueDays(30), null, null));
         SnapshotLifecyclePolicy policyWithNoRetention = new SnapshotLifecyclePolicy("policy", "snap", "1 * * * * ?",
             "repo", null, randomBoolean() ? null : SnapshotRetentionConfiguration.EMPTY);
         Map<String, SnapshotLifecyclePolicy> policyMap = Collections.singletonMap("policy", policy);
@@ -126,7 +126,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
              Client noOpClient = new NoOpClient("slm-test")) {
 
             SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy("policy", "snap", "1 * * * * ?",
-                "repo", null, new SnapshotRetentionConfiguration(TimeValue.timeValueDays(30)));
+                "repo", null, new SnapshotRetentionConfiguration(TimeValue.timeValueDays(30), null, null));
 
             ClusterState state = createState(policy);
             ClusterServiceUtils.setState(clusterService, state);

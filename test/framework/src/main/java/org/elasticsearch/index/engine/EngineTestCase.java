@@ -114,7 +114,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -131,11 +130,13 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.shuffle;
+import static org.elasticsearch.index.engine.Engine.Operation.Origin.PEER_RECOVERY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
 import static org.elasticsearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class EngineTestCase extends ESTestCase {
@@ -848,14 +849,15 @@ public abstract class EngineTestCase extends ESTestCase {
                 switch (opType) {
                     case INDEX:
                         operations.add(new Engine.Index(EngineTestCase.newUid(doc), doc, seqNo, primaryTerm.get(),
-                            i, null, Engine.Operation.Origin.REPLICA, startTime, -1, true, SequenceNumbers.UNASSIGNED_SEQ_NO, 0));
+                            i, null, randomFrom(REPLICA, PEER_RECOVERY), startTime, -1, true, SequenceNumbers.UNASSIGNED_SEQ_NO, 0));
                         break;
                     case DELETE:
                         operations.add(new Engine.Delete(doc.type(), doc.id(), EngineTestCase.newUid(doc), seqNo, primaryTerm.get(),
-                            i, null, Engine.Operation.Origin.REPLICA, startTime, SequenceNumbers.UNASSIGNED_SEQ_NO, 0));
+                            i, null, randomFrom(REPLICA, PEER_RECOVERY), startTime, SequenceNumbers.UNASSIGNED_SEQ_NO, 0));
                         break;
                     case NO_OP:
-                        operations.add(new Engine.NoOp(seqNo, primaryTerm.get(), Engine.Operation.Origin.REPLICA, startTime, "test-" + i));
+                        operations.add(new Engine.NoOp(seqNo, primaryTerm.get(),
+                            randomFrom(REPLICA, PEER_RECOVERY), startTime, "test-" + i));
                         break;
                     default:
                         throw new IllegalStateException("Unknown operation type [" + opType + "]");
@@ -1054,8 +1056,7 @@ public abstract class EngineTestCase extends ESTestCase {
      */
     public static List<Translog.Operation> readAllOperationsInLucene(Engine engine, MapperService mapper) throws IOException {
         final List<Translog.Operation> operations = new ArrayList<>();
-        long maxSeqNo = Math.max(0, ((InternalEngine)engine).getLocalCheckpointTracker().getMaxSeqNo());
-        try (Translog.Snapshot snapshot = engine.newChangesSnapshot("test", mapper, 0, maxSeqNo, false)) {
+        try (Translog.Snapshot snapshot = engine.newChangesSnapshot("test", mapper, 0, Long.MAX_VALUE, false)) {
             Translog.Operation op;
             while ((op = snapshot.next()) != null){
                 operations.add(op);
@@ -1073,18 +1074,19 @@ public abstract class EngineTestCase extends ESTestCase {
             return;
         }
         final long maxSeqNo = ((InternalEngine) engine).getLocalCheckpointTracker().getMaxSeqNo();
-        if (maxSeqNo < 0) {
-            return; // nothing to check
-        }
-        final Map<Long, Translog.Operation> translogOps = new HashMap<>();
+        final List<Translog.Operation> translogOps = new ArrayList<>();
         try (Translog.Snapshot snapshot = EngineTestCase.getTranslog(engine).newSnapshot()) {
             Translog.Operation op;
             while ((op = snapshot.next()) != null) {
-                translogOps.put(op.seqNo(), op);
+                assertThat("translog operation [" + op + "] > max_seq_no[" + maxSeqNo + "]", op.seqNo(), lessThanOrEqualTo(maxSeqNo));
+                translogOps.add(op);
             }
         }
         final Map<Long, Translog.Operation> luceneOps = readAllOperationsInLucene(engine, mapper).stream()
             .collect(Collectors.toMap(Translog.Operation::seqNo, Function.identity()));
+        for (Translog.Operation op : luceneOps.values()) {
+            assertThat("lucene operation [" + op + "] > max_seq_no[" + maxSeqNo + "]", op.seqNo(), lessThanOrEqualTo(maxSeqNo));
+        }
         final long globalCheckpoint = EngineTestCase.getTranslog(engine).getLastSyncedGlobalCheckpoint();
         final long retainedOps = engine.config().getIndexSettings().getSoftDeleteRetentionOperations();
         final long seqNoForRecovery;
@@ -1092,10 +1094,10 @@ public abstract class EngineTestCase extends ESTestCase {
             seqNoForRecovery = Long.parseLong(safeCommit.getIndexCommit().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) + 1;
         }
         final long minSeqNoToRetain = Math.min(seqNoForRecovery, globalCheckpoint + 1 - retainedOps);
-        for (Translog.Operation translogOp : translogOps.values()) {
+        for (Translog.Operation translogOp : translogOps) {
             final Translog.Operation luceneOp = luceneOps.get(translogOp.seqNo());
             if (luceneOp == null) {
-                if (minSeqNoToRetain <= translogOp.seqNo() && translogOp.seqNo() <= maxSeqNo) {
+                if (minSeqNoToRetain <= translogOp.seqNo()) {
                     fail("Operation not found seq# [" + translogOp.seqNo() + "], global checkpoint [" + globalCheckpoint + "], " +
                         "retention policy [" + retainedOps + "], maxSeqNo [" + maxSeqNo + "], translog op [" + translogOp + "]");
                 } else {

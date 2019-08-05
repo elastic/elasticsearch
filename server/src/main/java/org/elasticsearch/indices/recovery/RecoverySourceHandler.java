@@ -325,7 +325,9 @@ public class RecoverySourceHandler {
 
             }, onFailure);
 
-            sendSnapshotStep.whenComplete(r -> finalizeRecovery(r.targetLocalCheckpoint, finalizeStep), onFailure);
+            // Recovery target can trim all operations >= startingSeqNo as we have sent all these operations in the phase 2
+            final long trimAboveSeqNo = startingSeqNo - 1;
+            sendSnapshotStep.whenComplete(r -> finalizeRecovery(r.targetLocalCheckpoint, trimAboveSeqNo, finalizeStep), onFailure);
 
             finalizeStep.whenComplete(r -> {
                 final long phase1ThrottlingWaitTime = 0L; // TODO: return the actual throttle time
@@ -747,7 +749,7 @@ public class RecoverySourceHandler {
         }
     }
 
-    void finalizeRecovery(final long targetLocalCheckpoint, final ActionListener<Void> listener) throws IOException {
+    void finalizeRecovery(long targetLocalCheckpoint, long trimAboveSeqNo, ActionListener<Void> listener) throws IOException {
         if (shard.state() == IndexShardState.CLOSED) {
             throw new IndexShardClosedException(request.shardId());
         }
@@ -764,7 +766,7 @@ public class RecoverySourceHandler {
             shardId + " marking " + request.targetAllocationId() + " as in sync", shard, cancellableThreads, logger);
         final long globalCheckpoint = shard.getLastKnownGlobalCheckpoint(); // this global checkpoint is persisted in finalizeRecovery
         final StepListener<Void> finalizeListener = new StepListener<>();
-        cancellableThreads.executeIO(() -> recoveryTarget.finalizeRecovery(globalCheckpoint, finalizeListener));
+        cancellableThreads.executeIO(() -> recoveryTarget.finalizeRecovery(globalCheckpoint, trimAboveSeqNo, finalizeListener));
         finalizeListener.whenComplete(r -> {
             runUnderPrimaryPermit(() -> shard.updateGlobalCheckpointForShard(request.targetAllocationId(), globalCheckpoint),
                 shardId + " updating " + request.targetAllocationId() + "'s global checkpoint", shard, cancellableThreads, logger);

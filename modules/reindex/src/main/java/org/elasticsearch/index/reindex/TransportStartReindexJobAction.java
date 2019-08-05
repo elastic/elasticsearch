@@ -28,18 +28,14 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -56,35 +52,26 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.index.reindex.ReindexTask.REINDEX_ORIGIN;
 
-public class TransportStartReindexJobAction
-    extends TransportMasterNodeAction<StartReindexJobAction.Request, StartReindexJobAction.Response> {
+public class TransportStartReindexJobAction extends HandledTransportAction<StartReindexJobAction.Request, StartReindexJobAction.Response> {
 
+    private final ThreadPool threadPool;
+    private final ClusterService clusterService;
     private final PersistentTasksService persistentTasksService;
     private final Client taskClient;
 
     @Inject
     public TransportStartReindexJobAction(TransportService transportService, ThreadPool threadPool,
-                                          ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                          ClusterService clusterService, PersistentTasksService persistentTasksService, Client client) {
-        super(StartReindexJobAction.NAME, transportService, clusterService, threadPool, actionFilters, StartReindexJobAction.Request::new,
-            indexNameExpressionResolver);
+                                          ActionFilters actionFilters, ClusterService clusterService,
+                                          PersistentTasksService persistentTasksService, Client client) {
+        super(StartReindexJobAction.NAME, transportService, actionFilters, StartReindexJobAction.Request::new);
+        this.threadPool = threadPool;
+        this.clusterService = clusterService;
         this.persistentTasksService = persistentTasksService;
         this.taskClient = new OriginSettingClient(client, REINDEX_ORIGIN);
     }
 
     @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected StartReindexJobAction.Response read(StreamInput in) throws IOException {
-        return new StartReindexJobAction.Response(in);
-    }
-
-    @Override
-    protected void masterOperation(Task task, StartReindexJobAction.Request request, ClusterState state,
-                                   ActionListener<StartReindexJobAction.Response> listener) {
+    protected void doExecute(Task task, StartReindexJobAction.Request request, ActionListener<StartReindexJobAction.Response> listener) {
         // TODO: If the connection is lost to the master, this action might be retried creating two tasks.
         //  Eventually prevent this (perhaps by pre-generating UUID).
         String generatedId = UUIDs.randomBase64UUID();
@@ -93,7 +80,8 @@ public class TransportStartReindexJobAction
         boolean storeTaskResult = request.getWaitForCompletion() == false;
         ReindexJob job = new ReindexJob(storeTaskResult, threadPool.getThreadContext().getHeaders());
 
-        boolean reindexIndexExists = state.routingTable().hasIndex(ReindexTask.REINDEX_INDEX);
+        ClusterState clusterState = clusterService.state();
+        boolean reindexIndexExists = clusterState.routingTable().hasIndex(ReindexTask.REINDEX_INDEX);
 
         createReindexTaskDoc(generatedId, request.getReindexRequest(), reindexIndexExists, new ActionListener<>() {
             @Override
@@ -160,11 +148,6 @@ public class TransportStartReindexJobAction
                     listener.onFailure(e);
                 }
             });
-    }
-
-    @Override
-    protected ClusterBlockException checkBlock(StartReindexJobAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
     private void createReindexTaskDoc(String taskId, ReindexRequest reindexRequest, boolean indexExists, ActionListener<Void> listener) {

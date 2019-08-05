@@ -813,7 +813,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
     /**
      * indexes the given requests on the supplied primary, modifying it for replicas
      */
-    BulkShardRequest indexOnPrimary(IndexRequest request, IndexShard primary) throws Exception {
+    public BulkShardRequest indexOnPrimary(IndexRequest request, IndexShard primary) throws Exception {
         return executeReplicationRequestOnPrimary(primary, request);
     }
 
@@ -827,7 +827,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
     /**
      * indexes the given requests on the supplied replica shard
      */
-    void indexOnReplica(BulkShardRequest request, ReplicationGroup group, IndexShard replica) throws Exception {
+    public void indexOnReplica(BulkShardRequest request, ReplicationGroup group, IndexShard replica) throws Exception {
         indexOnReplica(request, group, replica, group.primary.getPendingPrimaryTerm());
     }
 

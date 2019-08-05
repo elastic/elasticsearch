@@ -234,7 +234,7 @@ public class DistroTestPlugin implements Plugin<Project> {
                 t.setArchivesDir(archivesDir.get());
                 t.setPackageName("elasticsearch" + (type.equals("oss") ? "-oss" : ""));
                 if (System.getProperty(IN_VM_SYSPROP) == null) {
-                    t.dependsOn(copyPackagingArchives, systemJdk);
+                    t.dependsOn(copyPackagingArchives, systemJdk, gradleJdk);
                 }
             });
 
@@ -247,7 +247,7 @@ public class DistroTestPlugin implements Plugin<Project> {
                 t.setTaskName(project.getPath() + ":" + destructiveTest.getName());
                 t.setProgressHandler(new BatsProgressLogger(project.getLogger()));
                 t.extraArg("-D'" + IN_VM_SYSPROP + "'");
-                t.dependsOn(copyPackagingArchives, systemJdk);
+                t.dependsOn(copyPackagingArchives, systemJdk, gradleJdk);
                 t.onlyIf(spec -> vagrant.isWindowsVM() == false); // bats doesn't run on windows
             });
     }

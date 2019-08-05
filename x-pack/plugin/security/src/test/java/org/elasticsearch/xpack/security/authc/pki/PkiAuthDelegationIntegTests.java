@@ -11,7 +11,11 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.client.security.AuthenticateResponse;
+import org.elasticsearch.client.security.PutRoleMappingRequest;
+import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.client.security.AuthenticateResponse.RealmInfo;
+import org.elasticsearch.client.security.DeleteRoleMappingRequest;
+import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleMapperExpression;
 import org.elasticsearch.client.security.DelegatePkiAuthenticationRequest;
 import org.elasticsearch.client.security.DelegatePkiAuthenticationResponse;
 import org.elasticsearch.client.security.user.User;
@@ -27,11 +31,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
+import java.util.Collections;
 import java.util.Arrays;
 
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.emptyCollectionOf;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.startsWith;
 
 public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
@@ -96,10 +103,71 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
             User user = resp.getUser();
             assertThat(user, is(notNullValue()));
             assertThat(user.getUsername(), is("Elasticsearch Test Client"));
+            assertThat(user.getMetadata().get("pki_dn"), is(notNullValue()));
+            assertThat(user.getMetadata().get("pki_dn"), is("O=org, OU=Elasticsearch, CN=Elasticsearch Test Client"));
+            assertThat(user.getMetadata().get("pki_delegated_by_user"), is(notNullValue()));
+            assertThat(user.getMetadata().get("pki_delegated_by_user"), is("test_user"));
+            assertThat(user.getMetadata().get("pki_delegated_by_realm"), is(notNullValue()));
+            assertThat(user.getMetadata().get("pki_delegated_by_realm"), is("file"));
+            // no roles because no role mappings
+            assertThat(user.getRoles(), is(emptyCollectionOf(String.class)));
             RealmInfo authnRealm = resp.getAuthenticationRealm();
             assertThat(authnRealm, is(notNullValue()));
             assertThat(authnRealm.getName(), is("pki3"));
             assertThat(authnRealm.getType(), is("pki"));
+        }
+    }
+
+    public void testDelegatePkiWithRoleMapping() throws Exception {
+        X509Certificate clientCertificate = readCertForPkiDelegation("testClient.crt");
+        X509Certificate intermediateCA = readCertForPkiDelegation("testIntermediateCA.crt");
+        X509Certificate rootCA = readCertForPkiDelegation("testRootCA.crt");
+        DelegatePkiAuthenticationRequest delegatePkiRequest;
+        if (randomBoolean()) {
+            delegatePkiRequest = new DelegatePkiAuthenticationRequest(Arrays.asList(clientCertificate, intermediateCA));
+        } else {
+            delegatePkiRequest = new DelegatePkiAuthenticationRequest(Arrays.asList(clientCertificate, intermediateCA, rootCA));
+        }
+        final RequestOptions testUserOptions = RequestOptions.DEFAULT.toBuilder()
+                .addHeader("Authorization", basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
+                        new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())))
+                .build();
+        try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
+            // put role mappings for delegated PKI
+            PutRoleMappingRequest request = new PutRoleMappingRequest("role_by_delegated_user", true,
+                    Collections.singletonList("role_by_delegated_user"), Collections.emptyList(),
+                    new FieldRoleMapperExpression("metadata.pki_delegated_by_user", "test_user"), null, RefreshPolicy.IMMEDIATE);
+            restClient.security().putRoleMapping(request, testUserOptions);
+            request = new PutRoleMappingRequest("role_by_delegated_realm", true, Collections.singletonList("role_by_delegated_realm"),
+                    Collections.emptyList(), new FieldRoleMapperExpression("metadata.pki_delegated_by_realm", "file"), null,
+                    RefreshPolicy.IMMEDIATE);
+            restClient.security().putRoleMapping(request, testUserOptions);
+            // delegate
+            DelegatePkiAuthenticationResponse delegatePkiResponse = restClient.security().delegatePkiAuthentication(delegatePkiRequest,
+                    testUserOptions);
+            // authenticate
+            AuthenticateResponse resp = restClient.security().authenticate(RequestOptions.DEFAULT.toBuilder()
+                    .addHeader("Authorization", "Bearer " + delegatePkiResponse.getAccessToken()).build());
+            User user = resp.getUser();
+            assertThat(user, is(notNullValue()));
+            assertThat(user.getUsername(), is("Elasticsearch Test Client"));
+            assertThat(user.getMetadata().get("pki_dn"), is(notNullValue()));
+            assertThat(user.getMetadata().get("pki_dn"), is("O=org, OU=Elasticsearch, CN=Elasticsearch Test Client"));
+            assertThat(user.getMetadata().get("pki_delegated_by_user"), is(notNullValue()));
+            assertThat(user.getMetadata().get("pki_delegated_by_user"), is("test_user"));
+            assertThat(user.getMetadata().get("pki_delegated_by_realm"), is(notNullValue()));
+            assertThat(user.getMetadata().get("pki_delegated_by_realm"), is("file"));
+            // assert roles
+            assertThat(user.getRoles(), containsInAnyOrder("role_by_delegated_user", "role_by_delegated_realm"));
+            RealmInfo authnRealm = resp.getAuthenticationRealm();
+            assertThat(authnRealm, is(notNullValue()));
+            assertThat(authnRealm.getName(), is("pki3"));
+            assertThat(authnRealm.getType(), is("pki"));
+            // delete role mappings for delegated PKI
+            restClient.security().deleteRoleMapping(new DeleteRoleMappingRequest("role_by_delegated_user", RefreshPolicy.IMMEDIATE),
+                  testUserOptions);
+            restClient.security().deleteRoleMapping(new DeleteRoleMappingRequest("role_by_delegated_realm", RefreshPolicy.IMMEDIATE),
+                  testUserOptions);
         }
     }
 
@@ -117,14 +185,12 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
                     () -> restClient.security().delegatePkiAuthentication(delegatePkiRequest1, optionsBuilder.build()));
             assertThat(e1.getMessage(), is("Elasticsearch exception [type=security_exception, reason=unable to authenticate user"
                     + " [O=org, OU=Elasticsearch, CN=Elasticsearch Test Client] for action [cluster:admin/xpack/security/delegate_pki]]"));
-
             // swapped order
             DelegatePkiAuthenticationRequest delegatePkiRequest2 = new DelegatePkiAuthenticationRequest(
                     Arrays.asList(intermediateCA, clientCertificate));
             ValidationException e2 = expectThrows(ValidationException.class,
                     () -> restClient.security().delegatePkiAuthentication(delegatePkiRequest2, optionsBuilder.build()));
             assertThat(e2.getMessage(), is("Validation Failed: 1: certificates chain must be an ordered chain;"));
-
             // bogus certificate
             DelegatePkiAuthenticationRequest delegatePkiRequest3 = new DelegatePkiAuthenticationRequest(Arrays.asList(bogusCertificate));
             ElasticsearchStatusException e3 = expectThrows(ElasticsearchStatusException.class,

@@ -57,7 +57,7 @@ twitter 0 1252ms peer done  192.168.1.1 192.168.1.2 0     100.0%  0b 100.0%
 // TESTRESPONSE[s/192.168.1.2/127.0.0.1/]
 // TESTRESPONSE[s/192.168.1.1/n\/a/]
 // TESTRESPONSE[s/100.0%/0.0%/]
-// TESTRESPONSE[s/1252/\\d+/ non_json]
+// TESTRESPONSE[s/1252ms/\\d+m?s/ non_json]
 
 We can see in the above listing that our thw twitter shard was recovered from another node.
 Notice that the recovery type is shown as `peer`. The files and bytes copied are

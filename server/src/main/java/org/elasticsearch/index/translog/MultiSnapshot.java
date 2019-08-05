@@ -63,6 +63,7 @@ final class MultiSnapshot implements Translog.Snapshot {
 
     @Override
     public Translog.Operation next() throws IOException {
+        // TODO: Read translog forward in 9.0+
         for (; index >= 0; index--) {
             final TranslogSnapshot current = translogs[index];
             Translog.Operation op;

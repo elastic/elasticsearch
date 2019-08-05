@@ -11,9 +11,12 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.utils.ExponentialAverageCalculationContext;
-import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter.DatafeedTimingStatsPersister;
 import org.junit.Before;
 import org.mockito.InOrder;
+
+import java.sql.Date;
+import java.time.Instant;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -26,93 +29,107 @@ import static org.mockito.Mockito.verifyZeroInteractions;
 public class DatafeedTimingStatsReporterTests extends ESTestCase {
 
     private static final String JOB_ID = "my-job-id";
+    private static final Instant TIMESTAMP = Instant.ofEpochMilli(1000000000);
     private static final TimeValue ONE_SECOND = TimeValue.timeValueSeconds(1);
 
-    private JobResultsPersister jobResultsPersister;
+    private DatafeedTimingStatsPersister timingStatsPersister;
 
     @Before
     public void setUpTests() {
-        jobResultsPersister = mock(JobResultsPersister.class);
+        timingStatsPersister = mock(DatafeedTimingStatsPersister.class);
     }
 
     public void testReportSearchDuration_Null() {
-        DatafeedTimingStatsReporter timingStatsReporter = createReporter(createDatafeedTimingStats(JOB_ID, 3, 10, 10000.0));
-        assertThat(timingStatsReporter.getCurrentTimingStats(), equalTo(createDatafeedTimingStats(JOB_ID, 3, 10, 10000.0)));
+        DatafeedTimingStatsReporter reporter = createReporter(createDatafeedTimingStats(JOB_ID, 3, 10, 10000.0));
+        assertThat(reporter.getCurrentTimingStats(), equalTo(createDatafeedTimingStats(JOB_ID, 3, 10, 10000.0)));
 
-        timingStatsReporter.reportSearchDuration(null);
-        assertThat(timingStatsReporter.getCurrentTimingStats(), equalTo(createDatafeedTimingStats(JOB_ID, 3, 10, 10000.0)));
+        reporter.reportSearchDuration(null);
+        assertThat(reporter.getCurrentTimingStats(), equalTo(createDatafeedTimingStats(JOB_ID, 3, 10, 10000.0)));
 
-        verifyZeroInteractions(jobResultsPersister);
+        verifyZeroInteractions(timingStatsPersister);
     }
 
     public void testReportSearchDuration_Zero() {
-        DatafeedTimingStatsReporter timingStatsReporter = createReporter(createDatafeedTimingStats(JOB_ID, 0, 0, 0.0));
-        assertThat(timingStatsReporter.getCurrentTimingStats(), equalTo(createDatafeedTimingStats(JOB_ID, 0, 0, 0.0)));
+        DatafeedTimingStatsReporter reporter = createReporter(createDatafeedTimingStats(JOB_ID, 0, 0, 0.0));
+        assertThat(reporter.getCurrentTimingStats(), equalTo(createDatafeedTimingStats(JOB_ID, 0, 0, 0.0)));
 
-        timingStatsReporter.reportSearchDuration(TimeValue.ZERO);
-        assertThat(timingStatsReporter.getCurrentTimingStats(), equalTo(createDatafeedTimingStats(JOB_ID, 1, 0, 0.0)));
+        reporter.reportSearchDuration(TimeValue.ZERO);
+        assertThat(reporter.getCurrentTimingStats(), equalTo(createDatafeedTimingStats(JOB_ID, 1, 0, 0.0)));
 
-        verify(jobResultsPersister).persistDatafeedTimingStats(createDatafeedTimingStats(JOB_ID, 1, 0, 0.0), RefreshPolicy.IMMEDIATE);
-        verifyNoMoreInteractions(jobResultsPersister);
+        verify(timingStatsPersister).persistDatafeedTimingStats(createDatafeedTimingStats(JOB_ID, 1, 0, 0.0), RefreshPolicy.NONE);
+        verifyNoMoreInteractions(timingStatsPersister);
     }
 
     public void testReportSearchDuration() {
-        DatafeedTimingStatsReporter timingStatsReporter = createReporter(createDatafeedTimingStats(JOB_ID, 13, 10, 10000.0, 10000.0));
-        assertThat(timingStatsReporter.getCurrentTimingStats(), equalTo(createDatafeedTimingStats(JOB_ID, 13, 10, 10000.0, 10000.0)));
+        DatafeedTimingStatsReporter reporter = createReporter(createDatafeedTimingStats(JOB_ID, 13, 10, 10000.0, 10000.0));
+        assertThat(reporter.getCurrentTimingStats(), equalTo(createDatafeedTimingStats(JOB_ID, 13, 10, 10000.0, 10000.0)));
 
-        timingStatsReporter.reportSearchDuration(ONE_SECOND);
-        assertThat(timingStatsReporter.getCurrentTimingStats(), equalTo(createDatafeedTimingStats(JOB_ID, 14, 10, 11000.0, 11000.0)));
+        reporter.reportSearchDuration(ONE_SECOND);
+        assertThat(reporter.getCurrentTimingStats(), equalTo(createDatafeedTimingStats(JOB_ID, 14, 10, 11000.0, 11000.0)));
 
-        timingStatsReporter.reportSearchDuration(ONE_SECOND);
-        assertThat(timingStatsReporter.getCurrentTimingStats(), equalTo(createDatafeedTimingStats(JOB_ID, 15, 10, 12000.0, 12000.0)));
+        reporter.reportSearchDuration(ONE_SECOND);
+        assertThat(reporter.getCurrentTimingStats(), equalTo(createDatafeedTimingStats(JOB_ID, 15, 10, 12000.0, 12000.0)));
 
-        timingStatsReporter.reportSearchDuration(ONE_SECOND);
-        assertThat(timingStatsReporter.getCurrentTimingStats(), equalTo(createDatafeedTimingStats(JOB_ID, 16, 10, 13000.0, 13000.0)));
+        reporter.reportSearchDuration(ONE_SECOND);
+        assertThat(reporter.getCurrentTimingStats(), equalTo(createDatafeedTimingStats(JOB_ID, 16, 10, 13000.0, 13000.0)));
 
-        timingStatsReporter.reportSearchDuration(ONE_SECOND);
-        assertThat(timingStatsReporter.getCurrentTimingStats(), equalTo(createDatafeedTimingStats(JOB_ID, 17, 10, 14000.0, 14000.0)));
+        reporter.reportSearchDuration(ONE_SECOND);
+        assertThat(reporter.getCurrentTimingStats(), equalTo(createDatafeedTimingStats(JOB_ID, 17, 10, 14000.0, 14000.0)));
 
-        InOrder inOrder = inOrder(jobResultsPersister);
-        inOrder.verify(jobResultsPersister).persistDatafeedTimingStats(
-            createDatafeedTimingStats(JOB_ID, 15, 10, 12000.0, 12000.0), RefreshPolicy.IMMEDIATE);
-        inOrder.verify(jobResultsPersister).persistDatafeedTimingStats(
-            createDatafeedTimingStats(JOB_ID, 17, 10, 14000.0, 14000.0), RefreshPolicy.IMMEDIATE);
-        verifyNoMoreInteractions(jobResultsPersister);
+        InOrder inOrder = inOrder(timingStatsPersister);
+        inOrder.verify(timingStatsPersister).persistDatafeedTimingStats(
+            createDatafeedTimingStats(JOB_ID, 15, 10, 12000.0, 12000.0), RefreshPolicy.NONE);
+        inOrder.verify(timingStatsPersister).persistDatafeedTimingStats(
+            createDatafeedTimingStats(JOB_ID, 17, 10, 14000.0, 14000.0), RefreshPolicy.NONE);
+        verifyNoMoreInteractions(timingStatsPersister);
     }
 
     public void testReportDataCounts_Null() {
-        DatafeedTimingStatsReporter timingStatsReporter = createReporter(createDatafeedTimingStats(JOB_ID, 3, 10, 10000.0));
-        assertThat(timingStatsReporter.getCurrentTimingStats(), equalTo(createDatafeedTimingStats(JOB_ID, 3, 10, 10000.0)));
+        DatafeedTimingStatsReporter reporter = createReporter(createDatafeedTimingStats(JOB_ID, 3, 10, 10000.0));
+        assertThat(reporter.getCurrentTimingStats(), equalTo(createDatafeedTimingStats(JOB_ID, 3, 10, 10000.0)));
 
-        timingStatsReporter.reportDataCounts(null);
-        assertThat(timingStatsReporter.getCurrentTimingStats(), equalTo(createDatafeedTimingStats(JOB_ID, 3, 10, 10000.0)));
+        reporter.reportDataCounts(null);
+        assertThat(reporter.getCurrentTimingStats(), equalTo(createDatafeedTimingStats(JOB_ID, 3, 10, 10000.0)));
 
-        verifyZeroInteractions(jobResultsPersister);
+        verifyZeroInteractions(timingStatsPersister);
     }
 
     public void testReportDataCounts() {
-        DatafeedTimingStatsReporter timingStatsReporter = createReporter(createDatafeedTimingStats(JOB_ID, 3, 20, 10000.0));
-        assertThat(timingStatsReporter.getCurrentTimingStats(), equalTo(createDatafeedTimingStats(JOB_ID, 3, 20, 10000.0)));
+        DatafeedTimingStatsReporter reporter = createReporter(createDatafeedTimingStats(JOB_ID, 3, 20, 10000.0));
+        assertThat(reporter.getCurrentTimingStats(), equalTo(createDatafeedTimingStats(JOB_ID, 3, 20, 10000.0)));
 
-        timingStatsReporter.reportDataCounts(createDataCountsWithBucketCount(1));
-        assertThat(timingStatsReporter.getCurrentTimingStats(), equalTo(createDatafeedTimingStats(JOB_ID, 3, 21, 10000.0)));
+        reporter.reportDataCounts(createDataCounts(1));
+        assertThat(reporter.getCurrentTimingStats(), equalTo(createDatafeedTimingStats(JOB_ID, 3, 21, 10000.0)));
 
-        timingStatsReporter.reportDataCounts(createDataCountsWithBucketCount(1));
-        assertThat(timingStatsReporter.getCurrentTimingStats(), equalTo(createDatafeedTimingStats(JOB_ID, 3, 22, 10000.0)));
+        reporter.reportDataCounts(createDataCounts(1));
+        assertThat(reporter.getCurrentTimingStats(), equalTo(createDatafeedTimingStats(JOB_ID, 3, 22, 10000.0)));
 
-        timingStatsReporter.reportDataCounts(createDataCountsWithBucketCount(1));
-        assertThat(timingStatsReporter.getCurrentTimingStats(), equalTo(createDatafeedTimingStats(JOB_ID, 3, 23, 10000.0)));
+        reporter.reportDataCounts(createDataCounts(1));
+        assertThat(reporter.getCurrentTimingStats(), equalTo(createDatafeedTimingStats(JOB_ID, 3, 23, 10000.0)));
 
-        InOrder inOrder = inOrder(jobResultsPersister);
-        inOrder.verify(jobResultsPersister).persistDatafeedTimingStats(
-            createDatafeedTimingStats(JOB_ID, 3, 23, 10000.0), RefreshPolicy.IMMEDIATE);
-        verifyNoMoreInteractions(jobResultsPersister);
+        InOrder inOrder = inOrder(timingStatsPersister);
+        inOrder.verify(timingStatsPersister).persistDatafeedTimingStats(
+            createDatafeedTimingStats(JOB_ID, 3, 23, 10000.0), RefreshPolicy.NONE);
+        verifyNoMoreInteractions(timingStatsPersister);
     }
 
-    private static DataCounts createDataCountsWithBucketCount(long bucketCount) {
-        DataCounts dataCounts = new DataCounts(JOB_ID);
-        dataCounts.incrementBucketCount(bucketCount);
-        return dataCounts;
+    public void testFinishReporting_NoChange() {
+        DatafeedTimingStatsReporter reporter = createReporter(createDatafeedTimingStats(JOB_ID, 3, 10, 10000.0));
+        reporter.reportDataCounts(createDataCounts(0));
+        reporter.finishReporting();
+
+        verifyZeroInteractions(timingStatsPersister);
+    }
+
+    public void testFinishReporting_WithChange() {
+        DatafeedTimingStatsReporter reporter = createReporter(new DatafeedTimingStats(JOB_ID));
+        reporter.reportDataCounts(createDataCounts(0, TIMESTAMP));
+        reporter.finishReporting();
+
+        verify(timingStatsPersister).persistDatafeedTimingStats(
+            new DatafeedTimingStats(JOB_ID, 0, 0, 0.0, new ExponentialAverageCalculationContext(0.0, TIMESTAMP, null)),
+            RefreshPolicy.IMMEDIATE);
+        verifyNoMoreInteractions(timingStatsPersister);
     }
 
     public void testTimingStatsDifferSignificantly() {
@@ -151,7 +168,7 @@ public class DatafeedTimingStatsReporterTests extends ESTestCase {
     }
 
     private DatafeedTimingStatsReporter createReporter(DatafeedTimingStats timingStats) {
-        return new DatafeedTimingStatsReporter(timingStats, jobResultsPersister);
+        return new DatafeedTimingStatsReporter(timingStats, timingStatsPersister);
     }
 
     private static DatafeedTimingStats createDatafeedTimingStats(
@@ -170,5 +187,17 @@ public class DatafeedTimingStatsReporterTests extends ESTestCase {
             double incrementalSearchTimeMs) {
         ExponentialAverageCalculationContext context = new ExponentialAverageCalculationContext(incrementalSearchTimeMs, null, null);
         return new DatafeedTimingStats(jobId, searchCount, bucketCount, totalSearchTimeMs, context);
+    }
+
+    private static DataCounts createDataCounts(long bucketCount, Instant latestRecordTimestamp) {
+        DataCounts dataCounts = createDataCounts(bucketCount);
+        dataCounts.setLatestRecordTimeStamp(Date.from(latestRecordTimestamp));
+        return dataCounts;
+    }
+
+    private static DataCounts createDataCounts(long bucketCount) {
+        DataCounts dataCounts = new DataCounts(JOB_ID);
+        dataCounts.incrementBucketCount(bucketCount);
+        return dataCounts;
     }
 }

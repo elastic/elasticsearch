@@ -63,7 +63,12 @@ public class ReaperService {
         ensureReaperStarted();
 
         try {
-            Files.writeString(inputDir.resolve(serviceId + ".cmd"), String.join(" ", command));
+            Files.writeString(
+                inputDir.resolve(
+                    serviceId.replaceAll("[^a-zA-Z0-9]","-") + ".cmd"
+                ),
+                String.join(" ", command)
+            );
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

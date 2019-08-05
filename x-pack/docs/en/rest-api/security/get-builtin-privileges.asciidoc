@@ -84,6 +84,7 @@ A successful call returns an object with "cluster" and "index" fields.
     "read_ccr",
     "read_ilm",
     "read_slm",
+    "delegate_pki",
     "transport_client"
   ],
   "index" : [

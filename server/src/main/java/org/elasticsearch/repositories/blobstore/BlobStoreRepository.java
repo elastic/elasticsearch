@@ -530,8 +530,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return Collections.emptyList();
     }
 
-    private void cleanupStaleIndices(Map<String, BlobContainer> foundIndices, Set<String> survivingIndexIds,
-                                     LongConsumer progress) {
+    private void cleanupStaleIndices(Map<String, BlobContainer> foundIndices, Set<String> survivingIndexIds, LongConsumer progress) {
         try {
             for (Map.Entry<String, BlobContainer> indexEntry : foundIndices.entrySet()) {
                 final String indexSnId = indexEntry.getKey();

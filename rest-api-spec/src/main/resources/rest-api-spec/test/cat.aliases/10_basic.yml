@@ -3,7 +3,7 @@
 "Help":
   - skip:
       version: " - 7.99.99"
-      reason:  "is_write_index is shown in the cat.aliases starting version 8.0"
+      reason:  "is_write_index is shown in cat.aliases starting version 8.0"
 
   - do:
       cat.aliases:
@@ -23,7 +23,7 @@
 "Help (pre 8.0)":
   - skip:
       version: "8.0.0 - "
-      reason:  "is_write_index is shown in the cat cat.aliases starting version 8.0"
+      reason:  "is_write_index is shown in cat.aliases starting version 8.0"
 
   - do:
       cat.aliases:
@@ -53,7 +53,7 @@
 "Simple alias":
   - skip:
       version: " - 7.99.99"
-      reason:  "is_write_index is shown in the cat.aliases starting version 8.0"
+      reason:  "is_write_index is shown in cat.aliases starting version 8.0"
 
   - do:
         indices.create:
@@ -82,7 +82,7 @@
 "Simple alias (pre 8.0)":
   - skip:
       version: "8.0.0 - "
-      reason:  "is_write_index is shown in the cat cat.aliases starting version 8.0"
+      reason:  "is_write_index is shown in cat.aliases starting version 8.0"
 
   - do:
       indices.create:
@@ -110,7 +110,7 @@
 "Complex alias":
   - skip:
       version: " - 7.99.99"
-      reason:  "is_write_index is shown in the cat.aliases starting version 8.0"
+      reason:  "is_write_index is shown in cat.aliases starting version 8.0"
 
   - do:
         indices.create:
@@ -150,7 +150,7 @@
 "Complex alias (pre 8.0)":
   - skip:
       version: "8.0.0 - "
-      reason:  "is_write_index is shown in the cat cat.aliases starting version 8.0"
+      reason:  "is_write_index is shown in cat.aliases starting version 8.0"
 
   - do:
       indices.create:
@@ -271,7 +271,7 @@
 "Column headers":
   - skip:
       version: " - 7.99.99"
-      reason:  "is_write_index is shown in the cat.aliases starting version 8.0"
+      reason:  "is_write_index is shown in cat.aliases starting version 8.0"
 
   - do:
         indices.create:
@@ -307,7 +307,7 @@
 "Column headers (pre 8.0)":
   - skip:
       version: "8.0.0 - "
-      reason:  "is_write_index is shown in the cat cat.aliases starting version 8.0"
+      reason:  "is_write_index is shown in cat.aliases starting version 8.0"
 
   - do:
       indices.create:
@@ -373,7 +373,7 @@
 "Alias against closed index":
   - skip:
       version: " - 7.99.99"
-      reason:  "is_write_index is shown in the cat.aliases starting version 8.0"
+      reason:  "is_write_index is shown in cat.aliases starting version 8.0"
 
   - do:
       indices.create:
@@ -404,7 +404,7 @@
 "Alias against closed index (pre 8.0)":
   - skip:
       version: "8.0.0 - "
-      reason:  "is_write_index is shown in the cat cat.aliases starting version 8.0"
+      reason:  "is_write_index is shown in cat.aliases starting version 8.0"
 
   - do:
       indices.create:

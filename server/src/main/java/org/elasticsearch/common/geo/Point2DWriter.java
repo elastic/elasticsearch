@@ -18,10 +18,7 @@
  */
 package org.elasticsearch.common.geo;
 
-import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.geo.geometry.MultiPoint;
-import org.elasticsearch.geo.geometry.Point;
 import org.elasticsearch.geo.geometry.ShapeType;
 
 import java.io.IOException;
@@ -39,32 +36,28 @@ public class Point2DWriter extends ShapeTreeWriter {
     // size of a leaf node where searches are done sequentially.
     static final int LEAF_SIZE = 64;
 
-    Point2DWriter(MultiPoint multiPoint) {
-        int numPoints = multiPoint.size();
+    Point2DWriter(int[] x, int[] y) {
+        assert x.length == y.length;
         int minX = Integer.MAX_VALUE;
         int minY = Integer.MAX_VALUE;
         int maxX = Integer.MIN_VALUE;
         int maxY = Integer.MIN_VALUE;
-        coords = new int[numPoints * K];
-        int i = 0;
-        for (Point point : multiPoint) {
-            int x = GeoEncodingUtils.encodeLongitude(point.getLon());
-            int y = GeoEncodingUtils.encodeLatitude(point.getLat());
-            minX = Math.min(minX, x);
-            minY = Math.min(minY, y);
-            maxX = Math.max(maxX, x);
-            maxY = Math.max(maxY, y);
-            coords[2 * i] = x;
-            coords[2 * i + 1] = y;
-            i++;
+        coords = new int[x.length * K];
+        for (int i = 0; i < x.length; i++) {
+            int xi = x[i];
+            int yi = y[i];
+            minX = Math.min(minX, xi);
+            minY = Math.min(minY, yi);
+            maxX = Math.max(maxX, xi);
+            maxY = Math.max(maxY, yi);
+            coords[2 * i] = xi;
+            coords[2 * i + 1] = yi;
         }
-        sort(0, numPoints - 1, 0);
+        sort(0, x.length - 1, 0);
         this.extent = new Extent(minX, minY, maxX, maxY);
     }
 
-    Point2DWriter(Point point) {
-        int x = GeoEncodingUtils.encodeLongitude(point.getLon());
-        int y = GeoEncodingUtils.encodeLatitude(point.getLat());
+    Point2DWriter(int x, int y) {
         coords = new int[] {x, y};
         this.extent = new Extent(x, y, x, y);
     }

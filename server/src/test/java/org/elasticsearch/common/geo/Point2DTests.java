@@ -22,15 +22,12 @@ import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.geo.geometry.MultiPoint;
 import org.elasticsearch.geo.geometry.Point;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -41,7 +38,7 @@ public class Point2DTests extends ESTestCase {
         Point point = gen.buildGeometry();
         int x = GeoEncodingUtils.encodeLongitude(point.getLon());
         int y = GeoEncodingUtils.encodeLatitude(point.getLat());
-        Point2DWriter writer = new Point2DWriter(point);
+        Point2DWriter writer = new Point2DWriter(x, y);
 
         BytesStreamOutput output = new BytesStreamOutput();
         writer.writeTo(output);
@@ -63,15 +60,16 @@ public class Point2DTests extends ESTestCase {
             int maxX = randomIntBetween(minX + 10, 180);
             int minY = randomIntBetween(-90, 80);
             int maxY = randomIntBetween(minY + 10, 90);
-            Extent extent = new Extent(GeoEncodingUtils.encodeLongitude(minX), GeoEncodingUtils.encodeLatitude(minY),
-                GeoEncodingUtils.encodeLongitude(maxX), GeoEncodingUtils.encodeLatitude(maxY));
+            Extent extent = new Extent(minX, minY, maxX, maxY);
             int numPoints = randomIntBetween(2, 1000);
 
-            List<Point> points = new ArrayList<>(numPoints);
+            int[] x = new int[numPoints];
+            int[] y = new int[numPoints];
             for (int j = 0; j < numPoints; j++) {
-                points.add(new Point(randomDoubleBetween(minY, maxY, true), randomDoubleBetween(minX, maxX, true)));
+                x[j] = randomIntBetween(minX, maxX);
+                y[j] = randomIntBetween(minY, maxY);
             }
-            Point2DWriter writer = new Point2DWriter(new MultiPoint(points));
+            Point2DWriter writer = new Point2DWriter(x, y);
 
             BytesStreamOutput output = new BytesStreamOutput();
             writer.writeTo(output);

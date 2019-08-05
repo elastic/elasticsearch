@@ -160,14 +160,22 @@ public class GeometryTreeWriter implements Writeable {
 
         @Override
         public Void visit(Point point) {
-            Point2DWriter writer = new Point2DWriter(point);
+            int x = GeoEncodingUtils.encodeLongitude(point.getLon());
+            int y = GeoEncodingUtils.encodeLatitude(point.getLat());
+            Point2DWriter writer = new Point2DWriter(x, y);
             addWriter(writer);
             return null;
         }
 
         @Override
         public Void visit(MultiPoint multiPoint) {
-            Point2DWriter writer = new Point2DWriter(multiPoint);
+            int[] x = new int[multiPoint.size()];
+            int[] y = new int[x.length];
+            for (int i = 0; i < multiPoint.size(); i++) {
+                x[i] = GeoEncodingUtils.encodeLongitude(multiPoint.get(i).getLon());
+                y[i] = GeoEncodingUtils.encodeLatitude(multiPoint.get(i).getLat());
+            }
+            Point2DWriter writer = new Point2DWriter(x, y);
             addWriter(writer);
             return null;
         }

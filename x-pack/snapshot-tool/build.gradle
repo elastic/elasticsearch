@@ -88,7 +88,7 @@ configurations {
 }
 
 task jarTest (type: Jar) {
-  from sourceSets.test.output
+  from sourceSets.test.output, sourceSets.main.output
 }
 
 artifacts {

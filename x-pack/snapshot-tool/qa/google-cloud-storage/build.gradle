@@ -10,7 +10,6 @@ apply plugin: 'elasticsearch.build'
 dependencies {
     compile project(":plugins:repository-gcs")
     testCompile project(":test:framework")
-    testCompile project(':x-pack:snapshot-tool')
     testCompile project(path: ':x-pack:snapshot-tool', configuration: 'testArtifacts')
 }
 

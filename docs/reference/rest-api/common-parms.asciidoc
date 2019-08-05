@@ -1,4 +1,9 @@
 
+tag::bytes[]
+`bytes`::
+(Optional, <<byte-units,byte size units>>) Unit used to display byte values.
+end::bytes[]
+
 tag::cat-h[]
 `h` (headings)::
 (Optional, string) Comma-separated list of column names to display.
@@ -28,6 +33,12 @@ tag::name[]
 `{name}`::
 (Optional, string) Comma-separated list of alias names to return.
 end::name[]
+
+tag::node-id[]
+`{node_id}`::
+(Optional, string) Comma-separated list of node IDs or names used to limit
+returned information.
+end::node-id[]
 
 tag::cat-s[]
 `s` (sort)::

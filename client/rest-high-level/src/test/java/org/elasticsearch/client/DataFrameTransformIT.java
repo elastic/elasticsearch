@@ -386,13 +386,6 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
             assertNotEquals(zeroIndexerStats, stateAndStats.getIndexerStats());
             assertThat(stateAndStats.getTaskState(),
                 is(oneOf(DataFrameTransformTaskState.STARTED, DataFrameTransformTaskState.STOPPED)));
-
-            //deactivated: since https://github.com/elastic/elasticsearch/issues/43767 there is no reliable way to check for 100% progress
-            /*assertNotNull(stateAndStats.getCheckpointingInfo().getNext().getCheckpointProgress());
-            assertThat(stateAndStats.getCheckpointingInfo().getNext().getCheckpointProgress().getPercentComplete(), equalTo(100.0));
-            assertThat(stateAndStats.getCheckpointingInfo().getNext().getCheckpointProgress().getTotalDocs(), greaterThan(0L));
-            assertThat(stateAndStats.getCheckpointingInfo().getNext().getCheckpointProgress().getRemainingDocs(), equalTo(0L));
-            */
             assertThat(stateAndStats.getReason(), is(nullValue()));
         });
     }

@@ -209,7 +209,7 @@ public class DataFrameTransformIT extends DataFrameIntegTestCase {
         long user = 42;
         indexMoreDocs(timeStamp, user, indexName);
 
-        // Since updates are loaded on checkpoint finish, we won't see the updated config until the next checkpoint
+        // Since updates are loaded on checkpoint start, we should see the updated config on this next run
         waitUntilCheckpoint(config.getId(), 2L);
         long numDocsAfterCp2 = getDataFrameTransformStats(config.getId())
             .getTransformsStats()
@@ -217,20 +217,6 @@ public class DataFrameTransformIT extends DataFrameIntegTestCase {
             .getIndexerStats()
             .getNumDocuments();
         assertThat(numDocsAfterCp2, greaterThan(docsIndexed));
-
-        // index some more docs
-        timeStamp = Instant.now().toEpochMilli() - 1_000;
-        user = 42;
-        indexMoreDocs(timeStamp, user, indexName);
-
-        // Assert that we got more docs in this next checkpoint
-        waitUntilCheckpoint(config.getId(), 3L);
-        long numDocsAfterCp3 = getDataFrameTransformStats(config.getId())
-            .getTransformsStats()
-            .get(0)
-            .getIndexerStats()
-            .getNumDocuments();
-        assertThat(numDocsAfterCp3, greaterThan(numDocsAfterCp2));
 
         final SearchRequest searchRequest = new SearchRequest(dest)
                 .source(new SearchSourceBuilder()

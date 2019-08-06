@@ -56,6 +56,9 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CHUN
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_INITIAL_LINE_LENGTH;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_KEEP_ALIVE;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_KEEP_COUNT;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_KEEP_IDLE;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_KEEP_INTERVAL;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_NO_DELAY;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_RECEIVE_BUFFER_SIZE;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_REUSE_ADDRESS;
@@ -70,6 +73,9 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
 
     protected final boolean tcpNoDelay;
     protected final boolean tcpKeepAlive;
+    protected final int tcpKeepIdle;
+    protected final int tcpKeepInterval;
+    protected final int tcpKeepCount;
     protected final boolean reuseAddress;
     protected final int tcpSendBufferSize;
     protected final int tcpReceiveBufferSize;
@@ -91,6 +97,9 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
 
         this.tcpNoDelay = SETTING_HTTP_TCP_NO_DELAY.get(settings);
         this.tcpKeepAlive = SETTING_HTTP_TCP_KEEP_ALIVE.get(settings);
+        this.tcpKeepIdle = SETTING_HTTP_TCP_KEEP_IDLE.get(settings);
+        this.tcpKeepInterval = SETTING_HTTP_TCP_KEEP_INTERVAL.get(settings);
+        this.tcpKeepCount = SETTING_HTTP_TCP_KEEP_COUNT.get(settings);
         this.reuseAddress = SETTING_HTTP_TCP_REUSE_ADDRESS.get(settings);
         this.tcpSendBufferSize = Math.toIntExact(SETTING_HTTP_TCP_SEND_BUFFER_SIZE.get(settings).getBytes());
         this.tcpReceiveBufferSize = Math.toIntExact(SETTING_HTTP_TCP_RECEIVE_BUFFER_SIZE.get(settings).getBytes());
@@ -151,7 +160,8 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
     private class HttpChannelFactory extends ChannelFactory<NioHttpServerChannel, NioHttpChannel> {
 
         private HttpChannelFactory() {
-            super(tcpNoDelay, tcpKeepAlive, reuseAddress, tcpSendBufferSize, tcpReceiveBufferSize);
+            super(tcpNoDelay, tcpKeepAlive, tcpKeepIdle, tcpKeepInterval, tcpKeepCount, reuseAddress, tcpSendBufferSize,
+                tcpReceiveBufferSize);
         }
 
         @Override

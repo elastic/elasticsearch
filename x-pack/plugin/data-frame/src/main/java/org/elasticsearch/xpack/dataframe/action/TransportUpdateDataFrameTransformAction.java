@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.dataframe.action;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -21,6 +22,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -43,10 +45,12 @@ import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.dataframe.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
+import org.elasticsearch.xpack.dataframe.persistence.DataframeIndex;
 import org.elasticsearch.xpack.dataframe.transforms.SourceDestValidator;
 import org.elasticsearch.xpack.dataframe.transforms.pivot.Pivot;
 
 import java.io.IOException;
+import java.time.Clock;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -139,10 +143,11 @@ public class TransportUpdateDataFrameTransformAction extends TransportMasterNode
                                      Request request,
                                      DataFrameTransformConfig config,
                                      DataFrameTransformsConfigManager.SeqNoPrimaryTermPair seqNoPrimaryTermPair,
+                                     ClusterState clusterState,
                                      HasPrivilegesResponse privilegesResponse,
                                      ActionListener<Response> listener) {
         if (privilegesResponse.isCompleteMatch()) {
-            updateDataFrame(request, config, seqNoPrimaryTermPair, listener);
+            updateDataFrame(request, config, seqNoPrimaryTermPair, clusterState, listener);
         } else {
             List<String> indices = privilegesResponse.getIndexPrivileges()
                 .stream()
@@ -169,22 +174,24 @@ public class TransportUpdateDataFrameTransformAction extends TransportMasterNode
             return;
         }
 
+
         // Early check to verify that the user can create the destination index and can read from the source
         if (licenseState.isAuthAllowed() && request.isDeferValidation() == false) {
             final String username = securityContext.getUser().principal();
             HasPrivilegesRequest privRequest = buildPrivilegeCheck(config, indexNameExpressionResolver, clusterState, username);
             ActionListener<HasPrivilegesResponse> privResponseListener = ActionListener.wrap(
-                r -> handlePrivsResponse(username, request, config, seqNoPrimaryTermPair, r, listener),
+                r -> handlePrivsResponse(username, request, config, seqNoPrimaryTermPair, clusterState, r, listener),
                 listener::onFailure);
 
             client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
         } else { // No security enabled, just create the transform
-            updateDataFrame(request, config, seqNoPrimaryTermPair, listener);
+            updateDataFrame(request, config, seqNoPrimaryTermPair, clusterState, listener);
         }
     }
     private void updateDataFrame(Request request,
                                  DataFrameTransformConfig config,
                                  DataFrameTransformsConfigManager.SeqNoPrimaryTermPair seqNoPrimaryTermPair,
+                                 ClusterState clusterState,
                                  ActionListener<Response> listener) {
 
         final Pivot pivot = new Pivot(config.getPivotConfig());
@@ -195,14 +202,32 @@ public class TransportUpdateDataFrameTransformAction extends TransportMasterNode
                 auditor.info(config.getId(), "updated data frame transform.");
                 listener.onResponse(new Response(config));
             },
+            // If we failed to INDEX AND we created the destination index, the destination index will still be around
+            // This is a similar behavior to _start
             listener::onFailure
         );
 
         // <2> Update our transform
-        ActionListener<Boolean> pivotValidationListener = ActionListener.wrap(
-            validationResult -> dataFrameTransformsConfigManager.updateTransformConfiguration(config,
+        ActionListener<Void> createDestinationListener = ActionListener.wrap(
+            createDestResponse -> dataFrameTransformsConfigManager.updateTransformConfiguration(config,
                 seqNoPrimaryTermPair,
                 putTransformConfigurationListener),
+            listener::onFailure
+        );
+
+        // <1> Create destination index if necessary
+        ActionListener<Boolean> pivotValidationListener = ActionListener.wrap(
+            validationResult -> {
+                String[] dest = indexNameExpressionResolver.concreteIndexNames(clusterState,
+                    IndicesOptions.lenientExpandOpen(),
+                    config.getDestination().getIndex());
+                // If we are running, we should verify that the destination index exists and create it if it does not
+                if (PersistentTasksCustomMetaData.getTaskWithId(clusterState, request.getId()) != null && dest.length == 0) {
+                    createDestination(pivot, config, createDestinationListener);
+                } else {
+                    createDestinationListener.onResponse(null);
+                }
+            },
             validationException -> {
                 if (validationException instanceof ElasticsearchStatusException) {
                     listener.onFailure(new ElasticsearchStatusException(
@@ -232,10 +257,27 @@ public class TransportUpdateDataFrameTransformAction extends TransportMasterNode
             return;
         }
 
+        // <0> Validate the pivot if necessary
         if (request.isDeferValidation()) {
             pivotValidationListener.onResponse(true);
         } else {
             pivot.validateQuery(client, config.getSource(), pivotValidationListener);
         }
+    }
+
+    private void createDestination(Pivot pivot, DataFrameTransformConfig config, ActionListener<Void> listener) {
+        ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(
+            mappings -> DataframeIndex.createDestinationIndex(
+                client,
+                Clock.systemUTC(),
+                config,
+                mappings,
+                ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure)),
+            deduceTargetMappingsException -> listener.onFailure(
+                new RuntimeException(DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_TO_DEDUCE_DEST_MAPPINGS,
+                    deduceTargetMappingsException))
+        );
+
+        pivot.deduceMappings(client, config.getSource(), deduceMappingsListener);
     }
 }

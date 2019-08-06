@@ -23,6 +23,7 @@ final String vaultToken =  new Vault(
             .engineVersion(1)
             .build()
     )
+    .withRetries(5, 1000)
     .auth()
     .loginByAppRole("approle", System.env.VAULT_ROLE_ID, System.env.VAULT_SECRET_ID)
     .getAuthClientToken();
@@ -34,6 +35,7 @@ final Vault vault = new Vault(
         .token(vaultToken)
         .build()
 )
+        .withRetries(5, 1000)
 
 final Map<String,String> artifactoryCredentials = vault.logical()
         .read("secret/elasticsearch-ci/artifactory.elstc.co")

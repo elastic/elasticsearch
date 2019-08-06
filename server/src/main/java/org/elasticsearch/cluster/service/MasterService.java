@@ -188,6 +188,11 @@ public class MasterService extends AbstractLifecycleComponent {
         return Thread.currentThread().getName().contains(MASTER_UPDATE_THREAD_NAME);
     }
 
+    public static boolean assertMasterUpdateThread() {
+        assert isMasterUpdateThread() : "not called from the master service thread";
+        return true;
+    }
+
     public static boolean assertNotMasterUpdateThread(String reason) {
         assert isMasterUpdateThread() == false :
             "Expected current thread [" + Thread.currentThread() + "] to not be the master service thread. Reason: [" + reason + "]";

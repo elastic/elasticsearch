@@ -701,15 +701,14 @@ public class MasterService extends AbstractLifecycleComponent {
                 throw new AssertionError("update task submitted to MasterService cannot remove master");
             }
         } catch (Exception e) {
-            logger.trace(
-                new ParameterizedMessage(
+            logger.trace(() -> new ParameterizedMessage(
                     "failed to execute cluster state update (on version: [{}], uuid: [{}]) for [{}]\n{}{}{}",
                     previousClusterState.version(),
                     previousClusterState.stateUUID(),
                     taskInputs.summary,
                     previousClusterState.nodes(),
                     previousClusterState.routingTable(),
-                    previousClusterState.getRoutingNodes()),
+                    previousClusterState.getRoutingNodes()), // may be expensive => construct message lazily
                 e);
             clusterTasksResult = ClusterTasksResult.builder()
                 .failures(taskInputs.updateTasks.stream().map(updateTask -> updateTask.task)::iterator, e)

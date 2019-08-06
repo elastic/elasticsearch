@@ -64,14 +64,16 @@ public class VagrantExtension {
         hostEnv.put(name, value);
     }
 
+    @Input
     public Map<String, Object> getVmEnv() {
-        return hostEnv.get();
+        return vmEnv.get();
     }
 
     public void vmEnv(String name, Object value) {
-        hostEnv.put(name, value);
+        vmEnv.put(name, value);
     }
 
+    @Input
     public boolean isWindowsVM() {
         return isWindowsVM;
     }
@@ -80,11 +82,12 @@ public class VagrantExtension {
         this.isWindowsVM = isWindowsVM;
     }
 
-    public void setVagrantfile(File file) {
-        vagrantfile.set(file);
-    }
-
+    @Input
     public File getVagrantfile() {
         return this.vagrantfile.get().getAsFile();
+    }
+
+    public void setVagrantfile(File file) {
+        vagrantfile.set(file);
     }
 }

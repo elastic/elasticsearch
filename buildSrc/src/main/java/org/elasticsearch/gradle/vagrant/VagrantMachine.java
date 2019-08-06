@@ -71,6 +71,9 @@ public class VagrantMachine {
 
         LoggedExec.exec(project, execSpec -> {
             execSpec.setExecutable("vagrant");
+            extension.getHostEnv().forEach((k, v) -> {
+                project.getLogger().warn("HOST ENV: " + k + "=" + v);
+            });
             execSpec.setEnvironment(extension.getHostEnv());
             File vagrantfile = extension.getVagrantfile();
             execSpec.setEnvironment(System.getenv()); // pass through env

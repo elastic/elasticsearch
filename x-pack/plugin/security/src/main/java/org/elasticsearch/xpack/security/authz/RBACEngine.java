@@ -28,7 +28,6 @@ import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.transport.TransportActionProxy;
@@ -59,6 +58,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.NamedClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -361,8 +361,7 @@ public class RBACEngine implements AuthorizationEngine {
 
         Map<String, Boolean> cluster = new HashMap<>();
         for (String checkAction : request.clusterPrivileges()) {
-            final ClusterPrivilege checkPrivilege = ClusterPrivilegeResolver.get(Collections.singleton(checkAction));
-            cluster.put(checkAction, userRole.grants(checkPrivilege));
+            cluster.put(checkAction, userRole.grants(ClusterPrivilegeResolver.resolve(checkAction)));
         }
         boolean allMatch = cluster.values().stream().allMatch(Boolean::booleanValue);
         ResourcePrivilegesMap.Builder combineIndicesResourcePrivileges = ResourcePrivilegesMap.builder();
@@ -415,13 +414,15 @@ public class RBACEngine implements AuthorizationEngine {
         final Set<String> cluster = new TreeSet<>();
         // But we don't have a meaningful ordering for objects like ConfigurableClusterPrivilege, so the tests work with "random" ordering
         final Set<ConfigurableClusterPrivilege> conditionalCluster = new HashSet<>();
-        for (Tuple<ClusterPrivilege, ConfigurableClusterPrivilege> tup : userRole.cluster().privileges()) {
-            if (tup.v2() == null) {
-                if (ClusterPrivilege.NONE.equals(tup.v1()) == false) {
-                    cluster.addAll(tup.v1().name());
-                }
+        for (ClusterPrivilege privilege : userRole.cluster().privileges()) {
+            if (privilege instanceof NamedClusterPrivilege) {
+                cluster.add(((NamedClusterPrivilege) privilege).name());
+            } else if (privilege instanceof ConfigurableClusterPrivilege) {
+                conditionalCluster.add((ConfigurableClusterPrivilege) privilege);
             } else {
-                conditionalCluster.add(tup.v2());
+                throw new IllegalArgumentException(
+                    "found unsupported cluster privilege : " + privilege +
+                        ((privilege != null) ? " of type " + privilege.getClass().getSimpleName() : ""));
             }
         }
 

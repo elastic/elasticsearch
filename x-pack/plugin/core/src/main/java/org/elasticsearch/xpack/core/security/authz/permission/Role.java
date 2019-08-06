@@ -138,7 +138,7 @@ public class Role {
      * @return {@code true} if cluster privilege is allowed else returns {@code false}
      */
     public boolean grants(ClusterPrivilege clusterPrivilege) {
-        return cluster.grants(clusterPrivilege);
+        return cluster.implies(clusterPrivilege.buildPermission(ClusterPermission.builder()).build());
     }
 
     /**
@@ -185,7 +185,7 @@ public class Role {
     public static class Builder {
 
         private final String[] names;
-        private ClusterPermission cluster = ClusterPermission.SimpleClusterPermission.NONE;
+        private ClusterPermission cluster = ClusterPermission.NONE;
         private RunAsPermission runAs = RunAsPermission.NONE;
         private List<IndicesPermission.Group> groups = new ArrayList<>();
         private List<Tuple<ApplicationPrivilege, Set<String>>> applicationPrivs = new ArrayList<>();
@@ -211,29 +211,17 @@ public class Role {
         }
 
         public Builder cluster(Set<String> privilegeNames, Iterable<ConfigurableClusterPrivilege> configurableClusterPrivileges) {
+            ClusterPermission.Builder builder = ClusterPermission.builder();
             List<ClusterPermission> clusterPermissions = new ArrayList<>();
             if (privilegeNames.isEmpty() == false) {
-                clusterPermissions.add(new ClusterPermission.SimpleClusterPermission(ClusterPrivilegeResolver.get(privilegeNames)));
+                for (String name : privilegeNames) {
+                    builder = ClusterPrivilegeResolver.resolve(name).buildPermission(builder);
+                }
             }
             for (ConfigurableClusterPrivilege ccp : configurableClusterPrivileges) {
-                clusterPermissions.add(new ClusterPermission.ConditionalClusterPermission(ccp));
+                builder = ccp.buildPermission(builder);
             }
-            if (clusterPermissions.isEmpty()) {
-                this.cluster = ClusterPermission.SimpleClusterPermission.NONE;
-            } else if (clusterPermissions.size() == 1) {
-                this.cluster = clusterPermissions.get(0);
-            } else {
-                this.cluster = new ClusterPermission.CompositeClusterPermission(clusterPermissions);
-            }
-            return this;
-        }
-
-        /**
-         * @deprecated Use {@link #cluster(Set, Iterable)}
-         */
-        @Deprecated
-        public Builder cluster(ClusterPrivilege privilege) {
-            cluster = new ClusterPermission.SimpleClusterPermission(privilege);
+            this.cluster = builder.build();
             return this;
         }
 

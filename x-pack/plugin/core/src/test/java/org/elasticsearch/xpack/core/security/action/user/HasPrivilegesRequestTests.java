@@ -91,7 +91,7 @@ public class HasPrivilegesRequestTests extends ESTestCase {
             ClusterPrivilegeResolver.MANAGE,
             ClusterPrivilegeResolver.MANAGE_ML, ClusterPrivilegeResolver.MANAGE_SECURITY, ClusterPrivilegeResolver.MANAGE_PIPELINE,
             ClusterPrivilegeResolver.ALL))
-            .stream().flatMap(p -> p.name().stream()).collect(Collectors.toList());
+            .stream().map(p -> p.name()).collect(Collectors.toList());
         request.clusterPrivileges(clusterPrivileges.toArray(Strings.EMPTY_ARRAY));
 
         IndicesPrivileges[] indicesPrivileges = new IndicesPrivileges[randomInt(5)];

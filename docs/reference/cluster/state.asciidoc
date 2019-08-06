@@ -1,14 +1,12 @@
 [[cluster-state]]
 === Cluster State
 
+Returns metadata about the state of the cluster.
+
 [[cluster-state-api-request]]
 ==== {api-request-title}
 
-`GET /_cluster/state` +
-
-`GET /_cluster/state/{metrics}` +
-
-`GET /_cluster/state/{metrics}/{indices}`
+`GET /_cluster/state/{metrics}/{index}`
 
 [[cluster-state-api-desc]]
 ==== {api-description-title}
@@ -52,32 +50,35 @@ including their mappings, as well as templates and other metadata. This means it
 can sometimes be quite large. To avoid the need to process all this information
 you can request only the part of the cluster state that you need:
 
-`{metrics}` is a comma-separated list of the following options:
+include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
 
-`_all`::
-    Shows all metrics.
+`{metrics}`::
+    (Optional, string) A comma-separated list of the following options:
+
+  `_all`::
+      Shows all metrics.
     
-`blocks`::
-    Shows the `blocks` part of the response.
+  `blocks`::
+      Shows the `blocks` part of the response.
 
-`master_node`::
-    Shows the elected `master_node` part of the response
+  `master_node`::
+      Shows the elected `master_node` part of the response
     
-`metadata`::
-    Shows the `metadata` part of the response. If you supply a comma separated
-    list of indices, the returned output will only contain metadata for these
-    indices.
+  `metadata`::
+      Shows the `metadata` part of the response. If you supply a comma separated
+      list of indices, the returned output will only contain metadata for these
+      indices.
 
-`nodes`::
-    Shows the `nodes` part of the response
+  `nodes`::
+      Shows the `nodes` part of the response
 
-`routing_table`::
-    Shows the `routing_table` part of the response. If you supply a comma
-    separated list of indices, the returned output will only contain the routing
-    table for these indices.
+  `routing_table`::
+      Shows the `routing_table` part of the response. If you supply a comma
+      separated list of indices, the returned output will only contain the routing
+      table for these indices.
     
-`version`::
-    Shows the cluster state version.
+  `version`::
+      Shows the cluster state version.
 
 [[cluster-state-api-example]]
 ==== {api-examples-title}

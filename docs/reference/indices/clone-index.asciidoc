@@ -1,12 +1,12 @@
 [[indices-clone-index]]
-== Clone Index
+=== Clone Index
 
 The clone index API allows you to clone an existing index into a new index,
 where each original primary shard is cloned into a new primary shard in
 the new index.
 
 [float]
-=== How does cloning work?
+==== How does cloning work?
 
 Cloning works as follows:
 
@@ -21,7 +21,7 @@ Cloning works as follows:
   had just been re-opened.
 
 [float]
-=== Preparing an index for cloning
+==== Preparing an index for cloning
 
 Create a new index:
 
@@ -57,7 +57,7 @@ PUT /my_source_index/_settings
     changes like deleting the index.
 
 [float]
-=== Cloning an index
+==== Cloning an index
 
 To clone `my_source_index` into a new index called `my_target_index`, issue
 the following request:
@@ -112,7 +112,7 @@ NOTE: Mappings may not be specified in the `_clone` request. The mappings of
 the source index will be used for the target index.
 
 [float]
-=== Monitoring the clone process
+==== Monitoring the clone process
 
 The clone process can be monitored with the <<cat-recovery,`_cat recovery`
 API>>, or the <<cluster-health, `cluster health` API>> can be used to wait
@@ -131,7 +131,7 @@ become `active`. At that  point, Elasticsearch will try to allocate any
 replicas and may decide to relocate the primary shard to another node.
 
 [float]
-=== Wait For Active Shards
+==== Wait For Active Shards
 
 Because the clone operation creates a new index to clone the shards to,
 the <<create-index-wait-for-active-shards,wait for active shards>> setting

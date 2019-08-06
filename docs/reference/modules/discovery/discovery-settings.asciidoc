@@ -176,6 +176,12 @@ or may become unstable or intolerant of certain failures.
     time. The default value is `10`. See
     <<modules-discovery-adding-removing-nodes>>.
 
+`cluster.publish.info_timeout`::
+
+    Sets how long the master node waits for each cluster state update to be
+    completely published to all nodes before logging a message indicating that
+    some nodes are responding slowly. The default value is `10s`.
+
 `cluster.publish.timeout`::
 
     Sets how long the master node waits for each cluster state update to be

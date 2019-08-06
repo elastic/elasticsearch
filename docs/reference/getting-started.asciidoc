@@ -54,7 +54,6 @@ Linux: https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{versi
 --------------------------------------------------
 curl -L -O https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-linux-x86_64.tar.gz
 --------------------------------------------------
-// NOTCONSOLE
 +
 macOS: https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-darwin-x86_64.tar.gz[elasticsearch-{version}-darwin-x86_64.tar.gz]
 +
@@ -62,7 +61,6 @@ macOS: https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{versi
 --------------------------------------------------
 curl -L -O https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-darwin-x86_64.tar.gz
 --------------------------------------------------
-// NOTCONSOLE
 +
 Windows:
 https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-windows-x86_64.zip[elasticsearch-{version}-windows-x86_64.zip]
@@ -79,14 +77,14 @@ tar -xvf elasticsearch-{version}-linux-x86_64.tar.gz
 macOS:
 +
 ["source","sh",subs="attributes,callouts"]
--------------------------------------------------
+--------------------------------------------------
 tar -xvf elasticsearch-{version}-darwin-x86_64.tar.gz
 --------------------------------------------------
 +
 Windows PowerShell:
 +
 ["source","sh",subs="attributes,callouts"]
--------------------------------------------------
+--------------------------------------------------
 Expand-Archive elasticsearch-{version}-windows-x86_64.zip
 --------------------------------------------------
 
@@ -119,6 +117,7 @@ Linux and macOS:
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
 ./elasticsearch -Epath.data=data2 -Epath.logs=log2
+./elasticsearch -Epath.data=data3 -Epath.logs=log3
 --------------------------------------------------
 +
 Windows:
@@ -126,6 +125,7 @@ Windows:
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
 .\elasticsearch.exe -Epath.data=data2 -Epath.logs=log2
+.\elasticsearch.exe -Epath.data=data3 -Epath.logs=log3
 --------------------------------------------------
 +
 The default configuration enables the new nodes to automatically join the
@@ -138,13 +138,13 @@ format that's easier to read than raw JSON.
 +
 You can interact directly with your cluster by submitting HTTP requests to
 the {es} REST API. Most of the examples in this guide enable you to copy the
-appropriate cURL command and submit the request to a local {es} instance from
+appropriate cURL command and submit the request to your local {es} instance from
 the command line. If you have Kibana installed and running, you can also
 open Kibana and submit requests through the Dev Console.
 +
-TIP: When you're ready to start using {es} in your own applications, you'll want to
-check out the
-<<https://www.elastic.co/guide/en/elasticsearch/client/index.html[{es} language
+TIP: When you're ready to start using {es} in your own applications, you'll
+want to check out the
+https://www.elastic.co/guide/en/elasticsearch/client/index.html[{es} language
 clients].
 +
 [source,js]

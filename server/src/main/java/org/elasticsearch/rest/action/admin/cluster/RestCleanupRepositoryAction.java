@@ -43,7 +43,7 @@ public class RestCleanupRepositoryAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "cleanup_action";
+        return "cleanup_repository_action";
     }
 
     @Override

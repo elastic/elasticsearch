@@ -196,7 +196,7 @@ public final class SnapshotClient {
      * @param listener the listener to be notified upon request completion
      */
     public void cleanupRepositoryAsync(CleanupRepositoryRequest cleanupRepositoryRequest, RequestOptions options,
-        ActionListener<CleanupRepositoryResponse> listener) {
+                                       ActionListener<CleanupRepositoryResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(cleanupRepositoryRequest, SnapshotRequestConverters::cleanupRepository,
             options, CleanupRepositoryResponse::fromXContent, listener, emptySet());
     }

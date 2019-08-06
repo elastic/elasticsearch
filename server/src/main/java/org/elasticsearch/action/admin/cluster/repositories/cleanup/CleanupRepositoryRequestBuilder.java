@@ -32,7 +32,7 @@ public class CleanupRepositoryRequestBuilder extends MasterNodeOperationRequestB
     }
 
     public CleanupRepositoryRequestBuilder setRepository(String repository) {
-        request.repository(repository);
+        request.setName(repository);
         return this;
     }
 }

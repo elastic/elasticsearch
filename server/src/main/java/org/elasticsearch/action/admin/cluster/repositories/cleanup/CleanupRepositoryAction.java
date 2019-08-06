@@ -23,7 +23,7 @@ import org.elasticsearch.action.ActionType;
 public final class CleanupRepositoryAction extends ActionType<CleanupRepositoryResponse> {
 
     public static final CleanupRepositoryAction INSTANCE = new CleanupRepositoryAction();
-    public static final String NAME = "cluster:admin/repository/cleanup";
+    public static final String NAME = "cluster:admin/repository/_cleanup";
 
     private CleanupRepositoryAction() {
         super(NAME, CleanupRepositoryResponse::new);

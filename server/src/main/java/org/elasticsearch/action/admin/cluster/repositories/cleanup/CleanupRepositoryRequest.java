@@ -53,11 +53,11 @@ public class CleanupRepositoryRequest extends AcknowledgedRequest<CleanupReposit
         return validationException;
     }
 
-    public String repository() {
+    public String name() {
         return repository;
     }
 
-    public void repository(String repository) {
+    public void setName(String repository) {
         this.repository = repository;
     }
 }

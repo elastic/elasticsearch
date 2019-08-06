@@ -97,8 +97,8 @@ final class SnapshotRequestConverters {
 
     static Request cleanupRepository(CleanupRepositoryRequest cleanupRepositoryRequest) {
         String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_snapshot")
-            .addPathPart(cleanupRepositoryRequest.repository())
-            .addPathPartAsIs("cleanup")
+            .addPathPart(cleanupRepositoryRequest.name())
+            .addPathPartAsIs("_cleanup")
             .build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
 

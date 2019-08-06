@@ -339,7 +339,7 @@ trigger a complete accounting of the repositories contents and subsequent deleti
 
 [source,js]
 -----------------------------------
-POST /_snapshot/my_repository/cleanup
+POST /_snapshot/my_repository/_cleanup
 -----------------------------------
 // CONSOLE
 // TEST[continued]

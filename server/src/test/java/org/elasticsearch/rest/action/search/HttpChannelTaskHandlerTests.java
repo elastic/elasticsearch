@@ -77,8 +77,8 @@ public class HttpChannelTaskHandlerTests extends ESTestCase {
      */
     public void testCompletedTasks() throws Exception {
         try (TestClient testClient = new TestClient(Settings.EMPTY, threadPool, false)) {
-            HttpChannelTaskHandler httpChannelTaskHandler = HttpChannelTaskHandler.get();
-            int initialHttpChannels = httpChannelTaskHandler.httpChannels.size();
+            HttpChannelTaskHandler httpChannelTaskHandler = HttpChannelTaskHandler.INSTANCE;
+            int initialHttpChannels = httpChannelTaskHandler.getNumChannels();
             int totalSearches = 0;
             List<Future<?>> futures = new ArrayList<>();
             int numChannels = randomIntBetween(1, 30);
@@ -97,7 +97,7 @@ public class HttpChannelTaskHandlerTests extends ESTestCase {
                 future.get();
             }
             //no channels get closed in this test, hence we expect as many channels as we created in the map
-            assertEquals(initialHttpChannels + numChannels, httpChannelTaskHandler.httpChannels.size());
+            assertEquals(initialHttpChannels + numChannels, httpChannelTaskHandler.getNumChannels());
             for (Map.Entry<HttpChannel, HttpChannelTaskHandler.CloseListener> entry : httpChannelTaskHandler.httpChannels.entrySet()) {
                 assertEquals(0, entry.getValue().taskIds.size());
             }
@@ -111,8 +111,8 @@ public class HttpChannelTaskHandlerTests extends ESTestCase {
      */
     public void testCancelledTasks() throws Exception {
         try (TestClient testClient = new TestClient(Settings.EMPTY, threadPool, true)) {
-            HttpChannelTaskHandler httpChannelTaskHandler = HttpChannelTaskHandler.get();
-            int initialHttpChannels = httpChannelTaskHandler.httpChannels.size();
+            HttpChannelTaskHandler httpChannelTaskHandler = HttpChannelTaskHandler.INSTANCE;
+            int initialHttpChannels = httpChannelTaskHandler.getNumChannels();
             int numChannels = randomIntBetween(1, 30);
             int totalSearches = 0;
             List<TestHttpChannel> channels = new ArrayList<>(numChannels);
@@ -126,11 +126,11 @@ public class HttpChannelTaskHandlerTests extends ESTestCase {
                 }
                 assertEquals(numTasks, httpChannelTaskHandler.httpChannels.get(channel).taskIds.size());
             }
-            assertEquals(initialHttpChannels + numChannels, httpChannelTaskHandler.httpChannels.size());
+            assertEquals(initialHttpChannels + numChannels, httpChannelTaskHandler.getNumChannels());
             for (TestHttpChannel channel : channels) {
                 channel.awaitClose();
             }
-            assertEquals(initialHttpChannels, httpChannelTaskHandler.httpChannels.size());
+            assertEquals(initialHttpChannels, httpChannelTaskHandler.getNumChannels());
             assertEquals(totalSearches, testClient.searchRequests.get());
             assertEquals(totalSearches, testClient.cancelledTasks.size());
         }
@@ -144,8 +144,8 @@ public class HttpChannelTaskHandlerTests extends ESTestCase {
      */
     public void testChannelAlreadyClosed() {
         try (TestClient testClient = new TestClient(Settings.EMPTY, threadPool, true)) {
-            HttpChannelTaskHandler httpChannelTaskHandler = HttpChannelTaskHandler.get();
-            int initialHttpChannels = httpChannelTaskHandler.httpChannels.size();
+            HttpChannelTaskHandler httpChannelTaskHandler = HttpChannelTaskHandler.INSTANCE;
+            int initialHttpChannels = httpChannelTaskHandler.getNumChannels();
             int numChannels = randomIntBetween(1, 30);
             int totalSearches = 0;
             for (int i = 0; i < numChannels; i++) {
@@ -159,7 +159,7 @@ public class HttpChannelTaskHandlerTests extends ESTestCase {
                     httpChannelTaskHandler.execute(testClient, channel, new SearchRequest(), SearchAction.INSTANCE, null);
                 }
             }
-            assertEquals(initialHttpChannels, httpChannelTaskHandler.httpChannels.size());
+            assertEquals(initialHttpChannels, httpChannelTaskHandler.getNumChannels());
             assertEquals(totalSearches, testClient.searchRequests.get());
             assertEquals(totalSearches, testClient.cancelledTasks.size());
         }

@@ -103,7 +103,7 @@ public class RestSearchAction extends BaseRestHandler {
 
         return channel -> {
             RestStatusToXContentListener<SearchResponse> listener = new RestStatusToXContentListener<>(channel);
-            HttpChannelTaskHandler.get().execute(client, request.getHttpChannel(), searchRequest, SearchAction.INSTANCE, listener);
+            HttpChannelTaskHandler.INSTANCE.execute(client, request.getHttpChannel(), searchRequest, SearchAction.INSTANCE, listener);
         };
     }
 

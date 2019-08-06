@@ -518,8 +518,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
             restClient.close();
             restClient = null;
         }
-        assertEquals(HttpChannelTaskHandler.get().getNumChannels() + " channels still being tracked in " +
-            HttpChannelTaskHandler.class.getSimpleName() + " while there should be none", 0, HttpChannelTaskHandler.get().getNumChannels());
+        assertEquals(HttpChannelTaskHandler.INSTANCE.getNumChannels() + " channels still being tracked in " +
+            HttpChannelTaskHandler.class.getSimpleName() + " while there should be none", 0,
+            HttpChannelTaskHandler.INSTANCE.getNumChannels());
     }
 
     private void afterInternal(boolean afterClass) throws Exception {

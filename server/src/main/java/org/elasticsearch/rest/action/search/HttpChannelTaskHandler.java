@@ -24,8 +24,11 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -42,15 +45,11 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public final class HttpChannelTaskHandler {
 
-    private static final HttpChannelTaskHandler INSTANCE = new HttpChannelTaskHandler();
-
+    public static final HttpChannelTaskHandler INSTANCE = new HttpChannelTaskHandler();
+    //package private for testing
     final Map<HttpChannel, CloseListener> httpChannels = new ConcurrentHashMap<>();
 
     private HttpChannelTaskHandler() {
-    }
-
-    public static HttpChannelTaskHandler get() {
-        return INSTANCE;
     }
 
     <Response extends ActionResponse> void execute(NodeClient client, HttpChannel httpChannel, ActionRequest request,
@@ -122,14 +121,20 @@ public final class HttpChannelTaskHandler {
         @Override
         public synchronized void onResponse(Void aVoid) {
             //When the channel gets closed it won't be reused: we can remove it from the map and forget about it.
-            httpChannels.remove(channel.get());
-            for (TaskId previousTaskId : taskIds) {
-                //TODO what thread context should this be run on?
-                CancelTasksRequest cancelTasksRequest = new CancelTasksRequest();
-                cancelTasksRequest.setTaskId(previousTaskId);
-                //We don't wait for cancel tasks to come back. Task cancellation is just best effort.
-                //Note that cancel tasks fails if the user sending the search request does not have the permissions to call it.
-                client.admin().cluster().cancelTasks(cancelTasksRequest, ActionListener.wrap(r -> {}, e -> {}));
+            CloseListener closeListener = httpChannels.remove(channel.get());
+            assert closeListener != null : "channel not found in the map of tracked channels";
+            for (TaskId taskId : taskIds) {
+                ThreadContext threadContext = client.threadPool().getThreadContext();
+                try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+                    // we stash any context here since this is an internal execution and should not leak any existing context information
+                    threadContext.markAsSystemContext();
+                    ContextPreservingActionListener<CancelTasksResponse> contextPreservingListener = new ContextPreservingActionListener<>(
+                        threadContext.newRestorableContext(false),  ActionListener.wrap(r -> {}, e -> {}));
+                    CancelTasksRequest cancelTasksRequest = new CancelTasksRequest();
+                    cancelTasksRequest.setTaskId(taskId);
+                    //We don't wait for cancel tasks to come back. Task cancellation is just best effort.
+                    client.admin().cluster().cancelTasks(cancelTasksRequest, contextPreservingListener);
+                }
             }
         }
 

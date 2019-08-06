@@ -40,10 +40,12 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -204,6 +206,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             final Set<SnapshotId> deleted = ConcurrentHashMap.newKeySet();
             // We're expected two deletions before they hit the "taken too long" test, so have a latch of 2
             CountDownLatch latch = new CountDownLatch(2);
+            AtomicLong nanos = new AtomicLong(System.nanoTime());
             OverrideDeleteSnapshotRetentionTask retentionTask = new OverrideDeleteSnapshotRetentionTask(noOpClient, clusterService,
                 () -> {
                     List<SnapshotInfo> snaps = Arrays.asList(snap1, snap2, snap3, snap4, snap5);
@@ -211,18 +214,16 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                     return Collections.singletonMap("repo", snaps);
                 },
                 (repo, snapshotId) -> {
+                    logger.info("--> deleting {}", snapshotId);
                     // Don't pause until snapshot 2
                     if (snapshotId.equals(snap2.snapshotId())) {
-                        try {
-                            logger.info("--> pausing for 501ms while deleting snap2 to simulate deletion past a threshold");
-                            Thread.sleep(501);
-                        } catch (InterruptedException e) {
-                            throw new AssertionError(e);
-                        }
+                        logger.info("--> pausing for 501ms while deleting snap2 to simulate deletion past a threshold");
+                        nanos.addAndGet(TimeValue.timeValueMillis(501).nanos());
                     }
                     deleted.add(snapshotId);
                     latch.countDown();
-                });
+                },
+                nanos::get);
 
             long time = System.currentTimeMillis();
             retentionTask.triggered(new SchedulerEngine.Event(SnapshotRetentionService.SLM_RETENTION_JOB_ID, time, time));
@@ -268,7 +269,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                                   ClusterService clusterService,
                                   Supplier<Map<String, List<SnapshotInfo>>> snapshotRetriever,
                                   Consumer<Map<String, List<SnapshotInfo>>> snapshotDeleter) {
-            super(client, clusterService);
+            super(client, clusterService, System::nanoTime);
             this.snapshotRetriever = snapshotRetriever;
             this.snapshotDeleter = snapshotDeleter;
         }
@@ -293,8 +294,9 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
         OverrideDeleteSnapshotRetentionTask(Client client,
                                             ClusterService clusterService,
                                             Supplier<Map<String, List<SnapshotInfo>>> snapshotRetriever,
-                                            BiConsumer<String, SnapshotId> deleteRunner) {
-            super(client, clusterService);
+                                            BiConsumer<String, SnapshotId> deleteRunner,
+                                            LongSupplier nanoSupplier) {
+            super(client, clusterService, nanoSupplier);
             this.snapshotRetriever = snapshotRetriever;
             this.deleteRunner = deleteRunner;
         }

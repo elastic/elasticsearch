@@ -39,6 +39,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
 /**
@@ -54,10 +55,12 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
 
     private final Client client;
     private final ClusterService clusterService;
+    private final LongSupplier nowNanoSupplier;
 
-    public SnapshotRetentionTask(Client client, ClusterService clusterService) {
+    public SnapshotRetentionTask(Client client, ClusterService clusterService, LongSupplier nowNanoSupplier) {
         this.client = new OriginSettingClient(client, ClientHelper.INDEX_LIFECYCLE_ORIGIN);
         this.clusterService = clusterService;
+        this.nowNanoSupplier = nowNanoSupplier;
     }
 
     @Override
@@ -205,7 +208,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
         }
 
         logger.info("starting snapshot retention deletion for [{}] snapshots", count);
-        long startTime = System.nanoTime();
+        long startTime = nowNanoSupplier.getAsLong();
         int deleted = 0;
         for (Map.Entry<String, List<SnapshotInfo>> entry : snapshotsToDelete.entrySet()) {
             String repo = entry.getKey();
@@ -215,7 +218,8 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                 deleted++;
                 // Check whether we have exceeded the maximum time allowed to spend deleting
                 // snapshots, if we have, short-circuit the rest of the deletions
-                TimeValue elapsedDeletionTime = TimeValue.timeValueNanos(System.nanoTime() - startTime);
+                TimeValue elapsedDeletionTime = TimeValue.timeValueNanos(nowNanoSupplier.getAsLong() - startTime);
+                logger.trace("elapsed time for deletion of [{}] snapshot: {}", info.snapshotId(), elapsedDeletionTime);
                 if (elapsedDeletionTime.compareTo(maximumTime) > 0) {
                     logger.info("maximum snapshot retention deletion time reached, time spent: [{}]," +
                             " maximum allowed time: [{}], deleted {} out of {} snapshots scheduled for deletion",

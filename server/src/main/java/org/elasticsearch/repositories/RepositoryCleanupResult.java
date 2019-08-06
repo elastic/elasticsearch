@@ -35,9 +35,13 @@ public final class RepositoryCleanupResult implements Writeable, ToXContentObjec
     public static final ObjectParser<RepositoryCleanupResult, Void> PARSER =
         new ObjectParser<>(RepositoryCleanupResult.class.getName(), true, RepositoryCleanupResult::new);
 
+    private static final String DELETED_BLOBS = "deleted_blobs";
+
+    private static final String DELETED_BYTES = "deleted_bytes";
+
     static {
-        PARSER.declareLong((result, bytes) -> result.bytes = bytes, new ParseField("bytes"));
-        PARSER.declareLong((result, blobs) -> result.blobs = blobs, new ParseField("blobs"));
+        PARSER.declareLong((result, bytes) -> result.bytes = bytes, new ParseField(DELETED_BYTES));
+        PARSER.declareLong((result, blobs) -> result.blobs = blobs, new ParseField(DELETED_BLOBS));
     }
 
     private long bytes;
@@ -78,7 +82,7 @@ public final class RepositoryCleanupResult implements Writeable, ToXContentObjec
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject().field("bytes", bytes).field("blobs", blobs).endObject();
+        return builder.startObject().field(DELETED_BYTES, bytes).field(DELETED_BLOBS, blobs).endObject();
     }
 
     @Override

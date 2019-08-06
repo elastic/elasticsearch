@@ -350,8 +350,8 @@ The response to a cleanup request looks as follows:
 --------------------------------------------------
 {
   "results": {
-    "bytes": 20,
-    "blobs": 5
+    "deleted_bytes": 20,
+    "deleted_blobs": 5
   }
 }
 --------------------------------------------------

@@ -102,7 +102,8 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
         int inFlight = randomIntBetween(0, 200);
         int delayedUnassigned = randomIntBetween(0, 200);
         TimeValue pendingTaskInQueueTime = TimeValue.timeValueMillis(randomIntBetween(1000, 100000));
-        ClusterHealthResponse clusterHealth = new ClusterHealthResponse("bla", new String[] {MetaData.ALL}, clusterState, pendingTasks, inFlight, delayedUnassigned, pendingTaskInQueueTime);
+        ClusterHealthResponse clusterHealth = new ClusterHealthResponse("bla", new String[] {MetaData.ALL}, clusterState,
+                pendingTasks, inFlight, delayedUnassigned, pendingTaskInQueueTime);
         clusterHealth = maybeSerialize(clusterHealth);
         assertThat(clusterHealth.getClusterStateHealth().hasDiscoveredMaster(), Matchers.equalTo(true));
         assertClusterHealth(clusterHealth);
@@ -217,8 +218,8 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
                 ClusterStateHealth state = instance.getClusterStateHealth();
                 ClusterStateHealth newState = new ClusterStateHealth(state.getActivePrimaryShards() + between(1, 10),
                         state.getActiveShards(), state.getRelocatingShards(), state.getInitializingShards(), state.getUnassignedShards(),
-                        state.getNumberOfNodes(), state.getNumberOfDataNodes(), state.hasDiscoveredMaster(), state.getActiveShardsPercent(), state.getStatus(),
-                        state.getIndices());
+                        state.getNumberOfNodes(), state.getNumberOfDataNodes(), state.hasDiscoveredMaster(),
+                        state.getActiveShardsPercent(), state.getStatus(), state.getIndices());
                 return new ClusterHealthResponse(instance.getClusterName(),
                         instance.getNumberOfPendingTasks(), instance.getNumberOfInFlightFetch(),
                         instance.getDelayedUnassignedShards(), instance.getTaskMaxWaitingTime(),

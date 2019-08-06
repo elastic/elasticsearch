@@ -95,8 +95,8 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
                             }
                         }
                         ClusterStateHealth stateHealth = new ClusterStateHealth(activePrimaryShards, activeShards, relocatingShards,
-                                initializingShards, unassignedShards, numberOfNodes, numberOfDataNodes, hasDiscoveredMaster, activeShardsPercent, status,
-                                indices);
+                                initializingShards, unassignedShards, numberOfNodes, numberOfDataNodes, hasDiscoveredMaster,
+                                activeShardsPercent, status, indices);
                         // ClusterHealthResponse fields
                         String clusterName = (String) parsedObjects[i++];
                         int numberOfPendingTasks = (int) parsedObjects[i++];

@@ -270,7 +270,7 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
 
     @Override
     public int hashCode() {
-        return Objects.hash(numberOfNodes, numberOfDataNodes, hasDiscoveredMaster, activeShards, relocatingShards, activePrimaryShards, initializingShards,
-                unassignedShards, activeShardsPercent, status, indices);
+        return Objects.hash(numberOfNodes, numberOfDataNodes, hasDiscoveredMaster, activeShards, relocatingShards,
+                activePrimaryShards, initializingShards, unassignedShards, activeShardsPercent, status, indices);
     }
 }

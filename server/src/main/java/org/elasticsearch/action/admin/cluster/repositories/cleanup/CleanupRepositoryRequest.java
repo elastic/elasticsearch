@@ -57,7 +57,7 @@ public class CleanupRepositoryRequest extends AcknowledgedRequest<CleanupReposit
         return repository;
     }
 
-    public void setName(String repository) {
+    public void name(String repository) {
         this.repository = repository;
     }
 }

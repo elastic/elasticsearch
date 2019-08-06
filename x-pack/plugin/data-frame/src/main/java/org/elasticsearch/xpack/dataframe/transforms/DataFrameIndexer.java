@@ -174,9 +174,9 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
         // This should only happen when all underlying indices have gone away. Consequently, there is no more data to read.
         if (aggregations == null) {
             logger.info("[" + getJobId() + "] unexpected null aggregations in search response. " +
-                "Concrete indices may have disappeared or have been closed");
+                "Source indices have been deleted or closed.");
             auditor.info(getJobId(),
-                "Concrete source indices seem to have gone away. " +
+                "Source indices have been deleted or closed. " +
                     "Please verify that these indices exist and are open [" +
                     Strings.arrayToCommaDelimitedString(getConfig().getSource().getIndex()) +
                     "].");

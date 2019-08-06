@@ -159,7 +159,7 @@ public class TransportPreviewDataFrameTransformAction extends
                                 final Aggregations aggregations = r.getAggregations();
                                 if (aggregations == null) {
                                     listener.onFailure(
-                                        new ElasticsearchStatusException("Underlying source indices have gone away",
+                                        new ElasticsearchStatusException("Source indices have been deleted or closed.",
                                             RestStatus.BAD_REQUEST)
                                     );
                                     return;

@@ -301,6 +301,19 @@ public final class IndexSettings {
     public static final Setting<Boolean> INDEX_SEARCH_THROTTLED = Setting.boolSetting("index.search.throttled", false,
         Property.IndexScope, Property.PrivateIndex, Property.Dynamic);
 
+    /**
+     * Determines a balance between file-based and operations-based peer recoveries. The number of operations that will be used in an
+     * operations-based peer recovery is limited to this proportion of the total number of documents in the shard (including deleted
+     * documents) on the grounds that a file-based peer recovery may copy all of the documents in the shard over to the new peer, but is
+     * significantly faster than replaying the missing operations on the peer, so once a peer falls far enough behind the primary it makes
+     * more sense to copy all the data over again instead of replaying history.
+     *
+     * Defaults to retaining history for up to 10% of the documents in the shard. This can only be changed in tests, since this setting is
+     * intentionally unregistered.
+     */
+    public static final Setting<Double> REASONABLE_OPERATIONS_BASED_RECOVERY_PROPORTION_SETTING
+        = Setting.doubleSetting("index.recovery.reasonable_operations_based_recovery_proportion", 0.1, 0.0, Setting.Property.IndexScope);
+
     private final Index index;
     private final Version version;
     private final Logger logger;

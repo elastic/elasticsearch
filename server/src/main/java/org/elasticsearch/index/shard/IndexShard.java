@@ -64,7 +64,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -155,7 +154,6 @@ import java.io.UncheckedIOException;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
@@ -339,7 +337,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 globalCheckpointListeners::globalCheckpointUpdated,
                 threadPool::absoluteTimeInMillis,
                 (retentionLeases, listener) -> retentionLeaseSyncer.sync(shardId, retentionLeases, listener),
-                getMinimumReasonableRetainedSeqNoSupplier(indexSettings));
+                this::getMinimumReasonableRetainedSeqNo);
 
         // the query cache is a node-level thing, however we want the most popular filters
         // to be computed on a per-shard basis
@@ -2619,55 +2617,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         replicationTracker.removePeerRecoveryRetentionLease(nodeId, listener);
     }
 
-    /**
-     * Determines a balance between file-based and operations-based peer recoveries. The number of operations that will be used in an
-     * operations-based peer recovery is limited to this proportion of the total number of documents in the shard (including deleted
-     * documents) on the grounds that a file-based peer recovery may copy all of the documents in the shard over to the new peer, but is
-     * significantly faster than replaying the missing operations on the peer, so once a peer falls far enough behind the primary it makes
-     * more sense to copy all the data over again instead of replaying history.
-     *
-     * Defaults to retaining history for up to 10% of the documents in the shard. This can only be changed in tests, since this setting is
-     * intentionally unregistered.
-     */
-    public static final Setting<Double> REASONABLE_OPERATIONS_BASED_RECOVERY_PROPORTION_SETTING
-        = Setting.doubleSetting("index.recovery.reasonable_operations_based_recovery_proportion", 0.1, 0.0, Setting.Property.IndexScope);
-
-    private LongSupplier getMinimumReasonableRetainedSeqNoSupplier(final IndexSettings indexSettings) {
-        return new LongSupplier() {
-
-            private byte[] commitId = new byte[0];
-            private long minimumReasonableRetainedSeqNo = Long.MIN_VALUE;
-            private final double reasonableOperationsBasedRecoveryProportion
-                = REASONABLE_OPERATIONS_BASED_RECOVERY_PROPORTION_SETTING.get(indexSettings.getSettings());
-
-            @Override
-            public synchronized long getAsLong() {
-                try (Engine.IndexCommitRef safeCommitRef = getEngine().acquireSafeIndexCommit()) {
-                    final IndexCommit safeCommit = safeCommitRef.getIndexCommit();
-                    final SegmentInfos segmentInfos = SegmentInfos.readCommit(store.directory(), safeCommit.getSegmentsFileName());
-                    final byte[] commitId = segmentInfos.getId();
-
-                    if (Arrays.equals(commitId, this.commitId)) {
-                        return minimumReasonableRetainedSeqNo;
-                    }
-
-                    final long localCheckpoint = Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
-                    final long totalDocs = segmentInfos.totalMaxDoc();
-
-                    minimumReasonableRetainedSeqNo = localCheckpoint + 1
-                        - Math.round(Math.ceil(totalDocs * reasonableOperationsBasedRecoveryProportion));
-                    this.commitId = commitId;
-                    logger.trace("updating minimum reasonable retained seqno: " +
-                            "generation={}, localCheckpoint={}, totalDocs={}, minimumReasonableRetainedSeqNo={}",
-                            safeCommit.getGeneration(), localCheckpoint, totalDocs, minimumReasonableRetainedSeqNo);
-
-                    return minimumReasonableRetainedSeqNo;
-                } catch (IOException e) {
-                    logger.debug("exception getting minimum reasonable retained seqno", e);
-                    return Long.MIN_VALUE;
-                }
-            }
-        };
+    private long getMinimumReasonableRetainedSeqNo() {
+        final Engine engine = getEngineOrNull();
+        return engine == null ? Long.MIN_VALUE : engine.getMinimumReasonableRetainedSeqNo();
     }
 
     class ShardEventListener implements Engine.EventListener {

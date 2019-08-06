@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.ObjectIntHashMap;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexDeletionPolicy;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.Translog;
@@ -43,22 +44,26 @@ import java.util.function.LongSupplier;
  * In particular, this policy will delete index commits whose max sequence number is at most
  * the current global checkpoint except the index commit which has the highest max sequence number among those.
  */
-public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
+public class CombinedDeletionPolicy extends IndexDeletionPolicy {
     private final Logger logger;
+    private final double reasonableOperationsBasedRecoveryProportion;
     private final TranslogDeletionPolicy translogDeletionPolicy;
     private final SoftDeletesPolicy softDeletesPolicy;
     private final LongSupplier globalCheckpointSupplier;
     private final ObjectIntHashMap<IndexCommit> snapshottedCommits; // Number of snapshots held against each commit point.
     private volatile IndexCommit safeCommit; // the most recent safe commit point - its max_seqno at most the persisted global checkpoint.
     private volatile IndexCommit lastCommit; // the most recent commit point
+    private volatile long minimumReasonableRetainedSeqNo = Long.MIN_VALUE;
 
     CombinedDeletionPolicy(Logger logger, TranslogDeletionPolicy translogDeletionPolicy,
-                           SoftDeletesPolicy softDeletesPolicy, LongSupplier globalCheckpointSupplier) {
+                           SoftDeletesPolicy softDeletesPolicy, LongSupplier globalCheckpointSupplier,
+                           double reasonableOperationsBasedRecoveryProportion) {
         this.logger = logger;
         this.translogDeletionPolicy = translogDeletionPolicy;
         this.softDeletesPolicy = softDeletesPolicy;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
         this.snapshottedCommits = new ObjectIntHashMap<>();
+        this.reasonableOperationsBasedRecoveryProportion = reasonableOperationsBasedRecoveryProportion;
     }
 
     @Override
@@ -105,8 +110,23 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
         translogDeletionPolicy.setTranslogGenerationOfLastCommit(lastGen);
         translogDeletionPolicy.setMinTranslogGenerationForRecovery(minRequiredGen);
 
-        softDeletesPolicy.setLocalCheckpointOfSafeCommit(
-            Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)));
+        final long localCheckpointOfSafeCommit = Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+        softDeletesPolicy.setLocalCheckpointOfSafeCommit(localCheckpointOfSafeCommit);
+
+        final long docCountOfSafeCommit = getDocCountOfSafeCommit();
+        minimumReasonableRetainedSeqNo = localCheckpointOfSafeCommit + 1
+            - Math.round(Math.ceil(docCountOfSafeCommit * reasonableOperationsBasedRecoveryProportion));
+        logger.trace("updating minimum reasonable retained seqno: " +
+                "generation={}, localCheckpointOfSafeCommit={}, docCountOfSafeCommit={}, minimumReasonableRetainedSeqNo={}",
+            safeCommit.getGeneration(), localCheckpointOfSafeCommit, docCountOfSafeCommit, minimumReasonableRetainedSeqNo);
+    }
+
+    protected int getDocCountOfSafeCommit() throws IOException {
+        return SegmentInfos.readCommit(safeCommit.getDirectory(), safeCommit.getSegmentsFileName()).totalMaxDoc();
+    }
+
+    long getMinimumReasonableRetainedSeqNo() {
+        return minimumReasonableRetainedSeqNo;
     }
 
     /**

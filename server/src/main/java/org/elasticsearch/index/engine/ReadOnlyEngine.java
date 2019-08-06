@@ -421,6 +421,13 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
+    public long getMinimumReasonableRetainedSeqNo() {
+        // Consider all retained history to be reasonable. Discarding history doesn't really do anything on a read-only engine, and we might
+        // only be using this engine temporarily.
+        return Long.MIN_VALUE;
+    }
+
+    @Override
     public void activateThrottling() {
     }
 

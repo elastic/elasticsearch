@@ -76,9 +76,6 @@ public class DataFrameTransformIT extends DataFrameIntegTestCase {
 
         waitUntilCheckpoint(config.getId(), 1L);
 
-        // It will eventually be stopped
-        assertBusy(() -> assertThat(getDataFrameTransformStats(config.getId())
-                .getTransformsStats().get(0).getCheckpointingInfo().getNext().getIndexerState(), equalTo(IndexerState.STOPPED)));
         stopDataFrameTransform(config.getId());
 
         DataFrameTransformConfig storedConfig = getDataFrameTransform(config.getId()).getTransformConfigurations().get(0);

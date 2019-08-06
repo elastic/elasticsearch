@@ -99,12 +99,26 @@ setup:
             }
           }
   - do:
-      catch: /Transform with id \[batch-airline-transform\] cannot be updated/
       data_frame.update_data_frame_transform:
         transform_id: "batch-airline-transform"
         body: >
           {
             "description": "time to update"
+          }
+  - match: { description: "time to update" }
+
+  - do:
+      catch: /Cannot change the current sync configuration of transform \[batch-airline-transform\] from \[null\] to \[time\]/
+      data_frame.update_data_frame_transform:
+        transform_id: "batch-airline-transform"
+        body: >
+          {
+            "sync": {
+              "time": {
+                "field": "time",
+                "delay": "90m"
+              }
+            }
           }
 ---
 "Test basic transform crud":

@@ -31,9 +31,8 @@ information, see {stack-ov}/security-privileges.html[Security privileges] and
 [[update-data-frame-transform-desc]]
 ==== {api-description-title}
 
-This API updates an existing {dataframe-transform}. Updates are currently only supported
-on continuous {dataframe-transforms}. Additionally, all settings except description to not
-take effect until after the {dataframe-transform} reaches the next checkpoint. This is
+This API updates an existing {dataframe-transform}. All settings except description do not
+take effect until after the {dataframe-transform} starts the next checkpoint. This is
 so there is consistency with the pivoted data in each checkpoint.
 
 IMPORTANT: When {es} {security-features} are enabled, your {dataframe-transform}

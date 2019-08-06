@@ -121,12 +121,6 @@ public class TransportUpdateDataFrameTransformAction extends TransportMasterNode
                     listener.onResponse(new Response(config));
                     return;
                 }
-                if (config.getSyncConfig() == null) {
-                    listener.onFailure(new ElasticsearchStatusException(
-                        DataFrameMessages.getMessage(DataFrameMessages.REST_UPDATE_DATA_FRAME_TRANSFORM_BATCH, transformId),
-                        RestStatus.BAD_REQUEST));
-                    return;
-                }
                 DataFrameTransformConfig updatedConfig = update.apply(config);
                 validateAndUpdateDataFrame(request, clusterState, updatedConfig, configAndVersion.v2(), listener);
             },
@@ -221,8 +215,16 @@ public class TransportUpdateDataFrameTransformAction extends TransportMasterNode
                 String[] dest = indexNameExpressionResolver.concreteIndexNames(clusterState,
                     IndicesOptions.lenientExpandOpen(),
                     config.getDestination().getIndex());
+                String[] src = indexNameExpressionResolver.concreteIndexNames(clusterState,
+                    IndicesOptions.lenientExpandOpen(),
+                    config.getSource().getIndex());
                 // If we are running, we should verify that the destination index exists and create it if it does not
-                if (PersistentTasksCustomMetaData.getTaskWithId(clusterState, request.getId()) != null && dest.length == 0) {
+                if (PersistentTasksCustomMetaData.getTaskWithId(clusterState, request.getId()) != null
+                    && dest.length == 0
+                    // Verify we have source indices. The user could defer_validations and if the task is already running
+                    // we allow source indices to disappear. If the source and destination indices do not exist, don't do anything
+                    // the transform will just have to dynamically create the destination index without special mapping.
+                    && src.length > 0) {
                     createDestination(pivot, config, createDestinationListener);
                 } else {
                     createDestinationListener.onResponse(null);

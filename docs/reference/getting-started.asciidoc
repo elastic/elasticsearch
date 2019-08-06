@@ -33,7 +33,7 @@ trial of Elasticsearch Service] in the cloud.
 == Get {es} up and running
 
 To take {es} for a test drive, you can create a one-click cloud deployment
-on the <<gs-run-elasticsearch-cloud,Elasticsearch Service>>,
+on the https://www.elastic.co/cloud/elasticsearch-service/signup[Elasticsearch Service],
 or <<run-elasticsearch-local, set up a basic {es} cluster>> on your own Linux,
 macOS, or Windows machine.
 
@@ -132,15 +132,54 @@ The default configuration enables the new nodes to automatically join the
 cluster with the first node because they are all running locally. Each node
 is automatically assigned a unique ID.
 
+. Use the `_cat/health` API to verify that your three node cluster is up running.
+The `cat` APIs return information about your cluster and indices in a
+format that's easier to read than raw JSON.
++
+You can interact directly with your cluster by submitting HTTP requests to
+the {es} REST API. Most of the examples in this guide enable you to copy the
+appropriate cURL command and submit the request to a local {es} instance from
+the command line. If you have Kibana installed and running, you can also
+open Kibana and submit requests through the Dev Console.
++
+TIP: When you're ready to start using {es} in your own applications, you'll want to
+check out the
+<<https://www.elastic.co/guide/en/elasticsearch/client/index.html[{es} language
+clients].
++
+[source,js]
+--------------------------------------------------
+GET /_cat/health?v
+--------------------------------------------------
+// CONSOLE
++
+The response should indicate that the status of the _elasticsearch_ cluster
+is _green_ and it has three nodes:
++
+[source,txt]
+--------------------------------------------------
+epoch      timestamp cluster       status node.total node.data shards pri relo init unassign pending_tasks max_task_wait_time active_shards_percent
+1565052807 00:53:27  elasticsearch green           3         3      6   3    0    0        0             0                  -                100.0%
+--------------------------------------------------
+// TESTRESPONSE[s/1565052807 00:53:27  elasticsearch/\\d+ \\d+:\\d+:\\d+ integTest/]
+// TESTRESPONSE[s/0             0                  -/0             \\d+                  -/]
+// TESTRESPONSE[non_json]
++
+NOTE: The cluster status will remain yellow if you are only running a single
+instance of {es}. A single node cluster is fully functional, but data
+cannot be replicated to another node to provide resiliency. Replica shards must
+be available for the cluster status to be green. If the cluster status is red,
+some data is unavailable.
+
 [float]
 [[gs-other-install]]
 === Other installation options
 
 Installing {es} from an archive file enables you to easily install and run
-multiple instances locally. To run a single instance, you can  run {es} in a
-Docker container, install {es} using the DEB or RPM packages on Linux, install
-using Homebrew on macOS, or install using the MSI package installer on
-Windows. See <<install-elasticsearch>> for more information.
+multiple instances locally so you can try things out. To run a single instance,
+you can  run {es} in a Docker container, install {es} using the DEB or RPM
+packages on Linux, install using Homebrew on macOS, or install using the MSI
+package installer on Windows. See <<install-elasticsearch>> for more information.
 
 [[getting-started-explore]]
 == Exploring Your Cluster

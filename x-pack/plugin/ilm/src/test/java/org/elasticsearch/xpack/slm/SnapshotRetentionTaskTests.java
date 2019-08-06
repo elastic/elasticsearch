@@ -19,7 +19,6 @@ import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
@@ -52,7 +51,6 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
-@TestLogging(value = "org.elasticsearch.xpack.slm:TRACE", reason = "I want to log")
 public class SnapshotRetentionTaskTests extends ESTestCase {
 
     public void testGetAllPoliciesWithRetentionEnabled() {

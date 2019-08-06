@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.core.action.TransportXPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageResponse;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.indexlifecycle.IndexLifecycle;
+import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.watcher.Watcher;
 
 import java.nio.file.Path;

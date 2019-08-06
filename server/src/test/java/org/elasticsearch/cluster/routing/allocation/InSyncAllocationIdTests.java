@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.junit.Before;
@@ -59,7 +58,7 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
     public void setupAllocationService() {
         allocation = createAllocationService();
         failedClusterStateTaskExecutor
-            = new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocation, null, () -> Priority.NORMAL, logger);
+            = new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocation, null, logger);
     }
 
     public void testInSyncAllocationIdsUpdated() {
@@ -165,7 +164,7 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
         logger.info("fail replica (for which there is no shard routing in the CS anymore)");
         assertNull(clusterState.getRoutingNodes().getByAllocationId(replicaShard.shardId(), replicaShard.allocationId().getId()));
         ShardStateAction.ShardFailedClusterStateTaskExecutor failedClusterStateTaskExecutor =
-            new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocation, null, () -> Priority.NORMAL, logger);
+            new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocation, null, logger);
         long primaryTerm = clusterState.metaData().index("test").primaryTerm(0);
         clusterState = failedClusterStateTaskExecutor.execute(clusterState, Arrays.asList(
                 new FailedShardEntry(shardRoutingTable.shardId(), replicaShard.allocationId().getId(), primaryTerm, "dummy", null, true))

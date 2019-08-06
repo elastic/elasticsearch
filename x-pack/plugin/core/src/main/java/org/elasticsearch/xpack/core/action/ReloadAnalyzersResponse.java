@@ -9,6 +9,8 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -21,6 +23,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
@@ -31,6 +34,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 public class ReloadAnalyzersResponse extends BroadcastResponse  {
 
     private final Map<String, ReloadDetails> reloadDetails;
+
     private static final ParseField RELOAD_DETAILS_FIELD = new ParseField("reload_details");
     private static final ParseField INDEX_FIELD = new ParseField("index");
     private static final ParseField RELOADED_ANALYZERS_FIELD = new ParseField("reloaded_analyzers");
@@ -38,8 +42,7 @@ public class ReloadAnalyzersResponse extends BroadcastResponse  {
 
     public ReloadAnalyzersResponse(StreamInput in) throws IOException {
         super(in);
-        reloadDetails = null;
-        // TODO: this needs to deserialize reloadDetails, see https://github.com/elastic/elasticsearch/issues/44383
+        this.reloadDetails = in.readMap(StreamInput::readString, ReloadDetails::new);
     }
 
     public ReloadAnalyzersResponse(int totalShards, int successfulShards, int failedShards,
@@ -100,7 +103,30 @@ public class ReloadAnalyzersResponse extends BroadcastResponse  {
         return PARSER.apply(parser, null);
     }
 
-    public static class ReloadDetails {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeMap(reloadDetails, StreamOutput::writeString, (stream, details) -> details.writeTo(stream));
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        ReloadAnalyzersResponse that = (ReloadAnalyzersResponse) o;
+        return Objects.equals(reloadDetails, that.reloadDetails);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(reloadDetails);
+    }
+
+    public static class ReloadDetails implements Writeable {
 
         private final String indexName;
         private final Set<String> reloadedIndicesNodes;
@@ -110,6 +136,19 @@ public class ReloadAnalyzersResponse extends BroadcastResponse  {
             this.indexName = name;
             this.reloadedIndicesNodes = reloadedIndicesNodes;
             this.reloadedAnalyzers = reloadedAnalyzers;
+        }
+
+        ReloadDetails(StreamInput in) throws IOException {
+            this.indexName = in.readString();
+            this.reloadedIndicesNodes = new HashSet<>(in.readList(StreamInput::readString));
+            this.reloadedAnalyzers = new HashSet<>(in.readList(StreamInput::readString));
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(indexName);
+            out.writeStringCollection(reloadedIndicesNodes);
+            out.writeStringCollection(reloadedAnalyzers);
         }
 
         public String getIndexName() {
@@ -128,6 +167,25 @@ public class ReloadAnalyzersResponse extends BroadcastResponse  {
             assert this.indexName == other.index;
             this.reloadedAnalyzers.addAll(other.reloadedSearchAnalyzers);
             this.reloadedIndicesNodes.add(other.nodeId);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            ReloadDetails that = (ReloadDetails) o;
+            return Objects.equals(indexName, that.indexName)
+                    && Objects.equals(reloadedIndicesNodes, that.reloadedIndicesNodes)
+                    && Objects.equals(reloadedAnalyzers, that.reloadedAnalyzers);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(indexName, reloadedIndicesNodes, reloadedAnalyzers);
         }
     }
 }

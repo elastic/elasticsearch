@@ -14,6 +14,7 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -130,6 +131,14 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
         return progress;
     }
 
+    public DataFrameTransformCheckpoint getLastCheckpoint() {
+        return lastCheckpoint;
+    }
+
+    public DataFrameTransformCheckpoint getNextCheckpoint() {
+        return nextCheckpoint;
+    }
+
     /**
      * Request a checkpoint
      */
@@ -200,6 +209,7 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
                 newPosition,
                 agg.getBuckets().isEmpty());
 
+        // NOTE: progress is also mutated in ClientDataFrameIndexer#onFinished
         if (progress != null) {
             progress.docsProcessed(getStats().getNumDocuments() - docsBeforeProcess);
         }
@@ -323,7 +333,8 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
         assert nextCheckpoint != null;
 
         SearchRequest searchRequest = new SearchRequest(getConfig().getSource().getIndex())
-                .allowPartialSearchResults(false);
+                .allowPartialSearchResults(false)
+                .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder()
                 .size(0);
 

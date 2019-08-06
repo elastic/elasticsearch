@@ -78,11 +78,6 @@ public final class CreateTokenResponse extends ActionResponse implements ToXCont
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject()
             .field("access_token", tokenString)

@@ -41,7 +41,6 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.StaleShard;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
@@ -87,7 +86,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
             .build();
         clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metaData(metaData).routingTable(routingTable).build();
-        executor = new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocationService, null, () -> Priority.NORMAL, logger);
+        executor = new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocationService, null, logger);
     }
 
     public void testEmptyTaskListProducesSameClusterState() throws Exception {
@@ -119,7 +118,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
         List<FailedShardEntry> failingTasks = createExistingShards(currentState, reason);
         List<FailedShardEntry> nonExistentTasks = createNonExistentShards(currentState, reason);
         ShardStateAction.ShardFailedClusterStateTaskExecutor failingExecutor =
-            new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocationService, null, () -> Priority.NORMAL, logger) {
+            new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocationService, null, logger) {
                 @Override
                 ClusterState applyFailedShards(ClusterState currentState, List<FailedShard> failedShards, List<StaleShard> staleShards) {
                     throw new RuntimeException("simulated applyFailedShards failure");

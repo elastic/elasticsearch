@@ -35,7 +35,8 @@ public class RestPutDataFrameTransformAction extends BaseRestHandler {
         String id = restRequest.param(DataFrameField.ID.getPreferredName());
         XContentParser parser = restRequest.contentParser();
 
-        PutDataFrameTransformAction.Request request = PutDataFrameTransformAction.Request.fromXContent(parser, id);
+        boolean deferValidation = restRequest.paramAsBoolean(DataFrameField.DEFER_VALIDATION.getPreferredName(), false);
+        PutDataFrameTransformAction.Request request = PutDataFrameTransformAction.Request.fromXContent(parser, id, deferValidation);
 
         return channel -> client.execute(PutDataFrameTransformAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

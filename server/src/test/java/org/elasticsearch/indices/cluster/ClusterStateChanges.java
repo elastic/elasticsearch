@@ -77,7 +77,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -148,9 +147,9 @@ public class ClusterStateChanges {
             new TestGatewayAllocator(), new BalancedShardsAllocator(SETTINGS),
             EmptyClusterInfoService.INSTANCE);
         shardFailedClusterStateTaskExecutor
-            = new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocationService, null, () -> Priority.NORMAL, logger);
+            = new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocationService, null, logger);
         shardStartedClusterStateTaskExecutor
-            = new ShardStateAction.ShardStartedClusterStateTaskExecutor(allocationService, null, () -> Priority.NORMAL, logger);
+            = new ShardStateAction.ShardStartedClusterStateTaskExecutor(allocationService, null, logger);
         ActionFilters actionFilters = new ActionFilters(Collections.emptySet());
         IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
         DestructiveOperations destructiveOperations = new DestructiveOperations(SETTINGS, clusterSettings);

@@ -99,11 +99,6 @@ public class ClearScrollResponse extends ActionResponse implements StatusToXCont
     }
 
     @Override
-    public void readFrom(StreamInput in) {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(succeeded);
         out.writeVInt(numFreed);

@@ -1,9 +1,3 @@
-import org.elasticsearch.gradle.LoggedExec
-import org.elasticsearch.gradle.plugin.PluginBuildPlugin
-import org.elasticsearch.gradle.test.NodeInfo
-
-import java.nio.charset.StandardCharsets
-
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
@@ -14,47 +8,6 @@ dependencies {
   testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
   if (isEclipse) {
     testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
-  }
-}
-
-subprojects {
-  afterEvaluate {
-    if (project.plugins.hasPlugin(PluginBuildPlugin)) {
-      // see the root Gradle file for additional logic regarding this configuration
-      project.configurations.create('featureAwarePlugin')
-      project.dependencies.add('featureAwarePlugin', project.configurations.compileClasspath)
-      project.dependencies.add('featureAwarePlugin', project(':x-pack:test:feature-aware'))
-      project.dependencies.add('featureAwarePlugin', project.sourceSets.main.output.getClassesDirs())
-
-      File successMarker = file("$buildDir/markers/featureAware")
-      task featureAwareCheck(type: LoggedExec) {
-        description = "Runs FeatureAwareCheck on main classes."
-        dependsOn project.configurations.featureAwarePlugin
-        outputs.file(successMarker)
-
-        executable = "${project.runtimeJavaHome}/bin/java"
-
-        // default to main class files if such a source set exists
-        final List files = []
-        if (project.sourceSets.findByName("main")) {
-          files.add(project.sourceSets.main.output.classesDirs)
-          dependsOn project.tasks.classes
-        }
-        // filter out non-existent classes directories from empty source sets
-        final FileCollection classDirectories = project.files(files).filter { it.exists() }
-
-        doFirst {
-          args('-cp', project.configurations.featureAwarePlugin.asPath, 'org.elasticsearch.xpack.test.feature_aware.FeatureAwareCheck')
-          classDirectories.each { args it.getAbsolutePath() }
-        }
-        doLast {
-          successMarker.parentFile.mkdirs()
-          successMarker.setText("", 'UTF-8')
-        }
-      }
-
-      project.precommit.dependsOn featureAwareCheck
-    }
   }
 }
 

@@ -103,11 +103,6 @@ public final class InvalidateApiKeyResponse extends ActionResponse implements To
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringCollection(invalidatedApiKeys);
         out.writeStringCollection(previouslyInvalidatedApiKeys);

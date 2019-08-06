@@ -18,7 +18,7 @@ the same pattern:
 <3> Any named parameters that should be passed into the script.
 
 For example, the following script is used in a search request to return a
-<<search-request-script-fields, scripted field>>:
+<<request-body-search-script-fields, scripted field>>:
 
 [source,js]
 -------------------------------------

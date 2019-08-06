@@ -200,11 +200,6 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(TOOK_FIELD, took.millis());
         builder.field(TIMED_OUT_FIELD, timedOut);

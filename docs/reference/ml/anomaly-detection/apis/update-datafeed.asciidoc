@@ -67,7 +67,7 @@ The following properties can be updated after the {dfeed} is created:
 
 `job_id`::
  (Optional, string) A numerical character string that uniquely identifies the
- job.
+ {anomaly-job}.
 
 `query`::
   (Optional, object) The {es} query domain-specific language (DSL). This value
@@ -86,7 +86,7 @@ The following properties can be updated after the {dfeed} is created:
   returns script fields to the {dfeed}. The
   <<ml-detectorconfig,detector configuration objects>> in a job can contain
   functions that use these script fields. For more information, see
-  <<search-request-script-fields,Script fields>>.
+  <<request-body-search-script-fields,Script fields>>.
 
 `scroll_size`::
   (Optional, unsigned integer) The `size` parameter that is used in {es}

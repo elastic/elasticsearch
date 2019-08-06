@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -57,8 +58,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-public class TransportPutDataFrameTransformAction
-        extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
+public class TransportPutDataFrameTransformAction extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
 
     private final XPackLicenseState licenseState;
     private final Client client;
@@ -93,8 +93,7 @@ public class TransportPutDataFrameTransformAction
     }
 
     @Override
-    protected void masterOperation(Task task, Request request, ClusterState clusterState, ActionListener<AcknowledgedResponse> listener)
-            throws Exception {
+    protected void masterOperation(Task task, Request request, ClusterState clusterState, ActionListener<AcknowledgedResponse> listener) {
 
         if (!licenseState.isDataFrameAllowed()) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.DATA_FRAME));
@@ -121,14 +120,14 @@ public class TransportPutDataFrameTransformAction
             return;
         }
         try {
-            SourceDestValidator.check(config, clusterState, indexNameExpressionResolver);
+            SourceDestValidator.validate(config, clusterState, indexNameExpressionResolver, request.isDeferValidation());
         } catch (ElasticsearchStatusException ex) {
             listener.onFailure(ex);
             return;
         }
 
         // Early check to verify that the user can create the destination index and can read from the source
-        if (licenseState.isAuthAllowed()) {
+        if (licenseState.isAuthAllowed() && request.isDeferValidation() == false) {
             final String destIndex = config.getDestination().getIndex();
             final String[] concreteDest = indexNameExpressionResolver.concreteIndexNames(clusterState,
                 IndicesOptions.lenientExpandOpen(),
@@ -163,12 +162,12 @@ public class TransportPutDataFrameTransformAction
             privRequest.clusterPrivileges(Strings.EMPTY_ARRAY);
             privRequest.indexPrivileges(sourceIndexPrivileges, destIndexPrivileges);
             ActionListener<HasPrivilegesResponse> privResponseListener = ActionListener.wrap(
-                r -> handlePrivsResponse(username, config, r, listener),
+                r -> handlePrivsResponse(username, request, r, listener),
                 listener::onFailure);
 
             client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
         } else { // No security enabled, just create the transform
-            putDataFrame(config, listener);
+            putDataFrame(request, listener);
         }
     }
 
@@ -178,11 +177,11 @@ public class TransportPutDataFrameTransformAction
     }
 
     private void handlePrivsResponse(String username,
-                                     DataFrameTransformConfig config,
+                                     Request request,
                                      HasPrivilegesResponse privilegesResponse,
-                                     ActionListener<AcknowledgedResponse> listener) throws IOException {
+                                     ActionListener<AcknowledgedResponse> listener) {
         if (privilegesResponse.isCompleteMatch()) {
-            putDataFrame(config, listener);
+            putDataFrame(request, listener);
         } else {
             List<String> indices = privilegesResponse.getIndexPrivileges()
                 .stream()
@@ -191,14 +190,15 @@ public class TransportPutDataFrameTransformAction
 
             listener.onFailure(Exceptions.authorizationError(
                 "Cannot create data frame transform [{}] because user {} lacks all the required permissions for indices: {}",
-                config.getId(),
+                request.getConfig().getId(),
                 username,
                 indices));
         }
     }
 
-    private void putDataFrame(DataFrameTransformConfig config, ActionListener<AcknowledgedResponse> listener) {
+    private void putDataFrame(Request request, ActionListener<AcknowledgedResponse> listener) {
 
+        final DataFrameTransformConfig config = request.getConfig();
         final Pivot pivot = new Pivot(config.getPivotConfig());
 
         // <3> Return to the listener
@@ -213,12 +213,39 @@ public class TransportPutDataFrameTransformAction
         // <2> Put our transform
         ActionListener<Boolean> pivotValidationListener = ActionListener.wrap(
             validationResult -> dataFrameTransformsConfigManager.putTransformConfiguration(config, putTransformConfigurationListener),
-            validationException -> listener.onFailure(
-                new RuntimeException(DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION,
-                    validationException))
+            validationException -> {
+                if (validationException instanceof ElasticsearchStatusException) {
+                    listener.onFailure(new ElasticsearchStatusException(
+                        DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION,
+                        ((ElasticsearchStatusException)validationException).status(),
+                        validationException));
+                } else {
+                    listener.onFailure(new ElasticsearchStatusException(
+                        DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION,
+                        RestStatus.INTERNAL_SERVER_ERROR,
+                        validationException));
+                }
+            }
         );
 
-        // <1> Validate our pivot
-        pivot.validate(client, config.getSource(), pivotValidationListener);
+        try {
+            pivot.validateConfig();
+        } catch (ElasticsearchStatusException e) {
+            listener.onFailure(new ElasticsearchStatusException(
+                DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION,
+                e.status(),
+                e));
+            return;
+        } catch (Exception e) {
+            listener.onFailure(new ElasticsearchStatusException(
+                DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION, RestStatus.INTERNAL_SERVER_ERROR, e));
+            return;
+        }
+
+        if (request.isDeferValidation()) {
+            pivotValidationListener.onResponse(true);
+        } else {
+            pivot.validateQuery(client, config.getSource(), pivotValidationListener);
+        }
     }
 }

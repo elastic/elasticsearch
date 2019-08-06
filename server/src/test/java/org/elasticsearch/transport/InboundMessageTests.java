@@ -51,7 +51,7 @@ public class InboundMessageTests extends ESTestCase {
         boolean compress = randomBoolean();
         threadContext.putHeader("header", "header_value");
         Version version = randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion());
-        OutboundMessage.Request request = new OutboundMessage.Request(threadContext, features, message, version, action, requestId,
+        OutboundMessage.Request request = new OutboundMessage.Request(threadContext, message, version, action, requestId,
             isHandshake, compress);
         BytesReference reference;
         try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
@@ -74,7 +74,6 @@ public class InboundMessageTests extends ESTestCase {
         assertEquals(compress, inboundMessage.isCompress());
         assertEquals(version, inboundMessage.getVersion());
         assertEquals(action, inboundMessage.getActionName());
-        assertEquals(new HashSet<>(Arrays.asList(features)), inboundMessage.getFeatures());
         assertTrue(inboundMessage.isRequest());
         assertFalse(inboundMessage.isResponse());
         assertFalse(inboundMessage.isError());
@@ -90,7 +89,7 @@ public class InboundMessageTests extends ESTestCase {
         boolean compress = randomBoolean();
         threadContext.putHeader("header", "header_value");
         Version version = randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion());
-        OutboundMessage.Response request = new OutboundMessage.Response(threadContext, features, message, version, requestId, isHandshake,
+        OutboundMessage.Response request = new OutboundMessage.Response(threadContext, message, version, requestId, isHandshake,
             compress);
         BytesReference reference;
         try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
@@ -126,7 +125,7 @@ public class InboundMessageTests extends ESTestCase {
         boolean compress = randomBoolean();
         threadContext.putHeader("header", "header_value");
         Version version = randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion());
-        OutboundMessage.Response request = new OutboundMessage.Response(threadContext, features, exception, version, requestId,
+        OutboundMessage.Response request = new OutboundMessage.Response(threadContext, exception, version, requestId,
             isHandshake, compress);
         BytesReference reference;
         try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
@@ -185,7 +184,7 @@ public class InboundMessageTests extends ESTestCase {
 
     public void testThrowOnNotCompressed() throws Exception {
         OutboundMessage.Response request = new OutboundMessage.Response(
-            threadContext, Collections.emptySet(), new Message(randomAlphaOfLength(10)), Version.CURRENT, randomLong(), false, false);
+            threadContext, new Message(randomAlphaOfLength(10)), Version.CURRENT, randomLong(), false, false);
         BytesReference reference;
         try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
             reference = request.serialize(streamOutput);
@@ -208,7 +207,7 @@ public class InboundMessageTests extends ESTestCase {
         String action = randomAlphaOfLength(10);
         long requestId = randomLong();
         boolean compress = randomBoolean();
-        OutboundMessage.Request request = new OutboundMessage.Request(threadContext, features, message, version, action, requestId,
+        OutboundMessage.Request request = new OutboundMessage.Request(threadContext, message, version, action, requestId,
             isHandshake, compress);
         BytesReference reference;
         try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
@@ -224,20 +223,12 @@ public class InboundMessageTests extends ESTestCase {
 
         public String value;
 
-        private Message() {
-        }
-
         private Message(StreamInput in) throws IOException {
-            readFrom(in);
+            value = in.readString();
         }
 
         private Message(String value) {
             this.value = value;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            value = in.readString();
         }
 
         @Override

@@ -19,6 +19,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
+import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -93,8 +94,8 @@ public class GetApiKeyRequestTests extends ESTestCase {
                 "only one of [api key id, api key name] can be specified"},
             {"username or realm name must not be specified when the api key id or api key name is specified"},
             {"only one of [api key id, api key name] can be specified"},
-            {"username or realm name must not be specified when retrieving owned API keys"},
-            {"username or realm name must not be specified when retrieving owned API keys"}
+            {"neither username nor realm-name may be specified when retrieving owned API keys"},
+            {"neither username nor realm-name may be specified when retrieving owned API keys"}
         };
 
         for (int caseNo = 0; caseNo < inputs.length; caseNo++) {
@@ -122,11 +123,11 @@ public class GetApiKeyRequestTests extends ESTestCase {
         {
             ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
             OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
-            out.setVersion(Version.V_7_2_0);
+            out.setVersion(randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_3_0));
             getApiKeyRequest.writeTo(out);
 
             InputStreamStreamInput inputStreamStreamInput = new InputStreamStreamInput(new ByteArrayInputStream(outBuffer.toByteArray()));
-            inputStreamStreamInput.setVersion(VersionUtils.randomVersionBetween(random(), Version.V_7_2_0, Version.V_7_3_0));
+            inputStreamStreamInput.setVersion(randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_3_0));
             GetApiKeyRequest requestFromInputStream = new GetApiKeyRequest(inputStreamStreamInput);
 
             assertThat(requestFromInputStream.getApiKeyId(), equalTo(getApiKeyRequest.getApiKeyId()));
@@ -136,11 +137,11 @@ public class GetApiKeyRequestTests extends ESTestCase {
         {
             ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
             OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
-            out.setVersion(VersionUtils.randomVersionBetween(random(), Version.V_7_4_0,  null));
+            out.setVersion(randomVersionBetween(random(), Version.V_7_4_0, Version.CURRENT));
             getApiKeyRequest.writeTo(out);
 
             InputStreamStreamInput inputStreamStreamInput = new InputStreamStreamInput(new ByteArrayInputStream(outBuffer.toByteArray()));
-            inputStreamStreamInput.setVersion(VersionUtils.randomVersionBetween(random(), Version.V_7_4_0,  null));
+            inputStreamStreamInput.setVersion(randomVersionBetween(random(), Version.V_7_4_0, Version.CURRENT));
             GetApiKeyRequest requestFromInputStream = new GetApiKeyRequest(inputStreamStreamInput);
 
             assertThat(requestFromInputStream, equalTo(getApiKeyRequest));

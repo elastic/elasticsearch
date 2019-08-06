@@ -135,10 +135,12 @@ public class RestGetApiKeyActionTests extends ESTestCase {
     }
 
     public void testGetApiKeyOwnedByCurrentAuthenticatedUser() throws Exception {
-        final boolean owner = randomBoolean();
-        Map<String, String> param = mapBuilder().put("owner", Boolean.toString(owner)).map();
-        if (owner == false) {
-            param = mapBuilder().put("owner", Boolean.toString(owner)).put("realm_name", "realm-1").map();
+        final boolean isGetRequestForOwnedKeysOnly = randomBoolean();
+        final Map<String, String> param;
+        if (isGetRequestForOwnedKeysOnly) {
+            param = mapBuilder().put("owner", Boolean.TRUE.toString()).map();
+        } else {
+            param = mapBuilder().put("owner", Boolean.FALSE.toString()).put("realm_name", "realm-1").map();
         }
 
         final FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
@@ -189,7 +191,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
             assertThat(restResponse.status(), is(RestStatus.OK));
             final GetApiKeyResponse actual = GetApiKeyResponse
                 .fromXContent(createParser(XContentType.JSON.xContent(), restResponse.content()));
-            if (owner) {
+            if (isGetRequestForOwnedKeysOnly) {
                 assertThat(actual.getApiKeyInfos().length, is(1));
                 assertThat(actual.getApiKeyInfos(),
                     arrayContaining(apiKey1));

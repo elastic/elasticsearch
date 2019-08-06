@@ -125,10 +125,12 @@ public class RestInvalidateApiKeyActionTests extends ESTestCase {
     }
 
     public void testInvalidateApiKeyOwnedByCurrentAuthenticatedUser() throws Exception {
-        final boolean owner = randomBoolean();
-        String json = "{ \"owner\" : \"" + Boolean.toString(owner) + "\" }";
-        if (owner == false) {
-            json = "{ \"realm_name\" : \"realm-1\", \"owner\" : \"" + Boolean.toString(owner) + "\" }";
+        final boolean isInvalidateRequestForOwnedKeysOnly = randomBoolean();
+        final String json;
+        if (isInvalidateRequestForOwnedKeysOnly) {
+            json = "{ \"owner\" : \"true\" }";
+        } else {
+            json = "{ \"realm_name\" : \"realm-1\", \"owner\" : \"false\" }";
         }
 
         final FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
@@ -176,7 +178,7 @@ public class RestInvalidateApiKeyActionTests extends ESTestCase {
             assertThat(restResponse.status(), is(RestStatus.OK));
             final InvalidateApiKeyResponse actual = InvalidateApiKeyResponse
                 .fromXContent(createParser(XContentType.JSON.xContent(), restResponse.content()));
-            if (owner) {
+            if (isInvalidateRequestForOwnedKeysOnly) {
                 assertThat(actual.getInvalidatedApiKeys().size(), is(1));
                 assertThat(actual.getInvalidatedApiKeys(),
                     containsInAnyOrder("api-key-id-1"));

@@ -149,7 +149,7 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
         if (ownedByAuthenticatedUser) {
             if (Strings.hasText(realmName) || Strings.hasText(userName)) {
                 validationException = addValidationError(
-                    "username or realm name must not be specified when invalidating owned API keys",
+                    "neither username nor realm-name may be specified when invalidating owned API keys",
                     validationException);
             }
         }

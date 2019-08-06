@@ -166,6 +166,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
             listener.onFailure(new IllegalArgumentException("Repository [" + repositoryName + "] does not support repository cleanup"));
             return;
         }
+        final BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
         final long repositoryStateId = repository.getRepositoryData().getGenId();
         logger.info("Running cleanup operations on repository [{}][{}]", repositoryName, repositoryStateId);
         clusterService.submitStateUpdateTask("cleanup repository [" + repositoryName + "][" + repositoryStateId + ']',
@@ -198,12 +199,9 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                 @Override
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                     logger.debug("Initialized repository cleanup in cluster state for [{}][{}]", repositoryName, repositoryStateId);
-                    threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(listener, l -> {
-                        Repository repository = repositoriesService.repository(repositoryName);
-                        assert repository instanceof BlobStoreRepository;
-                        ((BlobStoreRepository) repository).cleanup(
-                            repositoryStateId, ActionListener.wrap(result -> after(null, result), e -> after(e, null)));
-                    }));
+                    threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(listener,
+                        l -> blobStoreRepository.cleanup(
+                            repositoryStateId, ActionListener.wrap(result -> after(null, result), e -> after(e, null)))));
                 }
 
                 private void after(@Nullable Exception failure, @Nullable RepositoryCleanupResult result) {

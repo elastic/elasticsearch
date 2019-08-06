@@ -584,6 +584,8 @@ public class IngestService implements ClusterStateApplier {
                     return true;
                 }
                 processor = wrappedProcessor.getInnerProcessor();
+                // break in the case of self referencing processors in the event a processor author creates a
+                // wrapped processor that has its inner processor refer to itself.
                 if (wrappedProcessor == processor) {
                     break;
                 }

@@ -79,7 +79,23 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
     }
 
     @Override
-    public synchronized void onCommit(List<? extends IndexCommit> commits) throws IOException {
+    public void onCommit(List<? extends IndexCommit> commits) throws IOException {
+        final IndexCommit safeCommit = updateCommitsAndRetentionPolicy(commits);
+        final long localCheckpointOfSafeCommit = Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+        final long docCountOfSafeCommit = getDocCountOfSafeCommit();
+        minimumReasonableRetainedSeqNo = localCheckpointOfSafeCommit + 1
+            - Math.round(Math.ceil(docCountOfSafeCommit * reasonableOperationsBasedRecoveryProportion));
+        logger.trace("updating minimum reasonable retained seqno: " +
+                "generation={}, localCheckpointOfSafeCommit={}, docCountOfSafeCommit={}, minimumReasonableRetainedSeqNo={}",
+            safeCommit.getGeneration(), localCheckpointOfSafeCommit, docCountOfSafeCommit, minimumReasonableRetainedSeqNo);
+    }
+
+    /**
+     * Update the last commit and the safe commit, clean up any unnecessary commits and update the retention policy.
+     *
+     * @return the new safe commit
+     */
+    private synchronized IndexCommit updateCommitsAndRetentionPolicy(List<? extends IndexCommit> commits) throws IOException {
         final int keptPosition = indexOfKeptCommits(commits, globalCheckpointSupplier.getAsLong());
         lastCommit = commits.get(commits.size() - 1);
         safeCommit = commits.get(keptPosition);
@@ -89,6 +105,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
             }
         }
         updateRetentionPolicy();
+        return safeCommit;
     }
 
     private void deleteCommit(IndexCommit commit) throws IOException {
@@ -110,15 +127,8 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
         translogDeletionPolicy.setTranslogGenerationOfLastCommit(lastGen);
         translogDeletionPolicy.setMinTranslogGenerationForRecovery(minRequiredGen);
 
-        final long localCheckpointOfSafeCommit = Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
-        softDeletesPolicy.setLocalCheckpointOfSafeCommit(localCheckpointOfSafeCommit);
-
-        final long docCountOfSafeCommit = getDocCountOfSafeCommit();
-        minimumReasonableRetainedSeqNo = localCheckpointOfSafeCommit + 1
-            - Math.round(Math.ceil(docCountOfSafeCommit * reasonableOperationsBasedRecoveryProportion));
-        logger.trace("updating minimum reasonable retained seqno: " +
-                "generation={}, localCheckpointOfSafeCommit={}, docCountOfSafeCommit={}, minimumReasonableRetainedSeqNo={}",
-            safeCommit.getGeneration(), localCheckpointOfSafeCommit, docCountOfSafeCommit, minimumReasonableRetainedSeqNo);
+        softDeletesPolicy.setLocalCheckpointOfSafeCommit(
+            Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)));
     }
 
     protected int getDocCountOfSafeCommit() throws IOException {

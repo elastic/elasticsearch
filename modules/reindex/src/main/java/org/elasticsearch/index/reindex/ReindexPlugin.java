@@ -62,6 +62,9 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, PersistentTas
     public static final String NAME = "reindex";
     private final SetOnce<NamedXContentRegistry> namedXContentRegistry = new SetOnce<>();
 
+    private final SetOnce<ScriptService> scriptService = new SetOnce<>();
+    private final SetOnce<ReindexSslConfig> reindexSslConfig = new SetOnce<>();
+
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return Arrays.asList(new ActionHandler<>(ReindexAction.INSTANCE, TransportReindexAction.class),
@@ -106,8 +109,10 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, PersistentTas
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
+        this.scriptService.set(scriptService);
+        this.reindexSslConfig.set(new ReindexSslConfig(environment.settings(), environment, resourceWatcherService));
         namedXContentRegistry.set(xContentRegistry);
-        return Collections.singletonList(new ReindexSslConfig(environment.settings(), environment, resourceWatcherService));
+        return Collections.singletonList(reindexSslConfig.get());
     }
 
     @Override
@@ -121,7 +126,11 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, PersistentTas
     @Override
     public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService, ThreadPool threadPool, Client client,
                                                                        SettingsModule settingsModule) {
-        NamedXContentRegistry namedXContentRegistry = this.namedXContentRegistry.get();
-        return Collections.singletonList(new ReindexTask.ReindexPersistentTasksExecutor(clusterService, client, namedXContentRegistry));
+        ScriptService scriptService = this.scriptService.get();
+        assert scriptService != null;
+        ReindexSslConfig reindexSslConfig = this.reindexSslConfig.get();
+        assert reindexSslConfig != null;
+        return Collections.singletonList(new ReindexTask.ReindexPersistentTasksExecutor(clusterService, client, namedXContentRegistry.get(),
+            threadPool, scriptService, reindexSslConfig));
     }
 }

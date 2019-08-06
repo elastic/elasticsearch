@@ -29,6 +29,7 @@ import java.io.IOException;
 
 public class ReindexTaskIndexState implements ToXContentObject {
 
+    public static final String REINDEX_ORIGIN = "reindex";
     public static final ConstructingObjectParser<ReindexTaskIndexState, Void> PARSER =
         new ConstructingObjectParser<>("reindex/index_state", a -> new ReindexTaskIndexState((ReindexRequest) a[0]));
 

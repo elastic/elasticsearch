@@ -295,9 +295,6 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             // Persist the global checkpoint.
             indexShard.sync();
             indexShard.persistRetentionLeases();
-            if (hasUncommittedOperations()) {
-                indexShard.flush(new FlushRequest().force(true).waitIfOngoing(true));
-            }
             if (trimAboveSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
                 // We should erase all translog operations above trimAboveSeqNo as we have received either the same or a newer copy
                 // from the recovery source in phase2. Rolling a new translog generation is not strictly required here for we won't
@@ -305,7 +302,12 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                 // operation that would be trimmed (see TranslogWriter#assertNoSeqAbove). This assumption does not hold for peer
                 // recovery because we could have received operations above startingSeqNo from the previous primary terms.
                 indexShard.rollTranslogGeneration();
+                // the flush or translog generation threshold can be reached after we roll a new translog
+                indexShard.afterWriteOperation();
                 indexShard.trimOperationOfPreviousPrimaryTerms(trimAboveSeqNo);
+            }
+            if (hasUncommittedOperations()) {
+                indexShard.flush(new FlushRequest().force(true).waitIfOngoing(true));
             }
             indexShard.finalizeRecovery();
             return null;

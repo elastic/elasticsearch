@@ -29,10 +29,12 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
@@ -50,30 +52,37 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.index.reindex.ReindexTask.REINDEX_ORIGIN;
+import static org.elasticsearch.index.reindex.ReindexTaskIndexState.REINDEX_ORIGIN;
 
 public class TransportStartReindexJobAction extends HandledTransportAction<StartReindexJobAction.Request, StartReindexJobAction.Response> {
 
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final PersistentTasksService persistentTasksService;
+    private final ReindexValidator reindexValidator;
     private final Client taskClient;
 
     @Inject
-    public TransportStartReindexJobAction(TransportService transportService, ThreadPool threadPool,
-                                          ActionFilters actionFilters, ClusterService clusterService,
-                                          PersistentTasksService persistentTasksService, Client client) {
+    public TransportStartReindexJobAction(Settings settings, Client client, TransportService transportService, ThreadPool threadPool,
+                                          ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                          ClusterService clusterService, PersistentTasksService persistentTasksService,
+                                          AutoCreateIndex autoCreateIndex) {
         super(StartReindexJobAction.NAME, transportService, actionFilters, StartReindexJobAction.Request::new);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
+        this.reindexValidator = new ReindexValidator(settings, clusterService, indexNameExpressionResolver, autoCreateIndex);
         this.persistentTasksService = persistentTasksService;
         this.taskClient = new OriginSettingClient(client, REINDEX_ORIGIN);
     }
 
     @Override
     protected void doExecute(Task task, StartReindexJobAction.Request request, ActionListener<StartReindexJobAction.Response> listener) {
-        // TODO: If the connection is lost to the master, this action might be retried creating two tasks.
-        //  Eventually prevent this (perhaps by pre-generating UUID).
+        try {
+            reindexValidator.initialValidation(request.getReindexRequest());
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+
         String generatedId = UUIDs.randomBase64UUID();
 
         // In the current implementation, we only need to store task results if we do not wait for completion
@@ -201,7 +210,7 @@ public class TransportStartReindexJobAction extends HandledTransportAction<Start
         }
     }
 
-    private class ReindexPredicate implements Predicate<PersistentTasksCustomMetaData.PersistentTask<?>> {
+    private static class ReindexPredicate implements Predicate<PersistentTasksCustomMetaData.PersistentTask<?>> {
 
         private boolean waitForDone;
 

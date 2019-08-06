@@ -62,14 +62,6 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 
-[[cat-nodeattrs-api-columns]]
-==== Available columns
-
-You can use the following column values with the `h` (headings) query parameter.
-
-
-
-
 [[cat-nodeattrs-api-example]]
 ==== {api-examples-title}
 

@@ -864,10 +864,13 @@ Defaults to `100000`.
 `delegation.enabled`::
 Generally, in order for the clients to be authenticated by the PKI realm they
 must connect directly to {es}. That is, they must not pass through proxies
-which terminate the TLS connection.  In order to allow for a *trusted* and
+which terminate the TLS connection. In order to allow for a *trusted* and
 *smart* proxy, such as Kibana, to sit before {es} and terminate TLS
 connections, but still allow clients to be authenticated on {es} by this realm,
-you need to toggle this to `true`. Defaults to `false`.
+you need to toggle this to `true`. Defaults to `false`. This setting requires
+the `truststore` or `certificate_authorities` be defined. For more details, see
+<<pki-realm-for-proxied-clients, Configuring authentication delegation for PKI
+realms>>.
 
 [[ref-saml-settings]]
 [float]

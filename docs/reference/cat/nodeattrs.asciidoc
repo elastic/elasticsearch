@@ -87,9 +87,8 @@ node-0 127.0.0.1 127.0.0.1 testattr test
 // If xpack is installed then the first ... contains ml attributes
 // and the second contains xpack.installed=true
 
-The first few columns (`node`, `host`, `ip`) provide basic information about
-each node. The `attr` and `value` columns return custom node attributes, one per
-line.
+The `node`, `host`, and `ip` columns provide basic information about each node.
+The `attr` and `value` columns return custom node attributes, one per line.
 
 [[cat-nodeattrs-api-ex-headings]]
 ===== Example with explicit columns

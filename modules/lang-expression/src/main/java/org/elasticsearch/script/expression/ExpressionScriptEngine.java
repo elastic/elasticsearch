@@ -144,6 +144,8 @@ public class ExpressionScriptEngine implements ScriptEngine {
                 functionValuesArray[i] = new ReplaceableConstDoubleValues();
                 functionValuesMap.put(expr.variables[i], functionValuesArray[i]);
             }
+            functionValuesMap.put("doc_count", new ReplaceableConstDoubleValues());
+
             return new BucketAggregationScript(parameters) {
                 @Override
                 public Double execute() {

@@ -55,6 +55,7 @@ import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 import org.mockito.ArgumentCaptor;
+import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -71,7 +72,9 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyObject;
+import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.anyMap;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.eq;
@@ -236,10 +239,7 @@ public class IndexCreationTaskTests extends ESTestCase {
     }
 
     public void testRequestStateOpen() throws Exception {
-        when(request.state()).thenReturn(IndexMetaData.State.OPEN);
-
         executeTask();
-
         verify(allocationService, times(1)).reroute(anyObject(), anyObject());
     }
 
@@ -429,7 +429,14 @@ public class IndexCreationTaskTests extends ESTestCase {
         setupRequest();
         final MetaDataCreateIndexService.IndexCreationTask task = new MetaDataCreateIndexService.IndexCreationTask(
             logger, allocationService, request, listener, indicesService, aliasValidator, xContentRegistry, clusterStateSettings.build(),
-            validator, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
+            validator, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS) {
+
+            @Override
+            protected void checkShardLimit(final Settings settings, final ClusterState clusterState) {
+                // we have to make this a no-op since we are not mocking enough for this method to be able to execute
+            }
+
+        };
         return task.execute(state);
     }
 
@@ -484,5 +491,7 @@ public class IndexCreationTaskTests extends ESTestCase {
         when(service.getIndexEventListener()).thenReturn(mock(IndexEventListener.class));
 
         when(indicesService.createIndex(anyObject(), anyObject())).thenReturn(service);
+        when(allocationService.reroute(any(ClusterState.class), anyString())).thenAnswer(
+            (Answer<ClusterState>) invocationOnMock -> (ClusterState) invocationOnMock.getArguments()[0]);
     }
 }

@@ -26,6 +26,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.NotifyOnceListener;
 import org.elasticsearch.action.admin.indices.close.CloseIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
@@ -35,6 +36,7 @@ import org.elasticsearch.action.admin.indices.close.TransportVerifyShardBeforeCl
 import org.elasticsearch.action.admin.indices.open.OpenIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -58,7 +60,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
@@ -107,19 +108,18 @@ public class MetaDataIndexStateService {
     private final MetaDataIndexUpgradeService metaDataIndexUpgradeService;
     private final IndicesService indicesService;
     private final ThreadPool threadPool;
-    private final TransportVerifyShardBeforeCloseAction transportVerifyShardBeforeCloseAction;
+    private final NodeClient client;
     private final ActiveShardsObserver activeShardsObserver;
 
     @Inject
     public MetaDataIndexStateService(ClusterService clusterService, AllocationService allocationService,
                                      MetaDataIndexUpgradeService metaDataIndexUpgradeService,
-                                     IndicesService indicesService, ThreadPool threadPool,
-                                     TransportVerifyShardBeforeCloseAction transportVerifyShardBeforeCloseAction) {
+                                     IndicesService indicesService, ThreadPool threadPool, NodeClient client) {
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.allocationService = allocationService;
         this.threadPool = threadPool;
-        this.transportVerifyShardBeforeCloseAction = transportVerifyShardBeforeCloseAction;
+        this.client = client;
         this.metaDataIndexUpgradeService = metaDataIndexUpgradeService;
         this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
     }
@@ -296,26 +296,20 @@ public class MetaDataIndexStateService {
      * this action succeed then the shard is considered to be ready for closing. When all shards of a given index are ready for closing,
      * the index is considered ready to be closed.
      */
-    class WaitForClosedBlocksApplied extends AbstractRunnable {
+    class WaitForClosedBlocksApplied extends ActionRunnable<Map<Index, IndexResult>> {
 
         private final Map<Index, ClusterBlock> blockedIndices;
         private final CloseIndexClusterStateUpdateRequest request;
-        private final ActionListener<Map<Index, IndexResult>> listener;
 
         private WaitForClosedBlocksApplied(final Map<Index, ClusterBlock> blockedIndices,
                                            final CloseIndexClusterStateUpdateRequest request,
                                            final ActionListener<Map<Index, IndexResult>> listener) {
+                super(listener);
             if (blockedIndices == null || blockedIndices.isEmpty()) {
                 throw new IllegalArgumentException("Cannot wait for closed blocks to be applied, list of blocked indices is empty or null");
             }
             this.blockedIndices = blockedIndices;
             this.request = request;
-            this.listener = listener;
-        }
-
-        @Override
-        public void onFailure(final Exception e) {
-            listener.onFailure(e);
         }
 
         @Override
@@ -401,7 +395,7 @@ public class MetaDataIndexStateService {
             if (request.ackTimeout() != null) {
                 shardRequest.timeout(request.ackTimeout());
             }
-            transportVerifyShardBeforeCloseAction.execute(shardRequest, new ActionListener<>() {
+            client.executeLocally(TransportVerifyShardBeforeCloseAction.TYPE, shardRequest, new ActionListener<>() {
                 @Override
                 public void onResponse(ReplicationResponse replicationResponse) {
                     final TransportVerifyShardBeforeCloseAction.ShardRequest shardRequest =
@@ -409,7 +403,7 @@ public class MetaDataIndexStateService {
                     if (request.ackTimeout() != null) {
                         shardRequest.timeout(request.ackTimeout());
                     }
-                    transportVerifyShardBeforeCloseAction.execute(shardRequest, listener);
+                    client.executeLocally(TransportVerifyShardBeforeCloseAction.TYPE, shardRequest, listener);
                 }
 
                 @Override
@@ -442,7 +436,7 @@ public class MetaDataIndexStateService {
             final boolean acknowledged = result.getValue().hasFailures() == false;
             try {
                 if (acknowledged == false) {
-                    logger.debug("verification of shards before closing {} failed", index);
+                    logger.debug("verification of shards before closing {} failed [{}]", index, result);
                     continue;
                 }
                 final IndexMetaData indexMetaData = metadata.getSafe(index);

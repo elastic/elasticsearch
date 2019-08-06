@@ -21,7 +21,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.core.ccr.action.ForgetFollowerAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
-import org.elasticsearch.xpack.core.indexlifecycle.action.ExplainLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
 import java.util.Arrays;

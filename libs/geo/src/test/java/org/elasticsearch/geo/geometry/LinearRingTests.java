@@ -21,6 +21,7 @@ package org.elasticsearch.geo.geometry;
 
 import org.elasticsearch.geo.utils.GeographyValidator;
 import org.elasticsearch.geo.utils.GeometryValidator;
+import org.elasticsearch.geo.utils.StandardValidator;
 import org.elasticsearch.geo.utils.WellKnownText;
 import org.elasticsearch.test.ESTestCase;
 
@@ -58,6 +59,12 @@ public class LinearRingTests extends ESTestCase {
         ex = expectThrows(IllegalArgumentException.class,
             () -> validator.validate(new LinearRing(new double[]{1, 100, 3, 1}, new double[]{3, 4, 5, 3})));
         assertEquals("invalid latitude 100.0; must be between -90.0 and 90.0", ex.getMessage());
+
+        ex = expectThrows(IllegalArgumentException.class, () -> new StandardValidator(false).validate(
+            new LinearRing(new double[]{1, 2, 3, 1}, new double[]{3, 4, 5, 3}, new double[]{1, 1, 1, 1})));
+        assertEquals("found Z value [1.0] but [ignore_z_value] parameter is [false]", ex.getMessage());
+
+        new StandardValidator(true).validate(new LinearRing(new double[]{1, 2, 3, 1}, new double[]{3, 4, 5, 3}, new double[]{1, 1, 1, 1}));
     }
 
     public void testVisitor() {

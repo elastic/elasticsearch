@@ -22,7 +22,9 @@ public class PutRoleMappingResponse extends ActionResponse implements ToXContent
 
     private boolean created;
 
-    public PutRoleMappingResponse() {
+    public PutRoleMappingResponse(StreamInput in) throws IOException {
+        super(in);
+        this.created = in.readBoolean();
     }
 
     public PutRoleMappingResponse(boolean created) {
@@ -44,9 +46,4 @@ public class PutRoleMappingResponse extends ActionResponse implements ToXContent
         out.writeBoolean(created);
     }
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        this.created = in.readBoolean();
     }
-}

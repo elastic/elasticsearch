@@ -19,8 +19,6 @@
 
 package org.elasticsearch.nio;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -30,17 +28,12 @@ public class NioSocketChannel extends NioChannel {
 
     private final AtomicBoolean contextSet = new AtomicBoolean(false);
     private final SocketChannel socketChannel;
-    private final InetSocketAddress remoteAddress;
+    private volatile InetSocketAddress remoteAddress;
     private volatile InetSocketAddress localAddress;
-    private SocketChannelContext context;
+    private volatile SocketChannelContext context;
 
     public NioSocketChannel(SocketChannel socketChannel) {
         this.socketChannel = socketChannel;
-        try {
-            this.remoteAddress = (InetSocketAddress) socketChannel.getRemoteAddress();
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
     }
 
     public void setContext(SocketChannelContext context) {
@@ -70,6 +63,9 @@ public class NioSocketChannel extends NioChannel {
     }
 
     public InetSocketAddress getRemoteAddress() {
+        if (remoteAddress == null) {
+            remoteAddress = (InetSocketAddress) socketChannel.socket().getRemoteSocketAddress();
+        }
         return remoteAddress;
     }
 
@@ -81,7 +77,7 @@ public class NioSocketChannel extends NioChannel {
     public String toString() {
         return "NioSocketChannel{" +
             "localAddress=" + getLocalAddress() +
-            ", remoteAddress=" + remoteAddress +
+            ", remoteAddress=" + getRemoteAddress() +
             '}';
     }
 }

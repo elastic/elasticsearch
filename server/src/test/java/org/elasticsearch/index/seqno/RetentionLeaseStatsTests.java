@@ -63,7 +63,8 @@ public class RetentionLeaseStatsTests extends ESSingleNodeTestCase {
         final IndicesStatsResponse indicesStats = client().admin().indices().prepareStats("index").execute().actionGet();
         assertThat(indicesStats.getShards(), arrayWithSize(1));
         final RetentionLeaseStats retentionLeaseStats = indicesStats.getShards()[0].getRetentionLeaseStats();
-        assertThat(RetentionLeases.toMap(retentionLeaseStats.retentionLeases()), equalTo(currentRetentionLeases));
+        assertThat(RetentionLeaseUtils.toMapExcludingPeerRecoveryRetentionLeases(retentionLeaseStats.retentionLeases()),
+            equalTo(currentRetentionLeases));
     }
 
 }

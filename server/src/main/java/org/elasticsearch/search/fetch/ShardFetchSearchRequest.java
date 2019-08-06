@@ -73,8 +73,4 @@ public class ShardFetchSearchRequest extends ShardFetchRequest implements Indice
         return originalIndices.indicesOptions();
     }
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
-}

@@ -31,9 +31,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter.DatafeedTimingStatsPersister;
 import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedField;
 import org.elasticsearch.xpack.ml.datafeed.extractor.fields.TimeBasedExtractedFields;
-import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -126,6 +126,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
     }
 
     @Before
+    @SuppressWarnings("unchecked")
     public void setUpTests() {
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
@@ -145,7 +146,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
         clearScrollFuture = mock(ActionFuture.class);
         capturedClearScrollRequests = ArgumentCaptor.forClass(ClearScrollRequest.class);
         when(client.execute(same(ClearScrollAction.INSTANCE), capturedClearScrollRequests.capture())).thenReturn(clearScrollFuture);
-        timingStatsReporter = new DatafeedTimingStatsReporter(new DatafeedTimingStats(jobId), mock(JobResultsPersister.class));
+        timingStatsReporter = new DatafeedTimingStatsReporter(new DatafeedTimingStats(jobId), mock(DatafeedTimingStatsPersister.class));
     }
 
     public void testSinglePageExtraction() throws IOException {

@@ -57,7 +57,7 @@ public class UpdateByQueryRequest extends AbstractBulkIndexByScrollRequest<Updat
     }
 
     public UpdateByQueryRequest(StreamInput in) throws IOException {
-        super.readFrom(in);
+        super(in);
         pipeline = in.readOptionalString();
     }
 
@@ -169,11 +169,6 @@ public class UpdateByQueryRequest extends AbstractBulkIndexByScrollRequest<Updat
     public IndicesOptions indicesOptions() {
         assert getSearchRequest() != null;
         return getSearchRequest().indicesOptions();
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

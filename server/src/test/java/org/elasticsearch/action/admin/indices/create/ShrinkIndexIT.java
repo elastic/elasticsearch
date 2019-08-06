@@ -558,7 +558,8 @@ public class ShrinkIndexIT extends ESIntegTestCase {
     }
 
     public void testShrinkThenSplitWithFailedNode() throws Exception {
-        internalCluster().ensureAtLeastNumDataNodes(3);
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        final String shrinkNode = internalCluster().startDataOnlyNode();
 
         final int shardCount = between(2, 5);
         prepareCreate("original").setSettings(Settings.builder().put(indexSettings())
@@ -566,8 +567,6 @@ public class ShrinkIndexIT extends ESIntegTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, shardCount)).get();
         client().admin().indices().prepareFlush("original").get();
         ensureGreen();
-        final String shrinkNode
-            = client().admin().cluster().prepareNodesInfo("data:true").clear().get().getNodes().get(0).getNode().getName();
         client().admin().indices().prepareUpdateSettings("original")
             .setSettings(Settings.builder()
                 .put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(), shrinkNode)
@@ -581,7 +580,9 @@ public class ShrinkIndexIT extends ESIntegTestCase {
             .build()).setResizeType(ResizeType.SHRINK).get());
         ensureGreen();
 
+        final int nodeCount = cluster().size();
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(shrinkNode));
+        ensureStableCluster(nodeCount - 1);
 
         // demonstrate that the index.routing.allocation.initial_recovery setting from the shrink doesn't carry over into the split index,
         // because this would cause the shrink to fail as the initial_recovery node is no longer present.

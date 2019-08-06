@@ -24,14 +24,15 @@ A `moving_fn` aggregation looks like this in isolation:
 --------------------------------------------------
 // NOTCONSOLE
 
-[[moving-avg-params]]
-.`moving_avg` Parameters
+[[moving-fn-params]]
+.`moving_fn` Parameters
 [options="header"]
 |===
 |Parameter Name |Description |Required |Default Value
 |`buckets_path` |Path to the metric of interest (see <<buckets-path-syntax, `buckets_path` Syntax>> for more details |Required |
 |`window` |The size of window to "slide" across the histogram. |Required |
 |`script` |The script that should be executed on each window of data |Required |
+|`shift` |<<shift-parameter, Shift>> of window position. |Optional | 0
 |===
 
 `moving_fn` aggregations must be embedded inside of a `histogram` or `date_histogram` aggregation.  They can be
@@ -168,6 +169,18 @@ POST /_search
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:sales]
+
+[[shift-parameter]]
+==== shift parameter
+
+By default (with `shift = 0`), the window that is offered for calculation is the last `n` values excluding the current bucket.
+Increasing `shift` by 1 moves starting window position by `1` to the right.
+
+- To include current bucket to the window, use `shift = 1`.
+- For center alignment (`n / 2` values before and after the current bucket), use `shift = window / 2`.
+- For right alignment (`n` values after the current bucket), use `shift = window`.
+
+If either of window edges moves outside the borders of data series, the window shrinks to include available values only.
 
 ==== Pre-built Functions
 

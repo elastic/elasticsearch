@@ -13,7 +13,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.dataframe.GetDataFrameTransformStatsResponse;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig;
-import org.elasticsearch.client.dataframe.transforms.DataFrameTransformStateAndStats;
+import org.elasticsearch.client.dataframe.transforms.DataFrameTransformStats;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformTaskState;
 import org.elasticsearch.client.dataframe.transforms.DestConfig;
 import org.elasticsearch.client.dataframe.transforms.SourceConfig;
@@ -135,11 +135,11 @@ public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         startTransform(CONTINUOUS_DATA_FRAME_ID);
         waitUntilAfterCheckpoint(CONTINUOUS_DATA_FRAME_ID, 0L);
 
-        DataFrameTransformStateAndStats stateAndStats = getTransformStats(CONTINUOUS_DATA_FRAME_ID);
+        DataFrameTransformStats stateAndStats = getTransformStats(CONTINUOUS_DATA_FRAME_ID);
 
-        assertThat(stateAndStats.getTransformStats().getOutputDocuments(), equalTo((long)ENTITIES.size()));
-        assertThat(stateAndStats.getTransformStats().getNumDocuments(), equalTo(totalDocsWritten));
-        assertThat(stateAndStats.getTransformState().getTaskState(), equalTo(DataFrameTransformTaskState.STARTED));
+        assertThat(stateAndStats.getIndexerStats().getOutputDocuments(), equalTo((long)ENTITIES.size()));
+        assertThat(stateAndStats.getIndexerStats().getNumDocuments(), equalTo(totalDocsWritten));
+        assertThat(stateAndStats.getTaskState(), equalTo(DataFrameTransformTaskState.STARTED));
     }
 
     private void verifyContinuousDataFrameHandlesData(long expectedLastCheckpoint) throws Exception {
@@ -147,13 +147,13 @@ public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         // A continuous data frame should automatically become started when it gets assigned to a node
         // if it was assigned to the node that was removed from the cluster
         assertBusy(() -> {
-            DataFrameTransformStateAndStats stateAndStats = getTransformStats(CONTINUOUS_DATA_FRAME_ID);
-            assertThat(stateAndStats.getTransformState().getTaskState(), equalTo(DataFrameTransformTaskState.STARTED));
+            DataFrameTransformStats stateAndStats = getTransformStats(CONTINUOUS_DATA_FRAME_ID);
+            assertThat(stateAndStats.getTaskState(), equalTo(DataFrameTransformTaskState.STARTED));
         },
         120,
         TimeUnit.SECONDS);
 
-        DataFrameTransformStateAndStats previousStateAndStats = getTransformStats(CONTINUOUS_DATA_FRAME_ID);
+        DataFrameTransformStats previousStateAndStats = getTransformStats(CONTINUOUS_DATA_FRAME_ID);
 
         // Add a new user and write data to it
         // This is so we can have more reliable data counts, as writing to existing entities requires
@@ -168,18 +168,18 @@ public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         waitUntilAfterCheckpoint(CONTINUOUS_DATA_FRAME_ID, expectedLastCheckpoint);
 
         assertBusy(() -> assertThat(
-            getTransformStats(CONTINUOUS_DATA_FRAME_ID).getTransformStats().getNumDocuments(),
-            greaterThanOrEqualTo(docs + previousStateAndStats.getTransformStats().getNumDocuments())),
+            getTransformStats(CONTINUOUS_DATA_FRAME_ID).getIndexerStats().getNumDocuments(),
+            greaterThanOrEqualTo(docs + previousStateAndStats.getIndexerStats().getNumDocuments())),
             120,
             TimeUnit.SECONDS);
-        DataFrameTransformStateAndStats stateAndStats = getTransformStats(CONTINUOUS_DATA_FRAME_ID);
+        DataFrameTransformStats stateAndStats = getTransformStats(CONTINUOUS_DATA_FRAME_ID);
 
-        assertThat(stateAndStats.getTransformState().getTaskState(),
+        assertThat(stateAndStats.getTaskState(),
             equalTo(DataFrameTransformTaskState.STARTED));
-        assertThat(stateAndStats.getTransformStats().getOutputDocuments(),
-            greaterThan(previousStateAndStats.getTransformStats().getOutputDocuments()));
-        assertThat(stateAndStats.getTransformStats().getNumDocuments(),
-            greaterThanOrEqualTo(docs + previousStateAndStats.getTransformStats().getNumDocuments()));
+        assertThat(stateAndStats.getIndexerStats().getOutputDocuments(),
+            greaterThan(previousStateAndStats.getIndexerStats().getOutputDocuments()));
+        assertThat(stateAndStats.getIndexerStats().getNumDocuments(),
+            greaterThanOrEqualTo(docs + previousStateAndStats.getIndexerStats().getNumDocuments()));
     }
 
     private void putTransform(String id, DataFrameTransformConfig config) throws IOException {
@@ -207,7 +207,7 @@ public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         assertEquals(200, response.getStatusLine().getStatusCode());
     }
 
-    private DataFrameTransformStateAndStats getTransformStats(String id) throws IOException {
+    private DataFrameTransformStats getTransformStats(String id) throws IOException {
         final Request getStats = new Request("GET", DATAFRAME_ENDPOINT + id + "/_stats");
         Response response = client().performRequest(getStats);
         assertEquals(200, response.getStatusLine().getStatusCode());
@@ -216,13 +216,13 @@ public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
             NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
             response.getEntity().getContent())) {
             GetDataFrameTransformStatsResponse resp = GetDataFrameTransformStatsResponse.fromXContent(parser);
-            assertThat(resp.getTransformsStateAndStats(), hasSize(1));
-            return resp.getTransformsStateAndStats().get(0);
+            assertThat(resp.getTransformsStats(), hasSize(1));
+            return resp.getTransformsStats().get(0);
         }
     }
 
     private void waitUntilAfterCheckpoint(String id, long currentCheckpoint) throws Exception {
-        assertBusy(() -> assertThat(getTransformStats(id).getTransformState().getCheckpoint(), greaterThan(currentCheckpoint)),
+        assertBusy(() -> assertThat(getTransformStats(id).getCheckpointingInfo().getNext().getCheckpoint(), greaterThan(currentCheckpoint)),
             60, TimeUnit.SECONDS);
     }
 

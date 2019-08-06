@@ -56,7 +56,6 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
-import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 
 import java.io.IOException;
@@ -83,7 +82,6 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     private final PersistentTasksService persistentTasksService;
     private final JobConfigProvider jobConfigProvider;
     private final DatafeedConfigProvider datafeedConfigProvider;
-    private final JobResultsPersister jobResultsPersister;
     private final Auditor auditor;
     private final MlConfigMigrationEligibilityCheck migrationEligibilityCheck;
     private final NamedXContentRegistry xContentRegistry;
@@ -94,7 +92,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                                         PersistentTasksService persistentTasksService,
                                         ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                         Client client, JobConfigProvider jobConfigProvider, DatafeedConfigProvider datafeedConfigProvider,
-                                        JobResultsPersister jobResultsPersister, Auditor auditor, NamedXContentRegistry xContentRegistry) {
+                                        Auditor auditor, NamedXContentRegistry xContentRegistry) {
         super(StartDatafeedAction.NAME, transportService, clusterService, threadPool, actionFilters, StartDatafeedAction.Request::new,
             indexNameExpressionResolver);
         this.licenseState = licenseState;
@@ -102,7 +100,6 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         this.client = client;
         this.jobConfigProvider = jobConfigProvider;
         this.datafeedConfigProvider = datafeedConfigProvider;
-        this.jobResultsPersister = jobResultsPersister;
         this.auditor = auditor;
         this.migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
         this.xContentRegistry = xContentRegistry;
@@ -251,8 +248,8 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             datafeed,
             job,
             xContentRegistry,
-            // Creating fake DatafeedTimingStatsReporter so that search API call is not needed.
-            new DatafeedTimingStatsReporter(new DatafeedTimingStats(job.getId()), jobResultsPersister),
+            // Fake DatafeedTimingStatsReporter that does not have access to results index
+            new DatafeedTimingStatsReporter(new DatafeedTimingStats(job.getId()), (ts, refreshPolicy) -> {}),
             ActionListener.wrap(
                 unused ->
                     persistentTasksService.sendStartRequest(

@@ -274,7 +274,7 @@ public class EventHandlerTests extends ESTestCase {
     }
 
     private static Config.Socket getSocketConfig() {
-        return new Config.Socket(randomBoolean(), randomBoolean(), randomBoolean(), -1, -1, mock(InetSocketAddress.class),
+        return new Config.Socket(randomBoolean(), randomBoolean(), -1, -1, -1, randomBoolean(), -1, -1, mock(InetSocketAddress.class),
             randomBoolean());
     }
 }

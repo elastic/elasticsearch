@@ -381,4 +381,69 @@ public abstract class PackageTestCase extends PackagingTestCase {
 
         stopElasticsearch(sh);
     }
+
+    public void test90PasswordProtectedKeystore() throws Exception {
+        assumeTrue(isSystemd());
+
+        String passwordWithNewline = "keystorepass\n";
+        Path esKeystorePassphraseFile = installation.config.resolve("eks");
+        Path esEnv = installation.bin.resolve("elasticsearch-env");
+        byte[] originalEnvFile = Files.readAllBytes(esEnv);
+        try {
+            Files.createFile(esKeystorePassphraseFile);
+            Files.write(esEnv,
+                ("ES_KEYSTORE_PASSPHRASE_FILE=" + esKeystorePassphraseFile.toString() + "\n").getBytes(StandardCharsets.UTF_8),
+                StandardOpenOption.APPEND);
+            Files.write(esKeystorePassphraseFile,
+                passwordWithNewline.getBytes(StandardCharsets.UTF_8),
+                StandardOpenOption.WRITE);
+
+            // set the password by passing it to stdin twice
+            sh.run("echo $\'" + passwordWithNewline + passwordWithNewline + "\' | "
+                + installation.bin.toString() + "/elasticsearch-keystore passwd");
+
+            startElasticsearch(sh);
+            runElasticsearchTests();
+            stopElasticsearch(sh);
+        } finally {
+            Files.write(esEnv, originalEnvFile);
+            FileUtils.rm(esKeystorePassphraseFile);
+        }
+    }
+
+    public void test91WrongPasswordForKeystore() throws Exception {
+        assumeTrue(isSystemd());
+
+        String passwordWithNewline = "keystorepass\n";
+        Path esKeystorePassphraseFile = installation.config.resolve("eks");
+        Path esEnv = installation.bin.resolve("elasticsearch-env");
+        byte[] originalEnvFile = Files.readAllBytes(esEnv);
+
+        RuntimeException expected = null;
+        try {
+            Files.createFile(esKeystorePassphraseFile);
+            Files.write(esEnv,
+                ("ES_KEYSTORE_PASSPHRASE_FILE=" + esKeystorePassphraseFile.toString() + "\n").getBytes(StandardCharsets.UTF_8),
+                StandardOpenOption.APPEND);
+            Files.write(esKeystorePassphraseFile,
+                "wrongpassword\n".getBytes(StandardCharsets.UTF_8),
+                StandardOpenOption.WRITE);
+
+            sh.run("yes | " + installation.bin.toString() + "/elasticsearch-keystore create");
+            // set the password by passing it to stdin twice
+            sh.run("echo $\'" + passwordWithNewline + passwordWithNewline + "\' | "
+                + installation.bin.toString() + "/elasticsearch-keystore passwd");
+
+            startElasticsearch(sh);
+        } catch (RuntimeException e) {
+            expected = e;
+        } finally {
+            Files.write(esEnv, originalEnvFile);
+            FileUtils.rm(esKeystorePassphraseFile);
+        }
+
+        assertNotNull(expected);
+        assertTrue(expected.getMessage().contains("Command was not successful"));
+        assertTrue(expected.getMessage().contains("systemctl start elasticsearch.service"));
+    }
 }

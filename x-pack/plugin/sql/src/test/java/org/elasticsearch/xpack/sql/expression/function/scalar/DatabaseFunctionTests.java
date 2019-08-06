@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.TestUtils;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
@@ -27,17 +28,13 @@ public class DatabaseFunctionTests extends ESTestCase {
         String clusterName = randomAlphaOfLengthBetween(1, 15);
         SqlParser parser = new SqlParser();
         EsIndex test = new EsIndex("test", TypesTests.loadMapping("mapping-basic.json", true));
-        Analyzer analyzer = new Analyzer(
-                new Configuration(DateUtils.UTC, Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT,
-                                  Protocol.PAGE_TIMEOUT, null,
-                                  randomFrom(Mode.values()), randomAlphaOfLength(10),
-                                  null, clusterName, randomBoolean(), randomBoolean()),
-                new FunctionRegistry(),
-                IndexResolution.valid(test),
-                new Verifier(new Metrics())
-        );
+        Analyzer analyzer = new Analyzer(new FunctionRegistry(), new Verifier(new Metrics()));
+
+        Configuration cfg = new Configuration(DateUtils.UTC, Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT, Protocol.PAGE_TIMEOUT, null,
+                randomFrom(Mode.values()), randomAlphaOfLength(10), null, clusterName, randomBoolean(), randomBoolean());
         
-        Project result = (Project) analyzer.analyze(parser.createStatement("SELECT DATABASE()"), true);
+        Project result = (Project) TestUtils.withContext(cfg, IndexResolution.valid(test),
+                () -> analyzer.analyze(parser.createStatement("SELECT DATABASE()"), true));
         assertTrue(result.projections().get(0) instanceof Database);
         assertEquals(clusterName, ((Database) result.projections().get(0)).fold());
     }

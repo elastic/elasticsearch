@@ -23,8 +23,7 @@ import org.elasticsearch.xpack.sql.session.SingletonExecutable;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.type.TypesTests;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
+import org.junit.Before;
 
 import java.util.Map;
 
@@ -33,31 +32,28 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class QueryFolderTests extends ESTestCase {
 
-    private static SqlParser parser;
-    private static Analyzer analyzer;
-    private static Optimizer optimizer;
-    private static Planner planner;
+    private SqlParser parser;
+    private Analyzer analyzer;
+    private Optimizer optimizer;
+    private Planner planner;
+    private IndexResolution resolution;
 
-    @BeforeClass
-    public static void init() {
+    @Before
+    public void init() {
         parser = new SqlParser();
 
         Map<String, EsField> mapping = TypesTests.loadMapping("mapping-multi-field-variation.json");
         EsIndex test = new EsIndex("test", mapping);
-        IndexResolution getIndexResult = IndexResolution.valid(test);
-        analyzer = new Analyzer(TestUtils.TEST_CFG, new FunctionRegistry(), getIndexResult, new Verifier(new Metrics()));
+        resolution = IndexResolution.valid(test);
+        analyzer = new Analyzer(new FunctionRegistry(), new Verifier(new Metrics()));
+        //getIndexResult,
         optimizer = new Optimizer();
         planner = new Planner();
     }
 
-    @AfterClass
-    public static void destroy() {
-        parser = null;
-        analyzer = null;
-    }
-
     private PhysicalPlan plan(String sql) {
-        return planner.plan(optimizer.optimize(analyzer.analyze(parser.createStatement(sql), true)), true);
+        return TestUtils.withContext(TestUtils.TEST_CFG, resolution,
+                () -> planner.plan(optimizer.optimize(analyzer.analyze(parser.createStatement(sql), true)), true));
     }
 
     public void testFoldingToLocalExecWithProject() {

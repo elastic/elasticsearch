@@ -36,12 +36,13 @@ public class OptimizerRunTests extends ESTestCase {
 
         EsIndex test = new EsIndex("test", mapping);
         getIndexResult = IndexResolution.valid(test);
-        analyzer = new Analyzer(TestUtils.TEST_CFG, functionRegistry, getIndexResult, new Verifier(new Metrics()));
+        analyzer = new Analyzer(functionRegistry, new Verifier(new Metrics()));
         optimizer = new Optimizer();
     }
 
     private LogicalPlan plan(String sql) {
-        return optimizer.optimize(analyzer.analyze(parser.createStatement(sql)));
+        return TestUtils.withContext(TestUtils.TEST_CFG, getIndexResult, () ->
+            optimizer.optimize(analyzer.analyze(parser.createStatement(sql))));
     }
 
     public void testWhereClause() {

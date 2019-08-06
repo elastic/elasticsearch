@@ -53,8 +53,7 @@ import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.type.TypesTests;
 import org.elasticsearch.xpack.sql.util.DateUtils;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
+import org.junit.Before;
 
 import java.util.Collection;
 import java.util.List;
@@ -71,35 +70,31 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class QueryTranslatorTests extends ESTestCase {
 
-    private static SqlParser parser;
-    private static Analyzer analyzer;
-    private static Optimizer optimizer;
-    private static Planner planner;
+    private SqlParser parser;
+    private Analyzer analyzer;
+    private Optimizer optimizer;
+    private Planner planner;
+    private IndexResolution resolution;
 
-    @BeforeClass
-    public static void init() {
+    @Before
+    public void init() {
         parser = new SqlParser();
 
         Map<String, EsField> mapping = TypesTests.loadMapping("mapping-multi-field-variation.json");
         EsIndex test = new EsIndex("test", mapping);
-        IndexResolution getIndexResult = IndexResolution.valid(test);
-        analyzer = new Analyzer(TestUtils.TEST_CFG, new FunctionRegistry(), getIndexResult, new Verifier(new Metrics()));
+        resolution = IndexResolution.valid(test);
+        analyzer = new Analyzer(new FunctionRegistry(), new Verifier(new Metrics()));
         optimizer = new Optimizer();
         planner = new Planner();
     }
 
-    @AfterClass
-    public static void destroy() {
-        parser = null;
-        analyzer = null;
-    }
-
     private LogicalPlan plan(String sql) {
-        return analyzer.analyze(parser.createStatement(sql), true);
+        return TestUtils.withContext(TestUtils.TEST_CFG, resolution, () -> analyzer.analyze(parser.createStatement(sql), true));
     }
     
     private PhysicalPlan optimizeAndPlan(String sql) {
-        return  planner.plan(optimizer.optimize(plan(sql)), true);
+        return TestUtils.withContext(TestUtils.TEST_CFG, resolution,
+                () -> planner.plan(optimizer.optimize(analyzer.analyze(parser.createStatement(sql))), true));
     }
 
     public void testTermEqualityAnalyzer() {
@@ -516,7 +511,8 @@ public class QueryTranslatorTests extends ESTestCase {
         Round groupingRound = (Round) ((Aggregate) p).groupings().get(0);
         assertEquals(1, groupingRound.children().size());
 
-        QueryTranslator.GroupingContext groupingContext = QueryTranslator.groupBy(((Aggregate) p).groupings());
+        QueryTranslator.GroupingContext groupingContext = TestUtils.withContext(TestUtils.TEST_CFG, resolution,
+                () -> QueryTranslator.groupBy(((Aggregate) p).groupings()));
         assertNotNull(groupingContext);
         ScriptTemplate scriptTemplate = groupingContext.tail.script();
         assertEquals("InternalSqlScriptUtils.round(InternalSqlScriptUtils.dateTimeChrono(InternalSqlScriptUtils.docValue(doc,params.v0), "
@@ -539,7 +535,8 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue(groupingRound.children().get(1) instanceof Literal);
         assertEquals(-2, ((Literal) groupingRound.children().get(1)).value());
 
-        QueryTranslator.GroupingContext groupingContext = QueryTranslator.groupBy(((Aggregate) p).groupings());
+        QueryTranslator.GroupingContext groupingContext = TestUtils.withContext(TestUtils.TEST_CFG, resolution,
+                () -> QueryTranslator.groupBy(((Aggregate) p).groupings()));
         assertNotNull(groupingContext);
         ScriptTemplate scriptTemplate = groupingContext.tail.script();
         assertEquals("InternalSqlScriptUtils.round(InternalSqlScriptUtils.dateTimeChrono(InternalSqlScriptUtils.docValue(doc,params.v0), "
@@ -671,7 +668,8 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue(p instanceof Aggregate);
         Expression condition = ((Aggregate) p).groupings().get(0);
         assertFalse(condition.foldable());
-        QueryTranslator.GroupingContext groupingContext = QueryTranslator.groupBy(((Aggregate) p).groupings());
+        QueryTranslator.GroupingContext groupingContext = TestUtils.withContext(TestUtils.TEST_CFG, resolution,
+                () -> QueryTranslator.groupBy(((Aggregate) p).groupings()));
         assertNotNull(groupingContext);
         ScriptTemplate scriptTemplate = groupingContext.tail.script();
         assertEquals("InternalSqlScriptUtils.coalesce([InternalSqlScriptUtils.docValue(doc,params.v0),params.v1])",
@@ -684,7 +682,8 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue(p instanceof Aggregate);
         Expression condition = ((Aggregate) p).groupings().get(0);
         assertFalse(condition.foldable());
-        QueryTranslator.GroupingContext groupingContext = QueryTranslator.groupBy(((Aggregate) p).groupings());
+        QueryTranslator.GroupingContext groupingContext = TestUtils.withContext(TestUtils.TEST_CFG, resolution,
+                () -> QueryTranslator.groupBy(((Aggregate) p).groupings()));
         assertNotNull(groupingContext);
         ScriptTemplate scriptTemplate = groupingContext.tail.script();
         assertEquals("InternalSqlScriptUtils.nullif(InternalSqlScriptUtils.docValue(doc,params.v0),params.v1)",
@@ -697,7 +696,8 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue(p instanceof Aggregate);
         Expression condition = ((Aggregate) p).groupings().get(0);
         assertFalse(condition.foldable());
-        QueryTranslator.GroupingContext groupingContext = QueryTranslator.groupBy(((Aggregate) p).groupings());
+        QueryTranslator.GroupingContext groupingContext = TestUtils.withContext(TestUtils.TEST_CFG, resolution,
+                () -> QueryTranslator.groupBy(((Aggregate) p).groupings()));
         assertNotNull(groupingContext);
         ScriptTemplate scriptTemplate = groupingContext.tail.script();
         assertEquals("InternalSqlScriptUtils.caseFunction([InternalSqlScriptUtils.gt(InternalSqlScriptUtils.docValue(" + "" +
@@ -712,7 +712,8 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue(p instanceof Aggregate);
         Expression condition = ((Aggregate) p).groupings().get(0);
         assertFalse(condition.foldable());
-        QueryTranslator.GroupingContext groupingContext = QueryTranslator.groupBy(((Aggregate) p).groupings());
+        QueryTranslator.GroupingContext groupingContext = TestUtils.withContext(TestUtils.TEST_CFG, resolution,
+                () -> QueryTranslator.groupBy(((Aggregate) p).groupings()));
         assertNotNull(groupingContext);
         ScriptTemplate scriptTemplate = groupingContext.tail.script();
         assertEquals("InternalSqlScriptUtils.caseFunction([InternalSqlScriptUtils.gt("  +

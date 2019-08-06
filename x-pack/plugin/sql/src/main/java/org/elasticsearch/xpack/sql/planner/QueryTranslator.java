@@ -151,7 +151,7 @@ final class QueryTranslator {
             new CountAggs(),
             new DateTimes(),
             new Firsts(),
-            new Lasts(), 
+            new Lasts(),
             new MADs()
             );
 
@@ -270,6 +270,7 @@ final class QueryTranslator {
 
                 // handle functions differently
                 if (exp instanceof Function) {
+
                     // dates are handled differently because of date histograms
                     if (exp instanceof DateTimeHistogramFunction) {
                         DateTimeHistogramFunction dthf = (DateTimeHistogramFunction) exp;

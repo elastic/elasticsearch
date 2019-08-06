@@ -40,8 +40,9 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     private String error(IndexResolution getIndexResult, String sql) {
-        Analyzer analyzer = new Analyzer(TestUtils.TEST_CFG, new FunctionRegistry(), getIndexResult, new Verifier(new Metrics()));
-        VerificationException e = expectThrows(VerificationException.class, () -> analyzer.analyze(parser.createStatement(sql), true));
+        Analyzer analyzer = new Analyzer(new FunctionRegistry(), new Verifier(new Metrics()));
+        VerificationException e = expectThrows(VerificationException.class,
+                () -> TestUtils.withContext(TestUtils.TEST_CFG, getIndexResult, () -> analyzer.analyze(parser.createStatement(sql), true)));
         assertTrue(e.getMessage().startsWith("Found "));
         String header = "Found 1 problem(s)\nline ";
         return e.getMessage().substring(header.length());
@@ -58,8 +59,8 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     private LogicalPlan accept(IndexResolution resolution, String sql) {
-        Analyzer analyzer = new Analyzer(TestUtils.TEST_CFG, new FunctionRegistry(), resolution, new Verifier(new Metrics()));
-        return analyzer.analyze(parser.createStatement(sql), true);
+        Analyzer analyzer = new Analyzer(new FunctionRegistry(), new Verifier(new Metrics()));
+        return TestUtils.withContext(TestUtils.TEST_CFG, resolution, () -> analyzer.analyze(parser.createStatement(sql), true));
     }
 
     private IndexResolution incompatible() {

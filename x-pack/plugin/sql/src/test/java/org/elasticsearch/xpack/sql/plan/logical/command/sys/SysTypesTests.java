@@ -9,15 +9,12 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.TestUtils;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
-import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
-import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolver;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.TypesTests;
 
 import java.sql.JDBCType;
 import java.util.List;
@@ -31,12 +28,11 @@ public class SysTypesTests extends ESTestCase {
     private final SqlParser parser = new SqlParser();
 
     private Tuple<Command, SqlSession> sql(String sql) {
-        EsIndex test = new EsIndex("test", TypesTests.loadMapping("mapping-multi-field-with-nested.json", true));
-        Analyzer analyzer = new Analyzer(TestUtils.TEST_CFG, new FunctionRegistry(), IndexResolution.valid(test), null);
-        Command cmd = (Command) analyzer.analyze(parser.createStatement(sql), false);
+        Analyzer analyzer = new Analyzer(new FunctionRegistry(), null);
+        Command cmd = (Command) TestUtils.withContext(TestUtils.TEST_CFG, null, () -> analyzer.analyze(parser.createStatement(sql), false));
 
         IndexResolver resolver = mock(IndexResolver.class);
-        SqlSession session = new SqlSession(TestUtils.TEST_CFG, null, null, resolver, null, null, null, null, null);
+        SqlSession session = new SqlSession(TestUtils.TEST_CFG, null, null, resolver, null, analyzer, null, null, null, null);
         return new Tuple<>(cmd, session);
     }
 

@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.rule.RuleExecutor;
 
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static org.elasticsearch.action.ActionListener.wrap;
@@ -39,6 +40,7 @@ public class SqlSession {
     private final FunctionRegistry functionRegistry;
     private final IndexResolver indexResolver;
     private final PreAnalyzer preAnalyzer;
+    private final Analyzer analyzer;
     private final Verifier verifier;
     private final Optimizer optimizer;
     private final Planner planner;
@@ -49,6 +51,7 @@ public class SqlSession {
     public SqlSession(Configuration configuration, Client client, FunctionRegistry functionRegistry,
             IndexResolver indexResolver,
             PreAnalyzer preAnalyzer,
+            Analyzer analyzer,
             Verifier verifier,
             Optimizer optimizer,
             Planner planner,
@@ -58,6 +61,7 @@ public class SqlSession {
 
         this.indexResolver = indexResolver;
         this.preAnalyzer = preAnalyzer;
+        this.analyzer = analyzer;
         this.optimizer = optimizer;
         this.planner = planner;
         this.verifier = verifier;
@@ -99,30 +103,31 @@ public class SqlSession {
     }
 
     public void analyzedPlan(LogicalPlan parsed, boolean verify, ActionListener<LogicalPlan> listener) {
-        if (parsed.analyzed()) {
-            listener.onResponse(parsed);
-            return;
-        }
-
-        preAnalyze(parsed, c -> {
-            Analyzer analyzer = new Analyzer(configuration, functionRegistry, c, verifier);
-            return analyzer.analyze(parsed, verify);
-        }, listener);
+        preAnalyze(parsed, listener, a -> a.analyze(parsed, verify), l -> l.onResponse(parsed));
     }
 
     public void debugAnalyzedPlan(LogicalPlan parsed, ActionListener<RuleExecutor<LogicalPlan>.ExecutionInfo> listener) {
-        if (parsed.analyzed()) {
-            listener.onResponse(null);
+        preAnalyze(parsed, listener, a -> a.debugAnalyze(parsed), l -> l.onResponse(null));
+    }
+
+    private <T> void preAnalyze(LogicalPlan plan, ActionListener<T> listener, Function<Analyzer, T> callback,
+            Consumer<ActionListener<T>> skip) {
+        if (plan.analyzed()) {
+            skip.accept(listener);
             return;
         }
 
-        preAnalyze(parsed, r -> {
-            Analyzer analyzer = new Analyzer(configuration, functionRegistry, r, verifier);
-            return analyzer.debugAnalyze(parsed);
+        doPreAnalyze(plan, r -> {
+            try {
+                Context.setCurrentContext(new Context(configuration, r));
+                return callback.apply(analyzer);
+            } finally {
+                Context.cleanCurrentContext();
+            }
         }, listener);
     }
 
-    private <T> void preAnalyze(LogicalPlan parsed, Function<IndexResolution, T> action, ActionListener<T> listener) {
+    private <T> void doPreAnalyze(LogicalPlan parsed, Function<IndexResolution, T> action, ActionListener<T> listener) {
         PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
         // TODO we plan to support joins in the future when possible, but for now we'll just fail early if we see one
         if (preAnalysis.indices.size() > 1) {

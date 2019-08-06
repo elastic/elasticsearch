@@ -9,6 +9,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.PreAnalyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolver;
@@ -41,6 +42,7 @@ public class PlanExecutor {
 
     private final IndexResolver indexResolver;
     private final PreAnalyzer preAnalyzer;
+    private final Analyzer analyzer;
     private final Verifier verifier;
     private final Optimizer optimizer;
     private final Planner planner;
@@ -60,10 +62,12 @@ public class PlanExecutor {
         this.verifier = new Verifier(metrics);
         this.optimizer = new Optimizer();
         this.planner = new Planner();
+
+        this.analyzer = new Analyzer(functionRegistry, verifier);
     }
 
     private SqlSession newSession(Configuration cfg) {
-        return new SqlSession(cfg, client, functionRegistry, indexResolver, preAnalyzer, verifier, optimizer, planner, this);
+        return new SqlSession(cfg, client, functionRegistry, indexResolver, preAnalyzer, analyzer, verifier, optimizer, planner, this);
     }
 
     public void searchSource(Configuration cfg, String sql, List<SqlTypedParamValue> params, ActionListener<SearchSourceBuilder> listener) {

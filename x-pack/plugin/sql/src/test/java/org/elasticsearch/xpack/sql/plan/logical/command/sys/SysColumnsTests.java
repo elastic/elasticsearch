@@ -519,14 +519,14 @@ public class SysColumnsTests extends ESTestCase {
 
     private Tuple<Command, SqlSession> sql(String sql, List<SqlTypedParamValue> params, Map<String, EsField> mapping) {
         EsIndex test = new EsIndex("test", mapping);
-        Analyzer analyzer = new Analyzer(TestUtils.TEST_CFG, new FunctionRegistry(), IndexResolution.valid(test),
-                new Verifier(new Metrics()));
-        Command cmd = (Command) analyzer.analyze(parser.createStatement(sql, params), true);
+        Analyzer analyzer = new Analyzer(new FunctionRegistry(), new Verifier(new Metrics()));
+        Command cmd = (Command) TestUtils.withContext(TestUtils.TEST_CFG, IndexResolution.valid(test),
+                () -> analyzer.analyze(parser.createStatement(sql, params), true));
 
         IndexResolver resolver = mock(IndexResolver.class);
         when(resolver.clusterName()).thenReturn(CLUSTER_NAME);
 
-        SqlSession session = new SqlSession(TestUtils.TEST_CFG, null, null, resolver, null, null, null, null, null);
+        SqlSession session = new SqlSession(TestUtils.TEST_CFG, null, null, resolver, null, analyzer, null, null, null, null);
         return new Tuple<>(cmd, session);
     }
 }

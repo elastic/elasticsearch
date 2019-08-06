@@ -52,11 +52,11 @@ public class FieldAttributeTests extends ESTestCase {
 
         EsIndex test = new EsIndex("test", mapping);
         getIndexResult = IndexResolution.valid(test);
-        analyzer = new Analyzer(TestUtils.TEST_CFG, functionRegistry, getIndexResult, verifier);
+        analyzer = new Analyzer(functionRegistry, verifier);
     }
 
     private LogicalPlan plan(String sql) {
-        return analyzer.analyze(parser.createStatement(sql), true);
+        return TestUtils.withContext(TestUtils.TEST_CFG, getIndexResult, () -> analyzer.analyze(parser.createStatement(sql), true));
     }
 
     private FieldAttribute attribute(String fieldName) {
@@ -171,7 +171,6 @@ public class FieldAttributeTests extends ESTestCase {
 
         EsIndex index = new EsIndex("test", mapping);
         getIndexResult = IndexResolution.valid(index);
-        analyzer = new Analyzer(TestUtils.TEST_CFG, functionRegistry, getIndexResult, verifier);
 
         VerificationException ex = expectThrows(VerificationException.class, () -> plan("SELECT test.bar FROM test"));
         assertEquals(

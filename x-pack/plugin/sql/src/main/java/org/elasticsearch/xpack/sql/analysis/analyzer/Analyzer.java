@@ -47,7 +47,7 @@ import org.elasticsearch.xpack.sql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.sql.plan.logical.With;
 import org.elasticsearch.xpack.sql.rule.Rule;
 import org.elasticsearch.xpack.sql.rule.RuleExecutor;
-import org.elasticsearch.xpack.sql.session.Configuration;
+import org.elasticsearch.xpack.sql.session.Context;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 import org.elasticsearch.xpack.sql.type.DataTypes;
@@ -77,23 +77,12 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
      */
     private final FunctionRegistry functionRegistry;
     /**
-     * Information about the index against which the SQL is being analyzed.
-     */
-    private final IndexResolution indexResolution;
-    /**
-     * Per-request specific settings needed in some of the functions (timezone, username and clustername),
-     * to which they are attached.
-     */
-    private final Configuration configuration;
-    /**
      * The verifier has the role of checking the analyzed tree for failures and build a list of failures.
      */
     private final Verifier verifier;
 
-    public Analyzer(Configuration configuration, FunctionRegistry functionRegistry, IndexResolution results, Verifier verifier) {
-        this.configuration = configuration;
+    public Analyzer(FunctionRegistry functionRegistry, Verifier verifier) {
         this.functionRegistry = functionRegistry;
-        this.indexResolution = results;
         this.verifier = verifier;
     }
 
@@ -287,6 +276,9 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         @Override
         protected LogicalPlan rule(UnresolvedRelation plan) {
             TableIdentifier table = plan.table();
+
+            IndexResolution indexResolution = Context.getCurrentContext().indexResolution();
+
             if (indexResolution.isValid() == false) {
                 return plan.unresolvedMessage().equals(indexResolution.toString()) ? plan :
                     new UnresolvedRelation(plan.source(), plan.table(), plan.alias(), plan.frozen(), indexResolution.toString());
@@ -916,7 +908,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     }
                     // TODO: look into Generator for significant terms, etc..
                     FunctionDefinition def = functionRegistry.resolveFunction(functionName);
-                    Function f = uf.buildResolved(configuration, def);
+                    Function f = uf.buildResolved(Context.getCurrentContext().configuration(), def);
 
                     list.add(f);
                     return f;

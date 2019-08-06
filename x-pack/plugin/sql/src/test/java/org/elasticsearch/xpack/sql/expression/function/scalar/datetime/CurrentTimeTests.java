@@ -92,13 +92,14 @@ public class CurrentTimeTests extends AbstractNodeTestCase<CurrentTime, Expressi
         IndexResolution indexResolution = IndexResolution.valid(new EsIndex("test",
             TypesTests.loadMapping("mapping-multi-field-with-nested.json")));
 
-        Analyzer analyzer = new Analyzer(TestUtils.TEST_CFG, new FunctionRegistry(), indexResolution, new Verifier(new Metrics()));
-        ParsingException e = expectThrows(ParsingException.class, () ->
-            analyzer.analyze(parser.createStatement("SELECT CURRENT_TIME(100000000000000)"), true));
-        assertEquals("line 1:22: invalid precision; [100000000000000] out of [integer] range", e.getMessage());
+        TestUtils.withContext(TestUtils.TEST_CFG, indexResolution, () -> {
+            Analyzer analyzer = new Analyzer(new FunctionRegistry(), new Verifier(new Metrics()));
+            ParsingException e = expectThrows(ParsingException.class,
+                    () -> analyzer.analyze(parser.createStatement("SELECT CURRENT_TIME(100000000000000)"), true));
+            assertEquals("line 1:22: invalid precision; [100000000000000] out of [integer] range", e.getMessage());
 
-        e = expectThrows(ParsingException.class, () ->
-            analyzer.analyze(parser.createStatement("SELECT CURRENT_TIME(100)"), true));
-        assertEquals("line 1:22: precision needs to be between [0-9], received [100]", e.getMessage());
+            e = expectThrows(ParsingException.class, () -> analyzer.analyze(parser.createStatement("SELECT CURRENT_TIME(100)"), true));
+            assertEquals("line 1:22: precision needs to be between [0-9], received [100]", e.getMessage());
+        });
     }
 }

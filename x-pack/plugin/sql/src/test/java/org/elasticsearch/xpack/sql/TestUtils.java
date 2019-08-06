@@ -7,12 +7,15 @@
 package org.elasticsearch.xpack.sql;
 
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.Protocol;
 import org.elasticsearch.xpack.sql.session.Configuration;
+import org.elasticsearch.xpack.sql.session.ContextTestUtils;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.time.ZoneId;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
@@ -58,4 +61,27 @@ public class TestUtils {
                 randomBoolean());
     }
 
+    public static <R> R withContext(Configuration cfg, IndexResolution r, Supplier<R> action) {
+        ContextTestUtils.setContext(cfg, r);
+        try {
+            return action.get();
+        } finally {
+            ContextTestUtils.clearContext();
+        }
+    }
+
+    public static void withContext(Configuration cfg, IndexResolution r, Runnable action) {
+        withContext(cfg, r, () -> {
+            action.run();
+            return null;
+        });
+    }
+
+    public static <R> R withZoneId(ZoneId zoneId, Supplier<R> callback) {
+        return withContext(randomConfiguration(zoneId), null, callback);
+    }
+
+    public static void withZoneId(ZoneId zoneId, Runnable callback) {
+        withContext(randomConfiguration(zoneId), null, callback);
+    }
 }

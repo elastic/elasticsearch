@@ -17,38 +17,34 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-h]
 +
 --
 If no column values are provided, default columns are returned. If any column
-value is provided, default columns are not returned.
-
-For brevity, you can use a column's alias in place of the full column heading
-value.
-
-By default, columns are returned in the order provided below.
+value is provided, default columns are not returned. By default, columns are
+returned in the order below.
 
 Valid values are:
 
-`node`::
-(Default) Name of the node, such as `DKDM97B`. Alias is `name`.
+`node`,`name`::
+(Default) Name of the node, such as `DKDM97B`.
 
-`host`::
-(Default) Host name, such as `n1`. Alias is `h`.
+`host`, `h`::
+(Default) Host name, such as `n1`.
 
-`ip`::
-(Default) IP address, such as `127.0.1.1`. Alias is `i`.
+`ip`, `i`::
+(Default) IP address, such as `127.0.1.1`.
 
-`attr`::
-(Default) Attribute name, such as `rack`. Alias is `attr.name`.
+`attr`, `attr.name`::
+(Default) Attribute name, such as `rack`.
 
-`value`::
-(Default) Attribute value, such as `rack123`. Alias is `attr.value`.
+`value`, `attr.value`::
+(Default) Attribute value, such as `rack123`.
 
-`id`::
-ID of the node, such as `k0zy`. Alias is `nodeId`.
+`id`, `nodeId`::
+ID of the node, such as `k0zy`.
 
-`pid`::
-Process ID, such as `13061`. Alias is `p`.
+`pid`, `p`::
+Process ID, such as `13061`.
 
-`port`::
-Bound transport port, such as `9300`. Alias is `po`.
+`port`, `po`::
+Bound transport port, such as `9300`.
 --
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=help]

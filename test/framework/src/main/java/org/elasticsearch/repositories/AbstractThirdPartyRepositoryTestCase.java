@@ -79,7 +79,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         repo.threadPool().generic().execute(new ActionRunnable<>(future) {
             @Override
             protected void doRun() throws Exception {
-                repo.blobStore().blobContainer(path).delete(l -> {});
+                repo.blobStore().blobContainer(path).delete();
                 future.onResponse(null);
             }
         });

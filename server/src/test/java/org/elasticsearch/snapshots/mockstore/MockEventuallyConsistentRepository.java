@@ -26,6 +26,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.util.Maps;
@@ -48,8 +49,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
-import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -216,16 +217,20 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
             }
 
             @Override
-            public void delete(LongConsumer resultConsumer) {
+            public DeleteResult delete() {
                 ensureNotClosed();
                 final String thisPath = path.buildAsString();
+                final AtomicLong bytesDeleted = new AtomicLong(0L);
+                final AtomicLong blobsDeleted = new AtomicLong(0L);
                 synchronized (context.actions) {
                     consistentView(context.actions).stream().filter(action -> action.path.startsWith(thisPath))
                         .forEach(a -> {
                             context.actions.add(new BlobStoreAction(Operation.DELETE, a.path));
-                            resultConsumer.accept(a.data.length);
+                            bytesDeleted.addAndGet(a.data.length);
+                            blobsDeleted.incrementAndGet();
                         });
                 }
+                return new DeleteResult(blobsDeleted.get(), bytesDeleted.get());
             }
 
             @Override

@@ -28,7 +28,6 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.function.LongConsumer;
 
 public final class RepositoryCleanupResult implements Writeable, ToXContentObject {
 
@@ -52,9 +51,9 @@ public final class RepositoryCleanupResult implements Writeable, ToXContentObjec
         this(0L, 0L);
     }
 
-    private RepositoryCleanupResult(long bytes, long blobs) {
-        this.bytes = bytes;
+    public RepositoryCleanupResult(long blobs, long bytes) {
         this.blobs = blobs;
+        this.bytes = bytes;
     }
 
     public RepositoryCleanupResult(StreamInput in) throws IOException {
@@ -68,10 +67,6 @@ public final class RepositoryCleanupResult implements Writeable, ToXContentObjec
 
     public long blobs() {
         return blobs;
-    }
-
-    public static Progress start() {
-        return new Progress();
     }
 
     @Override
@@ -88,26 +83,5 @@ public final class RepositoryCleanupResult implements Writeable, ToXContentObjec
     @Override
     public String toString() {
         return Strings.toString(this);
-    }
-
-    public static final class Progress implements LongConsumer {
-
-        private long bytesCounter;
-
-        private long blobsCounter;
-
-        @Override
-        public void accept(long size) {
-            synchronized (this) {
-                ++blobsCounter;
-                bytesCounter += size;
-            }
-        }
-
-        public RepositoryCleanupResult finish() {
-            synchronized (this) {
-                return new RepositoryCleanupResult(bytesCounter, blobsCounter);
-            }
-        }
     }
 }

@@ -37,6 +37,7 @@ import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreException;
+import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.core.internal.io.Streams;
@@ -55,8 +56,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
 
 import static java.net.HttpURLConnection.HTTP_NOT_FOUND;
@@ -301,18 +302,24 @@ class GoogleCloudStorageBlobStore implements BlobStore {
      *
      * @param pathStr Name of path to delete
      */
-    void deleteDirectory(String pathStr, LongConsumer resultConsumer) throws IOException {
-        SocketAccess.doPrivilegedVoidIOException(() -> {
+    DeleteResult deleteDirectory(String pathStr) throws IOException {
+        return SocketAccess.doPrivilegedIOException(() -> {
+            DeleteResult deleteResult = DeleteResult.ZERO;
             Page<Blob> page = client().get(bucketName).list(BlobListOption.prefix(pathStr));
             do {
                 final Collection<String> blobsToDelete = new ArrayList<>();
+                final AtomicLong blobsDeleted = new AtomicLong(0L);
+                final AtomicLong bytesDeleted = new AtomicLong(0L);
                 page.getValues().forEach(b -> {
                     blobsToDelete.add(b.getName());
-                    resultConsumer.accept(b.getSize());
+                    blobsDeleted.incrementAndGet();
+                    bytesDeleted.addAndGet(b.getSize());
                 });
                 deleteBlobsIgnoringIfNotExists(blobsToDelete);
+                deleteResult = deleteResult.add(new DeleteResult(blobsDeleted.get(), bytesDeleted.get()));
                 page = page.getNextPage();
             } while (page != null);
+            return deleteResult;
         });
     }
 

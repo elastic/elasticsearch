@@ -23,6 +23,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 
 import java.io.BufferedInputStream;
@@ -35,7 +36,6 @@ import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.Map;
-import java.util.function.LongConsumer;
 
 /**
  * URL blob implementation of {@link org.elasticsearch.common.blobstore.BlobContainer}
@@ -98,7 +98,7 @@ public class URLBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void delete(LongConsumer resultConsumer) {
+    public DeleteResult delete() {
         throw new UnsupportedOperationException("URL repository is read only");
     }
 

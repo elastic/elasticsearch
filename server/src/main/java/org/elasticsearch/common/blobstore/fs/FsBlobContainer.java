@@ -23,6 +23,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -45,7 +46,7 @@ import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.LongConsumer;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static java.util.Collections.unmodifiableMap;
 
@@ -124,7 +125,9 @@ public class FsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void delete(LongConsumer resultConsumer) throws IOException {
+    public DeleteResult delete() throws IOException {
+        final AtomicLong filesDeleted = new AtomicLong(0L);
+        final AtomicLong bytesDeleted = new AtomicLong(0L);
         Files.walkFileTree(path, new SimpleFileVisitor<>() {
             @Override
             public FileVisitResult postVisitDirectory(Path dir, IOException impossible) throws IOException {
@@ -136,10 +139,12 @@ public class FsBlobContainer extends AbstractBlobContainer {
             @Override
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                 Files.delete(file);
-                resultConsumer.accept(attrs.size());
+                filesDeleted.incrementAndGet();
+                bytesDeleted.addAndGet(attrs.size());
                 return FileVisitResult.CONTINUE;
             }
         });
+        return new DeleteResult(filesDeleted.get(), bytesDeleted.get());
     }
 
     @Override

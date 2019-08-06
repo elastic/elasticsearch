@@ -44,6 +44,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -108,7 +109,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo.canonicalName;
@@ -428,8 +428,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     .orElse(Collections.emptyList()),
                 snapshotId,
                 ActionListener.map(listener, v -> {
-                    cleanupStaleIndices(foundIndices, survivingIndices.values().stream()
-                        .map(IndexId::getId).collect(Collectors.toSet()), l -> {});
+                    cleanupStaleIndices(foundIndices, survivingIndices.values().stream().map(IndexId::getId).collect(Collectors.toSet()));
                     cleanupStaleRootFiles(
                         staleRootBlobs(updatedRepositoryData, Sets.difference(rootBlobs, new HashSet<>(snapMetaFilesToDelete))));
                     return null;
@@ -465,20 +464,21 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final Map<String, BlobContainer> foundIndices = blobStore().blobContainer(indicesPath()).children();
             final Set<String> survivingIndexIds =
                 repositoryData.getIndices().values().stream().map(IndexId::getId).collect(Collectors.toSet());
-            final RepositoryCleanupResult.Progress progress = RepositoryCleanupResult.start();
             final List<String> staleRootBlobs = staleRootBlobs(repositoryData, rootBlobs.keySet());
             if (survivingIndexIds.equals(foundIndices.keySet()) && staleRootBlobs.isEmpty()) {
                 // Nothing to clean up we return
-                return progress.finish();
+                return new RepositoryCleanupResult(0L, 0L);
             }
             // write new index-N blob to ensure concurrent operations will fail
             writeIndexGen(repositoryData, repositoryStateId);
-            cleanupStaleIndices(foundIndices, survivingIndexIds, progress);
+            final DeleteResult deleteIndicesResult = cleanupStaleIndices(foundIndices, survivingIndexIds);
             List<String> cleaned = cleanupStaleRootFiles(staleRootBlobs);
+            long deletedRootBytes = 0L;
             for (String name : cleaned) {
-                progress.accept(rootBlobs.get(name).length());
+                deletedRootBytes += rootBlobs.get(name).length();
             }
-            return progress.finish();
+            return new RepositoryCleanupResult(
+                deleteIndicesResult.blobsDeleted() + cleaned.size(), deletedRootBytes + deleteIndicesResult.bytesDeleted());
         });
     }
 
@@ -531,14 +531,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return Collections.emptyList();
     }
 
-    private void cleanupStaleIndices(Map<String, BlobContainer> foundIndices, Set<String> survivingIndexIds, LongConsumer progress) {
+    private DeleteResult cleanupStaleIndices(Map<String, BlobContainer> foundIndices, Set<String> survivingIndexIds) {
+        DeleteResult deleteResult = DeleteResult.ZERO;
         try {
             for (Map.Entry<String, BlobContainer> indexEntry : foundIndices.entrySet()) {
                 final String indexSnId = indexEntry.getKey();
                 try {
                     if (survivingIndexIds.contains(indexSnId) == false) {
                         logger.debug("[{}] Found stale index [{}]. Cleaning it up", metadata.name(), indexSnId);
-                        indexEntry.getValue().delete(progress);
+                        deleteResult = deleteResult.add(indexEntry.getValue().delete());
                         logger.debug("[{}] Cleaned up stale index [{}]", metadata.name(), indexSnId);
                     }
                 } catch (IOException e) {
@@ -554,6 +555,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             assert false : e;
             logger.warn(new ParameterizedMessage("[{}] Exception during cleanup of stale indices", metadata.name()), e);
         }
+        return deleteResult;
     }
 
     private void deleteIndices(RepositoryData repositoryData, List<IndexId> indices, SnapshotId snapshotId,

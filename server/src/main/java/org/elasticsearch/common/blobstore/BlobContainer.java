@@ -25,7 +25,6 @@ import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.util.List;
 import java.util.Map;
-import java.util.function.LongConsumer;
 
 /**
  * An interface for managing a repository of blob entries, where each blob entry is just a named group of bytes.
@@ -103,12 +102,11 @@ public interface BlobContainer {
 
     /**
      * Deletes this container and all its contents from the repository.
-     * @param resultConsumer Long consumer that implementations can invoke with the byte size of each deleted blob when deleting it.
-     *                       If invoking the result consumer exactly once per deleted blob is not possible for an implementation it must at
-     *                       least invoke the consumer once during the delete process if any data was deleted.
+     *
+     * @return delete result
      * @throws IOException on failure
      */
-    void delete(LongConsumer resultConsumer) throws IOException;
+    DeleteResult delete() throws IOException;
 
     /**
      * Deletes the blobs with given names. Unlike {@link #deleteBlob(String)} this method will not throw an exception

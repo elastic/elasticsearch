@@ -41,6 +41,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.Tuple;
@@ -53,7 +54,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.LongConsumer;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -121,7 +122,9 @@ class S3BlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void delete(LongConsumer resultConsumer) throws IOException {
+    public DeleteResult delete() throws IOException {
+        final AtomicLong deletedBlobs = new AtomicLong();
+        final AtomicLong deletedBytes = new AtomicLong();
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
             ObjectListing prevListing = null;
             while (true) {
@@ -137,7 +140,8 @@ class S3BlobContainer extends AbstractBlobContainer {
                 }
                 final List<String> blobsToDelete = new ArrayList<>();
                     list.getObjectSummaries().forEach(s3ObjectSummary -> {
-                        resultConsumer.accept(s3ObjectSummary.getSize());
+                        deletedBlobs.incrementAndGet();
+                        deletedBytes.addAndGet(s3ObjectSummary.getSize());
                         blobsToDelete.add(s3ObjectSummary.getKey());
                     });
                 if (list.isTruncated()) {
@@ -153,6 +157,7 @@ class S3BlobContainer extends AbstractBlobContainer {
         } catch (final AmazonClientException e) {
             throw new IOException("Exception when deleting blob container [" + keyPath + "]", e);
         }
+        return new DeleteResult(deletedBlobs.get(), deletedBytes.get());
     }
 
     @Override

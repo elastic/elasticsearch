@@ -21,11 +21,11 @@ package org.elasticsearch.snapshots.mockstore;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.DeleteResult;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Map;
-import java.util.function.LongConsumer;
 
 public class BlobContainerWrapper implements BlobContainer {
     private BlobContainer delegate;
@@ -61,8 +61,8 @@ public class BlobContainerWrapper implements BlobContainer {
     }
 
     @Override
-    public void delete(LongConsumer resultConsumer) throws IOException {
-        delegate.delete(resultConsumer);
+    public DeleteResult delete() throws IOException {
+        return delegate.delete();
     }
 
     @Override

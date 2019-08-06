@@ -21,10 +21,14 @@ package org.elasticsearch.http;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.entity.ContentType;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
+import org.apache.http.nio.client.methods.HttpAsyncMethods;
 import org.apache.http.nio.entity.NStringEntity;
+import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
+import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
@@ -33,9 +37,11 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.client.HttpAsyncResponseConsumerFactory;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.script.MockScriptPlugin;
@@ -49,7 +55,10 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.transport.TransportService;
+import org.junit.AfterClass;
+import org.junit.Before;
 
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -71,6 +80,10 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class SearchHttpCancellationIT extends HttpSmokeTestCase {
 
+    private static CloseableHttpAsyncClient client;
+    private static List<HttpHost> hosts = new ArrayList<>();
+    private static Map<String, String> nodeIdToName = new HashMap<>();
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>();
@@ -79,64 +92,66 @@ public class SearchHttpCancellationIT extends HttpSmokeTestCase {
         return plugins;
     }
 
+    @Before
+    public void init() {
+        if (client == null) {
+            client = HttpAsyncClientBuilder.create().build();
+            client.start();
+            readNodesInfo(hosts, nodeIdToName);
+        }
+    }
+
+    @AfterClass
+    public static void closeClient() throws IOException {
+        IOUtils.close(client);
+        client = null;
+    }
+
     public void testAutomaticCancellationDuringQueryPhase() throws Exception {
         List<ScriptedBlockPlugin> plugins = initBlockFactory();
         indexTestData();
 
-        HttpAsyncClientBuilder clientBuilder = HttpAsyncClientBuilder.create();
+        SearchSourceBuilder searchSource = new SearchSourceBuilder().query(scriptQuery(
+            new Script(ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())));
 
-        try (CloseableHttpAsyncClient httpClient = clientBuilder.build()) {
-            httpClient.start();
+        HttpPost httpPost = new HttpPost("/test/_search");
+        httpPost.setEntity(new NStringEntity(Strings.toString(searchSource), ContentType.APPLICATION_JSON));
 
-            List<HttpHost> hosts = new ArrayList<>();
-            Map<String, String> nodeIdToName = new HashMap<>();
-            readNodesInfo(hosts, nodeIdToName);
+        HttpAsyncRequestProducer requestProducer = HttpAsyncMethods.create(randomFrom(hosts), httpPost);
+        HttpAsyncResponseConsumer<HttpResponse> httpAsyncResponseConsumer =
+            HttpAsyncResponseConsumerFactory.DEFAULT.createHttpAsyncResponseConsumer();
+        HttpClientContext context = HttpClientContext.create();
 
-            SearchSourceBuilder searchSource = new SearchSourceBuilder().query(scriptQuery(
-                new Script(ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())));
+        Future<HttpResponse> future = client.execute(requestProducer, httpAsyncResponseConsumer, context, null);
 
-            HttpPost httpPost = new HttpPost("/test/_search");
-            httpPost.setEntity(new NStringEntity(Strings.toString(searchSource), ContentType.APPLICATION_JSON));
+        //Future<HttpResponse> future = httpClient.execute(randomFrom(hosts), httpPost, null);
+        awaitForBlock(plugins);
 
-            Future<HttpResponse> future = httpClient.execute(randomFrom(hosts), httpPost, null);
-            awaitForBlock(plugins);
+        httpPost.abort();
+        ensureSearchTaskIsCancelled(nodeIdToName::get);
 
-            httpPost.abort();
-            ensureSearchTaskIsCancelled(nodeIdToName::get);
-
-            disableBlocks(plugins);
-            expectThrows(CancellationException.class, future::get);
-        }
+        disableBlocks(plugins);
+        expectThrows(CancellationException.class, future::get);
     }
 
     public void testAutomaticCancellationDuringFetchPhase() throws Exception {
         List<ScriptedBlockPlugin> plugins = initBlockFactory();
         indexTestData();
 
-        HttpAsyncClientBuilder clientBuilder = HttpAsyncClientBuilder.create();
+        SearchSourceBuilder searchSource = new SearchSourceBuilder().scriptField("test_field",
+            new Script(ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap()));
 
-        try (CloseableHttpAsyncClient httpClient = clientBuilder.build()) {
-            httpClient.start();
+        HttpPost httpPost = new HttpPost("/test/_search");
+        httpPost.setEntity(new NStringEntity(Strings.toString(searchSource), ContentType.APPLICATION_JSON));
 
-            List<HttpHost> hosts = new ArrayList<>();
-            Map<String, String> nodeIdToName = new HashMap<>();
-            readNodesInfo(hosts, nodeIdToName);
+        Future<HttpResponse> future = client.execute(randomFrom(hosts), httpPost, null);
+        awaitForBlock(plugins);
 
-            SearchSourceBuilder searchSource = new SearchSourceBuilder().scriptField("test_field",
-                new Script(ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap()));
+        httpPost.abort();
+        ensureSearchTaskIsCancelled(nodeIdToName::get);
 
-            HttpPost httpPost = new HttpPost("/test/_search");
-            httpPost.setEntity(new NStringEntity(Strings.toString(searchSource), ContentType.APPLICATION_JSON));
-
-            Future<HttpResponse> future = httpClient.execute(randomFrom(hosts), httpPost, null);
-            awaitForBlock(plugins);
-
-            httpPost.abort();
-            ensureSearchTaskIsCancelled(nodeIdToName::get);
-
-            disableBlocks(plugins);
-            expectThrows(CancellationException.class, future::get);
-        }
+        disableBlocks(plugins);
+        expectThrows(CancellationException.class, future::get);
     }
 
     private static void readNodesInfo(List<HttpHost> hosts, Map<String, String> nodeIdToName) {

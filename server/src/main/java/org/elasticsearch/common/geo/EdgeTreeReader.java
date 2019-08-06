@@ -60,13 +60,13 @@ public class EdgeTreeReader implements ShapeTreeReader {
     static Optional<Boolean> checkExtent(StreamInput input, Extent extent) throws IOException {
         Extent edgeExtent = new Extent(input);
 
-        if (edgeExtent.minY > extent.maxY || edgeExtent.maxX < extent.minX
-                || edgeExtent.maxY < extent.minY || edgeExtent.minX > extent.maxX) {
+        if (edgeExtent.minY() > extent.maxY() || edgeExtent.maxX() < extent.minX()
+                || edgeExtent.maxY() < extent.minY() || edgeExtent.minX() > extent.maxX()) {
             return Optional.of(false); // tree and bbox-query are disjoint
         }
 
-        if (extent.minX <= edgeExtent.minX && extent.minY <= edgeExtent.minY
-                && extent.maxX >= edgeExtent.maxX && extent.maxY >= edgeExtent.maxY) {
+        if (extent.minX() <= edgeExtent.minX() && extent.minY() <= edgeExtent.minY()
+                && extent.maxX() >= edgeExtent.maxX() && extent.maxY() >= edgeExtent.maxY()) {
             return Optional.of(true); // bbox-query fully contains tree's extent.
         }
         return Optional.empty();
@@ -135,10 +135,10 @@ public class EdgeTreeReader implements ShapeTreeReader {
      */
     private boolean containsBottomLeft(Edge root, Extent extent) throws IOException {
         boolean res = false;
-        if (root.maxY >= extent.minY) {
+        if (root.maxY >= extent.minY()) {
             // is bbox-query contained within linearRing
             // cast infinite ray to the right from bottom-left of bbox-query to see if it intersects edge
-            if (lineCrossesLineWithBoundary(root.x1, root.y1, root.x2, root.y2, extent.minX, extent.minY, Integer.MAX_VALUE, extent.minY)) {
+            if (lineCrossesLineWithBoundary(root.x1, root.y1, root.x2, root.y2, extent.minX(), extent.minY(), Integer.MAX_VALUE, extent.minY())) {
                 res = true;
             }
 
@@ -146,7 +146,7 @@ public class EdgeTreeReader implements ShapeTreeReader {
                 res ^= containsBottomLeft(readLeft(root), extent);
             }
 
-            if (root.rightOffset > 0 && extent.maxY >= root.minY) { /* no right node if rightOffset == -1 */
+            if (root.rightOffset > 0 && extent.maxY() >= root.minY) { /* no right node if rightOffset == -1 */
                 res ^= containsBottomLeft(readRight(root), extent);
             }
         }
@@ -158,13 +158,13 @@ public class EdgeTreeReader implements ShapeTreeReader {
      */
     private boolean containsFully(Edge root, Extent extent) throws IOException {
         boolean res = false;
-        if (root.maxY >= extent.minY) {
+        if (root.maxY >= extent.minY()) {
             // is bbox-query contained within linearRing
             // cast infinite ray to the right from each corner of the extent
-            if (lineCrossesLineWithBoundary(root.x1, root.y1, root.x2, root.y2, extent.minX, extent.minY, Integer.MAX_VALUE, extent.minY)
-                && lineCrossesLineWithBoundary(root.x1, root.y1, root.x2, root.y2, extent.minX, extent.maxY, Integer.MAX_VALUE, extent.maxY)
-                && lineCrossesLineWithBoundary(root.x1, root.y1, root.x2, root.y2, extent.maxX, extent.minY, Integer.MAX_VALUE, extent.minY)
-                && lineCrossesLineWithBoundary(root.x1, root.y1, root.x2, root.y2, extent.maxX, extent.maxY, Integer.MAX_VALUE, extent.maxY)
+            if (lineCrossesLineWithBoundary(root.x1, root.y1, root.x2, root.y2, extent.minX(), extent.minY(), Integer.MAX_VALUE, extent.minY())
+                && lineCrossesLineWithBoundary(root.x1, root.y1, root.x2, root.y2, extent.minX(), extent.maxY(), Integer.MAX_VALUE, extent.maxY())
+                && lineCrossesLineWithBoundary(root.x1, root.y1, root.x2, root.y2, extent.maxX(), extent.minY(), Integer.MAX_VALUE, extent.minY())
+                && lineCrossesLineWithBoundary(root.x1, root.y1, root.x2, root.y2, extent.maxX(), extent.maxY(), Integer.MAX_VALUE, extent.maxY())
             ) {
                 res = true;
             }
@@ -173,7 +173,7 @@ public class EdgeTreeReader implements ShapeTreeReader {
                 res ^= containsBottomLeft(readLeft(root), extent);
             }
 
-            if (root.rightOffset > 0 && extent.maxY >= root.minY) { /* no right node if rightOffset == -1 */
+            if (root.rightOffset > 0 && extent.maxY() >= root.minY) { /* no right node if rightOffset == -1 */
                 res ^= containsBottomLeft(readRight(root), extent);
             }
         }
@@ -185,17 +185,17 @@ public class EdgeTreeReader implements ShapeTreeReader {
      * */
     private boolean crosses(Edge root, Extent extent) throws IOException {
         // we just have to cross one edge to answer the question, so we descend the tree and return when we do.
-        if (root.maxY >= extent.minY) {
+        if (root.maxY >= extent.minY()) {
 
             // does rectangle's edges intersect or reside inside polygon's edge
             if (lineCrossesLineWithBoundary(root.x1, root.y1, root.x2, root.y2,
-                extent.minX, extent.minY, extent.maxX, extent.minY) ||
+                extent.minX(), extent.minY(), extent.maxX(), extent.minY()) ||
                 lineCrossesLineWithBoundary(root.x1, root.y1, root.x2, root.y2,
-                    extent.maxX, extent.minY, extent.maxX, extent.maxY) ||
+                    extent.maxX(), extent.minY(), extent.maxX(), extent.maxY()) ||
                 lineCrossesLineWithBoundary(root.x1, root.y1, root.x2, root.y2,
-                    extent.maxX, extent.maxY, extent.minX, extent.maxY) ||
+                    extent.maxX(), extent.maxY(), extent.minX(), extent.maxY()) ||
                 lineCrossesLineWithBoundary(root.x1, root.y1, root.x2, root.y2,
-                    extent.minX, extent.maxY, extent.minX, extent.minY)) {
+                    extent.minX(), extent.maxY(), extent.minX(), extent.minY())) {
                 return true;
             }
             /* has left node */
@@ -204,7 +204,7 @@ public class EdgeTreeReader implements ShapeTreeReader {
             }
 
             /* no right node if rightOffset == -1 */
-            if (root.rightOffset > 0 && extent.maxY >= root.minY && crosses(readRight(root), extent)) {
+            if (root.rightOffset > 0 && extent.maxY() >= root.minY && crosses(readRight(root), extent)) {
                 return true;
             }
         }

@@ -38,28 +38,40 @@ public class Point2DWriter extends ShapeTreeWriter {
 
     Point2DWriter(int[] x, int[] y) {
         assert x.length == y.length;
-        int minX = Integer.MAX_VALUE;
-        int minY = Integer.MAX_VALUE;
-        int maxX = Integer.MIN_VALUE;
-        int maxY = Integer.MIN_VALUE;
+        int top = Integer.MIN_VALUE;
+        int bottom = Integer.MAX_VALUE;
+        int negLeft = Integer.MAX_VALUE;
+        int negRight = Integer.MIN_VALUE;
+        int posLeft = Integer.MAX_VALUE;
+        int posRight = Integer.MIN_VALUE;
         coords = new int[x.length * K];
         for (int i = 0; i < x.length; i++) {
             int xi = x[i];
             int yi = y[i];
-            minX = Math.min(minX, xi);
-            minY = Math.min(minY, yi);
-            maxX = Math.max(maxX, xi);
-            maxY = Math.max(maxY, yi);
+            top = Math.max(top, yi);
+            bottom = Math.min(bottom, yi);
+            if (xi >= 0 && xi < posLeft) {
+                posLeft = xi;
+            }
+            if (xi >= 0 && xi > posRight) {
+                posRight = xi;
+            }
+            if (xi < 0 && xi < negLeft) {
+                negLeft = xi;
+            }
+            if (xi < 0 && xi > negRight) {
+                negRight = xi;
+            }
             coords[2 * i] = xi;
             coords[2 * i + 1] = yi;
         }
         sort(0, x.length - 1, 0);
-        this.extent = new Extent(minX, minY, maxX, maxY);
+        this.extent = new Extent(top, bottom, negLeft, negRight, posLeft, posRight);
     }
 
     Point2DWriter(int x, int y) {
         coords = new int[] {x, y};
-        this.extent = new Extent(x, y, x, y);
+        this.extent = Extent.fromPoint(x, y);
     }
 
     @Override

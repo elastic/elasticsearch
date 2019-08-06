@@ -18,13 +18,9 @@
  */
 package org.elasticsearch.common.geo;
 
-import org.apache.lucene.geo.GeoEncodingUtils;
-import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.geo.geometry.Point;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.geo.RandomShapeGenerator;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -34,23 +30,21 @@ import static org.hamcrest.Matchers.equalTo;
 public class Point2DTests extends ESTestCase {
 
     public void testOnePoint() throws IOException {
-        PointBuilder gen = (PointBuilder) RandomShapeGenerator.createShape(random(), RandomShapeGenerator.ShapeType.POINT);
-        Point point = gen.buildGeometry();
-        int x = GeoEncodingUtils.encodeLongitude(point.getLon());
-        int y = GeoEncodingUtils.encodeLatitude(point.getLat());
+        int x = randomIntBetween(-90, 90);
+        int y = randomIntBetween(-90, 90);
         Point2DWriter writer = new Point2DWriter(x, y);
 
         BytesStreamOutput output = new BytesStreamOutput();
         writer.writeTo(output);
         output.close();
         Point2DReader reader = new Point2DReader(new ByteBufferStreamInput(ByteBuffer.wrap(output.bytes().toBytesRef().bytes)));
-        assertThat(reader.getExtent(), equalTo(new Extent(x, y, x, y)));
-        assertTrue(reader.intersects(new Extent(x, y, x, y)));
-        assertTrue(reader.intersects(new Extent(x, y, x + randomIntBetween(1, 10), y + randomIntBetween(1, 10))));
-        assertTrue(reader.intersects(new Extent(x - randomIntBetween(1, 10), y - randomIntBetween(1, 10), x, y)));
-        assertTrue(reader.intersects(new Extent(x - randomIntBetween(1, 10), y - randomIntBetween(1, 10),
+        assertThat(reader.getExtent(), equalTo(Extent.fromPoint(x, y)));
+        assertTrue(reader.intersects(Extent.fromPoint(x, y)));
+        assertTrue(reader.intersects(Extent.fromPoints(x, y, x + randomIntBetween(1, 10), y + randomIntBetween(1, 10))));
+        assertTrue(reader.intersects(Extent.fromPoints(x - randomIntBetween(1, 10), y - randomIntBetween(1, 10), x, y)));
+        assertTrue(reader.intersects(Extent.fromPoints(x - randomIntBetween(1, 10), y - randomIntBetween(1, 10),
             x + randomIntBetween(1, 10), y + randomIntBetween(1, 10))));
-        assertFalse(reader.intersects(new Extent(x - randomIntBetween(10, 100), y - randomIntBetween(10, 100),
+        assertFalse(reader.intersects(Extent.fromPoints(x - randomIntBetween(10, 100), y - randomIntBetween(10, 100),
             x - randomIntBetween(1, 10), y - randomIntBetween(1, 10))));
     }
 
@@ -60,7 +54,7 @@ public class Point2DTests extends ESTestCase {
             int maxX = randomIntBetween(minX + 10, 180);
             int minY = randomIntBetween(-90, 80);
             int maxY = randomIntBetween(minY + 10, 90);
-            Extent extent = new Extent(minX, minY, maxX, maxY);
+            Extent extent = Extent.fromPoints(minX, minY, maxX, maxY);
             int numPoints = randomIntBetween(2, 1000);
 
             int[] x = new int[numPoints];

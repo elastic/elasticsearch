@@ -22,8 +22,12 @@ import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.geo.geometry.Geometry;
+import org.elasticsearch.geo.geometry.MultiPolygon;
 import org.elasticsearch.geo.geometry.Polygon;
 import org.elasticsearch.geo.geometry.ShapeType;
+import org.elasticsearch.index.mapper.GeoShapeIndexer;
+import org.elasticsearch.index.query.LegacyGeoShapeQueryProcessor;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 import org.locationtech.spatial4j.shape.Rectangle;
@@ -52,73 +56,88 @@ public class EdgeTreeTests extends ESTestCase {
             EdgeTreeReader reader = new EdgeTreeReader(new ByteBufferStreamInput(ByteBuffer.wrap(output.bytes().toBytesRef().bytes)), true);
 
             // box-query touches bottom-left corner
-            assertTrue(reader.intersects(new Extent(minX - randomIntBetween(1, 180), minY - randomIntBetween(1, 180), minX, minY)));
+            assertTrue(reader.intersects(Extent.fromPoints(minX - randomIntBetween(1, 180), minY - randomIntBetween(1, 180), minX, minY)));
             // box-query touches bottom-right corner
-            assertTrue(reader.intersects(new Extent(maxX, minY - randomIntBetween(1, 180), maxX + randomIntBetween(1, 180), minY)));
+            assertTrue(reader.intersects(Extent.fromPoints(maxX, minY - randomIntBetween(1, 180), maxX + randomIntBetween(1, 180), minY)));
             // box-query touches top-right corner
-            assertTrue(reader.intersects(new Extent(maxX, maxY, maxX + randomIntBetween(1, 180), maxY + randomIntBetween(1, 180))));
+            assertTrue(reader.intersects(Extent.fromPoints(maxX, maxY, maxX + randomIntBetween(1, 180), maxY + randomIntBetween(1, 180))));
             // box-query touches top-left corner
-            assertTrue(reader.intersects(new Extent(minX - randomIntBetween(1, 180), maxY, minX, maxY + randomIntBetween(1, 180))));
+            assertTrue(reader.intersects(Extent.fromPoints(minX - randomIntBetween(1, 180), maxY, minX, maxY + randomIntBetween(1, 180))));
             // box-query fully-enclosed inside rectangle
-            assertTrue(reader.intersects(new Extent((3 * minX + maxX) / 4, (3 * minY + maxY) / 4, (3 * maxX + minX) / 4,
+            assertTrue(reader.intersects(Extent.fromPoints((3 * minX + maxX) / 4, (3 * minY + maxY) / 4, (3 * maxX + minX) / 4,
                 (3 * maxY + minY) / 4)));
             // box-query fully-contains poly
-            assertTrue(reader.intersects(new Extent(minX - randomIntBetween(1, 180), minY - randomIntBetween(1, 180),
+            assertTrue(reader.intersects(Extent.fromPoints(minX - randomIntBetween(1, 180), minY - randomIntBetween(1, 180),
                 maxX + randomIntBetween(1, 180), maxY + randomIntBetween(1, 180))));
             // box-query half-in-half-out-right
-            assertTrue(reader.intersects(new Extent((3 * minX + maxX) / 4, (3 * minY + maxY) / 4, maxX + randomIntBetween(1, 1000),
+            assertTrue(reader.intersects(Extent.fromPoints((3 * minX + maxX) / 4, (3 * minY + maxY) / 4, maxX + randomIntBetween(1, 1000),
                 (3 * maxY + minY) / 4)));
             // box-query half-in-half-out-left
-            assertTrue(reader.intersects(new Extent(minX - randomIntBetween(1, 1000), (3 * minY + maxY) / 4, (3 * maxX + minX) / 4,
+            assertTrue(reader.intersects(Extent.fromPoints(minX - randomIntBetween(1, 1000), (3 * minY + maxY) / 4, (3 * maxX + minX) / 4,
                 (3 * maxY + minY) / 4)));
             // box-query half-in-half-out-top
-            assertTrue(reader.intersects(new Extent((3 * minX + maxX) / 4, (3 * minY + maxY) / 4, maxX + randomIntBetween(1, 1000),
+            assertTrue(reader.intersects(Extent.fromPoints((3 * minX + maxX) / 4, (3 * minY + maxY) / 4, maxX + randomIntBetween(1, 1000),
                 maxY + randomIntBetween(1, 1000))));
             // box-query half-in-half-out-bottom
-            assertTrue(reader.intersects(new Extent((3 * minX + maxX) / 4, minY - randomIntBetween(1, 1000),
+            assertTrue(reader.intersects(Extent.fromPoints((3 * minX + maxX) / 4, minY - randomIntBetween(1, 1000),
                 maxX + randomIntBetween(1, 1000), (3 * maxY + minY) / 4)));
 
             // box-query outside to the right
-            assertFalse(reader.intersects(new Extent(maxX + randomIntBetween(1, 1000), minY, maxX + randomIntBetween(1001, 2000), maxY)));
+            assertFalse(reader.intersects(Extent.fromPoints(maxX + randomIntBetween(1, 1000), minY, maxX + randomIntBetween(1001, 2000), maxY)));
             // box-query outside to the left
-            assertFalse(reader.intersects(new Extent(maxX - randomIntBetween(1001, 2000), minY, minX - randomIntBetween(1, 1000), maxY)));
+            assertFalse(reader.intersects(Extent.fromPoints(maxX - randomIntBetween(1001, 2000), minY, minX - randomIntBetween(1, 1000), maxY)));
             // box-query outside to the top
-            assertFalse(reader.intersects(new Extent(minX, maxY + randomIntBetween(1, 1000), maxX, maxY + randomIntBetween(1001, 2000))));
+            assertFalse(reader.intersects(Extent.fromPoints(minX, maxY + randomIntBetween(1, 1000), maxX, maxY + randomIntBetween(1001, 2000))));
             // box-query outside to the bottom
-            assertFalse(reader.intersects(new Extent(minX, minY - randomIntBetween(1001, 2000), maxX, minY - randomIntBetween(1, 1000))));
+            assertFalse(reader.intersects(Extent.fromPoints(minX, minY - randomIntBetween(1001, 2000), maxX, minY - randomIntBetween(1, 1000))));
         }
     }
 
     public void testSimplePolygon() throws IOException  {
         for (int iter = 0; iter < 1000; iter++) {
+            GeoShapeIndexer indexer = new GeoShapeIndexer(true, "name");
             ShapeBuilder builder = RandomShapeGenerator.createShape(random(), RandomShapeGenerator.ShapeType.POLYGON);
             Polygon geo = (Polygon) builder.buildGeometry();
+            Geometry geometry = indexer.prepareForIndexing(geo);
+            Polygon testPolygon;
+            if (geometry instanceof Polygon) {
+                testPolygon = (Polygon) geometry;
+            } else if (geometry instanceof MultiPolygon) {
+                testPolygon = ((MultiPolygon) geometry).get(0);
+            } else {
+                throw new IllegalStateException("not a polygon");
+            }
+            builder = LegacyGeoShapeQueryProcessor.geometryToShapeBuilder(testPolygon);
             Rectangle box = builder.buildS4J().getBoundingBox();
             int minXBox = GeoEncodingUtils.encodeLongitude(box.getMinX());
             int minYBox = GeoEncodingUtils.encodeLatitude(box.getMinY());
             int maxXBox = GeoEncodingUtils.encodeLongitude(box.getMaxX());
             int maxYBox = GeoEncodingUtils.encodeLatitude(box.getMaxY());
 
-            int[] x = asIntArray(geo.getPolygon().getLons(), GeoEncodingUtils::encodeLongitude);
-            int[] y = asIntArray(geo.getPolygon().getLats(), GeoEncodingUtils::encodeLatitude);
+            int[] x = asIntArray(testPolygon.getPolygon().getLons(), GeoEncodingUtils::encodeLongitude);
+            int[] y = asIntArray(testPolygon.getPolygon().getLats(), GeoEncodingUtils::encodeLatitude);
 
             EdgeTreeWriter writer = new EdgeTreeWriter(x, y);
             BytesStreamOutput output = new BytesStreamOutput();
             writer.writeTo(output);
             output.close();
             EdgeTreeReader reader = new EdgeTreeReader(new ByteBufferStreamInput(ByteBuffer.wrap(output.bytes().toBytesRef().bytes)), true);
-            assertThat(reader.getExtent(), equalTo(new Extent(minXBox, minYBox, maxXBox, maxYBox)));
+            Extent actualExtent = reader.getExtent();
+            assertThat(actualExtent.minX(), equalTo(minXBox));
+            assertThat(actualExtent.maxX(), equalTo(maxXBox));
+            assertThat(actualExtent.minY(), equalTo(minYBox));
+            assertThat(actualExtent.maxY(), equalTo(maxYBox));
             // polygon fully contained within box
-            assertTrue(reader.intersects(new Extent(minXBox, minYBox, maxXBox, maxYBox)));
+            assertTrue(reader.intersects(Extent.fromPoints(minXBox, minYBox, maxXBox, maxYBox)));
             // intersects
             if (maxYBox - 1 >= minYBox) {
-                assertTrue(reader.intersects(new Extent(minXBox, minYBox, maxXBox, maxYBox - 1)));
+                assertTrue(reader.intersects(Extent.fromPoints(minXBox, minYBox, maxXBox, maxYBox - 1)));
             }
             if (maxXBox -1 >= minXBox) {
-                assertTrue(reader.intersects(new Extent(minXBox, minYBox, maxXBox - 1, maxYBox)));
+                assertTrue(reader.intersects(Extent.fromPoints(minXBox, minYBox, maxXBox - 1, maxYBox)));
             }
             // does not cross
-            assertFalse(reader.intersects(new Extent(maxXBox + 1, maxYBox + 1, maxXBox + 10, maxYBox + 10)));
+            assertFalse(reader.intersects(Extent.fromPoints(maxXBox + 1, maxYBox + 1, maxXBox + 10, maxYBox + 10)));
         }
     }
 
@@ -139,7 +158,7 @@ public class EdgeTreeTests extends ESTestCase {
         writer.writeTo(output);
         output.close();
         EdgeTreeReader reader = new EdgeTreeReader(new ByteBufferStreamInput(ByteBuffer.wrap(output.bytes().toBytesRef().bytes)), true);
-        assertTrue(reader.containsBottomLeft(new Extent(xMin, yMin, xMax, yMax)));
+        assertTrue(reader.containsBottomLeft(Extent.fromPoints(xMin, yMin, xMax, yMax)));
     }
 
     public void testGetShapeType() {

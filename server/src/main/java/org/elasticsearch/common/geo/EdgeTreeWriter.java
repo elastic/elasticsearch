@@ -52,10 +52,12 @@ public class EdgeTreeWriter extends ShapeTreeWriter {
 
     EdgeTreeWriter(List<int[]> x, List<int[]> y) {
         this.numShapes = x.size();
-        int minX = Integer.MAX_VALUE;
-        int minY = Integer.MAX_VALUE;
-        int maxX = Integer.MIN_VALUE;
-        int maxY = Integer.MIN_VALUE;
+        int top = Integer.MIN_VALUE;
+        int bottom = Integer.MAX_VALUE;
+        int negLeft = Integer.MAX_VALUE;
+        int negRight = Integer.MIN_VALUE;
+        int posLeft = Integer.MAX_VALUE;
+        int posRight = Integer.MIN_VALUE;
         List<Edge> edges = new ArrayList<>();
         for (int i = 0; i < y.size(); i++) {
             for (int j = 1; j < y.get(i).length; j++) {
@@ -72,14 +74,41 @@ public class EdgeTreeWriter extends ShapeTreeWriter {
                     edgeMaxY = y1;
                 }
                 edges.add(new Edge(x1, y1, x2, y2, edgeMinY, edgeMaxY));
-                minX = Math.min(minX, Math.min(x1, x2));
-                minY = Math.min(minY, Math.min(y1, y2));
-                maxX = Math.max(maxX, Math.max(x1, x2));
-                maxY = Math.max(maxY, Math.max(y1, y2));
+
+                top = Math.max(top, Math.max(y1, y2));
+                bottom = Math.min(bottom, Math.min(y1, y2));
+
+                // check first
+                if (x1 >= 0 && x1 < posLeft) {
+                    posLeft = x1;
+                }
+                if (x1 >= 0 && x1 > posRight) {
+                    posRight = x1;
+                }
+                if (x1 < 0 && x1 < negLeft) {
+                    negLeft = x1;
+                }
+                if (x1 < 0 && x1 > negRight) {
+                    negRight = x1;
+                }
+
+                // check second
+                if (x2 >= 0 && x2 < posLeft) {
+                    posLeft = x2;
+                }
+                if (x2 >= 0 && x2 > posRight) {
+                    posRight = x2;
+                }
+                if (x2 < 0 && x2 < negLeft) {
+                    negLeft = x2;
+                }
+                if (x2 < 0 && x2 > negRight) {
+                    negRight = x2;
+                }
             }
         }
         edges.sort(Edge::compareTo);
-        this.extent = new Extent(minX, minY, maxX, maxY);
+        this.extent = new Extent(top, bottom, negLeft, negRight, posLeft, posRight);
         this.tree = createTree(edges, 0, edges.size() - 1);
     }
 

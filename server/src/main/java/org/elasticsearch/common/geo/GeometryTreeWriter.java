@@ -58,13 +58,11 @@ public class GeometryTreeWriter implements Writeable {
         // only write a geometry extent for the tree if the tree
         // contains multiple sub-shapes
         boolean prependExtent = builder.shapeWriters.size() > 1;
-        out.writeBoolean(prependExtent);
+        Extent extent = null;
         if (prependExtent) {
-            out.writeInt(builder.minLon);
-            out.writeInt(builder.minLat);
-            out.writeInt(builder.maxLon);
-            out.writeInt(builder.maxLat);
+            extent = new Extent(builder.top, builder.bottom, builder.negLeft, builder.negRight, builder.posLeft, builder.posRight);
         }
+        out.writeOptionalWriteable(extent);
         out.writeVInt(builder.shapeWriters.size());
         for (ShapeTreeWriter writer : builder.shapeWriters) {
             out.writeEnum(writer.getShapeType());
@@ -76,23 +74,25 @@ public class GeometryTreeWriter implements Writeable {
 
         private List<ShapeTreeWriter> shapeWriters;
         // integers are used to represent int-encoded lat/lon values
-        int minLat;
-        int maxLat;
-        int minLon;
-        int maxLon;
+        int top = Integer.MIN_VALUE;
+        int bottom = Integer.MAX_VALUE;
+        int negLeft = Integer.MAX_VALUE;
+        int negRight = Integer.MIN_VALUE;
+        int posLeft = Integer.MAX_VALUE;
+        int posRight = Integer.MIN_VALUE;
 
         GeometryTreeBuilder() {
             shapeWriters = new ArrayList<>();
-            minLat = minLon = Integer.MAX_VALUE;
-            maxLat = maxLon = Integer.MIN_VALUE;
         }
 
         private void addWriter(ShapeTreeWriter writer) {
             Extent extent = writer.getExtent();
-            minLon = Math.min(minLon, extent.minX);
-            minLat = Math.min(minLat, extent.minY);
-            maxLon = Math.max(maxLon, extent.maxX);
-            maxLat = Math.max(maxLat, extent.maxY);
+            top = Math.max(top, extent.top);
+            bottom = Math.min(bottom, extent.bottom);
+            negLeft = Math.min(negLeft, extent.negLeft);
+            negRight = Math.max(negRight, extent.negRight);
+            posLeft = Math.min(posLeft, extent.posLeft);
+            posRight = Math.max(posRight, extent.posRight);
             shapeWriters.add(writer);
         }
 

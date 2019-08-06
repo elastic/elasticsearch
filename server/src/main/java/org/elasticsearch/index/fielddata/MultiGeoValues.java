@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.geo.GeoEncodingUtils;
-import org.elasticsearch.common.geo.Extent;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeometryTreeReader;
 
@@ -81,26 +79,6 @@ public abstract class MultiGeoValues {
         }
 
         @Override
-        public double minLat() {
-            return geoPoint.lat();
-        }
-
-        @Override
-        public double maxLat() {
-            return geoPoint.lat();
-        }
-
-        @Override
-        public double minLon() {
-            return geoPoint.lon();
-        }
-
-        @Override
-        public double maxLon() {
-            return geoPoint.lon();
-        }
-
-        @Override
         public double lat() {
             return geoPoint.lat();
         }
@@ -117,44 +95,14 @@ public abstract class MultiGeoValues {
     }
 
     public static class GeoShapeValue implements GeoValue {
-        private final double minLat;
-        private final double maxLat;
-        private final double minLon;
-        private final double maxLon;
+        private final GeometryTreeReader reader;
 
         public GeoShapeValue(GeometryTreeReader reader) throws IOException {
-            Extent extent = reader.getExtent();
-            this.minLat = GeoEncodingUtils.decodeLatitude(extent.minY);
-            this.maxLat = GeoEncodingUtils.decodeLatitude(extent.maxY);
-            this.maxLon = GeoEncodingUtils.decodeLongitude(extent.maxX);
-            this.minLon = GeoEncodingUtils.decodeLongitude(extent.minX);
+            this.reader = reader;
         }
 
-        public GeoShapeValue(double minLat, double minLon, double maxLat, double maxLon) {
-            this.minLat = minLat;
-            this.minLon = minLon;
-            this.maxLat = maxLat;
-            this.maxLon = maxLon;
-        }
-
-        @Override
-        public double minLat() {
-            return minLat;
-        }
-
-        @Override
-        public double maxLat() {
-            return maxLat;
-        }
-
-        @Override
-        public double minLon() {
-            return minLon;
-        }
-
-        @Override
-        public double maxLon() {
-            return maxLon;
+        public GeoShapeValue() {
+            this.reader = null;
         }
 
         @Override
@@ -173,10 +121,6 @@ public abstract class MultiGeoValues {
      * retrieve properties used in aggregations.
      */
     public interface GeoValue {
-        double minLat();
-        double maxLat();
-        double minLon();
-        double maxLon();
         double lat();
         double lon();
     }

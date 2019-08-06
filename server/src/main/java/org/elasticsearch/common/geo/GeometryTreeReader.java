@@ -42,9 +42,9 @@ public class GeometryTreeReader {
 
     public Extent getExtent() throws IOException {
         input.position(0);
-        boolean hasExtent = input.readBoolean();
-        if (hasExtent) {
-            return new Extent(input);
+        Extent extent = input.readOptionalWriteable(Extent::new);
+        if (extent != null) {
+            return extent;
         }
         assert input.readVInt() == 1;
         ShapeType shapeType = input.readEnum(ShapeType.class);

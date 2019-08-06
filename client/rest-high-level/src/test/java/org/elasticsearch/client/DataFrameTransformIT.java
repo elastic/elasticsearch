@@ -69,7 +69,6 @@ import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -387,10 +386,6 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
             assertNotEquals(zeroIndexerStats, stateAndStats.getIndexerStats());
             assertThat(stateAndStats.getTaskState(),
                 is(oneOf(DataFrameTransformTaskState.STARTED, DataFrameTransformTaskState.STOPPED)));
-            assertNotNull(stateAndStats.getCheckpointingInfo().getNext().getCheckpointProgress());
-            assertThat(stateAndStats.getCheckpointingInfo().getNext().getCheckpointProgress().getPercentComplete(), equalTo(100.0));
-            assertThat(stateAndStats.getCheckpointingInfo().getNext().getCheckpointProgress().getTotalDocs(), greaterThan(0L));
-            assertThat(stateAndStats.getCheckpointingInfo().getNext().getCheckpointProgress().getRemainingDocs(), equalTo(0L));
             assertThat(stateAndStats.getReason(), is(nullValue()));
         });
     }

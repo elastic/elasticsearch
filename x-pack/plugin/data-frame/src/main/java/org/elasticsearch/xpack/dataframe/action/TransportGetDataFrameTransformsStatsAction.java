@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStats
 import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStatsAction.Request;
 import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStatsAction.Response;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointingInfo;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStoredDoc;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformTaskState;
@@ -85,26 +86,29 @@ public class TransportGetDataFrameTransformsStatsAction extends
         ClusterState state = clusterService.state();
         String nodeId = state.nodes().getLocalNode().getId();
         if (task.isCancelled() == false) {
-            transformsCheckpointService.getCheckpointStats(task.getTransformId(), task.getCheckpoint(), task.getInProgressCheckpoint(),
-                task.getState().getIndexerState(), task.getState().getPosition(), task.getProgress(),
-                ActionListener.wrap(checkpointStats -> listener.onResponse(new Response(
-                        Collections.singletonList(new DataFrameTransformStats(task.getTransformId(),
-                            task.getState().getTaskState(),
-                            task.getState().getReason(),
-                            null,
-                            task.getStats(),
-                            checkpointStats)),
-                        1L)),
-                    e -> listener.onResponse(new Response(
-                        Collections.singletonList(new DataFrameTransformStats(task.getTransformId(),
-                            task.getState().getTaskState(),
-                            task.getState().getReason(),
-                            null,
-                            task.getStats(),
-                            DataFrameTransformCheckpointingInfo.EMPTY)),
-                        1L,
-                        Collections.emptyList(),
-                        Collections.singletonList(new FailedNodeException(nodeId, "Failed to retrieve checkpointing info", e))))
+            DataFrameTransformState transformState = task.getState();
+            task.getCheckpointingInfo(transformsCheckpointService, ActionListener.wrap(
+                checkpointingInfo -> listener.onResponse(new Response(
+                    Collections.singletonList(new DataFrameTransformStats(task.getTransformId(),
+                        transformState.getTaskState(),
+                        transformState.getReason(),
+                        null,
+                        task.getStats(),
+                        checkpointingInfo)),
+                    1L)),
+                e -> {
+                    logger.warn("Failed to retrieve checkpointing info for transform [" + task.getTransformId() + "]", e);
+                    listener.onResponse(new Response(
+                    Collections.singletonList(new DataFrameTransformStats(task.getTransformId(),
+                        transformState.getTaskState(),
+                        transformState.getReason(),
+                        null,
+                        task.getStats(),
+                        DataFrameTransformCheckpointingInfo.EMPTY)),
+                    1L,
+                    Collections.emptyList(),
+                    Collections.singletonList(new FailedNodeException(nodeId, "Failed to retrieve checkpointing info", e))));
+                }
                 ));
         } else {
             listener.onResponse(new Response(Collections.emptyList(), 0L));
@@ -214,9 +218,12 @@ public class TransportGetDataFrameTransformsStatsAction extends
 
     private void populateSingleStoppedTransformStat(DataFrameTransformStoredDoc transform,
                                                     ActionListener<DataFrameTransformCheckpointingInfo> listener) {
-        transformsCheckpointService.getCheckpointStats(transform.getId(), transform.getTransformState().getCheckpoint(),
-            transform.getTransformState().getCheckpoint() + 1, transform.getTransformState().getIndexerState(),
-            transform.getTransformState().getPosition(), transform.getTransformState().getProgress(),
+        transformsCheckpointService.getCheckpointingInfo(
+            transform.getId(),
+            transform.getTransformState().getCheckpoint(),
+            transform.getTransformState().getIndexerState(),
+            transform.getTransformState().getPosition(),
+            transform.getTransformState().getProgress(),
             ActionListener.wrap(
                 listener::onResponse,
                 e -> {

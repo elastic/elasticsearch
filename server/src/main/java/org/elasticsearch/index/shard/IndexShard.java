@@ -2652,7 +2652,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     }
 
                     final long localCheckpoint = Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
-                    final long totalDocs = StreamSupport.stream(segmentInfos.spliterator(), false).mapToLong(si -> si.info.maxDoc()).sum();
+                    final long totalDocs = segmentInfos.totalMaxDoc();
 
                     minimumReasonableRetainedSeqNo = localCheckpoint + 1
                         - Math.round(Math.ceil(totalDocs * reasonableOperationsBasedRecoveryProportion));

@@ -22,6 +22,12 @@ https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html[HTTP accept header].
 Valid values include JSON, YAML, etc.
 end::http-format[]
 
+tag::index[]
+`{index}`::
+(Optional, string) Comma-separated list of index names used to limit returned
+information.
+end::index[]
+
 tag::local[]
 `local`::
 (Optional, boolean) If `true`, the request retrieves information from the local

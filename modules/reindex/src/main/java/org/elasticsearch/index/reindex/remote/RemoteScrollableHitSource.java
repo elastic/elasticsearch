@@ -77,10 +77,10 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
 
     @Override
     protected void doStart(RejectAwareActionListener<Response> searchListener) {
-        lookupRemoteVersion(searchListener.withResponseHandler(version -> {
+        lookupRemoteVersion(RejectAwareActionListener.withResponseHandler(searchListener, version -> {
             remoteVersion = version;
             execute(RemoteRequestBuilders.initialSearch(searchRequest, query, remoteVersion),
-                RESPONSE_PARSER, searchListener.withResponseHandler(r -> onStartResponse(searchListener, r)));
+                RESPONSE_PARSER, RejectAwareActionListener.withResponseHandler(searchListener, r -> onStartResponse(searchListener, r)));
         }));
     }
 

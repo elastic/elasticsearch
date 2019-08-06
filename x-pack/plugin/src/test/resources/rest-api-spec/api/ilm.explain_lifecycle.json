@@ -1,9 +1,9 @@
 {
   "ilm.explain_lifecycle": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/ilm-explain-lifecycle.html",
+    "stability": "stable",
     "methods": [ "GET" ],
     "url": {
-      "path": "/{index}/_ilm/explain",
       "paths": ["/{index}/_ilm/explain"],
       "parts": {
         "index": {
@@ -11,7 +11,16 @@
           "description" : "The name of the index to explain"
         }
       },
-      "params": {}
+      "params": {
+        "only_managed": {
+          "type": "boolean",
+          "description": "filters the indices included in the response to ones managed by ILM"
+        },
+        "only_errors": {
+          "type": "boolean",
+          "description": "filters the indices included in the response to ones in an ILM error state, implies only_managed"
+        }
+      }
     },
     "body": null
   }

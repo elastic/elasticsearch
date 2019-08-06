@@ -26,6 +26,7 @@ import org.apache.logging.log4j.util.MessageSupplier;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -49,6 +50,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -68,6 +70,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
@@ -77,6 +80,7 @@ import java.util.function.LongSupplier;
 public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequest, BulkShardRequest, BulkShardResponse> {
 
     public static final String ACTION_NAME = BulkAction.NAME + "[s]";
+    public static final ActionType<BulkShardResponse> TYPE = new ActionType<>(ACTION_NAME, BulkShardResponse::new);
 
     private static final Logger logger = LogManager.getLogger(TransportShardBulkAction.class);
 
@@ -100,8 +104,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     @Override
-    protected BulkShardResponse newResponseInstance() {
-        return new BulkShardResponse();
+    protected BulkShardResponse newResponseInstance(StreamInput in) throws IOException {
+        return new BulkShardResponse(in);
     }
 
     @Override
@@ -210,7 +214,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 // we may fail translating a update to index or delete operation
                 // we use index result to communicate failure while translating update request
                 final Engine.Result result =
-                    new Engine.IndexResult(failure, updateRequest.version(), SequenceNumbers.UNASSIGNED_SEQ_NO);
+                    new Engine.IndexResult(failure, updateRequest.version());
                 context.setRequestToExecute(updateRequest);
                 context.markOperationAsExecuted(result);
                 context.markAsCompleted(context.getExecutionResult());
@@ -338,15 +342,13 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     /**
      * Creates a new bulk item result from the given requests and result of performing the update operation on the shard.
      */
-    static BulkItemResponse processUpdateResponse(final UpdateRequest updateRequest, final String concreteIndex,
-                                                  BulkItemResponse operationResponse,
-                                                  final UpdateHelper.Result translate) {
+    private static BulkItemResponse processUpdateResponse(final UpdateRequest updateRequest, final String concreteIndex,
+                                                          BulkItemResponse operationResponse, final UpdateHelper.Result translate) {
         final BulkItemResponse response;
-        DocWriteResponse.Result translatedResult = translate.getResponseResult();
         if (operationResponse.isFailed()) {
             response = new BulkItemResponse(operationResponse.getItemId(), DocWriteRequest.OpType.UPDATE, operationResponse.getFailure());
         } else {
-
+            final DocWriteResponse.Result translatedResult = translate.getResponseResult();
             final UpdateResponse updateResponse;
             if (translatedResult == DocWriteResponse.Result.CREATED || translatedResult == DocWriteResponse.Result.UPDATED) {
                 final IndexRequest updateIndexRequest = translate.action();
@@ -382,54 +384,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         return response;
     }
 
-
-    /** Modes for executing item request on replica depending on corresponding primary execution result */
-    public enum ReplicaItemExecutionMode {
-
-        /**
-         * When primary execution succeeded
-         */
-        NORMAL,
-
-        /**
-         * When primary execution failed before sequence no was generated
-         * or primary execution was a noop (only possible when request is originating from pre-6.0 nodes)
-         */
-        NOOP,
-
-        /**
-         * When primary execution failed after sequence no was generated
-         */
-        FAILURE
-    }
-
-    /**
-     * Determines whether a bulk item request should be executed on the replica.
-     *
-     * @return {@link ReplicaItemExecutionMode#NORMAL} upon normal primary execution with no failures
-     * {@link ReplicaItemExecutionMode#FAILURE} upon primary execution failure after sequence no generation
-     * {@link ReplicaItemExecutionMode#NOOP} upon primary execution failure before sequence no generation or
-     * when primary execution resulted in noop (only possible for write requests from pre-6.0 nodes)
-     */
-    static ReplicaItemExecutionMode replicaItemExecutionMode(final BulkItemRequest request, final int index) {
-        final BulkItemResponse primaryResponse = request.getPrimaryResponse();
-        assert primaryResponse != null : "expected primary response to be set for item [" + index + "] request [" + request.request() + "]";
-        if (primaryResponse.isFailed()) {
-            return primaryResponse.getFailure().getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
-                ? ReplicaItemExecutionMode.FAILURE // we have a seq no generated with the failure, replicate as no-op
-                : ReplicaItemExecutionMode.NOOP; // no seq no generated, ignore replication
-        } else {
-            // TODO: once we know for sure that every operation that has been processed on the primary is assigned a seq#
-            // (i.e., all nodes on the cluster are on v6.0.0 or higher) we can use the existence of a seq# to indicate whether
-            // an operation should be processed or be treated as a noop. This means we could remove this method and the
-            // ReplicaItemExecutionMode enum and have a simple boolean check for seq != UNASSIGNED_SEQ_NO which will work for
-            // both failures and indexing operations.
-            return primaryResponse.getResponse().getResult() != DocWriteResponse.Result.NOOP
-                ? ReplicaItemExecutionMode.NORMAL // execution successful on primary
-                : ReplicaItemExecutionMode.NOOP; // ignore replication
-        }
-    }
-
     @Override
     public WriteReplicaResult<BulkShardRequest> shardOperationOnReplica(BulkShardRequest request, IndexShard replica) throws Exception {
         final Translog.Location location = performOnReplica(request, replica);
@@ -442,25 +396,22 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             BulkItemRequest item = request.items()[i];
             final Engine.Result operationResult;
             DocWriteRequest<?> docWriteRequest = item.request();
-            switch (replicaItemExecutionMode(item, i)) {
-                case NORMAL:
-                    final DocWriteResponse primaryResponse = item.getPrimaryResponse().getResponse();
-                    operationResult = performOpOnReplica(primaryResponse, docWriteRequest, replica);
-                    assert operationResult != null : "operation result must never be null when primary response has no failure";
-                    location = syncOperationResultOrThrow(operationResult, location);
-                    break;
-                case NOOP:
-                    break;
-                case FAILURE:
-                    final BulkItemResponse.Failure failure = item.getPrimaryResponse().getFailure();
-                    assert failure.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO : "seq no must be assigned";
-                    operationResult = replica.markSeqNoAsNoop(failure.getSeqNo(), failure.getMessage());
-                    assert operationResult != null : "operation result must never be null when primary response has no failure";
-                    location = syncOperationResultOrThrow(operationResult, location);
-                    break;
-                default:
-                    throw new IllegalStateException("illegal replica item execution mode for: " + docWriteRequest);
+            final BulkItemResponse response = item.getPrimaryResponse();
+            final BulkItemResponse.Failure failure = response.getFailure();
+            final DocWriteResponse writeResponse = response.getResponse();
+            final long seqNum = failure == null ? writeResponse.getSeqNo() : failure.getSeqNo();
+            if (seqNum == SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                assert failure != null || writeResponse.getResult() == DocWriteResponse.Result.NOOP
+                    || writeResponse.getResult() == DocWriteResponse.Result.NOT_FOUND;
+                continue;
             }
+            if (failure == null) {
+                operationResult = performOpOnReplica(writeResponse, docWriteRequest, replica);
+            } else {
+                operationResult = replica.markSeqNoAsNoop(seqNum, failure.getMessage());
+            }
+            assert operationResult != null : "operation result must never be null when primary response has no failure";
+            location = syncOperationResultOrThrow(operationResult, location);
         }
         return location;
     }

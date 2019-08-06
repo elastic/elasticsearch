@@ -5,14 +5,12 @@
  */
 package org.elasticsearch.xpack.core.ccr.action;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -27,19 +25,14 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern.REMOTE_CLUSTER_FIELD;
 
-public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
+public class PutAutoFollowPatternAction extends ActionType<AcknowledgedResponse> {
 
     public static final String NAME = "cluster:admin/xpack/ccr/auto_follow_pattern/put";
     public static final PutAutoFollowPatternAction INSTANCE = new PutAutoFollowPatternAction();
     private static final int MAX_NAME_BYTES = 255;
 
     private PutAutoFollowPatternAction() {
-        super(NAME);
-    }
-
-    @Override
-    public AcknowledgedResponse newResponse() {
-        return new AcknowledgedResponse();
+        super(NAME, AcknowledgedResponse::new);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
@@ -153,21 +146,7 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
             remoteCluster = in.readString();
             leaderIndexPatterns = in.readStringList();
             followIndexNamePattern = in.readOptionalString();
-            if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
-                parameters = new FollowParameters(in);
-            } else {
-                parameters = new FollowParameters();
-                parameters.maxReadRequestOperationCount = in.readOptionalVInt();
-                parameters.maxReadRequestSize = in.readOptionalWriteable(ByteSizeValue::new);
-                parameters.maxOutstandingReadRequests = in.readOptionalVInt();
-                parameters.maxWriteRequestOperationCount = in.readOptionalVInt();
-                parameters.maxWriteRequestSize = in.readOptionalWriteable(ByteSizeValue::new);
-                parameters.maxOutstandingWriteRequests = in.readOptionalVInt();
-                parameters.maxWriteBufferCount = in.readOptionalVInt();
-                parameters.maxWriteBufferSize = in.readOptionalWriteable(ByteSizeValue::new);
-                parameters.maxRetryDelay = in.readOptionalTimeValue();
-                parameters.readPollTimeout = in.readOptionalTimeValue();
-            }
+            parameters = new FollowParameters(in);
         }
 
         @Override
@@ -177,20 +156,7 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
             out.writeString(remoteCluster);
             out.writeStringCollection(leaderIndexPatterns);
             out.writeOptionalString(followIndexNamePattern);
-            if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
-                parameters.writeTo(out);
-            } else {
-                out.writeOptionalVInt(parameters.maxReadRequestOperationCount);
-                out.writeOptionalWriteable(parameters.maxReadRequestSize);
-                out.writeOptionalVInt(parameters.maxOutstandingReadRequests);
-                out.writeOptionalVInt(parameters.maxWriteRequestOperationCount);
-                out.writeOptionalWriteable(parameters.maxWriteRequestSize);
-                out.writeOptionalVInt(parameters.maxOutstandingWriteRequests);
-                out.writeOptionalVInt(parameters.maxWriteBufferCount);
-                out.writeOptionalWriteable(parameters.maxWriteBufferSize);
-                out.writeOptionalTimeValue(parameters.maxRetryDelay);
-                out.writeOptionalTimeValue(parameters.readPollTimeout);
-            }
+            parameters.writeTo(out);
         }
 
         @Override

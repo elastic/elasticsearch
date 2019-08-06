@@ -53,20 +53,7 @@ public abstract class ESNetty4IntegTestCase extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings transportClientSettings() {
-        Settings.Builder builder = Settings.builder().put(super.transportClientSettings());
-        builder.put(NetworkModule.TRANSPORT_TYPE_KEY, Netty4Plugin.NETTY_TRANSPORT_NAME);
-        return  builder.build();
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(Netty4Plugin.class);
     }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Arrays.asList(Netty4Plugin.class);
-    }
-
 }

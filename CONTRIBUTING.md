@@ -325,8 +325,7 @@ Commercially licensed code that integrates with the rest of Elasticsearch. The
 `docs` subdirectory functions just like the top level `docs` subdirectory and
 the `qa` subdirectory functions just like the top level `qa` subdirectory. The
 `plugin` subdirectory contains the x-pack module which runs inside the
-Elasticsearch process. The `transport-client` subdirectory contains extensions
-to Elasticsearch's standard transport client to work properly with x-pack.
+Elasticsearch process.
 
 ### Gradle Build
 

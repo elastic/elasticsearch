@@ -21,35 +21,29 @@ package org.elasticsearch.search.lookup;
 
 import org.apache.lucene.index.LeafReaderContext;
 
-import java.util.HashMap;
 import java.util.Map;
-
-import static java.util.Collections.unmodifiableMap;
 
 /**
  * Per-segment version of {@link SearchLookup}.
  */
 public class LeafSearchLookup {
 
-    final LeafReaderContext ctx;
-    final LeafDocLookup docMap;
-    final SourceLookup sourceLookup;
-    final LeafFieldsLookup fieldsLookup;
-    final Map<String, Object> asMap;
+    private final LeafReaderContext ctx;
+    private final LeafDocLookup docMap;
+    private final SourceLookup sourceLookup;
+    private final LeafFieldsLookup fieldsLookup;
+    private final Map<String, Object> asMap;
 
-    public LeafSearchLookup(LeafReaderContext ctx, LeafDocLookup docMap, SourceLookup sourceLookup,
-            LeafFieldsLookup fieldsLookup) {
+    public LeafSearchLookup(LeafReaderContext ctx, LeafDocLookup docMap, SourceLookup sourceLookup, LeafFieldsLookup fieldsLookup) {
         this.ctx = ctx;
         this.docMap = docMap;
         this.sourceLookup = sourceLookup;
         this.fieldsLookup = fieldsLookup;
-
-        Map<String, Object> asMap = new HashMap<>(4);
-        asMap.put("doc", docMap);
-        asMap.put("_doc", docMap);
-        asMap.put("_source", sourceLookup);
-        asMap.put("_fields", fieldsLookup);
-        this.asMap = unmodifiableMap(asMap);
+        this.asMap = Map.of(
+                "doc", docMap,
+                "_doc", docMap,
+                "_source", sourceLookup,
+                "_fields", fieldsLookup);
     }
 
     public Map<String, Object> asMap() {

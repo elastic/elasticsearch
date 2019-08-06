@@ -31,6 +31,9 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
+/**
+ * A grouping via a histogram aggregation referencing a numeric field
+ */
 public class HistogramGroupSource extends SingleGroupSource implements ToXContentObject {
 
     protected static final ParseField INTERVAL = new ParseField("interval");
@@ -49,7 +52,7 @@ public class HistogramGroupSource extends SingleGroupSource implements ToXConten
 
     private final double interval;
 
-    public HistogramGroupSource(String field, double interval) {
+    HistogramGroupSource(String field, double interval) {
         super(field);
         if (interval <= 0) {
             throw new IllegalArgumentException("[interval] must be greater than 0.");
@@ -96,5 +99,39 @@ public class HistogramGroupSource extends SingleGroupSource implements ToXConten
     @Override
     public int hashCode() {
         return Objects.hash(field, interval);
+    }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static class Builder {
+
+        private String field;
+        private double interval;
+
+        /**
+         * The field to reference in the histogram grouping
+         * @param field The numeric field name to use in the histogram grouping
+         * @return The {@link Builder} with the field set.
+         */
+        public Builder setField(String field) {
+            this.field = field;
+            return this;
+        }
+
+        /**
+         * Set the interval for the histogram aggregation
+         * @param interval The numeric interval for the histogram grouping
+         * @return The {@link Builder} with the interval set.
+         */
+        public Builder setInterval(double interval) {
+            this.interval = interval;
+            return this;
+        }
+
+        public HistogramGroupSource build() {
+            return new HistogramGroupSource(field, interval);
+        }
     }
 }

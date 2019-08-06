@@ -42,6 +42,17 @@ public class CloseIndexRequest extends AcknowledgedRequest<CloseIndexRequest> im
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
     private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
 
+    public CloseIndexRequest(StreamInput in) throws IOException {
+        super(in);
+        indices = in.readStringArray();
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
+        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
+            waitForActiveShards = ActiveShardCount.readFrom(in);
+        } else {
+            waitForActiveShards = ActiveShardCount.NONE;
+        }
+    }
+
     public CloseIndexRequest() {
     }
 
@@ -114,23 +125,11 @@ public class CloseIndexRequest extends AcknowledgedRequest<CloseIndexRequest> im
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        indices = in.readStringArray();
-        indicesOptions = IndicesOptions.readIndicesOptions(in);
-        if (in.getVersion().onOrAfter(Version.V_7_1_0)) {
-            waitForActiveShards = ActiveShardCount.readFrom(in);
-        } else {
-            waitForActiveShards = ActiveShardCount.NONE;
-        }
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
-        if (out.getVersion().onOrAfter(Version.V_7_1_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
             waitForActiveShards.writeTo(out);
         }
     }

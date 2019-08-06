@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
@@ -20,18 +20,13 @@ import java.io.IOException;
 import java.util.Objects;
 
 
-public class DeleteFilterAction extends Action<AcknowledgedResponse> {
+public class DeleteFilterAction extends ActionType<AcknowledgedResponse> {
 
     public static final DeleteFilterAction INSTANCE = new DeleteFilterAction();
     public static final String NAME = "cluster:admin/xpack/ml/filters/delete";
 
     private DeleteFilterAction() {
-        super(NAME);
-    }
-
-    @Override
-    public AcknowledgedResponse newResponse() {
-        return new AcknowledgedResponse();
+        super(NAME, AcknowledgedResponse::new);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -39,6 +34,11 @@ public class DeleteFilterAction extends Action<AcknowledgedResponse> {
         public static final ParseField FILTER_ID = new ParseField("filter_id");
 
         private String filterId;
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            filterId = in.readString();
+        }
 
         public Request() {
 
@@ -55,12 +55,6 @@ public class DeleteFilterAction extends Action<AcknowledgedResponse> {
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            filterId = in.readString();
         }
 
         @Override

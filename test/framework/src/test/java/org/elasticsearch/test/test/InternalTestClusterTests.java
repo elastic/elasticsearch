@@ -20,14 +20,15 @@ package org.elasticsearch.test.test;
 
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.SettingsBasedSeedHostsProvider;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
@@ -35,7 +36,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.NodeConfigurationSource;
-import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -54,9 +54,6 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.node.DiscoveryNode.Role.DATA;
-import static org.elasticsearch.cluster.node.DiscoveryNode.Role.INGEST;
-import static org.elasticsearch.cluster.node.DiscoveryNode.Role.MASTER;
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileNotExists;
@@ -91,20 +88,21 @@ public class InternalTestClusterTests extends ESTestCase {
         InternalTestCluster cluster1 = new InternalTestCluster(clusterSeed, baseDir, masterNodes,
             randomBoolean(), minNumDataNodes, maxNumDataNodes, clusterName, nodeConfigurationSource, numClientNodes,
             nodePrefix, Collections.emptyList(), Function.identity());
-        // TODO: this is not ideal - we should have a way to make sure ports are initialized in the same way
-        assertClusters(cluster0, cluster1, false);
+        assertClusters(cluster0, cluster1, true);
     }
 
     /**
-     * a set of settings that are expected to have different values betweem clusters, even they have been initialized with the same
+     * a set of settings that are expected to have different values between clusters, even they have been initialized with the same
      * base settings.
      */
     static final Set<String> clusterUniqueSettings = new HashSet<>();
 
     static {
-        clusterUniqueSettings.add(ClusterName.CLUSTER_NAME_SETTING.getKey());
-        clusterUniqueSettings.add(TransportSettings.PORT.getKey());
-        clusterUniqueSettings.add("http.port");
+        clusterUniqueSettings.add(Environment.PATH_HOME_SETTING.getKey());
+        clusterUniqueSettings.add(Environment.PATH_DATA_SETTING.getKey());
+        clusterUniqueSettings.add(Environment.PATH_REPO_SETTING.getKey());
+        clusterUniqueSettings.add(Environment.PATH_SHARED_DATA_SETTING.getKey());
+        clusterUniqueSettings.add(Environment.PATH_LOGS_SETTING.getKey());
     }
 
     public static void assertClusters(InternalTestCluster cluster0, InternalTestCluster cluster1, boolean checkClusterUniqueSettings) {
@@ -112,9 +110,6 @@ public class InternalTestClusterTests extends ESTestCase {
         Settings defaultSettings1 = cluster1.getDefaultSettings();
         assertSettings(defaultSettings0, defaultSettings1, checkClusterUniqueSettings);
         assertThat(cluster0.numDataNodes(), equalTo(cluster1.numDataNodes()));
-        if (checkClusterUniqueSettings) {
-            assertThat(cluster0.getClusterName(), equalTo(cluster1.getClusterName()));
-        }
     }
 
     public static void assertSettings(Settings left, Settings right, boolean checkClusterUniqueSettings) {
@@ -127,7 +122,7 @@ public class InternalTestClusterTests extends ESTestCase {
                 continue;
             }
             assertTrue("key [" + key + "] is missing in " + keys1, keys1.contains(key));
-            assertEquals(right.get(key), left.get(key));
+            assertEquals(key, right.get(key), left.get(key));
         }
     }
 
@@ -151,16 +146,10 @@ public class InternalTestClusterTests extends ESTestCase {
             bootstrapMasterNodeIndex = maxNumDataNodes == 0 ? -1 : randomIntBetween(0, maxNumDataNodes - 1);
         }
         final int numClientNodes = randomIntBetween(0, 2);
-        final String clusterName1 = "shared1";
-        final String clusterName2 = "shared2";
-        String transportClient = getTestTransportType();
         NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
                 final Settings.Builder settings = Settings.builder()
-                    .put(
-                        NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(),
-                        2 * ((masterNodes ? InternalTestCluster.DEFAULT_HIGH_NUM_MASTER_NODES : 0) + maxNumDataNodes + numClientNodes))
                     .put(DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file")
                     .putList(SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.getKey())
                     .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());
@@ -175,24 +164,17 @@ public class InternalTestClusterTests extends ESTestCase {
             public Path nodeConfigPath(int nodeOrdinal) {
                 return null;
             }
-
-            @Override
-            public Settings transportClientSettings() {
-                return Settings.builder()
-                    .put(NetworkModule.TRANSPORT_TYPE_KEY, transportClient).build();
-            }
         };
 
         String nodePrefix = "foobar";
 
-        Path baseDir = createTempDir();
-        InternalTestCluster cluster0 = new InternalTestCluster(clusterSeed, baseDir, masterNodes,
-            autoManageMinMasterNodes, minNumDataNodes, maxNumDataNodes, clusterName1, nodeConfigurationSource, numClientNodes,
+        InternalTestCluster cluster0 = new InternalTestCluster(clusterSeed, createTempDir(), masterNodes,
+            autoManageMinMasterNodes, minNumDataNodes, maxNumDataNodes, "clustername", nodeConfigurationSource, numClientNodes,
             nodePrefix, mockPlugins(), Function.identity());
         cluster0.setBootstrapMasterNodeIndex(bootstrapMasterNodeIndex);
 
-        InternalTestCluster cluster1 = new InternalTestCluster(clusterSeed, baseDir, masterNodes,
-            autoManageMinMasterNodes, minNumDataNodes, maxNumDataNodes, clusterName2, nodeConfigurationSource, numClientNodes,
+        InternalTestCluster cluster1 = new InternalTestCluster(clusterSeed, createTempDir(), masterNodes,
+            autoManageMinMasterNodes, minNumDataNodes, maxNumDataNodes, "clustername", nodeConfigurationSource, numClientNodes,
             nodePrefix, mockPlugins(), Function.identity());
         cluster1.setBootstrapMasterNodeIndex(bootstrapMasterNodeIndex);
 
@@ -201,11 +183,11 @@ public class InternalTestClusterTests extends ESTestCase {
         try {
             {
                 Random random = new Random(seed);
-                cluster0.beforeTest(random, random.nextDouble());
+                cluster0.beforeTest(random);
             }
             {
                 Random random = new Random(seed);
-                cluster1.beforeTest(random, random.nextDouble());
+                cluster1.beforeTest(random);
             }
             assertArrayEquals(cluster0.getNodeNames(), cluster1.getNodeNames());
             Iterator<Client> iterator1 = cluster1.getClients().iterator();
@@ -229,14 +211,10 @@ public class InternalTestClusterTests extends ESTestCase {
         final int maxNumDataNodes = 2;
         final int numClientNodes = randomIntBetween(0, 2);
         final String clusterName1 = "shared1";
-        String transportClient = getTestTransportType();
         NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
                 return Settings.builder()
-                    .put(
-                        NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(),
-                        2 + (masterNodes ? InternalTestCluster.DEFAULT_HIGH_NUM_MASTER_NODES : 0) + maxNumDataNodes + numClientNodes)
                     .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
                     .putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file")
                     .putList(SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.getKey())
@@ -247,12 +225,6 @@ public class InternalTestClusterTests extends ESTestCase {
             public Path nodeConfigPath(int nodeOrdinal) {
                 return null;
             }
-
-            @Override
-            public Settings transportClientSettings() {
-                return Settings.builder()
-                    .put(NetworkModule.TRANSPORT_TYPE_KEY, transportClient).build();
-            }
         };
         String nodePrefix = "test";
         Path baseDir = createTempDir();
@@ -260,7 +232,7 @@ public class InternalTestClusterTests extends ESTestCase {
             true, minNumDataNodes, maxNumDataNodes, clusterName1, nodeConfigurationSource, numClientNodes,
             nodePrefix, mockPlugins(), Function.identity());
         try {
-            cluster.beforeTest(random(), 0.0);
+            cluster.beforeTest(random());
             final int originalMasterCount = cluster.numMasterNodes();
             final Map<String,Path[]> shardNodePaths = new HashMap<>();
             for (String name: cluster.getNodeNames()) {
@@ -269,12 +241,9 @@ public class InternalTestClusterTests extends ESTestCase {
             String poorNode = randomValueOtherThanMany(n -> originalMasterCount == 1 && n.equals(cluster.getMasterName()),
                 () -> randomFrom(cluster.getNodeNames()));
             Path dataPath = getNodePaths(cluster, poorNode)[0];
+            final Settings poorNodeDataPathSettings = cluster.dataPathSettings(poorNode);
             final Path testMarker = dataPath.resolve("testMarker");
             Files.createDirectories(testMarker);
-            int expectedMasterCount = originalMasterCount;
-            if (cluster.getInstance(ClusterService.class, poorNode).localNode().isMasterNode()) {
-                expectedMasterCount--;
-            }
             cluster.stopRandomNode(InternalTestCluster.nameFilter(poorNode));
             assertFileExists(testMarker); // stopping a node half way shouldn't clean data
 
@@ -285,16 +254,16 @@ public class InternalTestClusterTests extends ESTestCase {
             Files.createDirectories(stableTestMarker);
 
             final String newNode1 =  cluster.startNode();
-            expectedMasterCount++;
-            assertThat(getNodePaths(cluster, newNode1)[0], equalTo(dataPath));
+            assertThat(getNodePaths(cluster, newNode1)[0], not(dataPath));
             assertFileExists(testMarker); // starting a node should re-use data folders and not clean it
             final String newNode2 =  cluster.startNode();
-            expectedMasterCount++;
             final Path newDataPath = getNodePaths(cluster, newNode2)[0];
             final Path newTestMarker = newDataPath.resolve("newTestMarker");
             assertThat(newDataPath, not(dataPath));
             Files.createDirectories(newTestMarker);
-            cluster.beforeTest(random(), 0.0);
+            final String newNode3 =  cluster.startNode(poorNodeDataPathSettings);
+            assertThat(getNodePaths(cluster, newNode3)[0], equalTo(dataPath));
+            cluster.beforeTest(random());
             assertFileNotExists(newTestMarker); // the cluster should be reset for a new test, cleaning up the extra path we made
             assertFileNotExists(testMarker); // a new unknown node used this path, it should be cleaned
             assertFileExists(stableTestMarker); // but leaving the structure of existing, reused nodes
@@ -302,7 +271,7 @@ public class InternalTestClusterTests extends ESTestCase {
                 assertThat("data paths for " + name + " changed", getNodePaths(cluster, name), equalTo(shardNodePaths.get(name)));
             }
 
-            cluster.beforeTest(random(), 0.0);
+            cluster.beforeTest(random());
             assertFileExists(stableTestMarker); // but leaving the structure of existing, reused nodes
             for (String name: cluster.getNodeNames()) {
                 assertThat("data paths for " + name + " changed", getNodePaths(cluster, name),
@@ -326,14 +295,12 @@ public class InternalTestClusterTests extends ESTestCase {
         final Path baseDir = createTempDir();
         final int numNodes = 5;
 
-        String transportClient = getTestTransportType();
         InternalTestCluster cluster = new InternalTestCluster(randomLong(), baseDir, false,
                 false, 0, 0, "test", new NodeConfigurationSource() {
 
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
                 return Settings.builder()
-                        .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), numNodes)
                         .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
                         .put(Node.INITIAL_STATE_TIMEOUT_SETTING.getKey(), 0)
                         .putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file")
@@ -345,41 +312,32 @@ public class InternalTestClusterTests extends ESTestCase {
             public Path nodeConfigPath(int nodeOrdinal) {
                 return null;
             }
-
-            @Override
-            public Settings transportClientSettings() {
-                return Settings.builder()
-                        .put(NetworkModule.TRANSPORT_TYPE_KEY, transportClient).build();
-            }
         }, 0, "", mockPlugins(), Function.identity());
-        cluster.beforeTest(random(), 0.0);
-        List<DiscoveryNode.Role> roles = new ArrayList<>();
+        cluster.beforeTest(random());
+        List<DiscoveryNodeRole> roles = new ArrayList<>();
         for (int i = 0; i < numNodes; i++) {
-            final DiscoveryNode.Role role = i == numNodes - 1 && roles.contains(MASTER) == false ?
-                MASTER : // last node and still no master
-                randomFrom(MASTER, DiscoveryNode.Role.DATA, DiscoveryNode.Role.INGEST);
+            final DiscoveryNodeRole role = i == numNodes - 1 && roles.contains(DiscoveryNodeRole.MASTER_ROLE) == false ?
+                    DiscoveryNodeRole.MASTER_ROLE : // last node and still no master
+                randomFrom(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.INGEST_ROLE);
             roles.add(role);
         }
 
-        cluster.setBootstrapMasterNodeIndex(randomIntBetween(0, (int) roles.stream().filter(role -> role.equals(MASTER)).count() - 1));
+        cluster.setBootstrapMasterNodeIndex(
+                randomIntBetween(0, (int) roles.stream().filter(role -> role.equals(DiscoveryNodeRole.MASTER_ROLE)).count() - 1));
 
         try {
-            Map<DiscoveryNode.Role, Set<String>> pathsPerRole = new HashMap<>();
+            Map<DiscoveryNodeRole, Set<String>> pathsPerRole = new HashMap<>();
             for (int i = 0; i < numNodes; i++) {
-                final DiscoveryNode.Role role = roles.get(i);
+                final DiscoveryNodeRole role = roles.get(i);
                 final String node;
-                switch (role) {
-                    case MASTER:
-                        node = cluster.startMasterOnlyNode();
-                        break;
-                    case DATA:
-                        node = cluster.startDataOnlyNode();
-                        break;
-                    case INGEST:
-                        node = cluster.startCoordinatingOnlyNode(Settings.EMPTY);
-                        break;
-                    default:
-                        throw new IllegalStateException("get your story straight");
+                if (role == DiscoveryNodeRole.MASTER_ROLE) {
+                    node = cluster.startMasterOnlyNode();
+                } else if (role == DiscoveryNodeRole.DATA_ROLE) {
+                    node = cluster.startDataOnlyNode();
+                } else if (role == DiscoveryNodeRole.INGEST_ROLE) {
+                    node = cluster.startCoordinatingOnlyNode(Settings.EMPTY);
+                } else {
+                    throw new IllegalStateException("get your story straight");
                 }
                 Set<String> rolePaths = pathsPerRole.computeIfAbsent(role, k -> new HashSet<>());
                 for (Path path : getNodePaths(cluster, node)) {
@@ -389,21 +347,21 @@ public class InternalTestClusterTests extends ESTestCase {
             cluster.validateClusterFormed();
             cluster.fullRestart();
 
-            Map<DiscoveryNode.Role, Set<String>> result = new HashMap<>();
+            Map<DiscoveryNodeRole, Set<String>> result = new HashMap<>();
             for (String name : cluster.getNodeNames()) {
                 DiscoveryNode node = cluster.getInstance(ClusterService.class, name).localNode();
                 List<String> paths = Arrays.stream(getNodePaths(cluster, name)).map(Path::toString).collect(Collectors.toList());
                 if (node.isMasterNode()) {
-                    result.computeIfAbsent(MASTER, k -> new HashSet<>()).addAll(paths);
+                    result.computeIfAbsent(DiscoveryNodeRole.MASTER_ROLE, k -> new HashSet<>()).addAll(paths);
                 } else if (node.isDataNode()) {
-                    result.computeIfAbsent(DATA, k -> new HashSet<>()).addAll(paths);
+                    result.computeIfAbsent(DiscoveryNodeRole.DATA_ROLE, k -> new HashSet<>()).addAll(paths);
                 } else {
-                    result.computeIfAbsent(INGEST, k -> new HashSet<>()).addAll(paths);
+                    result.computeIfAbsent(DiscoveryNodeRole.INGEST_ROLE, k -> new HashSet<>()).addAll(paths);
                 }
             }
 
             assertThat(result.size(), equalTo(pathsPerRole.size()));
-            for (DiscoveryNode.Role role : result.keySet()) {
+            for (DiscoveryNodeRole role : result.keySet()) {
                 assertThat("path are not the same for " + role, result.get(role), equalTo(pathsPerRole.get(role)));
             }
         } finally {
@@ -412,12 +370,10 @@ public class InternalTestClusterTests extends ESTestCase {
     }
 
     public void testTwoNodeCluster() throws Exception {
-        String transportClient = getTestTransportType();
         NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
                 return Settings.builder()
-                    .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), 2)
                     .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
                     .putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file")
                     .putList(SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.getKey())
@@ -428,12 +384,6 @@ public class InternalTestClusterTests extends ESTestCase {
             public Path nodeConfigPath(int nodeOrdinal) {
                 return null;
             }
-
-            @Override
-            public Settings transportClientSettings() {
-                return Settings.builder()
-                    .put(NetworkModule.TRANSPORT_TYPE_KEY, transportClient).build();
-            }
         };
         String nodePrefix = "test";
         Path baseDir = createTempDir();
@@ -443,7 +393,7 @@ public class InternalTestClusterTests extends ESTestCase {
             "test", nodeConfigurationSource, 0, nodePrefix,
             plugins, Function.identity());
         try {
-            cluster.beforeTest(random(), 0.0);
+            cluster.beforeTest(random());
             switch (randomInt(2)) {
                 case 0:
                     cluster.stopRandomDataNode();

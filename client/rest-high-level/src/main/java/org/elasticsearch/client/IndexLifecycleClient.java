@@ -21,19 +21,25 @@ package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.core.AcknowledgedResponse;
-import org.elasticsearch.client.indexlifecycle.DeleteLifecyclePolicyRequest;
-import org.elasticsearch.client.indexlifecycle.ExplainLifecycleRequest;
-import org.elasticsearch.client.indexlifecycle.ExplainLifecycleResponse;
-import org.elasticsearch.client.indexlifecycle.GetLifecyclePolicyRequest;
-import org.elasticsearch.client.indexlifecycle.GetLifecyclePolicyResponse;
-import org.elasticsearch.client.indexlifecycle.LifecycleManagementStatusRequest;
-import org.elasticsearch.client.indexlifecycle.LifecycleManagementStatusResponse;
-import org.elasticsearch.client.indexlifecycle.PutLifecyclePolicyRequest;
-import org.elasticsearch.client.indexlifecycle.RemoveIndexLifecyclePolicyRequest;
-import org.elasticsearch.client.indexlifecycle.RemoveIndexLifecyclePolicyResponse;
-import org.elasticsearch.client.indexlifecycle.RetryLifecyclePolicyRequest;
-import org.elasticsearch.client.indexlifecycle.StartILMRequest;
-import org.elasticsearch.client.indexlifecycle.StopILMRequest;
+import org.elasticsearch.client.ilm.DeleteLifecyclePolicyRequest;
+import org.elasticsearch.client.ilm.ExplainLifecycleRequest;
+import org.elasticsearch.client.ilm.ExplainLifecycleResponse;
+import org.elasticsearch.client.ilm.GetLifecyclePolicyRequest;
+import org.elasticsearch.client.ilm.GetLifecyclePolicyResponse;
+import org.elasticsearch.client.ilm.LifecycleManagementStatusRequest;
+import org.elasticsearch.client.ilm.LifecycleManagementStatusResponse;
+import org.elasticsearch.client.ilm.PutLifecyclePolicyRequest;
+import org.elasticsearch.client.ilm.RemoveIndexLifecyclePolicyRequest;
+import org.elasticsearch.client.ilm.RemoveIndexLifecyclePolicyResponse;
+import org.elasticsearch.client.ilm.RetryLifecyclePolicyRequest;
+import org.elasticsearch.client.ilm.StartILMRequest;
+import org.elasticsearch.client.ilm.StopILMRequest;
+import org.elasticsearch.client.slm.DeleteSnapshotLifecyclePolicyRequest;
+import org.elasticsearch.client.slm.ExecuteSnapshotLifecyclePolicyRequest;
+import org.elasticsearch.client.slm.ExecuteSnapshotLifecyclePolicyResponse;
+import org.elasticsearch.client.slm.GetSnapshotLifecyclePolicyRequest;
+import org.elasticsearch.client.slm.GetSnapshotLifecyclePolicyResponse;
+import org.elasticsearch.client.slm.PutSnapshotLifecyclePolicyRequest;
 
 import java.io.IOException;
 
@@ -299,5 +305,145 @@ public class IndexLifecycleClient {
                                           ActionListener<AcknowledgedResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::retryLifecycle, options,
             AcknowledgedResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Retrieve one or more snapshot lifecycle policy definitions.
+     * See <pre>
+     *  https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/
+     *  java-rest-high-ilm-slm-get-snapshot-lifecycle-policy.html
+     * </pre>
+     * for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public GetSnapshotLifecyclePolicyResponse getSnapshotLifecyclePolicy(GetSnapshotLifecyclePolicyRequest request,
+                                                                         RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, IndexLifecycleRequestConverters::getSnapshotLifecyclePolicy,
+            options, GetSnapshotLifecyclePolicyResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously retrieve one or more snapshot lifecycle policy definition.
+     * See <pre>
+     *  https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/
+     *  java-rest-high-ilm-slm-get-snapshot-lifecycle-policy.html
+     * </pre>
+     * for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void getSnapshotLifecyclePolicyAsync(GetSnapshotLifecyclePolicyRequest request, RequestOptions options,
+                                                ActionListener<GetSnapshotLifecyclePolicyResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::getSnapshotLifecyclePolicy,
+            options, GetSnapshotLifecyclePolicyResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Create or modify a snapshot lifecycle definition.
+     * See <pre>
+     *  https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/
+     *  java-rest-high-ilm-slm-put-snapshot-lifecycle-policy.html
+     * </pre>
+     * for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public AcknowledgedResponse putSnapshotLifecyclePolicy(PutSnapshotLifecyclePolicyRequest request,
+                                                           RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, IndexLifecycleRequestConverters::putSnapshotLifecyclePolicy,
+            options, AcknowledgedResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously create or modify a snapshot lifecycle definition.
+     * See <pre>
+     *  https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/
+     *  java-rest-high-ilm-slm-put-snapshot-lifecycle-policy.html
+     * </pre>
+     * for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void putSnapshotLifecyclePolicyAsync(PutSnapshotLifecyclePolicyRequest request, RequestOptions options,
+                                                ActionListener<AcknowledgedResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::putSnapshotLifecyclePolicy,
+            options, AcknowledgedResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Delete a snapshot lifecycle definition
+     * See <pre>
+     *  https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/
+     *  java-rest-high-ilm-slm-delete-snapshot-lifecycle-policy.html
+     * </pre>
+     * for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public AcknowledgedResponse deleteSnapshotLifecyclePolicy(DeleteSnapshotLifecyclePolicyRequest request,
+                                                              RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, IndexLifecycleRequestConverters::deleteSnapshotLifecyclePolicy,
+            options, AcknowledgedResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously delete a snapshot lifecycle definition
+     * See <pre>
+     *  https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/
+     *  java-rest-high-ilm-slm-delete-snapshot-lifecycle-policy.html
+     * </pre>
+     * for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void deleteSnapshotLifecyclePolicyAsync(DeleteSnapshotLifecyclePolicyRequest request, RequestOptions options,
+                                                   ActionListener<AcknowledgedResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::deleteSnapshotLifecyclePolicy,
+            options, AcknowledgedResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Execute a snapshot lifecycle definition
+     * See <pre>
+     *  https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/
+     *  java-rest-high-ilm-slm-execute-snapshot-lifecycle-policy.html
+     * </pre>
+     * for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public ExecuteSnapshotLifecyclePolicyResponse executeSnapshotLifecyclePolicy(ExecuteSnapshotLifecyclePolicyRequest request,
+                                                                                 RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, IndexLifecycleRequestConverters::executeSnapshotLifecyclePolicy,
+            options, ExecuteSnapshotLifecyclePolicyResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously execute a snapshot lifecycle definition
+     * See <pre>
+     *  https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/
+     *  java-rest-high-ilm-slm-execute-snapshot-lifecycle-policy.html
+     * </pre>
+     * for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void executeSnapshotLifecyclePolicyAsync(ExecuteSnapshotLifecyclePolicyRequest request, RequestOptions options,
+                                                    ActionListener<ExecuteSnapshotLifecyclePolicyResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::executeSnapshotLifecyclePolicy,
+            options, ExecuteSnapshotLifecyclePolicyResponse::fromXContent, listener, emptySet());
     }
 }

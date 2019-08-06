@@ -15,7 +15,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Map;
 
 /**
@@ -33,11 +32,11 @@ public class User implements ToXContentObject {
     @Nullable private final String email;
 
     public User(String username, String... roles) {
-        this(username, roles, null, null, null, true);
+        this(username, roles, null, null, Map.of(), true);
     }
 
     public User(String username, String[] roles, User authenticatedUser) {
-        this(username, roles, null, null, null, true, authenticatedUser);
+        this(username, roles, null, null, Map.of(), true, authenticatedUser);
     }
 
     public User(User user, User authenticatedUser) {
@@ -52,7 +51,7 @@ public class User implements ToXContentObject {
                 User authenticatedUser) {
         this.username = username;
         this.roles = roles == null ? Strings.EMPTY_ARRAY : roles;
-        this.metadata = metadata != null ? Collections.unmodifiableMap(metadata) : Collections.emptyMap();
+        this.metadata = metadata == null ? Map.of() : metadata;
         this.fullName = fullName;
         this.email = email;
         this.enabled = enabled;

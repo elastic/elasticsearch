@@ -23,14 +23,11 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
-import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistRequestBuilder;
-import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
-import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequestBuilder;
-import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequestBuilder;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
@@ -42,12 +39,6 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
-import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
-import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequestBuilder;
-import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
-import org.elasticsearch.action.admin.indices.exists.types.TypesExistsRequest;
-import org.elasticsearch.action.admin.indices.exists.types.TypesExistsRequestBuilder;
-import org.elasticsearch.action.admin.indices.exists.types.TypesExistsResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequestBuilder;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
@@ -122,58 +113,6 @@ import org.elasticsearch.common.Nullable;
  * @see AdminClient#indices()
  */
 public interface IndicesAdminClient extends ElasticsearchClient {
-
-    /**
-     * Indices Exists.
-     *
-     * @param request The indices exists request
-     * @return The result future
-     * @see Requests#indicesExistsRequest(String...)
-     */
-    ActionFuture<IndicesExistsResponse> exists(IndicesExistsRequest request);
-
-    /**
-     * The status of one or more indices.
-     *
-     * @param request  The indices status request
-     * @param listener A listener to be notified with a result
-     * @see Requests#indicesExistsRequest(String...)
-     */
-    void exists(IndicesExistsRequest request, ActionListener<IndicesExistsResponse> listener);
-
-    /**
-     * Indices exists.
-     */
-    IndicesExistsRequestBuilder prepareExists(String... indices);
-
-
-    /**
-     * Types exists.
-     *
-     * @deprecated Types are deprecated and are in the process of being removed.
-     * @param request The types exists request
-     * @return The result future
-     */
-    @Deprecated
-    ActionFuture<TypesExistsResponse> typesExists(TypesExistsRequest request);
-
-    /**
-     * Types exists.
-     *
-     * @deprecated Types are deprecated and are in the process of being removed.
-     * @param request  The types exists
-     * @param listener A listener to be notified with a result
-     */
-    @Deprecated
-    void typesExists(TypesExistsRequest request, ActionListener<TypesExistsResponse> listener);
-
-    /**
-     * Types exists.
-     *
-     * @deprecated Types are deprecated and are in the process of being removed.
-     */
-    @Deprecated
-    TypesExistsRequestBuilder prepareTypesExists(String... index);
 
     /**
      * Indices stats.
@@ -586,26 +525,6 @@ public interface IndicesAdminClient extends ElasticsearchClient {
     GetAliasesRequestBuilder prepareGetAliases(String... aliases);
 
     /**
-     * Allows to check to existence of aliases from indices.
-     */
-    AliasesExistRequestBuilder prepareAliasesExist(String... aliases);
-
-    /**
-     * Check to existence of index aliases.
-     *
-     * @param request The result future
-     */
-    ActionFuture<AliasesExistResponse> aliasesExist(GetAliasesRequest request);
-
-    /**
-     * Check the existence of specified index aliases.
-     *
-     * @param request  The index aliases request
-     * @param listener A listener to be notified with a result
-     */
-    void aliasesExist(GetAliasesRequest request, ActionListener<AliasesExistResponse> listener);
-
-    /**
      * Get index metadata for particular indices.
      *
      * @param request The result future
@@ -672,12 +591,12 @@ public interface IndicesAdminClient extends ElasticsearchClient {
     /**
      * Analyze text under the provided index.
      */
-    ActionFuture<AnalyzeResponse> analyze(AnalyzeRequest request);
+    ActionFuture<AnalyzeAction.Response> analyze(AnalyzeAction.Request request);
 
     /**
      * Analyze text under the provided index.
      */
-    void analyze(AnalyzeRequest request, ActionListener<AnalyzeResponse> listener);
+    void analyze(AnalyzeAction.Request request, ActionListener<AnalyzeAction.Response> listener);
 
     /**
      * Analyze text under the provided index.
@@ -819,4 +738,5 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * Swaps the index pointed to by an alias given all provided conditions are satisfied
      */
     void rolloverIndex(RolloverRequest request, ActionListener<RolloverResponse> listener);
+
 }

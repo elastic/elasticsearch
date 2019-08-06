@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknow
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
@@ -38,7 +39,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.RecordsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
-import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutoDetectResultProcessor;
+import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutodetectResultProcessor;
 import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
 import org.elasticsearch.xpack.ml.job.results.BucketTests;
@@ -49,7 +50,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
@@ -62,6 +62,8 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -72,8 +74,9 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
 
     private JobResultsProvider jobResultsProvider;
     private List<ModelSnapshot> capturedUpdateModelSnapshotOnJobRequests;
-    private AutoDetectResultProcessor resultProcessor;
+    private AutodetectResultProcessor resultProcessor;
     private Renormalizer renormalizer;
+    private AutodetectProcess process;
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -87,9 +90,17 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         Auditor auditor = new Auditor(client(), "test_node");
         jobResultsProvider = new JobResultsProvider(client(), builder.build());
         renormalizer = mock(Renormalizer.class);
+        process = mock(AutodetectProcess.class);
         capturedUpdateModelSnapshotOnJobRequests = new ArrayList<>();
-        resultProcessor = new AutoDetectResultProcessor(client(), auditor, JOB_ID, renormalizer,
-                new JobResultsPersister(client()), new ModelSizeStats.Builder(JOB_ID).build()) {
+        resultProcessor = new AutodetectResultProcessor(
+                client(),
+                auditor,
+                JOB_ID,
+                renormalizer,
+                new JobResultsPersister(client()),
+                process,
+                new ModelSizeStats.Builder(JOB_ID).build(),
+                new TimingStats(JOB_ID)) {
             @Override
             protected void updateModelSnapshotOnJob(ModelSnapshot modelSnapshot) {
                 capturedUpdateModelSnapshotOnJobRequests.add(modelSnapshot);
@@ -107,25 +118,26 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
     }
 
     public void testProcessResults() throws Exception {
-        ResultsBuilder builder = new ResultsBuilder();
+        ResultsBuilder resultsBuilder = new ResultsBuilder();
         Bucket bucket = createBucket(false);
-        builder.addBucket(bucket);
+        resultsBuilder.addBucket(bucket);
         List<AnomalyRecord> records = createRecords(false);
-        builder.addRecords(records);
+        resultsBuilder.addRecords(records);
         List<Influencer> influencers = createInfluencers(false);
-        builder.addInfluencers(influencers);
+        resultsBuilder.addInfluencers(influencers);
         CategoryDefinition categoryDefinition = createCategoryDefinition();
-        builder.addCategoryDefinition(categoryDefinition);
-        ModelPlot modelPlot = createmodelPlot();
-        builder.addmodelPlot(modelPlot);
+        resultsBuilder.addCategoryDefinition(categoryDefinition);
+        ModelPlot modelPlot = createModelPlot();
+        resultsBuilder.addModelPlot(modelPlot);
         ModelSizeStats modelSizeStats = createModelSizeStats();
-        builder.addModelSizeStats(modelSizeStats);
+        resultsBuilder.addModelSizeStats(modelSizeStats);
         ModelSnapshot modelSnapshot = createModelSnapshot();
-        builder.addModelSnapshot(modelSnapshot);
+        resultsBuilder.addModelSnapshot(modelSnapshot);
         Quantiles quantiles = createQuantiles();
-        builder.addQuantiles(quantiles);
+        resultsBuilder.addQuantiles(quantiles);
+        when(process.readAutodetectResults()).thenReturn(resultsBuilder.build().iterator());
 
-        resultProcessor.process(builder.buildTestProcess());
+        resultProcessor.process();
         resultProcessor.awaitCompletion();
 
         BucketsQueryBuilder bucketsQuery = new BucketsQueryBuilder().includeInterim(true);
@@ -163,14 +175,41 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         assertEquals(quantiles, persistedQuantiles.get());
     }
 
+    public void testProcessResults_TimingStats() throws Exception {
+        ResultsBuilder resultsBuilder = new ResultsBuilder()
+                .addBucket(createBucket(true, 100))
+                .addBucket(createBucket(true, 1000))
+                .addBucket(createBucket(true, 100))
+                .addBucket(createBucket(true, 1000))
+                .addBucket(createBucket(true, 100))
+                .addBucket(createBucket(true, 1000))
+                .addBucket(createBucket(true, 100))
+                .addBucket(createBucket(true, 1000))
+                .addBucket(createBucket(true, 100))
+                .addBucket(createBucket(true, 1000));
+        when(process.readAutodetectResults()).thenReturn(resultsBuilder.build().iterator());
+
+        resultProcessor.process();
+        resultProcessor.awaitCompletion();
+
+        TimingStats timingStats = resultProcessor.timingStats();
+        assertThat(timingStats.getJobId(), equalTo(JOB_ID));
+        assertThat(timingStats.getBucketCount(), equalTo(10L));
+        assertThat(timingStats.getMinBucketProcessingTimeMs(), equalTo(100.0));
+        assertThat(timingStats.getMaxBucketProcessingTimeMs(), equalTo(1000.0));
+        assertThat(timingStats.getAvgBucketProcessingTimeMs(), equalTo(550.0));
+        assertThat(timingStats.getExponentialAvgBucketProcessingTimeMs(), closeTo(143.244, 1e-3));
+    }
+
     public void testParseQuantiles_GivenRenormalizationIsEnabled() throws Exception {
         when(renormalizer.isEnabled()).thenReturn(true);
 
-        ResultsBuilder builder = new ResultsBuilder();
+        ResultsBuilder resultsBuilder = new ResultsBuilder();
         Quantiles quantiles = createQuantiles();
-        builder.addQuantiles(quantiles);
+        resultsBuilder.addQuantiles(quantiles);
+        when(process.readAutodetectResults()).thenReturn(resultsBuilder.build().iterator());
 
-        resultProcessor.process(builder.buildTestProcess());
+        resultProcessor.process();
         resultProcessor.awaitCompletion();
 
         Optional<Quantiles> persistedQuantiles = getQuantiles();
@@ -182,11 +221,12 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
     public void testParseQuantiles_GivenRenormalizationIsDisabled() throws Exception {
         when(renormalizer.isEnabled()).thenReturn(false);
 
-        ResultsBuilder builder = new ResultsBuilder();
+        ResultsBuilder resultsBuilder = new ResultsBuilder();
         Quantiles quantiles = createQuantiles();
-        builder.addQuantiles(quantiles);
+        resultsBuilder.addQuantiles(quantiles);
+        when(process.readAutodetectResults()).thenReturn(resultsBuilder.build().iterator());
 
-        resultProcessor.process(builder.buildTestProcess());
+        resultProcessor.process();
         resultProcessor.awaitCompletion();
 
         Optional<Quantiles> persistedQuantiles = getQuantiles();
@@ -199,14 +239,15 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         Bucket nonInterimBucket = createBucket(false);
         Bucket interimBucket = createBucket(true);
 
-        ResultsBuilder resultBuilder = new ResultsBuilder()
+        ResultsBuilder resultsBuilder = new ResultsBuilder()
                 .addRecords(createRecords(true))
                 .addInfluencers(createInfluencers(true))
                 .addBucket(interimBucket)  // this will persist the interim results
                 .addFlushAcknowledgement(createFlushAcknowledgement())
                 .addBucket(nonInterimBucket); // and this will delete the interim results
+        when(process.readAutodetectResults()).thenReturn(resultsBuilder.build().iterator());
 
-        resultProcessor.process(resultBuilder.buildTestProcess());
+        resultProcessor.process();
         resultProcessor.awaitCompletion();
 
         QueryPage<Bucket> persistedBucket = getBucketQueryPage(new BucketsQueryBuilder().includeInterim(true));
@@ -227,7 +268,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         Bucket finalBucket = createBucket(true);
         List<AnomalyRecord> finalAnomalyRecords = createRecords(true);
 
-        ResultsBuilder resultBuilder = new ResultsBuilder()
+        ResultsBuilder resultsBuilder = new ResultsBuilder()
                 .addRecords(createRecords(true))
                 .addInfluencers(createInfluencers(true))
                 .addBucket(createBucket(true))  // this will persist the interim results
@@ -237,8 +278,9 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
                 .addFlushAcknowledgement(createFlushAcknowledgement())
                 .addRecords(finalAnomalyRecords)
                 .addBucket(finalBucket); // this deletes the previous interim and persists final bucket & records
+        when(process.readAutodetectResults()).thenReturn(resultsBuilder.build().iterator());
 
-        resultProcessor.process(resultBuilder.buildTestProcess());
+        resultProcessor.process();
         resultProcessor.awaitCompletion();
 
         QueryPage<Bucket> persistedBucket = getBucketQueryPage(new BucketsQueryBuilder().includeInterim(true));
@@ -257,12 +299,13 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         List<AnomalyRecord> firstSetOfRecords = createRecords(false);
         List<AnomalyRecord> secondSetOfRecords = createRecords(false);
 
-        ResultsBuilder resultBuilder = new ResultsBuilder()
+        ResultsBuilder resultsBuilder = new ResultsBuilder()
                 .addRecords(firstSetOfRecords)
                 .addBucket(bucket)  // bucket triggers persistence
                 .addRecords(secondSetOfRecords);
+        when(process.readAutodetectResults()).thenReturn(resultsBuilder.build().iterator());
 
-        resultProcessor.process(resultBuilder.buildTestProcess());
+        resultProcessor.process();
         resultProcessor.awaitCompletion();
 
         QueryPage<Bucket> persistedBucket = getBucketQueryPage(new BucketsQueryBuilder().includeInterim(true));
@@ -283,18 +326,24 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         client().execute(PutJobAction.INSTANCE, request).actionGet();
     }
 
-    private Bucket createBucket(boolean isInterim) {
+    private static Bucket createBucket(boolean isInterim) {
         Bucket bucket = new BucketTests().createTestInstance(JOB_ID);
         bucket.setInterim(isInterim);
         return bucket;
     }
 
-    private Date randomDate() {
+    private static Bucket createBucket(boolean isInterim, long processingTimeMs) {
+        Bucket bucket = createBucket(isInterim);
+        bucket.setProcessingTimeMs(processingTimeMs);
+        return bucket;
+    }
+
+    private static Date randomDate() {
         // between 1970 and 2065
         return new Date(randomLongBetween(0, 3000000000000L));
     }
 
-    private List<AnomalyRecord> createRecords(boolean isInterim) {
+    private static List<AnomalyRecord> createRecords(boolean isInterim) {
         List<AnomalyRecord> records = new ArrayList<>();
 
         int count = randomIntBetween(0, 100);
@@ -309,7 +358,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         return records;
     }
 
-    private List<Influencer> createInfluencers(boolean isInterim) {
+    private static List<Influencer> createInfluencers(boolean isInterim) {
         List<Influencer> influencers = new ArrayList<>();
 
         int count = randomIntBetween(0, 100);
@@ -322,15 +371,15 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         return influencers;
     }
 
-    private CategoryDefinition createCategoryDefinition() {
+    private static CategoryDefinition createCategoryDefinition() {
         return new CategoryDefinitionTests().createTestInstance(JOB_ID);
     }
 
-    private ModelPlot createmodelPlot() {
+    private static ModelPlot createModelPlot() {
         return new ModelPlotTests().createTestInstance(JOB_ID);
     }
 
-    private ModelSizeStats createModelSizeStats() {
+    private static ModelSizeStats createModelSizeStats() {
         ModelSizeStats.Builder builder = new ModelSizeStats.Builder(JOB_ID);
         builder.setTimestamp(randomDate());
         builder.setLogTime(randomDate());
@@ -343,21 +392,21 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         return builder.build();
     }
 
-    private ModelSnapshot createModelSnapshot() {
+    private static ModelSnapshot createModelSnapshot() {
         return new ModelSnapshot.Builder(JOB_ID).setSnapshotId(randomAlphaOfLength(12)).build();
     }
 
-    private Quantiles createQuantiles() {
+    private static Quantiles createQuantiles() {
         return new Quantiles(JOB_ID, randomDate(), randomAlphaOfLength(100));
     }
 
-    private FlushAcknowledgement createFlushAcknowledgement() {
+    private static FlushAcknowledgement createFlushAcknowledgement() {
         return new FlushAcknowledgement(randomAlphaOfLength(5), randomDate());
     }
 
-    private class ResultsBuilder {
+    private static class ResultsBuilder {
 
-        private List<AutodetectResult> results = new ArrayList<>();
+        private final List<AutodetectResult> results = new ArrayList<>();
 
         ResultsBuilder addBucket(Bucket bucket) {
             results.add(new AutodetectResult(Objects.requireNonNull(bucket), null, null, null, null, null, null, null, null, null, null));
@@ -379,7 +428,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
             return this;
         }
 
-        ResultsBuilder addmodelPlot(ModelPlot modelPlot) {
+        ResultsBuilder addModelPlot(ModelPlot modelPlot) {
             results.add(new AutodetectResult(null, null, null, null, null, null, modelPlot, null, null, null, null));
             return this;
         }
@@ -404,12 +453,8 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
             return this;
         }
 
-
-        AutodetectProcess buildTestProcess() {
-            AutodetectResult[] results = this.results.toArray(new AutodetectResult[0]);
-            AutodetectProcess process = mock(AutodetectProcess.class);
-            when(process.readAutodetectResults()).thenReturn(Arrays.asList(results).iterator());
-            return process;
+        Iterable<AutodetectResult> build() {
+            return results;
         }
     }
 

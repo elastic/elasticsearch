@@ -109,7 +109,7 @@ public class PercentilesBucketPipelineAggregationBuilder
     }
 
     @Override
-    public void doValidate(AggregatorFactory<?> parent, Collection<AggregationBuilder> aggFactories,
+    public void doValidate(AggregatorFactory parent, Collection<AggregationBuilder> aggFactories,
             Collection<PipelineAggregationBuilder> pipelineAggregatorFactories) {
         super.doValidate(parent, aggFactories, pipelineAggregatorFactories);
 
@@ -172,14 +172,18 @@ public class PercentilesBucketPipelineAggregationBuilder
     };
 
     @Override
-    protected int innerHashCode() {
-        return Objects.hash(Arrays.hashCode(percents), keyed);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), Arrays.hashCode(percents), keyed);
     }
 
     @Override
-    protected boolean innerEquals(BucketMetricsPipelineAggregationBuilder<PercentilesBucketPipelineAggregationBuilder> obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         PercentilesBucketPipelineAggregationBuilder other = (PercentilesBucketPipelineAggregationBuilder) obj;
-        return Objects.deepEquals(percents, other.percents) && Objects.equals(keyed, other.keyed);
+        return Objects.deepEquals(percents, other.percents)
+            && Objects.equals(keyed, other.keyed);
     }
 
     @Override

@@ -24,7 +24,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.core.security.action.saml.SamlAuthenticateRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.saml.SamlAuthenticateResponse;
-import org.elasticsearch.xpack.core.security.client.SecurityClient;
 
 import java.io.IOException;
 import java.util.Base64;
@@ -80,8 +79,9 @@ public class RestSamlAuthenticateAction extends SamlBaseRestHandler implements R
             logger.trace("SAML Authenticate: [{}...] [{}]", Strings.cleanTruncate(input.content, 128), input.ids);
             return channel -> {
                 final byte[] bytes = decodeBase64(input.content);
-                final SamlAuthenticateRequestBuilder requestBuilder = new SecurityClient(client).prepareSamlAuthenticate(bytes, input.ids);
-                requestBuilder.execute(new RestBuilderListener<SamlAuthenticateResponse>(channel) {
+                final SamlAuthenticateRequestBuilder requestBuilder =
+                    new SamlAuthenticateRequestBuilder(client).saml(bytes).validRequestIds(input.ids);
+                requestBuilder.execute(new RestBuilderListener<>(channel) {
                     @Override
                     public RestResponse buildResponse(SamlAuthenticateResponse response, XContentBuilder builder) throws Exception {
                         builder.startObject()

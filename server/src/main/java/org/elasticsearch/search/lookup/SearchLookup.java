@@ -20,7 +20,6 @@
 package org.elasticsearch.search.lookup;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
@@ -35,11 +34,10 @@ public class SearchLookup {
 
     final FieldsLookup fieldsLookup;
 
-    public SearchLookup(MapperService mapperService, Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup,
-                        @Nullable String[] types) {
-        docMap = new DocLookup(mapperService, fieldDataLookup, types);
+    public SearchLookup(MapperService mapperService, Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup) {
+        docMap = new DocLookup(mapperService, fieldDataLookup);
         sourceLookup = new SourceLookup();
-        fieldsLookup = new FieldsLookup(mapperService, types);
+        fieldsLookup = new FieldsLookup(mapperService);
     }
 
     public LeafSearchLookup getLeafSearchLookup(LeafReaderContext context) {

@@ -71,8 +71,7 @@ public class IndexShardSnapshotStatus {
 
     private IndexShardSnapshotStatus(final Stage stage, final long startTime, final long totalTime,
                                      final int incrementalFileCount, final int totalFileCount, final int processedFileCount,
-                                     final long incrementalSize, final long totalSize, final long processedSize,
-                                     final long indexVersion, final String failure) {
+                                     final long incrementalSize, final long totalSize, final long processedSize, final String failure) {
         this.stage = new AtomicReference<>(Objects.requireNonNull(stage));
         this.startTime = startTime;
         this.totalTime = totalTime;
@@ -82,7 +81,6 @@ public class IndexShardSnapshotStatus {
         this.totalSize = totalSize;
         this.processedSize = processedSize;
         this.incrementalSize = incrementalSize;
-        this.indexVersion = indexVersion;
         this.failure = failure;
     }
 
@@ -161,7 +159,7 @@ public class IndexShardSnapshotStatus {
     }
 
     public static IndexShardSnapshotStatus newInitializing() {
-        return new IndexShardSnapshotStatus(Stage.INIT, 0L, 0L, 0, 0, 0, 0, 0, 0, 0, null);
+        return new IndexShardSnapshotStatus(Stage.INIT, 0L, 0L, 0, 0, 0, 0, 0, 0, null);
     }
 
     public static IndexShardSnapshotStatus newFailed(final String failure) {
@@ -169,7 +167,7 @@ public class IndexShardSnapshotStatus {
         if (failure == null) {
             throw new IllegalArgumentException("A failure description is required for a failed IndexShardSnapshotStatus");
         }
-        return new IndexShardSnapshotStatus(Stage.FAILURE, 0L, 0L, 0, 0, 0, 0, 0, 0, 0, failure);
+        return new IndexShardSnapshotStatus(Stage.FAILURE, 0L, 0L, 0, 0, 0, 0, 0, 0, failure);
     }
 
     public static IndexShardSnapshotStatus newDone(final long startTime, final long totalTime,
@@ -177,7 +175,7 @@ public class IndexShardSnapshotStatus {
                                                    final long incrementalSize, final long size) {
         // The snapshot is done which means the number of processed files is the same as total
         return new IndexShardSnapshotStatus(Stage.DONE, startTime, totalTime, incrementalFileCount, fileCount, incrementalFileCount,
-            incrementalSize, size, incrementalSize, 0, null);
+            incrementalSize, size, incrementalSize, null);
     }
 
     /**

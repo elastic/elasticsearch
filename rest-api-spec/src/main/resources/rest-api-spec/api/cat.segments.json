@@ -1,9 +1,9 @@
 {
   "cat.segments": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cat-segments.html",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/cat-segments.html",
+    "stability": "stable",
     "methods": ["GET"],
     "url": {
-      "path": "/_cat/segments",
       "paths": ["/_cat/segments", "/_cat/segments/{index}"],
       "parts": {
         "index": {

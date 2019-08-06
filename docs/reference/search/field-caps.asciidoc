@@ -1,5 +1,5 @@
 [[search-field-caps]]
-== Field Capabilities API
+=== Field Capabilities API
 
 The field capabilities API allows to retrieve the capabilities of fields among multiple indices.
 
@@ -27,7 +27,7 @@ Supported request options:
             will cause all fields that match the expression to be returned.
 
 [float]
-=== Field Capabilities
+==== Field Capabilities
 
 The field capabilities API returns the following information per field:
 
@@ -57,7 +57,7 @@ or null if all indices have the same definition for the field.
 
 
 [float]
-=== Response format
+==== Response format
 
 Request:
 
@@ -70,6 +70,7 @@ GET _field_caps?fields=rating,title
 [source,js]
 --------------------------------------------------
 {
+    "indices": ["index1", "index2", "index3", "index4", "index5"],
     "fields": {
         "rating": { <1>
             "long": {
@@ -103,9 +104,61 @@ and as a `keyword` in `index3` and `index4`.
 <3> The field `rating` is not searchable in `index4`.
 <4> The field `title` is defined as `text` in all indices.
 
+[float]
+==== Unmapped fields
 
+By default unmapped fields are ignored. You can include them in the response by
+adding a parameter called `include_unmapped` in the request:
 
+[source,js]
+--------------------------------------------------
+GET _field_caps?fields=rating,title&include_unmapped
+--------------------------------------------------
+// CONSOLE
 
+In which case the response will contain an entry for each field that is present in
+some indices but not all:
 
+[source,js]
+--------------------------------------------------
+{
+    "indices": ["index1", "index2", "index3"],
+    "fields": {
+        "rating": {
+            "long": {
+                "searchable": true,
+                "aggregatable": false,
+                "indices": ["index1", "index2"],
+                "non_aggregatable_indices": ["index1"]
+            },
+            "keyword": {
+                "searchable": false,
+                "aggregatable": true,
+                "indices": ["index3", "index4"],
+                "non_searchable_indices": ["index4"]
+            },
+            "unmapped": { <1>
+                "indices": ["index5"],
+                "searchable": false,
+                "aggregatable": false
+            }
+        },
+        "title": {
+            "text": {
+                "indices": ["index1", "index2", "index3", "index4"],
+                "searchable": true,
+                "aggregatable": false
+            },
+            "unmapped": { <2>
+                "indices": ["index5"]
+                "searchable": false,
+                "aggregatable": false
+            }
+        }
+    }
+}
+--------------------------------------------------
+// NOTCONSOLE
 
-
+<1> The `rating` field is unmapped` in `index5`.
+<2> The `title` field is unmapped` in `index5`.

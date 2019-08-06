@@ -12,7 +12,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.core.dataframe.DataFrameField;
+import org.elasticsearch.xpack.core.dataframe.DataFrameNamedXContentProvider;
+import org.elasticsearch.xpack.core.dataframe.transforms.SyncConfig;
+import org.elasticsearch.xpack.core.dataframe.transforms.TimeSyncConfig;
 import org.junit.Before;
+
+import java.util.List;
 
 import static java.util.Collections.emptyList;
 
@@ -24,12 +30,18 @@ public abstract class AbstractWireSerializingDataFrameTestCase<T extends Writeab
     private NamedXContentRegistry namedXContentRegistry;
 
     @Before
-    public void registerAggregationNamedObjects() throws Exception {
-        // register aggregations as NamedWriteable
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
+    public void registerNamedObjects() {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
 
-        namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
-        namedXContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
+        List<NamedWriteableRegistry.Entry> namedWriteables = searchModule.getNamedWriteables();
+        namedWriteables.add(new NamedWriteableRegistry.Entry(SyncConfig.class, DataFrameField.TIME_BASED_SYNC.getPreferredName(),
+                TimeSyncConfig::new));
+
+        List<NamedXContentRegistry.Entry> namedXContents = searchModule.getNamedXContents();
+        namedXContents.addAll(new DataFrameNamedXContentProvider().getNamedXContentParsers());
+
+        namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
+        namedXContentRegistry = new NamedXContentRegistry(namedXContents);
     }
 
     @Override

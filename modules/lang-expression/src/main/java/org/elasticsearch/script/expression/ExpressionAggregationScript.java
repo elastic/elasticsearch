@@ -38,20 +38,37 @@ class ExpressionAggregationScript implements AggregationScript.LeafFactory {
     final Expression exprScript;
     final SimpleBindings bindings;
     final DoubleValuesSource source;
+    final boolean needsScore;
     final ReplaceableConstDoubleValueSource specialValue; // _value
 
-    ExpressionAggregationScript(Expression e, SimpleBindings b, ReplaceableConstDoubleValueSource v) {
+    ExpressionAggregationScript(Expression e, SimpleBindings b, boolean n, ReplaceableConstDoubleValueSource v) {
         exprScript = e;
         bindings = b;
         source = exprScript.getDoubleValuesSource(bindings);
+        needsScore = n;
         specialValue = v;
+    }
+
+    @Override
+    public boolean needs_score() {
+        return needsScore;
     }
 
     @Override
     public AggregationScript newInstance(final LeafReaderContext leaf) throws IOException {
         return new AggregationScript() {
             // Fake the scorer until setScorer is called.
-            DoubleValues values = source.getValues(leaf, null);
+            DoubleValues values = source.getValues(leaf, new DoubleValues() {
+                @Override
+                public double doubleValue() throws IOException {
+                    return get_score().doubleValue();
+                }
+
+                @Override
+                public boolean advanceExact(int doc) throws IOException {
+                    return true;
+                }
+            });
 
             @Override
             public Object execute() {
@@ -84,10 +101,4 @@ class ExpressionAggregationScript implements AggregationScript.LeafFactory {
             }
         };
     }
-
-    @Override
-    public boolean needs_score() {
-        return false;
-    }
-
 }

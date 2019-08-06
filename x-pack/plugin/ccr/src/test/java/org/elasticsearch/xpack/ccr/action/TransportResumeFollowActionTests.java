@@ -16,7 +16,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.ccr.IndexFollowingIT;
@@ -75,16 +74,6 @@ public class TransportResumeFollowActionTests extends ESTestCase {
             // should fail because leader index does not have soft deletes enabled
             IndexMetaData leaderIMD = createIMD("index1", 5, Settings.builder()
                 .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "false").build(), null);
-            IndexMetaData followIMD = createIMD("index2", 5, Settings.EMPTY, customMetaData);
-            Exception e = expectThrows(IllegalArgumentException.class, () -> validate(request, leaderIMD, followIMD, UUIDs, null));
-            assertThat(e.getMessage(), equalTo("leader index [index1] does not have soft deletes enabled"));
-        }
-        {
-            // should fail because leader index does not have soft deletes enabled (by default).
-            Version prevVersion = VersionUtils.randomVersionBetween(
-                random(), Version.V_6_5_0, VersionUtils.getPreviousVersion(Version.V_7_0_0));
-            IndexMetaData leaderIMD = IndexMetaData.builder("index1").settings(settings(prevVersion)).numberOfShards(1)
-                .numberOfReplicas(0).setRoutingNumShards(1).putMapping("_doc", "{\"properties\": {}}").build();
             IndexMetaData followIMD = createIMD("index2", 5, Settings.EMPTY, customMetaData);
             Exception e = expectThrows(IllegalArgumentException.class, () -> validate(request, leaderIMD, followIMD, UUIDs, null));
             assertThat(e.getMessage(), equalTo("leader index [index1] does not have soft deletes enabled"));

@@ -10,6 +10,7 @@
 // end::notable-breaking-changes[]
 
 [float]
+[[ngram-edgengram-filter-names-removed]]
 ==== The `nGram` and `edgeNGram` token filter names have been removed
 
 The `nGram` and `edgeNGram` token filter names that have been deprecated since

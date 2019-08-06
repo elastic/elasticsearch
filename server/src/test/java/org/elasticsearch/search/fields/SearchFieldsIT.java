@@ -654,7 +654,6 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .get();
 
         SearchResponse searchResponse = client().prepareSearch("my-index")
-                .setTypes("my-type1")
                 .addStoredField("field1").addStoredField("_routing")
                 .get();
 
@@ -670,7 +669,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
 
-        assertFailures(client().prepareSearch("my-index").setTypes("my-type1").addStoredField("field1"),
+        assertFailures(client().prepareSearch("my-index").addStoredField("field1"),
                 RestStatus.BAD_REQUEST,
                 containsString("field [field1] isn't a leaf field"));
     }
@@ -748,7 +747,8 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .addMapping("type", "test_field", "type=keyword").get());
         indexRandom(true, client().prepareIndex("test", "type", "1").setSource("test_field", "foobar"));
         refresh();
-        SearchResponse searchResponse = client().prepareSearch("test").setTypes("type").setSource(
+        SearchResponse searchResponse = client().prepareSearch("test")
+                .setSource(
                 new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).docValueField("test_field")).get();
         assertHitCount(searchResponse, 1);
         Map<String, DocumentField> fields = searchResponse.getHits().getHits()[0].getFields();

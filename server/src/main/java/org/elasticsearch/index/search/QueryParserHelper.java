@@ -30,6 +30,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Helpers to extract and expand field names and boosts
@@ -54,6 +55,10 @@ public final class QueryParserHelper {
                 boost = Float.parseFloat(field.substring(boostIndex+1, field.length()));
             } else {
                 fieldName = field;
+            }
+            // handle duplicates
+            if (fieldsAndWeights.containsKey(field)) {
+                boost *= fieldsAndWeights.get(field);
             }
             fieldsAndWeights.put(fieldName, boost);
         }
@@ -84,7 +89,13 @@ public final class QueryParserHelper {
             float weight = fieldEntry.getValue() == null ? 1.0f : fieldEntry.getValue();
             Map<String, Float> fieldMap = resolveMappingField(context, fieldEntry.getKey(), weight,
                 !multiField, !allField, fieldSuffix);
-            resolvedFields.putAll(fieldMap);
+            for (Map.Entry<String, Float> field : fieldMap.entrySet()) {
+                float boost = field.getValue();
+                if (resolvedFields.containsKey(field.getKey())) {
+                    boost *= resolvedFields.get(field.getKey());
+                }
+                resolvedFields.put(field.getKey(), boost);
+            }
         }
         checkForTooManyFields(resolvedFields, context);
         return resolvedFields;
@@ -120,8 +131,9 @@ public final class QueryParserHelper {
      */
     public static Map<String, Float> resolveMappingField(QueryShardContext context, String fieldOrPattern, float weight,
                                                          boolean acceptAllTypes, boolean acceptMetadataField, String fieldSuffix) {
-        Collection<String> allFields = context.simpleMatchToIndexNames(fieldOrPattern);
+        Set<String> allFields = context.simpleMatchToIndexNames(fieldOrPattern);
         Map<String, Float> fields = new HashMap<>();
+
         for (String fieldName : allFields) {
             if (fieldSuffix != null && context.fieldMapper(fieldName + fieldSuffix) != null) {
                 fieldName = fieldName + fieldSuffix;
@@ -149,8 +161,17 @@ public final class QueryParserHelper {
                     // other exceptions are parsing errors or not indexed fields: keep
                 }
             }
-            fields.put(fieldName, weight);
+
+            // Deduplicate aliases and their concrete fields.
+            String resolvedFieldName = fieldType.name();
+            if (allFields.contains(resolvedFieldName)) {
+                fieldName = resolvedFieldName;
+            }
+
+            float w = fields.getOrDefault(fieldName, 1.0F);
+            fields.put(fieldName, w * weight);
         }
+
         checkForTooManyFields(fields, context);
         return fields;
     }
@@ -160,5 +181,13 @@ public final class QueryParserHelper {
         if (fields.size() > limit) {
             throw new IllegalArgumentException("field expansion matches too many fields, limit: " + limit + ", got: " + fields.size());
         }
+    }
+
+    /**
+     * Returns true if any of the fields is the wildcard {@code *}, false otherwise.
+     * @param fields A collection of field names
+     */
+    public static boolean hasAllFieldsWildcard(Collection<String> fields) {
+        return fields.stream().anyMatch(Regex::isMatchAllPattern);
     }
 }

@@ -31,6 +31,7 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 
 import static org.elasticsearch.client.dataframe.transforms.SourceConfigTests.randomSourceConfig;
@@ -54,8 +55,11 @@ public class PreviewDataFrameTransformRequestTests extends AbstractXContentTestC
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
-        return new NamedXContentRegistry(searchModule.getNamedXContents());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
+        List<NamedXContentRegistry.Entry> namedXContents = searchModule.getNamedXContents();
+        namedXContents.addAll(new DataFrameNamedXContentProvider().getNamedXContentParsers());
+
+        return new NamedXContentRegistry(namedXContents);
     }
 
     public void testValidate() {
@@ -65,13 +69,12 @@ public class PreviewDataFrameTransformRequestTests extends AbstractXContentTestC
                 containsString("preview requires a non-null data frame config"));
 
         // null id and destination is valid
-        DataFrameTransformConfig config = new DataFrameTransformConfig(null, randomSourceConfig(), null,
-            PivotConfigTests.randomPivotConfig());
+        DataFrameTransformConfig config = DataFrameTransformConfig.forPreview(randomSourceConfig(), PivotConfigTests.randomPivotConfig());
 
         assertFalse(new PreviewDataFrameTransformRequest(config).validate().isPresent());
 
         // null source is not valid
-        config = new DataFrameTransformConfig(null, null, null, PivotConfigTests.randomPivotConfig());
+        config = DataFrameTransformConfig.builder().setPivotConfig(PivotConfigTests.randomPivotConfig()).build();
 
         Optional<ValidationException> error = new PreviewDataFrameTransformRequest(config).validate();
         assertTrue(error.isPresent());

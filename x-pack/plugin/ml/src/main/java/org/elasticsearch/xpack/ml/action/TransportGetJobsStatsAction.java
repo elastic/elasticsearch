@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.TimeValue;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 import org.elasticsearch.xpack.core.ml.stats.ForecastStats;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
@@ -42,7 +44,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -103,16 +104,19 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
         String jobId = task.getJobId();
         ClusterState state = clusterService.state();
         PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-        Optional<Tuple<DataCounts, ModelSizeStats>> stats = processManager.getStatistics(task);
+        Optional<Tuple<DataCounts, Tuple<ModelSizeStats, TimingStats>>> stats = processManager.getStatistics(task);
         if (stats.isPresent()) {
+            DataCounts dataCounts = stats.get().v1();
+            ModelSizeStats modelSizeStats = stats.get().v2().v1();
+            TimingStats timingStats = stats.get().v2().v2();
             PersistentTasksCustomMetaData.PersistentTask<?> pTask = MlTasks.getJobTask(jobId, tasks);
             DiscoveryNode node = state.nodes().get(pTask.getExecutorNode());
             JobState jobState = MlTasks.getJobState(jobId, tasks);
             String assignmentExplanation = pTask.getAssignment().getExplanation();
             TimeValue openTime = durationToTimeValue(processManager.jobOpenTime(task));
             gatherForecastStats(jobId, forecastStats -> {
-                JobStats jobStats = new JobStats(jobId, stats.get().v1(),
-                        stats.get().v2(), forecastStats, jobState, node, assignmentExplanation, openTime);
+                JobStats jobStats = new JobStats(
+                    jobId, dataCounts, modelSizeStats, forecastStats, jobState, node, assignmentExplanation, openTime, timingStats);
                 listener.onResponse(new QueryPage<>(Collections.singletonList(jobStats), 1, Job.RESULTS_FIELD));
             }, listener::onFailure);
 
@@ -138,7 +142,7 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
             int slot = i;
             String jobId = closedJobIds.get(i);
             gatherForecastStats(jobId, forecastStats -> {
-                gatherDataCountsAndModelSizeStats(jobId, (dataCounts, modelSizeStats) -> {
+                gatherDataCountsModelSizeStatsAndTimingStats(jobId, (dataCounts, modelSizeStats, timingStats) -> {
                     JobState jobState = MlTasks.getJobState(jobId, tasks);
                     PersistentTasksCustomMetaData.PersistentTask<?> pTask = MlTasks.getJobTask(jobId, tasks);
                     String assignmentExplanation = null;
@@ -146,7 +150,7 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
                         assignmentExplanation = pTask.getAssignment().getExplanation();
                     }
                     jobStats.set(slot, new JobStats(jobId, dataCounts, modelSizeStats, forecastStats, jobState,
-                            null, assignmentExplanation, null));
+                            null, assignmentExplanation, null, timingStats));
                     if (counter.decrementAndGet() == 0) {
                         List<JobStats> results = response.getResponse().results();
                         results.addAll(jobStats.asList());
@@ -163,11 +167,13 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
         jobResultsProvider.getForecastStats(jobId, handler, errorHandler);
     }
 
-    void gatherDataCountsAndModelSizeStats(String jobId, BiConsumer<DataCounts, ModelSizeStats> handler,
-                                                   Consumer<Exception> errorHandler) {
+    void gatherDataCountsModelSizeStatsAndTimingStats(
+            String jobId, TriConsumer<DataCounts, ModelSizeStats, TimingStats> handler, Consumer<Exception> errorHandler) {
         jobResultsProvider.dataCounts(jobId, dataCounts -> {
             jobResultsProvider.modelSizeStats(jobId, modelSizeStats -> {
-                handler.accept(dataCounts, modelSizeStats);
+                jobResultsProvider.timingStats(jobId, timingStats -> {
+                    handler.apply(dataCounts, modelSizeStats, timingStats);
+                }, errorHandler);
             }, errorHandler);
         }, errorHandler);
     }

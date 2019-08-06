@@ -10,8 +10,8 @@ running the older version.
 Rolling upgrades are supported:
 
 * Between minor versions
-* {stack-ref-67}/upgrading-elastic-stack.html[From 5.6 to 6.7]
-* {stack-ref-70}/upgrading-elastic-stack.html[From 6.7 to 7.0]
+* {stack-ref-68}/upgrading-elastic-stack.html[From 5.6 to 6.8]
+* {stack-ref-70}/upgrading-elastic-stack.html[From 6.8 to 7.0]
 * From {prev-major-version} to {version}
 
 Upgrading directly to {version} from 6.6 or earlier requires a
@@ -30,7 +30,7 @@ include::disable-shard-alloc.asciidoc[]
 --
 While you can continue indexing during the upgrade, shard recovery
 is much faster if you temporarily stop non-essential indexing and perform a
-<<indices-synced-flush, synced-flush>>.
+<<synced-flush-api, synced-flush>>.
 
 include::synced-flush.asciidoc[]
 
@@ -133,7 +133,7 @@ As soon as another node is upgraded, the replicas can be assigned and the
 status will change to `green`.
 ====================================================
 
-Shards that were not <<indices-synced-flush,sync-flushed>> might take longer to
+Shards that were not <<synced-flush-api,sync-flushed>> might take longer to
 recover.  You can monitor the recovery status of individual shards by
 submitting a <<cat-recovery,`_cat/recovery`>> request:
 
@@ -168,20 +168,29 @@ include::open-ml.asciidoc[]
 
 During a rolling upgrade, the cluster continues to operate normally. However,
 any new functionality is disabled or operates in a backward compatible mode
-until all nodes in the cluster are upgraded. New functionality
-becomes operational once the upgrade is complete and all nodes are running the
-new version. Once that has happened, there's no way to return to operating
-in a backward compatible mode. Nodes running the previous major version will
-not be allowed to join the fully-updated cluster.
+until all nodes in the cluster are upgraded. New functionality becomes
+operational once the upgrade is complete and all nodes are running the new
+version. Once that has happened, there's no way to return to operating in a
+backward compatible mode. Nodes running the previous major version will not be
+allowed to join the fully-updated cluster.
 
 In the unlikely case of a network malfunction during the upgrade process that
-isolates all remaining old nodes from the cluster, you must take the
-old nodes offline and upgrade them to enable them to join the cluster.
+isolates all remaining old nodes from the cluster, you must take the old nodes
+offline and upgrade them to enable them to join the cluster.
+
+If you stop half or more of the master-eligible nodes all at once during the
+upgrade then the cluster will become unavailable, meaning that the upgrade is
+no longer a _rolling_ upgrade. If this happens, you should upgrade and restart
+all of the stopped master-eligible nodes to allow the cluster to form again, as
+if performing a <<restart-upgrade,full-cluster restart upgrade>>. It may also
+be necessary to upgrade all of the remaining old nodes before they can join the
+cluster after it re-forms.
 
 Similarly, if you run a testing/development environment with only one master
 node, the master node should be upgraded last. Restarting a single master node
 forces the cluster to be reformed. The new cluster will initially only have the
 upgraded master node and will thus reject the older nodes when they re-join the
-cluster. Nodes that have already been upgraded will successfully re-join the 
-upgraded master. 
+cluster. Nodes that have already been upgraded will successfully re-join the
+upgraded master.
+
 ====================================================

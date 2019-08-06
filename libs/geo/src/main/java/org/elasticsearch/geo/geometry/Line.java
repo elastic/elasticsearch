@@ -59,10 +59,6 @@ public class Line implements Geometry {
         if (alts != null && alts.length != lats.length) {
             throw new IllegalArgumentException("alts and lats must be equal length");
         }
-        for (int i = 0; i < lats.length; i++) {
-            GeometryUtils.checkLatitude(lats[i]);
-            GeometryUtils.checkLongitude(lons[i]);
-        }
     }
 
     public int length() {
@@ -103,7 +99,7 @@ public class Line implements Geometry {
     }
 
     @Override
-    public <T> T visit(GeometryVisitor<T> visitor) {
+    public <T, E extends Exception> T visit(GeometryVisitor<T, E> visitor) throws E {
         return visitor.visit(this);
     }
 

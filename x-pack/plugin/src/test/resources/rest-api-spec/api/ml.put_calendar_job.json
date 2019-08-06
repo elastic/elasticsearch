@@ -1,8 +1,8 @@
 {
   "ml.put_calendar_job": {
+    "stability": "stable",
     "methods": [ "PUT" ],
     "url": {
-      "path": "/_ml/calendars/{calendar_id}/jobs/{job_id}",
       "paths": [ "/_ml/calendars/{calendar_id}/jobs/{job_id}" ],
       "parts": {
         "calendar_id": {

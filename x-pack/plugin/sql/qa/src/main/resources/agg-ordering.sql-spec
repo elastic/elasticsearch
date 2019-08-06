@@ -29,8 +29,23 @@ SELECT MAX(salary) AS max, MIN(salary) AS min FROM test_emp HAVING MIN(salary) >
 aggWithoutAlias
 SELECT MAX(salary) AS max FROM test_emp GROUP BY gender ORDER BY MAX(salary);
 
+aggWithoutAliasWithLimit
+SELECT MAX(salary) AS max FROM test_emp GROUP BY gender ORDER BY MAX(salary) LIMIT 3;
+
+aggWithoutAliasWithLimitDesc
+SELECT MAX(salary) AS max FROM test_emp GROUP BY gender ORDER BY MAX(salary) DESC LIMIT 3;
+
 aggWithAlias
 SELECT MAX(salary) AS m FROM test_emp GROUP BY gender ORDER BY m;
+
+aggOrderByCountWithLimit
+SELECT MAX(salary) AS max, COUNT(*) AS c FROM test_emp GROUP BY gender ORDER BY c LIMIT 3;
+
+aggOrderByCountWithLimitDescAndGrouping
+SELECT gender, COUNT(*) AS c FROM test_emp GROUP BY gender ORDER BY c DESC LIMIT 5;
+
+aggOrderByCountWithLimitDesc
+SELECT MAX(salary) AS max, COUNT(*) AS c FROM test_emp GROUP BY gender ORDER BY c DESC LIMIT 3;
 
 multipleAggsThatGetRewrittenWithoutAlias
 SELECT MAX(salary) AS max, MIN(salary) AS min FROM test_emp GROUP BY gender ORDER BY MAX(salary);
@@ -56,11 +71,20 @@ SELECT MIN(salary) AS min, COUNT(*) AS c FROM test_emp GROUP BY gender HAVING c 
 aggNotSpecifiedInTheAggregateAndGroupWithHaving
 SELECT gender, MIN(salary) AS min, COUNT(*) AS c FROM test_emp GROUP BY gender HAVING c > 1 ORDER BY MAX(salary), gender;
 
+aggNotSpecifiedInTheAggregateAndGroupWithHavingWithLimit
+SELECT gender, MIN(salary) AS min, COUNT(*) AS c FROM test_emp GROUP BY gender HAVING c > 1 ORDER BY MAX(salary), c LIMIT 5;
+
+aggNotSpecifiedInTheAggregateAndGroupWithHavingWithLimitAndDirection
+SELECT gender, MIN(salary) AS min, COUNT(*) AS c FROM test_emp GROUP BY gender HAVING c > 1 ORDER BY MAX(salary) ASC, c DESC LIMIT 5;
+
 groupAndAggNotSpecifiedInTheAggregateWithHaving
 SELECT gender, MIN(salary) AS min, COUNT(*) AS c FROM test_emp GROUP BY gender HAVING c > 1 ORDER BY gender, MAX(salary);
 
 multipleAggsThatGetRewrittenWithAliasOnAMediumGroupBy
 SELECT languages, MAX(salary) AS max, MIN(salary) AS min FROM test_emp GROUP BY languages ORDER BY max;
+
+multipleAggsThatGetRewrittenWithAliasOnAMediumGroupByWithLimit
+SELECT languages, MAX(salary) AS max, MIN(salary) AS min FROM test_emp GROUP BY languages ORDER BY max DESC LIMIT 5;
 
 multipleAggsThatGetRewrittenWithAliasOnALargeGroupBy
 SELECT emp_no, MAX(salary) AS max, MIN(salary) AS min FROM test_emp GROUP BY emp_no ORDER BY max;
@@ -75,13 +99,13 @@ aggNotSpecifiedWithHavingOnLargeGroupBy
 SELECT MAX(salary) AS max FROM test_emp GROUP BY emp_no HAVING AVG(salary) > 1000 ORDER BY MIN(salary);
 
 aggWithTieBreakerDescAsc
-SELECT emp_no, MIN(languages) AS min FROM test_emp GROUP BY emp_no ORDER BY MIN(languages) DESC NULLS FIRST, emp_no ASC;
+SELECT emp_no, MIN(languages) AS min FROM test_emp GROUP BY emp_no ORDER BY MIN(languages) DESC NULLS FIRST, emp_no ASC LIMIT 50;
 
 aggWithTieBreakerDescDesc
-SELECT emp_no, MIN(languages) AS min FROM test_emp GROUP BY emp_no ORDER BY MIN(languages) DESC NULLS FIRST, emp_no DESC;
+SELECT emp_no, MIN(languages) AS min FROM test_emp GROUP BY emp_no ORDER BY MIN(languages) DESC NULLS FIRST, emp_no DESC LIMIT 50;
 
 aggWithTieBreakerAscDesc
-SELECT emp_no, MIN(languages) AS min FROM test_emp GROUP BY emp_no ORDER BY MAX(languages) ASC NULLS FIRST, emp_no DESC;
+SELECT emp_no, MIN(languages) AS min FROM test_emp GROUP BY emp_no ORDER BY MAX(languages) ASC NULLS FIRST, emp_no DESC LIMIT 50;
 
 aggWithMixOfOrdinals
 SELECT gender AS g, MAX(salary) AS m FROM test_emp GROUP BY gender ORDER BY 2 DESC LIMIT 3;

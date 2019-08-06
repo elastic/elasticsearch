@@ -29,7 +29,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
@@ -66,23 +66,33 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
     private static final ParseField TERMINATED_EARLY = new ParseField("terminated_early");
     private static final ParseField NUM_REDUCE_PHASES = new ParseField("num_reduce_phases");
 
-    private SearchResponseSections internalResponse;
+    private final SearchResponseSections internalResponse;
+    private final String scrollId;
+    private final int totalShards;
+    private final int successfulShards;
+    private final int skippedShards;
+    private final ShardSearchFailure[] shardFailures;
+    private final Clusters clusters;
+    private final long tookInMillis;
 
-    private String scrollId;
-
-    private int totalShards;
-
-    private int successfulShards;
-
-    private int skippedShards;
-
-    private ShardSearchFailure[] shardFailures;
-
-    private Clusters clusters;
-
-    private long tookInMillis;
-
-    public SearchResponse() {
+    public SearchResponse(StreamInput in) throws IOException {
+        super(in);
+        internalResponse = new InternalSearchResponse(in);
+        totalShards = in.readVInt();
+        successfulShards = in.readVInt();
+        int size = in.readVInt();
+        if (size == 0) {
+            shardFailures = ShardSearchFailure.EMPTY_ARRAY;
+        } else {
+            shardFailures = new ShardSearchFailure[size];
+            for (int i = 0; i < shardFailures.length; i++) {
+                shardFailures[i] = readShardSearchFailure(in);
+            }
+        }
+        clusters = new Clusters(in);
+        scrollId = in.readOptionalString();
+        tookInMillis = in.readVLong();
+        skippedShards = in.readVInt();
     }
 
     public SearchResponse(SearchResponseSections internalResponse, String scrollId, int totalShards, int successfulShards,
@@ -191,10 +201,6 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
      */
     public String getScrollId() {
         return scrollId;
-    }
-
-    public void scrollId(String scrollId) {
-        this.scrollId = scrollId;
     }
 
     /**
@@ -355,29 +361,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        internalResponse = new InternalSearchResponse(in);
-        totalShards = in.readVInt();
-        successfulShards = in.readVInt();
-        int size = in.readVInt();
-        if (size == 0) {
-            shardFailures = ShardSearchFailure.EMPTY_ARRAY;
-        } else {
-            shardFailures = new ShardSearchFailure[size];
-            for (int i = 0; i < shardFailures.length; i++) {
-                shardFailures[i] = readShardSearchFailure(in);
-            }
-        }
-        clusters = new Clusters(in);
-        scrollId = in.readOptionalString();
-        tookInMillis = in.readVLong();
-        skippedShards = in.readVInt();
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         internalResponse.writeTo(out);
         out.writeVInt(totalShards);
         out.writeVInt(successfulShards);
@@ -401,7 +385,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
      * Holds info about the clusters that the search was executed on: how many in total, how many of them were successful
      * and how many of them were skipped.
      */
-    public static class Clusters implements ToXContent, Writeable {
+    public static class Clusters implements ToXContentFragment, Writeable {
 
         public static final Clusters EMPTY = new Clusters(0, 0, 0);
 

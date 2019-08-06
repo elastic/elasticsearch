@@ -17,6 +17,7 @@ it is advisable to avoid going beyond a couple tens of megabytes per request
 even if larger requests seem to perform better.
 
 [float]
+[[multiple-workers-threads]]
 === Use multiple workers/threads to send data to Elasticsearch
 
 A single thread sending bulk requests is unlikely to be able to max out the
@@ -46,7 +47,9 @@ By default, Elasticsearch runs this operation every second, but only on
 indices that have received one search request or more in the last 30 seconds.
 This is the optimal configuration if you have no or very little search traffic
 (e.g. less than one search request every 5 minutes) and want to optimize for
-indexing speed.
+indexing speed. This behavior aims to automatically optimize bulk indexing in
+the default case when no searches are performed. In order to opt out of this
+behavior set the refresh interval explicitly.
 
 On the other hand, if your index experiences regular search requests, this
 default behavior means that Elasticsearch will refresh your index every 1

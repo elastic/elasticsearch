@@ -1,51 +1,71 @@
 [[query-dsl-wildcard-query]]
-=== Wildcard Query
+=== Wildcard query
+++++
+<titleabbrev>Wildcard</titleabbrev>
+++++
 
-Matches documents that have fields matching a wildcard expression (*not
-analyzed*). Supported wildcards are `*`, which matches any character
-sequence (including the empty one), and `?`, which matches any single
-character. Note that this query can be slow, as it needs to iterate over many
-terms. In order to prevent extremely slow wildcard queries, a wildcard
-term should not start with one of the wildcards `*` or `?`. The wildcard
-query maps to Lucene `WildcardQuery`.
+Returns documents that contain terms matching a wildcard pattern.
+
+A wildcard operator is a placeholder that matches one or more characters. For
+example, the `*` wildcard operator matches zero or more characters. You can
+combine wildcard operators with other characters to create a wildcard pattern.
+
+[[wildcard-query-ex-request]]
+==== Example request
+
+The following search returns documents where the `user` field contains a term
+that begins with `ki` and ends with `y`. These matching terms can include `kiy`,
+`kity`, or `kimchy`.
 
 [source,js]
---------------------------------------------------
+----
 GET /_search
 {
     "query": {
-        "wildcard" : { "user" : "ki*y" }
+        "wildcard": {
+            "user": {
+                "value": "ki*y",
+                "boost": 1.0,
+                "rewrite": "constant_score"
+            }
+        }
     }
 }
---------------------------------------------------
+----
 // CONSOLE
 
-A boost can also be associated with the query:
+[[wildcard-top-level-params]]
+==== Top-level parameters for `wildcard`
+`<field>`::
+(Required, object) Field you wish to search.
 
-[source,js]
---------------------------------------------------
-GET /_search
-{
-    "query": {
-        "wildcard" : { "user" : { "value" : "ki*y", "boost" : 2.0 } }
-    }
-}
---------------------------------------------------
-// CONSOLE
+[[wildcard-query-field-params]]
+==== Parameters for `<field>`
+`value`::
+(Required, string) Wildcard pattern for terms you wish to find in the provided
+`<field>`.
++
+--
+This parameter supports two wildcard operators:
 
-Or :
+* `?`, which matches any single character
+* `*`, which can match zero or more characters, including an empty one
 
-[source,js]
---------------------------------------------------
-GET /_search
-{
-    "query": {
-        "wildcard" : { "user" : { "wildcard" : "ki*y", "boost" : 2.0 } }
-    }
-}
---------------------------------------------------
-// CONSOLE
+WARNING: Avoid beginning patterns with `*` or `?`. This can increase
+the iterations needed to find matching terms and slow search performance.
+-- 
 
-This multi term query allows to control how it gets rewritten using the
-<<query-dsl-multi-term-rewrite,rewrite>>
-parameter.
+`boost`::
+(Optional, float) Floating point number used to decrease or increase the
+<<relevance-scores,relevance scores>> of a query. Defaults to `1.0`.
++
+You can use the `boost` parameter to adjust relevance scores for searches
+containing two or more queries.
++
+Boost values are relative to the default value of `1.0`. A boost value between
+`0` and `1.0` decreases the relevance score. A value greater than `1.0`
+increases the relevance score.
+
+`rewrite`::
+(Optional, string) Method used to rewrite the query. For valid values and more information, see the
+<<query-dsl-multi-term-rewrite, `rewrite` parameter>>.

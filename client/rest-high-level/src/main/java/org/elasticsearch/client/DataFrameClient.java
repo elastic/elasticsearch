@@ -49,7 +49,8 @@ public final class DataFrameClient {
      * Creates a new Data Frame Transform
      * <p>
      * For additional info
-     * see <a href="https://www.TODO.com">Data Frame PUT transform documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/put-data-frame-transform.html">
+     *     Create data frame transform documentation</a>
      *
      * @param request The PutDataFrameTransformRequest containing the
      * {@link org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig}.
@@ -69,7 +70,8 @@ public final class DataFrameClient {
      * Creates a new Data Frame Transform asynchronously and notifies listener on completion
      * <p>
      * For additional info
-     * see <a href="https://www.TODO.com">Data Frame PUT transform documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/put-data-frame-transform.html">
+     *     Create data frame transform documentation</a>
      *
      * @param request The PutDataFrameTransformRequest containing the
      * {@link org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig}.
@@ -90,7 +92,8 @@ public final class DataFrameClient {
      * Get the running statistics of a Data Frame Transform
      * <p>
      * For additional info
-     * see <a href="https://www.TODO.com">Get Data Frame transform stats documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-data-frame-transform-stats.html">
+     *     Get data frame transform stats documentation</a>
      *
      * @param request Specifies the which transforms to get the stats for
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -110,7 +113,8 @@ public final class DataFrameClient {
      * Get the running statistics of a Data Frame Transform asynchronously and notifies listener on completion
      * <p>
      * For additional info
-     * see <a href="https://www.TODO.com">Get Data Frame transform stats documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-data-frame-transform-stats.html">
+     *     Get data frame transform stats documentation</a>
      *
      * @param request Specifies the which transforms to get the stats for
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -130,7 +134,8 @@ public final class DataFrameClient {
      * Delete a data frame transform
      * <p>
      * For additional info
-     * see <a href="https://www.TODO.com">Data Frame delete transform documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/delete-data-frame-transform.html">
+     *     Delete data frame transform documentation</a>
      *
      * @param request The delete data frame transform request
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -150,7 +155,8 @@ public final class DataFrameClient {
      * Delete a data frame transform asynchronously and notifies listener on completion
      * <p>
      * For additional info
-     * see <a href="https://www.TODO.com">Data Frame delete transform documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/delete-data-frame-transform.html">
+     *     Delete data frame transform documentation</a>
      *
      * @param request The delete data frame transform request
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -170,7 +176,8 @@ public final class DataFrameClient {
      * Preview the result of a data frame transform
      * <p>
      * For additional info
-     * see <a href="https://www.TODO.com">Preview Data Frame transform documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/preview-data-frame-transform.html">
+     *     Preview data frame transform documentation</a>
      *
      * @param request The preview data frame transform request
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -189,8 +196,8 @@ public final class DataFrameClient {
     /**
      * Preview the result of a data frame transform asynchronously and notifies listener on completion
      * <p>
-     * For additional info
-     * see <a href="https://www.TODO.com">Preview Data Frame transform documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/preview-data-frame-transform.html">
+     *     Preview data frame transform documentation</a>
      *
      * @param request The preview data frame transform request
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -210,7 +217,8 @@ public final class DataFrameClient {
      * Start a data frame transform
      * <p>
      * For additional info
-     * see <a href="https://www.TODO.com">Start Data Frame transform documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/start-data-frame-transform.html">
+     *     Start data frame transform documentation</a>
      *
      * @param request The start data frame transform request
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -230,7 +238,8 @@ public final class DataFrameClient {
      * Start a data frame transform asynchronously and notifies listener on completion
      * <p>
      * For additional info
-     * see <a href="https://www.TODO.com">Start Data Frame transform documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/start-data-frame-transform.html">
+     *     Start data frame transform documentation</a>
      *
      * @param request The start data frame transform request
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -250,7 +259,8 @@ public final class DataFrameClient {
      * Stop a data frame transform
      * <p>
      * For additional info
-     * see <a href="https://www.TODO.com">Stop Data Frame transform documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/stop-data-frame-transform.html">
+     *     Stop data frame transform documentation</a>
      *
      * @param request The stop data frame transform request
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -270,7 +280,8 @@ public final class DataFrameClient {
      * Stop a data frame transform asynchronously and notifies listener on completion
      * <p>
      * For additional info
-     * see <a href="https://www.TODO.com">Stop Data Frame transform documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/stop-data-frame-transform.html">
+     *     Stop data frame transform documentation</a>
      *
      * @param request The stop data frame transform request
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -290,7 +301,8 @@ public final class DataFrameClient {
      * Get one or more data frame transform configurations
      * <p>
      * For additional info
-     * see <a href="https://www.TODO.com">Get Data Frame transform documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-data-frame-transform.html">
+     *     Get data frame transform documentation</a>
      *
      * @param request The get data frame transform request
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -310,7 +322,8 @@ public final class DataFrameClient {
      * Get one or more data frame transform configurations asynchronously and notifies listener on completion
      * <p>
      * For additional info
-     * see <a href="https://www.TODO.com">Get Data Frame transform documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-data-frame-transform.html">
+     *     Get data frame transform documentation</a>
      *
      * @param request The get data frame transform request
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized

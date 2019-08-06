@@ -38,7 +38,7 @@ public class MainResponseTests extends AbstractResponseTestCase<org.elasticsearc
         ClusterName clusterName = new ClusterName(randomAlphaOfLength(10));
         String nodeName = randomAlphaOfLength(10);
         final String date = new Date(randomNonNegativeLong()).toString();
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_1, Version.CURRENT);
+        Version version = VersionUtils.randomIndexCompatibleVersion(random());
         Build build = new Build(
             Build.Flavor.UNKNOWN, Build.Type.UNKNOWN, randomAlphaOfLength(8), date, randomBoolean(),
             version.toString()
@@ -58,7 +58,7 @@ public class MainResponseTests extends AbstractResponseTestCase<org.elasticsearc
         assertThat(serverTestInstance.getNodeName(), equalTo(clientInstance.getNodeName()));
         assertThat("You Know, for Search", equalTo(clientInstance.getTagline()));
 
-        assertThat(serverTestInstance.getBuild().shortHash(), equalTo(clientInstance.getVersion().getBuildHash()));
+        assertThat(serverTestInstance.getBuild().hash(), equalTo(clientInstance.getVersion().getBuildHash()));
         assertThat(serverTestInstance.getVersion().toString(), equalTo(clientInstance.getVersion().getNumber()));
         assertThat(serverTestInstance.getBuild().date(), equalTo(clientInstance.getVersion().getBuildDate()));
         assertThat(serverTestInstance.getBuild().flavor().displayName(), equalTo(clientInstance.getVersion().getBuildFlavor()));

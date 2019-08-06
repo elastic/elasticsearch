@@ -1,9 +1,9 @@
 {
   "indices.rollover": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-rollover-index.html",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-rollover-index.html",
+    "stability": "stable",
     "methods": ["POST"],
     "url": {
-      "path": "/{alias}/_rollover",
       "paths": ["/{alias}/_rollover", "/{alias}/_rollover/{new_index}"],
       "parts": {
         "alias": {

@@ -50,6 +50,7 @@ import org.elasticsearch.client.security.EnableUserRequest;
 import org.elasticsearch.client.security.ExpressionRoleMapping;
 import org.elasticsearch.client.security.GetApiKeyRequest;
 import org.elasticsearch.client.security.GetApiKeyResponse;
+import org.elasticsearch.client.security.GetBuiltinPrivilegesResponse;
 import org.elasticsearch.client.security.GetPrivilegesRequest;
 import org.elasticsearch.client.security.GetPrivilegesResponse;
 import org.elasticsearch.client.security.GetRoleMappingsRequest;
@@ -103,6 +104,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -118,6 +120,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.iterableWithSize;
@@ -158,6 +161,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
             List<User> users = new ArrayList<>(3);
             users.addAll(response.getUsers());
+            users.sort(Comparator.comparing(User::getUsername));
             assertNotNull(response);
             assertThat(users.size(), equalTo(3));
             assertThat(users.get(0).getUsername(), equalTo(usernames[0]));
@@ -1497,6 +1501,60 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testGetBuiltinPrivileges() throws Exception {
+        final RestHighLevelClient client = highLevelClient();
+        {
+            //tag::get-builtin-privileges-execute
+            GetBuiltinPrivilegesResponse response = client.security().getBuiltinPrivileges(RequestOptions.DEFAULT);
+            //end::get-builtin-privileges-execute
+
+            assertNotNull(response);
+            //tag::get-builtin-privileges-response
+            final Set<String> cluster = response.getClusterPrivileges();
+            final Set<String> index = response.getIndexPrivileges();
+            //end::get-builtin-privileges-response
+
+            assertThat(cluster, hasItem("all"));
+            assertThat(cluster, hasItem("manage"));
+            assertThat(cluster, hasItem("monitor"));
+            assertThat(cluster, hasItem("manage_security"));
+
+            assertThat(index, hasItem("all"));
+            assertThat(index, hasItem("manage"));
+            assertThat(index, hasItem("monitor"));
+            assertThat(index, hasItem("read"));
+            assertThat(index, hasItem("write"));
+        }
+        {
+            // tag::get-builtin-privileges-execute-listener
+            ActionListener<GetBuiltinPrivilegesResponse> listener = new ActionListener<GetBuiltinPrivilegesResponse>() {
+                @Override
+                public void onResponse(GetBuiltinPrivilegesResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::get-builtin-privileges-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final PlainActionFuture<GetBuiltinPrivilegesResponse> future = new PlainActionFuture<>();
+            listener = future;
+
+            // tag::get-builtin-privileges-execute-async
+            client.security().getBuiltinPrivilegesAsync(RequestOptions.DEFAULT, listener); // <1>
+            // end::get-builtin-privileges-execute-async
+
+            final GetBuiltinPrivilegesResponse response = future.get(30, TimeUnit.SECONDS);
+            assertNotNull(response);
+            assertThat(response.getClusterPrivileges(), hasItem("manage_security"));
+            assertThat(response.getIndexPrivileges(), hasItem("read"));
+        }
+    }
+
     public void testGetPrivileges() throws Exception {
         final RestHighLevelClient client = highLevelClient();
         final ApplicationPrivilege readTestappPrivilege =
@@ -1556,9 +1614,9 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
             assertNotNull(response);
             assertThat(response.getPrivileges().size(), equalTo(3));
-            final GetPrivilegesResponse exptectedResponse =
+            final GetPrivilegesResponse expectedResponse =
                 new GetPrivilegesResponse(Arrays.asList(readTestappPrivilege, writeTestappPrivilege, allTestappPrivilege));
-            assertThat(response, equalTo(exptectedResponse));
+            assertThat(response, equalTo(expectedResponse));
             //tag::get-privileges-response
             Set<ApplicationPrivilege> privileges = response.getPrivileges();
             //end::get-privileges-response
@@ -1635,13 +1693,13 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             privileges.add(ApplicationPrivilege.builder()
                 .application("app01")
                 .privilege("all")
-                .actions(Sets.newHashSet("action:login"))
+                .actions(List.of("action:login"))
                 .metadata(Collections.singletonMap("k1", "v1"))
                 .build());
             privileges.add(ApplicationPrivilege.builder()
                 .application("app01")
                 .privilege("write")
-                .actions(Sets.newHashSet("action:write"))
+                .actions(List.of("action:write"))
                 .build());
             final PutPrivilegesRequest putPrivilegesRequest = new PutPrivilegesRequest(privileges, RefreshPolicy.IMMEDIATE);
             // end::put-privileges-request
@@ -1664,7 +1722,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             privileges.add(ApplicationPrivilege.builder()
                 .application("app01")
                 .privilege("all")
-                .actions(Sets.newHashSet("action:login"))
+                .actions(List.of("action:login"))
                 .metadata(Collections.singletonMap("k1", "v1"))
                 .build());
             final PutPrivilegesRequest putPrivilegesRequest = new PutPrivilegesRequest(privileges, RefreshPolicy.IMMEDIATE);

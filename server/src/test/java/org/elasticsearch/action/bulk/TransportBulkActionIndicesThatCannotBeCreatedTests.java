@@ -30,20 +30,24 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 import java.util.function.Function;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
+import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -102,8 +106,11 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
         ClusterState state = mock(ClusterState.class);
         when(state.getMetaData()).thenReturn(MetaData.EMPTY_META_DATA);
         when(clusterService.state()).thenReturn(state);
-        TransportBulkAction action = new TransportBulkAction(null, mock(TransportService.class), clusterService,
-                null, null, null, mock(ActionFilters.class), null, null) {
+        final ThreadPool threadPool = mock(ThreadPool.class);
+        final ExecutorService direct = EsExecutors.newDirectExecutorService();
+        when(threadPool.executor(anyString())).thenReturn(direct);
+        TransportBulkAction action = new TransportBulkAction(threadPool, mock(TransportService.class), clusterService,
+                null, null, mock(ActionFilters.class), null, null) {
             @Override
             void executeBulk(Task task, BulkRequest bulkRequest, long startTimeNanos, ActionListener<BulkResponse> listener,
                     AtomicArray<BulkItemResponse> responses, Map<String, IndexNotFoundException> indicesThatCannotBeCreated) {

@@ -19,6 +19,7 @@ import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.client.RestClientBuilder.HttpClientConfigCallback;
 import org.elasticsearch.common.settings.SecureString;
+import org.ietf.jgss.GSSContext;
 import org.ietf.jgss.GSSCredential;
 import org.ietf.jgss.GSSException;
 import org.ietf.jgss.GSSManager;
@@ -28,11 +29,14 @@ import org.ietf.jgss.Oid;
 import java.io.IOException;
 import java.security.AccessControlContext;
 import java.security.AccessController;
+import java.security.Principal;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 import javax.security.auth.Subject;
 import javax.security.auth.callback.Callback;
@@ -43,6 +47,7 @@ import javax.security.auth.kerberos.KerberosPrincipal;
 import javax.security.auth.login.AppConfigurationEntry;
 import javax.security.auth.login.Configuration;
 import javax.security.auth.login.LoginContext;
+import javax.security.auth.login.LoginException;
 
 /**
  * This class implements {@link HttpClientConfigCallback} which allows for
@@ -72,6 +77,7 @@ public class SpnegoHttpClientConfigCallbackHandler implements HttpClientConfigCa
     private final String keytabPath;
     private final boolean enableDebugLogs;
     private LoginContext loginContext;
+    private GSSContext gssContext;
 
     /**
      * Constructs {@link SpnegoHttpClientConfigCallbackHandler} with given
@@ -313,5 +319,75 @@ public class SpnegoHttpClientConfigCallbackHandler implements HttpClientConfigCa
         }
 
         abstract void addOptions(Map<String, String> options);
+    }
+
+    /**
+     * Initiates GSS context establishment and returns the
+     * base64 encoded token to be sent to server.
+     *
+     * @return Base64 encoded token
+     * @throws PrivilegedActionException when privileged action threw exception
+     * @throws GSSException when GSS context creation fails
+     */
+    String getBase64EncodedTokenForSpnegoHeader(final String serviceHost) throws PrivilegedActionException, GSSException {
+        final GSSManager gssManager = GSSManager.getInstance();
+        final GSSName gssServicePrincipalName = AccessController
+                .doPrivileged((PrivilegedExceptionAction<GSSName>) () -> gssManager.createName("HTTP/" + serviceHost, null));
+        final GSSName gssUserPrincipalName = gssManager.createName(userPrincipalName, GSSName.NT_USER_NAME);
+        loginContext = AccessController
+                .doPrivileged((PrivilegedExceptionAction<LoginContext>) () -> loginUsingPassword(userPrincipalName, password));
+        final GSSCredential userCreds = doAsWrapper(loginContext.getSubject(), (PrivilegedExceptionAction<GSSCredential>) () -> gssManager
+                .createCredential(gssUserPrincipalName, GSSCredential.DEFAULT_LIFETIME, SPNEGO_OID, GSSCredential.INITIATE_ONLY));
+        gssContext = gssManager.createContext(gssServicePrincipalName, SPNEGO_OID, userCreds, GSSCredential.DEFAULT_LIFETIME);
+        gssContext.requestMutualAuth(true);
+
+        final byte[] outToken = doAsWrapper(loginContext.getSubject(),
+                (PrivilegedExceptionAction<byte[]>) () -> gssContext.initSecContext(new byte[0], 0, 0));
+        return Base64.getEncoder().encodeToString(outToken);
+    }
+
+    private LoginContext loginUsingPassword(final String principal, final SecureString password) throws LoginException {
+        final Set<Principal> principals = Collections.singleton(new KerberosPrincipal(principal));
+
+        final Subject subject = new Subject(false, principals, Collections.emptySet(), Collections.emptySet());
+
+        final Configuration conf = new PasswordJaasConf(principal, enableDebugLogs);
+        final CallbackHandler callback = new KrbCallbackHandler(principal, password);
+        final LoginContext loginContext = new LoginContext(CRED_CONF_NAME, subject, callback, conf);
+        loginContext.login();
+        return loginContext;
+    }
+
+    /**
+     * Handles server response and returns new token if any to be sent to server.
+     *
+     * @param base64Token inToken received from server passed to initSecContext for
+     *            gss negotiation
+     * @return Base64 encoded token to be sent to server. May return {@code null} if
+     *         nothing to be sent.
+     * @throws PrivilegedActionException when privileged action threw exception
+     */
+    String handleResponse(final String base64Token) throws PrivilegedActionException {
+        if (gssContext.isEstablished()) {
+            throw new IllegalStateException("GSS Context has already been established");
+        }
+        final byte[] token = Base64.getDecoder().decode(base64Token);
+        final byte[] outToken = doAsWrapper(loginContext.getSubject(),
+                (PrivilegedExceptionAction<byte[]>) () -> gssContext.initSecContext(token, 0, token.length));
+        if (outToken == null || outToken.length == 0) {
+            return null;
+        }
+        return Base64.getEncoder().encodeToString(outToken);
+    }
+
+    /**
+     * @return {@code true} If the gss security context was established
+     */
+    boolean isEstablished() {
+        return gssContext.isEstablished();
+    }
+
+    static <T> T doAsWrapper(final Subject subject, final PrivilegedExceptionAction<T> action) throws PrivilegedActionException {
+        return AccessController.doPrivileged((PrivilegedExceptionAction<T>) () -> Subject.doAs(subject, action));
     }
 }

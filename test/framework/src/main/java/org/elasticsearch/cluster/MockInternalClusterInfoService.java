@@ -18,11 +18,6 @@
  */
 package org.elasticsearch.cluster;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.concurrent.CountDownLatch;
-import java.util.function.Consumer;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -39,6 +34,10 @@ import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.concurrent.CountDownLatch;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -71,9 +70,8 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
             null, null, null, null);
     }
 
-    public MockInternalClusterInfoService(Settings settings, ClusterService clusterService, ThreadPool threadPool, NodeClient client,
-                                          Consumer<ClusterInfo> listener) {
-        super(settings, clusterService, threadPool, client, listener);
+    public MockInternalClusterInfoService(Settings settings, ClusterService clusterService, ThreadPool threadPool, NodeClient client) {
+        super(settings, clusterService, threadPool, client);
         this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
         stats[0] = makeStats("node_t1", new DiskUsage("node_t1", "n1", "/dev/null", 100, 100));
         stats[1] = makeStats("node_t2", new DiskUsage("node_t2", "n2", "/dev/null", 100, 100));

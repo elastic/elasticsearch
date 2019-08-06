@@ -1,8 +1,5 @@
 [[release-highlights]]
-= {es} Release highlights
-++++
-<titleabbrev>Release highlights</titleabbrev>
-++++
+= Release highlights
 
 [partintro]
 --

@@ -54,10 +54,6 @@ public class RestSearchTemplateAction extends BaseRestHandler {
         controller.registerHandler(POST, "/_search/template", this);
         controller.registerHandler(GET, "/{index}/_search/template", this);
         controller.registerHandler(POST, "/{index}/_search/template", this);
-
-        // Deprecated typed endpoints.
-        controller.registerHandler(GET, "/{index}/{type}/_search/template", this);
-        controller.registerHandler(POST, "/{index}/{type}/_search/template", this);
     }
 
     @Override

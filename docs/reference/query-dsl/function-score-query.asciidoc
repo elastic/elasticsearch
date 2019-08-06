@@ -1,5 +1,8 @@
 [[query-dsl-function-score-query]]
-=== Function Score Query
+=== Function score query
+++++
+<titleabbrev>Function score</titleabbrev>
+++++
 
 The `function_score` allows you to modify the score of documents that are
 retrieved by a query. This can be useful if, for example, a score
@@ -305,10 +308,14 @@ There are a number of options for the `field_value_factor` function:
 | Modifier | Meaning
 
 | `none` | Do not apply any multiplier to the field value
-| `log` | Take the https://en.wikipedia.org/wiki/Common_logarithm[common logarithm] of the field value
+| `log` | Take the https://en.wikipedia.org/wiki/Common_logarithm[common logarithm] of the field value.
+          Because this function will return a negative value and cause an error if used on values
+          between 0 and 1, it is recommended to use `log1p` instead.
 | `log1p` | Add 1 to the field value and take the common logarithm
 | `log2p` | Add 2 to the field value and take the common logarithm
-| `ln` | Take the https://en.wikipedia.org/wiki/Natural_logarithm[natural logarithm] of the field value
+| `ln` | Take the https://en.wikipedia.org/wiki/Natural_logarithm[natural logarithm] of the field value.
+         Because this function will return a negative value and cause an error if used on values
+         between 0 and 1, it is recommended to use `ln1p` instead.
 | `ln1p` | Add 1 to the field value and take the natural logarithm
 | `ln2p` | Add 2 to the field value and take the natural logarithm
 | `square` | Square the field value (multiply it by itself)
@@ -321,14 +328,17 @@ There are a number of options for the `field_value_factor` function:
     Value used if the document doesn't have that field. The modifier
     and factor are still applied to it as though it were read from the document.
 
+NOTE: Scores produced by the `field_value_score` function must be
+non-negative, otherwise an error will be thrown. The `log` and `ln` modifiers
+will produce negative values if used on values between 0 and 1. Be sure to limit
+the values of the field with a range filter to avoid this, or use `log1p` and
+`ln1p`.
 
- Keep in mind that taking the log() of 0, or the square root of a negative number
- is an illegal operation, and an exception will be thrown. Be sure to limit the
- values of the field with a range filter to avoid this, or use `log1p` and
- `ln1p`.
+NOTE: Keep in mind that taking the log() of 0, or the square root of a
+negative number is an illegal operation, and an exception will be thrown. Be
+sure to limit the values of the field with a range filter to avoid this, or use
+`log1p` and `ln1p`.
 
- NOTE: Scores produced by the `field_value_score` function must be non-negative,
- otherwise an error will be thrown.
 
 [[function-decay]]
 ==== Decay functions

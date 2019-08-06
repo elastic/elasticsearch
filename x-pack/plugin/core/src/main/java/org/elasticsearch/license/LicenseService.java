@@ -218,10 +218,13 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
                 }
             }
 
+            // This check would be incorrect if "basic" licenses were allowed here
+            // because the defaults there mean that security can be "off", even if the setting is "on"
+            // BUT basic licenses are explicitly excluded earlier in this method, so we don't need to worry
             if (XPackSettings.SECURITY_ENABLED.get(settings)) {
                 // TODO we should really validate that all nodes have xpack installed and are consistently configured but this
                 // should happen on a different level and not in this code
-                if (newLicense.isProductionLicense()
+                if (XPackLicenseState.isTransportTlsRequired(newLicense, settings)
                     && XPackSettings.TRANSPORT_SSL_ENABLED.get(settings) == false
                     && isProductionMode(settings, clusterService.localNode())) {
                     // security is on but TLS is not configured we gonna fail the entire request and throw an exception

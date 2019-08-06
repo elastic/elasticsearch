@@ -8,7 +8,7 @@ package org.elasticsearch.upgrades;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.test.SecuritySettingsSourceField;
+import org.elasticsearch.xpack.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.Before;
 
@@ -16,12 +16,12 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.elasticsearch.xpack.test.SecuritySettingsSourceField.basicAuthHeaderValue;
 
 public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
 
     private static final String BASIC_AUTH_VALUE =
-            basicAuthHeaderValue("test_user", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
+            basicAuthHeaderValue("test_user", SecuritySettingsSourceField.TEST_PASSWORD);
 
     @Override
     protected boolean preserveIndicesUponCompletion() {

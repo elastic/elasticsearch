@@ -59,24 +59,8 @@ import static org.hamcrest.Matchers.startsWith;
 public class NodeEnvironmentTests extends ESTestCase {
     private final IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("foo", Settings.EMPTY);
 
-    public void testNodeLockSillySettings() {
-        try {
-            NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.get(Settings.builder()
-                    .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), between(Integer.MIN_VALUE, 0)).build());
-            fail("expected failure");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("must be >= 1"));
-        }
-
-        // Even though its silly MAXINT nodes is a-ok!
-        int value = between(1, Integer.MAX_VALUE);
-        int max = NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.get(
-                Settings.builder().put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), value).build());
-        assertEquals(value, max);
-    }
-
-    public void testNodeLockSingleEnvironment() throws IOException {
-        final Settings settings = buildEnvSettings(Settings.builder().put("node.max_local_storage_nodes", 1).build());
+    public void testNodeLock() throws IOException {
+        final Settings settings = buildEnvSettings(Settings.EMPTY);
         NodeEnvironment env = newNodeEnvironment(settings);
         List<String> dataPaths = Environment.PATH_DATA_SETTING.get(settings);
 
@@ -116,19 +100,6 @@ public class NodeEnvironmentTests extends ESTestCase {
             // Clean up after ourselves
             SegmentInfos.setInfoStream(null);
         }
-    }
-
-    public void testNodeLockMultipleEnvironment() throws IOException {
-        final Settings settings = buildEnvSettings(Settings.builder().put("node.max_local_storage_nodes", 2).build());
-        final NodeEnvironment first = newNodeEnvironment(settings);
-        List<String> dataPaths = Environment.PATH_DATA_SETTING.get(settings);
-        NodeEnvironment second = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-        assertEquals(first.nodeDataPaths().length, dataPaths.size());
-        assertEquals(second.nodeDataPaths().length, dataPaths.size());
-        for (int i = 0; i < dataPaths.size(); i++) {
-            assertEquals(first.nodeDataPaths()[i].getParent(), second.nodeDataPaths()[i].getParent());
-        }
-        IOUtils.close(first, second);
     }
 
     public void testShardLock() throws Exception {
@@ -402,10 +373,10 @@ public class NodeEnvironmentTests extends ESTestCase {
 
         assertThat("shard paths with a custom data_path should contain only regular paths",
                 env.availableShardPaths(sid),
-                equalTo(stringsToPaths(dataPaths, "nodes/0/indices/" + index.getUUID() + "/0")));
+                equalTo(stringsToPaths(dataPaths, "indices/" + index.getUUID() + "/0")));
 
         assertThat("index paths uses the regular template",
-                env.indexPaths(index), equalTo(stringsToPaths(dataPaths, "nodes/0/indices/" + index.getUUID())));
+                env.indexPaths(index), equalTo(stringsToPaths(dataPaths, "indices/" + index.getUUID())));
 
         IndexSettings s3 = new IndexSettings(s2.getIndexMetaData(), Settings.builder().build());
 
@@ -414,10 +385,10 @@ public class NodeEnvironmentTests extends ESTestCase {
 
         assertThat("shard paths with a custom data_path should contain only regular paths",
                 env.availableShardPaths(sid),
-                equalTo(stringsToPaths(dataPaths, "nodes/0/indices/" + index.getUUID() + "/0")));
+                equalTo(stringsToPaths(dataPaths, "indices/" + index.getUUID() + "/0")));
 
         assertThat("index paths uses the regular template",
-                env.indexPaths(index), equalTo(stringsToPaths(dataPaths, "nodes/0/indices/" + index.getUUID())));
+                env.indexPaths(index), equalTo(stringsToPaths(dataPaths, "indices/" + index.getUUID())));
 
         env.close();
     }
@@ -447,7 +418,7 @@ public class NodeEnvironmentTests extends ESTestCase {
         String[] paths = tmpPaths();
         // simulate some previous left over temp files
         for (String path : randomSubsetOf(randomIntBetween(1, paths.length), paths)) {
-            final Path nodePath = NodeEnvironment.resolveNodePath(PathUtils.get(path), 0);
+            final Path nodePath = PathUtils.get(path);
             Files.createDirectories(nodePath);
             Files.createFile(nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME));
             if (randomBoolean()) {
@@ -462,7 +433,7 @@ public class NodeEnvironmentTests extends ESTestCase {
 
         // check we clean up
         for (String path: paths) {
-            final Path nodePath = NodeEnvironment.resolveNodePath(PathUtils.get(path), 0);
+            final Path nodePath = PathUtils.get(path);
             final Path tempFile = nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME);
             assertFalse(tempFile + " should have been cleaned", Files.exists(tempFile));
             final Path srcTempFile = nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME + ".src");

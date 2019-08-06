@@ -36,6 +36,7 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.ParentTaskAssigningClient;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -75,7 +76,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.action.bulk.BackoffPolicy.exponentialBackoff;
 import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
-import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.SIZE_ALL_MATCHES;
+import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.MAX_DOCS_ALL_MATCHES;
 import static org.elasticsearch.rest.RestStatus.CONFLICT;
 import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
 
@@ -90,8 +91,9 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     protected final BulkByScrollTask task;
     protected final WorkerBulkByScrollTaskState worker;
     protected final ThreadPool threadPool;
+    protected final ScriptService scriptService;
+    protected final ReindexSslConfig sslConfig;
 
-    protected final Action mainAction;
     /**
      * The request for this action. Named mainRequest because we create lots of <code>request</code> variables all representing child
      * requests of this mainRequest.
@@ -112,13 +114,15 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      * {@link RequestWrapper} completely.
      */
     private final BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> scriptApplier;
+    private int lastBatchSize;
 
-    public AbstractAsyncBulkByScrollAction(BulkByScrollTask task, boolean needsSourceDocumentVersions,
-                                           boolean needsSourceDocumentSeqNoAndPrimaryTerm, Logger logger, ParentTaskAssigningClient client,
-                                           ThreadPool threadPool, Action mainAction, Request mainRequest, 
-                                           ActionListener<BulkByScrollResponse> listener) {
-
+    AbstractAsyncBulkByScrollAction(BulkByScrollTask task, boolean needsSourceDocumentVersions,
+                                    boolean needsSourceDocumentSeqNoAndPrimaryTerm, Logger logger, ParentTaskAssigningClient client,
+                                    ThreadPool threadPool, Request mainRequest, ActionListener<BulkByScrollResponse> listener,
+                                    @Nullable ScriptService scriptService, @Nullable ReindexSslConfig sslConfig) {
         this.task = task;
+        this.scriptService = scriptService;
+        this.sslConfig = sslConfig;
         if (!task.isWorker()) {
             throw new IllegalArgumentException("Given task [" + task.getId() + "] must have a child worker");
         }
@@ -127,7 +131,6 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         this.logger = logger;
         this.client = client;
         this.threadPool = threadPool;
-        this.mainAction = mainAction;
         this.mainRequest = mainRequest;
         this.listener = listener;
         BackoffPolicy backoffPolicy = buildBackoffPolicy();
@@ -157,7 +160,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         // The default script applier executes a no-op
         return (request, searchHit) -> request;
     }
-    
+
     /**
      * Build the {@link RequestWrapper} for a single search hit. This shouldn't handle
      * metadata or scripting. That will be handled by copyMetadata and
@@ -211,7 +214,8 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     }
 
     protected ScrollableHitSource buildScrollableResultSource(BackoffPolicy backoffPolicy) {
-        return new ClientScrollableHitSource(logger, backoffPolicy, threadPool, worker::countSearchRetry, this::finishHim, client,
+        return new ClientScrollableHitSource(logger, backoffPolicy, threadPool, worker::countSearchRetry,
+            this::onScrollResponse, this::finishHim, client,
                 mainRequest.getSearchRequest());
     }
 
@@ -235,19 +239,26 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         }
         try {
             startTime.set(System.nanoTime());
-            scrollSource.start(response -> onScrollResponse(timeValueNanos(System.nanoTime()), 0, response));
+            scrollSource.start();
         } catch (Exception e) {
             finishHim(e);
         }
+    }
+
+    void onScrollResponse(ScrollableHitSource.AsyncResponse asyncResponse) {
+        // lastBatchStartTime is essentially unused (see WorkerBulkByScrollTaskState.throttleWaitTime. Leaving it for now, since it seems
+        // like a bug?
+        onScrollResponse(new TimeValue(System.nanoTime()), this.lastBatchSize, asyncResponse);
     }
 
     /**
      * Process a scroll response.
      * @param lastBatchStartTime the time when the last batch started. Used to calculate the throttling delay.
      * @param lastBatchSize the size of the last batch. Used to calculate the throttling delay.
-     * @param response the scroll response to process
+     * @param asyncResponse the response to process from ScrollableHitSource
      */
-    void onScrollResponse(TimeValue lastBatchStartTime, int lastBatchSize, ScrollableHitSource.Response response) {
+    void onScrollResponse(TimeValue lastBatchStartTime, int lastBatchSize, ScrollableHitSource.AsyncResponse asyncResponse) {
+        ScrollableHitSource.Response response = asyncResponse.response();
         logger.debug("[{}]: got scroll response with [{}] hits", task.getId(), response.getHits().size());
         if (task.isCancelled()) {
             logger.debug("[{}]: finishing early because the task was cancelled", task.getId());
@@ -263,8 +274,8 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             return;
         }
         long total = response.getTotalHits();
-        if (mainRequest.getSize() > 0) {
-            total = min(total, mainRequest.getSize());
+        if (mainRequest.getMaxDocs() > 0) {
+            total = min(total, mainRequest.getMaxDocs());
         }
         worker.setTotal(total);
         AbstractRunnable prepareBulkRequestRunnable = new AbstractRunnable() {
@@ -274,7 +285,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                  * It is important that the batch start time be calculated from here, scroll response to scroll response. That way the time
                  * waiting on the scroll doesn't count against this batch in the throttle.
                  */
-                prepareBulkRequest(timeValueNanos(System.nanoTime()), response);
+                prepareBulkRequest(timeValueNanos(System.nanoTime()), asyncResponse);
             }
 
             @Override
@@ -291,7 +302,8 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      * delay has been slept. Uses the generic thread pool because reindex is rare enough not to need its own thread pool and because the
      * thread may be blocked by the user script.
      */
-    void prepareBulkRequest(TimeValue thisBatchStartTime, ScrollableHitSource.Response response) {
+    void prepareBulkRequest(TimeValue thisBatchStartTime, ScrollableHitSource.AsyncResponse asyncResponse) {
+        ScrollableHitSource.Response response = asyncResponse.response();
         logger.debug("[{}]: preparing bulk request", task.getId());
         if (task.isCancelled()) {
             logger.debug("[{}]: finishing early because the task was cancelled", task.getId());
@@ -304,9 +316,9 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         }
         worker.countBatch();
         List<? extends ScrollableHitSource.Hit> hits = response.getHits();
-        if (mainRequest.getSize() != SIZE_ALL_MATCHES) {
-            // Truncate the hits if we have more than the request size
-            long remaining = max(0, mainRequest.getSize() - worker.getSuccessfullyProcessed());
+        if (mainRequest.getMaxDocs() != MAX_DOCS_ALL_MATCHES) {
+            // Truncate the hits if we have more than the request max docs
+            long remaining = max(0, mainRequest.getMaxDocs() - worker.getSuccessfullyProcessed());
             if (remaining < hits.size()) {
                 hits = hits.subList(0, (int) remaining);
             }
@@ -316,18 +328,18 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             /*
              * If we noop-ed the entire batch then just skip to the next batch or the BulkRequest would fail validation.
              */
-            startNextScroll(thisBatchStartTime, timeValueNanos(System.nanoTime()), 0);
+            notifyDone(thisBatchStartTime, asyncResponse, 0);
             return;
         }
         request.timeout(mainRequest.getTimeout());
         request.waitForActiveShards(mainRequest.getWaitForActiveShards());
-        sendBulkRequest(thisBatchStartTime, request);
+        sendBulkRequest(request, () -> notifyDone(thisBatchStartTime, asyncResponse, request.requests().size()));
     }
 
     /**
      * Send a bulk request, handling retries.
      */
-    void sendBulkRequest(TimeValue thisBatchStartTime, BulkRequest request) {
+    void sendBulkRequest(BulkRequest request, Runnable onSuccess) {
         if (logger.isDebugEnabled()) {
             logger.debug("[{}]: sending [{}] entry, [{}] bulk request", task.getId(), request.requests().size(),
                     new ByteSizeValue(request.estimatedSizeInBytes()));
@@ -340,7 +352,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         bulkRetry.withBackoff(client::bulk, request, new ActionListener<BulkResponse>() {
             @Override
             public void onResponse(BulkResponse response) {
-                onBulkResponse(thisBatchStartTime, response);
+                onBulkResponse(response, onSuccess);
             }
 
             @Override
@@ -353,7 +365,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     /**
      * Processes bulk responses, accounting for failures.
      */
-    void onBulkResponse(TimeValue thisBatchStartTime, BulkResponse response) {
+    void onBulkResponse(BulkResponse response, Runnable onSuccess) {
         try {
             List<Failure> failures = new ArrayList<>();
             Set<String> destinationIndicesThisBatch = new HashSet<>();
@@ -395,34 +407,26 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                 return;
             }
 
-            if (mainRequest.getSize() != SIZE_ALL_MATCHES && worker.getSuccessfullyProcessed() >= mainRequest.getSize()) {
+            if (mainRequest.getMaxDocs() != MAX_DOCS_ALL_MATCHES && worker.getSuccessfullyProcessed() >= mainRequest.getMaxDocs()) {
                 // We've processed all the requested docs.
                 refreshAndFinish(emptyList(), emptyList(), false);
                 return;
             }
 
-            startNextScroll(thisBatchStartTime, timeValueNanos(System.nanoTime()), response.getItems().length);
+            onSuccess.run();
         } catch (Exception t) {
             finishHim(t);
         }
     }
 
-    /**
-     * Start the next scroll request.
-     *
-     * @param lastBatchSize the number of requests sent in the last batch. This is used to calculate the throttling values which are applied
-     *        when the scroll returns
-     */
-    void startNextScroll(TimeValue lastBatchStartTime, TimeValue now, int lastBatchSize) {
+    void notifyDone(TimeValue thisBatchStartTime, ScrollableHitSource.AsyncResponse asyncResponse, int batchSize) {
         if (task.isCancelled()) {
             logger.debug("[{}]: finishing early because the task was cancelled", task.getId());
             finishHim(null);
             return;
         }
-        TimeValue extraKeepAlive = worker.throttleWaitTime(lastBatchStartTime, now, lastBatchSize);
-        scrollSource.startNextScroll(extraKeepAlive, response -> {
-            onScrollResponse(lastBatchStartTime, lastBatchSize, response);
-        });
+        this.lastBatchSize = batchSize;
+        asyncResponse.done(worker.throttleWaitTime(thisBatchStartTime, timeValueNanos(System.nanoTime()), batchSize));
     }
 
     private void recordFailure(Failure failure, List<Failure> failures) {

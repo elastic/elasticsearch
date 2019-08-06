@@ -21,13 +21,12 @@ package org.elasticsearch.plugins;
 
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
@@ -49,7 +48,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
+import java.util.Set;
 import java.util.function.UnaryOperator;
 
 /**
@@ -70,32 +69,6 @@ import java.util.function.UnaryOperator;
  * </ul>
  */
 public abstract class Plugin implements Closeable {
-
-    /**
-     * A feature exposed by the plugin. This should be used if a plugin exposes {@link ClusterState.Custom} or {@link MetaData.Custom}; see
-     * also {@link ClusterState.FeatureAware}.
-     *
-     * @return a feature set represented by this plugin, or the empty optional if the plugin does not expose cluster state or metadata
-     * customs
-     */
-    protected Optional<String> getFeature() {
-        return Optional.empty();
-    }
-
-    /**
-     * Node level guice modules.
-     */
-    public Collection<Module> createGuiceModules() {
-        return Collections.emptyList();
-    }
-
-    /**
-     * Node level services that will be automatically started/stopped/closed. This classes must be constructed
-     * by injection with guice.
-     */
-    public Collection<Class<? extends LifecycleComponent>> getGuiceServiceClasses() {
-        return Collections.emptyList();
-    }
 
     /**
      * Returns components added by this plugin.
@@ -235,6 +208,10 @@ public abstract class Plugin implements Closeable {
      * configurations like OS settings or 3rd party resources.
      */
     public List<BootstrapCheck> getBootstrapChecks() { return Collections.emptyList(); }
+
+    public Set<DiscoveryNodeRole> getRoles() {
+        return Set.of();
+    }
 
     /**
      * Close the resources opened by this plugin.

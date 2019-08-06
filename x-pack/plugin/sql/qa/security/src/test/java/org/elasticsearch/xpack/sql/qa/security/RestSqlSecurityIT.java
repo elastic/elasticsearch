@@ -122,6 +122,7 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
             List<Object> columns = new ArrayList<>();
             columns.add(columnInfo(mode, "name", "keyword", JDBCType.VARCHAR, 32766));
             columns.add(columnInfo(mode, "type", "keyword", JDBCType.VARCHAR, 32766));
+            columns.add(columnInfo(mode, "kind", "keyword", JDBCType.VARCHAR, 32766));
             Map<String, Object> expected = new HashMap<>();
             expected.put("columns", columns);
             List<List<String>> rows = new ArrayList<>();
@@ -129,6 +130,7 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
                 List<String> fields = new ArrayList<>();
                 fields.add(table);
                 fields.add("BASE TABLE");
+                fields.add("INDEX");
                 rows.add(fields);
             }
             expected.put("rows", rows);

@@ -24,7 +24,6 @@ import com.microsoft.azure.storage.StorageException;
 import com.microsoft.azure.storage.blob.CloudBlobClient;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.Streams;
@@ -34,10 +33,10 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.SocketPermission;
-import java.net.URISyntaxException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.security.AccessController;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -57,25 +56,12 @@ public class AzureStorageServiceMock extends AzureStorageService {
     }
 
     @Override
-    public boolean doesContainerExist(String account, String container) {
-        return true;
-    }
-
-    @Override
-    public void deleteFiles(String account, String container, String path) throws URISyntaxException, StorageException {
-        final Map<String, BlobMetaData> blobs = listBlobsByPrefix(account, container, path, null);
-        for (String key : blobs.keySet()) {
-            deleteBlob(account, container, key);
-        }
-    }
-
-    @Override
     public boolean blobExists(String account, String container, String blob) {
         return blobs.containsKey(blob);
     }
 
     @Override
-    public void deleteBlob(String account, String container, String blob) throws URISyntaxException, StorageException {
+    public void deleteBlob(String account, String container, String blob) throws StorageException {
         if (blobs.remove(blob) == null) {
             throw new StorageException("BlobNotFound", "[" + blob + "] does not exist.", 404, null, null);
         }
@@ -91,7 +77,7 @@ public class AzureStorageServiceMock extends AzureStorageService {
 
     @Override
     public Map<String, BlobMetaData> listBlobsByPrefix(String account, String container, String keyPath, String prefix) {
-        MapBuilder<String, BlobMetaData> blobsBuilder = MapBuilder.newMapBuilder();
+        final var blobsBuilder = new HashMap<String, BlobMetaData>();
         blobs.forEach((String blobName, ByteArrayOutputStream bos) -> {
             final String checkBlob;
             if (keyPath != null && !keyPath.isEmpty()) {
@@ -104,13 +90,12 @@ public class AzureStorageServiceMock extends AzureStorageService {
                 blobsBuilder.put(blobName, new PlainBlobMetaData(checkBlob, bos.size()));
             }
         });
-        return blobsBuilder.immutableMap();
+        return Map.copyOf(blobsBuilder);
     }
 
     @Override
     public void writeBlob(String account, String container, String blobName, InputStream inputStream, long blobSize,
-                          boolean failIfAlreadyExists)
-        throws URISyntaxException, StorageException, FileAlreadyExistsException {
+                          boolean failIfAlreadyExists) throws StorageException, FileAlreadyExistsException {
         if (failIfAlreadyExists && blobs.containsKey(blobName)) {
             throw new FileAlreadyExistsException(blobName);
         }

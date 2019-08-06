@@ -41,10 +41,10 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
+import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheAction;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheRequest;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheResponse;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
-import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.io.IOException;
@@ -63,10 +63,9 @@ import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
 import static org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor.DOC_TYPE_VALUE;
 import static org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor.Fields.APPLICATION;
-import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
+import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 
 /**
  * {@code NativePrivilegeStore} is a store that reads/writes {@link ApplicationPrivilegeDescriptor} objects,
@@ -84,13 +83,11 @@ public class NativePrivilegeStore {
 
     private final Settings settings;
     private final Client client;
-    private final SecurityClient securityClient;
     private final SecurityIndexManager securityIndexManager;
 
     public NativePrivilegeStore(Settings settings, Client client, SecurityIndexManager securityIndexManager) {
         this.settings = settings;
         this.client = client;
-        this.securityClient = new SecurityClient(client);
         this.securityIndexManager = securityIndexManager;
     }
 
@@ -129,8 +126,8 @@ public class NativePrivilegeStore {
                     query = QueryBuilders.boolQuery().filter(typeQuery).filter(QueryBuilders.idsQuery().addIds(docIds));
                 }
                 final Supplier<ThreadContext.StoredContext> supplier = client.threadPool().getThreadContext().newRestorableContext(false);
-                try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN)) {
-                    SearchRequest request = client.prepareSearch(SECURITY_INDEX_NAME)
+                try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(SECURITY_ORIGIN)) {
+                    SearchRequest request = client.prepareSearch(SECURITY_MAIN_ALIAS)
                         .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
                         .setQuery(query)
                         .setSize(1000)
@@ -202,7 +199,7 @@ public class NativePrivilegeStore {
         } else {
             securityIndexManager.checkIndexVersionThenExecute(listener::onFailure,
                 () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                    client.prepareGet(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, toDocId(application, name))
+                    client.prepareGet(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, toDocId(application, name))
                             .request(),
                     new ActionListener<GetResponse>() {
                         @Override
@@ -254,7 +251,7 @@ public class NativePrivilegeStore {
             final String name = privilege.getName();
             final XContentBuilder xContentBuilder = privilege.toXContent(jsonBuilder(), true);
             ClientHelper.executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                client.prepareIndex(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, toDocId(privilege.getApplication(), name))
+                client.prepareIndex(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, toDocId(privilege.getApplication(), name))
                     .setSource(xContentBuilder)
                     .setRefreshPolicy(refreshPolicy)
                     .request(), listener, client::index);
@@ -285,7 +282,7 @@ public class NativePrivilegeStore {
                     }, listener::onFailure), names.size());
                 for (String name : names) {
                     ClientHelper.executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                        client.prepareDelete(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, toDocId(application, name))
+                        client.prepareDelete(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, toDocId(application, name))
                             .setRefreshPolicy(refreshPolicy)
                             .request(), groupListener, client::delete);
                 }
@@ -296,8 +293,8 @@ public class NativePrivilegeStore {
     private <T> void clearRolesCache(ActionListener<T> listener, T value) {
         // This currently clears _all_ roles, but could be improved to clear only those roles that reference the affected application
         ClearRolesCacheRequest request = new ClearRolesCacheRequest();
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
-            new ActionListener<ClearRolesCacheResponse>() {
+        executeAsyncWithOrigin(client, SECURITY_ORIGIN, ClearRolesCacheAction.INSTANCE, request,
+            new ActionListener<>() {
                 @Override
                 public void onResponse(ClearRolesCacheResponse nodes) {
                     listener.onResponse(value);
@@ -309,7 +306,7 @@ public class NativePrivilegeStore {
                     listener.onFailure(
                         new ElasticsearchException("clearing the role cache failed. please clear the role cache manually", e));
                 }
-            }, securityClient::clearRolesCache);
+            });
     }
 
     private ApplicationPrivilegeDescriptor buildPrivilege(String docId, BytesReference source) {

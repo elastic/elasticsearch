@@ -31,6 +31,7 @@ public class StopDataFrameTransformRequest implements Validatable {
     private final String id;
     private Boolean waitForCompletion;
     private TimeValue timeout;
+    private Boolean allowNoMatch;
 
     public StopDataFrameTransformRequest(String id) {
         this.id = id;
@@ -64,6 +65,14 @@ public class StopDataFrameTransformRequest implements Validatable {
         return timeout;
     }
 
+    public Boolean getAllowNoMatch() {
+        return allowNoMatch;
+    }
+
+    public void setAllowNoMatch(Boolean allowNoMatch) {
+        this.allowNoMatch = allowNoMatch;
+    }
+
     @Override
     public Optional<ValidationException> validate() {
         if (id == null) {
@@ -77,7 +86,7 @@ public class StopDataFrameTransformRequest implements Validatable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, waitForCompletion, timeout);
+        return Objects.hash(id, waitForCompletion, timeout, allowNoMatch);
     }
 
     @Override
@@ -92,7 +101,8 @@ public class StopDataFrameTransformRequest implements Validatable {
         StopDataFrameTransformRequest other = (StopDataFrameTransformRequest) obj;
         return Objects.equals(this.id, other.id)
                 && Objects.equals(this.waitForCompletion, other.waitForCompletion)
-                && Objects.equals(this.timeout, other.timeout);
+                && Objects.equals(this.timeout, other.timeout)
+                && Objects.equals(this.allowNoMatch, other.allowNoMatch);
     }
 
 }

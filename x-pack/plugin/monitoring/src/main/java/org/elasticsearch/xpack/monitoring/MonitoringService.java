@@ -233,7 +233,7 @@ public class MonitoringService extends AbstractLifecycleComponent {
                     final Collection<MonitoringDoc> results = new ArrayList<>();
                     for (Collector collector : collectors) {
                         if (isStarted() == false) {
-                            // Do not collect more data if the the monitoring service is stopping
+                            // Do not collect more data if the monitoring service is stopping
                             // otherwise some collectors might just fail.
                             return;
                         }

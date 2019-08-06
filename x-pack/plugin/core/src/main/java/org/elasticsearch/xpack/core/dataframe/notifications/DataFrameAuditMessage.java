@@ -11,8 +11,8 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditMessage;
 import org.elasticsearch.xpack.core.common.notifications.Level;
+import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
-import org.elasticsearch.xpack.core.ml.utils.time.TimeUtils;
 
 import java.util.Date;
 
@@ -36,15 +36,10 @@ public class DataFrameAuditMessage extends AbstractAuditMessage {
             }
             throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
         }, LEVEL, ObjectParser.ValueType.STRING);
-        PARSER.declareField(constructorArg(), parser -> {
-            if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
-                return new Date(parser.longValue());
-            } else if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return new Date(TimeUtils.dateStringToEpoch(parser.text()));
-            }
-            throw new IllegalArgumentException(
-                "unexpected token [" + parser.currentToken() + "] for [" + TIMESTAMP.getPreferredName() + "]");
-        }, TIMESTAMP, ObjectParser.ValueType.VALUE);
+        PARSER.declareField(constructorArg(),
+            p -> TimeUtils.parseTimeField(p, TIMESTAMP.getPreferredName()),
+            TIMESTAMP,
+            ObjectParser.ValueType.VALUE);
         PARSER.declareString(optionalConstructorArg(), NODE_NAME);
     }
 

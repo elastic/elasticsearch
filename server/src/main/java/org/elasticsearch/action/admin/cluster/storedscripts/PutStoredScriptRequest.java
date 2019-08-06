@@ -24,7 +24,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -35,13 +35,22 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptRequest> implements ToXContent {
+public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptRequest> implements ToXContentFragment {
 
     private String id;
     private String context;
     private BytesReference content;
     private XContentType xContentType;
     private StoredScriptSource source;
+
+    public PutStoredScriptRequest(StreamInput in) throws IOException {
+        super(in);
+        id = in.readOptionalString();
+        content = in.readBytesReference();
+        xContentType = in.readEnum(XContentType.class);
+        context = in.readOptionalString();
+        source = new StoredScriptSource(in);
+    }
 
     public PutStoredScriptRequest() {
         super();
@@ -111,16 +120,6 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
         this.xContentType = Objects.requireNonNull(xContentType);
         this.source = StoredScriptSource.parse(content, xContentType);
         return this;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        id = in.readOptionalString();
-        content = in.readBytesReference();
-        xContentType = in.readEnum(XContentType.class);
-        context = in.readOptionalString();
-        source = new StoredScriptSource(in);
     }
 
     @Override

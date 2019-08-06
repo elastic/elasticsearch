@@ -2,6 +2,8 @@
 [testenv="basic"]
 [[ilm-stop]]
 === Stop {ilm} API
+
+[subs="attributes"]
 ++++
 <titleabbrev>Stop {ilm}</titleabbrev>
 ++++
@@ -25,7 +27,7 @@ if {ilm-init} is running.
 
 ==== Request Parameters
 
-include::{docdir}/rest-api/timeoutparms.asciidoc[]
+include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 ==== Authorization
 

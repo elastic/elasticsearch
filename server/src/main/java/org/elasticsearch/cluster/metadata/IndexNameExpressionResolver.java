@@ -57,14 +57,10 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import static java.util.Collections.unmodifiableList;
-
 public class IndexNameExpressionResolver {
 
     private final DateMathExpressionResolver dateMathExpressionResolver = new DateMathExpressionResolver();
-    private final List<ExpressionResolver> expressionResolvers = unmodifiableList(Arrays.asList(
-            dateMathExpressionResolver,
-            new WildcardExpressionResolver()));
+    private final List<ExpressionResolver> expressionResolvers = List.of(dateMathExpressionResolver, new WildcardExpressionResolver());
 
     /**
      * Same as {@link #concreteIndexNames(ClusterState, IndicesOptions, String...)}, but the index expressions and options
@@ -336,7 +332,7 @@ public class IndexNameExpressionResolver {
         for (ExpressionResolver expressionResolver : expressionResolvers) {
             resolvedExpressions = expressionResolver.resolve(context, resolvedExpressions);
         }
-        return Collections.unmodifiableSet(new HashSet<>(resolvedExpressions));
+        return Set.copyOf(resolvedExpressions);
     }
 
     /**
@@ -577,7 +573,7 @@ public class IndexNameExpressionResolver {
         return false;
     }
 
-    static final class Context {
+    public static class Context {
 
         private final ClusterState state;
         private final IndicesOptions options;
@@ -597,7 +593,8 @@ public class IndexNameExpressionResolver {
            this(state, options, startTime, false, false);
         }
 
-        Context(ClusterState state, IndicesOptions options, long startTime, boolean preserveAliases, boolean resolveToWriteIndex) {
+        protected Context(ClusterState state, IndicesOptions options, long startTime,
+                          boolean preserveAliases, boolean resolveToWriteIndex) {
             this.state = state;
             this.options = options;
             this.startTime = startTime;
@@ -855,7 +852,7 @@ public class IndexNameExpressionResolver {
         }
     }
 
-    static final class DateMathExpressionResolver implements ExpressionResolver {
+    public static final class DateMathExpressionResolver implements ExpressionResolver {
 
         private static final DateFormatter DEFAULT_DATE_FORMATTER = DateFormatter.forPattern("uuuu.MM.dd");
         private static final String EXPRESSION_LEFT_BOUND = "<";

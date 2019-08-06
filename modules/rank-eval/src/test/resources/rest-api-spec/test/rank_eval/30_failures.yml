@@ -1,10 +1,5 @@
 ---
 "Response format":
-
-  - skip:
-      version: " - 6.2.99"
-      reason: response format was updated in 6.3
-
   - do:
       index:
         index:   foo

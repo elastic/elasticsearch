@@ -68,7 +68,7 @@ public class CcrRepositoryRetentionLeaseTests extends ESTestCase {
         final String retentionLeaseId =
                 retentionLeaseId("local-cluster", followerShardId.getIndex(), "remote-cluster", leaderShardId.getIndex());
 
-        // simulate that the the retention lease already exists on the leader, and verify that we attempt to renew it
+        // simulate that the retention lease already exists on the leader, and verify that we attempt to renew it
         final Client remoteClient = mock(Client.class);
         final ArgumentCaptor<RetentionLeaseActions.AddRequest> addRequestCaptor =
                 ArgumentCaptor.forClass(RetentionLeaseActions.AddRequest.class);
@@ -133,7 +133,7 @@ public class CcrRepositoryRetentionLeaseTests extends ESTestCase {
         final String retentionLeaseId =
                 retentionLeaseId("local-cluster", followerShardId.getIndex(), "remote-cluster", leaderShardId.getIndex());
 
-        // simulate that the the retention lease already exists on the leader, expires before we renew, and verify that we attempt to add it
+        // simulate that the retention lease already exists on the leader, expires before we renew, and verify that we attempt to add it
         final Client remoteClient = mock(Client.class);
         final ArgumentCaptor<RetentionLeaseActions.AddRequest> addRequestCaptor =
                 ArgumentCaptor.forClass(RetentionLeaseActions.AddRequest.class);

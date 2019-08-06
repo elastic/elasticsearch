@@ -173,7 +173,7 @@ public class RootObjectMapper extends ObjectMapper {
                     Map.Entry<String, Object> entry = tmpl.entrySet().iterator().next();
                     String templateName = entry.getKey();
                     Map<String, Object> templateParams = (Map<String, Object>) entry.getValue();
-                    DynamicTemplate template = DynamicTemplate.parse(templateName, templateParams, indexVersionCreated);
+                    DynamicTemplate template = DynamicTemplate.parse(templateName, templateParams);
                     if (template != null) {
                         templates.add(template);
                     }
@@ -247,7 +247,7 @@ public class RootObjectMapper extends ObjectMapper {
         if (dynamicTemplate == null) {
             return null;
         }
-        Mapper.TypeParser.ParserContext parserContext = context.docMapperParser().parserContext(name);
+        Mapper.TypeParser.ParserContext parserContext = context.docMapperParser().parserContext();
         String mappingType = dynamicTemplate.mappingType(dynamicType);
         Mapper.TypeParser typeParser = parserContext.typeParser(mappingType);
         if (typeParser == null) {

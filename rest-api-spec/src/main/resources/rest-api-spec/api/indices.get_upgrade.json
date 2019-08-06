@@ -1,9 +1,9 @@
 {
   "indices.get_upgrade": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-upgrade.html",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-upgrade.html",
+    "stability": "stable",
     "methods": ["GET"],
     "url": {
-      "path": "/_upgrade",
       "paths": ["/_upgrade", "/{index}/_upgrade"],
       "parts": {
         "index": {

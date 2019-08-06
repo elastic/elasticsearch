@@ -234,12 +234,14 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
             expectUnauthorized("cluster:monitor/main", user, () -> es(userProperties(user)));
             expectUnauthorized("cluster:monitor/main", user, () -> es(userProperties(user)).getMetaData().getDatabaseMajorVersion());
             expectUnauthorized("cluster:monitor/main", user, () -> es(userProperties(user)).getMetaData().getDatabaseMinorVersion());
-            expectUnauthorized("cluster:monitor/main", user,
-                    () -> es(userProperties(user)).createStatement().executeQuery("SELECT * FROM test"));
-            expectUnauthorized("cluster:monitor/main", user,
-                    () -> es(userProperties(user)).createStatement().executeQuery("SHOW TABLES LIKE 'test'"));
-            expectUnauthorized("cluster:monitor/main", user,
-                    () -> es(userProperties(user)).createStatement().executeQuery("DESCRIBE test"));
+
+            // by moving to field caps these calls do not require the monitor permission
+            //            expectUnauthorized("cluster:monitor/main", user,
+            //                    () -> es(userProperties(user)).createStatement().executeQuery("SELECT * FROM test"));
+            //            expectUnauthorized("cluster:monitor/main", user,
+            //                    () -> es(userProperties(user)).createStatement().executeQuery("SHOW TABLES LIKE 'test'"));
+            //            expectUnauthorized("cluster:monitor/main", user,
+            //                    () -> es(userProperties(user)).createStatement().executeQuery("DESCRIBE test"));
         }
 
         private void expectUnauthorized(String action, String user, ThrowingRunnable r) {

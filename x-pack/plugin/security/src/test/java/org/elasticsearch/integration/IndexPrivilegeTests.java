@@ -158,10 +158,10 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
         assertUserIsDenied("u1", "all", "b");
         assertUserIsDenied("u1", "all", "c");
         assertAccessIsAllowed("u1",
-                "GET", "/" + randomIndex() + "/foo/_msearch", "{}\n{ \"query\" : { \"match_all\" : {} } }\n");
-        assertAccessIsAllowed("u1", "POST", "/" + randomIndex() + "/foo/_mget", "{ \"ids\" : [ \"1\", \"2\" ] } ");
+                "GET", "/" + randomIndex() + "/_msearch", "{}\n{ \"query\" : { \"match_all\" : {} } }\n");
+        assertAccessIsAllowed("u1", "POST", "/" + randomIndex() + "/_mget", "{ \"ids\" : [ \"1\", \"2\" ] } ");
         assertAccessIsAllowed("u1", "PUT",
-                "/" + randomIndex() + "/foo/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
+                "/" + randomIndex() + "/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
         assertAccessIsAllowed("u1",
                 "GET", "/" + randomIndex() + "/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
     }
@@ -175,10 +175,10 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
         assertUserIsDenied("u2", "create_index", "b");
         assertUserIsDenied("u2", "all", "c");
         assertAccessIsAllowed("u2",
-                "GET", "/" + randomIndex() + "/foo/_msearch", "{}\n{ \"query\" : { \"match_all\" : {} } }\n");
-        assertAccessIsAllowed("u2", "POST", "/" + randomIndex() + "/foo/_mget", "{ \"ids\" : [ \"1\", \"2\" ] } ");
+                "GET", "/" + randomIndex() + "/_msearch", "{}\n{ \"query\" : { \"match_all\" : {} } }\n");
+        assertAccessIsAllowed("u2", "POST", "/" + randomIndex() + "/_mget", "{ \"ids\" : [ \"1\", \"2\" ] } ");
         assertAccessIsAllowed("u2", "PUT",
-                "/" + randomIndex() + "/foo/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
+                "/" + randomIndex() + "/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
         assertAccessIsAllowed("u2",
                 "GET", "/" + randomIndex() + "/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
     }
@@ -189,10 +189,10 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
         assertUserIsAllowed("u3", "all", "b");
         assertUserIsDenied("u3", "all", "c");
         assertAccessIsAllowed("u3",
-                "GET", "/" + randomIndex() + "/foo/_msearch", "{}\n{ \"query\" : { \"match_all\" : {} } }\n");
-        assertAccessIsAllowed("u3", "POST", "/" + randomIndex() + "/foo/_mget", "{ \"ids\" : [ \"1\", \"2\" ] } ");
+                "GET", "/" + randomIndex() + "/_msearch", "{}\n{ \"query\" : { \"match_all\" : {} } }\n");
+        assertAccessIsAllowed("u3", "POST", "/" + randomIndex() + "/_mget", "{ \"ids\" : [ \"1\", \"2\" ] } ");
         assertAccessIsAllowed("u3", "PUT",
-                "/" + randomIndex() + "/foo/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
+                "/" + randomIndex() + "/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
         assertAccessIsAllowed("u3",
                 "GET", "/" + randomIndex() + "/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
     }
@@ -213,10 +213,10 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
         assertUserIsAllowed("u4", "manage", "an_index");
 
         assertAccessIsAllowed("u4",
-                "GET", "/" + randomIndex() + "/foo/_msearch", "{}\n{ \"query\" : { \"match_all\" : {} } }\n");
-        assertAccessIsAllowed("u4", "POST", "/" + randomIndex() + "/foo/_mget", "{ \"ids\" : [ \"1\", \"2\" ] } ");
+                "GET", "/" + randomIndex() + "/_msearch", "{}\n{ \"query\" : { \"match_all\" : {} } }\n");
+        assertAccessIsAllowed("u4", "POST", "/" + randomIndex() + "/_mget", "{ \"ids\" : [ \"1\", \"2\" ] } ");
         assertAccessIsDenied("u4", "PUT",
-                "/" + randomIndex() + "/foo/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
+                "/" + randomIndex() + "/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
         assertAccessIsAllowed("u4",
                 "GET", "/" + randomIndex() + "/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
     }
@@ -232,10 +232,10 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
         assertUserIsDenied("u5", "write", "b");
 
         assertAccessIsAllowed("u5",
-                "GET", "/" + randomIndex() + "/foo/_msearch", "{}\n{ \"query\" : { \"match_all\" : {} } }\n");
-        assertAccessIsAllowed("u5", "POST", "/" + randomIndex() + "/foo/_mget", "{ \"ids\" : [ \"1\", \"2\" ] } ");
+                "GET", "/" + randomIndex() + "/_msearch", "{}\n{ \"query\" : { \"match_all\" : {} } }\n");
+        assertAccessIsAllowed("u5", "POST", "/" + randomIndex() + "/_mget", "{ \"ids\" : [ \"1\", \"2\" ] } ");
         assertAccessIsDenied("u5", "PUT",
-                "/" + randomIndex() + "/foo/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
+                "/" + randomIndex() + "/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
         assertAccessIsAllowed("u5",
                 "GET", "/" + randomIndex() + "/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
     }
@@ -248,10 +248,10 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
         assertUserIsDenied("u6", "write", "b");
         assertUserIsDenied("u6", "all", "c");
         assertAccessIsAllowed("u6",
-                "GET", "/" + randomIndex() + "/foo/_msearch", "{}\n{ \"query\" : { \"match_all\" : {} } }\n");
-        assertAccessIsAllowed("u6", "POST", "/" + randomIndex() + "/foo/_mget", "{ \"ids\" : [ \"1\", \"2\" ] } ");
+                "GET", "/" + randomIndex() + "/_msearch", "{}\n{ \"query\" : { \"match_all\" : {} } }\n");
+        assertAccessIsAllowed("u6", "POST", "/" + randomIndex() + "/_mget", "{ \"ids\" : [ \"1\", \"2\" ] } ");
         assertAccessIsAllowed("u6", "PUT",
-                "/" + randomIndex() + "/foo/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
+                "/" + randomIndex() + "/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
         assertAccessIsAllowed("u6",
                 "GET", "/" + randomIndex() + "/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
     }
@@ -262,10 +262,10 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
         assertUserIsDenied("u7", "all", "b");
         assertUserIsDenied("u7", "all", "c");
         assertAccessIsDenied("u7",
-                "GET", "/" + randomIndex() + "/foo/_msearch", "{}\n{ \"query\" : { \"match_all\" : {} } }\n");
-        assertAccessIsDenied("u7", "POST", "/" + randomIndex() + "/foo/_mget", "{ \"ids\" : [ \"1\", \"2\" ] } ");
+                "GET", "/" + randomIndex() + "/_msearch", "{}\n{ \"query\" : { \"match_all\" : {} } }\n");
+        assertAccessIsDenied("u7", "POST", "/" + randomIndex() + "/_mget", "{ \"ids\" : [ \"1\", \"2\" ] } ");
         assertAccessIsDenied("u7", "PUT",
-                "/" + randomIndex() + "/foo/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
+                "/" + randomIndex() + "/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
         assertAccessIsDenied("u7",
                 "GET", "/" + randomIndex() + "/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
     }
@@ -276,10 +276,10 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
         assertUserIsAllowed("u8", "all", "b");
         assertUserIsAllowed("u8", "all", "c");
         assertAccessIsAllowed("u8",
-                "GET", "/" + randomIndex() + "/foo/_msearch", "{}\n{ \"query\" : { \"match_all\" : {} } }\n");
-        assertAccessIsAllowed("u8", "POST", "/" + randomIndex() + "/foo/_mget", "{ \"ids\" : [ \"1\", \"2\" ] } ");
+                "GET", "/" + randomIndex() + "/_msearch", "{}\n{ \"query\" : { \"match_all\" : {} } }\n");
+        assertAccessIsAllowed("u8", "POST", "/" + randomIndex() + "/_mget", "{ \"ids\" : [ \"1\", \"2\" ] } ");
         assertAccessIsAllowed("u8", "PUT",
-                "/" + randomIndex() + "/foo/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
+                "/" + randomIndex() + "/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
         assertAccessIsAllowed("u8",
                 "GET", "/" + randomIndex() + "/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
     }
@@ -293,10 +293,10 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
         assertUserIsDenied("u9", "write", "b");
         assertUserIsDenied("u9", "all", "c");
         assertAccessIsAllowed("u9",
-                "GET", "/" + randomIndex() + "/foo/_msearch", "{}\n{ \"query\" : { \"match_all\" : {} } }\n");
-        assertAccessIsAllowed("u9", "POST", "/" + randomIndex() + "/foo/_mget", "{ \"ids\" : [ \"1\", \"2\" ] } ");
+                "GET", "/" + randomIndex() + "/_msearch", "{}\n{ \"query\" : { \"match_all\" : {} } }\n");
+        assertAccessIsAllowed("u9", "POST", "/" + randomIndex() + "/_mget", "{ \"ids\" : [ \"1\", \"2\" ] } ");
         assertAccessIsAllowed("u9", "PUT",
-                "/" + randomIndex() + "/foo/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
+                "/" + randomIndex() + "/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
         assertAccessIsAllowed("u9",
                 "GET", "/" + randomIndex() + "/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
     }
@@ -316,10 +316,10 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
         assertUserIsDenied("u11", "monitor", "c");
 
         assertAccessIsDenied("u11",
-                "GET", "/" + randomIndex() + "/foo/_msearch", "{}\n{ \"query\" : { \"match_all\" : {} } }\n");
-        assertAccessIsDenied("u11", "POST", "/" + randomIndex() + "/foo/_mget", "{ \"ids\" : [ \"1\", \"2\" ] } ");
+                "GET", "/" + randomIndex() + "/_msearch", "{}\n{ \"query\" : { \"match_all\" : {} } }\n");
+        assertAccessIsDenied("u11", "POST", "/" + randomIndex() + "/_mget", "{ \"ids\" : [ \"1\", \"2\" ] } ");
         assertBodyHasAccessIsDenied("u11", "PUT",
-                "/" + randomIndex() + "/foo/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
+                "/" + randomIndex() + "/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
         assertAccessIsDenied("u11",
                 "GET", "/" + randomIndex() + "/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
     }
@@ -333,10 +333,10 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
         assertUserIsDenied("u12", "manage", "c");
         assertUserIsAllowed("u12", "data_access", "c");
         assertAccessIsAllowed("u12",
-                "GET", "/" + randomIndex() + "/foo/_msearch", "{}\n{ \"query\" : { \"match_all\" : {} } }\n");
-        assertAccessIsAllowed("u12", "POST", "/" + randomIndex() + "/foo/_mget", "{ \"ids\" : [ \"1\", \"2\" ] } ");
+                "GET", "/" + randomIndex() + "/_msearch", "{}\n{ \"query\" : { \"match_all\" : {} } }\n");
+        assertAccessIsAllowed("u12", "POST", "/" + randomIndex() + "/_mget", "{ \"ids\" : [ \"1\", \"2\" ] } ");
         assertAccessIsAllowed("u12", "PUT",
-                "/" + randomIndex() + "/foo/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
+                "/" + randomIndex() + "/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
         assertAccessIsAllowed("u12",
                 "GET", "/" + randomIndex() + "/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
     }
@@ -355,10 +355,10 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
         assertUserIsDenied("u13", "all", "c");
 
         assertAccessIsAllowed("u13",
-                "GET", "/" + randomIndex() + "/foo/_msearch", "{}\n{ \"query\" : { \"match_all\" : {} } }\n");
+                "GET", "/" + randomIndex() + "/_msearch", "{}\n{ \"query\" : { \"match_all\" : {} } }\n");
         assertAccessIsAllowed("u13", "POST", "/" + randomIndex() + "/foo/_mget", "{ \"ids\" : [ \"1\", \"2\" ] } ");
-        assertAccessIsAllowed("u13", "PUT", "/a/foo/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
-        assertBodyHasAccessIsDenied("u13", "PUT", "/b/foo/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
+        assertAccessIsAllowed("u13", "PUT", "/a/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
+        assertBodyHasAccessIsDenied("u13", "PUT", "/b/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
         assertAccessIsAllowed("u13",
                 "GET", "/" + randomIndex() + "/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
     }
@@ -377,10 +377,10 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
         assertUserIsDenied("u14", "all", "c");
 
         assertAccessIsAllowed("u14",
-                "GET", "/" + randomIndex() + "/foo/_msearch", "{}\n{ \"query\" : { \"match_all\" : {} } }\n");
-        assertAccessIsAllowed("u14", "POST", "/" + randomIndex() + "/foo/_mget", "{ \"ids\" : [ \"1\", \"2\" ] } ");
+                "GET", "/" + randomIndex() + "/_msearch", "{}\n{ \"query\" : { \"match_all\" : {} } }\n");
+        assertAccessIsAllowed("u14", "POST", "/" + randomIndex() + "/_mget", "{ \"ids\" : [ \"1\", \"2\" ] } ");
         assertAccessIsDenied("u14", "PUT",
-                "/" + randomIndex() + "/foo/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
+                "/" + randomIndex() + "/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
         assertAccessIsAllowed("u14",
                 "GET", "/" + randomIndex() + "/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
     }
@@ -434,7 +434,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                     assertAccessIsAllowed(user, "POST", "/" + index + "/_open");
                     assertAccessIsAllowed(user, "POST", "/" + index + "/_cache/clear");
                     // indexing a document to have the mapping available, and wait for green state to make sure index is created
-                    assertAccessIsAllowed("admin", "PUT", "/" + index + "/foo/1", jsonDoc);
+                assertAccessIsAllowed("admin", "PUT", "/" + index + "/_doc/1", jsonDoc);
                     assertNoTimeout(client().admin().cluster().prepareHealth(index).setWaitForGreenStatus().get());
                     assertAccessIsAllowed(user, "GET", "/" + index + "/_mapping/field/name");
                     assertAccessIsAllowed(user, "GET", "/" + index + "/_settings");
@@ -490,7 +490,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                     assertAccessIsAllowed("admin", "GET", "/" + index + "/_refresh");
                     assertAccessIsAllowed(user, "GET", "/" + index + "/_count");
                     assertAccessIsAllowed("admin", "GET", "/" + index + "/_search");
-                    assertAccessIsAllowed("admin", "GET", "/" + index + "/foo/1");
+                assertAccessIsAllowed("admin", "GET", "/" + index + "/_doc/1");
                     assertAccessIsAllowed(user, "GET", "/" + index + "/_explain/1", "{ \"query\" : { \"match_all\" : {} } }");
                     assertAccessIsAllowed(user, "GET", "/" + index + "/_termvectors/1");
                     assertUserIsAllowed(user, "search", index);
@@ -513,30 +513,30 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
 
             case "get" :
                 if (userIsAllowed) {
-                    assertAccessIsAllowed(user, "GET", "/" + index + "/foo/1");
+                assertAccessIsAllowed(user, "GET", "/" + index + "/_doc/1");
                 } else {
-                    assertAccessIsDenied(user, "GET", "/" + index + "/foo/1");
+                assertAccessIsDenied(user, "GET", "/" + index + "/_doc/1");
                 }
                 break;
 
             case "index" :
                 if (userIsAllowed) {
-                    assertAccessIsAllowed(user, "PUT", "/" + index + "/foo/321", "{ \"foo\" : \"bar\" }");
-                    assertAccessIsAllowed(user, "POST", "/" + index + "/foo/321/_update", "{ \"doc\" : { \"foo\" : \"baz\" } }");
+                assertAccessIsAllowed(user, "PUT", "/" + index + "/_doc/321", "{ \"foo\" : \"bar\" }");
+                assertAccessIsAllowed(user, "POST", "/" + index + "/_doc/321/_update", "{ \"doc\" : { \"foo\" : \"baz\" } }");
                 } else {
-                    assertAccessIsDenied(user, "PUT", "/" + index + "/foo/321", "{ \"foo\" : \"bar\" }");
-                    assertAccessIsDenied(user, "POST", "/" + index + "/foo/321/_update", "{ \"doc\" : { \"foo\" : \"baz\" } }");
+                assertAccessIsDenied(user, "PUT", "/" + index + "/_doc/321", "{ \"foo\" : \"bar\" }");
+                assertAccessIsDenied(user, "POST", "/" + index + "/_doc/321/_update", "{ \"doc\" : { \"foo\" : \"baz\" } }");
                 }
                 break;
 
             case "delete" :
                 String jsonDoc = "{ \"name\" : \"docToDelete\"}";
-                assertAccessIsAllowed("admin", "PUT", "/" + index + "/foo/docToDelete", jsonDoc);
-                assertAccessIsAllowed("admin", "PUT", "/" + index + "/foo/docToDelete2", jsonDoc);
+            assertAccessIsAllowed("admin", "PUT", "/" + index + "/_doc/docToDelete", jsonDoc);
+            assertAccessIsAllowed("admin", "PUT", "/" + index + "/_doc/docToDelete2", jsonDoc);
                 if (userIsAllowed) {
-                    assertAccessIsAllowed(user, "DELETE", "/" + index + "/foo/docToDelete");
+                assertAccessIsAllowed(user, "DELETE", "/" + index + "/_doc/docToDelete");
                 } else {
-                    assertAccessIsDenied(user, "DELETE", "/" + index + "/foo/docToDelete");
+                assertAccessIsDenied(user, "DELETE", "/" + index + "/_doc/docToDelete");
                 }
                 break;
 

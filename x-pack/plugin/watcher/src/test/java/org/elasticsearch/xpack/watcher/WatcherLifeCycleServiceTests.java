@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -327,13 +328,13 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index).addShard(shardRouting);
 
         DiscoveryNode node1 = new DiscoveryNode("node_1", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-            new HashSet<>(asList(randomFrom(DiscoveryNode.Role.INGEST, DiscoveryNode.Role.MASTER))), Version.CURRENT);
+            new HashSet<>(asList(randomFrom(DiscoveryNodeRole.INGEST_ROLE, DiscoveryNodeRole.MASTER_ROLE))), Version.CURRENT);
 
         DiscoveryNode node2 = new DiscoveryNode("node_2", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-            new HashSet<>(asList(DiscoveryNode.Role.DATA)), Version.CURRENT);
+            new HashSet<>(asList(DiscoveryNodeRole.DATA_ROLE)), Version.CURRENT);
 
         DiscoveryNode node3 = new DiscoveryNode("node_3", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-            new HashSet<>(asList(DiscoveryNode.Role.DATA)), Version.CURRENT);
+            new HashSet<>(asList(DiscoveryNodeRole.DATA_ROLE)), Version.CURRENT);
 
         IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder(Watch.INDEX)
             .settings(Settings.builder()
@@ -465,7 +466,8 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
     }
 
     public void testMasterOnlyNodeCanStart() {
-        List<DiscoveryNode.Role> roles = Collections.singletonList(randomFrom(DiscoveryNode.Role.MASTER, DiscoveryNode.Role.INGEST));
+        List<DiscoveryNodeRole> roles =
+                Collections.singletonList(randomFrom(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INGEST_ROLE));
         ClusterState state = ClusterState.builder(new ClusterName("my-cluster"))
             .nodes(new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId("node_1")
                 .add(new DiscoveryNode("node_1", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
@@ -596,6 +598,6 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
 
     private static DiscoveryNode newNode(String nodeName, Version version) {
         return new DiscoveryNode(nodeName, ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-            new HashSet<>(asList(DiscoveryNode.Role.values())), version);
+            DiscoveryNodeRole.BUILT_IN_ROLES, version);
     }
 }

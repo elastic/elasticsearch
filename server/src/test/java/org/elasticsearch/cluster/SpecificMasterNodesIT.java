@@ -31,7 +31,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
 
@@ -39,8 +38,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-@ClusterScope(scope = Scope.TEST, numDataNodes = 0, autoMinMasterNodes = false)
-@TestLogging("_root:DEBUG,org.elasticsearch.action.admin.cluster.state:TRACE")
+@ClusterScope(scope = Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
 public class SpecificMasterNodesIT extends ESIntegTestCase {
 
     public void testSimpleOnlyMasterNodeElection() throws IOException {
@@ -65,6 +63,7 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
             .execute().actionGet().getState().nodes().getMasterNode().getName(), equalTo(masterNodeName));
 
         logger.info("--> stop master node");
+        Settings masterDataPathSettings = internalCluster().dataPathSettings(internalCluster().getMasterName());
         internalCluster().stopCurrentMasterNode();
 
         try {
@@ -75,16 +74,16 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
             // all is well, no master elected
         }
 
-        logger.info("--> start master node");
+        logger.info("--> start previous master node again");
         final String nextMasterEligibleNodeName = internalCluster()
-            .startNode(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false).put(Node.NODE_MASTER_SETTING.getKey(), true));
+            .startNode(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false).put(Node.NODE_MASTER_SETTING.getKey(), true)
+                .put(masterDataPathSettings));
         assertThat(internalCluster().nonMasterClient().admin().cluster().prepareState()
             .execute().actionGet().getState().nodes().getMasterNode().getName(), equalTo(nextMasterEligibleNodeName));
         assertThat(internalCluster().masterClient().admin().cluster().prepareState()
             .execute().actionGet().getState().nodes().getMasterNode().getName(), equalTo(nextMasterEligibleNodeName));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/38331")
     public void testElectOnlyBetweenMasterNodes() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
         logger.info("--> start data node / non master node");

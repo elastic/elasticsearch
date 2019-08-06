@@ -1,9 +1,9 @@
 {
   "cat.snapshots": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cat-snapshots.html",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/cat-snapshots.html",
+    "stability": "stable",
     "methods": ["GET"],
     "url": {
-      "path": "/_cat/snapshots",
       "paths": [
         "/_cat/snapshots",
         "/_cat/snapshots/{repository}"],

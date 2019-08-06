@@ -40,7 +40,6 @@ import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
@@ -246,10 +245,14 @@ public class MlConfigMigrator {
                         currentState.metaData().custom(PersistentTasksCustomMetaData.TYPE), currentState.nodes());
 
                 ClusterState.Builder newState = ClusterState.builder(currentState);
-                newState.metaData(MetaData.builder(currentState.getMetaData())
-                        .putCustom(MlMetadata.TYPE, removed.mlMetadata)
-                        .putCustom(PersistentTasksCustomMetaData.TYPE, updatedTasks)
-                        .build());
+                MetaData.Builder metaDataBuilder = MetaData.builder(currentState.getMetaData())
+                    .putCustom(MlMetadata.TYPE, removed.mlMetadata);
+
+                // If there are no tasks in the cluster state metadata to begin with, this could be null.
+                if (updatedTasks != null) {
+                    metaDataBuilder = metaDataBuilder.putCustom(PersistentTasksCustomMetaData.TYPE, updatedTasks);
+                }
+                newState.metaData(metaDataBuilder.build());
                 return newState.build();
             }
 
@@ -291,8 +294,8 @@ public class MlConfigMigrator {
                                                                             PersistentTasksCustomMetaData currentTasks,
                                                                             DiscoveryNodes nodes) {
 
-        Collection<PersistentTasksCustomMetaData.PersistentTask> unallocatedJobTasks = MlTasks.unallocatedJobTasks(currentTasks, nodes);
-        Collection<PersistentTasksCustomMetaData.PersistentTask> unallocatedDatafeedsTasks =
+        Collection<PersistentTasksCustomMetaData.PersistentTask<?>> unallocatedJobTasks = MlTasks.unallocatedJobTasks(currentTasks, nodes);
+        Collection<PersistentTasksCustomMetaData.PersistentTask<?>> unallocatedDatafeedsTasks =
                 MlTasks.unallocatedDatafeedTasks(currentTasks, nodes);
 
         if (unallocatedJobTasks.isEmpty() && unallocatedDatafeedsTasks.isEmpty()) {
@@ -301,7 +304,7 @@ public class MlConfigMigrator {
 
         PersistentTasksCustomMetaData.Builder taskBuilder = PersistentTasksCustomMetaData.builder(currentTasks);
 
-        for (PersistentTasksCustomMetaData.PersistentTask jobTask : unallocatedJobTasks) {
+        for (PersistentTasksCustomMetaData.PersistentTask<?> jobTask : unallocatedJobTasks) {
             OpenJobAction.JobParams originalParams = (OpenJobAction.JobParams) jobTask.getParams();
             if (originalParams.getJob() == null) {
                 Job job = jobs.get(originalParams.getJobId());
@@ -322,7 +325,7 @@ public class MlConfigMigrator {
             }
         }
 
-        for (PersistentTasksCustomMetaData.PersistentTask datafeedTask : unallocatedDatafeedsTasks) {
+        for (PersistentTasksCustomMetaData.PersistentTask<?> datafeedTask : unallocatedDatafeedsTasks) {
             StartDatafeedAction.DatafeedParams originalParams = (StartDatafeedAction.DatafeedParams) datafeedTask.getParams();
 
             if (originalParams.getJobId() == null) {
@@ -509,18 +512,7 @@ public class MlConfigMigrator {
         String version = job.getJobVersion() != null ? job.getJobVersion().toString() : null;
         custom.put(MIGRATED_FROM_VERSION, version);
         builder.setCustomSettings(custom);
-        // Increase the model memory limit for 6.1 - 6.3 jobs
         Version jobVersion = job.getJobVersion();
-        if (jobVersion != null && jobVersion.onOrAfter(Version.V_6_1_0) && jobVersion.before(Version.V_6_3_0)) {
-            // Increase model memory limit if < 512MB
-            if (job.getAnalysisLimits() != null && job.getAnalysisLimits().getModelMemoryLimit() != null &&
-                    job.getAnalysisLimits().getModelMemoryLimit() < 512L) {
-                long updatedModelMemoryLimit = (long) (job.getAnalysisLimits().getModelMemoryLimit() * 1.3);
-                AnalysisLimits limits = new AnalysisLimits(updatedModelMemoryLimit,
-                        job.getAnalysisLimits().getCategorizationExamplesLimit());
-                builder.setAnalysisLimits(limits);
-            }
-        }
         // Pre v5.5 (ml beta) jobs do not have a version.
         // These jobs cannot be opened, we rely on the missing version
         // to indicate this.

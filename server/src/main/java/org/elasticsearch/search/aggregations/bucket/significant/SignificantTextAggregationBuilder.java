@@ -340,7 +340,7 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
     }
 
     @Override
-    protected AggregatorFactory<?> doBuild(SearchContext context, AggregatorFactory<?> parent,
+    protected AggregatorFactory doBuild(SearchContext context, AggregatorFactory parent,
             Builder subFactoriesBuilder) throws IOException {
         SignificanceHeuristic executionHeuristic = this.significanceHeuristic.rewrite(context);
 
@@ -378,13 +378,17 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(bucketCountThresholds, fieldName, filterDuplicateText, filterBuilder,
-                includeExclude, significanceHeuristic, Arrays.hashCode(sourceFieldNames));
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), bucketCountThresholds, fieldName,
+            filterDuplicateText, filterBuilder,
+            includeExclude, significanceHeuristic, Arrays.hashCode(sourceFieldNames));
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         SignificantTextAggregationBuilder other = (SignificantTextAggregationBuilder) obj;
         return Objects.equals(bucketCountThresholds, other.bucketCountThresholds)
                 && Objects.equals(fieldName, other.fieldName)

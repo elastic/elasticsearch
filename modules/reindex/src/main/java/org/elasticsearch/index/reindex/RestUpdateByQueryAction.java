@@ -42,7 +42,6 @@ public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<Upda
     public RestUpdateByQueryAction(Settings settings, RestController controller) {
         super(settings, UpdateByQueryAction.INSTANCE);
         controller.registerHandler(POST, "/{index}/_update_by_query", this);
-        controller.registerHandler(POST, "/{index}/{type}/_update_by_query", this);
     }
 
     @Override
@@ -67,6 +66,7 @@ public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<Upda
         Map<String, Consumer<Object>> consumers = new HashMap<>();
         consumers.put("conflicts", o -> internal.setConflicts((String) o));
         consumers.put("script", o -> internal.setScript(parseScript(o)));
+        consumers.put("max_docs", s -> setMaxDocsValidateIdentical(internal, ((Number) s).intValue()));
 
         parseInternalRequest(internal, request, consumers);
 

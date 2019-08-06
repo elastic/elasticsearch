@@ -1,10 +1,5 @@
 # Integration tests for ScriptScoreQuery using Painless
 
-setup:
-- skip:
-    version: " - 6.99.99"
-    reason: "script score query was introduced in 7.0.0"
-
 ---
 "Math functions":
     - do:

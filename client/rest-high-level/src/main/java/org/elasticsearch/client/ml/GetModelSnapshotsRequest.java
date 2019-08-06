@@ -20,8 +20,8 @@ package org.elasticsearch.client.ml;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.client.core.PageParams;
 import org.elasticsearch.client.ml.job.config.Job;
-import org.elasticsearch.client.ml.job.util.PageParams;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;

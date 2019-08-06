@@ -68,19 +68,15 @@
   - is_true:    features.watcher
   - is_true:    features.watcher.enabled
   - is_true:    features.watcher.available
-  - is_true:    features.watcher.description
   - is_true:    features.security
   - is_true:    features.security.enabled
   - is_true:    features.security.available
-  - is_true:    features.security.description
   - is_true:    features.graph
   - is_true:    features.graph.enabled
   - is_true:    features.graph.available
-  - is_true:    features.graph.description
   - is_true:    features.monitoring
   - is_true:    features.monitoring.enabled
   - is_true:    features.monitoring.available
-  - is_true:    features.monitoring.description
   - is_true:    tagline
 
   - do:
@@ -152,19 +148,15 @@
   - is_true:    features.watcher
   - is_true:    features.watcher.enabled
   - is_true:    features.watcher.available
-  - is_false:   features.watcher.description
   - is_true:    features.security
   - is_true:    features.security.enabled
   - is_true:    features.security.available
-  - is_false:   features.security.description
   - is_true:    features.graph
   - is_true:    features.graph.enabled
   - is_true:    features.graph.available
-  - is_false:   features.graph.description
   - is_true:    features.monitoring
   - is_true:    features.monitoring.enabled
   - is_true:    features.monitoring.available
-  - is_false:   features.monitoring.description
   - is_false:   tagline
 
 

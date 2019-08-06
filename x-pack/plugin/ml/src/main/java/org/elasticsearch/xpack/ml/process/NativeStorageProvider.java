@@ -15,6 +15,8 @@ import org.elasticsearch.env.Environment;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  * Provide storage for native components.
@@ -23,7 +25,6 @@ public class NativeStorageProvider {
 
     private static final Logger LOGGER = LogManager.getLogger(NativeStorageProvider.class);
 
-
     private static final String LOCAL_STORAGE_SUBFOLDER = "ml-local-data";
     private static final String LOCAL_STORAGE_TMP_FOLDER = "tmp";
 
@@ -31,6 +32,9 @@ public class NativeStorageProvider {
 
     // do not allow any usage below this threshold
     private final ByteSizeValue minLocalStorageAvailable;
+
+    // A map to keep track of allocated native storage by resource id
+    private final ConcurrentMap<String, Path> allocatedStorage = new ConcurrentHashMap<>();
 
     public NativeStorageProvider(Environment environment, ByteSizeValue minDiskSpaceOffHeap) {
         this.environment = environment;
@@ -44,12 +48,14 @@ public class NativeStorageProvider {
      * unclean node shutdown or broken clients.
      *
      * Do not call while there are running jobs.
-     *
-     * @throws IOException if cleanup fails
      */
-    public void cleanupLocalTmpStorageInCaseOfUncleanShutdown() throws IOException {
-        for (Path p : environment.dataFiles()) {
-            IOUtils.rm(p.resolve(LOCAL_STORAGE_SUBFOLDER).resolve(LOCAL_STORAGE_TMP_FOLDER));
+    public void cleanupLocalTmpStorageInCaseOfUncleanShutdown() {
+        try {
+            for (Path p : environment.dataFiles()) {
+                IOUtils.rm(p.resolve(LOCAL_STORAGE_SUBFOLDER).resolve(LOCAL_STORAGE_TMP_FOLDER));
+            }
+        } catch (Exception e) {
+            LOGGER.warn("Failed to cleanup native storage from previous invocation", e);
         }
     }
 
@@ -61,17 +67,28 @@ public class NativeStorageProvider {
      * @return Path for temporary storage if available, null otherwise
      */
     public Path tryGetLocalTmpStorage(String uniqueIdentifier, ByteSizeValue requestedSize) {
+        Path path = allocatedStorage.get(uniqueIdentifier);
+        if (path != null && localTmpStorageHasEnoughSpace(path, requestedSize) == false) {
+            LOGGER.debug("Previous tmp storage for [{}] run out, returning null", uniqueIdentifier);
+            return null;
+        } else {
+            path = tryAllocateStorage(uniqueIdentifier, requestedSize);
+        }
+        return path;
+    }
+
+    private Path tryAllocateStorage(String uniqueIdentifier, ByteSizeValue requestedSize) {
         for (Path path : environment.dataFiles()) {
             try {
                 if (getUsableSpace(path) >= requestedSize.getBytes() + minLocalStorageAvailable.getBytes()) {
                     Path tmpDirectory = path.resolve(LOCAL_STORAGE_SUBFOLDER).resolve(LOCAL_STORAGE_TMP_FOLDER).resolve(uniqueIdentifier);
                     Files.createDirectories(tmpDirectory);
+                    allocatedStorage.put(uniqueIdentifier, tmpDirectory);
                     return tmpDirectory;
                 }
             } catch (IOException e) {
                 LOGGER.debug("Failed to obtain information about path [{}]: {}", path, e);
             }
-
         }
         LOGGER.debug("Failed to find native storage for [{}], returning null", uniqueIdentifier);
         return null;
@@ -96,17 +113,18 @@ public class NativeStorageProvider {
     /**
      * Delete temporary storage, previously allocated
      *
-     * @param path
-     *            Path to temporary storage
-     * @throws IOException
-     *             if path can not be cleaned up
+     * @param uniqueIdentifier the identifier to which storage was allocated
+     * @throws IOException if path can not be cleaned up
      */
-    public void cleanupLocalTmpStorage(Path path) throws IOException {
-        // do not allow to breakout from the tmp storage provided
-        Path realPath = path.toAbsolutePath();
-        for (Path p : environment.dataFiles()) {
-            if (realPath.startsWith(p.resolve(LOCAL_STORAGE_SUBFOLDER).resolve(LOCAL_STORAGE_TMP_FOLDER))) {
-                IOUtils.rm(path);
+    public void cleanupLocalTmpStorage(String uniqueIdentifier) throws IOException {
+        Path path = allocatedStorage.remove(uniqueIdentifier);
+        if (path != null) {
+            // do not allow to breakout from the tmp storage provided
+            Path realPath = path.toAbsolutePath();
+            for (Path p : environment.dataFiles()) {
+                if (realPath.startsWith(p.resolve(LOCAL_STORAGE_SUBFOLDER).resolve(LOCAL_STORAGE_TMP_FOLDER))) {
+                    IOUtils.rm(path);
+                }
             }
         }
     }

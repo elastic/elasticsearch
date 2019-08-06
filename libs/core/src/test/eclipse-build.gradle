@@ -2,5 +2,5 @@
 apply from: '../../build.gradle'
 
 dependencies {
-  testCompile project(':libs:core')
+  testCompile project(':libs:elasticsearch-core')
 }

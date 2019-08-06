@@ -25,13 +25,13 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.monitoring.exporter.ExportBulk;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 
 import javax.net.ssl.SSLContext;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -55,6 +56,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
+import static java.util.Map.entry;
 
 /**
  * {@code HttpExporter} uses the low-level {@link RestClient} to connect to a user-specified set of nodes for exporting Monitoring
@@ -554,21 +557,21 @@ public class HttpExporter extends Exporter {
     static Map<String, String> createDefaultParams(final Config config) {
         final TimeValue bulkTimeout = BULK_TIMEOUT_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
 
-        final MapBuilder<String, String> params = new MapBuilder<>();
+        final var entries = new ArrayList<Map.Entry<String, String>>(3);
 
         if (TimeValue.MINUS_ONE.equals(bulkTimeout) == false) {
-            params.put("timeout", bulkTimeout.toString());
+            entries.add(entry("timeout", bulkTimeout.toString()));
         }
 
         // allow the use of ingest pipelines to be completely optional
         if (USE_INGEST_PIPELINE_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings())) {
-            params.put("pipeline", MonitoringTemplateUtils.pipelineName(MonitoringTemplateUtils.TEMPLATE_VERSION));
+            entries.add(entry("pipeline", MonitoringTemplateUtils.pipelineName(MonitoringTemplateUtils.TEMPLATE_VERSION)));
         }
 
         // widdle down the response to just what we care to check
-        params.put("filter_path", "errors,items.*.error");
+        entries.add(entry("filter_path", "errors,items.*.error"));
 
-        return params.immutableMap();
+        return Maps.ofEntries(entries);
     }
 
     /**

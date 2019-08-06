@@ -53,6 +53,7 @@ import java.util.regex.Pattern
 buildscript {
   repositories {
     maven {
+      name "gradle-plugins"
       url "https://plugins.gradle.org/m2/"
     }
   }
@@ -81,7 +82,6 @@ void addProcessFilesTask(String type, boolean oss, boolean jdk) {
 
     doLast {
       // create empty dirs, we set the permissions when configuring the packages
-      mkdir "${packagingFiles}/var/run/elasticsearch"
       mkdir "${packagingFiles}/var/log/elasticsearch"
       mkdir "${packagingFiles}/var/lib/elasticsearch"
       mkdir "${packagingFiles}/usr/share/elasticsearch/plugins"
@@ -139,11 +139,11 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk) {
         with libFiles(oss)
       }
       into('modules') {
-        with modulesFiles(oss)
+        with modulesFiles(oss, 'linux')
       }
       if (jdk) {
         into('jdk') {
-          with jdkFiles('linux')
+          with jdkFiles(project, 'linux')
         }
       }
       // we need to specify every intermediate directory in these paths so the package managers know they are explicitly
@@ -253,7 +253,6 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk) {
         dirMode mode
       }
     }
-    copyEmptyDir('/var/run/elasticsearch', 'elasticsearch', 'elasticsearch', 0755)
     copyEmptyDir('/var/log/elasticsearch', 'elasticsearch', 'elasticsearch', 02750)
     copyEmptyDir('/var/lib/elasticsearch', 'elasticsearch', 'elasticsearch', 02750)
     copyEmptyDir('/usr/share/elasticsearch/plugins', 'root', 'root', 0755)
@@ -271,13 +270,13 @@ apply plugin: 'nebula.ospackage-base'
 // this is package indepdendent configuration
 ospackage {
   maintainer 'Elasticsearch Team <info@elastic.co>'
-  summary '''
-    Elasticsearch is a distributed RESTful search engine built for the cloud.
+  summary 'Distributed RESTful search engine built for the cloud'
+  packageDescription '''
     Reference documentation can be found at
     https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html
     and the 'Elasticsearch: The Definitive Guide' book can be found at
     https://www.elastic.co/guide/en/elasticsearch/guide/current/index.html
-    '''.stripIndent().replace('\n', ' ').trim()
+  '''.stripIndent().trim()
   url 'https://www.elastic.co/'
 
   // signing setup
@@ -289,7 +288,8 @@ ospackage {
             new File(new File(System.getProperty('user.home'), '.gnupg'), 'secring.gpg')
   }
 
-  requires('coreutils')
+  // version found on oldest supported distro, centos-6
+  requires('coreutils', '8.4', GREATER | EQUAL)
 
   fileMode 0644
   dirMode 0755
@@ -313,12 +313,18 @@ Closure commonDebConfig(boolean oss, boolean jdk) {
 
     version = project.version.replace('-', '~')
     packageGroup 'web'
-    requires 'bash'
+
+    // versions found on oldest supported distro, centos-6
+    requires('bash', '4.1', GREATER | EQUAL)
+    requires('lsb-base', '4', GREATER | EQUAL)
     requires 'libc6'
     requires 'adduser'
 
     into('/usr/share/lintian/overrides') {
       from('src/deb/lintian/elasticsearch')
+      if (oss) {
+        rename('elasticsearch', 'elasticsearch-oss')
+      }
     }
   }
 }

@@ -23,16 +23,17 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInvertState;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.SetOnce.AlreadySetException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -49,20 +50,19 @@ import org.elasticsearch.index.cache.query.DisabledQueryCache;
 import org.elasticsearch.index.cache.query.IndexQueryCache;
 import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.engine.InternalEngineTests;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.IndexEventListener;
-import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.similarity.NonNegativeScoresSimilarity;
 import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.index.store.IndexStore;
+import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -70,6 +70,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
+import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -86,7 +87,6 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.IndexService.IndexCreationContext.CREATE_INDEX;
@@ -157,10 +157,10 @@ public class IndexModuleTests extends ESTestCase {
     public void testWrapperIsBound() throws IOException {
         final MockEngineFactory engineFactory = new MockEngineFactory(AssertingDirectoryReader.class);
         IndexModule module = new IndexModule(indexSettings, emptyAnalysisRegistry, engineFactory, Collections.emptyMap());
-        module.setSearcherWrapper((s) -> new Wrapper());
+        module.setReaderWrapper(s -> new Wrapper());
 
         IndexService indexService = newIndexService(module);
-        assertTrue(indexService.getSearcherWrapper() instanceof Wrapper);
+        assertTrue(indexService.getReaderWrapper() instanceof Wrapper);
         assertSame(indexService.getEngineFactory(), module.getEngineFactory());
         indexService.close("simon says", false);
     }
@@ -174,11 +174,12 @@ public class IndexModuleTests extends ESTestCase {
             .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), "foo_store")
             .build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings);
-        final Map<String, Function<IndexSettings, IndexStore>> indexStoreFactories = Collections.singletonMap("foo_store", FooStore::new);
+        final Map<String, IndexStorePlugin.DirectoryFactory> indexStoreFactories = Collections.singletonMap(
+            "foo_store", new FooFunction());
         final IndexModule module = new IndexModule(indexSettings, emptyAnalysisRegistry, new InternalEngineFactory(), indexStoreFactories);
 
         final IndexService indexService = newIndexService(module);
-        assertThat(indexService.getIndexStore(), instanceOf(FooStore.class));
+        assertThat(indexService.getDirectoryFactory(), instanceOf(FooFunction.class));
 
         indexService.close("simon says", false);
     }
@@ -318,7 +319,7 @@ public class IndexModuleTests extends ESTestCase {
         assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.addIndexEventListener(null)).getMessage());
         assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.addIndexOperationListener(null)).getMessage());
         assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.addSimilarity(null, null)).getMessage());
-        assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.setSearcherWrapper(null)).getMessage());
+        assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.setReaderWrapper(null)).getMessage());
         assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.forceQueryCacheProvider(null)).getMessage());
     }
 
@@ -444,22 +445,17 @@ public class IndexModuleTests extends ESTestCase {
         }
     }
 
-    public static final class FooStore extends IndexStore {
+    public static final class FooFunction implements IndexStorePlugin.DirectoryFactory {
 
-        public FooStore(IndexSettings indexSettings) {
-            super(indexSettings);
+        @Override
+        public Directory newDirectory(IndexSettings indexSettings, ShardPath shardPath) throws IOException {
+            return new FsDirectoryFactory().newDirectory(indexSettings, shardPath);
         }
     }
 
-    public static final class Wrapper extends IndexSearcherWrapper {
-
+    public static final class Wrapper implements CheckedFunction<DirectoryReader, DirectoryReader, IOException> {
         @Override
-        public DirectoryReader wrap(DirectoryReader reader) {
-            return null;
-        }
-
-        @Override
-        public IndexSearcher wrap(IndexSearcher searcher) throws EngineException {
+        public DirectoryReader apply(DirectoryReader reader) {
             return null;
         }
     }

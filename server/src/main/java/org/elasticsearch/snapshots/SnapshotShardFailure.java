@@ -45,8 +45,13 @@ public class SnapshotShardFailure extends ShardOperationFailedException {
     private String nodeId;
     private ShardId shardId;
 
-    private SnapshotShardFailure() {
-
+    SnapshotShardFailure(StreamInput in) throws IOException {
+        nodeId = in.readOptionalString();
+        shardId = new ShardId(in);
+        super.shardId = shardId.getId();
+        index = shardId.getIndexName();
+        reason = in.readString();
+        status = RestStatus.readFrom(in);
     }
 
     /**
@@ -82,28 +87,6 @@ public class SnapshotShardFailure extends ShardOperationFailedException {
     @Nullable
     public String nodeId() {
         return nodeId;
-    }
-
-    /**
-     * Reads shard failure information from stream input
-     *
-     * @param in stream input
-     * @return shard failure information
-     */
-    static SnapshotShardFailure readSnapshotShardFailure(StreamInput in) throws IOException {
-        SnapshotShardFailure exp = new SnapshotShardFailure();
-        exp.readFrom(in);
-        return exp;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        nodeId = in.readOptionalString();
-        shardId = ShardId.readShardId(in);
-        super.shardId = shardId.getId();
-        index = shardId.getIndexName();
-        reason = in.readString();
-        status = RestStatus.readFrom(in);
     }
 
     @Override
@@ -155,16 +138,6 @@ public class SnapshotShardFailure extends ShardOperationFailedException {
 
         ShardId shardId = new ShardId(index, indexUuid != null ? indexUuid : IndexMetaData.INDEX_UUID_NA_VALUE, intShardId);
 
-        // Workaround for https://github.com/elastic/elasticsearch/issues/25878
-        // Some old snapshot might still have null in shard failure reasons
-        String nonNullReason;
-        if (reason != null) {
-            nonNullReason = reason;
-        } else {
-            nonNullReason = "";
-        }
-
-
         RestStatus restStatus;
         if (status != null) {
             restStatus = RestStatus.valueOf(status);
@@ -172,7 +145,7 @@ public class SnapshotShardFailure extends ShardOperationFailedException {
             restStatus = RestStatus.INTERNAL_SERVER_ERROR;
         }
 
-        return new SnapshotShardFailure(nodeId, shardId, nonNullReason, restStatus);
+        return new SnapshotShardFailure(nodeId, shardId, reason, restStatus);
     }
 
     /**
@@ -187,6 +160,7 @@ public class SnapshotShardFailure extends ShardOperationFailedException {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         builder.field("index", shardId.getIndexName());
         builder.field("index_uuid", shardId.getIndexName());
         builder.field("shard_id", shardId.id());
@@ -195,6 +169,7 @@ public class SnapshotShardFailure extends ShardOperationFailedException {
             builder.field("node_id", nodeId);
         }
         builder.field("status", status.name());
+        builder.endObject();
         return builder;
     }
 

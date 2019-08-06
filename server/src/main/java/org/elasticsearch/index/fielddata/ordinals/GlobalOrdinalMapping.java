@@ -21,6 +21,7 @@ package org.elasticsearch.index.fielddata.ordinals;
 
 import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongValues;
 
@@ -34,12 +35,12 @@ final class GlobalOrdinalMapping extends SortedSetDocValues {
     private final SortedSetDocValues values;
     private final OrdinalMap ordinalMap;
     private final LongValues mapping;
-    private final SortedSetDocValues[] bytesValues;
+    private final TermsEnum[] lookups;
 
-    GlobalOrdinalMapping(OrdinalMap ordinalMap, SortedSetDocValues[] bytesValues, int segmentIndex) {
+    GlobalOrdinalMapping(OrdinalMap ordinalMap, SortedSetDocValues values, TermsEnum[] lookups, int segmentIndex) {
         super();
-        this.values = bytesValues[segmentIndex];
-        this.bytesValues = bytesValues;
+        this.values = values;
+        this.lookups = lookups;
         this.ordinalMap = ordinalMap;
         this.mapping = ordinalMap.getGlobalOrds(segmentIndex);
     }
@@ -72,7 +73,8 @@ final class GlobalOrdinalMapping extends SortedSetDocValues {
     public BytesRef lookupOrd(long globalOrd) throws IOException {
         final long segmentOrd = ordinalMap.getFirstSegmentOrd(globalOrd);
         int readerIndex = ordinalMap.getFirstSegmentNumber(globalOrd);
-        return bytesValues[readerIndex].lookupOrd(segmentOrd);
+        lookups[readerIndex].seekExact(segmentOrd);
+        return lookups[readerIndex].term();
     }
 
     @Override

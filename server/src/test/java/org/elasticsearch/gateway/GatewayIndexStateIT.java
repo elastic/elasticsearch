@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -54,7 +55,11 @@ import org.elasticsearch.test.InternalTestCluster.RestartCallback;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -69,6 +74,12 @@ import static org.hamcrest.Matchers.notNullValue;
 public class GatewayIndexStateIT extends ESIntegTestCase {
 
     private final Logger logger = LogManager.getLogger(GatewayIndexStateIT.class);
+
+    @Override
+    protected boolean addMockInternalEngine() {
+        // testRecoverBrokenIndexMetadata replies on the flushing on shutdown behavior which can be randomly disabled in MockInternalEngine.
+        return false;
+    }
 
     public void testMappingMetaDataParsed() throws Exception {
         logger.info("--> starting 1 nodes");
@@ -209,11 +220,13 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         logger.info("--> create an index");
         client().admin().indices().prepareCreate("test").setWaitForActiveShards(ActiveShardCount.NONE).execute().actionGet();
 
-        logger.info("--> closing master node");
-        internalCluster().closeNonSharedNodes(false);
-
-        logger.info("--> starting 1 master node non data again");
-        internalCluster().startNode(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false).build());
+        logger.info("--> restarting master node");
+        internalCluster().fullRestart(new RestartCallback(){
+            @Override
+            public Settings onNodeStopped(String nodeName) {
+                return Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false).build();
+            }
+        });
 
         logger.info("--> waiting for test index to be created");
         ClusterHealthResponse health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setIndices("test")
@@ -225,7 +238,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         assertThat(clusterStateResponse.getState().metaData().hasIndex("test"), equalTo(true));
     }
 
-    public void testJustMasterNodeAndJustDataNode() throws Exception {
+    public void testJustMasterNodeAndJustDataNode() {
         logger.info("--> cleaning nodes");
 
         logger.info("--> starting 1 master node non data");
@@ -309,7 +322,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
                 logger.info("--> delete index and verify it is deleted");
                 final Client client = client(otherNode);
                 client.admin().indices().prepareDelete(indexName).execute().actionGet();
-                assertFalse(client.admin().indices().prepareExists(indexName).execute().actionGet().isExists());
+                assertFalse(indexExists(indexName, client));
                 logger.info("--> index deleted");
                 return super.onNodeStopped(nodeName);
             }
@@ -323,7 +336,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         ensureGreen();
 
         logger.info("--> verify that the deleted index is removed from the cluster and not reimported as dangling by the restarted node");
-        assertFalse(client().admin().indices().prepareExists(indexName).execute().actionGet().isExists());
+        assertFalse(indexExists(indexName));
         assertBusy(() -> {
             final NodeEnvironment nodeEnv = internalCluster().getInstance(NodeEnvironment.class);
             try {
@@ -340,7 +353,6 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
      * allocated in our metadata that we recover. In that case we now have the ability to check the index on local recovery from disk
      * if it is sane and if we can successfully create an IndexService. This also includes plugins etc.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40867")
     public void testRecoverBrokenIndexMetadata() throws Exception {
         logger.info("--> starting one node");
         internalCluster().startNode();
@@ -367,14 +379,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
                 // this one is not validated ahead of time and breaks allocation
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
         ).build();
-        internalCluster().fullRestart(new RestartCallback(){
-            @Override
-            public Settings onNodeStopped(String nodeName) throws Exception {
-                final MetaStateService metaStateService = internalCluster().getInstance(MetaStateService.class, nodeName);
-                metaStateService.writeIndexAndUpdateManifest("broken metadata", brokenMeta);
-                return super.onNodeStopped(nodeName);
-            }
-        });
+        writeBrokenMeta(metaStateService -> metaStateService.writeIndexAndUpdateManifest("broken metadata", brokenMeta));
 
         // check that the cluster does not keep reallocating shards
         assertBusy(() -> {
@@ -407,7 +412,6 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
      * if it is sane and if we can successfully create an IndexService.
      * This also includes plugins etc.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40867")
     public void testRecoverMissingAnalyzer() throws Exception {
         logger.info("--> starting one node");
         internalCluster().startNode();
@@ -442,14 +446,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         final IndexMetaData metaData = state.getMetaData().index("test");
         final IndexMetaData brokenMeta = IndexMetaData.builder(metaData).settings(metaData.getSettings()
                 .filter((s) -> "index.analysis.analyzer.test.tokenizer".equals(s) == false)).build();
-        internalCluster().fullRestart(new RestartCallback(){
-            @Override
-            public Settings onNodeStopped(String nodeName) throws Exception {
-                final MetaStateService metaStateService = internalCluster().getInstance(MetaStateService.class, nodeName);
-                metaStateService.writeIndexAndUpdateManifest("broken metadata", brokenMeta);
-                return super.onNodeStopped(nodeName);
-            }
-        });
+        writeBrokenMeta(metaStateService -> metaStateService.writeIndexAndUpdateManifest("broken metadata", brokenMeta));
 
         // check that the cluster does not keep reallocating shards
         assertBusy(() -> {
@@ -494,14 +491,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         final MetaData brokenMeta = MetaData.builder(metaData).persistentSettings(Settings.builder()
                 .put(metaData.persistentSettings()).put("this.is.unknown", true)
                 .put(MetaData.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), "broken").build()).build();
-        internalCluster().fullRestart(new RestartCallback(){
-            @Override
-            public Settings onNodeStopped(String nodeName) throws Exception {
-                final MetaStateService metaStateService = internalCluster().getInstance(MetaStateService.class, nodeName);
-                metaStateService.writeGlobalStateAndUpdateManifest("broken metadata", brokenMeta);
-                return super.onNodeStopped(nodeName);
-            }
-        });
+        writeBrokenMeta(metaStateService -> metaStateService.writeGlobalStateAndUpdateManifest("broken metadata", brokenMeta));
 
         ensureYellow("test"); // wait for state recovery
         state = client().admin().cluster().prepareState().get().getState();
@@ -517,5 +507,18 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         assertNull(state.metaData().persistentSettings().get("archived."
             + MetaData.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey()));
         assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1L);
+    }
+
+    private void writeBrokenMeta(CheckedConsumer<MetaStateService, IOException> writer) throws Exception {
+        Map<String, MetaStateService> metaStateServices = Stream.of(internalCluster().getNodeNames())
+            .collect(Collectors.toMap(Function.identity(), nodeName -> internalCluster().getInstance(MetaStateService.class, nodeName)));
+        internalCluster().fullRestart(new RestartCallback(){
+            @Override
+            public Settings onNodeStopped(String nodeName) throws Exception {
+                final MetaStateService metaStateService = metaStateServices.get(nodeName);
+                writer.accept(metaStateService);
+                return super.onNodeStopped(nodeName);
+            }
+        });
     }
 }

@@ -1,8 +1,8 @@
 ---
 "Help":
   - skip:
-      version: " - 7.0.99"
-      reason:  external refresh stats were added in 7.1.0
+      version: " - 7.1.99"
+      reason:  external refresh stats were added in 7.2.0
   - do:
       cat.shards:
         help: true

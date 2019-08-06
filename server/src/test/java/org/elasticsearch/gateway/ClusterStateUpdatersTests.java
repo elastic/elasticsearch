@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -279,7 +280,7 @@ public class ClusterStateUpdatersTests extends ESTestCase {
                 .metaData(metaData)
                 .build();
         final DiscoveryNode localNode = new DiscoveryNode("node1", buildNewFakeTransportAddress(), Collections.emptyMap(),
-                Sets.newHashSet(DiscoveryNode.Role.MASTER), Version.CURRENT);
+                Sets.newHashSet(DiscoveryNodeRole.MASTER_ROLE), Version.CURRENT);
 
         final ClusterState updatedState = setLocalNode(initialState, localNode);
 
@@ -322,7 +323,7 @@ public class ClusterStateUpdatersTests extends ESTestCase {
                 .blocks(ClusterBlocks.builder().addGlobalBlock(STATE_NOT_RECOVERED_BLOCK))
                 .build();
         final DiscoveryNode localNode = new DiscoveryNode("node1", buildNewFakeTransportAddress(), Collections.emptyMap(),
-                Sets.newHashSet(DiscoveryNode.Role.MASTER), Version.CURRENT);
+                Sets.newHashSet(DiscoveryNodeRole.MASTER_ROLE), Version.CURRENT);
         final ClusterState updatedState = Function.<ClusterState>identity()
                 .andThen(state -> setLocalNode(state, localNode))
                 .andThen(ClusterStateUpdaters::recoverClusterBlocks)

@@ -19,6 +19,9 @@
 
 package org.elasticsearch.geo.geometry;
 
+import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.geo.utils.GeographyValidator;
+import org.elasticsearch.geo.utils.StandardValidator;
 import org.elasticsearch.geo.utils.WellKnownText;
 
 import java.io.IOException;
@@ -35,28 +38,37 @@ public class MultiPointTests extends BaseGeometryTestCase<MultiPoint> {
         int size = randomIntBetween(1, 10);
         List<Point> arr = new ArrayList<>();
         for (int i = 0; i < size; i++) {
-            arr.add(randomPoint(hasAlt));
+            arr.add(GeometryTestUtils.randomPoint(hasAlt));
         }
         return new MultiPoint(arr);
     }
 
     public void testBasicSerialization() throws IOException, ParseException {
-        assertEquals("multipoint (2.0 1.0)", WellKnownText.toWKT(
+        WellKnownText wkt = new WellKnownText(true, new GeographyValidator(true));
+        assertEquals("multipoint (2.0 1.0)", wkt.toWKT(
             new MultiPoint(Collections.singletonList(new Point(1, 2)))));
         assertEquals(new MultiPoint(Collections.singletonList(new Point(1 ,2))),
-            WellKnownText.fromWKT("multipoint (2 1)"));
+            wkt.fromWKT("multipoint (2 1)"));
 
         assertEquals("multipoint (2.0 1.0, 3.0 4.0)",
-            WellKnownText.toWKT(new MultiPoint(Arrays.asList(new Point(1, 2), new Point(4, 3)))));
+            wkt.toWKT(new MultiPoint(Arrays.asList(new Point(1, 2), new Point(4, 3)))));
         assertEquals(new MultiPoint(Arrays.asList(new Point(1, 2), new Point(4, 3))),
-            WellKnownText.fromWKT("multipoint (2 1, 3 4)"));
+            wkt.fromWKT("multipoint (2 1, 3 4)"));
 
         assertEquals("multipoint (2.0 1.0 10.0, 3.0 4.0 20.0)",
-            WellKnownText.toWKT(new MultiPoint(Arrays.asList(new Point(1, 2, 10), new Point(4, 3, 20)))));
+            wkt.toWKT(new MultiPoint(Arrays.asList(new Point(1, 2, 10), new Point(4, 3, 20)))));
         assertEquals(new MultiPoint(Arrays.asList(new Point(1, 2, 10), new Point(4, 3, 20))),
-            WellKnownText.fromWKT("multipoint (2 1 10, 3 4 20)"));
+            wkt.fromWKT("multipoint (2 1 10, 3 4 20)"));
 
-        assertEquals("multipoint EMPTY", WellKnownText.toWKT(MultiPoint.EMPTY));
-        assertEquals(MultiPoint.EMPTY, WellKnownText.fromWKT("multipoint EMPTY)"));
+        assertEquals("multipoint EMPTY", wkt.toWKT(MultiPoint.EMPTY));
+        assertEquals(MultiPoint.EMPTY, wkt.fromWKT("multipoint EMPTY)"));
+    }
+
+    public void testValidation() {
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new StandardValidator(false).validate(
+            new MultiPoint(Collections.singletonList(new Point(1, 2 ,3)))));
+        assertEquals("found Z value [3.0] but [ignore_z_value] parameter is [false]", ex.getMessage());
+
+        new StandardValidator(true).validate(new MultiPoint(Collections.singletonList(new Point(1, 2 ,3))));
     }
 }

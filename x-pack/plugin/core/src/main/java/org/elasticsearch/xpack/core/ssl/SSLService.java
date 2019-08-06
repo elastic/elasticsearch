@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -37,8 +38,8 @@ import java.net.InetAddress;
 import java.net.Socket;
 import java.security.GeneralSecurityException;
 import java.security.KeyManagementException;
-import java.security.NoSuchAlgorithmException;
 import java.security.KeyStore;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -57,8 +58,6 @@ import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS;
-
 /**
  * Provides access to {@link SSLEngine} and {@link SSLSocketFactory} objects based on a provided configuration. All
  * configurations loaded by this service must be configured on construction.
@@ -75,9 +74,7 @@ public class SSLService {
     private static final Map<String, String> ORDERED_PROTOCOL_ALGORITHM_MAP;
     static {
         LinkedHashMap<String, String> protocolAlgorithmMap = new LinkedHashMap<>();
-        if (DEFAULT_SUPPORTED_PROTOCOLS.contains("TLSv1.3")) {
-            protocolAlgorithmMap.put("TLSv1.3", "TLSv1.3");
-        }
+        protocolAlgorithmMap.put("TLSv1.3", "TLSv1.3");
         protocolAlgorithmMap.put("TLSv1.2", "TLSv1.2");
         protocolAlgorithmMap.put("TLSv1.1", "TLSv1.1");
         protocolAlgorithmMap.put("TLSv1", "TLSv1");
@@ -327,7 +324,7 @@ public class SSLService {
      * Accessor to the loaded ssl configuration objects at the current point in time. This is useful for testing
      */
     Collection<SSLConfiguration> getLoadedSSLConfigurations() {
-        return Collections.unmodifiableSet(new HashSet<>(sslContexts.keySet()));
+        return Set.copyOf(sslContexts.keySet());
     }
 
     /**
@@ -420,25 +417,31 @@ public class SSLService {
         sslSettingsMap.putAll(getRealmsSSLSettings(settings));
         sslSettingsMap.putAll(getMonitoringExporterSettings(settings));
 
-        sslSettingsMap.forEach((key, sslSettings) -> {
-            final SSLConfiguration configuration = new SSLConfiguration(sslSettings);
-            storeSslConfiguration(key, configuration);
-            sslContextHolders.computeIfAbsent(configuration, this::createSslContext);
-        });
+        sslSettingsMap.forEach((key, sslSettings) -> loadConfiguration(key, sslSettings, sslContextHolders));
 
         final Settings transportSSLSettings = settings.getByPrefix(XPackSettings.TRANSPORT_SSL_PREFIX);
-        final SSLConfiguration transportSSLConfiguration = new SSLConfiguration(transportSSLSettings);
+        final SSLConfiguration transportSSLConfiguration =
+            loadConfiguration(XPackSettings.TRANSPORT_SSL_PREFIX, transportSSLSettings, sslContextHolders);
         this.transportSSLConfiguration.set(transportSSLConfiguration);
-        storeSslConfiguration(XPackSettings.TRANSPORT_SSL_PREFIX, transportSSLConfiguration);
         Map<String, Settings> profileSettings = getTransportProfileSSLSettings(settings);
-        sslContextHolders.computeIfAbsent(transportSSLConfiguration, this::createSslContext);
-        profileSettings.forEach((key, profileSetting) -> {
-            final SSLConfiguration configuration = new SSLConfiguration(profileSetting);
-            storeSslConfiguration(key, configuration);
-            sslContextHolders.computeIfAbsent(configuration, this::createSslContext);
-        });
+        profileSettings.forEach((key, profileSetting) -> loadConfiguration(key, profileSetting, sslContextHolders));
 
         return Collections.unmodifiableMap(sslContextHolders);
+    }
+
+    private SSLConfiguration loadConfiguration(String key, Settings settings, Map<SSLConfiguration, SSLContextHolder> contextHolders) {
+        if (key.endsWith(".")) {
+            // Drop trailing '.' so that any exception messages are consistent
+            key = key.substring(0, key.length() - 1);
+        }
+        try {
+            final SSLConfiguration configuration = new SSLConfiguration(settings);
+            storeSslConfiguration(key, configuration);
+            contextHolders.computeIfAbsent(configuration, this::createSslContext);
+            return configuration;
+        } catch (Exception e) {
+            throw new ElasticsearchSecurityException("failed to load SSL configuration [{}]", e, key);
+        }
     }
 
     private void storeSslConfiguration(String key, SSLConfiguration configuration) {

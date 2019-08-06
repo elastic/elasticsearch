@@ -145,13 +145,6 @@ public enum Recyclers {
                 return recyclers[slot()];
             }
 
-            @Override
-            public void close() {
-                for (Recycler<T> recycler : recyclers) {
-                    recycler.close();
-                }
-            }
-
         };
     }
 

@@ -19,6 +19,7 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -46,6 +47,7 @@ import java.util.Map;
 
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableSet;
+import static java.util.Map.entry;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -162,7 +164,9 @@ public class IndexActionTests extends ESTestCase {
         final IndexAction action = new IndexAction("test-index", "test-type", "123", null, null, null, refreshPolicy);
         final ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, client,
                 TimeValue.timeValueSeconds(30), TimeValue.timeValueSeconds(30));
-        final Map<String, Object> docWithId = MapBuilder.<String, Object>newMapBuilder().put("foo", "bar").put("_id", "0").immutableMap();
+        final Map<String, Object> docWithId = Map.of(
+                "foo", "bar",
+                "_id", "0");
         final ZonedDateTime executionTime = ZonedDateTime.now(ZoneOffset.UTC);
 
         // using doc_id with bulk fails regardless of using ID
@@ -195,15 +199,16 @@ public class IndexActionTests extends ESTestCase {
         boolean configureTypeDynamically = randomBoolean();
         boolean configureIdDynamically = (configureTypeDynamically == false && configureIndexDynamically == false) || randomBoolean();
 
-        MapBuilder<String, Object> builder = MapBuilder.<String, Object>newMapBuilder().put("foo", "bar");
+        var entries = new ArrayList<Map.Entry<String, Object>>(4);
+        entries.add(entry("foo", "bar"));
         if (configureIdDynamically) {
-            builder.put("_id", "my_dynamic_id");
+            entries.add(entry("_id", "my_dynamic_id"));
         }
         if (configureTypeDynamically) {
-            builder.put("_type", "my_dynamic_type");
+            entries.add(entry("_type", "my_dynamic_type"));
         }
         if (configureIndexDynamically) {
-            builder.put("_index", "my_dynamic_index");
+            entries.add(entry("_index", "my_dynamic_index"));
         }
 
         final IndexAction action = new IndexAction(configureIndexDynamically ? null : "my_index",
@@ -213,7 +218,7 @@ public class IndexActionTests extends ESTestCase {
         final ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, client,
                 TimeValue.timeValueSeconds(30), TimeValue.timeValueSeconds(30));
 
-        final WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContext("_id", new Payload.Simple(builder.immutableMap()));
+        final WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContext("_id", new Payload.Simple(Maps.ofEntries(entries)));
 
         ArgumentCaptor<IndexRequest> captor = ArgumentCaptor.forClass(IndexRequest.class);
         PlainActionFuture<IndexResponse> listener = PlainActionFuture.newFuture();
@@ -234,10 +239,8 @@ public class IndexActionTests extends ESTestCase {
         final ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, client,
                 TimeValue.timeValueSeconds(30), TimeValue.timeValueSeconds(30));
 
-        final Map<String, Object> docWithIndex = MapBuilder.<String, Object>newMapBuilder().put("foo", "bar")
-                .put("_index", "my-index").immutableMap();
-        final Map<String, Object> docWithOtherIndex = MapBuilder.<String, Object>newMapBuilder().put("foo", "bar")
-                .put("_index", "my-other-index").immutableMap();
+        final Map<String, Object> docWithIndex = Map.of("foo", "bar", "_index", "my-index");
+        final Map<String, Object> docWithOtherIndex = Map.of("foo", "bar", "_index", "my-other-index");
         final WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContext("_id",
                 new Payload.Simple("_doc", Arrays.asList(docWithIndex, docWithOtherIndex)));
 
@@ -267,8 +270,7 @@ public class IndexActionTests extends ESTestCase {
         final ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, client,
                 TimeValue.timeValueSeconds(30), TimeValue.timeValueSeconds(30));
 
-        final Map<String, Object> docWithIndex = MapBuilder.<String, Object>newMapBuilder().put("foo", "bar")
-                .put(fieldName, "my-value").immutableMap();
+        final Map<String, Object> docWithIndex = Map.of("foo", "bar", fieldName, "my-value");
         final WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContext("_id",
                 new Payload.Simple("_doc", Collections.singletonList(docWithIndex)));
 
@@ -292,7 +294,7 @@ public class IndexActionTests extends ESTestCase {
 
         if (customId && docIdAsParam == false) {
             // intentionally immutable because the other side needs to cut out _id
-            payload = new Payload.Simple("_doc", MapBuilder.newMapBuilder().put("foo", "bar").put("_id", docId).immutableMap());
+            payload = new Payload.Simple("_doc", Map.of("foo", "bar", "_id", docId));
         } else {
             payload = randomBoolean() ? new Payload.Simple("foo", "bar") : new Payload.Simple("_doc", singletonMap("foo", "bar"));
         }

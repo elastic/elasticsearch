@@ -25,10 +25,10 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -38,7 +38,6 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.Collections;
 import java.util.Map;
-import java.util.Set;
 
 public class InboundHandler {
 
@@ -73,7 +72,7 @@ public class InboundHandler {
         if (requestHandlers.containsKey(reg.getAction())) {
             throw new IllegalArgumentException("transport handlers for action " + reg.getAction() + " is already registered");
         }
-        requestHandlers = MapBuilder.newMapBuilder(requestHandlers).put(reg.getAction(), reg).immutableMap();
+        requestHandlers = Maps.copyMapWithAddedEntry(requestHandlers, reg.getAction(), reg);
     }
 
     final RequestHandlerRegistry<? extends TransportRequest> getRequestHandler(String action) {
@@ -153,16 +152,15 @@ public class InboundHandler {
     }
 
     private void handleRequest(TcpChannel channel, InboundMessage.Request message, int messageLengthBytes) {
-        final Set<String> features = message.getFeatures();
         final String action = message.getActionName();
         final long requestId = message.getRequestId();
         final StreamInput stream = message.getStreamInput();
         final Version version = message.getVersion();
-        messageListener.onRequestReceived(requestId, action);
         TransportChannel transportChannel = null;
         try {
+            messageListener.onRequestReceived(requestId, action);
             if (message.isHandshake()) {
-                handshaker.handleHandshake(version, features, channel, requestId, stream);
+                handshaker.handleHandshake(version, channel, requestId, stream);
             } else {
                 final RequestHandlerRegistry reg = getRequestHandler(action);
                 if (reg == null) {
@@ -174,7 +172,7 @@ public class InboundHandler {
                 } else {
                     breaker.addWithoutBreaking(messageLengthBytes);
                 }
-                transportChannel = new TcpTransportChannel(outboundHandler, channel, action, requestId, version, features,
+                transportChannel = new TcpTransportChannel(outboundHandler, channel, action, requestId, version,
                     circuitBreakerService, messageLengthBytes, message.isCompress());
                 final TransportRequest request = reg.newRequest(stream);
                 request.remoteAddress(new TransportAddress(channel.getRemoteAddress()));
@@ -190,7 +188,7 @@ public class InboundHandler {
         } catch (Exception e) {
             // the circuit breaker tripped
             if (transportChannel == null) {
-                transportChannel = new TcpTransportChannel(outboundHandler, channel, action, requestId, version, features,
+                transportChannel = new TcpTransportChannel(outboundHandler, channel, action, requestId, version,
                     circuitBreakerService, 0, message.isCompress());
             }
             try {

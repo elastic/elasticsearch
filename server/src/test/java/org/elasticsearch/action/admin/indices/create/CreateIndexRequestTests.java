@@ -53,8 +53,7 @@ public class CreateIndexRequestTests extends ESTestCase {
             request.writeTo(output);
 
             try (StreamInput in = output.bytes().streamInput()) {
-                CreateIndexRequest serialized = new CreateIndexRequest();
-                serialized.readFrom(in);
+                CreateIndexRequest serialized = new CreateIndexRequest(in);
                 assertEquals(request.index(), serialized.index());
                 assertEquals(mapping, serialized.mappings().get("my_type"));
             }

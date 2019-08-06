@@ -1,10 +1,10 @@
-[[search-request-rescore]]
-=== Rescoring
+[[request-body-search-rescore]]
+==== Rescoring
 
 Rescoring can help to improve precision by reordering just the top (eg
 100 - 500) documents returned by the
-<<search-request-query,`query`>> and
-<<search-request-post-filter,`post_filter`>> phases, using a
+<<request-body-search-query,`query`>> and
+<<request-body-search-post-filter,`post_filter`>> phases, using a
 secondary (usually more costly) algorithm, instead of applying the
 costly algorithm to all documents in the index.
 
@@ -15,7 +15,7 @@ Currently the rescore API has only one implementation: the query
 rescorer, which uses a query to tweak the scoring. In the future,
 alternative rescorers may be made available, for example, a pair-wise rescorer.
 
-NOTE: An error will be thrown if an explicit <<search-request-sort,`sort`>> 
+NOTE: An error will be thrown if an explicit <<request-body-search-sort,`sort`>> 
 (other than `_score` in descending order) is provided with a `rescore` query.
 
 NOTE: when exposing pagination to your users, you should not change
@@ -23,11 +23,11 @@ NOTE: when exposing pagination to your users, you should not change
 `from` values) since that can alter the top hits causing results to
 confusingly shift as the user steps through pages.
 
-==== Query rescorer
+===== Query rescorer
 
 The query rescorer executes a second query only on the Top-K results
-returned by the <<search-request-query,`query`>> and
-<<search-request-post-filter,`post_filter`>> phases. The
+returned by the <<request-body-search-query,`query`>> and
+<<request-body-search-post-filter,`post_filter`>> phases. The
 number of docs which will be examined on each shard can be controlled by
 the `window_size` parameter, which defaults to 10.
 
@@ -83,7 +83,7 @@ for <<query-dsl-function-score-query,`function query`>> rescores.
 |`min`      |Take the min of the original score and the rescore query score.
 |=======================================================================
 
-==== Multiple Rescores
+===== Multiple Rescores
 
 It is also possible to execute multiple rescores in sequence:
 

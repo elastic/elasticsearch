@@ -1,12 +1,11 @@
 [[docs-update]]
-== Update API
+=== Update API
 
 The update API allows to update a document based on a script provided.
 The operation gets the document (collocated with the shard) from the
 index, runs the script (with optional script language and parameters),
 and indexes back the result (also allows to delete, or ignore the
-operation). It uses versioning to make sure no updates have happened
-during the "get" and "reindex".
+operation).
 
 Note, this operation still means full reindex of the document, it just
 removes some network roundtrips and reduces chances of version conflicts
@@ -26,7 +25,7 @@ PUT test/_doc/1
 // CONSOLE
 
 [float]
-=== Scripted updates
+==== Scripted updates
 
 Now, we can execute a script that would increment the counter:
 
@@ -136,7 +135,7 @@ POST test/_update/1
 // TEST[continued]
 
 [float]
-=== Updates with a partial document
+==== Updates with a partial document
 
 The update API also supports passing a partial document,
 which will be merged into the existing document (simple recursive merge,
@@ -162,7 +161,7 @@ If both `doc` and `script` are specified, then `doc` is ignored. Best is
 to put your field pairs of the partial document in the script itself.
 
 [float]
-=== Detecting noop updates
+==== Detecting noop updates
 
 If `doc` is specified its value is merged with the existing `_source`.
 By default updates that don't change anything detect that they don't change anything and return `"result": "noop"` like this:
@@ -195,6 +194,8 @@ the request was ignored.
    "_type": "_doc",
    "_id": "1",
    "_version": 7,
+   "_primary_term": 1,
+   "_seq_no": 6,
    "result": "noop"
 }
 --------------------------------------------------
@@ -217,7 +218,7 @@ POST test/_update/1
 
 [[upserts]]
 [float]
-=== Upserts
+==== Upserts
 
 If the document does not already exist, the contents of the `upsert` element
 will be inserted as a new document.  If the document does exist, then the
@@ -243,7 +244,8 @@ POST test/_update/1
 // TEST[continued]
 
 [float]
-==== `scripted_upsert`
+[[scripted_upsert]]
+===== `scripted_upsert`
 
 If you would like your script to run regardless of whether the document exists
 or not -- i.e. the script handles initializing the document instead of the
@@ -272,7 +274,8 @@ POST sessions/_update/dh3sgudg8gsrgl
 // TEST[continued]
 
 [float]
-==== `doc_as_upsert`
+[[doc_as_upsert]]
+===== `doc_as_upsert`
 
 Instead of sending a partial `doc` plus an `upsert` doc, setting
 `doc_as_upsert` to `true` will use the contents of `doc` as the `upsert`
@@ -292,7 +295,7 @@ POST test/_update/1
 // TEST[continued]
 
 [float]
-=== Parameters
+==== Parameters
 
 The update operation supports the following query-string parameters:
 
@@ -329,26 +332,7 @@ Control when the changes made by this request are visible to search. See
 
 Allows to control if and how the updated source should be returned in the response.
 By default the updated source is not returned.
-See <<search-request-source-filtering, Source filtering>> for details.
-
-
-`version`::
-
-The update API uses the Elasticsearch versioning support internally to make
-sure the document doesn't change during the update. You can use the `version`
-parameter to specify that the document should only be updated if its version
-matches the one specified.
-
-[NOTE]
-.The update API does not support versioning other than internal
-=====================================================
-
-External (version types `external` and `external_gte`) or forced (version type `force`)
-versioning is not supported by the update API as it would result in Elasticsearch 
-version numbers being out of sync with the external system.  Use the
-<<docs-index_,`index` API>> instead.
-
-=====================================================
+See <<request-body-search-source-filtering, Source filtering>> for details.
 
 `if_seq_no` and `if_primary_term`::
 

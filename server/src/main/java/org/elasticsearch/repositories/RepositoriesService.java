@@ -23,6 +23,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
@@ -35,6 +36,7 @@ import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -94,6 +96,7 @@ public class RepositoriesService implements ClusterStateApplier {
      */
     public void registerRepository(final PutRepositoryRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
         final RepositoryMetaData newRepositoryMetaData = new RepositoryMetaData(request.name(), request.type(), request.settings());
+        validate(request.name());
 
         final ActionListener<ClusterStateUpdateResponse> registrationListener;
         if (request.verify()) {
@@ -119,7 +122,7 @@ public class RepositoriesService implements ClusterStateApplier {
         }
 
         clusterService.submitStateUpdateTask("put_repository [" + request.name() + "]",
-            new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, registrationListener) {
+            new AckedClusterStateUpdateTask<>(request, registrationListener) {
                 @Override
                 protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
                     return new ClusterStateUpdateResponse(acknowledged);
@@ -186,7 +189,7 @@ public class RepositoriesService implements ClusterStateApplier {
      */
     public void unregisterRepository(final DeleteRepositoryRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
         clusterService.submitStateUpdateTask("delete_repository [" + request.name() + "]",
-            new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, listener) {
+            new AckedClusterStateUpdateTask<>(request, listener) {
                 @Override
                 protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
                     return new ClusterStateUpdateResponse(acknowledged);
@@ -231,46 +234,41 @@ public class RepositoriesService implements ClusterStateApplier {
 
     public void verifyRepository(final String repositoryName, final ActionListener<List<DiscoveryNode>> listener) {
         final Repository repository = repository(repositoryName);
-        try {
-            threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
-                try {
-                    final String verificationToken = repository.startVerification();
-                    if (verificationToken != null) {
-                        try {
-                            verifyAction.verify(repositoryName, verificationToken, ActionListener.delegateFailure(listener,
-                                (delegatedListener, verifyResponse) -> threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
-                                    try {
-                                        repository.endVerification(verificationToken);
-                                    } catch (Exception e) {
-                                        logger.warn(() -> new ParameterizedMessage(
-                                            "[{}] failed to finish repository verification", repositoryName), e);
-                                        delegatedListener.onFailure(e);
-                                        return;
-                                    }
-                                    delegatedListener.onResponse(verifyResponse);
-                                })));
-                        } catch (Exception e) {
-                            threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
+        threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new ActionRunnable<>(listener) {
+            @Override
+            protected void doRun() {
+                final String verificationToken = repository.startVerification();
+                if (verificationToken != null) {
+                    try {
+                        verifyAction.verify(repositoryName, verificationToken, ActionListener.delegateFailure(listener,
+                            (delegatedListener, verifyResponse) -> threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
                                 try {
                                     repository.endVerification(verificationToken);
-                                } catch (Exception inner) {
-                                    inner.addSuppressed(e);
+                                } catch (Exception e) {
                                     logger.warn(() -> new ParameterizedMessage(
-                                        "[{}] failed to finish repository verification", repositoryName), inner);
+                                        "[{}] failed to finish repository verification", repositoryName), e);
+                                    delegatedListener.onFailure(e);
+                                    return;
                                 }
-                                listener.onFailure(e);
-                            });
-                        }
-                    } else {
-                        listener.onResponse(Collections.emptyList());
+                                delegatedListener.onResponse(verifyResponse);
+                            })));
+                    } catch (Exception e) {
+                        threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
+                            try {
+                                repository.endVerification(verificationToken);
+                            } catch (Exception inner) {
+                                inner.addSuppressed(e);
+                                logger.warn(() -> new ParameterizedMessage(
+                                    "[{}] failed to finish repository verification", repositoryName), inner);
+                            }
+                            listener.onFailure(e);
+                        });
                     }
-                } catch (Exception e) {
-                    listener.onFailure(e);
+                } else {
+                    listener.onResponse(Collections.emptyList());
                 }
-            });
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
+            }
+        });
     }
 
 
@@ -417,6 +415,20 @@ public class RepositoriesService implements ClusterStateApplier {
             throw new RepositoryException(repositoryMetaData.name(), "failed to create repository", e);
         }
     }
+
+    private static void validate(final String repositoryName) {
+        if (Strings.hasLength(repositoryName) == false) {
+            throw new RepositoryException(repositoryName, "cannot be empty");
+        }
+        if (repositoryName.contains("#")) {
+            throw new RepositoryException(repositoryName, "must not contain '#'");
+        }
+        if (Strings.validFileName(repositoryName) == false) {
+            throw new RepositoryException(repositoryName,
+                "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
+        }
+    }
+
 
     private void ensureRepositoryNotInUse(ClusterState clusterState, String repository) {
         if (SnapshotsService.isRepositoryInUse(clusterState, repository) || RestoreService.isRepositoryInUse(clusterState, repository)) {

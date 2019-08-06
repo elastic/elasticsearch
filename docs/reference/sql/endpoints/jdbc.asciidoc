@@ -51,14 +51,21 @@ Once registered, the driver understands the following syntax as an URL:
 
 ["source","text",subs="attributes"]
 ----
-jdbc:es://<1>[[http|https]://]*<2>[host[:port]]*<3>/[prefix]*<4>[?[option=value]&<5>]*
+jdbc:es://[[http|https]://]*[host[:port]]*/[prefix]*<[?[option=value]&]*
 ----
+`jdbc:es://`:: Prefix. Mandatory.
 
-<1> `jdbc:es://` prefix. Mandatory.
-<2> type of HTTP connection to make - `http` (default) or `https`. Optional.
-<3> host (`localhost` by default) and port (`9200` by default). Optional.
-<4> prefix (empty by default). Typically used when hosting {es} under a certain path. Optional.
-<5> Properties for the JDBC driver. Empty by default. Optional.
+`[[http|https]://]`:: Type of HTTP connection to make. Possible values are
+`http` (default) or `https`. Optional.
+
+`[host[:port]]`:: Host (`localhost` by default) and port (`9200` by default).
+Optional.
+
+`[prefix]`:: Prefix (empty by default). Typically used when hosting {es} under
+a certain path. Optional.
+
+`[option=value]`:: Properties for the JDBC driver. Empty by default.
+Optional.
 
 The driver recognized the following properties:
 
@@ -130,6 +137,10 @@ Query timeout (in seconds). That is the maximum amount of time waiting for a que
 will be - typically the first in natural ascending order) for fields with multiple values (true) or throw an exception.
 
 [float]
+==== Index
+`index.include.frozen` (default `false`):: Whether to include <<frozen-indices, frozen-indices>> in the query execution or not (default).
+
+[float]
 ==== Additional
 
 `validate.properties` (default true):: If disabled, it will ignore any misspellings or unrecognizable properties. When enabled, an exception
@@ -149,6 +160,7 @@ Opens up a {es-sql} connection to `server` on port `3456`, setting the JDBC conn
 
 One can use JDBC through the official `java.sql` and `javax.sql` packages:
 
+[[java-sql]]
 ==== `java.sql`
 The former through `java.sql.Driver` and `DriverManager`:
 
@@ -161,6 +173,7 @@ HTTP traffic. The port is by default 9200.
 <2> Properties for connecting to Elasticsearch. An empty `Properties`
 instance is fine for unsecured Elasticsearch.
 
+[[javax-sql]]
 ==== `javax.sql`
 
 Accessible through the `javax.sql.DataSource` API:
@@ -194,3 +207,8 @@ connection. For example:
 --------------------------------------------------
 include-tagged::{jdbc-tests}/SimpleExampleTestCase.java[simple_example]
 --------------------------------------------------
+
+NOTE:: {es-sql} doesn't provide a connection pooling mechanism, thus the connections
+the JDBC driver creates are not pooled. In order to achieve pooled connections,
+a third-party connection pooling mechanism is required. Configuring and setting up the
+third-party provider is outside the scope of this documentation.

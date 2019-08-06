@@ -49,8 +49,6 @@ public interface ShardSearchRequest {
 
     ShardId shardId();
 
-    String[] types();
-
     SearchSourceBuilder source();
 
     AliasFilter getAliasFilter();

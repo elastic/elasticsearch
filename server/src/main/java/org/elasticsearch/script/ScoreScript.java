@@ -26,7 +26,6 @@ import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.DoubleSupplier;
@@ -36,21 +35,12 @@ import java.util.function.DoubleSupplier;
  */
 public abstract class ScoreScript {
 
-    private static final Map<String, String> DEPRECATIONS;
-    static {
-        Map<String, String> deprecations = new HashMap<>();
-        deprecations.put(
+    private static final Map<String, String> DEPRECATIONS = Map.of(
             "doc",
-            "Accessing variable [doc] via [params.doc] from within a score script " +
-                "is deprecated in favor of directly accessing [doc]."
-        );
-        deprecations.put(
-            "_doc",
-            "Accessing variable [doc] via [params._doc] from within a score script " +
-                "is deprecated in favor of directly accessing [doc]."
-        );
-        DEPRECATIONS = Collections.unmodifiableMap(deprecations);
-    }
+            "Accessing variable [doc] via [params.doc] from within a score script "
+                    + "is deprecated in favor of directly accessing [doc].",
+            "_doc", "Accessing variable [doc] via [params._doc] from within a score script "
+                    + "is deprecated in favor of directly accessing [doc].");
 
     public static final String[] PARAMETERS = new String[]{};
 

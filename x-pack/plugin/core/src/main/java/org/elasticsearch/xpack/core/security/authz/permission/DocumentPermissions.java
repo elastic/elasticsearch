@@ -139,11 +139,11 @@ public final class DocumentPermissions {
                     NestedHelper nestedHelper = new NestedHelper(queryShardContext.getMapperService());
                     if (nestedHelper.mightMatchNestedDocs(roleQuery)) {
                         roleQuery = new BooleanQuery.Builder().add(roleQuery, FILTER)
-                                .add(Queries.newNonNestedFilter(queryShardContext.indexVersionCreated()), FILTER).build();
+                                .add(Queries.newNonNestedFilter(), FILTER).build();
                     }
                     // If access is allowed on root doc then also access is allowed on all nested docs of that root document:
                     BitSetProducer rootDocs = queryShardContext
-                            .bitsetFilter(Queries.newNonNestedFilter(queryShardContext.indexVersionCreated()));
+                            .bitsetFilter(Queries.newNonNestedFilter());
                     ToChildBlockJoinQuery includeNestedDocs = new ToChildBlockJoinQuery(roleQuery, rootDocs);
                     filter.add(includeNestedDocs, SHOULD);
                 }

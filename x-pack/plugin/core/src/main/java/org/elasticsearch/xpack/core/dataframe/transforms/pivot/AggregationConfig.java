@@ -21,6 +21,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
 
 import java.io.IOException;
@@ -64,6 +65,10 @@ public class AggregationConfig implements Writeable, ToXContentObject {
 
     public Collection<AggregationBuilder> getAggregatorFactories() {
         return aggregations.getAggregatorFactories();
+    }
+
+    public Collection<PipelineAggregationBuilder> getPipelineAggregatorFactories() {
+        return aggregations.getPipelineAggregatorFactories();
     }
 
     public static AggregationConfig fromXContent(final XContentParser parser, boolean lenient) throws IOException {

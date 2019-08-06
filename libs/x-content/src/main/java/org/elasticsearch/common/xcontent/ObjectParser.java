@@ -78,14 +78,63 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         };
     }
 
+    private interface UnknownFieldParser<Value, Context> {
+
+        void acceptUnknownField(String parserName, String field, XContentLocation location, XContentParser parser,
+                                Value value, Context context) throws IOException;
+    }
+
+    private static <Value, Context> UnknownFieldParser<Value, Context> ignoreUnknown() {
+      return (n, f, l, p, v, c) -> p.skipChildren();
+    }
+
+    private static <Value, Context> UnknownFieldParser<Value, Context> errorOnUnknown() {
+        return (n, f, l, p, v, c) -> {
+            throw new XContentParseException(l, "[" + n + "] unknown field [" + f + "], parser not found");
+        };
+    }
+
+    /**
+     * Defines how to consume a parsed undefined field
+     */
+    public interface UnknownFieldConsumer<Value> {
+        void accept(Value target, String field, Object value);
+    }
+
+    private static <Value, Context> UnknownFieldParser<Value, Context> consumeUnknownField(UnknownFieldConsumer<Value> consumer) {
+        return (parserName, field, location, parser, value, context) -> {
+            XContentParser.Token t = parser.currentToken();
+            switch (t) {
+                case VALUE_STRING:
+                    consumer.accept(value, field, parser.text());
+                    break;
+                case VALUE_NUMBER:
+                    consumer.accept(value, field, parser.numberValue());
+                    break;
+                case VALUE_BOOLEAN:
+                    consumer.accept(value, field, parser.booleanValue());
+                    break;
+                case VALUE_NULL:
+                    consumer.accept(value, field, null);
+                    break;
+                case START_OBJECT:
+                    consumer.accept(value, field, parser.map());
+                    break;
+                case START_ARRAY:
+                    consumer.accept(value, field, parser.list());
+                    break;
+                default:
+                    throw new XContentParseException(parser.getTokenLocation(),
+                        "[" + parserName + "] cannot parse field [" + field + "] with value type [" + t + "]");
+            }
+        };
+    }
+
     private final Map<String, FieldParser> fieldParserMap = new HashMap<>();
     private final String name;
     private final Supplier<Value> valueSupplier;
-    /**
-     * Should this parser ignore unknown fields? This should generally be set to true only when parsing responses from external systems,
-     * never when parsing requests from users.
-     */
-    private final boolean ignoreUnknownFields;
+
+    private final UnknownFieldParser<Value, Context> unknownFieldParser;
 
     /**
      * Creates a new ObjectParser instance with a name. This name is used to reference the parser in exceptions and messages.
@@ -95,25 +144,45 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
     }
 
     /**
-     * Creates a new ObjectParser instance which a name.
+     * Creates a new ObjectParser instance with a name.
      * @param name the parsers name, used to reference the parser in exceptions and messages.
      * @param valueSupplier a supplier that creates a new Value instance used when the parser is used as an inner object parser.
      */
     public ObjectParser(String name, @Nullable Supplier<Value> valueSupplier) {
-        this(name, false, valueSupplier);
+        this(name, errorOnUnknown(), valueSupplier);
     }
 
     /**
-     * Creates a new ObjectParser instance which a name.
+     * Creates a new ObjectParser instance with a name.
      * @param name the parsers name, used to reference the parser in exceptions and messages.
      * @param ignoreUnknownFields Should this parser ignore unknown fields? This should generally be set to true only when parsing
      *      responses from external systems, never when parsing requests from users.
      * @param valueSupplier a supplier that creates a new Value instance used when the parser is used as an inner object parser.
      */
     public ObjectParser(String name, boolean ignoreUnknownFields, @Nullable Supplier<Value> valueSupplier) {
+        this(name, ignoreUnknownFields ? ignoreUnknown() : errorOnUnknown(), valueSupplier);
+    }
+
+    /**
+     * Creates a new ObjectParser instance with a name.
+     * @param name the parsers name, used to reference the parser in exceptions and messages.
+     * @param unknownFieldConsumer how to consume parsed unknown fields
+     * @param valueSupplier a supplier that creates a new Value instance used when the parser is used as an inner object parser.
+     */
+    public ObjectParser(String name, UnknownFieldConsumer<Value> unknownFieldConsumer, @Nullable Supplier<Value> valueSupplier) {
+        this(name, consumeUnknownField(unknownFieldConsumer), valueSupplier);
+    }
+
+    /**
+     * Creates a new ObjectParser instance with a name.
+     * @param name the parsers name, used to reference the parser in exceptions and messages.
+     * @param unknownFieldParser how to parse unknown fields
+     * @param valueSupplier a supplier that creates a new Value instance used when the parser is used as an inner object parser.
+     */
+    private ObjectParser(String name, UnknownFieldParser<Value, Context> unknownFieldParser, @Nullable Supplier<Value> valueSupplier) {
         this.name = name;
         this.valueSupplier = valueSupplier;
-        this.ignoreUnknownFields = ignoreUnknownFields;
+        this.unknownFieldParser = unknownFieldParser;
     }
 
     /**
@@ -152,17 +221,18 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
 
         FieldParser fieldParser = null;
         String currentFieldName = null;
+        XContentLocation currentPosition = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-                fieldParser = getParser(currentFieldName, parser);
+                currentPosition = parser.getTokenLocation();
+                fieldParser = fieldParserMap.get(currentFieldName);
             } else {
                 if (currentFieldName == null) {
                     throw new XContentParseException(parser.getTokenLocation(), "[" + name  + "] no field found");
                 }
                 if (fieldParser == null) {
-                    assert ignoreUnknownFields : "this should only be possible if configured to ignore known fields";
-                    parser.skipChildren(); // noop if parser points to a value, skips children if parser is start object or start array
+                    unknownFieldParser.acceptUnknownField(name, currentFieldName, currentPosition, parser, value, context);
                 } else {
                     fieldParser.assertSupports(name, parser, currentFieldName);
                     parseSub(parser, fieldParser, currentFieldName, value, context);
@@ -361,15 +431,6 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
             case VALUE_NULL:
                 parseValue(parser, fieldParser, currentFieldName, value, context);
         }
-    }
-
-    private FieldParser getParser(String fieldName, XContentParser xContentParser) {
-        FieldParser parser = fieldParserMap.get(fieldName);
-        if (parser == null && false == ignoreUnknownFields) {
-            throw new XContentParseException(xContentParser.getTokenLocation(),
-                    "[" + name + "] unknown field [" + fieldName + "], parser not found");
-        }
-        return parser;
     }
 
     private class FieldParser {

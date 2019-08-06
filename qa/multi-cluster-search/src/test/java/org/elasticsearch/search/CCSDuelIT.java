@@ -564,7 +564,7 @@ public class CCSDuelIT extends ESRestTestCase {
         tags.showTermDocCountError(true);
         DateHistogramAggregationBuilder creation = new DateHistogramAggregationBuilder("creation");
         creation.field("creationDate");
-        creation.dateHistogramInterval(DateHistogramInterval.QUARTER);
+        creation.calendarInterval(DateHistogramInterval.QUARTER);
         creation.subAggregation(tags);
         sourceBuilder.aggregation(creation);
         duelSearch(searchRequest, CCSDuelIT::assertAggs);
@@ -591,7 +591,7 @@ public class CCSDuelIT extends ESRestTestCase {
         sourceBuilder.size(0);
         DateHistogramAggregationBuilder daily = new DateHistogramAggregationBuilder("daily");
         daily.field("creationDate");
-        daily.dateHistogramInterval(DateHistogramInterval.DAY);
+        daily.calendarInterval(DateHistogramInterval.DAY);
         sourceBuilder.aggregation(daily);
         daily.subAggregation(new DerivativePipelineAggregationBuilder("derivative", "_count"));
         sourceBuilder.aggregation(new MaxBucketPipelineAggregationBuilder("biggest_day", "daily._count"));

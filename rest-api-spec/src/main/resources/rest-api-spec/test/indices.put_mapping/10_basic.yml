@@ -1,8 +1,5 @@
 ---
 "Test Create and update mapping":
-  - skip:
-      version: " - 6.99.99"
-      reason: include_type_name defaults to true before 7.0
   - do:
       indices.create:
         index: test_index
@@ -53,10 +50,6 @@
 
 ---
 "Create index with invalid mappings":
-
-  - skip:
-      version: " - 6.99.99"
-      reason: include_type_name defaults to true before 7.0
   - do:
       indices.create:
         index: test_index
@@ -71,10 +64,6 @@
 
 ---
 "Put mappings with explicit _doc type":
-  - skip:
-      version: " - 6.99.99"
-      reason: include_type_name defaults to true before 7.0
-
   - do:
       indices.create:
         index: test_index

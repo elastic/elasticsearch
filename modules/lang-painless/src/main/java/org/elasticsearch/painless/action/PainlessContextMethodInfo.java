@@ -134,4 +134,30 @@ public class PainlessContextMethodInfo implements Writeable, ToXContentObject {
     public int hashCode() {
         return Objects.hash(declaring, name, rtn, parameters);
     }
+
+    @Override
+    public String toString() {
+        return "PainlessContextMethodInfo{" +
+                "declaring='" + declaring + '\'' +
+                ", name='" + name + '\'' +
+                ", rtn='" + rtn + '\'' +
+                ", parameters=" + parameters +
+                '}';
+    }
+
+    public String getDeclaring() {
+        return declaring;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public String getRtn() {
+        return rtn;
+    }
+
+    public List<String> getParameters() {
+        return parameters;
+    }
 }

@@ -288,11 +288,11 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         protected LogicalPlan rule(UnresolvedRelation plan) {
             TableIdentifier table = plan.table();
             if (indexResolution.isValid() == false) {
-                return plan.unresolvedMessage().equals(indexResolution.toString()) ? plan : new UnresolvedRelation(plan.source(),
-                        plan.table(), plan.alias(), indexResolution.toString());
+                return plan.unresolvedMessage().equals(indexResolution.toString()) ? plan :
+                    new UnresolvedRelation(plan.source(), plan.table(), plan.alias(), plan.frozen(), indexResolution.toString());
             }
             assert indexResolution.matches(table.index());
-            LogicalPlan logicalPlan = new EsRelation(plan.source(), indexResolution.get());
+            LogicalPlan logicalPlan = new EsRelation(plan.source(), indexResolution.get(), plan.frozen());
             SubQueryAlias sa = new SubQueryAlias(plan.source(), logicalPlan, table.index());
 
             if (plan.alias() != null) {

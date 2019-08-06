@@ -16,7 +16,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -44,7 +44,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 /**
  * Representation of a Mustache template for expressing one or more roles names in a {@link ExpressionRoleMapping}.
  */
-public class TemplateRoleName implements ToXContent, Writeable {
+public class TemplateRoleName implements ToXContentObject, Writeable {
 
     private static final ConstructingObjectParser<TemplateRoleName, Void> PARSER = new ConstructingObjectParser<>(
         "role-mapping-template", false, arr -> new TemplateRoleName((BytesReference) arr[0], (Format) arr[1]));

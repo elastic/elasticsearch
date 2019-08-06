@@ -414,6 +414,26 @@ SELECT COUNT(ALL last_name)=COUNT(ALL first_name) AS areEqual, COUNT(ALL first_n
 false          |90             |100
 ;
 
+topHitsAsMinAndMax
+schema::min:s|max:s|first:s|last:s
+SELECT MIN(first_name) as min, MAX(first_name) as max, FIRST(first_name) as first, LAST(first_name) as last FROM test_emp;
+
+    min        |   max         |   first      |   last
+---------------+---------------+--------------+----------
+   Alejandro   |   Zvonko      |   Alejandro  |   Zvonko
+;
+
+topHitsAsMinAndMaxAndGroupBy
+schema::gender:s|min:s|max:s|first:s|last:s
+SELECT gender, MIN(first_name) as min, MAX(first_name) as max, FIRST(first_name) as first, LAST(first_name) as last FROM test_emp GROUP BY gender ORDER BY gender;
+
+    gender     |   min         |   max        |   first       |   last
+---------------+---------------+--------------+---------------+----------
+null           |   Berni       |   Patricio   |   Berni       |   Patricio
+F              |   Alejandro   |   Xinglin    |   Alejandro   |   Xinglin
+M              |   Amabile     |   Zvonko     |   Amabile     |   Zvonko
+;
+
 topHitsWithOneArgAndGroupBy
 schema::gender:s|first:s|last:s
 SELECT gender, FIRST(first_name) as first, LAST(first_name) as last FROM test_emp GROUP BY gender ORDER BY gender;

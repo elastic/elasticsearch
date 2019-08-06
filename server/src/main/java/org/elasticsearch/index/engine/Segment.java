@@ -30,7 +30,7 @@ import org.apache.lucene.util.Accountables;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
@@ -39,8 +39,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
-public class Segment implements Streamable {
+public class Segment implements Writeable {
 
     private String name;
     private long generation;
@@ -57,7 +58,28 @@ public class Segment implements Streamable {
     public Accountable ramTree = null;
     public Map<String, String> attributes;
 
-    Segment() {
+    public Segment(StreamInput in) throws IOException {
+        name = in.readString();
+        generation = Long.parseLong(name.substring(1), Character.MAX_RADIX);
+        committed = in.readBoolean();
+        search = in.readBoolean();
+        docCount = in.readInt();
+        delDocCount = in.readInt();
+        sizeInBytes = in.readLong();
+        version = Lucene.parseVersionLenient(in.readOptionalString(), null);
+        compound = in.readOptionalBoolean();
+        mergeId = in.readOptionalString();
+        memoryInBytes = in.readLong();
+        if (in.readBoolean()) {
+            // verbose mode
+            ramTree = readRamTree(in);
+        }
+        segmentSort = readSegmentSort(in);
+        if (in.readBoolean()) {
+            attributes = in.readMap(StreamInput::readString, StreamInput::readString);
+        } else {
+            attributes = null;
+        }
     }
 
     public Segment(String name) {
@@ -91,10 +113,6 @@ public class Segment implements Streamable {
 
     public ByteSizeValue getSize() {
         return new ByteSizeValue(sizeInBytes);
-    }
-
-    public long getSizeInBytes() {
-        return this.sizeInBytes;
     }
 
     public org.apache.lucene.util.Version getVersion() {
@@ -144,45 +162,13 @@ public class Segment implements Streamable {
 
         Segment segment = (Segment) o;
 
-        if (name != null ? !name.equals(segment.name) : segment.name != null) return false;
+        return Objects.equals(name, segment.name);
 
-        return true;
     }
 
     @Override
     public int hashCode() {
         return name != null ? name.hashCode() : 0;
-    }
-
-    public static Segment readSegment(StreamInput in) throws IOException {
-        Segment segment = new Segment();
-        segment.readFrom(in);
-        return segment;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        name = in.readString();
-        generation = Long.parseLong(name.substring(1), Character.MAX_RADIX);
-        committed = in.readBoolean();
-        search = in.readBoolean();
-        docCount = in.readInt();
-        delDocCount = in.readInt();
-        sizeInBytes = in.readLong();
-        version = Lucene.parseVersionLenient(in.readOptionalString(), null);
-        compound = in.readOptionalBoolean();
-        mergeId = in.readOptionalString();
-        memoryInBytes = in.readLong();
-        if (in.readBoolean()) {
-            // verbose mode
-            ramTree = readRamTree(in);
-        }
-        segmentSort = readSegmentSort(in);
-        if (in.readBoolean()) {
-            attributes = in.readMap(StreamInput::readString, StreamInput::readString);
-        } else {
-            attributes = null;
-        }
     }
 
     @Override
@@ -211,7 +197,7 @@ public class Segment implements Streamable {
         }
     }
 
-    Sort readSegmentSort(StreamInput in) throws IOException {
+    private Sort readSegmentSort(StreamInput in) throws IOException {
         int size = in.readVInt();
         if (size == 0) {
             return null;
@@ -262,7 +248,7 @@ public class Segment implements Streamable {
         return new Sort(fields);
     }
 
-    void writeSegmentSort(StreamOutput out, Sort sort) throws IOException {
+    private void writeSegmentSort(StreamOutput out, Sort sort) throws IOException {
         if (sort == null) {
             out.writeVInt(0);
             return;
@@ -302,14 +288,14 @@ public class Segment implements Streamable {
         }
     }
 
-    Accountable readRamTree(StreamInput in) throws IOException {
+    private Accountable readRamTree(StreamInput in) throws IOException {
         final String name = in.readString();
         final long bytes = in.readVLong();
         int numChildren = in.readVInt();
         if (numChildren == 0) {
             return Accountables.namedAccountable(name, bytes);
         }
-        List<Accountable> children = new ArrayList(numChildren);
+        List<Accountable> children = new ArrayList<>(numChildren);
         while (numChildren-- > 0) {
             children.add(readRamTree(in));
         }
@@ -317,7 +303,7 @@ public class Segment implements Streamable {
     }
 
     // the ram tree is written recursively since the depth is fairly low (5 or 6)
-    void writeRamTree(StreamOutput out, Accountable tree) throws IOException {
+    private void writeRamTree(StreamOutput out, Accountable tree) throws IOException {
         out.writeString(tree.toString());
         out.writeVLong(tree.ramBytesUsed());
         Collection<Accountable> children = tree.getChildResources();

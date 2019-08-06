@@ -1,9 +1,7 @@
 ---
 "Copy settings during split index":
   - skip:
-      version: " - 6.9.99"
-      reason: expects warnings that pre-7.0.0 will not send
-      features: [arbitrary_key, warnings]
+      features: [arbitrary_key]
 
   - do:
       nodes.info:

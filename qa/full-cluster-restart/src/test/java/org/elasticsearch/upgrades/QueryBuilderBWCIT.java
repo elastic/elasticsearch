@@ -188,7 +188,7 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
                 assertEquals(201, rsp.getStatusLine().getStatusCode());
             }
         } else {
-            NamedWriteableRegistry registry = new NamedWriteableRegistry(new SearchModule(Settings.EMPTY, false,
+            NamedWriteableRegistry registry = new NamedWriteableRegistry(new SearchModule(Settings.EMPTY,
                 Collections.emptyList()).getNamedWriteables());
 
             for (int i = 0; i < CANDIDATES.size(); i++) {

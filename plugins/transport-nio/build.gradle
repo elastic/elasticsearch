@@ -21,11 +21,10 @@ apply plugin: "nebula.maven-scm"
 esplugin {
     description 'The nio transport.'
     classname 'org.elasticsearch.transport.nio.NioTransportPlugin'
-    hasClientJar = true
 }
 
 dependencies {
-    compile "org.elasticsearch:elasticsearch-nio:${version}"
+    compile project(':libs:elasticsearch-nio')
 
     // network stack
     compile "io.netty:netty-buffer:${versions.netty}"
@@ -52,6 +51,10 @@ thirdPartyAudit {
         // from io.netty.logging.CommonsLoggerFactory (netty)
         'org.apache.commons.logging.Log',
         'org.apache.commons.logging.LogFactory',
+
+        // from Log4j (deliberate, Netty will fallback to Log4j 2)
+        'org.apache.log4j.Level',
+        'org.apache.log4j.Logger',
 
         // from io.netty.handler.ssl.util.BouncyCastleSelfSignedCertGenerator (netty)
         'org.bouncycastle.cert.X509v3CertificateBuilder',
@@ -120,6 +123,7 @@ thirdPartyAudit {
         'io.netty.internal.tcnative.Library',
         'io.netty.internal.tcnative.SSL',
         'io.netty.internal.tcnative.SSLContext',
+        'io.netty.internal.tcnative.SSLPrivateKeyMethod',
         'io.netty.internal.tcnative.CertificateCallback',
         'io.netty.internal.tcnative.CertificateVerifier',
         'io.netty.internal.tcnative.SessionTicketKey',
@@ -148,10 +152,12 @@ thirdPartyAudit {
         'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator'
     )
 }
-if (project.inFipsJvm == false) {
-    // BouncyCastleFIPS provides this class, so the exclusion is invalid when running CI in
-    // a FIPS JVM with BouncyCastleFIPS Provider
-    thirdPartyAudit.ignoreMissingClasses (
-            'org.bouncycastle.asn1.x500.X500Name'
-    )
+rootProject.globalInfo.ready {
+    if (project.inFipsJvm == false) {
+        // BouncyCastleFIPS provides this class, so the exclusion is invalid when running CI in
+        // a FIPS JVM with BouncyCastleFIPS Provider
+        thirdPartyAudit.ignoreMissingClasses(
+                'org.bouncycastle.asn1.x500.X500Name'
+        )
+    }
 }

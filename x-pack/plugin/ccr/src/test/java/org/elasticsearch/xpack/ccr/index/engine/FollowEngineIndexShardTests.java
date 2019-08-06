@@ -80,7 +80,7 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
                 replicaRouting.allocationId());
         indexShard.updateShardState(primaryRouting, indexShard.getOperationPrimaryTerm() + 1, (shard, listener) -> {},
             0L, Collections.singleton(primaryRouting.allocationId().getId()),
-            new IndexShardRoutingTable.Builder(primaryRouting.shardId()).addShard(primaryRouting).build(), Collections.emptySet());
+            new IndexShardRoutingTable.Builder(primaryRouting.shardId()).addShard(primaryRouting).build());
 
         final CountDownLatch latch = new CountDownLatch(1);
         ActionListener<Releasable> actionListener = ActionListener.wrap(releasable -> {
@@ -127,8 +127,8 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
         target.markAsRecovering("store", new RecoveryState(routing, localNode, null));
         assertTrue(target.restoreFromRepository(new RestoreOnlyRepository("test") {
             @Override
-            public void restoreShard(IndexShard shard, SnapshotId snapshotId, Version version, IndexId indexId, ShardId snapshotShardId,
-                                     RecoveryState recoveryState) {
+            public void restoreShard(Store store, SnapshotId snapshotId,
+                                     Version version, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState) {
                 try {
                     cleanLuceneIndex(targetStore.directory());
                     for (String file : sourceStore.directory().listAll()) {

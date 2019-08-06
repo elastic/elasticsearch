@@ -1,5 +1,5 @@
 [[cluster-health]]
-== Cluster Health
+=== Cluster Health
 
 The cluster health API allows to get a very simple status on the health
 of the cluster. For example, on a quiet single node cluster with a single index
@@ -34,7 +34,7 @@ Returns this:
   "active_shards_percent_as_number": 50.0
 }
 --------------------------------------------------
-// TESTRESPONSE[s/testcluster/docs_integTestCluster/]
+// TESTRESPONSE[s/testcluster/integTest/]
 // TESTRESPONSE[s/"number_of_pending_tasks" : 0,/"number_of_pending_tasks" : $body.number_of_pending_tasks,/]
 // TESTRESPONSE[s/"task_max_waiting_in_queue_millis": 0/"task_max_waiting_in_queue_millis": $body.task_max_waiting_in_queue_millis/]
 
@@ -70,7 +70,7 @@ GET /_cluster/health?wait_for_status=yellow&timeout=50s
 
 [float]
 [[request-params]]
-=== Request Parameters
+==== Request Parameters
 
 The cluster health API accepts the following request parameters:
 

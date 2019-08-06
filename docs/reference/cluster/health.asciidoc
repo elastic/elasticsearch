@@ -1,6 +1,6 @@
 [[cluster-health]]
 === Cluster Health
-
+Returns the health status of a cluster.
 [[cluster-health-api-request]]
 ==== {api-request-title}
 

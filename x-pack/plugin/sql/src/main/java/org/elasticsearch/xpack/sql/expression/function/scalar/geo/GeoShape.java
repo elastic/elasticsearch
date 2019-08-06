@@ -29,6 +29,8 @@ import org.elasticsearch.geo.geometry.MultiPolygon;
 import org.elasticsearch.geo.geometry.Point;
 import org.elasticsearch.geo.geometry.Polygon;
 import org.elasticsearch.geo.geometry.Rectangle;
+import org.elasticsearch.geo.utils.StandardValidator;
+import org.elasticsearch.geo.utils.GeometryValidator;
 import org.elasticsearch.geo.utils.WellKnownText;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
@@ -49,9 +51,11 @@ public class GeoShape implements ToXContentFragment, NamedWriteable {
 
     private final Geometry shape;
 
+    private static final GeometryValidator validator = new StandardValidator(true);
+
     private static final GeometryParser GEOMETRY_PARSER = new GeometryParser(true, true, true);
 
-    private static final WellKnownText WKT_PARSER = new WellKnownText(true, true);
+    private static final WellKnownText WKT_PARSER = new WellKnownText(true, validator);
 
     public GeoShape(double lon, double lat) {
         shape = new Point(lat, lon);

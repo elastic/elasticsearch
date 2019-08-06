@@ -186,10 +186,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
                     new TransportResponseHandler<TransportReplicationAction.ReplicaResponse>() {
                         @Override
                         public TransportReplicationAction.ReplicaResponse read(StreamInput in) throws IOException {
-                            final TransportReplicationAction.ReplicaResponse replicaResponse
-                                = new TransportReplicationAction.ReplicaResponse();
-                            replicaResponse.readFrom(in);
-                            return replicaResponse;
+                            return new TransportReplicationAction.ReplicaResponse(in);
                         }
 
                         @SuppressWarnings("unchecked")
@@ -431,7 +428,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
         }
 
         @Override
-        protected Response newResponseInstance() {
+        protected Response newResponseInstance(StreamInput in) {
             return new Response();
         }
 

@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction.Response.Stats;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.ml.action.TransportStartDataFrameAnalyticsAction.DataFrameAnalyticsTask;
 import org.elasticsearch.xpack.ml.dataframe.process.AnalyticsProcessManager;
 
@@ -133,12 +134,21 @@ public class TransportGetDataFrameAnalyticsStatsAction
         LOGGER.debug("Get stats for data frame analytics [{}]", request.getId());
 
         ActionListener<GetDataFrameAnalyticsAction.Response> getResponseListener = ActionListener.wrap(
-            response -> {
-                List<String> expandedIds = response.getResources().results().stream().map(DataFrameAnalyticsConfig::getId)
+            getResponse -> {
+                List<String> expandedIds = getResponse.getResources().results().stream().map(DataFrameAnalyticsConfig::getId)
                     .collect(Collectors.toList());
                 request.setExpandedIds(expandedIds);
                 ActionListener<GetDataFrameAnalyticsStatsAction.Response> runningTasksStatsListener = ActionListener.wrap(
-                    runningTasksStatsResponse -> gatherStatsForStoppedTasks(request.getExpandedIds(), runningTasksStatsResponse, listener),
+                    runningTasksStatsResponse -> gatherStatsForStoppedTasks(request.getExpandedIds(), runningTasksStatsResponse,
+                        ActionListener.wrap(
+                            finalResponse -> {
+                                // While finalResponse has all the stats objects we need, we should report the count
+                                // from the get response
+                                QueryPage<Stats> finalStats = new QueryPage<>(finalResponse.getResponse().results(),
+                                    getResponse.getResources().count(), GetDataFrameAnalyticsAction.Response.RESULTS_FIELD);
+                                listener.onResponse(new GetDataFrameAnalyticsStatsAction.Response(finalStats));
+                            },
+                            listener::onFailure)),
                     listener::onFailure
                 );
                 super.doExecute(task, request, runningTasksStatsListener);
@@ -178,6 +188,11 @@ public class TransportGetDataFrameAnalyticsStatsAction
         PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         PersistentTasksCustomMetaData.PersistentTask<?> analyticsTask = MlTasks.getDataFrameAnalyticsTask(concreteAnalyticsId, tasks);
         DataFrameAnalyticsState analyticsState = MlTasks.getDataFrameAnalyticsState(concreteAnalyticsId, tasks);
+        String failureReason = null;
+        if (analyticsState == DataFrameAnalyticsState.FAILED) {
+            DataFrameAnalyticsTaskState taskState = (DataFrameAnalyticsTaskState) analyticsTask.getState();
+            failureReason = taskState.getReason();
+        }
         DiscoveryNode node = null;
         String assignmentExplanation = null;
         if (analyticsTask != null) {
@@ -185,6 +200,6 @@ public class TransportGetDataFrameAnalyticsStatsAction
             assignmentExplanation = analyticsTask.getAssignment().getExplanation();
         }
         return new GetDataFrameAnalyticsStatsAction.Response.Stats(
-            concreteAnalyticsId, analyticsState, progressPercent, node, assignmentExplanation);
+            concreteAnalyticsId, analyticsState, failureReason, progressPercent, node, assignmentExplanation);
     }
 }

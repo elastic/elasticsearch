@@ -8,6 +8,8 @@ setup:
             "is_outlier": false,
             "is_outlier_int": 0,
             "outlier_score": 0.0,
+            "regression_field_act": 10.9,
+            "regression_field_pred": 10.9,
             "all_true_field": true,
             "all_false_field": false
           }
@@ -20,6 +22,8 @@ setup:
             "is_outlier": false,
             "is_outlier_int": 0,
             "outlier_score": 0.2,
+            "regression_field_act": 12.0,
+            "regression_field_pred": 9.9,
             "all_true_field": true,
             "all_false_field": false
           }
@@ -32,6 +36,8 @@ setup:
             "is_outlier": false,
             "is_outlier_int": 0,
             "outlier_score": 0.3,
+            "regression_field_act": 20.9,
+            "regression_field_pred": 5.9,
             "all_true_field": true,
             "all_false_field": false
           }
@@ -44,6 +50,8 @@ setup:
             "is_outlier": true,
             "is_outlier_int": 1,
             "outlier_score": 0.3,
+            "regression_field_act": 11.9,
+            "regression_field_pred": 11.9,
             "all_true_field": true,
             "all_false_field": false
           }
@@ -56,6 +64,8 @@ setup:
             "is_outlier": true,
             "is_outlier_int": 1,
             "outlier_score": 0.4,
+            "regression_field_act": 42.9,
+            "regression_field_pred": 42.9,
             "all_true_field": true,
             "all_false_field": false
           }
@@ -68,6 +78,8 @@ setup:
             "is_outlier": true,
             "is_outlier_int": 1,
             "outlier_score": 0.5,
+            "regression_field_act": 0.42,
+            "regression_field_pred": 0.42,
             "all_true_field": true,
             "all_false_field": false
           }
@@ -80,6 +92,8 @@ setup:
             "is_outlier": true,
             "is_outlier_int": 1,
             "outlier_score": 0.9,
+            "regression_field_act": 1.1235813,
+            "regression_field_pred": 1.12358,
             "all_true_field": true,
             "all_false_field": false
           }
@@ -92,6 +106,8 @@ setup:
             "is_outlier": true,
             "is_outlier_int": 1,
             "outlier_score": 0.95,
+            "regression_field_act": -5.20,
+            "regression_field_pred": -5.1,
             "all_true_field": true,
             "all_false_field": false
           }
@@ -109,7 +125,7 @@ setup:
       indices.refresh: {}
 
 ---
-"Test binary_soft_classifition auc_roc":
+"Test binary_soft_classification auc_roc":
   - do:
       ml.evaluate_data_frame:
         body:  >
@@ -129,7 +145,7 @@ setup:
   - is_false: binary_soft_classification.auc_roc.curve
 
 ---
-"Test binary_soft_classifition auc_roc given actual_field is int":
+"Test binary_soft_classification auc_roc given actual_field is int":
   - do:
       ml.evaluate_data_frame:
         body:  >
@@ -149,7 +165,7 @@ setup:
   - is_false: binary_soft_classification.auc_roc.curve
 
 ---
-"Test binary_soft_classifition auc_roc include curve":
+"Test binary_soft_classification auc_roc include curve":
   - do:
       ml.evaluate_data_frame:
         body:  >
@@ -169,7 +185,7 @@ setup:
   - is_true: binary_soft_classification.auc_roc.curve
 
 ---
-"Test binary_soft_classifition auc_roc given actual_field is always true":
+"Test binary_soft_classification auc_roc given actual_field is always true":
   - do:
       catch: /\[auc_roc\] requires at least one actual_field to have a different value than \[true\]/
       ml.evaluate_data_frame:
@@ -188,7 +204,7 @@ setup:
           }
 
 ---
-"Test binary_soft_classifition auc_roc given actual_field is always false":
+"Test binary_soft_classification auc_roc given actual_field is always false":
   - do:
       catch: /\[auc_roc\] requires at least one actual_field to have the value \[true\]/
       ml.evaluate_data_frame:
@@ -207,7 +223,7 @@ setup:
           }
 
 ---
-"Test binary_soft_classifition precision":
+"Test binary_soft_classification precision":
   - do:
       ml.evaluate_data_frame:
         body:  >
@@ -226,11 +242,11 @@ setup:
   - match:
       binary_soft_classification:
         precision:
-          0.0: 0.625
-          0.5: 1.0
+          '0.0': 0.625
+          '0.5': 1.0
 
 ---
-"Test binary_soft_classifition recall":
+"Test binary_soft_classification recall":
   - do:
       ml.evaluate_data_frame:
         body:  >
@@ -249,12 +265,12 @@ setup:
   - match:
       binary_soft_classification:
         recall:
-          0.0: 1.0
-          0.4: 0.8
-          0.5: 0.6
+          '0.0': 1.0
+          '0.4': 0.8
+          '0.5': 0.6
 
 ---
-"Test binary_soft_classifition confusion_matrix":
+"Test binary_soft_classification confusion_matrix":
   - do:
       ml.evaluate_data_frame:
         body:  >
@@ -273,24 +289,24 @@ setup:
   - match:
       binary_soft_classification:
         confusion_matrix:
-          0.0:
+          '0.0':
             tp: 5
             fp: 3
             tn: 0
             fn: 0
-          0.3:
+          '0.3':
             tp: 5
             fp: 1
             tn: 2
             fn: 0
-          0.5:
+          '0.5':
             tp: 3
             fp: 0
             tn: 3
             fn: 2
 
 ---
-"Test binary_soft_classifition default metrics":
+"Test binary_soft_classification default metrics":
   - do:
       ml.evaluate_data_frame:
         body:  >
@@ -356,7 +372,7 @@ setup:
           }
 
 ---
-"Test binary_soft_classification given evaluation with emtpy metrics":
+"Test binary_soft_classification given evaluation with empty metrics":
   - do:
       catch: /\[binary_soft_classification\] must have one or more metrics/
       ml.evaluate_data_frame:
@@ -518,3 +534,71 @@ setup:
               }
             }
           }
+---
+"Test regression given evaluation with empty metrics":
+  - do:
+      catch: /\[regression\] must have one or more metrics/
+      ml.evaluate_data_frame:
+        body: >
+          {
+            "index": "utopia",
+            "evaluation": {
+              "regression": {
+                "actual_field": "regression_field_act",
+                "predicted_field": "regression_field_pred",
+                "metrics": { }
+              }
+            }
+          }
+---
+"Test regression mean_squared_error":
+  - do:
+      ml.evaluate_data_frame:
+        body: >
+          {
+            "index": "utopia",
+            "evaluation": {
+              "regression": {
+                "actual_field": "regression_field_act",
+                "predicted_field": "regression_field_pred",
+                "metrics": { "mean_squared_error": {} }
+              }
+            }
+          }
+
+  - match: { regression.mean_squared_error.error: 28.67749840974834 }
+  - is_false: regression.r_squared.value
+---
+"Test regression r_squared":
+  - do:
+      ml.evaluate_data_frame:
+        body: >
+          {
+            "index": "utopia",
+            "evaluation": {
+              "regression": {
+                "actual_field": "regression_field_act",
+                "predicted_field": "regression_field_pred",
+                "metrics": { "r_squared": {} }
+              }
+            }
+          }
+  - match: { regression.r_squared.value: 0.8551031778603486 }
+  - is_false: regression.mean_squared_error
+---
+"Test regression with null metrics":
+  - do:
+      ml.evaluate_data_frame:
+        body: >
+          {
+            "index": "utopia",
+            "evaluation": {
+              "regression": {
+                "actual_field": "regression_field_act",
+                "predicted_field": "regression_field_pred"
+              }
+            }
+          }
+
+  - match: { regression.mean_squared_error.error: 28.67749840974834 }
+  - match: { regression.r_squared.value: 0.8551031778603486 }

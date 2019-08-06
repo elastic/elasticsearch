@@ -7,17 +7,13 @@ package org.elasticsearch.xpack.core.security.action.token;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.CharArrays;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SecureString;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Locale;
@@ -71,6 +67,16 @@ public final class CreateTokenRequest extends ActionRequest {
     private SecureString kerberosTicket;
     private String scope;
     private String refreshToken;
+
+    public CreateTokenRequest(StreamInput in) throws IOException {
+        super(in);
+        grantType = in.readString();
+        username = in.readOptionalString();
+        password = in.readOptionalSecureString();
+        refreshToken = in.readOptionalString();
+        scope = in.readOptionalString();
+        kerberosTicket = in.readOptionalSecureString();
+    }
 
     public CreateTokenRequest() {}
 
@@ -211,37 +217,9 @@ public final class CreateTokenRequest extends ActionRequest {
         super.writeTo(out);
         out.writeString(grantType);
         out.writeOptionalString(username);
-        if (password == null) {
-            out.writeOptionalBytesReference(null);
-        } else {
-            final byte[] passwordBytes = CharArrays.toUtf8Bytes(password.getChars());
-            try {
-                out.writeOptionalBytesReference(new BytesArray(passwordBytes));
-            } finally {
-                Arrays.fill(passwordBytes, (byte) 0);
-            }
-        }
+        out.writeOptionalSecureString(password);
         out.writeOptionalString(refreshToken);
         out.writeOptionalString(scope);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        grantType = in.readString();
-        username = in.readOptionalString();
-        BytesReference bytesRef = in.readOptionalBytesReference();
-        if (bytesRef != null) {
-            byte[] bytes = BytesReference.toBytes(bytesRef);
-            try {
-                password = new SecureString(CharArrays.utf8BytesToChars(bytes));
-            } finally {
-                Arrays.fill(bytes, (byte) 0);
-            }
-        } else {
-            password = null;
-        }
-        refreshToken = in.readOptionalString();
-        scope = in.readOptionalString();
+        out.writeOptionalSecureString(kerberosTicket);
     }
 }

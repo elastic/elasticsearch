@@ -29,10 +29,13 @@ public class SourceDestValidator {
     }
 
     public void check(DataFrameAnalyticsConfig config) {
-        String sourceIndex = config.getSource().getIndex();
+        String[] sourceIndex = config.getSource().getIndex();
         String destIndex = config.getDest().getIndex();
 
-        String[] sourceExpressions = Strings.tokenizeToStringArray(sourceIndex, ",");
+        String[] sourceExpressions = Arrays.stream(sourceIndex)
+            .map(index -> Strings.tokenizeToStringArray(index, ","))
+            .flatMap(Arrays::stream)
+            .toArray(String[]::new);
 
         for (String sourceExpression : sourceExpressions) {
             if (Regex.simpleMatch(sourceExpression, destIndex)) {
@@ -45,7 +48,7 @@ public class SourceDestValidator {
             IndicesOptions.lenientExpandOpen(), sourceExpressions)));
 
         if (concreteSourceIndexNames.isEmpty()) {
-            throw ExceptionsHelper.badRequestException("No index matches source index [{}]", sourceIndex);
+            throw ExceptionsHelper.badRequestException("No index matches source index {}", Arrays.toString(sourceIndex));
         }
 
         final String[] concreteDestIndexNames = indexNameExpressionResolver.concreteIndexNames(clusterState,
@@ -59,7 +62,7 @@ public class SourceDestValidator {
         if (concreteDestIndexNames.length == 1 && concreteSourceIndexNames.contains(concreteDestIndexNames[0])) {
             // In case the dest index is an alias, we need to check the concrete index is not matched by source
             throw ExceptionsHelper.badRequestException("Destination index [{}], which is an alias for [{}], " +
-                    "must not be included in source index [{}]", destIndex, concreteDestIndexNames[0], sourceIndex);
+                    "must not be included in source index {}", destIndex, concreteDestIndexNames[0], Arrays.toString(sourceIndex));
         }
     }
 }

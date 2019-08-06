@@ -19,25 +19,15 @@
 
 package org.elasticsearch.action.admin.indices.shrink;
 
-import org.elasticsearch.action.Action;
-import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.action.ActionType;
 
-public class ShrinkAction extends Action<ResizeResponse> {
+public class ShrinkAction extends ActionType<ResizeResponse> {
 
     public static final ShrinkAction INSTANCE = new ShrinkAction();
     public static final String NAME = "indices:admin/shrink";
 
     private ShrinkAction() {
-        super(NAME);
+        super(NAME, ResizeResponse::new);
     }
 
-    @Override
-    public ResizeResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
-    public Writeable.Reader<ResizeResponse> getResponseReader() {
-        return ResizeResponse::new;
-    }
 }

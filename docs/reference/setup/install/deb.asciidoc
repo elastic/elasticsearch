@@ -165,10 +165,10 @@ https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}
 endif::[]
 
 ifdef::include-xpack[]
+[role="xpack"]
 [[deb-enable-indices]]
-==== Enable automatic creation of {xpack} indices
+==== Enable automatic creation of system indices
 
-{xpack} will try to automatically create a number of indices within Elasticsearch.
 include::xpack-indices.asciidoc[]
 
 endif::include-xpack[]

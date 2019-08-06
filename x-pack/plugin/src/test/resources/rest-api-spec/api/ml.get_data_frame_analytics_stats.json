@@ -1,5 +1,6 @@
 {
   "ml.get_data_frame_analytics_stats": {
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/get-dfanalytics-stats.html",
     "stability": "experimental",
     "methods": [ "GET"],
     "url": {

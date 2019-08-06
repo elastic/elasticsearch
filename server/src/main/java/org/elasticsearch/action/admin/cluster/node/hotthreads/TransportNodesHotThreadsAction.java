@@ -55,13 +55,13 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<NodesHo
     }
 
     @Override
-    protected NodeRequest newNodeRequest(String nodeId, NodesHotThreadsRequest request) {
-        return new NodeRequest(nodeId, request);
+    protected NodeRequest newNodeRequest(NodesHotThreadsRequest request) {
+        return new NodeRequest(request);
     }
 
     @Override
-    protected NodeHotThreads newNodeResponse() {
-        return new NodeHotThreads();
+    protected NodeHotThreads newNodeResponse(StreamInput in) throws IOException {
+        return new NodeHotThreads(in);
     }
 
     @Override
@@ -83,19 +83,13 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<NodesHo
 
         NodesHotThreadsRequest request;
 
-        public NodeRequest() {
+        public NodeRequest(StreamInput in) throws IOException {
+            super(in);
+            request = new NodesHotThreadsRequest(in);
         }
 
-        NodeRequest(String nodeId, NodesHotThreadsRequest request) {
-            super(nodeId);
+        NodeRequest(NodesHotThreadsRequest request) {
             this.request = request;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            request = new NodesHotThreadsRequest();
-            request.readFrom(in);
         }
 
         @Override

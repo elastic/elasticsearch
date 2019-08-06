@@ -30,13 +30,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public abstract class ArrayValuesSourceAggregatorFactory<VS extends ValuesSource, AF extends ArrayValuesSourceAggregatorFactory<VS, AF>>
-    extends AggregatorFactory<AF> {
+public abstract class ArrayValuesSourceAggregatorFactory<VS extends ValuesSource>
+    extends AggregatorFactory {
 
     protected Map<String, ValuesSourceConfig<VS>> configs;
 
     public ArrayValuesSourceAggregatorFactory(String name, Map<String, ValuesSourceConfig<VS>> configs,
-                                              SearchContext context, AggregatorFactory<?> parent,
+                                              SearchContext context, AggregatorFactory parent,
                                               AggregatorFactories.Builder subFactoriesBuilder,
                                               Map<String, Object> metaData) throws IOException {
         super(name, context, parent, subFactoriesBuilder, metaData);

@@ -86,6 +86,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableList;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
@@ -176,15 +177,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      *
      * @param repositoryName repository name
      * @param snapshotIds       snapshots for which to fetch snapshot information
-     * @param incompatibleSnapshotIds   snapshots for which not to fetch snapshot information
      * @param ignoreUnavailable if true, snapshots that could not be read will only be logged with a warning,
      *                          if false, they will throw an error
      * @return list of snapshots
      */
-    public List<SnapshotInfo> snapshots(final String repositoryName,
-                                        final List<SnapshotId> snapshotIds,
-                                        final Set<SnapshotId> incompatibleSnapshotIds,
-                                        final boolean ignoreUnavailable) {
+    public List<SnapshotInfo> snapshots(final String repositoryName, final List<SnapshotId> snapshotIds, final boolean ignoreUnavailable) {
         final Set<SnapshotInfo> snapshotSet = new HashSet<>();
         final Set<SnapshotId> snapshotIdsToIterate = new HashSet<>(snapshotIds);
         // first, look at the snapshots in progress
@@ -198,13 +195,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         final Repository repository = repositoriesService.repository(repositoryName);
         for (SnapshotId snapshotId : snapshotIdsToIterate) {
             try {
-                if (incompatibleSnapshotIds.contains(snapshotId)) {
-                    // an incompatible snapshot - cannot read its snapshot metadata file, just return
-                    // a SnapshotInfo indicating its incompatible
-                    snapshotSet.add(SnapshotInfo.incompatible(snapshotId));
-                } else {
-                    snapshotSet.add(repository.getSnapshotInfo(snapshotId));
-                }
+                snapshotSet.add(repository.getSnapshotInfo(snapshotId));
             } catch (Exception ex) {
                 if (ignoreUnavailable) {
                     logger.warn(() -> new ParameterizedMessage("failed to get snapshot [{}]", snapshotId), ex);
@@ -285,7 +276,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                                                 request.partial(),
                                                                 State.INIT,
                                                                 snapshotIndices,
-                                                                System.currentTimeMillis(),
+                                                                threadPool.absoluteTimeInMillis(),
                                                                 repositoryData.getGenId(),
                                                                 null,
                                                                 request.userMetadata());
@@ -1098,11 +1089,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         // First, look for the snapshot in the repository
         final Repository repository = repositoriesService.repository(repositoryName);
         final RepositoryData repositoryData = repository.getRepositoryData();
-        final Optional<SnapshotId> incompatibleSnapshotId =
-            repositoryData.getIncompatibleSnapshotIds().stream().filter(s -> snapshotName.equals(s.getName())).findFirst();
-        if (incompatibleSnapshotId.isPresent()) {
-            throw new SnapshotException(repositoryName, snapshotName, "cannot delete incompatible snapshot");
-        }
         Optional<SnapshotId> matchedEntry = repositoryData.getSnapshotIds()
                                                 .stream()
                                                 .filter(s -> s.getName().equals(snapshotName))
@@ -1169,7 +1155,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     // add the snapshot deletion to the cluster state
                     SnapshotDeletionsInProgress.Entry entry = new SnapshotDeletionsInProgress.Entry(
                         snapshot,
-                        System.currentTimeMillis(),
+                        threadPool.absoluteTimeInMillis(),
                         repositoryStateId
                     );
                     if (deletionsInProgress != null) {
@@ -1312,17 +1298,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param repositoryStateId the unique id representing the state of the repository at the time the deletion began
      */
     private void deleteSnapshotFromRepository(Snapshot snapshot, @Nullable ActionListener<Void> listener, long repositoryStateId) {
-        threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new ActionRunnable<>(listener) {
-            @Override
-            protected void doRun() {
-                Repository repository = repositoriesService.repository(snapshot.getRepository());
-                repository.deleteSnapshot(snapshot.getSnapshotId(), repositoryStateId, ActionListener.wrap(v -> {
-                        logger.info("snapshot [{}] deleted", snapshot);
-                        removeSnapshotDeletionFromClusterState(snapshot, null, listener);
-                    }, ex -> removeSnapshotDeletionFromClusterState(snapshot, ex, listener)
-                ));
-            }
-        });
+        threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(listener, l -> {
+            Repository repository = repositoriesService.repository(snapshot.getRepository());
+            repository.deleteSnapshot(snapshot.getSnapshotId(), repositoryStateId, ActionListener.wrap(v -> {
+                    logger.info("snapshot [{}] deleted", snapshot);
+                    removeSnapshotDeletionFromClusterState(snapshot, null, l);
+                }, ex -> removeSnapshotDeletionFromClusterState(snapshot, ex, l)
+            ));
+        }));
     }
 
     /**
@@ -1418,62 +1401,37 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     /**
-     * Check if any of the indices to be deleted are currently being snapshotted. Fail as deleting an index that is being
-     * snapshotted (with partial == false) makes the snapshot fail.
+     * Returns the indices that are currently being snapshotted (with partial == false) and that are contained in the indices-to-check set.
      */
-    public static void checkIndexDeletion(ClusterState currentState, Set<IndexMetaData> indices) {
-        Set<Index> indicesToFail = indicesToFailForCloseOrDeletion(currentState, indices);
-        if (indicesToFail != null) {
-            throw new SnapshotInProgressException("Cannot delete indices that are being snapshotted: " + indicesToFail +
-                ". Try again after snapshot finishes or cancel the currently running snapshot.");
+    public static Set<Index> snapshottingIndices(final ClusterState currentState, final Set<Index> indicesToCheck) {
+        final SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
+        if (snapshots == null) {
+            return emptySet();
         }
-    }
 
-    /**
-     * Check if any of the indices to be closed are currently being snapshotted. Fail as closing an index that is being
-     * snapshotted (with partial == false) makes the snapshot fail.
-     */
-    public static void checkIndexClosing(ClusterState currentState, Set<IndexMetaData> indices) {
-        Set<Index> indicesToFail = indicesToFailForCloseOrDeletion(currentState, indices);
-        if (indicesToFail != null) {
-            throw new SnapshotInProgressException("Cannot close indices that are being snapshotted: " + indicesToFail +
-                ". Try again after snapshot finishes or cancel the currently running snapshot.");
-        }
-    }
-
-    private static Set<Index> indicesToFailForCloseOrDeletion(ClusterState currentState, Set<IndexMetaData> indices) {
-        SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
-        Set<Index> indicesToFail = null;
-        if (snapshots != null) {
-            for (final SnapshotsInProgress.Entry entry : snapshots.entries()) {
-                if (entry.partial() == false) {
-                    if (entry.state() == State.INIT) {
-                        for (IndexId index : entry.indices()) {
-                            IndexMetaData indexMetaData = currentState.metaData().index(index.getName());
-                            if (indexMetaData != null && indices.contains(indexMetaData)) {
-                                if (indicesToFail == null) {
-                                    indicesToFail = new HashSet<>();
-                                }
-                                indicesToFail.add(indexMetaData.getIndex());
-                            }
+        final Set<Index> indices = new HashSet<>();
+        for (final SnapshotsInProgress.Entry entry : snapshots.entries()) {
+            if (entry.partial() == false) {
+                if (entry.state() == State.INIT) {
+                    for (IndexId index : entry.indices()) {
+                        IndexMetaData indexMetaData = currentState.metaData().index(index.getName());
+                        if (indexMetaData != null && indicesToCheck.contains(indexMetaData.getIndex())) {
+                            indices.add(indexMetaData.getIndex());
                         }
-                    } else {
-                        for (ObjectObjectCursor<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shard : entry.shards()) {
-                            if (!shard.value.state().completed()) {
-                                IndexMetaData indexMetaData = currentState.metaData().index(shard.key.getIndex());
-                                if (indexMetaData != null && indices.contains(indexMetaData)) {
-                                    if (indicesToFail == null) {
-                                        indicesToFail = new HashSet<>();
-                                    }
-                                    indicesToFail.add(shard.key.getIndex());
-                                }
-                            }
+                    }
+                } else {
+                    for (ObjectObjectCursor<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shard : entry.shards()) {
+                        Index index = shard.key.getIndex();
+                        if (indicesToCheck.contains(index)
+                            && shard.value.state().completed() == false
+                            && currentState.getMetaData().index(index) != null) {
+                            indices.add(index);
                         }
                     }
                 }
             }
         }
-        return indicesToFail;
+        return indices;
     }
 
     /**

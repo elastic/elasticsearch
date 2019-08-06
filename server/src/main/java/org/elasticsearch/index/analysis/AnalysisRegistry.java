@@ -19,6 +19,7 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.core.KeywordTokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -185,11 +186,7 @@ public final class AnalysisRegistry implements Closeable {
                             throw new ElasticsearchException("failed to load analyzer for name " + key, ex);
                         }}
             );
-        } else if ("standard_html_strip".equals(analyzer)) {
-            throw new IllegalArgumentException("[standard_html_strip] analyzer is not supported for new indices, " +
-                "use a custom analyzer using [standard] tokenizer and [html_strip] char_filter, plus [lowercase] filter");
         }
-
         return analyzerProvider.get(environment, analyzer).get();
     }
 
@@ -249,11 +246,7 @@ public final class AnalysisRegistry implements Closeable {
             tokenFilterFactories.add(tff);
         }
 
-        String tokenizerName = tokenizer.name == null ? "_anonymous_tokenizer" : tokenizer.name;
-        if (normalizer) {
-            tokenizerName = "keyword_for_normalizer";
-        }
-        Analyzer analyzer = new CustomAnalyzer(tokenizerName, tokenizerFactory,
+        Analyzer analyzer = new CustomAnalyzer(tokenizerFactory,
             charFilterFactories.toArray(new CharFilterFactory[]{}),
             tokenFilterFactories.toArray(new TokenFilterFactory[]{}));
         return produceAnalyzer("__custom__", new AnalyzerProvider<>() {
@@ -525,7 +518,6 @@ public final class AnalysisRegistry implements Closeable {
                                 Map<String, TokenizerFactory> tokenizerFactoryFactories,
                                 Map<String, CharFilterFactory> charFilterFactoryFactories,
                                 Map<String, TokenFilterFactory> tokenFilterFactoryFactories) {
-
         Map<String, NamedAnalyzer> analyzers = new HashMap<>();
         Map<String, NamedAnalyzer> normalizers = new HashMap<>();
         Map<String, NamedAnalyzer> whitespaceNormalizers = new HashMap<>();
@@ -536,10 +528,12 @@ public final class AnalysisRegistry implements Closeable {
                     });
         }
         for (Map.Entry<String, AnalyzerProvider<?>> entry : normalizerProviders.entrySet()) {
-            processNormalizerFactory(entry.getKey(), entry.getValue(), normalizers, "keyword",
-                tokenizerFactoryFactories.get("keyword"), tokenFilterFactoryFactories, charFilterFactoryFactories);
+            processNormalizerFactory(entry.getKey(), entry.getValue(), normalizers,
+                TokenizerFactory.newFactory("keyword", KeywordTokenizer::new),
+                tokenFilterFactoryFactories, charFilterFactoryFactories);
             processNormalizerFactory(entry.getKey(), entry.getValue(), whitespaceNormalizers,
-                    "whitespace", () -> new WhitespaceTokenizer(), tokenFilterFactoryFactories, charFilterFactoryFactories);
+                TokenizerFactory.newFactory("whitespace", WhitespaceTokenizer::new),
+                tokenFilterFactoryFactories, charFilterFactoryFactories);
         }
 
         if (!analyzers.containsKey(DEFAULT_ANALYZER_NAME)) {
@@ -567,9 +561,11 @@ public final class AnalysisRegistry implements Closeable {
         return new IndexAnalyzers(analyzers, normalizers, whitespaceNormalizers);
     }
 
-    private static NamedAnalyzer produceAnalyzer(String name, AnalyzerProvider<?> analyzerFactory,
-            Map<String, TokenFilterFactory> tokenFilters, Map<String, CharFilterFactory> charFilters,
-            Map<String, TokenizerFactory> tokenizers) {
+    private static NamedAnalyzer produceAnalyzer(String name,
+                                        AnalyzerProvider<?> analyzerFactory,
+                                        Map<String, TokenFilterFactory> tokenFilters,
+                                        Map<String, CharFilterFactory> charFilters,
+                                        Map<String, TokenizerFactory> tokenizers) {
         /*
          * Lucene defaults positionIncrementGap to 0 in all analyzers but
          * Elasticsearch defaults them to 0 only before version 2.0
@@ -610,7 +606,6 @@ public final class AnalysisRegistry implements Closeable {
             String name,
             AnalyzerProvider<?> normalizerFactory,
             Map<String, NamedAnalyzer> normalizers,
-            String tokenizerName,
             TokenizerFactory tokenizerFactory,
             Map<String, TokenFilterFactory> tokenFilters,
             Map<String, CharFilterFactory> charFilters) {
@@ -619,7 +614,7 @@ public final class AnalysisRegistry implements Closeable {
         }
 
         if (normalizerFactory instanceof CustomNormalizerProvider) {
-            ((CustomNormalizerProvider) normalizerFactory).build(tokenizerName, tokenizerFactory, charFilters, tokenFilters);
+            ((CustomNormalizerProvider) normalizerFactory).build(tokenizerFactory, charFilters, tokenFilters);
         }
         if (normalizers.containsKey(name)) {
             throw new IllegalStateException("already registered analyzer with name: " + name);

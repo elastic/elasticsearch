@@ -1,5 +1,5 @@
 [[cluster-nodes-info]]
-== Nodes Info
+=== Nodes Info
 
 The cluster nodes info API allows to retrieve one or more (or all) of
 the cluster nodes information.

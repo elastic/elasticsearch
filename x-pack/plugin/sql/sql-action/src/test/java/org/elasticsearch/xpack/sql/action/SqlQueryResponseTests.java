@@ -7,11 +7,12 @@ package org.elasticsearch.xpack.sql.action;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.Mode;
@@ -25,10 +26,10 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
-import static org.hamcrest.Matchers.hasSize;
 import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.CURSOR;
+import static org.hamcrest.Matchers.hasSize;
 
-public class SqlQueryResponseTests extends AbstractStreamableXContentTestCase<SqlQueryResponse> {
+public class SqlQueryResponseTests extends AbstractSerializingTestCase<SqlQueryResponse> {
 
     static String randomStringCursor() {
         return randomBoolean() ? "" : randomAlphaOfLength(10);
@@ -37,6 +38,11 @@ public class SqlQueryResponseTests extends AbstractStreamableXContentTestCase<Sq
     @Override
     protected SqlQueryResponse createTestInstance() {
         return createRandomInstance(randomStringCursor(), randomFrom(Mode.values()), randomBoolean());
+    }
+
+    @Override
+    protected Writeable.Reader<SqlQueryResponse> instanceReader() {
+        return SqlQueryResponse::new;
     }
 
     public static SqlQueryResponse createRandomInstance(String cursor, Mode mode, boolean columnar) {
@@ -76,11 +82,6 @@ public class SqlQueryResponseTests extends AbstractStreamableXContentTestCase<Sq
             }
         }
         return new SqlQueryResponse(cursor, mode, false, columns, rows);
-    }
-
-    @Override
-    protected SqlQueryResponse createBlankInstance() {
-        return new SqlQueryResponse();
     }
 
     public void testToXContent() throws IOException {

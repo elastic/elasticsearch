@@ -19,8 +19,8 @@
 package org.elasticsearch.client.ml;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
+import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.client.AbstractHlrcStreamableXContentTestCase;
 import org.elasticsearch.xpack.core.ml.action.PutCalendarAction;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 
@@ -28,46 +28,13 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class PutCalendarActionResponseTests
-    extends AbstractHlrcStreamableXContentTestCase<PutCalendarAction.Response, PutCalendarResponse> {
+import static org.hamcrest.Matchers.equalTo;
+
+public class PutCalendarActionResponseTests extends AbstractResponseTestCase<PutCalendarAction.Response, PutCalendarResponse> {
 
     @Override
-    protected PutCalendarAction.Response createTestInstance() {
-        return new PutCalendarAction.Response(testInstance());
-    }
-
-    @Override
-    protected PutCalendarAction.Response doParseInstance(XContentParser parser) throws IOException {
-        return new PutCalendarAction.Response(Calendar.LENIENT_PARSER.parse(parser, null).build());
-    }
-
-    @Override
-    protected boolean supportsUnknownFields() {
-        return true;
-    }
-
-    @Override
-    public PutCalendarResponse doHlrcParseInstance(XContentParser parser) throws IOException {
-        return PutCalendarResponse.fromXContent(parser);
-    }
-
-    @Override
-    public PutCalendarAction.Response convertHlrcToInternal(PutCalendarResponse instance) {
-        org.elasticsearch.client.ml.calendars.Calendar hlrcCalendar = instance.getCalendar();
-        Calendar internalCalendar = new Calendar(hlrcCalendar.getId(), hlrcCalendar.getJobIds(), hlrcCalendar.getDescription());
-        return new PutCalendarAction.Response(internalCalendar);
-    }
-
-    @Override
-    protected PutCalendarAction.Response createBlankInstance() {
-        return new PutCalendarAction.Response();
-    }
-
-    public static Calendar testInstance() {
-        return testInstance(new CodepointSetGenerator("abcdefghijklmnopqrstuvwxyz".toCharArray()).ofCodePointsLength(random(), 10, 10));
-    }
-
-    public static Calendar testInstance(String calendarId) {
+    protected PutCalendarAction.Response createServerTestInstance() {
+        String calendarId = new CodepointSetGenerator("abcdefghijklmnopqrstuvwxyz".toCharArray()).ofCodePointsLength(random(), 10, 10);
         int size = randomInt(10);
         List<String> items = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
@@ -77,6 +44,20 @@ public class PutCalendarActionResponseTests
         if (randomBoolean()) {
             description = randomAlphaOfLength(20);
         }
-        return new Calendar(calendarId, items, description);
+        Calendar calendar = new Calendar(calendarId, items, description);
+        return new PutCalendarAction.Response(calendar);
+    }
+
+    @Override
+    protected PutCalendarResponse doParseToClientInstance(XContentParser parser) throws IOException {
+        return PutCalendarResponse.fromXContent(parser);
+    }
+
+    @Override
+    protected void assertInstances(PutCalendarAction.Response serverTestInstance, PutCalendarResponse clientInstance) {
+        org.elasticsearch.client.ml.calendars.Calendar hlrcCalendar = clientInstance.getCalendar();
+        Calendar internalCalendar = new Calendar(hlrcCalendar.getId(), hlrcCalendar.getJobIds(), hlrcCalendar.getDescription());
+        PutCalendarAction.Response convertedServerTestInstance =new PutCalendarAction.Response(internalCalendar);
+        assertThat(convertedServerTestInstance, equalTo(serverTestInstance));
     }
 }

@@ -6,9 +6,9 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -17,15 +17,14 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -34,23 +33,13 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class StartDataFrameAnalyticsAction extends Action<AcknowledgedResponse> {
+public class StartDataFrameAnalyticsAction extends ActionType<AcknowledgedResponse> {
 
     public static final StartDataFrameAnalyticsAction INSTANCE = new StartDataFrameAnalyticsAction();
     public static final String NAME = "cluster:admin/xpack/ml/data_frame/analytics/start";
 
     private StartDataFrameAnalyticsAction() {
-        super(NAME);
-    }
-
-    @Override
-    public AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
-    public Writeable.Reader<AcknowledgedResponse> getResponseReader() {
-        return AcknowledgedResponse::new;
+        super(NAME, AcknowledgedResponse::new);
     }
 
     public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {
@@ -157,26 +146,37 @@ public class StartDataFrameAnalyticsAction extends Action<AcknowledgedResponse> 
         }
     }
 
-    public static class TaskParams implements XPackPlugin.XPackPersistentTaskParams {
+    public static class TaskParams implements PersistentTaskParams {
 
-        // TODO Update to first released version
-        public static final Version VERSION_INTRODUCED = Version.V_7_1_0;
+        public static final Version VERSION_INTRODUCED = Version.V_7_3_0;
 
         public static ConstructingObjectParser<TaskParams, Void> PARSER = new ConstructingObjectParser<>(
-            MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, true, a -> new TaskParams((String) a[0]));
+            MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, true, a -> new TaskParams((String) a[0], (String) a[1]));
+
+        static {
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), DataFrameAnalyticsConfig.ID);
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), DataFrameAnalyticsConfig.VERSION);
+        }
 
         public static TaskParams fromXContent(XContentParser parser) {
             return PARSER.apply(parser, null);
         }
 
-        private String id;
+        private final String id;
+        private final Version version;
 
-        public TaskParams(String id) {
+        public TaskParams(String id, Version version) {
             this.id = Objects.requireNonNull(id);
+            this.version = Objects.requireNonNull(version);
+        }
+
+        private TaskParams(String id, String version) {
+            this(id, Version.fromString(version));
         }
 
         public TaskParams(StreamInput in) throws IOException {
             this.id = in.readString();
+            this.version = Version.readVersion(in);
         }
 
         public String getId() {
@@ -196,14 +196,30 @@ public class StartDataFrameAnalyticsAction extends Action<AcknowledgedResponse> 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(id);
+            Version.writeVersion(version, out);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(DataFrameAnalyticsConfig.ID.getPreferredName(), id);
+            builder.field(DataFrameAnalyticsConfig.VERSION.getPreferredName(), version);
             builder.endObject();
             return builder;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(id, version);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (o == this) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            TaskParams other = (TaskParams) o;
+            return Objects.equals(id, other.id) && Objects.equals(version, other.version);
         }
     }
 

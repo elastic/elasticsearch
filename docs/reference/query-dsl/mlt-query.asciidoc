@@ -1,5 +1,8 @@
 [[query-dsl-mlt-query]]
-=== More Like This Query
+=== More like this query
+++++
+<titleabbrev>More like this</titleabbrev>
+++++
 
 The More Like This Query finds documents that are "like" a given
 set of documents. In order to do so, MLT selects a set of representative terms

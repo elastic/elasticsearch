@@ -95,9 +95,9 @@ public class ChildrenAggregationBuilder
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<WithOrdinals, ?> innerBuild(SearchContext context,
+    protected ValuesSourceAggregatorFactory<WithOrdinals> innerBuild(SearchContext context,
                                                                         ValuesSourceConfig<WithOrdinals> config,
-                                                                        AggregatorFactory<?> parent,
+                                                                        AggregatorFactory parent,
                                                                         Builder subFactoriesBuilder) throws IOException {
         return new ChildrenAggregatorFactory(name, config, childFilter, parentFilter, context, parent,
                 subFactoriesBuilder, metaData);

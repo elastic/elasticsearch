@@ -11,6 +11,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.support.CachingRealm;
 
+import java.io.IOException;
 import java.util.List;
 
 public class TransportClearRealmCacheAction extends TransportNodesAction<ClearRealmCacheRequest, ClearRealmCacheResponse,
@@ -47,13 +49,13 @@ public class TransportClearRealmCacheAction extends TransportNodesAction<ClearRe
     }
 
     @Override
-    protected ClearRealmCacheRequest.Node newNodeRequest(String nodeId, ClearRealmCacheRequest request) {
-        return new ClearRealmCacheRequest.Node(request, nodeId);
+    protected ClearRealmCacheRequest.Node newNodeRequest(ClearRealmCacheRequest request) {
+        return new ClearRealmCacheRequest.Node(request);
     }
 
     @Override
-    protected ClearRealmCacheResponse.Node newNodeResponse() {
-        return new ClearRealmCacheResponse.Node();
+    protected ClearRealmCacheResponse.Node newNodeResponse(StreamInput in) throws IOException {
+        return new ClearRealmCacheResponse.Node(in);
     }
 
     @Override

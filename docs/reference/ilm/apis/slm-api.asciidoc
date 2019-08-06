@@ -1,0 +1,350 @@
+[role="xpack"]
+[testenv="basic"]
+[[snapshot-lifecycle-management-api]]
+== Snapshot lifecycle management API
+
+The Snapshot Lifecycle Management APIs are used to manage policies for the time
+and frequency of automatic snapshots. Snapshot Lifecycle Management is related
+to <<index-lifecycle-management,Index Lifecycle Management>>, however, instead
+of managing a lifecycle of actions that are performed on a single index, SLM
+allows configuring policies spanning multiple indices.
+
+SLM policy management is split into three different CRUD APIs, a way to put or update
+policies, a way to retrieve policies, and a way to delete unwanted policies, as
+well as a separate API for immediately invoking a snapshot based on a policy.
+
+Since SLM falls under the same category as ILM, it is stopped and started by
+using the <<start-stop-ilm,start and stop>> ILM APIs.
+
+[[slm-api-put]]
+=== Put Snapshot Lifecycle Policy API
+
+Creates or updates a snapshot policy. If the policy already exists, the version
+is incremented. Only the latest version of a policy is stored.
+
+When a policy is created it is immediately scheduled based on the schedule of
+the policy, when a policy is updated its schedule changes are immediately
+applied.
+
+==== Path Parameters
+
+`policy_id` (required)::
+  (string) Identifier (id) for the policy.
+
+==== Request Parameters
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+
+==== Authorization
+
+You must have the `manage_slm` cluster privilege to use this API. You must also
+have the `manage` index privilege on all indices being managed by `policy`. All
+operations executed by {slm} for a policy are executed as the user that put the
+latest version of a policy. For more information, see
+{stack-ov}/security-privileges.html[Security Privileges].
+
+==== Example
+
+The following creates a snapshot lifecycle policy with an id of
+`daily-snapshots`:
+
+[source,js]
+--------------------------------------------------
+PUT /_slm/policy/daily-snapshots
+{
+  "schedule": "0 30 1 * * ?", <1>
+  "name": "<daily-snap-{now/d}>", <2>
+  "repository": "my_repository", <3>
+  "config": { <4>
+    "indices": ["data-*", "important"], <5>
+    "ignore_unavailable": false,
+    "include_global_state": false
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:setup-repository]
+<1> When the snapshot should be taken, in this case, 1:30am daily
+<2> The name each snapshot should be given
+<3> Which repository to take the snapshot in
+<4> Any extra snapshot configuration
+<5> Which indices the snapshot should contain
+
+The top-level keys that the policy supports are described below:
+
+|==================
+| Key | Description
+
+| `schedule` | A periodic or absolute time schedule. Supports all values
+  supported by the cron scheduler:
+  {xpack-ref}/trigger-schedule.html#schedule-cron[Cron scheduler configuration]
+
+| `name` | A name automatically given to each snapshot performed by this policy.
+  Supports the same <<date-math-index-names,date math>> supported in index
+  names. A UUID is automatically appended to the end of the name to prevent
+  conflicting snapshot names.
+
+| `repository` | The snapshot repository that will contain snapshots created by
+  this policy. The repository must exist prior to the policy's creation and can
+  be created with the <<modules-snapshots,snapshot repository API>>.
+
+| `config` | Configuration for each snapshot that will be created by this
+  policy. Any configuration is included with <<modules-snapshots,create snapshot
+  requests>> issued by this policy.
+|==================
+
+To update an existing policy, simply use the put snapshot lifecycle policy API
+with the same policy id as an existing policy.
+
+[[slm-api-get]]
+=== Get Snapshot Lifecycle Policy API
+
+Once a policy is in place, you can retrieve one or more of the policies using
+the get snapshot lifecycle policy API. This also includes information about the
+latest successful and failed invocation that the automatic snapshots have taken.
+
+==== Path Parameters
+
+`policy_ids` (optional)::
+  (string) Comma-separated ids of policies to retrieve.
+
+==== Examples
+
+To retrieve a policy, perform a `GET` with the policy's id
+
+[source,js]
+--------------------------------------------------
+GET /_slm/policy/daily-snapshots?human
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+The output looks similar to the following:
+
+[source,js]
+--------------------------------------------------
+{
+  "daily-snapshots" : {
+    "version": 1, <1>
+    "modified_date": "2019-04-23T01:30:00.000Z", <2>
+    "modified_date_millis": 1556048137314,
+    "policy" : {
+      "schedule": "0 30 1 * * ?",
+      "name": "<daily-snap-{now/d}>",
+      "repository": "my_repository",
+      "config": {
+        "indices": ["data-*", "important"],
+        "ignore_unavailable": false,
+        "include_global_state": false
+      }
+    },
+    "next_execution": "2019-04-24T01:30:00.000Z", <3>
+    "next_execution_millis": 1556048160000
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"modified_date": "2019-04-23T01:30:00.000Z"/"modified_date": $body.daily-snapshots.modified_date/ s/"modified_date_millis": 1556048137314/"modified_date_millis": $body.daily-snapshots.modified_date_millis/ s/"next_execution": "2019-04-24T01:30:00.000Z"/"next_execution": $body.daily-snapshots.next_execution/ s/"next_execution_millis": 1556048160000/"next_execution_millis": $body.daily-snapshots.next_execution_millis/]
+<1> The version of the snapshot policy, only the latest verison is stored and incremented when the policy is updated
+<2> The last time this policy was modified
+<3> The next time this policy will be executed
+
+Or, to retrieve all policies:
+
+[source,js]
+--------------------------------------------------
+GET /_slm/policy
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+[[slm-api-execute]]
+=== Execute Snapshot Lifecycle Policy API
+
+Sometimes it can be useful to immediately execute a snapshot based on policy,
+perhaps before an upgrade or before performing other maintenance on indices. The
+execute snapshot policy API allows you to perform a snapshot immediately without
+waiting for a policy's scheduled invocation.
+
+==== Path Parameters
+
+`policy_id` (required)::
+  (string) Id of the policy to execute
+
+==== Example
+
+To take an immediate snapshot using a policy, use the following
+
+[source,js]
+--------------------------------------------------
+PUT /_slm/policy/daily-snapshots/_execute
+--------------------------------------------------
+// CONSOLE
+// TEST[skip:we can't easily handle snapshots from docs tests]
+
+This API will immediately return with the generated snapshot name
+
+[source,js]
+--------------------------------------------------
+{
+  "snapshot_name": "daily-snap-2019.04.24-gwrqoo2xtea3q57vvg0uea"
+}
+--------------------------------------------------
+// TESTRESPONSE[skip:we can't handle snapshots from docs tests]
+
+The snapshot will be taken in the background, you can use the
+<<modules-snapshots,snapshot APIs>> to monitor the status of the snapshot.
+
+Once a snapshot has been kicked off, you can see the latest successful or failed
+snapshot using the get snapshot lifecycle policy API:
+
+[source,js]
+--------------------------------------------------
+GET /_slm/policy/daily-snapshots?human
+--------------------------------------------------
+// CONSOLE
+// TEST[skip:we already tested get policy above, the last_failure may not be present though]
+
+Which, in this case shows an error because the index did not exist:
+
+[source,js]
+--------------------------------------------------
+{
+  "daily-snapshots" : {
+    "version": 1,
+    "modified_date": "2019-04-23T01:30:00.000Z",
+    "modified_date_millis": 1556048137314,
+    "policy" : {
+      "schedule": "0 30 1 * * ?",
+      "name": "<daily-snap-{now/d}>",
+      "repository": "my_repository",
+      "config": {
+        "indices": ["data-*", "important"],
+        "ignore_unavailable": false,
+        "include_global_state": false
+      }
+    },
+    "last_failure": { <1>
+      "snapshot_name": "daily-snap-2019.04.02-lohisb5ith2n8hxacaq3mw",
+      "time_string": "2019-04-02T01:30:00.000Z",
+      "time": 1556042030000,
+      "details": "{\"type\":\"index_not_found_exception\",\"reason\":\"no such index [important]\",\"resource.type\":\"index_or_alias\",\"resource.id\":\"important\",\"index_uuid\":\"_na_\",\"index\":\"important\",\"stack_trace\":\"[important] IndexNotFoundException[no such index [important]]\\n\\tat org.elasticsearch.cluster.metadata.IndexNameExpressionResolver$WildcardExpressionResolver.indexNotFoundException(IndexNameExpressionResolver.java:762)\\n\\tat org.elasticsearch.cluster.metadata.IndexNameExpressionResolver$WildcardExpressionResolver.innerResolve(IndexNameExpressionResolver.java:714)\\n\\tat org.elasticsearch.cluster.metadata.IndexNameExpressionResolver$WildcardExpressionResolver.resolve(IndexNameExpressionResolver.java:670)\\n\\tat org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.concreteIndices(IndexNameExpressionResolver.java:163)\\n\\tat org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.concreteIndexNames(IndexNameExpressionResolver.java:142)\\n\\tat org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.concreteIndexNames(IndexNameExpressionResolver.java:102)\\n\\tat org.elasticsearch.snapshots.SnapshotsService$1.execute(SnapshotsService.java:280)\\n\\tat org.elasticsearch.cluster.ClusterStateUpdateTask.execute(ClusterStateUpdateTask.java:47)\\n\\tat org.elasticsearch.cluster.service.MasterService.executeTasks(MasterService.java:687)\\n\\tat org.elasticsearch.cluster.service.MasterService.calculateTaskOutputs(MasterService.java:310)\\n\\tat org.elasticsearch.cluster.service.MasterService.runTasks(MasterService.java:210)\\n\\tat org.elasticsearch.cluster.service.MasterService$Batcher.run(MasterService.java:142)\\n\\tat org.elasticsearch.cluster.service.TaskBatcher.runIfNotProcessed(TaskBatcher.java:150)\\n\\tat org.elasticsearch.cluster.service.TaskBatcher$BatchedTask.run(TaskBatcher.java:188)\\n\\tat org.elasticsearch.common.util.concurrent.ThreadContext$ContextPreservingRunnable.run(ThreadContext.java:688)\\n\\tat org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor$TieBreakingPrioritizedRunnable.runAndClean(PrioritizedEsThreadPoolExecutor.java:252)\\n\\tat org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor$TieBreakingPrioritizedRunnable.run(PrioritizedEsThreadPoolExecutor.java:215)\\n\\tat java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)\\n\\tat java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)\\n\\tat java.base/java.lang.Thread.run(Thread.java:834)\\n\"}"
+    } ,
+    "next_execution": "2019-04-24T01:30:00.000Z",
+    "next_execution_millis": 1556048160000
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[skip:the presence of last_failure is asynchronous and will be present for users, but is untestable]
+<1> The last unsuccessfully initiated snapshot by this policy, along with the details of its failure
+
+In this case, it failed due to the "important" index not existing and
+`ignore_unavailable` setting being set to `false`.
+
+Updating the policy to change the `ignore_unavailable` setting is done using the
+same put snapshot lifecycle policy API:
+
+[source,js]
+--------------------------------------------------
+PUT /_slm/policy/daily-snapshots
+{
+  "schedule": "0 30 1 * * ?",
+  "name": "<daily-snap-{now/d}>",
+  "repository": "my_repository",
+  "config": {
+    "indices": ["data-*", "important"],
+    "ignore_unavailable": true,
+    "include_global_state": false
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+Another snapshot can immediately be executed to ensure the new policy works:
+
+[source,js]
+--------------------------------------------------
+PUT /_slm/policy/daily-snapshots/_execute
+--------------------------------------------------
+// CONSOLE
+// TEST[skip:we can't handle snapshots in docs tests]
+
+[source,js]
+--------------------------------------------------
+{
+  "snapshot_name": "daily-snap-2019.04.24-tmtnyjtrsxkhbrrdcgg18a"
+}
+--------------------------------------------------
+// TESTRESPONSE[skip:we can't handle snapshots in docs tests]
+
+Now retriving the policy shows that the policy has successfully been executed:
+
+
+[source,js]
+--------------------------------------------------
+GET /_slm/policy/daily-snapshots?human
+--------------------------------------------------
+// CONSOLE
+// TEST[skip:we already tested this above and the output may not be available yet]
+
+Which now includes the successful snapshot information:
+
+[source,js]
+--------------------------------------------------
+{
+  "daily-snapshots" : {
+    "version": 2, <1>
+    "modified_date": "2019-04-23T01:30:00.000Z",
+    "modified_date_millis": 1556048137314,
+    "policy" : {
+      "schedule": "0 30 1 * * ?",
+      "name": "<daily-snap-{now/d}>",
+      "repository": "my_repository",
+      "config": {
+        "indices": ["data-*", "important"],
+        "ignore_unavailable": true,
+        "include_global_state": false
+      }
+    },
+    "last_success": { <2>
+      "snapshot_name": "daily-snap-2019.04.24-tmtnyjtrsxkhbrrdcgg18a",
+      "time_string": "2019-04-24T16:43:49.316Z",
+      "time": 1556124229316
+    } ,
+    "last_failure": {
+      "snapshot_name": "daily-snap-2019.04.02-lohisb5ith2n8hxacaq3mw",
+      "time_string": "2019-04-02T01:30:00.000Z",
+      "time": 1556042030000,
+      "details": "{\"type\":\"index_not_found_exception\",\"reason\":\"no such index [important]\",\"resource.type\":\"index_or_alias\",\"resource.id\":\"important\",\"index_uuid\":\"_na_\",\"index\":\"important\",\"stack_trace\":\"[important] IndexNotFoundException[no such index [important]]\\n\\tat org.elasticsearch.cluster.metadata.IndexNameExpressionResolver$WildcardExpressionResolver.indexNotFoundException(IndexNameExpressionResolver.java:762)\\n\\tat org.elasticsearch.cluster.metadata.IndexNameExpressionResolver$WildcardExpressionResolver.innerResolve(IndexNameExpressionResolver.java:714)\\n\\tat org.elasticsearch.cluster.metadata.IndexNameExpressionResolver$WildcardExpressionResolver.resolve(IndexNameExpressionResolver.java:670)\\n\\tat org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.concreteIndices(IndexNameExpressionResolver.java:163)\\n\\tat org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.concreteIndexNames(IndexNameExpressionResolver.java:142)\\n\\tat org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.concreteIndexNames(IndexNameExpressionResolver.java:102)\\n\\tat org.elasticsearch.snapshots.SnapshotsService$1.execute(SnapshotsService.java:280)\\n\\tat org.elasticsearch.cluster.ClusterStateUpdateTask.execute(ClusterStateUpdateTask.java:47)\\n\\tat org.elasticsearch.cluster.service.MasterService.executeTasks(MasterService.java:687)\\n\\tat org.elasticsearch.cluster.service.MasterService.calculateTaskOutputs(MasterService.java:310)\\n\\tat org.elasticsearch.cluster.service.MasterService.runTasks(MasterService.java:210)\\n\\tat org.elasticsearch.cluster.service.MasterService$Batcher.run(MasterService.java:142)\\n\\tat org.elasticsearch.cluster.service.TaskBatcher.runIfNotProcessed(TaskBatcher.java:150)\\n\\tat org.elasticsearch.cluster.service.TaskBatcher$BatchedTask.run(TaskBatcher.java:188)\\n\\tat org.elasticsearch.common.util.concurrent.ThreadContext$ContextPreservingRunnable.run(ThreadContext.java:688)\\n\\tat org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor$TieBreakingPrioritizedRunnable.runAndClean(PrioritizedEsThreadPoolExecutor.java:252)\\n\\tat org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor$TieBreakingPrioritizedRunnable.run(PrioritizedEsThreadPoolExecutor.java:215)\\n\\tat java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)\\n\\tat java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)\\n\\tat java.base/java.lang.Thread.run(Thread.java:834)\\n\"}"
+    } ,
+    "next_execution": "2019-04-24T01:30:00.000Z",
+    "next_execution_millis": 1556048160000
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[skip:the presence of last_failure and last_success is asynchronous and will be present for users, but is untestable]
+<1> The policy's version has been incremented because it was updated
+<2> The last successfully initiated snapshot information
+
+It is a good idea to test policies using the execute API to ensure they work.
+
+[[slm-api-delete]]
+=== Delete Snapshot Lifecycle Policy API
+
+A policy can be deleted by issuing a delete request with the policy id. Note
+that this prevents any future snapshots from being taken, but does not cancel
+any currently ongoing snapshots or remove any previously taken snapshots.
+
+==== Path Parameters
+
+`policy_id` (optional)::
+  (string) Id of the policy to remove.
+
+==== Example
+
+[source,js]
+--------------------------------------------------
+DELETE /_slm/policy/daily-snapshots
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]

@@ -75,20 +75,22 @@ nodes. For example:
 cluster:
     remote:
         cluster_one: <1>
-            seeds: 127.0.0.1:9300
-            transport.ping_schedule: 30s <2>
+            seeds: 127.0.0.1:9300 <2>
+            transport.ping_schedule: 30s <3>
         cluster_two: 
             seeds: 127.0.0.1:9301
-            transport.compress: true <3>
-            skip_unavailable: true <4>
+            transport.compress: true <4>
+            skip_unavailable: true <5>
 
 --------------------------------
 <1> `cluster_one` and `cluster_two` are arbitrary _cluster aliases_ representing
 the connection to each cluster. These names are subsequently used to distinguish
 between local and remote indices.
-<2> A keep-alive ping is configured for `cluster_one`.
-<3> Compression is explicitly enabled for requests to `cluster_two`.
-<4> Disconnected remote clusters are optional for `cluster_two`.
+<2> The hostname and <<modules-transport,transport>> port (default: 9300) of a
+seed node in the remote cluster.
+<3> A keep-alive ping is configured for `cluster_one`.
+<4> Compression is explicitly enabled for requests to `cluster_two`.
+<5> Disconnected remote clusters are optional for `cluster_two`.
 
 For more information about the optional transport settings, see
 <<modules-transport>>. 

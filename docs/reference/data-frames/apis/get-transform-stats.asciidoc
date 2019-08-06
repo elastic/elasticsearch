@@ -8,14 +8,13 @@
 <titleabbrev>Get {dataframe-transform} statistics</titleabbrev>
 ++++
 
-beta[]
-
 Retrieves usage information for {dataframe-transforms}.
 
-[discrete]
+beta[]
+
+
 [[get-data-frame-transform-stats-request]]
 ==== {api-request-title}
-
 
 `GET _data_frame/transforms/<data_frame_transform_id>/_stats`
 
@@ -27,56 +26,75 @@ Retrieves usage information for {dataframe-transforms}.
 
 `GET _data_frame/transforms/*/_stats` +
 
-[discrete]
+
 [[get-data-frame-transform-stats-prereqs]]
 ==== {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have
+* If the {es} {security-features} are enabled, you must have
 `monitor_data_frame_transforms` cluster privileges to use this API. The built-in
 `data_frame_transforms_user` role has these privileges. For more information,
 see {stack-ov}/security-privileges.html[Security privileges] and
 {stack-ov}/built-in-roles.html[Built-in roles].
 
-//[discrete]
-//[[get-data-frame-transform-stats-desc]]
-//===== {api-description-title}
 
-[discrete]
+[[get-data-frame-transform-stats-desc]]
+==== {api-description-title}
+
+You can get statistics for multiple {dataframe-transforms} in a single API
+request by using a comma-separated list of identifiers or a wildcard expression.
+You can get statistics for all {dataframe-transforms} by using `_all`, by
+specifying `*` as the `<data_frame_transform_id>`, or by omitting the
+`<data_frame_transform_id>`.
+
+
 [[get-data-frame-transform-stats-path-parms]]
 ==== {api-path-parms-title}
 
-`<data_frame_transform_id>` (Optional)::
-  (string) Identifier for the {dataframe-transform}. It can be a
+`<data_frame_transform_id>`::
+  (Optional, string) Identifier for the {dataframe-transform}. It can be a
   {dataframe-transform} identifier or a wildcard expression. If you do not
   specify one of these options, the API returns information for all
   {dataframe-transforms}.
   
-[discrete]
+
 [[get-data-frame-transform-stats-query-parms]]
 ==== {api-query-parms-title}
 
-`allow_no_match` (Optional)::
-  (boolean) Whether to ignore if a wildcard expression matches no
-  {dataframe-transforms}. This includes `_all` string or when no transforms have
-  been specified. The default is `true`.
+`allow_no_match`::
+  (Optional, boolean) Specifies what to do when the request:
++
+--
+* Contains wildcard expressions and there are no {dataframe-transforms} that match.
+* Contains the `_all` string or no identifiers and there are no matches.
+* Contains wildcard expressions and there are only partial matches. 
 
-`from` (Optional)::
-    (integer) Skips the specified number of {dataframe-transforms}. The
-    default value is `0`.
+The default value is `true`, which returns an empty `transforms` array when
+there are no matches and the subset of results when there are partial matches.
+If this parameter is `false`, the request returns a `404` status code when there
+are no matches or only partial matches.
+--
 
-`size` (Optional)::
-    (integer) Specifies the maximum number of {dataframe-transforms} to obtain.
-    The default value is `100`.
+`from`::
+  (Optional, integer) Skips the specified number of {dataframe-transforms}. The
+  default value is `0`.
 
-[discrete]
+`size`::
+  (Optional, integer) Specifies the maximum number of {dataframe-transforms} to obtain. The default value is `100`.
+
 [[get-data-frame-transform-stats-response]]
 ==== {api-response-body-title}
 
 `transforms`::
   (array) An array of statistics objects for {dataframe-transforms}, which are
   sorted by the `id` value in ascending order.
+  
+[[get-data-frame-transform-stats-response-codes]]
+==== {api-response-codes-title}
 
-[discrete]
+`404` (Missing resources)::
+  If `allow_no_match` is `false`, this code indicates that there are no
+  resources that match the request or only partial matches for the request. 
+
 [[get-data-frame-transform-stats-example]]
 ==== Examples
 
@@ -108,16 +126,7 @@ The API returns the following results:
   "transforms" : [
     {
       "id" : "ecommerce_transform",
-      "state" : {
-        "task_state" : "started",
-        "indexer_state" : "started",
-        "checkpoint" : 1,
-        "progress" : {
-          "total_docs" : 1220,
-          "docs_remaining" : 0,
-          "percent_complete" : 100.0
-        }
-      },
+      "task_state" : "started",
       "stats" : {
         "pages_processed" : 2,
         "documents_processed" : 1220,
@@ -131,10 +140,31 @@ The API returns the following results:
         "search_failures" : 0
       },
       "checkpointing" : {
-        "current" : {
-          "timestamp_millis" : 1557474786393
+        "last" : {
+          "checkpoint" : 100,
+          "timestamp_millis" : 1561740252497,
+          "time_upper_bound_millis" : 1561740192497
         },
-        "operations_behind" : 0
+        "next" : {
+          "checkpoint" : 101,
+          "indexer_state" : "started",
+          "position" : {
+            "indexer_position" : {
+              "hashtag" : "abcd1234"
+            },
+            "buckets_position" : {
+              "hashtag" : "abcd5678"
+            }
+          },
+          "checkpoint_progress" : {
+            "total_docs" : 1900883,
+            "docs_remaining" : 1722762,
+            "percent_complete" : 9.370434687458408
+          },
+          "timestamp_millis" : 1561740629172,
+          "time_upper_bound_millis" : 1561740569172
+        },
+        "operations_behind": 27000
       }
     }
   ]

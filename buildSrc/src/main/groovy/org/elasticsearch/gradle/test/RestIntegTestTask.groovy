@@ -18,9 +18,10 @@
  */
 package org.elasticsearch.gradle.test
 
-
+import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin
+import org.elasticsearch.gradle.tool.ClasspathUtils
 import org.gradle.api.DefaultTask
 import org.gradle.api.Task
 import org.gradle.api.execution.TaskExecutionAdapter
@@ -244,7 +245,8 @@ class RestIntegTestTask extends DefaultTask {
             restSpec
         }
         project.dependencies {
-            restSpec project.project(':rest-api-spec')
+            restSpec ClasspathUtils.isElasticsearchProject() ? project.project(':rest-api-spec') :
+                    "org.elasticsearch.rest-api-spec:${VersionProperties.elasticsearch}"
         }
         Task copyRestSpec = project.tasks.findByName('copyRestSpec')
         if (copyRestSpec != null) {

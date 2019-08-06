@@ -11,7 +11,7 @@ Returns the health status of a cluster.
 [[cluster-health-api-desc]]
 ==== {api-description-title}
 
-The cluster health API allows to get a simple status on the health of the 
+The cluster health API returns a simple status on the health of the 
 cluster. The API can also be executed against one or more indices to get just 
 the specified indices health.
 

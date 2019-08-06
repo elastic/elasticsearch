@@ -60,6 +60,9 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.security.AccessController;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -68,6 +71,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
@@ -111,10 +115,9 @@ public class SearchHttpCancellationIT extends HttpSmokeTestCase {
         List<ScriptedBlockPlugin> plugins = initBlockFactory();
         indexTestData();
 
+        HttpPost httpPost = new HttpPost("/test/_search");
         SearchSourceBuilder searchSource = new SearchSourceBuilder().query(scriptQuery(
             new Script(ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())));
-
-        HttpPost httpPost = new HttpPost("/test/_search");
         httpPost.setEntity(new NStringEntity(Strings.toString(searchSource), ContentType.APPLICATION_JSON));
 
         HttpAsyncRequestProducer requestProducer = HttpAsyncMethods.create(randomFrom(hosts), httpPost);
@@ -123,8 +126,7 @@ public class SearchHttpCancellationIT extends HttpSmokeTestCase {
         HttpClientContext context = HttpClientContext.create();
 
         Future<HttpResponse> future = client.execute(requestProducer, httpAsyncResponseConsumer, context, null);
-
-        //Future<HttpResponse> future = httpClient.execute(randomFrom(hosts), httpPost, null);
+        future.get(); //TODO remove this, it is here just to see the security manager error
         awaitForBlock(plugins);
 
         httpPost.abort();
@@ -138,13 +140,13 @@ public class SearchHttpCancellationIT extends HttpSmokeTestCase {
         List<ScriptedBlockPlugin> plugins = initBlockFactory();
         indexTestData();
 
+        HttpPost httpPost = new HttpPost("/test/_search");
         SearchSourceBuilder searchSource = new SearchSourceBuilder().scriptField("test_field",
             new Script(ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap()));
-
-        HttpPost httpPost = new HttpPost("/test/_search");
         httpPost.setEntity(new NStringEntity(Strings.toString(searchSource), ContentType.APPLICATION_JSON));
 
-        Future<HttpResponse> future = client.execute(randomFrom(hosts), httpPost, null);
+        Future<HttpResponse> future = sendRequest(randomFrom(hosts), httpPost);
+        future.get(); //TODO remove this, it is here just to see the security manager error
         awaitForBlock(plugins);
 
         httpPost.abort();
@@ -152,6 +154,15 @@ public class SearchHttpCancellationIT extends HttpSmokeTestCase {
 
         disableBlocks(plugins);
         expectThrows(CancellationException.class, future::get);
+    }
+
+    private static Future<HttpResponse> sendRequest(HttpHost httpHost, HttpPost httpPost) throws Exception {
+        try {
+            return AccessController.doPrivileged((PrivilegedExceptionAction<Future<HttpResponse>>)
+                () -> client.execute(httpHost, httpPost, null));
+        } catch (PrivilegedActionException e) {
+            throw (Exception) e.getCause();
+        }
     }
 
     private static void readNodesInfo(List<HttpHost> hosts, Map<String, String> nodeIdToName) {
@@ -184,18 +195,18 @@ public class SearchHttpCancellationIT extends HttpSmokeTestCase {
         assertTrue(((CancellableTask)task).isCancelled());
     }
 
-    private void indexTestData() {
+    private static void indexTestData() {
         for (int i = 0; i < 5; i++) {
             // Make sure we have a few segments
             BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             for (int j = 0; j < 20; j++) {
-                bulkRequestBuilder.add(client().prepareIndex("test", "type", Integer.toString(i * 5 + j)).setSource("field", "value"));
+                bulkRequestBuilder.add(client().prepareIndex("test", "_doc", Integer.toString(i * 5 + j)).setSource("field", "value"));
             }
             assertNoFailures(bulkRequestBuilder.get());
         }
     }
 
-    private List<ScriptedBlockPlugin> initBlockFactory() {
+    private static List<ScriptedBlockPlugin> initBlockFactory() {
         List<ScriptedBlockPlugin> plugins = new ArrayList<>();
         for (PluginsService pluginsService : internalCluster().getDataNodeInstances(PluginsService.class)) {
             plugins.addAll(pluginsService.filterPlugins(ScriptedBlockPlugin.class));
@@ -216,10 +227,10 @@ public class SearchHttpCancellationIT extends HttpSmokeTestCase {
             }
             logger.info("The plugin blocked on {} out of {} shards", numberOfBlockedPlugins, numberOfShards);
             assertThat(numberOfBlockedPlugins, greaterThan(0));
-        });
+        }, 20, TimeUnit.SECONDS);
     }
 
-    private void disableBlocks(List<ScriptedBlockPlugin> plugins) throws Exception {
+    private static void disableBlocks(List<ScriptedBlockPlugin> plugins) {
         for (ScriptedBlockPlugin plugin : plugins) {
             plugin.disableBlock();
         }

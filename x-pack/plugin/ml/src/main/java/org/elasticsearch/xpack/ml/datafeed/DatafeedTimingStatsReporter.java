@@ -9,7 +9,6 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
-import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 
 import java.util.Objects;
 
@@ -21,20 +20,28 @@ import java.util.Objects;
  */
 public class DatafeedTimingStatsReporter {
 
+    /** Interface used for persisting current timing stats to the results index. */
+    @FunctionalInterface
+    public interface DatafeedTimingStatsPersister {
+        /** Does nothing by default. This behavior is useful when creating fake {@link DatafeedTimingStatsReporter} objects. */
+        void persistDatafeedTimingStats(DatafeedTimingStats timingStats, WriteRequest.RefreshPolicy refreshPolicy);
+    }
+
     /** Persisted timing stats. May be stale. */
     private DatafeedTimingStats persistedTimingStats;
     /** Current timing stats. */
     private volatile DatafeedTimingStats currentTimingStats;
     /** Object used to persist current timing stats. */
-    private final JobResultsPersister jobResultsPersister;
+    private final DatafeedTimingStatsPersister persister;
 
-    public DatafeedTimingStatsReporter(DatafeedTimingStats timingStats, JobResultsPersister jobResultsPersister) {
+    public DatafeedTimingStatsReporter(DatafeedTimingStats timingStats, DatafeedTimingStatsPersister persister) {
         Objects.requireNonNull(timingStats);
         this.persistedTimingStats = new DatafeedTimingStats(timingStats);
         this.currentTimingStats = new DatafeedTimingStats(timingStats);
-        this.jobResultsPersister = Objects.requireNonNull(jobResultsPersister);
+        this.persister = Objects.requireNonNull(persister);
     }
 
+    /** Gets current timing stats. */
     public DatafeedTimingStats getCurrentTimingStats() {
         return new DatafeedTimingStats(currentTimingStats);
     }
@@ -64,16 +71,23 @@ public class DatafeedTimingStatsReporter {
         flushIfDifferSignificantly();
     }
 
-    private void flushIfDifferSignificantly() {
-        if (differSignificantly(currentTimingStats, persistedTimingStats)) {
-            flush();
+    /** Finishes reporting of timing stats. Makes timing stats persisted immediately. */
+    public void finishReporting() {
+        // Don't flush if current timing stats are identical to the persisted ones
+        if (currentTimingStats.equals(persistedTimingStats) == false) {
+            flush(WriteRequest.RefreshPolicy.IMMEDIATE);
         }
     }
 
-    private void flush() {
+    private void flushIfDifferSignificantly() {
+        if (differSignificantly(currentTimingStats, persistedTimingStats)) {
+            flush(WriteRequest.RefreshPolicy.NONE);
+        }
+    }
+
+    private void flush(WriteRequest.RefreshPolicy refreshPolicy) {
         persistedTimingStats = new DatafeedTimingStats(currentTimingStats);
-        // TODO: Consider changing refresh policy to NONE here and only do IMMEDIATE on datafeed _stop action
-        jobResultsPersister.persistDatafeedTimingStats(persistedTimingStats, WriteRequest.RefreshPolicy.IMMEDIATE);
+        persister.persistDatafeedTimingStats(persistedTimingStats, refreshPolicy);
     }
 
     /**

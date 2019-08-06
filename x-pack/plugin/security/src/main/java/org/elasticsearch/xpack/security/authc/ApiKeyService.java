@@ -653,18 +653,19 @@ public class ApiKeyService {
         ensureEnabled();
         if (Strings.hasText(realmName) == false && Strings.hasText(username) == false && Strings.hasText(apiKeyName) == false
             && Strings.hasText(apiKeyId) == false) {
+            logger.trace("none of the parameters [api key id, api key name, username, realm name] were specified for invalidation");
             invalidateListener
                 .onFailure(new IllegalArgumentException("One of [api key id, api key name, username, realm name] must be specified"));
         } else {
             findApiKeysForUserRealmApiKeyIdAndNameCombination(realmName, username, apiKeyName, apiKeyId, true, false,
-                ActionListener.wrap(apiKeyIds -> {
-                    if (apiKeyIds.isEmpty()) {
+                ActionListener.wrap(apiKeys -> {
+                    if (apiKeys.isEmpty()) {
                         logger.debug(
                             "No active api keys to invalidate for realm [{}], username [{}], api key name [{}] and api key id [{}]",
                             realmName, username, apiKeyName, apiKeyId);
                         invalidateListener.onResponse(InvalidateApiKeyResponse.emptyResponse());
                     } else {
-                        invalidateAllApiKeys(apiKeyIds.stream().map(apiKey -> apiKey.getId()).collect(Collectors.toSet()),
+                        invalidateAllApiKeys(apiKeys.stream().map(apiKey -> apiKey.getId()).collect(Collectors.toSet()),
                             invalidateListener);
                     }
                 }, invalidateListener::onFailure));
@@ -873,6 +874,7 @@ public class ApiKeyService {
         ensureEnabled();
         if (Strings.hasText(realmName) == false && Strings.hasText(username) == false && Strings.hasText(apiKeyName) == false
             && Strings.hasText(apiKeyId) == false) {
+            logger.trace("none of the parameters [api key id, api key name, username, realm name] were specified for retrieval");
             listener.onFailure(new IllegalArgumentException("One of [api key id, api key name, username, realm name] must be specified"));
         } else {
             findApiKeysForUserRealmApiKeyIdAndNameCombination(realmName, username, apiKeyName, apiKeyId, false, false,

@@ -133,6 +133,14 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
         return progress;
     }
 
+    public DataFrameTransformCheckpoint getLastCheckpoint() {
+        return lastCheckpoint;
+    }
+
+    public DataFrameTransformCheckpoint getNextCheckpoint() {
+        return nextCheckpoint;
+    }
+
     /**
      * Request a checkpoint
      */

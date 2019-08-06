@@ -47,7 +47,7 @@ score>>.
 +
 --
 (Optional, float) Floating point number between `0` and `1.0` used to increase
-the <<query-filter-context, relevance scores>> of documents matching multiple
+the <<relevance-scores,relevance scores>> of documents matching multiple
 query clauses. Defaults to `0.0`.
 
 You can use the `tie_breaker` value to assign higher relevance scores to

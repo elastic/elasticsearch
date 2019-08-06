@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.indices.cluster;
+package org.elasticsearch.cluster.service;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;

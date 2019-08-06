@@ -44,7 +44,7 @@ class RecoveryPrepareForTranslogOperationsRequest extends TransportRequest {
         recoveryId = in.readLong();
         shardId = new ShardId(in);
         totalTranslogOps = in.readVInt();
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getVersion().before(Version.V_7_4_0)) {
             in.readBoolean(); // was fileBasedRecovery
         }
     }
@@ -67,7 +67,7 @@ class RecoveryPrepareForTranslogOperationsRequest extends TransportRequest {
         out.writeLong(recoveryId);
         shardId.writeTo(out);
         out.writeVInt(totalTranslogOps);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getVersion().before(Version.V_7_4_0)) {
             out.writeBoolean(true); // was fileBasedRecovery
         }
     }

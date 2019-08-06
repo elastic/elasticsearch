@@ -28,6 +28,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
@@ -54,20 +55,23 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.index.reindex.ReindexTask.REINDEX_ORIGIN;
+import static org.elasticsearch.index.reindex.ReindexTaskIndexState.REINDEX_ORIGIN;
 
 public class TransportStartReindexJobAction
     extends TransportMasterNodeAction<StartReindexJobAction.Request, StartReindexJobAction.Response> {
 
     private final PersistentTasksService persistentTasksService;
+    private final ReindexValidator reindexValidator;
     private final Client taskClient;
 
     @Inject
-    public TransportStartReindexJobAction(TransportService transportService, ThreadPool threadPool,
+    public TransportStartReindexJobAction(Settings settings, Client client, TransportService transportService, ThreadPool threadPool,
                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                          ClusterService clusterService, PersistentTasksService persistentTasksService, Client client) {
+                                          ClusterService clusterService, PersistentTasksService persistentTasksService,
+                                          AutoCreateIndex autoCreateIndex) {
         super(StartReindexJobAction.NAME, transportService, clusterService, threadPool, actionFilters, StartReindexJobAction.Request::new,
             indexNameExpressionResolver);
+        this.reindexValidator = new ReindexValidator(settings, clusterService, indexNameExpressionResolver, autoCreateIndex);
         this.persistentTasksService = persistentTasksService;
         this.taskClient = new OriginSettingClient(client, REINDEX_ORIGIN);
     }
@@ -85,6 +89,12 @@ public class TransportStartReindexJobAction
     @Override
     protected void masterOperation(Task task, StartReindexJobAction.Request request, ClusterState state,
                                    ActionListener<StartReindexJobAction.Response> listener) {
+        try {
+            reindexValidator.initialValidation(request.getReindexRequest());
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+
         // TODO: If the connection is lost to the master, this action might be retried creating two tasks.
         //  Eventually prevent this (perhaps by pre-generating UUID).
         String generatedId = UUIDs.randomBase64UUID();

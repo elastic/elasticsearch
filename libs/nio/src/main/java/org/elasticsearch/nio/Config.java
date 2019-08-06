@@ -37,16 +37,23 @@ public abstract class Config {
 
         private final boolean tcpNoDelay;
         private final boolean tcpKeepAlive;
+        private final int tcpKeepIdle;
+        private final int tcpKeepInterval;
+        private final int tcpKeepCount;
         private final int tcpSendBufferSize;
         private final int tcpReceiveBufferSize;
         private final InetSocketAddress remoteAddress;
         private final boolean isAccepted;
 
-        public Socket(boolean tcpNoDelay, boolean tcpKeepAlive, boolean tcpReuseAddress, int tcpSendBufferSize, int tcpReceiveBufferSize,
+        public Socket(boolean tcpNoDelay, boolean tcpKeepAlive, int tcpKeepIdle, int tcpKeepInterval, int tcpKeepCount,
+                      boolean tcpReuseAddress, int tcpSendBufferSize, int tcpReceiveBufferSize,
                       InetSocketAddress remoteAddress, boolean isAccepted) {
             super(tcpReuseAddress);
             this.tcpNoDelay = tcpNoDelay;
             this.tcpKeepAlive = tcpKeepAlive;
+            this.tcpKeepIdle = tcpKeepIdle;
+            this.tcpKeepInterval = tcpKeepInterval;
+            this.tcpKeepCount = tcpKeepCount;
             this.tcpSendBufferSize = tcpSendBufferSize;
             this.tcpReceiveBufferSize = tcpReceiveBufferSize;
             this.remoteAddress = remoteAddress;
@@ -59,6 +66,18 @@ public abstract class Config {
 
         public boolean tcpKeepAlive() {
             return tcpKeepAlive;
+        }
+
+        public int tcpKeepIdle() {
+            return tcpKeepIdle;
+        }
+
+        public int tcpKeepInterval() {
+            return tcpKeepInterval;
+        }
+
+        public int tcpKeepCount() {
+            return tcpKeepCount;
         }
 
         public int tcpSendBufferSize() {

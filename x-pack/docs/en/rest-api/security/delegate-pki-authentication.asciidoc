@@ -1,0 +1,305 @@
+[role="xpack"]
+[[security-api-delegate-pki-authentication]]
+=== Delegate PKI authentication API
+++++
+<titleabbrev>Delegate PKI authentication</titleabbrev>
+++++
+
+Implements the exchange of an {@code X509Certificate} chain into an {es} access
+token.
+
+[[security-api-delegate-pki-authentication-request]]
+==== {api-request-title}
+
+`POST /_security/delegate_pki`
+
+[[security-api-dellegate-pki-authentication-prereqs]]
+==== {api-prereq-title}
+
+To use this API, you must have the `delegate_pki` or the `all` cluster privilege.
+The `kibana_system` built-in role already grants this privilege.
+
+[[security-api-delegate-pki-authentication-desc]]
+==== {api-description-title}
+
+Implements the exchange of an _X509Certificate_ chain into an {es} access
+token. The certificate chain is validated according to RFC 5280, by
+sequentially considering the trust configuration of every installed _PkiRealm_
+that has `delegation.enabled` set to `true` (default is `false`). A
+successfully trusted client certificate is also subject to the validation of
+the subject distinguished name according to that respective's realm
+`username_pattern`.
+
+This API is called by *smart* and *trusted* proxies, such as {kib},
+that terminate the user's TLS session, and still wish to authenticate the user
+by a PKI realm, as if the user connected directly to {es}. For more details,
+see <<pki-realm-for-proxied-clients, Configuring authentication delegation for
+PKI realms>>.
+
+IMPORTANT: The association between the subject public key in the target
+certificate and the corresponding private key is *not* validated. This is part
+of the TLS authentication process and it is delegated to the proxy calling this
+API. The proxy is *trusted* to have performed the TLS authentication, and this
+API translates that authentication into an {es} access token.
+
+[[security-api-delegate-pki-authentication-request-body]]
+==== {api-request-body-title}
+
+The body of the POST request has a single parameter, which contains the
+_X509Certificate_ chain. The certificate chain is represented as an array where
+the first element is the target certificate containing the subject
+distinguished name that is requesting access. This may be followed by
+additional certificates, with each subsequent certificate being the one used to
+certify the previous one.
+
+`x509_certificate_chain`::
+(Required, list of strings) The chain is represented as an ordered string
+array. Each string in the array is a base64-encoded (Section 4 of RFC4648 - not
+base64url-encoded) DER PKIX certificate value.
+
+[[security-api-delegate-pki-authentication-example]]
+==== {api-examples-title}
+
+The following example assigns the "user" role to all users:
+
+[source, js]
+------------------------------------------------------------
+POST /_security/role_mapping/mapping1
+{
+  "roles": [ "user"],
+  "enabled": true, <1>
+  "rules": {
+    "field" : { "username" : "*" }
+  },
+  "metadata" : { <2>
+    "version" : 1
+  }
+}
+------------------------------------------------------------
+// CONSOLE
+<1> Mappings that have `enabled` set to `false` are ignored when role mapping
+    is performed.
+<2> Metadata is optional.
+
+A successful call returns a JSON structure that shows whether the mapping has
+been created or updated.
+
+[source,js]
+--------------------------------------------------
+{
+  "role_mapping" : {
+    "created" : true <1>
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE
+<1> When an existing mapping is updated, `created` is set to false.
+
+The following example assigns the "user" and "admin" roles to specific users:
+
+[source,js]
+--------------------------------------------------
+POST /_security/role_mapping/mapping2
+{
+  "roles": [ "user", "admin" ],
+  "enabled": true,
+  "rules": {
+     "field" : { "username" : [ "esadmin01", "esadmin02" ] }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+The following example matches users who authenticated against a specific realm:
+[source, js]
+------------------------------------------------------------
+POST /_security/role_mapping/mapping3
+{
+  "roles": [ "ldap-user" ],
+  "enabled": true,
+  "rules": {
+    "field" : { "realm.name" : "ldap1" }
+  }
+}
+------------------------------------------------------------
+// CONSOLE
+
+The following example matches any user where either the username is `esadmin`
+or the user is in the `cn=admin,dc=example,dc=com` group:
+
+[source, js]
+------------------------------------------------------------
+POST /_security/role_mapping/mapping4
+{
+  "roles": [ "superuser" ],
+  "enabled": true,
+  "rules": {
+    "any": [
+      {
+        "field": {
+          "username": "esadmin"
+        }
+      },
+      {
+        "field": {
+          "groups": "cn=admins,dc=example,dc=com"
+        }
+      }
+    ]
+  }
+}
+------------------------------------------------------------
+// CONSOLE
+
+The example above is useful when the group names in your identity management
+system (such as Active Directory, or a SAML Identity Provider) do not have a
+1-to-1 correspondence with the names of roles in {es}. The role mapping is the
+means by which you link a _group name_ with a _role name_.
+
+However, in rare cases the names of your groups may be an exact match for the
+names of your {es} roles. This can be the case when your SAML Identity Provider
+includes its own "group mapping" feature and can be configured to release {es}
+role names in the user's SAML attributes.
+
+In these cases it is possible to use a template that treats the group names as
+role names.
+
+*Note*: This should only be done if you intend to define roles for all of the
+provided groups. Mapping a user to a large number of unnecessary or undefined
+roles is inefficient and can have a negative effect on system performance.
+If you only need to map a subset of the groups, then you should do this
+using explicit mappings.
+
+[source, js]
+------------------------------------------------------------
+POST /_security/role_mapping/mapping5
+{
+  "role_templates": [
+    {
+      "template": { "source": "{{#tojson}}groups{{/tojson}}" }, <1>
+      "format" : "json" <2>
+    }
+  ],
+  "rules": {
+    "field" : { "realm.name" : "saml1" }
+  },
+  "enabled": true
+}
+------------------------------------------------------------
+// CONSOLE
+<1> The `tojson` mustache function is used to convert the list of
+    group names into a valid JSON array.
+<2> Because the template produces a JSON array, the format must be
+    set to `json`.
+
+The following example matches users within a specific LDAP sub-tree:
+
+[source, js]
+------------------------------------------------------------
+POST /_security/role_mapping/mapping6
+{
+  "roles": [ "example-user" ],
+  "enabled": true,
+  "rules": {
+    "field" : { "dn" : "*,ou=subtree,dc=example,dc=com" }
+  }
+}
+------------------------------------------------------------
+// CONSOLE
+
+The following example matches users within a particular LDAP sub-tree in a
+specific realm:
+
+[source, js]
+------------------------------------------------------------
+POST /_security/role_mapping/mapping7
+{
+  "roles": [ "ldap-example-user" ],
+  "enabled": true,
+  "rules": {
+    "all": [
+      { "field" : { "dn" : "*,ou=subtree,dc=example,dc=com" } },
+      { "field" : { "realm.name" : "ldap1" } }
+    ]
+  }
+}
+------------------------------------------------------------
+// CONSOLE
+
+The rules can be more complex and include wildcard matching. For example, the
+following mapping matches any user where *all* of these conditions are met:
+
+- the _Distinguished Name_ matches the pattern `*,ou=admin,dc=example,dc=com`,
+  or the username is `es-admin`, or the username is `es-system`
+- the user in in the `cn=people,dc=example,dc=com` group
+- the user does not have a `terminated_date`
+
+
+[source, js]
+------------------------------------------------------------
+POST /_security/role_mapping/mapping8
+{
+  "roles": [ "superuser" ],
+  "enabled": true,
+  "rules": {
+    "all": [
+      {
+        "any": [
+          {
+            "field": {
+              "dn": "*,ou=admin,dc=example,dc=com"
+            }
+          },
+          {
+            "field": {
+              "username": [ "es-admin", "es-system" ]
+            }
+          }
+        ]
+      },
+      {
+        "field": {
+          "groups": "cn=people,dc=example,dc=com"
+        }
+      },
+      {
+        "except": {
+          "field": {
+            "metadata.terminated_date": null
+          }
+        }
+      }
+    ]
+  }
+}
+------------------------------------------------------------
+// CONSOLE
+
+A templated role can be used to automatically map every user to their own
+custom role. The role itself can be defined through the
+<<security-api-put-role, Roles API>> or using a
+{stack-ov}/custom-roles-authorization.html#implementing-custom-roles-provider[custom roles provider].
+
+In this example every user who authenticates using the "cloud-saml" realm
+will be automatically mapped to two roles - the `"saml_user"` role and a
+role that is their username prefixed with `_user_`.
+As an example, the user `nwong` would be assigned the `saml_user` and
+`_user_nwong` roles.
+
+[source, js]
+------------------------------------------------------------
+POST /_security/role_mapping/mapping9
+{
+  "rules": { "field": { "realm.name": "cloud-saml" } },
+  "role_templates": [
+    { "template": { "source" : "saml_user" } }, <1>
+    { "template": { "source" : "_user_{{username}}" } }
+  ],
+  "enabled": true
+}
+------------------------------------------------------------
+// CONSOLE
+<1> Because it is not possible to specify both `roles` and `role_templates` in
+    the same role mapping, we can apply a "fixed name" role by using a template
+    that has no substitutions.
+

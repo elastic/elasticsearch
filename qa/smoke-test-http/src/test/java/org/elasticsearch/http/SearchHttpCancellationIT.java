@@ -21,14 +21,10 @@ package org.elasticsearch.http;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.entity.ContentType;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
-import org.apache.http.nio.client.methods.HttpAsyncMethods;
 import org.apache.http.nio.entity.NStringEntity;
-import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
-import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
@@ -37,7 +33,6 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.client.HttpAsyncResponseConsumerFactory;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -59,6 +54,7 @@ import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CancellationException;
@@ -92,16 +88,9 @@ public class SearchHttpCancellationIT extends HttpSmokeTestCase {
         try (CloseableHttpAsyncClient httpClient = clientBuilder.build()) {
             httpClient.start();
 
-            NodesInfoResponse nodesInfoResponse = client().admin().cluster().prepareNodesInfo().get();
-            assertFalse(nodesInfoResponse.hasFailures());
             List<HttpHost> hosts = new ArrayList<>();
-            for (NodeInfo node : nodesInfoResponse.getNodes()) {
-                if (node.getHttp() != null) {
-                    TransportAddress publishAddress = node.getHttp().address().publishAddress();
-                    InetSocketAddress address = publishAddress.address();
-                    hosts.add(new HttpHost(NetworkAddress.format(address.getAddress()), address.getPort(), "http"));
-                }
-            }
+            Map<String, String> nodeIdToName = new HashMap<>();
+            readNodesInfo(hosts, nodeIdToName);
 
             SearchSourceBuilder searchSource = new SearchSourceBuilder().query(scriptQuery(
                 new Script(ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())));
@@ -109,40 +98,75 @@ public class SearchHttpCancellationIT extends HttpSmokeTestCase {
             HttpPost httpPost = new HttpPost("/test/_search");
             httpPost.setEntity(new NStringEntity(Strings.toString(searchSource), ContentType.APPLICATION_JSON));
 
-            HttpAsyncRequestProducer requestProducer = HttpAsyncMethods.create(randomFrom(hosts), httpPost);
-
-            HttpAsyncResponseConsumer<HttpResponse> httpAsyncResponseConsumer =
-                HttpAsyncResponseConsumerFactory.DEFAULT.createHttpAsyncResponseConsumer();
-            HttpClientContext context = HttpClientContext.create();
-
-            Future<HttpResponse> future = httpClient.execute(requestProducer, httpAsyncResponseConsumer, context, null);
-
+            Future<HttpResponse> future = httpClient.execute(randomFrom(hosts), httpPost, null);
             awaitForBlock(plugins);
 
-            SetOnce<TaskInfo> searchTask = new SetOnce<>();
-            ListTasksResponse listTasksResponse = client().admin().cluster().prepareListTasks().get();
-            for (TaskInfo task : listTasksResponse.getTasks()) {
-                if (task.getAction().equals(SearchAction.NAME)) {
-                    searchTask.set(task);
-                }
-            }
-            assertNotNull(searchTask);
-
             httpPost.abort();
-
-
-
-            TaskId taskId = searchTask.get().getTaskId();
-            NodesInfoResponse nodesInfo = client().admin().cluster().prepareNodesInfo(taskId.getNodeId()).get();
-            String nodeName = nodesInfo.getNodes().get(0).getNode().getName();
-            TaskManager taskManager = internalCluster().getInstance(TransportService.class, nodeName).getTaskManager();
-            Task task = taskManager.getTask(taskId.getId());
-            assertThat(task, instanceOf(CancellableTask.class));
-            assertTrue(((CancellableTask)task).isCancelled());
+            ensureSearchTaskIsCancelled(nodeIdToName::get);
 
             disableBlocks(plugins);
             expectThrows(CancellationException.class, future::get);
         }
+    }
+
+    public void testAutomaticCancellationDuringFetchPhase() throws Exception {
+        List<ScriptedBlockPlugin> plugins = initBlockFactory();
+        indexTestData();
+
+        HttpAsyncClientBuilder clientBuilder = HttpAsyncClientBuilder.create();
+
+        try (CloseableHttpAsyncClient httpClient = clientBuilder.build()) {
+            httpClient.start();
+
+            List<HttpHost> hosts = new ArrayList<>();
+            Map<String, String> nodeIdToName = new HashMap<>();
+            readNodesInfo(hosts, nodeIdToName);
+
+            SearchSourceBuilder searchSource = new SearchSourceBuilder().scriptField("test_field",
+                new Script(ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap()));
+
+            HttpPost httpPost = new HttpPost("/test/_search");
+            httpPost.setEntity(new NStringEntity(Strings.toString(searchSource), ContentType.APPLICATION_JSON));
+
+            Future<HttpResponse> future = httpClient.execute(randomFrom(hosts), httpPost, null);
+            awaitForBlock(plugins);
+
+            httpPost.abort();
+            ensureSearchTaskIsCancelled(nodeIdToName::get);
+
+            disableBlocks(plugins);
+            expectThrows(CancellationException.class, future::get);
+        }
+    }
+
+    private static void readNodesInfo(List<HttpHost> hosts, Map<String, String> nodeIdToName) {
+        NodesInfoResponse nodesInfoResponse = client().admin().cluster().prepareNodesInfo().get();
+        assertFalse(nodesInfoResponse.hasFailures());
+        for (NodeInfo node : nodesInfoResponse.getNodes()) {
+            if (node.getHttp() != null) {
+                TransportAddress publishAddress = node.getHttp().address().publishAddress();
+                InetSocketAddress address = publishAddress.address();
+                hosts.add(new HttpHost(NetworkAddress.format(address.getAddress()), address.getPort(), "http"));
+            }
+            nodeIdToName.put(node.getNode().getId(), node.getNode().getName());
+        }
+    }
+
+    private static void ensureSearchTaskIsCancelled(Function<String, String> nodeIdToName) {
+        SetOnce<TaskInfo> searchTask = new SetOnce<>();
+        ListTasksResponse listTasksResponse = client().admin().cluster().prepareListTasks().get();
+        for (TaskInfo task : listTasksResponse.getTasks()) {
+            if (task.getAction().equals(SearchAction.NAME)) {
+                searchTask.set(task);
+            }
+        }
+        assertNotNull(searchTask.get());
+        TaskId taskId = searchTask.get().getTaskId();
+        String nodeName = nodeIdToName.apply(taskId.getNodeId());
+        TaskManager taskManager = internalCluster().getInstance(TransportService.class, nodeName).getTaskManager();
+        Task task = taskManager.getTask(taskId.getId());
+        assertThat(task, instanceOf(CancellableTask.class));
+        assertTrue(((CancellableTask)task).isCancelled());
     }
 
     private void indexTestData() {

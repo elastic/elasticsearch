@@ -3,20 +3,20 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-
-
 package org.elasticsearch.xpack.vectors.query;
-
 
 import org.elasticsearch.painless.spi.PainlessExtension;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
+import org.elasticsearch.script.NumberSortScript;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.ScriptContext;
 
-import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static java.util.Collections.singletonList;
 
 public class DocValuesWhitelistExtension implements PainlessExtension {
 
@@ -25,6 +25,10 @@ public class DocValuesWhitelistExtension implements PainlessExtension {
 
     @Override
     public Map<ScriptContext<?>, List<Whitelist>> getContextWhitelists() {
-        return Collections.singletonMap(ScoreScript.CONTEXT, Collections.singletonList(WHITELIST));
+        Map<ScriptContext<?>, List<Whitelist>> whitelist = new HashMap<>();
+        List<Whitelist> list = singletonList(WHITELIST);
+        whitelist.put(ScoreScript.CONTEXT, list);
+        whitelist.put(NumberSortScript.CONTEXT, list);
+        return whitelist;
     }
 }

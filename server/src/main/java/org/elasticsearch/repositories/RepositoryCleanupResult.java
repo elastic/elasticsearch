@@ -19,6 +19,7 @@
 package org.elasticsearch.repositories;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -78,6 +79,11 @@ public final class RepositoryCleanupResult implements Writeable, ToXContentObjec
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder.startObject().field("bytes", bytes).field("blobs", blobs).endObject();
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 
     public static final class Progress implements LongConsumer {

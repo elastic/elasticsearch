@@ -167,6 +167,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
             return;
         }
         final long repositoryStateId = repository.getRepositoryData().getGenId();
+        logger.info("Running cleanup operations on repository [{}][{}]", repositoryName, repositoryStateId);
         clusterService.submitStateUpdateTask("cleanup repository", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
@@ -196,6 +197,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                logger.debug("Initialized repository cleanup in cluster state for [{}][{}]", repositoryName, repositoryStateId);
                 threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new ActionRunnable<>(listener) {
                     @Override
                     protected void doRun() {
@@ -208,6 +210,12 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
             }
 
             private void after(@Nullable Exception failure, @Nullable RepositoryCleanupResult result) {
+                if (failure == null) {
+                    logger.debug("Finished repository cleanup operations on [{}][{}]", repositoryName, repositoryStateId);
+                } else {
+                    logger.debug(() -> new ParameterizedMessage(
+                        "Failed to finish repository cleanup operations on [{}][{}]", repositoryName, repositoryStateId), failure);
+                }
                 assert failure != null || result != null;
                 clusterService.submitStateUpdateTask("Remove repository cleanup task", new ClusterStateUpdateTask() {
                     @Override
@@ -217,18 +225,22 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
 
                     @Override
                     public void onFailure(String source, Exception e) {
-                        logger.warn(() -> new ParameterizedMessage("[{}] failed to remove repository cleanup task", repositoryName), e);
                         if (failure != null) {
                             e.addSuppressed(failure);
                         }
+                        logger.warn(() -> new ParameterizedMessage("[{}] failed to remove repository cleanup task", repositoryName), e);
                         listener.onFailure(e);
                     }
 
                     @Override
                     public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                         if (failure == null) {
+                            logger.info(
+                                "Done with repository cleanup on [{}][{}] with result [{}]", repositoryName, repositoryStateId, result);
                             listener.onResponse(result);
                         } else {
+                            logger.warn(() -> new ParameterizedMessage("Failed to run repository cleanup operations on [{}][{}]",
+                                repositoryName, repositoryStateId), failure);
                             listener.onFailure(failure);
                         }
                     }

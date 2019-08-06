@@ -57,51 +57,102 @@ class BulkByScrollParallelizationHelper {
      *
      * If slices are set as {@code "auto"}, this class will resolve that to a specific number based on characteristics of the source
      * indices. A request with {@code "auto"} slices may end up being sliced or unsliced.
+     *
+     * This method is equivalent to calling {@link #initTaskState} followed by {@link #executeSlicedAction}
      */
     static <Request extends AbstractBulkByScrollRequest<Request>> void startSlicedAction(
-            Request request,
-            BulkByScrollTask task,
-            ActionType<BulkByScrollResponse> action,
-            ActionListener<BulkByScrollResponse> listener,
-            Client client,
-            DiscoveryNode node,
-            Runnable workerAction) {
+        Request request,
+        BulkByScrollTask task,
+        ActionType<BulkByScrollResponse> action,
+        ActionListener<BulkByScrollResponse> listener,
+        Client client,
+        DiscoveryNode node,
+        Runnable workerAction) {
+        initTaskState(task, request, client, new ActionListener<>() {
+            @Override
+            public void onResponse(Void aVoid) {
+                executeSlicedAction(task, request, action, listener, client, node, workerAction);
+            }
 
-        if (request.getSlices() == AbstractBulkByScrollRequest.AUTO_SLICES) {
-            ClusterSearchShardsRequest shardsRequest = new ClusterSearchShardsRequest();
-            shardsRequest.indices(request.getSearchRequest().indices());
-            client.admin().cluster().searchShards(shardsRequest, ActionListener.wrap(
-                response -> {
-                    int actualNumSlices = countSlicesBasedOnShards(response);
-                    sliceConditionally(request, task, action, listener, client, node, workerAction, actualNumSlices);
-                },
-                listener::onFailure
-            ));
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        });
+    }
+
+    /**
+     * Takes an action and a {@link BulkByScrollTask} and runs it with regard to whether this task is a
+     * leader or worker.
+     *
+     * If this task is a worker, the worker action in the given {@link Runnable} will be started on the local
+     * node. If the task is a leader (i.e. the number of slices is more than 1), then a subrequest will be
+     * created for each slice and sent.
+     *
+     * This method can only be called after the task state is initialized {@link #initTaskState}.
+     */
+    static <Request extends AbstractBulkByScrollRequest<Request>> void executeSlicedAction(
+        BulkByScrollTask task,
+        Request request,
+        ActionType<BulkByScrollResponse> action,
+        ActionListener<BulkByScrollResponse> listener,
+        Client client,
+        DiscoveryNode node,
+        Runnable workerAction) {
+        if (task.isLeader()) {
+            sendSubRequests(client, action, node.getId(), task, request, listener);
+        } else if (task.isWorker()) {
+            workerAction.run();
         } else {
-            sliceConditionally(request, task, action, listener, client, node, workerAction, request.getSlices());
+            throw new AssertionError("Task should have been initialized at this point.");
         }
     }
 
-    private static <Request extends AbstractBulkByScrollRequest<Request>> void sliceConditionally(
-            Request request,
-            BulkByScrollTask task,
-            ActionType<BulkByScrollResponse> action,
-            ActionListener<BulkByScrollResponse> listener,
-            Client client,
-            DiscoveryNode node,
-            Runnable workerAction,
-            int slices) {
+    /**
+     * Takes a {@link BulkByScrollTask} and ensures that its initial task state (leader or worker) is set.
+     *
+     * If slices are set as {@code "auto"}, this method will resolve that to a specific number based on
+     * characteristics of the source indices. A request with {@code "auto"} slices may end up being sliced or
+     * unsliced. This method does not execute the action. In order to execute the action see
+     * {@link #executeSlicedAction}
+     */
+    static <Request extends AbstractBulkByScrollRequest<Request>> void initTaskState(
+        BulkByScrollTask task,
+        Request request,
+        Client client,
+        ActionListener<Void> listener) {
+        int configuredSlices = request.getSlices();
+        if (configuredSlices == AbstractBulkByScrollRequest.AUTO_SLICES) {
+            ClusterSearchShardsRequest shardsRequest = new ClusterSearchShardsRequest();
+            shardsRequest.indices(request.getSearchRequest().indices());
+            client.admin().cluster().searchShards(shardsRequest, new ActionListener<>() {
+                @Override
+                public void onResponse(ClusterSearchShardsResponse response) {
+                    setWorkerCount(request, task, countSlicesBasedOnShards(response));
+                    listener.onResponse(null);
+                }
 
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+            });
+        } else {
+            setWorkerCount(request, task, configuredSlices);
+            listener.onResponse(null);
+        }
+    }
+
+    private static <Request extends AbstractBulkByScrollRequest<Request>> void setWorkerCount(
+        Request request,
+        BulkByScrollTask task,
+        int slices) {
         if (slices > 1) {
             task.setWorkerCount(slices);
-            sendSubRequests(client, action, node.getId(), task, request, listener);
         } else {
             SliceBuilder sliceBuilder = request.getSearchRequest().source().slice();
-            Integer sliceId = sliceBuilder == null
-                ? null
-                : sliceBuilder.getId();
+            Integer sliceId = sliceBuilder == null ? null : sliceBuilder.getId();
             task.setWorker(request.getRequestsPerSecond(), sliceId);
-            workerAction.run();
         }
     }
 

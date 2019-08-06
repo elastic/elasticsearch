@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
@@ -14,6 +15,8 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
+import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -31,6 +34,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
@@ -44,6 +48,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -178,24 +183,55 @@ public class TransportStartDataFrameAnalyticsAction
     }
 
     private void getConfigAndValidate(String id, ActionListener<DataFrameAnalyticsConfig> finalListener) {
-        // Validate mappings can be merged
-        ActionListener<DataFrameAnalyticsConfig> firstValidationListener = ActionListener.wrap(
+        // Step 4. Validate mappings can be merged
+        ActionListener<DataFrameAnalyticsConfig> toValidateMappingsListener = ActionListener.wrap(
             config -> MappingsMerger.mergeMappings(client, config.getHeaders(), config.getSource().getIndex(), ActionListener.wrap(
                     mappings -> finalListener.onResponse(config), finalListener::onFailure)),
             finalListener::onFailure
         );
 
-        // Validate source and dest; check data extraction is possible
+        // Step 3. Validate dest index is empty
+        ActionListener<DataFrameAnalyticsConfig> toValidateDestEmptyListener = ActionListener.wrap(
+            config -> checkDestIndexIsEmptyIfExists(config, toValidateMappingsListener),
+            finalListener::onFailure
+        );
+
+        // Step 2. Validate source and dest; check data extraction is possible
         ActionListener<DataFrameAnalyticsConfig> getConfigListener = ActionListener.wrap(
             config -> {
                 new SourceDestValidator(clusterService.state(), indexNameExpressionResolver).check(config);
-                DataFrameDataExtractorFactory.validateConfigAndSourceIndex(client, config, firstValidationListener);
+                DataFrameDataExtractorFactory.validateConfigAndSourceIndex(client, config, toValidateDestEmptyListener);
             },
             finalListener::onFailure
         );
 
-        // First, get the config
+        // Step 1. Get the config
         configProvider.get(id, getConfigListener);
+    }
+
+    private void checkDestIndexIsEmptyIfExists(DataFrameAnalyticsConfig config, ActionListener<DataFrameAnalyticsConfig> listener) {
+        String destIndex = config.getDest().getIndex();
+        SearchRequest destEmptySearch = new SearchRequest(destIndex);
+        destEmptySearch.source().size(0);
+        destEmptySearch.allowPartialSearchResults(false);
+        ClientHelper.executeWithHeadersAsync(config.getHeaders(), ClientHelper.ML_ORIGIN, client, SearchAction.INSTANCE,
+            destEmptySearch, ActionListener.wrap(
+                searchResponse -> {
+                    if (searchResponse.getHits().getTotalHits().value > 0) {
+                        listener.onFailure(ExceptionsHelper.badRequestException("dest index [{}] must be empty", destIndex));
+                    } else {
+                        listener.onResponse(config);
+                    }
+                },
+                e -> {
+                    if (e instanceof IndexNotFoundException) {
+                        listener.onResponse(config);
+                    } else {
+                        listener.onFailure(e);
+                    }
+                }
+            )
+        );
     }
 
     private void waitForAnalyticsStarted(PersistentTasksCustomMetaData.PersistentTask<StartDataFrameAnalyticsAction.TaskParams> task,
@@ -372,6 +408,15 @@ public class TransportStartDataFrameAnalyticsAction
             } else {
                 LOGGER.debug("[{}] Reindex task was successfully cancelled", taskParams.getId());
             }
+        }
+
+        public void updateState(DataFrameAnalyticsState state, @Nullable String reason) {
+            DataFrameAnalyticsTaskState newTaskState = new DataFrameAnalyticsTaskState(state, getAllocationId(), reason);
+            updatePersistentTaskState(newTaskState, ActionListener.wrap(
+                updatedTask -> LOGGER.info("[{}] Successfully update task state to [{}]", getParams().getId(), state),
+                e -> LOGGER.error(new ParameterizedMessage("[{}] Could not update task state to [{}]",
+                    getParams().getId(), state), e)
+            ));
         }
     }
 

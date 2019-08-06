@@ -11,7 +11,6 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.client.core.IndexerState;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformTaskState;
 import org.elasticsearch.client.dataframe.transforms.TimeSyncConfig;
@@ -64,9 +63,6 @@ public class DataFrameTransformIT extends DataFrameIntegTestCase {
 
         waitUntilCheckpoint(config.getId(), 1L);
 
-        // It will eventually be stopped
-        assertBusy(() -> assertThat(getDataFrameTransformStats(config.getId())
-                .getTransformsStats().get(0).getCheckpointingInfo().getNext().getIndexerState(), equalTo(IndexerState.STOPPED)));
         stopDataFrameTransform(config.getId());
 
         DataFrameTransformConfig storedConfig = getDataFrameTransform(config.getId()).getTransformConfigurations().get(0);

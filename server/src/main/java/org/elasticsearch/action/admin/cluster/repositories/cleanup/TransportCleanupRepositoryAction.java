@@ -81,8 +81,8 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
 
     @Inject
     public TransportCleanupRepositoryAction(TransportService transportService, ClusterService clusterService,
-        RepositoriesService repositoriesService, ThreadPool threadPool, ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver) {
+                                            RepositoriesService repositoriesService, ThreadPool threadPool, ActionFilters actionFilters,
+                                            IndexNameExpressionResolver indexNameExpressionResolver) {
         super(CleanupRepositoryAction.NAME, transportService, clusterService, threadPool, actionFilters,
             CleanupRepositoryRequest::new, indexNameExpressionResolver);
         this.repositoriesService = repositoriesService;

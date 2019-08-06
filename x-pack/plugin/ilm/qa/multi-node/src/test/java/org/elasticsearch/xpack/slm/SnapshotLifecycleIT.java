@@ -426,7 +426,6 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
                 .startObject("settings")
                 .field("compress", randomBoolean())
                 .field("location", System.getProperty("tests.path.repo"))
-                .field("max_snapshot_bytes_per_sec", "256b")
                 .endObject()
                 .endObject()));
         assertOK(client().performRequest(request));

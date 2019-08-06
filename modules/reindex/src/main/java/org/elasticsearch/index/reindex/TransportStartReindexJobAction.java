@@ -37,6 +37,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.LockSupport;
 import java.util.function.Predicate;
 
 public class TransportStartReindexJobAction extends HandledTransportAction<StartReindexJobAction.Request, StartReindexJobAction.Response> {
@@ -113,7 +115,6 @@ public class TransportStartReindexJobAction extends HandledTransportAction<Start
             new PersistentTasksService.WaitForPersistentTaskListener<ReindexJob>() {
                 @Override
                 public void onResponse(PersistentTasksCustomMetaData.PersistentTask<ReindexJob> task) {
-                    ReindexJobState state = (ReindexJobState) task.getState();
                     reindexIndexClient.getReindexTaskDoc(taskId, new ActionListener<>() {
                         @Override
                         public void onResponse(ReindexTaskIndexState reindexState) {

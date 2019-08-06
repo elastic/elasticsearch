@@ -33,7 +33,8 @@ public class ReindexTaskIndexState implements ToXContentObject {
 
     public static final String REINDEX_ORIGIN = "reindex";
     public static final ConstructingObjectParser<ReindexTaskIndexState, Void> PARSER =
-        new ConstructingObjectParser<>("reindex/index_state", a -> new ReindexTaskIndexState((ReindexRequest) a[0]));
+        new ConstructingObjectParser<>("reindex/index_state", a -> new ReindexTaskIndexState((ReindexRequest) a[0],
+            (BulkByScrollResponse) a[1], (ElasticsearchException) a[2]));
 
     private static final String REINDEX_REQUEST = "request";
     private static final String REINDEX_RESPONSE = "response";
@@ -42,7 +43,7 @@ public class ReindexTaskIndexState implements ToXContentObject {
     static {
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> ReindexRequest.fromXContentWithParams(p),
             new ParseField(REINDEX_REQUEST));
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> BulkByScrollResponse.fromXContent(p),
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> BulkByScrollResponse.fromXContent(p),
             new ParseField(REINDEX_RESPONSE));
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> ElasticsearchException.fromXContent(p),
             new ParseField(REINDEX_EXCEPTION));
@@ -71,11 +72,15 @@ public class ReindexTaskIndexState implements ToXContentObject {
         reindexRequest.toXContent(builder, params, true);
         if (reindexResponse != null) {
             builder.field(REINDEX_RESPONSE);
+            builder.startObject();
             reindexResponse.toXContent(builder, params);
+            builder.endObject();
         }
         if (exception != null) {
             builder.field(REINDEX_EXCEPTION);
+            builder.startObject();
             exception.toXContent(builder, params);
+            builder.endObject();
         }
         return builder.endObject();
     }

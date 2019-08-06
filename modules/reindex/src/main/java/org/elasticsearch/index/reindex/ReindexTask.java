@@ -129,15 +129,15 @@ public class ReindexTask extends AllocatedPersistentTask {
 
                     @Override
                     public void onFailure(Exception e) {
-                        handleError(reindexJob.shouldStoreResult(), e);
+                        handleError(reindexJob.shouldStoreResult(), reindexRequest, e);
                     }
                 });
-
             }
 
             @Override
             public void onFailure(Exception e) {
-                handleError(reindexJob.shouldStoreResult(), e);
+                // TODO: Null
+                handleError(reindexJob.shouldStoreResult(), null, e);
             }
         });
     }
@@ -170,11 +170,11 @@ public class ReindexTask extends AllocatedPersistentTask {
             reindexer.execute(childTask, reindexRequest, new ContextPreservingActionListener<>(context, new ActionListener<>() {
                 @Override
                 public void onResponse(BulkByScrollResponse response) {
-                    ReindexTaskIndexState reindexState = new ReindexTaskIndexState(reindexRequest);
+                    ReindexTaskIndexState reindexState = new ReindexTaskIndexState(reindexRequest, response, null);
                     reindexIndexClient.updateReindexTaskDoc(getPersistentTaskId(), reindexState, new ActionListener<>() {
                         @Override
                         public void onResponse(Void v) {
-                            updatePersistentTaskState(new ReindexJobState(taskId, false), new ActionListener<>() {
+                            updatePersistentTaskState(new ReindexJobState(taskId, true), new ActionListener<>() {
                                 @Override
                                 public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
                                     if (shouldStoreResult) {
@@ -213,27 +213,39 @@ public class ReindexTask extends AllocatedPersistentTask {
 
                 @Override
                 public void onFailure(Exception ex) {
-                    handleError(shouldStoreResult, ex);
+                    handleError(shouldStoreResult, reindexRequest, ex);
                 }
             }));
         }
     }
 
-    private void handleError(boolean shouldStoreResult, Exception ex) {
+    private void handleError(boolean shouldStoreResult, ReindexRequest reindexRequest, Exception ex) {
         TaskManager taskManager = getTaskManager();
         assert taskManager != null : "TaskManager should have been set before reindex started";
 
-        ReindexTaskIndexState taskState = new ReindexTaskIndexState(null, null, wrapException(ex));
+        ReindexTaskIndexState reindexState = new ReindexTaskIndexState(reindexRequest, null, wrapException(ex));
 
-        updatePersistentTaskState(new ReindexJobState(taskId, true), new ActionListener<>() {
+        reindexIndexClient.updateReindexTaskDoc(getPersistentTaskId(), reindexState, new ActionListener<>() {
             @Override
-            public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
-                markEphemeralTaskFailed(shouldStoreResult, taskManager, ex);
+            public void onResponse(Void v) {
+                updatePersistentTaskState(new ReindexJobState(taskId, true), new ActionListener<>() {
+                    @Override
+                    public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
+                        markEphemeralTaskFailed(shouldStoreResult, taskManager, ex);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.info("Failed to update task state to failed", e);
+                        ex.addSuppressed(e);
+                        markEphemeralTaskFailed(shouldStoreResult, taskManager, ex);
+                    }
+                });
             }
 
             @Override
             public void onFailure(Exception e) {
-                logger.info("Failed to update task state to failed", e);
+                logger.info("Failed to write exception to reindex index", e);
                 ex.addSuppressed(e);
                 markEphemeralTaskFailed(shouldStoreResult, taskManager, ex);
             }

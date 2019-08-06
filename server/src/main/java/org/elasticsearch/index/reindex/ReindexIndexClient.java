@@ -100,7 +100,7 @@ public class ReindexIndexClient {
     // TODO: Potentially add compare-and-set semantics to ensure that another node has not been assigned
     //  this task
     public void updateReindexTaskDoc(String taskId, ReindexTaskIndexState reindexState, ActionListener<Void> listener) {
-        index(taskId, reindexState, DocWriteRequest.OpType.UPDATE, listener);
+        index(taskId, reindexState, DocWriteRequest.OpType.INDEX, listener);
     }
 
     private void index(String taskId, ReindexTaskIndexState reindexState, DocWriteRequest.OpType opType, ActionListener<Void> listener) {
@@ -110,6 +110,7 @@ public class ReindexIndexClient {
             indexRequest.source(builder);
         } catch (IOException e) {
             listener.onFailure(new ElasticsearchException("Couldn't serialize ReindexTaskIndexState into XContent", e));
+            return;
         }
         client.index(indexRequest, new ActionListener<>() {
             @Override

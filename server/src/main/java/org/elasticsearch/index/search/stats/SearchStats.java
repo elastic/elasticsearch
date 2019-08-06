@@ -117,6 +117,22 @@ public class SearchStats implements Writeable, ToXContentFragment {
             suggestCurrent += stats.suggestCurrent;
         }
 
+        public void addNonCurrentScroll(Stats stats) {
+            queryCount += stats.queryCount;
+            queryTimeInMillis += stats.queryTimeInMillis;
+
+            fetchCount += stats.fetchCount;
+            fetchTimeInMillis += stats.fetchTimeInMillis;
+
+            scrollCount += stats.scrollCount;
+            scrollTimeInMillis += stats.scrollTimeInMillis;
+            // need consider the count of the shard's current scroll
+            scrollCount += stats.scrollCurrent;
+
+            suggestCount += stats.suggestCount;
+            suggestTimeInMillis += stats.suggestTimeInMillis;
+        }
+
         public long getQueryCount() {
             return queryCount;
         }
@@ -272,6 +288,13 @@ public class SearchStats implements Writeable, ToXContentFragment {
             return;
         }
         totalStats.add(searchStats.totalStats);
+    }
+
+    public void addTotalsNonCurrentScroll(SearchStats searchStats) {
+        if (searchStats == null) {
+            return;
+        }
+        totalStats.addNonCurrentScroll(searchStats.totalStats);
     }
 
     public Stats getTotal() {

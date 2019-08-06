@@ -2629,8 +2629,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * intentionally unregistered.
      */
     public static final Setting<Double> REASONABLE_OPERATIONS_BASED_RECOVERY_PROPORTION_SETTING
-        = Setting.doubleSetting("index.recovery.reasonable_operations_based_recovery_proportion", 0.1, 0.0,
-            Setting.Property.Dynamic, Setting.Property.IndexScope);
+        = Setting.doubleSetting("index.recovery.reasonable_operations_based_recovery_proportion", 0.1, 0.0, Setting.Property.IndexScope);
 
     private LongSupplier getMinimumReasonableRetainedSeqNoSupplier(final IndexSettings indexSettings) {
         return new LongSupplier() {

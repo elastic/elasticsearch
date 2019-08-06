@@ -18,41 +18,26 @@
  */
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.AutoCreateIndex;
+import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.function.Predicate;
-
-import static org.elasticsearch.index.reindex.ReindexTaskIndexState.REINDEX_ORIGIN;
 
 public class TransportStartReindexJobAction extends HandledTransportAction<StartReindexJobAction.Request, StartReindexJobAction.Response> {
 
@@ -60,19 +45,19 @@ public class TransportStartReindexJobAction extends HandledTransportAction<Start
     private final ClusterService clusterService;
     private final PersistentTasksService persistentTasksService;
     private final ReindexValidator reindexValidator;
-    private final Client taskClient;
+    private final ReindexIndexClient reindexIndexClient;
 
     @Inject
     public TransportStartReindexJobAction(Settings settings, Client client, TransportService transportService, ThreadPool threadPool,
                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                           ClusterService clusterService, PersistentTasksService persistentTasksService,
-                                          AutoCreateIndex autoCreateIndex) {
+                                          AutoCreateIndex autoCreateIndex, NamedXContentRegistry xContentRegistry) {
         super(StartReindexJobAction.NAME, transportService, actionFilters, StartReindexJobAction.Request::new);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.reindexValidator = new ReindexValidator(settings, clusterService, indexNameExpressionResolver, autoCreateIndex);
         this.persistentTasksService = persistentTasksService;
-        this.taskClient = new OriginSettingClient(client, REINDEX_ORIGIN);
+        this.reindexIndexClient = new ReindexIndexClient(client, xContentRegistry);
     }
 
     @Override
@@ -90,9 +75,10 @@ public class TransportStartReindexJobAction extends HandledTransportAction<Start
         ReindexJob job = new ReindexJob(storeTaskResult, threadPool.getThreadContext().getHeaders());
 
         ClusterState clusterState = clusterService.state();
-        boolean reindexIndexExists = clusterState.routingTable().hasIndex(ReindexTask.REINDEX_INDEX);
+        boolean reindexIndexExists = clusterState.routingTable().hasIndex(ReindexIndexClient.REINDEX_INDEX);
 
-        createReindexTaskDoc(generatedId, request.getReindexRequest(), reindexIndexExists, new ActionListener<>() {
+        ReindexTaskIndexState reindexState = new ReindexTaskIndexState(request.getReindexRequest());
+        reindexIndexClient.createReindexTaskDoc(generatedId, reindexState, reindexIndexExists, new ActionListener<>() {
             @Override
             public void onResponse(Void v) {
                 // TODO: Task name
@@ -128,11 +114,21 @@ public class TransportStartReindexJobAction extends HandledTransportAction<Start
                 @Override
                 public void onResponse(PersistentTasksCustomMetaData.PersistentTask<ReindexJob> task) {
                     ReindexJobState state = (ReindexJobState) task.getState();
-                    if (state.getJobException() == null) {
-                        listener.onResponse(new StartReindexJobAction.Response(taskId, state.getReindexResponse()));
-                    } else {
-                        listener.onFailure(state.getJobException());
-                    }
+                    reindexIndexClient.getReindexTaskDoc(taskId, new ActionListener<>() {
+                        @Override
+                        public void onResponse(ReindexTaskIndexState reindexState) {
+                            if (reindexState.getException() == null) {
+                                listener.onResponse(new StartReindexJobAction.Response(taskId, reindexState.getReindexResponse()));
+                            } else {
+                                listener.onFailure(reindexState.getException());
+                            }
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            listener.onFailure(e);
+                        }
+                    });
                 }
 
                 @Override
@@ -157,57 +153,6 @@ public class TransportStartReindexJobAction extends HandledTransportAction<Start
                     listener.onFailure(e);
                 }
             });
-    }
-
-    private void createReindexTaskDoc(String taskId, ReindexRequest reindexRequest, boolean indexExists, ActionListener<Void> listener) {
-        if (indexExists) {
-            IndexRequest indexRequest = new IndexRequest(ReindexTask.REINDEX_INDEX).id(taskId).opType(DocWriteRequest.OpType.CREATE);
-            try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
-                ReindexTaskIndexState reindexState = new ReindexTaskIndexState(reindexRequest);
-                reindexState.toXContent(builder, ToXContent.EMPTY_PARAMS);
-                indexRequest.source(builder);
-            } catch (IOException e) {
-                listener.onFailure(new ElasticsearchException("Couldn't serialize reindex request into XContent", e));
-            }
-            taskClient.index(indexRequest, new ActionListener<>() {
-                @Override
-                public void onResponse(IndexResponse indexResponse) {
-                    listener.onResponse(null);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            });
-        } else {
-            CreateIndexRequest createIndexRequest = new CreateIndexRequest();
-            createIndexRequest.settings(reindexIndexSettings());
-            createIndexRequest.index(ReindexTask.REINDEX_INDEX);
-            createIndexRequest.cause("auto(reindex api)");
-            createIndexRequest.mapping("_doc", "{\"dynamic\": false}", XContentType.JSON);
-
-            taskClient.admin().indices().create(createIndexRequest, new ActionListener<>() {
-                @Override
-                public void onResponse(CreateIndexResponse result) {
-                    createReindexTaskDoc(taskId, reindexRequest, true, listener);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
-                        try {
-                            createReindexTaskDoc(taskId, reindexRequest, true, listener);
-                        } catch (Exception inner) {
-                            inner.addSuppressed(e);
-                            listener.onFailure(inner);
-                        }
-                    } else {
-                        listener.onFailure(e);
-                    }
-                }
-            });
-        }
     }
 
     private static class ReindexPredicate implements Predicate<PersistentTasksCustomMetaData.PersistentTask<?>> {
@@ -243,16 +188,7 @@ public class TransportStartReindexJobAction extends HandledTransportAction<Start
         }
 
         private boolean isDone(ReindexJobState state) {
-            return state != null && (state.getReindexResponse() != null || state.getJobException() != null);
+            return state != null && state.isDone();
         }
-    }
-
-    private Settings reindexIndexSettings() {
-        // TODO: Copied from task index
-        return Settings.builder()
-            .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-            .put(IndexMetaData.INDEX_AUTO_EXPAND_REPLICAS_SETTING.getKey(), "0-1")
-            .put(IndexMetaData.SETTING_PRIORITY, Integer.MAX_VALUE)
-            .build();
     }
 }

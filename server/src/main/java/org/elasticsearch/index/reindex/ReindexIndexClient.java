@@ -29,7 +29,7 @@ import java.io.IOException;
 
 public class ReindexIndexClient {
 
-    // TODO: Delete the one in ReindexTask
+    // TODO: Eventually this should be an alias for index versioning
     public static final String REINDEX_INDEX = ".reindex";
     public static final String REINDEX_ORIGIN = "reindex";
 
@@ -70,7 +70,7 @@ public class ReindexIndexClient {
         } else {
             CreateIndexRequest createIndexRequest = new CreateIndexRequest();
             createIndexRequest.settings(reindexIndexSettings());
-            createIndexRequest.index(ReindexTask.REINDEX_INDEX);
+            createIndexRequest.index(REINDEX_INDEX);
             createIndexRequest.cause("auto(reindex api)");
             createIndexRequest.mapping("_doc", "{\"dynamic\": false}", XContentType.JSON);
 

@@ -87,4 +87,12 @@ public class ReindexTaskIndexState implements ToXContentObject {
     public ReindexRequest getReindexRequest() {
         return reindexRequest;
     }
+
+    public BulkByScrollResponse getReindexResponse() {
+        return reindexResponse;
+    }
+
+    public ElasticsearchException getException() {
+        return exception;
+    }
 }

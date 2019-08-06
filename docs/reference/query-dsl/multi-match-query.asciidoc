@@ -4,8 +4,14 @@
 <titleabbrev>Multi-match</titleabbrev>
 ++++
 
-The `multi_match` query builds on the <<query-dsl-match-query,`match` query>>
-to allow multi-field queries:
+Returns documents that approximately match a provided text, number, or date in
+**one or more fields**.
+
+You can use the `multi-match` query to perform a
+<<query-dsl-match-query,`match`>> search across multiple fields.
+
+[[multi-match-query-ex-request]]
+==== Example request
 
 [source,js]
 --------------------------------------------------
@@ -13,19 +19,81 @@ GET /_search
 {
   "query": {
     "multi_match" : {
-      "query":    "this is a test", <1>
-      "fields": [ "subject", "message" ] <2>
+      "query":    "this is a test",
+      "fields": [ "subject", "message" ]
     }
   }
 }
 --------------------------------------------------
 // CONSOLE
-<1> The query string.
-<2> The fields to be queried.
 
-[float]
+
+[[multi-match-top-level-params]]
+==== Top-level parameters for `multi_match`
+
+`query`::
++
+--
+(Required, string) Text, number, or date you wish to find in the provided
+`fields`.
+
+The `multi-match` query <<analysis,analyzes>> any provided text before
+performing a search.
+--
+
+`fields`::
++
+--
+(Required, array of strings) Array of fields you wish to search.
+
+You can use a wildcard expression to include multiple fields. You also can boost
+relevance scores for matches to particular fields using a caret (`^`)
+notation. See <<field-boost>> for examples.
+--
+
+[[multi-match-types]]
+`type`::
++
+--
+(Optional, string) Determines how the query matches and scores documents. Valid
+values are:
+
+`best_fields` (Default)::
+Finds documents which match any field and uses the highest
+<<relevance-scores,`_score`>> from any matching field.  See
+<<type-best-fields>>.
+
+`bool_prefix`::
+Creates a `match_bool_prefix` query on each field and combines the `_score` from
+each field. See <<type-bool-prefix>>.
+
+`cross_fields`::
+Treats fields with the same `analyzer` as though they were one big field. Looks
+for each word in **any** field. See <<type-cross-fields>>.
+
+`most_fields`::
+Finds documents which match any field and combines the `_score` from each field.
+See <<type-most-fields>>.
+
+`phrase`::
+Runs a `match_phrase` query on each field and uses the `_score` from the best
+field.  See <<type-phrase>>.
+
+`phrase_prefix`::
+Runs a `match_phrase_prefix` query on each field and uses the `_score` from the
+best field.  See <<type-phrase>>.
+
+NOTE:
+Additional top-level `multi_match` parameters may be available based on the
+<<multi-match-types,`type`>> value.
+--
+
+
+[[multi-match-query-notes]]
+==== Notes
+
 [[field-boost]]
-==== `fields` and per-field boosting
+===== Wildcards and per-field boosts in the `fields` parameter
 
 Fields can be specified with wildcards, eg:
 
@@ -71,36 +139,8 @@ WARNING: There is a limit on the number of fields that can be queried
 at once. It is defined by the `indices.query.bool.max_clause_count` <<search-settings>>
 which defaults to 1024.
 
-[[multi-match-types]]
-[float]
-==== Types of `multi_match` query:
-
-The way the `multi_match` query is executed internally depends on the `type`
-parameter, which can be set to:
-
-[horizontal]
-`best_fields`::     (*default*) Finds documents which match any field, but
-                    uses the  `_score` from the best field.  See <<type-best-fields>>.
-
-`most_fields`::     Finds documents which match any field and combines
-                    the `_score` from each field.  See <<type-most-fields>>.
-
-`cross_fields`::    Treats fields with the same `analyzer` as though they
-                    were one big field. Looks for each word in *any*
-                    field. See <<type-cross-fields>>.
-
-`phrase`::          Runs a `match_phrase` query on each field and uses the `_score`
-                    from the best field.  See <<type-phrase>>.
-
-`phrase_prefix`::   Runs a `match_phrase_prefix` query on each field and uses
-                    the `_score` from the best field.  See <<type-phrase>>.
-
-`bool_prefix`::     Creates a `match_bool_prefix` query on each field and
-                    combines the `_score` from each field. See
-                    <<type-bool-prefix>>.
-
 [[type-best-fields]]
-==== `best_fields`
+===== `best_fields`
 
 The `best_fields` type is most useful when you are searching for multiple
 words best found in the same field. For instance ``brown fox'' in a single
@@ -200,7 +240,7 @@ See <<type-cross-fields>> for a better solution.
 ===================================================
 
 [[type-most-fields]]
-==== `most_fields`
+===== `most_fields`
 
 The `most_fields` type is most useful when querying multiple fields that
 contain the same text analyzed in different ways.  For instance, the main
@@ -253,7 +293,7 @@ Also, accepts `analyzer`, `boost`, `operator`, `minimum_should_match`,
 `fuzziness`, `lenient`, `prefix_length`, `max_expansions`, `rewrite`, and `zero_terms_query`.
 
 [[type-phrase]]
-==== `phrase` and `phrase_prefix`
+===== `phrase` and `phrase_prefix`
 
 The `phrase` and `phrase_prefix` types behave just like <<type-best-fields>>,
 but they use a `match_phrase` or `match_phrase_prefix` query instead of a
@@ -305,7 +345,7 @@ The `fuzziness` parameter cannot be used with the `phrase` or `phrase_prefix` ty
 ===================================================
 
 [[type-cross-fields]]
-==== `cross_fields`
+===== `cross_fields`
 
 The `cross_fields` type is particularly useful with structured documents where
 multiple fields *should* match.  For instance, when querying the `first_name`
@@ -393,7 +433,7 @@ Also, accepts `analyzer`, `boost`, `operator`, `minimum_should_match`,
 `lenient` and `zero_terms_query`.
 
 [[cross-field-analysis]]
-===== `cross_field` and analysis
+====== `cross_field` and analysis
 
 The `cross_field` type can only work in term-centric mode on fields that have
 the same analyzer. Fields with the same analyzer are grouped together as in
@@ -502,7 +542,7 @@ which will be executed as:
     blended("smith", fields: [first, first.edge, last.edge, last])
 
 [[tie-breaker]]
-===== `tie_breaker`
+====== `tie_breaker`
 
 By default, each per-term `blended` query will use the best score returned by
 any field in a group, then these scores are added together to give the final
@@ -525,7 +565,7 @@ The `fuzziness` parameter cannot be used with the `cross_fields` type.
 ===================================================
 
 [[type-bool-prefix]]
-==== `bool_prefix`
+===== `bool_prefix`
 
 The `bool_prefix` type's scoring behaves like <<type-most-fields>>, but using a
 <<query-dsl-match-bool-prefix-query,`match_bool_prefix` query>> instead of a

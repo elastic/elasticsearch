@@ -88,10 +88,14 @@ public final class HttpChannelTaskHandler {
     final class CloseListener implements ActionListener<Void> {
         private final Client client;
         private final AtomicReference<HttpChannel> channel = new AtomicReference<>();
-        final Set<TaskId> taskIds = new HashSet<>();
+        private final Set<TaskId> taskIds = new HashSet<>();
 
         CloseListener(Client client) {
             this.client = client;
+        }
+
+        int getNumTasks() {
+            return taskIds.size();
         }
 
         void maybeRegisterChannel(HttpChannel httpChannel) {

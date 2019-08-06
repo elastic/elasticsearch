@@ -99,7 +99,7 @@ public class HttpChannelTaskHandlerTests extends ESTestCase {
             //no channels get closed in this test, hence we expect as many channels as we created in the map
             assertEquals(initialHttpChannels + numChannels, httpChannelTaskHandler.getNumChannels());
             for (Map.Entry<HttpChannel, HttpChannelTaskHandler.CloseListener> entry : httpChannelTaskHandler.httpChannels.entrySet()) {
-                assertEquals(0, entry.getValue().taskIds.size());
+                assertEquals(0, entry.getValue().getNumTasks());
             }
             assertEquals(totalSearches, testClient.searchRequests.get());
         }
@@ -124,7 +124,7 @@ public class HttpChannelTaskHandlerTests extends ESTestCase {
                 for (int j = 0; j < numTasks; j++) {
                     httpChannelTaskHandler.execute(testClient, channel, new SearchRequest(), SearchAction.INSTANCE, null);
                 }
-                assertEquals(numTasks, httpChannelTaskHandler.httpChannels.get(channel).taskIds.size());
+                assertEquals(numTasks, httpChannelTaskHandler.httpChannels.get(channel).getNumTasks());
             }
             assertEquals(initialHttpChannels + numChannels, httpChannelTaskHandler.getNumChannels());
             for (TestHttpChannel channel : channels) {

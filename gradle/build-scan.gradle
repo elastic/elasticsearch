@@ -21,7 +21,7 @@ buildScan {
         def isPrBuild = System.getenv('ROOT_BUILD_CAUSE_GHPRBCAUSE') != null
 
         // Capture changes included in this CI build except for pull request builds
-        if (System.getenv('GIT_COMMIT') && isPrBuild) {
+        if (System.getenv('GIT_COMMIT') && !isPrBuild) {
             background {
                 def changes = "git diff --name-only ${System.getenv('GIT_PREVIOUS_COMMIT')}..${System.getenv('GIT_COMMIT')}".execute().text.trim()
                 value 'Git Changes', changes

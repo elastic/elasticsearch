@@ -71,8 +71,8 @@ public class InferenceProcessor extends AbstractProcessor {
             if (loadedModels.containsKey(modelId)) {
 
                 ModelLoader loader = modelLoaders.get(modelType);
-                // read the model's config even though it isn't use as it is an error
-                // to leave parsed config
+                // read the model's config even though we don't need it here.
+                // it is an error to leave options in the config map
                 loader.readConfiguration(tag, config);
 
                 return new InferenceProcessor(tag, modelId, loadedModels.get(modelId));
@@ -82,7 +82,6 @@ public class InferenceProcessor extends AbstractProcessor {
                     throw new IllegalStateException("Cannot find loader for model type " + modelType);
                 }
 
-                logger.info("got model loader");
                 Model model = loader.load(modelId, tag, ignoreMissing, config);
                 loadedModels.put(modelId, model);
                 return new InferenceProcessor(tag, modelId, model);

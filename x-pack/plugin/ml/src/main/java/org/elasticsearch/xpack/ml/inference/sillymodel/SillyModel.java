@@ -6,16 +6,24 @@
 
 package org.elasticsearch.xpack.ml.inference.sillymodel;
 
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.xpack.ml.inference.Model;
 
+import java.util.Random;
+
 public class SillyModel implements Model {
 
-    public SillyModel(BytesReference model) {
+    private static final String TARGET_FIELD = "hotdog_or_not";
+
+    private Random random;
+
+    public SillyModel() {
+        random = Randomness.get();
     }
 
     public IngestDocument infer(IngestDocument document) {
+        document.setFieldValue(TARGET_FIELD, random.nextBoolean() ? "hotdog" : "not");
         return document;
     }
 }

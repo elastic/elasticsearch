@@ -21,6 +21,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class SillyModelLoader implements ModelLoader {
 
+    public static final String MODEL_TYPE = "model_stored_in_index";
 
     private static String INDEX = "index";
 
@@ -58,10 +59,10 @@ public class SillyModelLoader implements ModelLoader {
 
 
     public void load(String id, String index, ActionListener<Model> listener) {
-        client.prepareGet(id, null, index).execute(ActionListener.wrap(
+        client.prepareGet(index, null, id).execute(ActionListener.wrap(
                 response -> {
                     if (response.isExists()) {
-                        listener.onResponse(new SillyModel(response.getSourceAsBytesRef()));
+                        listener.onResponse(new SillyModel());
                     } else {
                         listener.onFailure(new ResourceNotFoundException("missing model [{}], [{}]", id, index));
                     }

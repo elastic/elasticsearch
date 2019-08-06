@@ -628,7 +628,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
     }
 
     private Map<String, ModelLoader> getModelLoaders(Client client) {
-        return Collections.singletonMap("silly", new SillyModelLoader(client));
+        return Map.of(SillyModelLoader.MODEL_TYPE, new SillyModelLoader(client));
     }
 
     @Override

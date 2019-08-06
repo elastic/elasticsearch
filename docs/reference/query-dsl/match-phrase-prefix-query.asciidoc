@@ -84,7 +84,7 @@ query.
 ==== Notes
 
 [[match-phrase-prefix-autocomplete]]
-===== Avoid using the match phrase prefix query for search autocompletion
+===== Using the match phrase prefix query for search autocompletion
 While easy to set up, using the `match_phrase_prefix` query for search
 autocompletion can sometimes produce confusing results.
 

@@ -6,10 +6,10 @@
 
 package org.elasticsearch.xpack.dataframe.checkpoint;
 
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
@@ -203,7 +203,7 @@ public class DataFrameTransformCheckpointServiceNodeTests extends DataFrameSingl
                 30L);
 
         assertAsync(listener ->
-                transformsCheckpointService.getCheckpointStats(transformId, 1, 2, IndexerState.STARTED, position, progress, listener),
+                transformsCheckpointService.getCheckpointingInfo(transformId, 1, IndexerState.STARTED, position, progress, listener),
             checkpointInfo, null, null);
 
         mockClientForCheckpointing.setShardStats(createShardStats(createCheckPointMap(transformId, 10, 50, 33)));
@@ -212,7 +212,7 @@ public class DataFrameTransformCheckpointServiceNodeTests extends DataFrameSingl
                 new DataFrameTransformCheckpointStats(2, IndexerState.INDEXING, position, progress, timestamp + 100L, 0L),
                 63L);
         assertAsync(listener ->
-                transformsCheckpointService.getCheckpointStats(transformId, 1, 2, IndexerState.INDEXING, position, progress, listener),
+                transformsCheckpointService.getCheckpointingInfo(transformId, 1, IndexerState.INDEXING, position, progress, listener),
             checkpointInfo, null, null);
 
         // same as current
@@ -222,7 +222,7 @@ public class DataFrameTransformCheckpointServiceNodeTests extends DataFrameSingl
                 new DataFrameTransformCheckpointStats(2, IndexerState.STOPPING, position, progress, timestamp + 100L, 0L),
                 0L);
         assertAsync(listener ->
-                transformsCheckpointService.getCheckpointStats(transformId, 1, 2, IndexerState.STOPPING, position, progress, listener),
+                transformsCheckpointService.getCheckpointingInfo(transformId, 1, IndexerState.STOPPING, position, progress, listener),
             checkpointInfo, null, null);
     }
 

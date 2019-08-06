@@ -15,32 +15,16 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=http-format]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-h]
 +
-See <<cat-nodeattrs-api-columns>> for a list of available columns. See
-<<cat-nodeattrs-api-ex-headings>> for an example.
-
-include::{docdir}/rest-api/common-parms.asciidoc[tag=help]
-
-include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
-
-include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
-
-include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
-
-include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
-
-
-[[cat-nodeattrs-api-columns]]
-==== Available columns
-
-You can use the following column values with the `h` (headings) query parameter.
-
-If no column values are provided, columns marked as **default** are returned. If
-any column value is provided, default columns are not returned.
+--
+If no column values are provided, default columns are returned. If any column
+value is provided, default columns are not returned.
 
 For brevity, you can use a column's alias in place of the full column heading
 value.
 
 By default, columns are returned in the order provided below.
+
+Valid values are:
 
 `node`::
 (Default) Name of the node, such as `DKDM97B`. Alias is `name`.
@@ -65,6 +49,25 @@ Process ID, such as `13061`. Alias is `p`.
 
 `port`::
 Bound transport port, such as `9300`. Alias is `po`.
+--
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=help]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
+
+
+[[cat-nodeattrs-api-columns]]
+==== Available columns
+
+You can use the following column values with the `h` (headings) query parameter.
+
+
 
 
 [[cat-nodeattrs-api-example]]

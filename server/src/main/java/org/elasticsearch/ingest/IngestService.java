@@ -578,15 +578,15 @@ public class IngestService implements ClusterStateApplier {
                 return true;
             }
 
-            while (processor instanceof WrappedProcessor) {
-                WrappedProcessor wrappedProcessor = (WrappedProcessor) processor;
-                if (clazz.isAssignableFrom(wrappedProcessor.getInnerProcessor().getClass())) {
+            while (processor instanceof WrappingProcessor) {
+                WrappingProcessor wrappingProcessor = (WrappingProcessor) processor;
+                if (clazz.isAssignableFrom(wrappingProcessor.getInnerProcessor().getClass())) {
                     return true;
                 }
-                processor = wrappedProcessor.getInnerProcessor();
+                processor = wrappingProcessor.getInnerProcessor();
                 // break in the case of self referencing processors in the event a processor author creates a
-                // wrapped processor that has its inner processor refer to itself.
-                if (wrappedProcessor == processor) {
+                // wrapping processor that has its inner processor refer to itself.
+                if (wrappingProcessor == processor) {
                     break;
                 }
             }

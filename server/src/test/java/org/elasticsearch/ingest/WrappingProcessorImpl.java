@@ -19,15 +19,33 @@
 
 package org.elasticsearch.ingest;
 
-/**
- * A wrapped processor is one that encapsulates an inner processor, or a processor that the wrapped processor enacts upon. All processors
- * that contain an "inner" processor should implement this interface, such that the actual processor can be obtained.
- */
-public interface WrappedProcessor extends Processor {
+import java.util.function.Consumer;
 
-    /**
-     * Method for retrieving the inner processor from a wrapped processor.
-     * @return the inner processor
-     */
-    Processor getInnerProcessor();
+class WrappingProcessorImpl extends FakeProcessor implements WrappingProcessor {
+
+    WrappingProcessorImpl(String type, String tag, Consumer<IngestDocument> executor) {
+        super(type, tag, executor);
+    }
+
+    @Override
+    public Processor getInnerProcessor() {
+        String theType = getType();
+        String theTag = getTag();
+        return new Processor() {
+            @Override
+            public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
+                return ingestDocument;
+            }
+
+            @Override
+            public String getType() {
+                return theType;
+            }
+
+            @Override
+            public String getTag() {
+                return theTag;
+            }
+        };
+    }
 }

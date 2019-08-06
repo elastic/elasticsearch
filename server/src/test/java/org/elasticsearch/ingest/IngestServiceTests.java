@@ -288,8 +288,8 @@ public class IngestServiceTests extends ESTestCase {
         assertThat(pipeline, notNullValue());
 
         assertTrue(ingestService.hasProcessor(id, Processor.class));
-        assertTrue(ingestService.hasProcessor(id, WrappedProcessorImpl.class));
-        assertTrue(ingestService.hasProcessor(id, WrappedProcessor.class));
+        assertTrue(ingestService.hasProcessor(id, WrappingProcessorImpl.class));
+        assertTrue(ingestService.hasProcessor(id, WrappingProcessor.class));
         assertTrue(ingestService.hasProcessor(id, FakeProcessor.class));
 
         assertFalse(ingestService.hasProcessor(id, ConditionalProcessor.class));
@@ -346,11 +346,11 @@ public class IngestServiceTests extends ESTestCase {
         assertThat(pipeline, notNullValue());
 
         assertTrue(ingestService.hasProcessor(id, Processor.class));
-        assertTrue(ingestService.hasProcessor(id, WrappedProcessor.class));
+        assertTrue(ingestService.hasProcessor(id, WrappingProcessor.class));
         assertTrue(ingestService.hasProcessor(id, FakeProcessor.class));
         assertTrue(ingestService.hasProcessor(id, ConditionalProcessor.class));
 
-        assertFalse(ingestService.hasProcessor(id, WrappedProcessorImpl.class));
+        assertFalse(ingestService.hasProcessor(id, WrappingProcessorImpl.class));
     }
 
     public void testCrud() throws Exception {
@@ -1106,7 +1106,7 @@ public class IngestServiceTests extends ESTestCase {
         });
         processors.put("remove", (factories, tag, config) -> {
             String field = (String) config.remove("field");
-            return new WrappedProcessorImpl("remove", tag, (ingestDocument -> ingestDocument.removeField(field))) {
+            return new WrappingProcessorImpl("remove", tag, (ingestDocument -> ingestDocument.removeField(field))) {
             };
         });
         return createWithProcessors(processors);

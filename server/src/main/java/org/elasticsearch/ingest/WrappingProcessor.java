@@ -19,33 +19,15 @@
 
 package org.elasticsearch.ingest;
 
-import java.util.function.Consumer;
+/**
+ * A srapping processor is one that encapsulates an inner processor, or a processor that the wrapped processor enacts upon. All processors
+ * that contain an "inner" processor should implement this interface, such that the actual processor can be obtained.
+ */
+public interface WrappingProcessor extends Processor {
 
-class WrappedProcessorImpl extends FakeProcessor implements WrappedProcessor {
-
-    WrappedProcessorImpl(String type, String tag, Consumer<IngestDocument> executor) {
-        super(type, tag, executor);
-    }
-
-    @Override
-    public Processor getInnerProcessor() {
-        String theType = getType();
-        String theTag = getTag();
-        return new Processor() {
-            @Override
-            public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
-                return ingestDocument;
-            }
-
-            @Override
-            public String getType() {
-                return theType;
-            }
-
-            @Override
-            public String getTag() {
-                return theTag;
-            }
-        };
-    }
+    /**
+     * Method for retrieving the inner processor from a wrapped processor.
+     * @return the inner processor
+     */
+    Processor getInnerProcessor();
 }

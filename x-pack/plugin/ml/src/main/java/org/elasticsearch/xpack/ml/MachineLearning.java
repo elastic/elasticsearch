@@ -303,7 +303,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
     public static final Setting<Boolean> ML_ENABLED =
             Setting.boolSetting("node.ml", XPackSettings.MACHINE_LEARNING_ENABLED, Property.NodeScope);
 
-    static DiscoveryNodeRole ML_ROLE = new DiscoveryNodeRole("ml", "l") {
+    public static final DiscoveryNodeRole ML_ROLE = new DiscoveryNodeRole("ml", "l") {
 
         @Override
         protected Setting<Boolean> roleSetting() {

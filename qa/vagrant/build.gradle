@@ -85,8 +85,11 @@ subprojects { Project platformProject ->
     testClassesDirs += project.files(configurations.testClasses.singleFile)
   }
 
+  // TEMP: this is just for debugging CI failures for windows
+  if (platformProject.name.contains('windows')) {
   tasks.register('packagingTest') {
     dependsOn 'distroTest', 'batsTest.oss', 'batsTest.default'
+  }
   }
 
   vagrant {

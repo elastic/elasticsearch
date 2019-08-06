@@ -1106,9 +1106,9 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitConstructorfuncref(ConstructorfuncrefContext ctx) {
-        return ctx.decltype().LBRACE().isEmpty() == false ?
-            new ENewArrayFunctionRef(location(ctx), ctx.decltype().getText()) :
-            new EFunctionRef(location(ctx), ctx.decltype().getText(), ctx.NEW().getText());
+        return ctx.decltype().LBRACE().isEmpty() ?
+                new EFunctionRef(location(ctx), ctx.decltype().getText(), ctx.NEW().getText()) :
+                new ENewArrayFunctionRef(location(ctx), ctx.decltype().getText());
     }
 
     @Override

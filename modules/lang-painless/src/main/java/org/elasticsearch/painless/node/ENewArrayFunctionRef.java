@@ -75,7 +75,7 @@ public final class ENewArrayFunctionRef extends AExpression implements ILambda {
             writer.writeDebugInfo(location);
             writer.invokeLambdaCall(ref);
         } else {
-            // TODO: don't do this: its just to cutover :)
+            // push a null instruction as a placeholder for future lambda instructions
             writer.push((String)null);
         }
 

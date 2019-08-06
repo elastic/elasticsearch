@@ -69,14 +69,16 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
             boolean orientation = fieldType.orientation == ShapeBuilder.Orientation.RIGHT;
 
             GeometryParser geometryParser = new GeometryParser(orientation, coerce(context).value(), ignoreZValue().value());
+            fieldType.setGeometryParser( (parser, mapper) -> geometryParser.parse(parser));
 
             fieldType.setGeometryIndexer(new GeoShapeIndexer(orientation, fieldType.name()));
-            fieldType.setGeometryParser( (parser, mapper) -> geometryParser.parse(parser));
             fieldType.setGeometryQueryBuilder(new VectorGeoShapeQueryProcessor());
         }
     }
 
     public static final class GeoShapeFieldType extends AbstractGeometryFieldType<Geometry, Geometry> {
+        CRSHandler crsHandler;
+
         public GeoShapeFieldType() {
             super();
         }

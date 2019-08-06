@@ -1,0 +1,7 @@
+
+grant {
+  permission java.io.FilePermission "alaska", "read";
+  permission java.io.FilePermission "conus", "read";
+  permission java.io.FilePermission "ntv2_0.gsb", "read";
+  permission java.io.FilePermission "ntv1_can.dat", "read";
+};

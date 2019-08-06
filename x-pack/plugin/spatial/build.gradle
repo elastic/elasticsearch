@@ -9,7 +9,13 @@ esplugin {
     extendedPlugins = ['x-pack-core']
 }
 
+repositories {
+    mavenCentral()
+}
+
 dependencies {
+    compile 'org.locationtech.proj4j:proj4j:1.0.0'
+    testCompile 'org.locationtech.proj4j:proj4j:1.0.0'
     compileOnly project(path: xpackModule('core'), configuration: 'default')
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
     if (isEclipse) {

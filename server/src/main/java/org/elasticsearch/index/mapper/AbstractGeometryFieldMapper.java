@@ -69,6 +69,13 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         public static final Explicit<Boolean> IGNORE_Z_VALUE = new Explicit<>(true, false);
     }
 
+    public abstract static class CRSHandler {
+        protected Indexer indexer;
+        protected QueryProcessor queryProcessor;
+
+        public abstract Indexer getIndexer();
+        public abstract QueryProcessor getQueryProcessor();
+    }
 
     /**
      * Interface representing an preprocessor in geo-shape indexing pipeline

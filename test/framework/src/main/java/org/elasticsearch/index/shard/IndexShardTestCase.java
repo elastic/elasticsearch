@@ -224,7 +224,12 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     protected IndexShard newShard(ShardRouting shardRouting, final IndexingOperationListener... listeners) throws IOException {
-        return newShard(shardRouting, Settings.EMPTY, new InternalEngineFactory(), listeners);
+        return newShard(shardRouting, Settings.EMPTY, listeners);
+    }
+
+    protected IndexShard newShard(ShardRouting shardRouting, final Settings settings, final IndexingOperationListener... listeners)
+            throws IOException {
+        return newShard(shardRouting, settings, new InternalEngineFactory(), listeners);
     }
 
     /**
@@ -422,23 +427,24 @@ public abstract class IndexShardTestCase extends ESTestCase {
      * @param listeners new listerns to use for the newly created shard
      */
     protected IndexShard reinitShard(IndexShard current, ShardRouting routing, IndexingOperationListener... listeners) throws IOException {
-        return reinitShard(current, routing, current.engineFactory, listeners);
+        return reinitShard(current, routing, current.indexSettings.getIndexMetaData(), current.engineFactory, listeners);
     }
 
     /**
      * Takes an existing shard, closes it and starts a new initialing shard at the same location
      *
-     * @param routing   the shard routing to use for the newly created shard.
-     * @param listeners new listerns to use for the newly created shard
+     * @param routing       the shard routing to use for the newly created shard.
+     * @param listeners     new listerns to use for the newly created shard
+     * @param indexMetaData the index metadata to use for the newly created shard
      * @param engineFactory the engine factory for the new shard
      */
-    protected IndexShard reinitShard(IndexShard current, ShardRouting routing, EngineFactory engineFactory,
+    protected IndexShard reinitShard(IndexShard current, ShardRouting routing, IndexMetaData indexMetaData, EngineFactory engineFactory,
                                      IndexingOperationListener... listeners) throws IOException {
         closeShards(current);
         return newShard(
                 routing,
                 current.shardPath(),
-                current.indexSettings().getIndexMetaData(),
+                indexMetaData,
                 null,
                 null,
                 engineFactory,
@@ -623,18 +629,9 @@ public abstract class IndexShardTestCase extends ESTestCase {
         }
         replica.prepareForIndexRecovery();
         final RecoveryTarget recoveryTarget = targetSupplier.apply(replica, pNode);
-        final String targetAllocationId = recoveryTarget.indexShard().routingEntry().allocationId().getId();
-
-        final Store.MetadataSnapshot snapshot = getMetadataSnapshotOrEmpty(replica);
-        final long startingSeqNo;
-        if (snapshot.size() > 0) {
-            startingSeqNo = PeerRecoveryTargetService.getStartingSeqNo(logger, recoveryTarget);
-        } else {
-            startingSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
-        }
-
-        final StartRecoveryRequest request = new StartRecoveryRequest(replica.shardId(), targetAllocationId,
-            pNode, rNode, snapshot, replica.routingEntry().primary(), 0, startingSeqNo);
+        final long startingSeqNo = recoveryTarget.indexShard().recoverLocallyUpToGlobalCheckpoint();
+        final StartRecoveryRequest request = PeerRecoveryTargetService.getStartRecoveryRequest(
+            logger, rNode, recoveryTarget, startingSeqNo);
         final RecoverySourceHandler recovery = new RecoverySourceHandler(primary,
             new AsyncRecoveryTarget(recoveryTarget, threadPool.generic()), threadPool,
             request, Math.toIntExact(ByteSizeUnit.MB.toBytes(1)), between(1, 8));

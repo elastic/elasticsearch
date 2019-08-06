@@ -27,6 +27,7 @@ Tutorial] to see how to set up a system monitoring solution with {es}, {kib},
 TIP: The fastest way to get started with {es} is to
 https://www.elastic.co/cloud/elasticsearch-service/signup[start a free 14-day
 trial of Elasticsearch Service] in the cloud.
+--
 
 [[getting-started-install]]
 == Get {es} up and running
@@ -53,6 +54,7 @@ Linux: https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{versi
 --------------------------------------------------
 curl -L -O https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-linux-x86_64.tar.gz
 --------------------------------------------------
+// NOTCONSOLE
 +
 macOS: https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-darwin-x86_64.tar.gz[elasticsearch-{version}-darwin-x86_64.tar.gz]
 +
@@ -60,6 +62,7 @@ macOS: https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{versi
 --------------------------------------------------
 curl -L -O https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-darwin-x86_64.tar.gz
 --------------------------------------------------
+// NOTCONSOLE
 +
 Windows:
 https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-windows-x86_64.zip[elasticsearch-{version}-windows-x86_64.zip]
@@ -100,7 +103,6 @@ cd elasticsearch-{version}/bin
 Windows:
 +
 ["source","sh",subs="attributes,callouts"]
-
 --------------------------------------------------
 cd %PROGRAMFILES%\Elastic\Elasticsearch\bin
 .\elasticsearch.exe
@@ -161,7 +163,7 @@ is _green_ and it has three nodes:
 epoch      timestamp cluster       status node.total node.data shards pri relo init unassign pending_tasks max_task_wait_time active_shards_percent
 1565052807 00:53:27  elasticsearch green           3         3      6   3    0    0        0             0                  -                100.0%
 --------------------------------------------------
-// TESTRESPONSE[s/1565052807 00:53:27  elasticsearch/\\d+ \\d+:\\d+:\\d+ integTest/]
+// TESTRESPONSE[s/1565052807 00:53:27  elasticsearch green           3         3      6   3/\\d+ \\d+:\\d+:\\d+ integTest green           \\d+         \\d+      \\d+   \\d+/]
 // TESTRESPONSE[s/0             0                  -/0             \\d+                  -/]
 // TESTRESPONSE[non_json]
 +

@@ -34,14 +34,14 @@ buildScan {
             value 'Git Branch', System.getenv('ghprbTargetBranch')
             tag System.getenv('ghprbTargetBranch')
             tag "pr/${System.getenv('ghprbPullId')}"
-            link 'Source', "https://github.com/elastic/elasticsearch/commit/${System.getenv('ghprbActualCommit')}"
+            link 'Source', "https://github.com/elastic/elasticsearch/tree/${System.getenv('ghprbActualCommit')}"
             link 'Pull Request', System.getenv('ghprbPullLink')
         } else {
             def branch = System.getenv('GIT_BRANCH').split('/').last()
             value 'Git Commit ID', System.getenv('GIT_COMMIT')
             value 'Git Branch', branch
             tag branch
-            link 'Source', "https://github.com/elastic/elasticsearch/commit/${System.getenv('GIT_COMMIT')}"
+            link 'Source', "https://github.com/elastic/elasticsearch/tree/${System.getenv('GIT_COMMIT')}"
         }
     } else {
         tag 'LOCAL'

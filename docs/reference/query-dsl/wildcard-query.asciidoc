@@ -57,7 +57,7 @@ the iterations needed to find matching terms and slow search performance.
 
 `boost`::
 (Optional, float) Floating point number used to decrease or increase the
-<<query-filter-context, relevance scores>> of a query. Defaults to `1.0`.
+<<relevance-scores,relevance scores>> of a query. Defaults to `1.0`.
 +
 You can use the `boost` parameter to adjust relevance scores for searches
 containing two or more queries.

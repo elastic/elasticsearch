@@ -101,7 +101,7 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
             .field("number", build.getQualifiedVersion())
             .field("build_flavor", build.flavor().displayName())
             .field("build_type", build.type().displayName())
-            .field("build_hash", build.shortHash())
+            .field("build_hash", build.hash())
             .field("build_date", build.date())
             .field("build_snapshot", build.isSnapshot())
             .field("lucene_version", version.luceneVersion.toString())

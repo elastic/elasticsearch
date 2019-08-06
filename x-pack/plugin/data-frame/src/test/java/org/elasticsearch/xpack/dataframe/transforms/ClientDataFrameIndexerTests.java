@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheck
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
-import org.elasticsearch.xpack.dataframe.checkpoint.DataFrameTransformsCheckpointService;
+import org.elasticsearch.xpack.dataframe.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.dataframe.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 
@@ -48,7 +48,7 @@ public class ClientDataFrameIndexerTests extends ESTestCase {
             Collections.emptyMap());
         DataFrameTransformTask.ClientDataFrameIndexer indexer = new DataFrameTransformTask.ClientDataFrameIndexer(randomAlphaOfLength(10),
             mock(DataFrameTransformsConfigManager.class),
-            mock(DataFrameTransformsCheckpointService.class),
+            mock(CheckpointProvider.class),
             new AtomicReference<>(IndexerState.STOPPED),
             null,
             mock(Client.class),

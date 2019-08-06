@@ -868,9 +868,9 @@ which terminate the TLS connection. In order to allow for a *trusted* and
 *smart* proxy, such as Kibana, to sit before {es} and terminate TLS
 connections, but still allow clients to be authenticated on {es} by this realm,
 you need to toggle this to `true`. Defaults to `false`. This setting requires
-the `truststore` or `certificate_authorities` be defined. For more details, see
-<<pki-realm-for-proxied-clients, Configuring authentication delegation for PKI
-realms>>.
+that the `truststore` or `certificate_authorities` settings be defined as well.
+For more details, see <<pki-realm-for-proxied-clients, Configuring
+authentication delegation for PKI realms>>.
 
 [[ref-saml-settings]]
 [float]

@@ -16,15 +16,16 @@ token.
 [[security-api-dellegate-pki-authentication-prereqs]]
 ==== {api-prereq-title}
 
-To use this API, you must have the `delegate_pki` or the `all` cluster privilege.
-The `kibana_system` built-in role already grants this privilege.
+To call this API, the (proxy) user must have the `delegate_pki` or the `all`
+cluster privileges. The `kibana_system` built-in role already grants this
+privilege.
 
 [[security-api-delegate-pki-authentication-desc]]
 ==== {api-description-title}
 
 Implements the exchange of an _X509Certificate_ chain into an {es} access
 token. The certificate chain is validated according to RFC 5280, by
-sequentially considering the trust configuration of every installed _PkiRealm_
+sequentially considering the trust configuration of every installed PKI realm
 that has `delegation.enabled` set to `true` (default is `false`). A
 successfully trusted client certificate is also subject to the validation of
 the subject distinguished name according to that respective's realm
@@ -47,11 +48,11 @@ API translates that authentication into an {es} access token.
 
 The body of the POST request has a single parameter, which contains the
 _X509Certificate_ chain. The certificate chain is represented as an array where
-the first element is the target certificate containing the subject
-distinguished name that is requesting access. This may be followed by
-additional certificates, with each subsequent certificate being the one used to
-certify the previous one. The response is an access token for the Subject DN
-of the client's certificate.
+the first element is the target certificate contains the subject distinguished
+name that is requesting access. This may be followed by additional
+certificates, with each subsequent certificate being the one used to certify
+the previous one. The response contains an access token associated to the
+subject distinguished name of the client's certificate.
 
 `x509_certificate_chain`::
 (Required, list of strings) The chain is represented as an ordered string

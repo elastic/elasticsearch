@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.Task;
@@ -32,15 +31,7 @@ public final class TransportGetApiKeyAction extends HandledTransportAction<GetAp
 
     @Override
     protected void doExecute(Task task, GetApiKeyRequest request, ActionListener<GetApiKeyResponse> listener) {
-        if (Strings.hasText(request.getRealmName()) || Strings.hasText(request.getUserName())) {
-            apiKeyService.getApiKeysForRealmAndUser(request.getRealmName(), request.getUserName(), listener);
-        } else if (Strings.hasText(request.getApiKeyId())) {
-            apiKeyService.getApiKeyForApiKeyId(request.getApiKeyId(), listener);
-        } else if (Strings.hasText(request.getApiKeyName())) {
-            apiKeyService.getApiKeyForApiKeyName(request.getApiKeyName(), listener);
-        } else {
-            listener.onFailure(new IllegalArgumentException("One of [api key id, api key name, username, realm name] must be specified"));
-        }
+        apiKeyService.getApiKeys(request.getRealmName(), request.getUserName(), request.getApiKeyName(), request.getApiKeyId(), listener);
     }
 
 }

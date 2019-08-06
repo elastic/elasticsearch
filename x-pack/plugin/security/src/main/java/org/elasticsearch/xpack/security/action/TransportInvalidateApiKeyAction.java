@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.Task;
@@ -32,13 +31,7 @@ public final class TransportInvalidateApiKeyAction extends HandledTransportActio
 
     @Override
     protected void doExecute(Task task, InvalidateApiKeyRequest request, ActionListener<InvalidateApiKeyResponse> listener) {
-        if (Strings.hasText(request.getRealmName()) || Strings.hasText(request.getUserName())) {
-            apiKeyService.invalidateApiKeysForRealmAndUser(request.getRealmName(), request.getUserName(), listener);
-        } else if (Strings.hasText(request.getId())) {
-            apiKeyService.invalidateApiKeyForApiKeyId(request.getId(), listener);
-        } else {
-            apiKeyService.invalidateApiKeyForApiKeyName(request.getName(), listener);
-        }
+        apiKeyService.invalidateApiKeys(request.getRealmName(), request.getUserName(), request.getName(), request.getId(), listener);
     }
 
 }

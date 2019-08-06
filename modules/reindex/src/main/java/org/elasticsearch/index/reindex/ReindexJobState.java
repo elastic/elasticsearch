@@ -37,31 +37,31 @@ public class ReindexJobState implements Task.Status, PersistentTaskState {
     public static final String NAME = ReindexTask.NAME;
 
     public static final ConstructingObjectParser<ReindexJobState, Void> PARSER =
-        new ConstructingObjectParser<>(NAME, a -> new ReindexJobState((String) a[0], (Boolean) a[1]));
+        new ConstructingObjectParser<>(NAME, a -> new ReindexJobState((String) a[0], (String) a[1]));
 
     private static String EPHEMERAL_TASK_ID = "ephemeral_task_id";
-    private static String IS_DONE = "is_done";
+    private static String STATUS = "status";
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(),  new ParseField(EPHEMERAL_TASK_ID));
-        PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), new ParseField(IS_DONE));
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField(STATUS));
     }
 
     private final TaskId ephemeralTaskId;
-    private final boolean isDone;
+    private final Status status;
 
-    private ReindexJobState(String ephemeralTaskId, boolean isDone) {
-        this(new TaskId(ephemeralTaskId), isDone);
+    private ReindexJobState(String ephemeralTaskId, String status) {
+        this(new TaskId(ephemeralTaskId), Status.valueOf(status));
     }
 
-    ReindexJobState(TaskId ephemeralTaskId, boolean isDone) {
+    ReindexJobState(TaskId ephemeralTaskId, Status status) {
         this.ephemeralTaskId = ephemeralTaskId;
-        this.isDone = isDone;
+        this.status = status;
     }
 
     public ReindexJobState(StreamInput in) throws IOException {
         ephemeralTaskId = TaskId.readFromStream(in);
-        isDone = in.readBoolean();
+        status = in.readEnum(Status.class);
     }
 
     @Override
@@ -72,19 +72,23 @@ public class ReindexJobState implements Task.Status, PersistentTaskState {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         ephemeralTaskId.writeTo(out);
-        out.writeBoolean(isDone);
+        out.writeEnum(status);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(EPHEMERAL_TASK_ID, ephemeralTaskId.toString());
-        builder.field(IS_DONE, isDone);
+        builder.field(STATUS, status);
         return builder.endObject();
     }
 
     public boolean isDone() {
-        return isDone;
+        return status != Status.STARTED;
+    }
+
+    public Status getStatus() {
+        return status;
     }
 
     public TaskId getEphemeralTaskId() {
@@ -93,5 +97,12 @@ public class ReindexJobState implements Task.Status, PersistentTaskState {
 
     public static ReindexJobState fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
+    }
+
+    public enum Status {
+        STARTED,
+        FAILED_TO_READ_FROM_REINDEX_INDEX,
+        FAILED_TO_WRITE_TO_REINDEX_INDEX,
+        DONE
     }
 }

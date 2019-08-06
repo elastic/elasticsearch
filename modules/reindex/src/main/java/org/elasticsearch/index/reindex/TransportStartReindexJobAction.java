@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -37,8 +38,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.LockSupport;
 import java.util.function.Predicate;
 
 public class TransportStartReindexJobAction extends HandledTransportAction<StartReindexJobAction.Request, StartReindexJobAction.Response> {
@@ -115,21 +114,31 @@ public class TransportStartReindexJobAction extends HandledTransportAction<Start
             new PersistentTasksService.WaitForPersistentTaskListener<ReindexJob>() {
                 @Override
                 public void onResponse(PersistentTasksCustomMetaData.PersistentTask<ReindexJob> task) {
-                    reindexIndexClient.getReindexTaskDoc(taskId, new ActionListener<>() {
-                        @Override
-                        public void onResponse(ReindexTaskIndexState reindexState) {
-                            if (reindexState.getException() == null) {
-                                listener.onResponse(new StartReindexJobAction.Response(taskId, reindexState.getReindexResponse()));
-                            } else {
-                                listener.onFailure(reindexState.getException());
+                    ReindexJobState state = (ReindexJobState) task.getState();
+                    if (state.getStatus() == ReindexJobState.Status.FAILED_TO_READ_FROM_REINDEX_INDEX) {
+                        listener.onFailure(new ElasticsearchException("Reindexing failed. Task node could not read from "
+                            + ReindexIndexClient.REINDEX_INDEX + " index"));
+                    } else if (state.getStatus() == ReindexJobState.Status.FAILED_TO_WRITE_TO_REINDEX_INDEX) {
+                        listener.onFailure(new ElasticsearchException("Reindexing failed. Task node could not write result to "
+                            + ReindexIndexClient.REINDEX_INDEX + " index"));
+                    } else {
+                        reindexIndexClient.getReindexTaskDoc(taskId, new ActionListener<>() {
+                            @Override
+                            public void onResponse(ReindexTaskIndexState reindexState) {
+                                if (reindexState.getException() == null) {
+                                    listener.onResponse(new StartReindexJobAction.Response(taskId, reindexState.getReindexResponse()));
+                                } else {
+                                    listener.onFailure(reindexState.getException());
+                                }
                             }
-                        }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.onFailure(e);
-                        }
-                    });
+                            @Override
+                            public void onFailure(Exception e) {
+                                listener.onFailure(e);
+                            }
+                        });
+                    }
+
                 }
 
                 @Override

@@ -95,7 +95,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                 if (repositoryCleanupInProgress == null || repositoryCleanupInProgress.cleanupInProgress() == false) {
                     return;
                 }
-                clusterService.submitStateUpdateTask("Clean up repository cleanup task after master failover",
+                clusterService.submitStateUpdateTask("clean up repository cleanup task after master failover",
                     new ClusterStateUpdateTask() {
                         @Override
                         public ClusterState execute(ClusterState currentState) {
@@ -171,23 +171,21 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
         clusterService.submitStateUpdateTask("cleanup repository", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(SnapshotDeletionsInProgress.TYPE);
                 final RepositoryCleanupInProgress repositoryCleanupInProgress = currentState.custom(RepositoryCleanupInProgress.TYPE);
                 if (repositoryCleanupInProgress != null && repositoryCleanupInProgress.cleanupInProgress() == false) {
                     throw new IllegalStateException(
                         "Cannot cleanup [" + repositoryName + "] - a repository cleanup is already in-progress");
                 }
+                SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(SnapshotDeletionsInProgress.TYPE);
                 if (deletionsInProgress != null && deletionsInProgress.hasDeletionsInProgress()) {
                     throw new IllegalStateException("Cannot cleanup [" + repositoryName + "] - a snapshot is currently being deleted");
                 }
-                ClusterState.Builder clusterStateBuilder = ClusterState.builder(currentState);
                 SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
                 if (snapshots != null && !snapshots.entries().isEmpty()) {
                     throw new IllegalStateException("Cannot cleanup [" + repositoryName + "] - a snapshot is currently running");
                 }
-                final RepositoryCleanupInProgress newCleanupInProgress =
-                    new RepositoryCleanupInProgress(RepositoryCleanupInProgress.startedEntry(repositoryName, repositoryStateId));
-                return clusterStateBuilder.putCustom(RepositoryCleanupInProgress.TYPE, newCleanupInProgress).build();
+                return ClusterState.builder(currentState).putCustom(RepositoryCleanupInProgress.TYPE,
+                    new RepositoryCleanupInProgress(RepositoryCleanupInProgress.startedEntry(repositoryName, repositoryStateId))).build();
             }
 
             @Override

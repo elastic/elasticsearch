@@ -16,9 +16,9 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=http-format]
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-h]
 +
 --
-If no column values are provided, default columns are returned. If any column
-value is provided, default columns are not returned. By default, columns are
-returned in the order below.
+If no column values are provided, the default columns are returned in the order
+below. If any column value is provided, no default columns are returned and
+must be explicitly requested instead.
 
 Valid values are:
 

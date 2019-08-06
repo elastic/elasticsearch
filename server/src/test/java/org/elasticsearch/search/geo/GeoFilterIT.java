@@ -317,7 +317,7 @@ public class GeoFilterIT extends ESIntegTestCase {
 
             result = client().prepareSearch()
                     .setQuery(matchAllQuery())
-                    .setPostFilter(QueryBuilders.geoWithinQuery("area", builder))
+                    .setPostFilter(QueryBuilders.geoWithinQuery("area", builder.buildGeometry()))
                     .get();
             assertHitCount(result, 2);
         }
@@ -342,25 +342,25 @@ public class GeoFilterIT extends ESIntegTestCase {
 
         result = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .setPostFilter(QueryBuilders.geoIntersectionQuery("area", new PointBuilder(174, -4)))
+                .setPostFilter(QueryBuilders.geoIntersectionQuery("area", new PointBuilder(174, -4).buildGeometry()))
                 .get();
         assertHitCount(result, 1);
 
         result = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .setPostFilter(QueryBuilders.geoIntersectionQuery("area", new PointBuilder(-174, -4)))
+                .setPostFilter(QueryBuilders.geoIntersectionQuery("area", new PointBuilder(-174, -4).buildGeometry()))
                 .get();
         assertHitCount(result, 1);
 
         result = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .setPostFilter(QueryBuilders.geoIntersectionQuery("area", new PointBuilder(180, -4)))
+                .setPostFilter(QueryBuilders.geoIntersectionQuery("area", new PointBuilder(180, -4).buildGeometry()))
                 .get();
         assertHitCount(result, 0);
 
         result = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .setPostFilter(QueryBuilders.geoIntersectionQuery("area", new PointBuilder(180, -6)))
+                .setPostFilter(QueryBuilders.geoIntersectionQuery("area", new PointBuilder(180, -6).buildGeometry()))
                 .get();
         assertHitCount(result, 1);
     }

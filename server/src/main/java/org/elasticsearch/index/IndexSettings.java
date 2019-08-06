@@ -311,8 +311,8 @@ public final class IndexSettings {
      * Defaults to retaining history for up to 10% of the documents in the shard. This can only be changed in tests, since this setting is
      * intentionally unregistered.
      */
-    public static final Setting<Double> REASONABLE_OPERATIONS_BASED_RECOVERY_PROPORTION_SETTING
-        = Setting.doubleSetting("index.recovery.reasonable_operations_based_recovery_proportion", 0.1, 0.0, Setting.Property.IndexScope);
+    public static final Setting<Double> FILE_BASED_RECOVERY_THRESHOLD_SETTING
+        = Setting.doubleSetting("index.recovery.file_based_threshold", 0.1d, 0.0d, Setting.Property.IndexScope);
 
     private final Index index;
     private final Version version;

@@ -1226,11 +1226,11 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         final double reasonableOperationsBasedRecoveryProportion;
         if (randomBoolean()) {
             reasonableOperationsBasedRecoveryProportion = randomDoubleBetween(0.05, 0.99, true);
-            settings.put(IndexSettings.REASONABLE_OPERATIONS_BASED_RECOVERY_PROPORTION_SETTING.getKey(),
+            settings.put(IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING.getKey(),
                 reasonableOperationsBasedRecoveryProportion);
         } else {
             reasonableOperationsBasedRecoveryProportion
-                = IndexSettings.REASONABLE_OPERATIONS_BASED_RECOVERY_PROPORTION_SETTING.get(Settings.EMPTY);
+                = IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING.get(Settings.EMPTY);
         }
         logger.info("--> performing ops-based recoveries up to [{}%] of docs", reasonableOperationsBasedRecoveryProportion * 100.0);
 

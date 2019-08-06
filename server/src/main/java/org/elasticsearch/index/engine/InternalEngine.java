@@ -185,10 +185,9 @@ public class InternalEngine extends Engine {
             final EngineConfig engineConfig,
             final BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier) {
         super(engineConfig);
-        final IndexSettings indexSettings = engineConfig.getIndexSettings();
         final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy(
-                indexSettings.getTranslogRetentionSize().getBytes(),
-                indexSettings.getTranslogRetentionAge().getMillis()
+                engineConfig.getIndexSettings().getTranslogRetentionSize().getBytes(),
+                engineConfig.getIndexSettings().getTranslogRetentionAge().getMillis()
         );
         store.incRef();
         IndexWriter writer = null;
@@ -199,7 +198,7 @@ public class InternalEngine extends Engine {
         boolean success = false;
         try {
             this.lastDeleteVersionPruneTimeMSec = engineConfig.getThreadPool().relativeTimeInMillis();
-            mergeScheduler = scheduler = new EngineMergeScheduler(engineConfig.getShardId(), indexSettings);
+            mergeScheduler = scheduler = new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings());
             throttle = new IndexThrottle();
             try {
                 trimUnsafeCommits(engineConfig);
@@ -213,11 +212,10 @@ public class InternalEngine extends Engine {
                     });
                 assert translog.getGeneration() != null;
                 this.translog = translog;
-                this.softDeleteEnabled = indexSettings.isSoftDeleteEnabled();
+                this.softDeleteEnabled = engineConfig.getIndexSettings().isSoftDeleteEnabled();
                 this.softDeletesPolicy = newSoftDeletesPolicy();
                 this.combinedDeletionPolicy =
-                    new CombinedDeletionPolicy(logger, translogDeletionPolicy, softDeletesPolicy, translog::getLastSyncedGlobalCheckpoint,
-                        IndexSettings.REASONABLE_OPERATIONS_BASED_RECOVERY_PROPORTION_SETTING.get(indexSettings.getSettings()));
+                    new CombinedDeletionPolicy(logger, translogDeletionPolicy, softDeletesPolicy, translog::getLastSyncedGlobalCheckpoint);
                 this.localCheckpointTracker = createLocalCheckpointTracker(localCheckpointTrackerSupplier);
                 writer = createWriter();
                 bootstrapAppendOnlyInfoFromWriter(writer);
@@ -2010,8 +2008,8 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public long getMinimumReasonableRetainedSeqNo() {
-        return combinedDeletionPolicy.getMinimumReasonableRetainedSeqNo();
+    public SafeCommitInfo getSafeCommitInfo() {
+        return combinedDeletionPolicy.getSafeCommitInfo();
     }
 
     private boolean failOnTragicEvent(AlreadyClosedException ex) {

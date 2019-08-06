@@ -1123,9 +1123,9 @@ public abstract class Engine implements Closeable {
     public abstract IndexCommitRef acquireSafeIndexCommit() throws EngineException;
 
     /**
-     * Returns the lowest seqno whose history is reasonable to retain for potential future ops-based peer recoveries.
+     * @return a summary of the contents of the current safe commit
      */
-    public abstract long getMinimumReasonableRetainedSeqNo();
+    public abstract SafeCommitInfo getSafeCommitInfo();
 
     /**
      * If the specified throwable contains a fatal error in the throwable graph, such a fatal error will be thrown. Callers should ensure

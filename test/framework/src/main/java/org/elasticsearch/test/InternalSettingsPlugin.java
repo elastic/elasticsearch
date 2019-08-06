@@ -52,7 +52,7 @@ public final class InternalSettingsPlugin extends Plugin {
                 TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING,
                 IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING,
                 IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING,
-                IndexSettings.REASONABLE_OPERATIONS_BASED_RECOVERY_PROPORTION_SETTING,
+                IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING,
                 IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING
             );
     }

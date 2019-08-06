@@ -44,26 +44,24 @@ import java.util.function.LongSupplier;
  * In particular, this policy will delete index commits whose max sequence number is at most
  * the current global checkpoint except the index commit which has the highest max sequence number among those.
  */
-public class CombinedDeletionPolicy extends IndexDeletionPolicy {
+public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
     private final Logger logger;
-    private final double reasonableOperationsBasedRecoveryProportion;
     private final TranslogDeletionPolicy translogDeletionPolicy;
     private final SoftDeletesPolicy softDeletesPolicy;
     private final LongSupplier globalCheckpointSupplier;
     private final ObjectIntHashMap<IndexCommit> snapshottedCommits; // Number of snapshots held against each commit point.
     private volatile IndexCommit safeCommit; // the most recent safe commit point - its max_seqno at most the persisted global checkpoint.
     private volatile IndexCommit lastCommit; // the most recent commit point
-    private volatile long minimumReasonableRetainedSeqNo = Long.MIN_VALUE;
+    private volatile SafeCommitInfo safeCommitInfo = SafeCommitInfo.EMPTY;
+    private final Object onCommitMutex = new Object();
 
     CombinedDeletionPolicy(Logger logger, TranslogDeletionPolicy translogDeletionPolicy,
-                           SoftDeletesPolicy softDeletesPolicy, LongSupplier globalCheckpointSupplier,
-                           double reasonableOperationsBasedRecoveryProportion) {
+                           SoftDeletesPolicy softDeletesPolicy, LongSupplier globalCheckpointSupplier) {
         this.logger = logger;
         this.translogDeletionPolicy = translogDeletionPolicy;
         this.softDeletesPolicy = softDeletesPolicy;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
         this.snapshottedCommits = new ObjectIntHashMap<>();
-        this.reasonableOperationsBasedRecoveryProportion = reasonableOperationsBasedRecoveryProportion;
     }
 
     @Override
@@ -80,22 +78,14 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
 
     @Override
     public void onCommit(List<? extends IndexCommit> commits) throws IOException {
-        final IndexCommit safeCommit = updateCommitsAndRetentionPolicy(commits);
-        final long localCheckpointOfSafeCommit = Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
-        final long docCountOfSafeCommit = getDocCountOfSafeCommit();
-        minimumReasonableRetainedSeqNo = localCheckpointOfSafeCommit + 1
-            - Math.round(Math.ceil(docCountOfSafeCommit * reasonableOperationsBasedRecoveryProportion));
-        logger.trace("updating minimum reasonable retained seqno: " +
-                "generation={}, localCheckpointOfSafeCommit={}, docCountOfSafeCommit={}, minimumReasonableRetainedSeqNo={}",
-            safeCommit.getGeneration(), localCheckpointOfSafeCommit, docCountOfSafeCommit, minimumReasonableRetainedSeqNo);
+        synchronized (onCommitMutex) {
+            updateCommitsAndRetentionPolicy(commits);
+            safeCommitInfo = new SafeCommitInfo(Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)),
+                getDocCountOfCommit(safeCommit));
+        }
     }
 
-    /**
-     * Update the last commit and the safe commit, clean up any unnecessary commits and update the retention policy.
-     *
-     * @return the new safe commit
-     */
-    private synchronized IndexCommit updateCommitsAndRetentionPolicy(List<? extends IndexCommit> commits) throws IOException {
+    private synchronized void updateCommitsAndRetentionPolicy(List<? extends IndexCommit> commits) throws IOException {
         final int keptPosition = indexOfKeptCommits(commits, globalCheckpointSupplier.getAsLong());
         lastCommit = commits.get(commits.size() - 1);
         safeCommit = commits.get(keptPosition);
@@ -105,7 +95,6 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
             }
         }
         updateRetentionPolicy();
-        return safeCommit;
     }
 
     private void deleteCommit(IndexCommit commit) throws IOException {
@@ -131,12 +120,12 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
             Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)));
     }
 
-    protected int getDocCountOfSafeCommit() throws IOException {
-        return SegmentInfos.readCommit(safeCommit.getDirectory(), safeCommit.getSegmentsFileName()).totalMaxDoc();
+    protected int getDocCountOfCommit(IndexCommit indexCommit) throws IOException {
+        return SegmentInfos.readCommit(indexCommit.getDirectory(), indexCommit.getSegmentsFileName()).totalMaxDoc();
     }
 
-    long getMinimumReasonableRetainedSeqNo() {
-        return minimumReasonableRetainedSeqNo;
+    SafeCommitInfo getSafeCommitInfo() {
+        return safeCommitInfo;
     }
 
     /**

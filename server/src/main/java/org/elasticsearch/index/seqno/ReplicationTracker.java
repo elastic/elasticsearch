@@ -37,6 +37,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.SafeCommitInfo;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ReplicationGroup;
@@ -57,6 +58,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
@@ -211,11 +213,15 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     private boolean hasAllPeerRecoveryRetentionLeases;
 
     /**
-     * Supplies the minimum reasonable retained seqno for peer recovery retention leases. Leases for inactive shards that are retaining
-     * unreasonable amounts of history are discarded since we prefer a file-based recovery over an unreasonably large operations-based
-     * recovery.
+     * Supplies information about the current safe commit which may be used to expire peer-recovery retention leases.
      */
-    private final LongSupplier minimumReasonableRetainedSeqNoSupplier;
+    private final Supplier<SafeCommitInfo> safeCommitInfoSupplier;
+
+    /**
+     * Threshold for expiring peer-recovery retention leases and falling back to file-based recovery. See
+     * {@link IndexSettings#FILE_BASED_RECOVERY_THRESHOLD_SETTING}.
+     */
+    private final double fileBasedRecoveryThreshold;
 
     /**
      * Get all retention leases tracked on this shard.
@@ -245,7 +251,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         final Set<String> leaseIdsForCurrentPeers
             = routingTable.assignedShards().stream().map(ReplicationTracker::getPeerRecoveryRetentionLeaseId).collect(Collectors.toSet());
         final boolean allShardsStarted = routingTable.allShardsStarted();
-        final long minimumReasonableRetainedSeqNo = allShardsStarted ? Long.MIN_VALUE : minimumReasonableRetainedSeqNoSupplier.getAsLong();
+        final long minimumReasonableRetainedSeqNo = allShardsStarted ? 0L : getMinimumReasonableRetainedSeqNo();
         final Map<Boolean, List<RetentionLease>> partitionByExpiration = retentionLeases
                 .leases()
                 .stream()
@@ -276,6 +282,11 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         logger.debug("expiring retention leases [{}] from current retention leases [{}]", expiredLeases, retentionLeases);
         retentionLeases = new RetentionLeases(operationPrimaryTerm, retentionLeases.version() + 1, nonExpiredLeases);
         return Tuple.tuple(true, retentionLeases);
+    }
+
+    private long getMinimumReasonableRetainedSeqNo() {
+        final SafeCommitInfo safeCommitInfo = safeCommitInfoSupplier.get();
+        return safeCommitInfo.localCheckpoint + 1 - Math.round(Math.ceil(safeCommitInfo.docCount * fileBasedRecoveryThreshold));
     }
 
     /**
@@ -854,7 +865,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             final LongConsumer onGlobalCheckpointUpdated,
             final LongSupplier currentTimeMillisSupplier,
             final BiConsumer<RetentionLeases, ActionListener<ReplicationResponse>> onSyncRetentionLeases,
-            final LongSupplier minimumReasonableRetainedSeqNoSupplier) {
+            final Supplier<SafeCommitInfo> safeCommitInfoSupplier) {
         super(shardId, indexSettings);
         assert globalCheckpoint >= SequenceNumbers.UNASSIGNED_SEQ_NO : "illegal initial global checkpoint: " + globalCheckpoint;
         this.shardAllocationId = allocationId;
@@ -870,8 +881,9 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         this.pendingInSync = new HashSet<>();
         this.routingTable = null;
         this.replicationGroup = null;
-        this.minimumReasonableRetainedSeqNoSupplier = minimumReasonableRetainedSeqNoSupplier;
         this.hasAllPeerRecoveryRetentionLeases = indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_4_0);
+        this.fileBasedRecoveryThreshold = IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING.get(indexSettings.getSettings());
+        this.safeCommitInfoSupplier = safeCommitInfoSupplier;
         assert Version.V_EMPTY.equals(indexSettings.getIndexVersionCreated()) == false;
         assert invariant();
     }

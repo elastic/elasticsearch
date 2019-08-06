@@ -77,6 +77,7 @@ public class ReadOnlyEngine extends Engine {
     private final Lock indexWriterLock;
     private final DocsStats docsStats;
     private final RamAccountingRefreshListener refreshListener;
+    private final SafeCommitInfo safeCommitInfo;
 
     protected volatile TranslogStats translogStats;
 
@@ -120,6 +121,7 @@ public class ReadOnlyEngine extends Engine {
                 assert translogStats != null || obtainLock : "mutiple translogs instances should not be opened at the same time";
                 this.translogStats = translogStats != null ? translogStats : translogStats(config, lastCommittedSegmentInfos);
                 this.indexWriterLock = indexWriterLock;
+                this.safeCommitInfo = new SafeCommitInfo(seqNoStats.getLocalCheckpoint(), lastCommittedSegmentInfos.totalMaxDoc());
                 success = true;
             } finally {
                 if (success == false) {
@@ -421,10 +423,8 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public long getMinimumReasonableRetainedSeqNo() {
-        // Consider all retained history to be reasonable. Discarding history doesn't really do anything on a read-only engine, and we might
-        // only be using this engine temporarily.
-        return Long.MIN_VALUE;
+    public SafeCommitInfo getSafeCommitInfo() {
+        return safeCommitInfo;
     }
 
     @Override

@@ -88,14 +88,14 @@ query.
 While easy to set up, using the `match_phrase_prefix` query for search
 autocompletion can sometimes produce confusing results.
 
-For example, consider the query string `quick brown f`.  This query works by
+For example, consider the query string `quick brown f`. This query works by
 creating a phrase query out of `quick` and `brown` (i.e. the term `quick` must
-exist and must be followed by the term `brown`).  Then it looks at the sorted
+exist and must be followed by the term `brown`). Then it looks at the sorted
 term dictionary to find the first 50 terms that begin with `f`, and adds these
 terms to the phrase query.
 
 The problem is that the first 50 terms may not include the term `fox` so the
-phrase `quick brown fox` will not be found.  This usually isn't a problem as
+phrase `quick brown fox` will not be found. This usually isn't a problem as
 the user will continue to type more letters until the word they are looking
 for appears.
 

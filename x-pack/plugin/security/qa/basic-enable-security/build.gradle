@@ -1,4 +1,4 @@
-import org.elasticsearch.gradle.test.RestTestRunnerTask
+import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'

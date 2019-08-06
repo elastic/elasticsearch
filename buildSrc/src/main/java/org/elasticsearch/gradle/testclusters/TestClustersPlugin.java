@@ -120,7 +120,7 @@ public class TestClustersPlugin implements Plugin<Project> {
     private void createUseClusterTaskExtension(Project project, NamedDomainObjectContainer<ElasticsearchCluster> container) {
         // register an extension for all current and future tasks, so that any task can declare that it wants to use a
         // specific cluster.
-        project.getTasks().withType(TestClustersTask.class, (Task task) ->
+        project.getTasks().withType(TestClustersAware.class, (Task task) ->
             task.getExtensions().findByType(ExtraPropertiesExtension.class)
                 .set(
                     "useCluster",
@@ -141,7 +141,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                                 ((Task) thisObject).dependsOn(node.getDistribution().getExtracted());
                             }
 
-                            ((TestClustersTask) thisObject).testCluster(cluster);
+                            ((TestClustersAware) thisObject).testCluster(cluster);
                         }
                     })
         );
@@ -152,8 +152,8 @@ public class TestClustersPlugin implements Plugin<Project> {
         // claims so we'll know when it's safe to stop them.
         project.getGradle().getTaskGraph().whenReady(taskExecutionGraph -> {
             taskExecutionGraph.getAllTasks().stream()
-                .filter(task -> task instanceof TestClustersTask)
-                .map(task -> (TestClustersTask) task)
+                .filter(task -> task instanceof TestClustersAware)
+                .map(task -> (TestClustersAware) task)
                 .flatMap(task -> task.getClusters().stream())
                 .forEach(cluster -> {
                     cluster.freeze();
@@ -171,11 +171,11 @@ public class TestClustersPlugin implements Plugin<Project> {
             new TaskActionListener() {
                 @Override
                 public void beforeActions(Task task) {
-                    if (task instanceof TestClustersTask == false) {
+                    if (task instanceof TestClustersAware == false) {
                         return;
                     }
                     // we only start the cluster before the actions, so we'll not start it if the task is up-to-date
-                    List<ElasticsearchCluster> neededButNotRunning = ((TestClustersTask) task).getClusters()
+                    List<ElasticsearchCluster> neededButNotRunning = ((TestClustersAware) task).getClusters()
                         .stream()
                         .filter(cluster -> runningClusters.contains(cluster) == false)
                         .collect(Collectors.toList());
@@ -197,12 +197,12 @@ public class TestClustersPlugin implements Plugin<Project> {
             new TaskExecutionListener() {
                 @Override
                 public void afterExecute(Task task, TaskState state) {
-                    if (task instanceof TestClustersTask == false) {
+                    if (task instanceof TestClustersAware == false) {
                         return;
                     }
                     // always unclaim the cluster, even if _this_ task is up-to-date, as others might not have been
                     // and caused the cluster to start.
-                    Collection<ElasticsearchCluster> clustersUsedByTask = ((TestClustersTask) task).getClusters();
+                    Collection<ElasticsearchCluster> clustersUsedByTask = ((TestClustersAware) task).getClusters();
                     if (clustersUsedByTask.isEmpty()) {
                         return;
                     }

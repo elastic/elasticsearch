@@ -20,6 +20,7 @@ package org.elasticsearch.gradle.test
 
 
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
+import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin
 import org.gradle.api.DefaultTask
 import org.gradle.api.Task

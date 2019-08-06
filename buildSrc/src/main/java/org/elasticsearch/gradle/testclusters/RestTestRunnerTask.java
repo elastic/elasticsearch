@@ -1,7 +1,5 @@
-package org.elasticsearch.gradle.test;
+package org.elasticsearch.gradle.testclusters;
 
-import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
-import org.elasticsearch.gradle.testclusters.TestClustersTask;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Nested;
 import org.gradle.api.tasks.testing.Test;
@@ -17,7 +15,7 @@ import static org.elasticsearch.gradle.testclusters.TestDistribution.INTEG_TEST;
  * {@link Nested} inputs.
  */
 @CacheableTask
-public class RestTestRunnerTask extends Test implements TestClustersTask {
+public class RestTestRunnerTask extends Test implements TestClustersAware {
 
     private Collection<ElasticsearchCluster> clusters = new HashSet<>();
 

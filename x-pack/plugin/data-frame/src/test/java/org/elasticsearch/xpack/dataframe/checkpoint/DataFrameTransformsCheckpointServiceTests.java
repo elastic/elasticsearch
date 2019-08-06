@@ -53,7 +53,7 @@ public class DataFrameTransformsCheckpointServiceTests extends ESTestCase {
 
         ShardStats[] shardStatsArray = createRandomShardStats(expectedCheckpoints, indices, false, false, false);
 
-        Map<String, long[]> checkpoints = DataFrameTransformsCheckpointService.extractIndexCheckPoints(shardStatsArray, indices);
+        Map<String, long[]> checkpoints = DefaultCheckpointProvider.extractIndexCheckPoints(shardStatsArray, indices);
 
         assertEquals(expectedCheckpoints.size(), checkpoints.size());
         assertEquals(expectedCheckpoints.keySet(), checkpoints.keySet());
@@ -70,7 +70,7 @@ public class DataFrameTransformsCheckpointServiceTests extends ESTestCase {
 
         ShardStats[] shardStatsArray = createRandomShardStats(expectedCheckpoints, indices, false, false, true);
 
-        Map<String, long[]> checkpoints = DataFrameTransformsCheckpointService.extractIndexCheckPoints(shardStatsArray, indices);
+        Map<String, long[]> checkpoints = DefaultCheckpointProvider.extractIndexCheckPoints(shardStatsArray, indices);
 
         assertEquals(expectedCheckpoints.size(), checkpoints.size());
         assertEquals(expectedCheckpoints.keySet(), checkpoints.keySet());
@@ -87,7 +87,7 @@ public class DataFrameTransformsCheckpointServiceTests extends ESTestCase {
 
         ShardStats[] shardStatsArray = createRandomShardStats(expectedCheckpoints, indices, true, false, false);
 
-        Map<String, long[]> checkpoints = DataFrameTransformsCheckpointService.extractIndexCheckPoints(shardStatsArray, indices);
+        Map<String, long[]> checkpoints = DefaultCheckpointProvider.extractIndexCheckPoints(shardStatsArray, indices);
 
         assertEquals(expectedCheckpoints.size(), checkpoints.size());
         assertEquals(expectedCheckpoints.keySet(), checkpoints.keySet());
@@ -106,7 +106,7 @@ public class DataFrameTransformsCheckpointServiceTests extends ESTestCase {
 
         // fail
         CheckpointException e = expectThrows(CheckpointException.class,
-                () -> DataFrameTransformsCheckpointService.extractIndexCheckPoints(shardStatsArray, indices));
+                () -> DefaultCheckpointProvider.extractIndexCheckPoints(shardStatsArray, indices));
 
         assertThat(e.getMessage(), containsString("Global checkpoints mismatch"));
     }

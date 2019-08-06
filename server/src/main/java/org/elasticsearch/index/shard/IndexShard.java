@@ -155,6 +155,7 @@ import java.io.UncheckedIOException;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
@@ -2634,8 +2635,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private LongSupplier getMinimumReasonableRetainedSeqNoSupplier(final IndexSettings indexSettings) {
         return new LongSupplier() {
 
-            private long generation = Long.MIN_VALUE;
-            private long firstReasonableSeqNo = Long.MIN_VALUE;
+            private byte[] commitId = new byte[0];
+            private long minimumReasonableRetainedSeqNo = Long.MIN_VALUE;
             private final double reasonableOperationsBasedRecoveryProportion
                 = REASONABLE_OPERATIONS_BASED_RECOVERY_PROPORTION_SETTING.get(indexSettings.getSettings());
 
@@ -2643,26 +2644,24 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             public synchronized long getAsLong() {
                 try (Engine.IndexCommitRef safeCommitRef = getEngine().acquireSafeIndexCommit()) {
                     final IndexCommit safeCommit = safeCommitRef.getIndexCommit();
-                    final long generation = safeCommit.getGeneration();
+                    final SegmentInfos segmentInfos = SegmentInfos.readCommit(store.directory(), safeCommit.getSegmentsFileName());
+                    final byte[] commitId = segmentInfos.getId();
 
-                    if (generation == this.generation) {
-                        return firstReasonableSeqNo;
+                    if (Arrays.equals(commitId, this.commitId)) {
+                        return minimumReasonableRetainedSeqNo;
                     }
 
                     final long localCheckpoint = Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+                    final long totalDocs = StreamSupport.stream(segmentInfos.spliterator(), false).mapToLong(si -> si.info.maxDoc()).sum();
 
-                    final long totalDocs = StreamSupport.stream(
-                        SegmentInfos.readCommit(store.directory(), safeCommit.getSegmentsFileName()).spliterator(), false)
-                        .mapToLong(si -> si.info.maxDoc()).sum();
-
-                    firstReasonableSeqNo = localCheckpoint + 1
+                    minimumReasonableRetainedSeqNo = localCheckpoint + 1
                         - Math.round(Math.ceil(totalDocs * reasonableOperationsBasedRecoveryProportion));
-                    this.generation = generation;
+                    this.commitId = commitId;
                     logger.trace("updating minimum reasonable retained seqno: " +
-                            "generation={}, localCheckpoint={}, totalDocs={}, firstReasonableSeqNo={}",
-                            generation, localCheckpoint, totalDocs, firstReasonableSeqNo);
+                            "generation={}, localCheckpoint={}, totalDocs={}, minimumReasonableRetainedSeqNo={}",
+                            safeCommit.getGeneration(), localCheckpoint, totalDocs, minimumReasonableRetainedSeqNo);
 
-                    return firstReasonableSeqNo;
+                    return minimumReasonableRetainedSeqNo;
                 } catch (IOException e) {
                     logger.debug("exception getting minimum reasonable retained seqno", e);
                     return Long.MIN_VALUE;

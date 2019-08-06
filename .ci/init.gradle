@@ -70,6 +70,11 @@ projectsLoaded {
             maven configCache()
         }
     }
+    rootProject {
+        project.pluginManager.withPlugin('com.gradle.build-scan') {
+            buildScan.server = 'https://gradle-enterprise.elastic.co'
+        }
+    }
 }
 
 if (System.env.GRADLE_BUILD_CACHE_URL != null) {

@@ -1,8 +1,77 @@
 [[cat-nodeattrs]]
 === cat nodeattrs
 
-The `nodeattrs` command shows custom node attributes.
-For example:
+Returns information about custom node attributes.
+
+[[cat-nodeattrs-api-request]]
+==== {api-request-title}
+
+`GET /_cat/nodeattrs`
+
+[[cat-nodeattrs-api-query-params]]
+==== {api-query-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=http-format]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-h]
++
+See <<cat-nodeattrs-api-columns>> for a list of available columns. See
+<<cat-nodeattrs-api-ex-headings>> for an example.
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=help]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
+
+
+[[cat-nodeattrs-api-columns]]
+==== Available columns
+
+You can use the following column values with the `h` (headings) query parameter.
+
+If no column values are provided, columns marked as **default** are returned. If
+any column value is provided, default columns are not returned.
+
+For brevity, you can use a column's alias in place of the full column heading
+value.
+
+By default, columns are returned in the order provided below.
+
+`node`::
+(Default) Name of the node, such as `DKDM97B`. Alias is `name`.
+
+`host`::
+(Default) Host name, such as `n1`. Alias is `h`.
+
+`ip`::
+(Default) IP address, such as `127.0.1.1`. Alias is `i`.
+
+`attr`::
+(Default) Attribute name, such as `rack`. Alias is `attr.name`.
+
+`value`::
+(Default) Attribute value, such as `rack123`. Alias is `attr.value`.
+
+`id`::
+ID of the node, such as `k0zy`. Alias is `nodeId`.
+
+`pid`::
+Process ID, such as `13061`. Alias is `p`.
+
+`port`::
+Bound transport port, such as `9300`. Alias is `po`.
+
+
+[[cat-nodeattrs-api-example]]
+==== {api-examples-title}
+
+[[cat-nodeattrs-api-ex-default]]
+===== Example with default columns
 
 [source,js]
 --------------------------------------------------
@@ -12,7 +81,7 @@ GET /_cat/nodeattrs?v
 // TEST[s/\?v/\?v&s=node,attr/]
 // Sort the resulting attributes so we can assert on them more easily
 
-Could look like:
+The API returns the following response:
 
 [source,txt]
 --------------------------------------------------
@@ -27,37 +96,25 @@ node-0 127.0.0.1 127.0.0.1 testattr test
 // If xpack is installed then the first ... contains ml attributes
 // and the second contains xpack.installed=true
 
-The first few columns (`node`, `host`, `ip`) give you basic info per node
-and the `attr` and `value` columns give you the custom node attributes,
-one per line.
+The first few columns (`node`, `host`, `ip`) provide basic information about
+each node. The `attr` and `value` columns return custom node attributes, one per
+line.
 
-[float]
-==== Columns
+[[cat-nodeattrs-api-ex-headings]]
+===== Example with explicit columns
 
-Below is an exhaustive list of the existing headers that can be
-passed to `nodeattrs?h=` to retrieve the relevant details in ordered
-columns.  If no headers are specified, then those marked to Appear
-by Default will appear. If any header is specified, then the defaults
-are not used.
-
-Aliases can be used in place of the full header name for brevity.
-Columns appear in the order that they are listed below unless a
-different order is specified (e.g., `h=attr,value` versus `h=value,attr`).
-
-When specifying headers, the headers are not placed in the output
-by default.  To have the headers appear in the output, use verbose
-mode (`v`). The header name will match the supplied value (e.g.,
-`pid` versus `p`).  For example:
+The following API request returns the `node`, `pid`, `attr`, and `value`
+<<cat-nodeattrs-api-columns,columns>>.
 
 [source,js]
 --------------------------------------------------
-GET /_cat/nodeattrs?v&h=name,pid,attr,value
+GET /_cat/nodeattrs?v&h=node,pid,attr,value
 --------------------------------------------------
 // CONSOLE
 // TEST[s/,value/,value&s=node,attr/]
 // Sort the resulting attributes so we can assert on them more easily
 
-Might look like:
+The API returns the following response:
 
 [source,txt]
 --------------------------------------------------
@@ -72,16 +129,3 @@ node-0 19566 testattr test
 // If xpack is not installed then neither ... with match anything
 // If xpack is installed then the first ... contains ml attributes
 // and the second contains xpack.installed=true
-
-[cols="<,<,<,<,<",options="header",subs="normal"]
-|=======================================================================
-|Header |Alias |Appear by Default |Description |Example
-|`node`|`name`|Yes|Name of the node|DKDM97B
-|`id` |`nodeId` |No |Unique node ID |k0zy
-|`pid` |`p` |No |Process ID |13061
-|`host` |`h` |Yes |Host name |n1
-|`ip` |`i` |Yes |IP address |127.0.1.1
-|`port` |`po` |No |Bound transport port |9300
-|`attr` | `attr.name` | Yes | Attribute name | rack
-|`value` | `attr.value` | Yes | Attribute value | rack123
-|=======================================================================

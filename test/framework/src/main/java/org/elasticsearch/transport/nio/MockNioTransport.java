@@ -198,6 +198,9 @@ public class MockNioTransport extends TcpTransport {
         private MockTcpChannelFactory(boolean isClient, ProfileSettings profileSettings, String profileName) {
             super(profileSettings.tcpNoDelay,
                 profileSettings.tcpKeepAlive,
+                profileSettings.tcpKeepIdle,
+                profileSettings.tcpKeepInterval,
+                profileSettings.tcpKeepCount,
                 profileSettings.reuseAddress,
                 Math.toIntExact(profileSettings.sendBufferSize.getBytes()),
                 Math.toIntExact(profileSettings.receiveBufferSize.getBytes()));

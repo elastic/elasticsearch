@@ -71,14 +71,11 @@ public class VagrantMachine {
 
         LoggedExec.exec(project, execSpec -> {
             execSpec.setExecutable("vagrant");
-            extension.getHostEnv().forEach((k, v) -> {
-                project.getLogger().warn("HOST ENV: " + k + "=" + v);
-            });
-            execSpec.setEnvironment(extension.getHostEnv());
             File vagrantfile = extension.getVagrantfile();
             execSpec.setEnvironment(System.getenv()); // pass through env
             execSpec.environment("VAGRANT_CWD", vagrantfile.getParentFile().toString());
             execSpec.environment("VAGRANT_VAGRANTFILE", vagrantfile.getName());
+            extension.getHostEnv().forEach(execSpec::environment);
 
             execSpec.args(vagrantSpec.command);
             if (vagrantSpec.subcommand != null) {

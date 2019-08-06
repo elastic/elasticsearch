@@ -99,7 +99,7 @@ line.
 ===== Example with explicit columns
 
 The following API request returns the `node`, `pid`, `attr`, and `value`
-<<cat-nodeattrs-api-columns,columns>>.
+columns.
 
 [source,js]
 --------------------------------------------------

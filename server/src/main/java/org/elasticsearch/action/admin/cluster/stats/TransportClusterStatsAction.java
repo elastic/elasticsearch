@@ -87,8 +87,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
     }
 
     @Override
-    protected ClusterStatsNodeResponse newNodeResponse() {
-        return new ClusterStatsNodeResponse();
+    protected ClusterStatsNodeResponse newNodeResponse(StreamInput in) throws IOException {
+        return new ClusterStatsNodeResponse(in);
     }
 
     @Override
@@ -140,18 +140,13 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
 
         ClusterStatsRequest request;
 
-        public ClusterStatsNodeRequest() {
+        public ClusterStatsNodeRequest(StreamInput in) throws IOException {
+            super(in);
+            request = new ClusterStatsRequest(in);
         }
 
         ClusterStatsNodeRequest(ClusterStatsRequest request) {
             this.request = request;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            request = new ClusterStatsRequest();
-            request.readFrom(in);
         }
 
         @Override

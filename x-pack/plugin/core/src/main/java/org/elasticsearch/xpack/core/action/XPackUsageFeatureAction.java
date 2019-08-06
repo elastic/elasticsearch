@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.action;
 
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.util.Arrays;
@@ -18,7 +18,7 @@ import java.util.List;
  * {@link XPackUsageAction} implementationn iterates over the {@link #ALL} list of actions to form
  * the complete usage result.
  */
-public class XPackUsageFeatureAction extends StreamableResponseActionType<XPackUsageFeatureResponse> {
+public class XPackUsageFeatureAction extends ActionType<XPackUsageFeatureResponse> {
 
     private static final String BASE_NAME = "cluster:monitor/xpack/usage/";
 
@@ -36,19 +36,16 @@ public class XPackUsageFeatureAction extends StreamableResponseActionType<XPackU
     public static final XPackUsageFeatureAction FLATTENED = new XPackUsageFeatureAction(XPackField.FLATTENED);
     public static final XPackUsageFeatureAction VECTORS = new XPackUsageFeatureAction(XPackField.VECTORS);
     public static final XPackUsageFeatureAction VOTING_ONLY = new XPackUsageFeatureAction(XPackField.VOTING_ONLY);
+    public static final XPackUsageFeatureAction FROZEN_INDICES = new XPackUsageFeatureAction(XPackField.FROZEN_INDICES);
+    public static final XPackUsageFeatureAction SPATIAL = new XPackUsageFeatureAction(XPackField.SPATIAL);
 
     public static final List<XPackUsageFeatureAction> ALL = Arrays.asList(
         SECURITY, MONITORING, WATCHER, GRAPH, MACHINE_LEARNING, LOGSTASH, SQL, ROLLUP, INDEX_LIFECYCLE, CCR, DATA_FRAME, FLATTENED,
-        VECTORS, VOTING_ONLY
+        VECTORS, VOTING_ONLY, FROZEN_INDICES, SPATIAL
     );
 
     private XPackUsageFeatureAction(String name) {
-        super(BASE_NAME + name);
-    }
-
-    @Override
-    public XPackUsageFeatureResponse newResponse() {
-        return new XPackUsageFeatureResponse();
+        super(BASE_NAME + name, XPackUsageFeatureResponse::new);
     }
 
     @Override

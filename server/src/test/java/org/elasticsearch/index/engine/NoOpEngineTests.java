@@ -195,8 +195,15 @@ public class NoOpEngineTests extends EngineTestCase {
         }
 
         assertThat(Translog.readMinTranslogGeneration(translogPath, translogUuid), equalTo(minFileGeneration));
+        assertThat(noOpEngine.getTranslogStats().estimatedNumberOfOperations(), equalTo(numDocs));
+        assertThat(noOpEngine.getTranslogStats().getUncommittedOperations(), equalTo(0));
+
         noOpEngine.trimUnreferencedTranslogFiles();
+
         assertThat(Translog.readMinTranslogGeneration(translogPath, translogUuid), equalTo(lastCommitedTranslogGeneration));
+        assertThat(noOpEngine.getTranslogStats().estimatedNumberOfOperations(), equalTo(0));
+        assertThat(noOpEngine.getTranslogStats().getUncommittedOperations(), equalTo(0));
+
         noOpEngine.close();
     }
 

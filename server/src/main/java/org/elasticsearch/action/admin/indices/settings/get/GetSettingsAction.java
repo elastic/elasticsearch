@@ -19,19 +19,14 @@
 
 package org.elasticsearch.action.admin.indices.settings.get;
 
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 
-public class GetSettingsAction extends StreamableResponseActionType<GetSettingsResponse> {
+public class GetSettingsAction extends ActionType<GetSettingsResponse> {
 
     public static final GetSettingsAction INSTANCE = new GetSettingsAction();
     public static final String NAME = "indices:monitor/settings/get";
 
     public GetSettingsAction() {
-        super(NAME);
-    }
-
-    @Override
-    public GetSettingsResponse newResponse() {
-        return new GetSettingsResponse();
+        super(NAME, GetSettingsResponse::new);
     }
 }

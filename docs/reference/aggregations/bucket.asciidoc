@@ -55,6 +55,8 @@ include::bucket/parent-aggregation.asciidoc[]
 
 include::bucket/range-aggregation.asciidoc[]
 
+include::bucket/rare-terms-aggregation.asciidoc[]
+
 include::bucket/reverse-nested-aggregation.asciidoc[]
 
 include::bucket/sampler-aggregation.asciidoc[]

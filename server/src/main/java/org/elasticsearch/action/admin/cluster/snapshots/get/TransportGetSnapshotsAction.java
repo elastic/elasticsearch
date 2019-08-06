@@ -81,11 +81,6 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
     }
 
     @Override
-    protected GetSnapshotsResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     protected GetSnapshotsResponse read(StreamInput in) throws IOException {
         return new GetSnapshotsResponse(in);
     }
@@ -154,7 +149,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         final RepositoryData repositoryData;
         if (isCurrentSnapshotsOnly(snapshots) == false) {
             repositoryData = snapshotsService.getRepositoryData(repo);
-            for (SnapshotId snapshotId : repositoryData.getAllSnapshotIds()) {
+            for (SnapshotId snapshotId : repositoryData.getSnapshotIds()) {
                 allSnapshotIds.put(snapshotId.getName(), snapshotId);
             }
         } else {
@@ -190,10 +185,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
         final List<SnapshotInfo> snapshotInfos;
         if (verbose) {
-            final Set<SnapshotId> incompatibleSnapshots = repositoryData != null ?
-                    new HashSet<>(repositoryData.getIncompatibleSnapshotIds()) : Collections.emptySet();
-            snapshotInfos = snapshotsService.snapshots(repo, new ArrayList<>(toResolve),
-                    incompatibleSnapshots, ignoreUnavailable);
+            snapshotInfos = snapshotsService.snapshots(repo, new ArrayList<>(toResolve), ignoreUnavailable);
         } else {
             if (repositoryData != null) {
                 // want non-current snapshots as well, which are found in the repository data

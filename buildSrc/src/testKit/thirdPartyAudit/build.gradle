@@ -2,8 +2,8 @@ import org.elasticsearch.gradle.precommit.ThirdPartyAuditTask
 
 plugins {
     id 'java'
-    //just to get build-tools
-    id 'elasticsearch.testclusters'
+    // bring in build-tools onto the classpath
+    id 'elasticsearch.global-build-info' apply false
 }
 
 repositories {

@@ -23,11 +23,13 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -36,6 +38,7 @@ import java.util.stream.Collectors;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.rarely;
 import static java.util.stream.Collectors.toSet;
 import static org.apache.lucene.util.LuceneTestCase.random;
+import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomLong;
@@ -86,10 +89,10 @@ public class CoordinationStateTestCluster {
     }
 
     static class ClusterNode {
-
-        final DiscoveryNode localNode;
-        final CoordinationState.PersistedState persistedState;
         private final ElectionStrategy electionStrategy;
+
+        DiscoveryNode localNode;
+        CoordinationState.PersistedState persistedState;
         CoordinationState state;
 
         ClusterNode(DiscoveryNode localNode, ElectionStrategy electionStrategy) {
@@ -102,6 +105,26 @@ public class CoordinationStateTestCluster {
         }
 
         void reboot() {
+            if (localNode.isMasterNode() == false && rarely()) {
+                // master-ineligible nodes can't be trusted to persist the cluster state properly
+                persistedState = new InMemoryPersistedState(0L,
+                    clusterState(0L, 0L, localNode, CoordinationMetaData.VotingConfiguration.EMPTY_CONFIG,
+                        CoordinationMetaData.VotingConfiguration.EMPTY_CONFIG, 0L));
+            }
+
+            final Set<DiscoveryNodeRole> roles = new HashSet<>(localNode.getRoles());
+            if (randomBoolean()) {
+                if (roles.contains(DiscoveryNodeRole.MASTER_ROLE)) {
+                    roles.remove(DiscoveryNodeRole.MASTER_ROLE);
+                } else {
+                    roles.add(DiscoveryNodeRole.MASTER_ROLE);
+                }
+            }
+
+            localNode = new DiscoveryNode(localNode.getName(), localNode.getId(), UUIDs.randomBase64UUID(random()),
+                localNode.getHostName(), localNode.getHostAddress(), localNode.getAddress(), localNode.getAttributes(),
+                roles, localNode.getVersion());
+
             state = new CoordinationState(localNode, persistedState, electionStrategy);
         }
 

@@ -161,9 +161,9 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<ValuesSource, ?> innerBuild(SearchContext context,
+    protected ValuesSourceAggregatorFactory<ValuesSource> innerBuild(SearchContext context,
                                                                         ValuesSourceConfig<ValuesSource> config,
-                                                                        AggregatorFactory<?> parent,
+                                                                        AggregatorFactory parent,
                                                                         Builder subFactoriesBuilder) throws IOException {
         return new RareTermsAggregatorFactory(name, config, includeExclude,
             context, parent, subFactoriesBuilder, metaData, maxDocCount, precision);

@@ -24,6 +24,8 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -39,17 +41,20 @@ public class Gateway {
 
     private final ClusterService clusterService;
 
-    private final TransportNodesListGatewayMetaState listGatewayMetaState;
+    private final NodeClient client;
 
-    public Gateway(final ClusterService clusterService, final TransportNodesListGatewayMetaState listGatewayMetaState) {
+    public Gateway(final ClusterService clusterService, final NodeClient client) {
         this.clusterService = clusterService;
-        this.listGatewayMetaState = listGatewayMetaState;
+        this.client = client;
     }
 
     public void performStateRecovery(final GatewayStateRecoveredListener listener) throws GatewayException {
         final String[] nodesIds = clusterService.state().nodes().getMasterNodes().keys().toArray(String.class);
         logger.trace("performing state recovery from {}", Arrays.toString(nodesIds));
-        final TransportNodesListGatewayMetaState.NodesGatewayMetaState nodesState = listGatewayMetaState.list(nodesIds, null).actionGet();
+        var request = new TransportNodesListGatewayMetaState.Request(nodesIds);
+        PlainActionFuture<TransportNodesListGatewayMetaState.NodesGatewayMetaState> future = PlainActionFuture.newFuture();
+        client.executeLocally(TransportNodesListGatewayMetaState.TYPE, request, future);
+        final TransportNodesListGatewayMetaState.NodesGatewayMetaState nodesState = future.actionGet();
 
         final int requiredAllocation = 1;
 

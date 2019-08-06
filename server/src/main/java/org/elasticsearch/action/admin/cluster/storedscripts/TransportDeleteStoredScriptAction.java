@@ -46,7 +46,7 @@ public class TransportDeleteStoredScriptAction extends TransportMasterNodeAction
                                              ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                              ScriptService scriptService) {
         super(DeleteStoredScriptAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, DeleteStoredScriptRequest::new);
+                DeleteStoredScriptRequest::new, indexNameExpressionResolver);
         this.scriptService = scriptService;
     }
 
@@ -58,11 +58,6 @@ public class TransportDeleteStoredScriptAction extends TransportMasterNodeAction
     @Override
     protected AcknowledgedResponse read(StreamInput in) throws IOException {
         return new AcknowledgedResponse(in);
-    }
-
-    @Override
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

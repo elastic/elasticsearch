@@ -72,3 +72,43 @@
           {
             "id": "body_id"
           }
+
+---
+"Test start given dest index is not empty":
+
+  - do:
+      index:
+        index: non-empty-source
+        refresh: ""
+        body:  >
+          {
+            "numeric": 42.0
+          }
+
+  - do:
+      index:
+        index: non-empty-dest
+        refresh: ""
+        body:  >
+          {
+            "numeric": 42.0
+          }
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "start_given_empty_dest_index"
+        body: >
+          {
+            "source": {
+              "index": "non-empty-source"
+            },
+            "dest": {
+              "index": "non-empty-dest"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+
+  - do:
+      catch: /dest index \[non-empty-dest\] must be empty/
+      ml.start_data_frame_analytics:
+        id: "start_given_empty_dest_index"

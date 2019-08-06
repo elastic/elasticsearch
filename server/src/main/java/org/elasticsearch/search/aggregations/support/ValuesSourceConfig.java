@@ -36,6 +36,7 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.function.Function;
 
 /**
  * A configuration that tells aggregations how to retrieve data from the index
@@ -223,10 +224,15 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         return format;
     }
 
+    @Nullable
+    public VS toValuesSource(QueryShardContext context) {
+        return toValuesSource(context, value -> ValuesSource.Bytes.WithOrdinals.EMPTY);
+    }
+
     /** Get a value source given its configuration. A return value of null indicates that
      *  no value source could be built. */
     @Nullable
-    public VS toValuesSource(QueryShardContext context) {
+    public VS toValuesSource(QueryShardContext context, Function<Object, ValuesSource> resolveMissingAny) {
         if (!valid()) {
             throw new IllegalStateException(
                     "value source config is invalid; must have either a field context or a script or marked as unwrapped");
@@ -241,8 +247,10 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
                 vs = (VS) ValuesSource.Numeric.EMPTY;
             } else if (valueSourceType() == ValuesSourceType.GEOPOINT) {
                 vs = (VS) ValuesSource.GeoPoint.EMPTY;
-            } else if (valueSourceType() == ValuesSourceType.ANY || valueSourceType() == ValuesSourceType.BYTES) {
+            } else if (valueSourceType() == ValuesSourceType.BYTES) {
                 vs = (VS) ValuesSource.Bytes.WithOrdinals.EMPTY;
+            } else if (valueSourceType() == ValuesSourceType.ANY) {
+                vs = (VS) resolveMissingAny.apply(missing());
             } else {
                 throw new IllegalArgumentException("Can't deal with unmapped ValuesSource type " + valueSourceType());
             }

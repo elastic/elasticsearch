@@ -1894,7 +1894,8 @@ public final class MachineLearningClient {
      * Creates a new Data Frame Analytics config
      * <p>
      * For additional info
-     * see <a href="https://www.TODO.com">PUT Data Frame Analytics documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/put-dfanalytics.html">
+     *     PUT Data Frame Analytics documentation</a>
      *
      * @param request The {@link PutDataFrameAnalyticsRequest} containing the
      * {@link org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsConfig}
@@ -1916,7 +1917,8 @@ public final class MachineLearningClient {
      * Creates a new Data Frame Analytics config asynchronously and notifies listener upon completion
      * <p>
      * For additional info
-     * see <a href="https://www.TODO.com">PUT Data Frame Analytics documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/put-dfanalytics.html">
+     *     PUT Data Frame Analytics documentation</a>
      *
      * @param request The {@link PutDataFrameAnalyticsRequest} containing the
      * {@link org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsConfig}
@@ -1937,7 +1939,8 @@ public final class MachineLearningClient {
      * Gets a single or multiple Data Frame Analytics configs
      * <p>
      * For additional info
-     * see <a href="https://www.TODO.com">GET Data Frame Analytics documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-dfanalytics.html">
+     *     GET Data Frame Analytics documentation</a>
      *
      * @param request The {@link GetDataFrameAnalyticsRequest}
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -1957,7 +1960,8 @@ public final class MachineLearningClient {
      * Gets a single or multiple Data Frame Analytics configs asynchronously and notifies listener upon completion
      * <p>
      * For additional info
-     * see <a href="https://www.TODO.com">GET Data Frame Analytics documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-dfanalytics.html">
+     *     GET Data Frame Analytics documentation</a>
      *
      * @param request The {@link GetDataFrameAnalyticsRequest}
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -1977,7 +1981,8 @@ public final class MachineLearningClient {
      * Gets the running statistics of a Data Frame Analytics
      * <p>
      * For additional info
-     * see <a href="https://www.TODO.com">GET Data Frame Analytics Stats documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-dfanalytics-stats.html">
+     *     GET Data Frame Analytics Stats documentation</a>
      *
      * @param request The {@link GetDataFrameAnalyticsStatsRequest}
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -1996,7 +2001,8 @@ public final class MachineLearningClient {
      * Gets the running statistics of a Data Frame Analytics asynchronously and notifies listener upon completion
      * <p>
      * For additional info
-     * see <a href="https://www.TODO.com">GET Data Frame Analytics Stats documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-dfanalytics-stats.html">
+     *     GET Data Frame Analytics Stats documentation</a>
      *
      * @param request The {@link GetDataFrameAnalyticsStatsRequest}
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -2016,7 +2022,8 @@ public final class MachineLearningClient {
      * Starts Data Frame Analytics
      * <p>
      * For additional info
-     * see <a href="https://www.TODO.com">Start Data Frame Analytics documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/start-dfanalytics.html">
+     *     Start Data Frame Analytics documentation</a>
      *
      * @param request The {@link StartDataFrameAnalyticsRequest}
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -2036,7 +2043,8 @@ public final class MachineLearningClient {
      * Starts Data Frame Analytics asynchronously and notifies listener upon completion
      * <p>
      * For additional info
-     * see <a href="https://www.TODO.com">Start Data Frame Analytics documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/start-dfanalytics.html">
+     *     Start Data Frame Analytics documentation</a>
      *
      * @param request The {@link StartDataFrameAnalyticsRequest}
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -2056,7 +2064,8 @@ public final class MachineLearningClient {
      * Stops Data Frame Analytics
      * <p>
      * For additional info
-     * see <a href="https://www.TODO.com">Stop Data Frame Analytics documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/stop-dfanalytics.html">
+     *     Stop Data Frame Analytics documentation</a>
      *
      * @param request The {@link StopDataFrameAnalyticsRequest}
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -2076,7 +2085,8 @@ public final class MachineLearningClient {
      * Stops Data Frame Analytics asynchronously and notifies listener upon completion
      * <p>
      * For additional info
-     * see <a href="https://www.TODO.com">Stop Data Frame Analytics documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/stop-dfanalytics.html">
+     *     Stop Data Frame Analytics documentation</a>
      *
      * @param request The {@link StopDataFrameAnalyticsRequest}
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -2096,7 +2106,8 @@ public final class MachineLearningClient {
      * Deletes the given Data Frame Analytics config
      * <p>
      * For additional info
-     * see <a href="https://www.TODO.com">DELETE Data Frame Analytics documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/delete-dfanalytics.html">
+     *     DELETE Data Frame Analytics documentation</a>
      *
      * @param request The {@link DeleteDataFrameAnalyticsRequest}
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -2116,7 +2127,8 @@ public final class MachineLearningClient {
      * Deletes the given Data Frame Analytics config asynchronously and notifies listener upon completion
      * <p>
      * For additional info
-     * see <a href="https://www.TODO.com">DELETE Data Frame Analytics documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/delete-dfanalytics.html">
+     *     DELETE Data Frame Analytics documentation</a>
      *
      * @param request The {@link DeleteDataFrameAnalyticsRequest}
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -2136,7 +2148,8 @@ public final class MachineLearningClient {
      * Evaluates the given Data Frame
      * <p>
      * For additional info
-     * see <a href="https://www.TODO.com">Evaluate Data Frame documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/evaluate-dfanalytics.html">
+     *     Evaluate Data Frame documentation</a>
      *
      * @param request The {@link EvaluateDataFrameRequest}
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -2156,7 +2169,8 @@ public final class MachineLearningClient {
      * Evaluates the given Data Frame asynchronously and notifies listener upon completion
      * <p>
      * For additional info
-     * see <a href="https://www.TODO.com">Evaluate Data Frame documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/evaluate-dfanalytics.html">
+     *     Evaluate Data Frame documentation</a>
      *
      * @param request The {@link EvaluateDataFrameRequest}
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized

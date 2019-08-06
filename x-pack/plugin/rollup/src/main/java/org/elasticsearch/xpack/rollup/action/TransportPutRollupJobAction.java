@@ -72,7 +72,7 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
                                        ClusterService clusterService, XPackLicenseState licenseState,
                                        PersistentTasksService persistentTasksService, Client client) {
         super(PutRollupJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, PutRollupJobAction.Request::new);
+            PutRollupJobAction.Request::new, indexNameExpressionResolver);
         this.licenseState = licenseState;
         this.persistentTasksService = persistentTasksService;
         this.client = client;
@@ -86,11 +86,6 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
     @Override
     protected AcknowledgedResponse read(StreamInput in) throws IOException {
         return new AcknowledgedResponse(in);
-    }
-
-    @Override
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

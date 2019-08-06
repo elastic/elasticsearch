@@ -6,7 +6,7 @@ A multi-bucket aggregation that creates composite buckets from different sources
 Unlike the other `multi-bucket` aggregation the `composite` aggregation can be used
 to paginate **all** buckets from a multi-level aggregation efficiently. This aggregation
 provides a way to stream **all** buckets of a specific aggregation similarly to what
-<<search-request-scroll, scroll>> does for documents.
+<<request-body-search-scroll, scroll>> does for documents.
 
 The composite buckets are built from the combinations of the
 values extracted/created for each document and each combination is considered as
@@ -590,3 +590,13 @@ GET /_search
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\.//]
+
+==== Pipeline aggregations
+
+The composite agg is not currently compatible with pipeline aggregations, nor does it make sense in most cases.
+E.g. due to the paging nature of composite aggs, a single logical partition (one day for example) might be spread
+over multiple pages.  Since pipeline aggregations are purely post-processing on the final list of buckets,
+running something like a derivative on a composite page could lead to inaccurate results as it is only taking into
+account a "partial" result on that page.
+
+Pipeline aggs that are self contained to a single bucket (such as `bucket_selector`) might be supported in the future.

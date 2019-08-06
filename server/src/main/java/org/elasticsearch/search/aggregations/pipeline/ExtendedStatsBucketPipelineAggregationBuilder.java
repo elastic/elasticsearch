@@ -80,7 +80,7 @@ public class ExtendedStatsBucketPipelineAggregationBuilder
     }
 
     @Override
-    public void doValidate(AggregatorFactory<?> parent, Collection<AggregationBuilder> aggBuilders,
+    public void doValidate(AggregatorFactory parent, Collection<AggregationBuilder> aggBuilders,
             Collection<PipelineAggregationBuilder> pipelineAggregatorFactories) {
         super.doValidate(parent, aggBuilders, pipelineAggregatorFactories);
 

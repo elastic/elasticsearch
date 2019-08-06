@@ -105,24 +105,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
     private List<Releasable> releasables = new ArrayList<>();
     private static final String TYPE_NAME = "type";
 
-    protected AggregatorFactory<?> createAggregatorFactory(AggregationBuilder aggregationBuilder,
-                                                           IndexSearcher indexSearcher,
-                                                           MappedFieldType... fieldTypes) throws IOException {
-        return createAggregatorFactory(aggregationBuilder, indexSearcher, createIndexSettings(),
-            new MultiBucketConsumer(DEFAULT_MAX_BUCKETS), fieldTypes);
-    }
-
-
-    protected AggregatorFactory<?> createAggregatorFactory(AggregationBuilder aggregationBuilder,
-                                                           IndexSearcher indexSearcher,
-                                                           IndexSettings indexSettings,
-                                                           MultiBucketConsumer bucketConsumer,
-                                                           MappedFieldType... fieldTypes) throws IOException {
-        return createAggregatorFactory(null, aggregationBuilder, indexSearcher, indexSettings, bucketConsumer, fieldTypes);
-    }
-
     /** Create a factory for the given aggregation builder. */
-    protected AggregatorFactory<?> createAggregatorFactory(Query query,
+    protected AggregatorFactory createAggregatorFactory(Query query,
                                                            AggregationBuilder aggregationBuilder,
                                                            IndexSearcher indexSearcher,
                                                            IndexSettings indexSettings,
@@ -164,8 +148,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
             .collect(Collectors.toMap(MappedFieldType::name, Function.identity())));
         fieldNameToType.putAll(getFieldAliases(fieldTypes));
 
-        registerFieldTypes(queryShardContext, searchContext, mapperService,
-            circuitBreakerService, fieldNameToType);
+        registerFieldTypes(searchContext, mapperService,
+            fieldNameToType);
 
         return aggregationBuilder.build(searchContext, null);
     }
@@ -178,11 +162,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
         return Collections.emptyMap();
     }
 
-    private void registerFieldTypes(QueryShardContext queryShardContext,
-                                    SearchContext searchContext,
-                                    MapperService mapperService,
-                                    CircuitBreakerService circuitBreakerService,
-                                    Map<String, MappedFieldType> fieldNameToType) {
+    private static void registerFieldTypes(SearchContext searchContext, MapperService mapperService,
+                                           Map<String, MappedFieldType> fieldNameToType) {
         for (Map.Entry<String, MappedFieldType> entry : fieldNameToType.entrySet()) {
             String fieldName = entry.getKey();
             MappedFieldType fieldType = entry.getValue();
@@ -351,7 +332,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                                                                                       Query query,
                                                                                       AggregationBuilder builder,
                                                                                       MappedFieldType... fieldTypes) throws IOException {
-        return searchAndReduce(searcher, query, builder, DEFAULT_MAX_BUCKETS, null, fieldTypes);
+        return searchAndReduce(searcher, query, builder, DEFAULT_MAX_BUCKETS, fieldTypes);
     }
 
     /**
@@ -363,7 +344,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
                                                                                       Query query,
                                                                                       AggregationBuilder builder,
                                                                                       int maxBucket,
-                                                                                      ScriptService scriptService,
                                                                                       MappedFieldType... fieldTypes) throws IOException {
         final IndexReaderContext ctx = searcher.getTopReaderContext();
 
@@ -408,7 +388,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 List<InternalAggregation> toReduce = aggs.subList(0, r);
                 MultiBucketConsumer reduceBucketConsumer = new MultiBucketConsumer(maxBucket);
                 InternalAggregation.ReduceContext context =
-                    new InternalAggregation.ReduceContext(root.context().bigArrays(), null,
+                    new InternalAggregation.ReduceContext(root.context().bigArrays(), getMockScriptService(),
                         reduceBucketConsumer, false);
                 A reduced = (A) aggs.get(0).doReduce(toReduce, context);
                 doAssertReducedMultiBucketConsumer(reduced, reduceBucketConsumer);
@@ -418,7 +398,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             // now do the final reduce
             MultiBucketConsumer reduceBucketConsumer = new MultiBucketConsumer(maxBucket);
             InternalAggregation.ReduceContext context =
-                new InternalAggregation.ReduceContext(root.context().bigArrays(), scriptService, reduceBucketConsumer, true);
+                new InternalAggregation.ReduceContext(root.context().bigArrays(), getMockScriptService(), reduceBucketConsumer, true);
 
             @SuppressWarnings("unchecked")
             A internalAgg = (A) aggs.get(0).doReduce(aggs, context);

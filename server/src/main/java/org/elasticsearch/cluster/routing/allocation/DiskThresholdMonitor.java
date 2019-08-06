@@ -19,20 +19,10 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import java.util.HashSet;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
-import java.util.function.LongSupplier;
-import java.util.function.Supplier;
-
 import com.carrotsearch.hppc.ObjectLookupContainer;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.client.Client;
@@ -41,13 +31,22 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+
+import java.util.HashSet;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 /**
  * Listens for a node to go over the high watermark and kicks off an empty
@@ -63,14 +62,15 @@ public class DiskThresholdMonitor {
     private final Set<String> nodeHasPassedWatermark = Sets.newConcurrentHashSet();
     private final Supplier<ClusterState> clusterStateSupplier;
     private final LongSupplier currentTimeMillisSupplier;
+    private final RerouteService rerouteService;
     private final AtomicLong lastRunTimeMillis = new AtomicLong(Long.MIN_VALUE);
     private final AtomicBoolean checkInProgress = new AtomicBoolean();
-    private final SetOnce<Consumer<ActionListener<Void>>> rerouteAction = new SetOnce<>();
 
     public DiskThresholdMonitor(Settings settings, Supplier<ClusterState> clusterStateSupplier, ClusterSettings clusterSettings,
-                                Client client, LongSupplier currentTimeMillisSupplier) {
+                                Client client, LongSupplier currentTimeMillisSupplier, RerouteService rerouteService) {
         this.clusterStateSupplier = clusterStateSupplier;
         this.currentTimeMillisSupplier = currentTimeMillisSupplier;
+        this.rerouteService = rerouteService;
         this.diskThresholdSettings = new DiskThresholdSettings(settings, clusterSettings);
         this.client = client;
     }
@@ -110,8 +110,6 @@ public class DiskThresholdMonitor {
     }
 
     public void onNewInfo(ClusterInfo info) {
-
-        assert rerouteAction.get() != null;
 
         if (checkInProgress.compareAndSet(false, true) == false) {
             logger.info("skipping monitor as a check is already in progress");
@@ -188,7 +186,7 @@ public class DiskThresholdMonitor {
 
         if (reroute) {
             logger.info("rerouting shards: [{}]", explanation);
-            rerouteAction.get().accept(ActionListener.wrap(r -> {
+            rerouteService.reroute("disk threshold monitor", Priority.HIGH, ActionListener.wrap(r -> {
                 setLastRunTimeMillis();
                 listener.onResponse(r);
             }, e -> {
@@ -224,9 +222,5 @@ public class DiskThresholdMonitor {
         client.admin().indices().prepareUpdateSettings(indicesToMarkReadOnly.toArray(Strings.EMPTY_ARRAY))
             .setSettings(Settings.builder().put(IndexMetaData.SETTING_READ_ONLY_ALLOW_DELETE, true).build())
             .execute(ActionListener.map(listener, r -> null));
-    }
-
-    public void setRerouteAction(BiConsumer<String, ActionListener<Void>> rerouteAction) {
-        this.rerouteAction.set(listener -> rerouteAction.accept("disk threshold monitor", listener));
     }
 }

@@ -134,18 +134,26 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
      * 12.0.1 so we pin to TLSv1.2 when running on an earlier JDK
      */
     private static String getProtocol() {
-        String version = AccessController.doPrivileged((PrivilegedAction<String>) () -> System.getProperty("java.specification.version"));
-        String[] components = version.split("\\.");
-        if (components.length > 0) {
-            final int major = Integer.valueOf(components[0]);
+        String version = AccessController.doPrivileged((PrivilegedAction<String>) () -> System.getProperty("java.version"));
+        String[] parts = version.split("-");
+        String[] numericComponents;
+        if (parts.length == 1) {
+            numericComponents = version.split("\\.");
+        } else if (parts.length == 2) {
+            numericComponents = parts[0].split("\\.");
+        } else {
+            throw new IllegalArgumentException("Java version string [" + version + "] could not be parsed.");
+        }
+        if (numericComponents.length > 0) {
+            final int major = Integer.valueOf(numericComponents[0]);
             if (major > 12) {
                 return "TLS";
-            } else if (major == 12 && components.length > 2) {
-                final int minor = Integer.valueOf(components[1]);
+            } else if (major == 12 && numericComponents.length > 2) {
+                final int minor = Integer.valueOf(numericComponents[1]);
                 if (minor > 0) {
                     return "TLS";
                 } else {
-                    String patch = components[2];
+                    String patch = numericComponents[2];
                     final int index = patch.indexOf("_");
                     if (index > -1) {
                         patch = patch.substring(0, index);

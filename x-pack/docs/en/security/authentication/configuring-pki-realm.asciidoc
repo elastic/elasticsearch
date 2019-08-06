@@ -7,10 +7,10 @@ authenticate users. This requires clients connecting directly to {es} to
 present X.509 certificates. The certificates must first be accepted for
 authentication on the SSL/TLS layer on {es}, before they are optionally further
 validated by a PKI realm. Users might also connect to {kib}, where they present
-their certificate, but this requires a little extra configuration. On {es},
-this configuration enables {kib} to act as a proxy for SSL/TLS authentication
-and submit the client certificates to {es} to be further validated by a PKI
-realm.
+their certificate, but this requires a little
+<<pki-realm-for-proxied-clients,extra configuration>>. On {es}, this
+configuration enables {kib} to act as a proxy for SSL/TLS authentication and
+submit the client certificates to {es} to be further validated by a PKI realm.
 
 For more general information, see {stack-ov}/pki-realm.html[PKI User Authentication].
 
@@ -186,6 +186,7 @@ Or, alternatively, configured inside a role-mapping file. The file's path
 defaults to `ES_PATH_CONF/role_mapping.yml` but a different path, also inside
 ES_PATH_CONF, may be specified by the realm setting `files.role_mapping` (e.g.
 `xpack.security.authc.realms.pki.pki1.files.role_mapping`):
+
 [source, yaml]
 ------------------------------------------------------------
 user: <1>
@@ -223,19 +224,18 @@ alternative to role mapping.
 Clients must normally connect directly to {es}, because the {es} PKI realm
 relies on the node's network interface to do the SSL/TLS authentication and to
 also internally forward the client's certificate chain for the realm to be able
-to (optionally) validate it. If SSL/TLS authenticatication is to be performed
-by {kib}, then the PKI realm must be configured to permit delegating it (and
-the proxy must also support it).
+to optionally validate it. If SSL/TLS authenticatication is to be performed
+by {kib}, then the PKI realm must be configured to permit delegating it.
 
 Specifically, when clients presenting X.509 certificates connect to {kib},
 {kib} will perform the SSL/TLS authentication and will forward the client's
-certificate chain (calling an {es} API) to be further validated by PKI realms
-configured for delegation.
+certificate chain, by calling an {es} API, to have them further validated by
+the PKI realms that have been configured for delegation.
 
 To permit authentication delegation for a specific {es} PKI realm, start by
 configuring the realm for the usual case, as detailed in the
 <<pki-realm-for-direct-clients,PKI authentication for clients connecting
-directly to {es}>> section, but making sure that you have explicitly configured
+directly to {es}>> section, but make sure that you have explicitly configured
 a `truststore` (or, equivalently `certificate_authorities`) even though it is
 the same trust configuration that you have configured on the network layer.
 Afterwards, simply toggle the `delegation.enabled` realm setting to `true`.
@@ -249,13 +249,43 @@ NOTE: {kib} also needs to be configured to allow PKI certificate authentication.
 
 A PKI realm with `delegation.enabled` still works unchanged for clients
 connecting directly to {es}. Directly authenticated users and users PKI
-authenticated by {kib} indistinctly follow the same
+authenticated by delegation to {kib} indistinctly follow the same
 {stack-ov}/mapping-roles.html[role mapping rules] or
 {stack-ov}/realm-chains.html#authorization_realms[authorization realms
 configurations]. If using the <<security-role-mapping-apis,role mapping APIs>>,
 it is possible to distinguish between users authenticated by delegation from
 users authenticated directly, because the former ones have the following two
-extra metadata fields `pki_delegated_by_user` and `pki_delegated_by_realm`.
-In the common setup, where authentication is delegated to {kib}, the values of
-these fields are `kibana` and `reserved` respectively.
+extra fields `pki_delegated_by_user` and `pki_delegated_by_realm` in the user's
+metadata. In the common setup, where authentication is delegated to {kib}, the
+values of these fields are `kibana` and `reserved`, respectively. For example,
+the following role mapping rule:
 
+[source,js]
+--------------------------------------------------
+PUT /_security/role_mapping/direct_pki_only
+{
+  "roles" : [ "role_for_pki1_direct" ],
+  "rules" : {
+    "all": [
+      {
+        "field": {"realm.name": "pki1"}
+      },
+      {
+        "except": {
+          "field": {
+            "metadata.pki_delegated_by_user": null <1>
+          }
+        }
+      }
+    ]
+  },
+  "enabled": true
+}
+--------------------------------------------------
+// CONSOLE
+<1> only when this metadata field is set (it is *not* `null`) the user has been
+authenticated in the delegation scenario.
+
+will assign the `role_for_pki1_direct` role to all users that have been
+authenticated directly by the `pki1` realm, by connecting to {es} instead of
+going through {kib}.

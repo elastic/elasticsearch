@@ -129,7 +129,7 @@
   },
   "condition": {
     "script": {
-      "source": "ctx.vars.fails_check = ctx.payload.check.hits.total != 0 && ctx.payload.check.hits.hits[0]._source.cluster_state.status != 'green';ctx.vars.not_resolved = ctx.payload.alert.hits.total == 1 && ctx.payload.alert.hits.hits[0]._source.resolved_timestamp == null;return ctx.vars.fails_check || ctx.vars.not_resolved"
+      "source": "ctx.vars.fails_check = ctx.payload.check.hits.total != 0 && ctx.payload.check.hits.hits[0]._source.cluster_state.status != 'green';ctx.vars.not_resolved = ctx.payload.alert.hits.total == 1 && ctx.payload.alert.hits.hits[0]._source.resolved_timestamp == null;return ctx.payload.check.hits.total != 0 && (ctx.vars.fails_check || ctx.vars.not_resolved)"
     }
   },
   "transform": {

@@ -83,13 +83,17 @@ public class EdgeTreeTests extends ESTestCase {
                 maxX + randomIntBetween(1, 1000), (3 * maxY + minY) / 4)));
 
             // box-query outside to the right
-            assertFalse(reader.intersects(Extent.fromPoints(maxX + randomIntBetween(1, 1000), minY, maxX + randomIntBetween(1001, 2000), maxY)));
+            assertFalse(reader.intersects(Extent.fromPoints(maxX + randomIntBetween(1, 1000), minY,
+                maxX + randomIntBetween(1001, 2000), maxY)));
             // box-query outside to the left
-            assertFalse(reader.intersects(Extent.fromPoints(maxX - randomIntBetween(1001, 2000), minY, minX - randomIntBetween(1, 1000), maxY)));
+            assertFalse(reader.intersects(Extent.fromPoints(maxX - randomIntBetween(1001, 2000), minY,
+                minX - randomIntBetween(1, 1000), maxY)));
             // box-query outside to the top
-            assertFalse(reader.intersects(Extent.fromPoints(minX, maxY + randomIntBetween(1, 1000), maxX, maxY + randomIntBetween(1001, 2000))));
+            assertFalse(reader.intersects(Extent.fromPoints(minX, maxY + randomIntBetween(1, 1000), maxX,
+                maxY + randomIntBetween(1001, 2000))));
             // box-query outside to the bottom
-            assertFalse(reader.intersects(Extent.fromPoints(minX, minY - randomIntBetween(1001, 2000), maxX, minY - randomIntBetween(1, 1000))));
+            assertFalse(reader.intersects(Extent.fromPoints(minX, minY - randomIntBetween(1001, 2000), maxX,
+                minY - randomIntBetween(1, 1000))));
         }
     }
 

@@ -265,11 +265,12 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
 
         new WatcherIndexTemplateRegistry(environment.settings(), clusterService, threadPool, client, xContentRegistry);
 
+        final SSLService sslService = getSslService();
         // http client
-        httpClient = new HttpClient(settings, getSslService(), cryptoService, clusterService);
+        httpClient = new HttpClient(settings, sslService, cryptoService, clusterService);
 
         // notification
-        EmailService emailService = new EmailService(settings, cryptoService, clusterService.getClusterSettings());
+        EmailService emailService = new EmailService(settings, cryptoService, sslService, clusterService.getClusterSettings());
         JiraService jiraService = new JiraService(settings, httpClient, clusterService.getClusterSettings());
         SlackService slackService = new SlackService(settings, httpClient, clusterService.getClusterSettings());
         PagerDutyService pagerDutyService = new PagerDutyService(settings, httpClient, clusterService.getClusterSettings());

@@ -10,7 +10,8 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
-import java.io.IOException;
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
 
 public class DataFrameIndexerTransformStatsTests extends AbstractSerializingTestCase<DataFrameIndexerTransformStats> {
 
@@ -30,26 +31,36 @@ public class DataFrameIndexerTransformStatsTests extends AbstractSerializingTest
     }
 
     public static DataFrameIndexerTransformStats randomStats() {
+        Long continuousCheckpointsProcessed = randomBoolean() ? null : randomLongBetween(0, 1000L);
         return new DataFrameIndexerTransformStats(randomLongBetween(10L, 10000L),
             randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L),
             randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L),
-            randomLongBetween(0L, 10000L));
+            randomLongBetween(0L, 10000L), continuousCheckpointsProcessed,
+            continuousCheckpointsProcessed != null && continuousCheckpointsProcessed > 0 && randomBoolean() ? randomDouble() : null,
+            continuousCheckpointsProcessed != null && continuousCheckpointsProcessed > 0 && randomBoolean() ? randomDouble() : null,
+            continuousCheckpointsProcessed != null && continuousCheckpointsProcessed > 0 && randomBoolean() ? randomDouble() : null);
     }
 
-    public void testMerge() throws IOException {
-        DataFrameIndexerTransformStats emptyStats = new DataFrameIndexerTransformStats();
-        DataFrameIndexerTransformStats randomStats = randomStats();
+    public void testExpAvgIncrement() {
+        DataFrameIndexerTransformStats stats = new DataFrameIndexerTransformStats();
 
-        assertEquals(randomStats, emptyStats.merge(randomStats));
-        assertEquals(randomStats, randomStats.merge(emptyStats));
+        assertThat(stats.getContinuousCheckpointsProcessed(), equalTo(0L));
+        assertThat(stats.getExpAvgCheckpointDurationMs(), equalTo(0.0));
+        assertThat(stats.getExpAvgDocumentsIndexed(), equalTo(0.0));
+        assertThat(stats.getExpAvgDocumentsProcessed(), equalTo(0.0));
 
-        DataFrameIndexerTransformStats randomStatsClone = copyInstance(randomStats);
+        stats.incrementCheckpointExponentialAverages(100, 20, 50);
 
-        DataFrameIndexerTransformStats tripleRandomStats = new DataFrameIndexerTransformStats(3 * randomStats.getNumPages(),
-                3 * randomStats.getNumDocuments(), 3 * randomStats.getOutputDocuments(), 3 * randomStats.getNumInvocations(),
-                3 * randomStats.getIndexTime(), 3 * randomStats.getSearchTime(), 3 * randomStats.getIndexTotal(),
-                3 * randomStats.getSearchTotal(), 3 * randomStats.getIndexFailures(), 3 * randomStats.getSearchFailures());
+        assertThat(stats.getContinuousCheckpointsProcessed(), equalTo(1L));
+        assertThat(stats.getExpAvgCheckpointDurationMs(), equalTo(100.0));
+        assertThat(stats.getExpAvgDocumentsIndexed(), equalTo(20.0));
+        assertThat(stats.getExpAvgDocumentsProcessed(), equalTo(50.0));
 
-        assertEquals(tripleRandomStats, randomStats.merge(randomStatsClone).merge(randomStatsClone));
+        stats.incrementCheckpointExponentialAverages(150, 23, 100);
+
+        assertThat(stats.getContinuousCheckpointsProcessed(), equalTo(2L));
+        assertThat(stats.getExpAvgCheckpointDurationMs(), closeTo(133.333333333, 0.0000001));
+        assertThat(stats.getExpAvgDocumentsIndexed(), closeTo(22.0, 0.0000001));
+        assertThat(stats.getExpAvgDocumentsProcessed(), closeTo(83.3333333333, 0.0000001));
     }
 }

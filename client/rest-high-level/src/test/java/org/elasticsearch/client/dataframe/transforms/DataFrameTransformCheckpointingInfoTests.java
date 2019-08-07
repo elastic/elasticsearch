@@ -23,6 +23,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.time.Instant;
 
 import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 
@@ -41,7 +42,9 @@ public class DataFrameTransformCheckpointingInfoTests extends ESTestCase {
         return new DataFrameTransformCheckpointingInfo(
             DataFrameTransformCheckpointStatsTests.randomDataFrameTransformCheckpointStats(),
             DataFrameTransformCheckpointStatsTests.randomDataFrameTransformCheckpointStats(),
-            randomLongBetween(0, 10000));
+            randomLongBetween(0, 10000),
+            randomBoolean(),
+            randomBoolean() ? null : Instant.ofEpochMilli(randomNonNegativeLong()));
     }
 
     public static void toXContent(DataFrameTransformCheckpointingInfo info, XContentBuilder builder) throws IOException {
@@ -55,6 +58,10 @@ public class DataFrameTransformCheckpointingInfoTests extends ESTestCase {
             DataFrameTransformCheckpointStatsTests.toXContent(info.getNext(), builder);
         }
         builder.field(DataFrameTransformCheckpointingInfo.OPERATIONS_BEHIND.getPreferredName(), info.getOperationsBehind());
+        builder.field(DataFrameTransformCheckpointingInfo.FOUND_CHANGES.getPreferredName(), info.isFoundChanges());
+        if (info.getLastChangeCheck() != null) {
+            builder.field(DataFrameTransformCheckpointingInfo.LAST_CHANGE_CHECK.getPreferredName(), info.getLastChangeCheck());
+        }
         builder.endObject();
     }
 }

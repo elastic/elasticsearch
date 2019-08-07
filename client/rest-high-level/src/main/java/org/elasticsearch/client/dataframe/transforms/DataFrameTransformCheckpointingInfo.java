@@ -19,10 +19,14 @@
 
 package org.elasticsearch.client.dataframe.transforms;
 
+import org.elasticsearch.client.dataframe.transforms.util.TimeUtil;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 
+import java.time.Instant;
 import java.util.Objects;
 
 public class DataFrameTransformCheckpointingInfo {
@@ -30,19 +34,29 @@ public class DataFrameTransformCheckpointingInfo {
     public static final ParseField LAST_CHECKPOINT = new ParseField("last", "current");
     public static final ParseField NEXT_CHECKPOINT = new ParseField("next", "in_progress");
     public static final ParseField OPERATIONS_BEHIND = new ParseField("operations_behind");
+    public static final ParseField FOUND_CHANGES = new ParseField("found_changes");
+    public static final ParseField LAST_CHANGE_CHECK = new ParseField("last_change_check");
 
     private final DataFrameTransformCheckpointStats last;
     private final DataFrameTransformCheckpointStats next;
     private final long operationsBehind;
+    private final boolean foundChanges;
+    private final Instant lastChangeCheck;
 
     private static final ConstructingObjectParser<DataFrameTransformCheckpointingInfo, Void> LENIENT_PARSER =
             new ConstructingObjectParser<>(
-                    "data_frame_transform_checkpointing_info", true, a -> {
+                "data_frame_transform_checkpointing_info",
+                true,
+                a -> {
                         long behind = a[2] == null ? 0L : (Long) a[2];
-
+                        boolean foundChanges = a[3] == null ? false : (Boolean) a[3];
+                        Instant lastChangeCheck = (Instant)a[4];
                         return new DataFrameTransformCheckpointingInfo(
-                                a[0] == null ? DataFrameTransformCheckpointStats.EMPTY : (DataFrameTransformCheckpointStats) a[0],
-                                a[1] == null ? DataFrameTransformCheckpointStats.EMPTY : (DataFrameTransformCheckpointStats) a[1], behind);
+                            a[0] == null ? DataFrameTransformCheckpointStats.EMPTY : (DataFrameTransformCheckpointStats) a[0],
+                            a[1] == null ? DataFrameTransformCheckpointStats.EMPTY : (DataFrameTransformCheckpointStats) a[1],
+                            behind,
+                            foundChanges,
+                            lastChangeCheck);
                     });
 
     static {
@@ -51,13 +65,23 @@ public class DataFrameTransformCheckpointingInfo {
         LENIENT_PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(),
                 (p, c) -> DataFrameTransformCheckpointStats.fromXContent(p), NEXT_CHECKPOINT);
         LENIENT_PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), OPERATIONS_BEHIND);
+        LENIENT_PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), FOUND_CHANGES);
+        LENIENT_PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
+            p -> TimeUtil.parseTimeFieldToInstant(p, LAST_CHANGE_CHECK.getPreferredName()),
+            LAST_CHANGE_CHECK,
+            ObjectParser.ValueType.VALUE);
     }
 
-    public DataFrameTransformCheckpointingInfo(DataFrameTransformCheckpointStats last, DataFrameTransformCheckpointStats next,
-            long operationsBehind) {
+    public DataFrameTransformCheckpointingInfo(DataFrameTransformCheckpointStats last,
+                                               DataFrameTransformCheckpointStats next,
+                                               long operationsBehind,
+                                               boolean foundChanges,
+                                               Instant lastChangeCheck) {
         this.last = Objects.requireNonNull(last);
         this.next = Objects.requireNonNull(next);
         this.operationsBehind = operationsBehind;
+        this.foundChanges = foundChanges;
+        this.lastChangeCheck = lastChangeCheck;
     }
 
     public DataFrameTransformCheckpointStats getLast() {
@@ -72,13 +96,22 @@ public class DataFrameTransformCheckpointingInfo {
         return operationsBehind;
     }
 
+    public boolean isFoundChanges() {
+        return foundChanges;
+    }
+
+    @Nullable
+    public Instant getLastChangeCheck() {
+        return lastChangeCheck;
+    }
+
     public static DataFrameTransformCheckpointingInfo fromXContent(XContentParser p) {
         return LENIENT_PARSER.apply(p, null);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(last, next, operationsBehind);
+        return Objects.hash(last, next, operationsBehind, foundChanges, lastChangeCheck);
     }
 
     @Override
@@ -94,8 +127,10 @@ public class DataFrameTransformCheckpointingInfo {
         DataFrameTransformCheckpointingInfo that = (DataFrameTransformCheckpointingInfo) other;
 
         return Objects.equals(this.last, that.last) &&
-                Objects.equals(this.next, that.next) &&
-                this.operationsBehind == that.operationsBehind;
+            Objects.equals(this.next, that.next) &&
+            this.operationsBehind == that.operationsBehind &&
+            this.foundChanges == that.foundChanges &&
+            Objects.equals(this.lastChangeCheck, that.lastChangeCheck);
     }
 
 }

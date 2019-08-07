@@ -24,6 +24,7 @@ import org.elasticsearch.client.AbstractHlrcXContentTestCase;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointingInfo;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.function.Predicate;
 
 public class DataFrameTransformCheckpointingInfoTests extends AbstractHlrcXContentTestCase<
@@ -33,9 +34,11 @@ public class DataFrameTransformCheckpointingInfoTests extends AbstractHlrcXConte
     public static DataFrameTransformCheckpointingInfo fromHlrc(
             org.elasticsearch.client.dataframe.transforms.DataFrameTransformCheckpointingInfo instance) {
         return new DataFrameTransformCheckpointingInfo(
-                DataFrameTransformCheckpointStatsTests.fromHlrc(instance.getLast()),
-                DataFrameTransformCheckpointStatsTests.fromHlrc(instance.getNext()),
-                instance.getOperationsBehind());
+            DataFrameTransformCheckpointStatsTests.fromHlrc(instance.getLast()),
+            DataFrameTransformCheckpointStatsTests.fromHlrc(instance.getNext()),
+            instance.getOperationsBehind(),
+            instance.isFoundChanges(),
+            instance.getLastChangeCheck());
     }
 
     @Override
@@ -50,8 +53,12 @@ public class DataFrameTransformCheckpointingInfoTests extends AbstractHlrcXConte
     }
 
     public static DataFrameTransformCheckpointingInfo randomDataFrameTransformCheckpointingInfo() {
-        return new DataFrameTransformCheckpointingInfo(DataFrameTransformCheckpointStatsTests.randomDataFrameTransformCheckpointStats(),
-            DataFrameTransformCheckpointStatsTests.randomDataFrameTransformCheckpointStats(), randomNonNegativeLong());
+        return new DataFrameTransformCheckpointingInfo(
+            DataFrameTransformCheckpointStatsTests.randomDataFrameTransformCheckpointStats(),
+            DataFrameTransformCheckpointStatsTests.randomDataFrameTransformCheckpointStats(),
+            randomNonNegativeLong(),
+            randomBoolean(),
+            randomBoolean() ? null : Instant.ofEpochMilli(randomNonNegativeLong()));
     }
 
     @Override

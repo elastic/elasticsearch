@@ -37,12 +37,8 @@ import org.gradle.api.tasks.TaskState;
 
 import java.io.File;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 public class TestClustersPlugin implements Plugin<Project> {
@@ -51,12 +47,6 @@ public class TestClustersPlugin implements Plugin<Project> {
     public static final String EXTENSION_NAME = "testClusters";
 
     private static final Logger logger =  Logging.getLogger(TestClustersPlugin.class);
-    private static final String TESTCLUSTERS_INSPECT_FAILURE = "testclusters.inspect.failure";
-
-    private static boolean globalHooksConfigured = false;
-    private static final Map<ElasticsearchCluster, Integer> claimsInventory = new ConcurrentHashMap<>();
-    private static final Set<ElasticsearchCluster> runningClusters = Collections.synchronizedSet(new HashSet<>());
-    private static final Boolean allowClusterToSurvive = Boolean.valueOf(System.getProperty(TESTCLUSTERS_INSPECT_FAILURE, "false"));
 
     private ReaperService reaper;
 
@@ -76,19 +66,21 @@ public class TestClustersPlugin implements Plugin<Project> {
         // create DSL for tasks to mark clusters these use
         createUseClusterTaskExtension(project, container);
 
-        if (globalHooksConfigured == false) {
-            globalHooksConfigured = true;
+        if (project.getRootProject().getExtensions().findByType(TestClustersRegistry.class) == null) {
+            TestClustersRegistry registry = project.getRootProject().getExtensions()
+                .create("testClusters", TestClustersRegistry.class);
+
             // When we know what tasks will run, we claim the clusters of those task to differentiate between clusters
             // that are defined in the build script and the ones that will actually be used in this invocation of gradle
             // we use this information to determine when the last task that required the cluster executed so that we can
             // terminate the cluster right away and free up resources.
-            configureClaimClustersHook(project.getGradle());
+            configureClaimClustersHook(project.getGradle(), registry);
 
             // Before each task, we determine if a cluster needs to be started for that task.
-            configureStartClustersHook(project.getGradle());
+            configureStartClustersHook(project.getGradle(), registry);
 
             // After each task we determine if there are clusters that are no longer needed.
-            configureStopClustersHook(project.getGradle());
+            configureStopClustersHook(project.getGradle(), registry);
         }
     }
 
@@ -153,7 +145,7 @@ public class TestClustersPlugin implements Plugin<Project> {
         );
     }
 
-    private static void configureClaimClustersHook(Gradle gradle) {
+    private static void configureClaimClustersHook(Gradle gradle, TestClustersRegistry registry) {
         // Once we know all the tasks that need to execute, we claim all the clusters that belong to those and count the
         // claims so we'll know when it's safe to stop them.
         gradle.getTaskGraph().whenReady(taskExecutionGraph -> {
@@ -161,18 +153,11 @@ public class TestClustersPlugin implements Plugin<Project> {
                 .filter(task -> task instanceof TestClustersAware)
                 .map(task -> (TestClustersAware) task)
                 .flatMap(task -> task.getClusters().stream())
-                .forEach(cluster -> {
-                    cluster.freeze();
-                    claimsInventory.put(cluster, claimsInventory.getOrDefault(cluster, 0) + 1);
-                });
-
-            if (claimsInventory.isEmpty() == false) {
-                logger.info("Claims inventory: {}", claimsInventory);
-            }
+                .forEach(registry::claimCluster);
         });
     }
 
-    private static void configureStartClustersHook(Gradle gradle) {
+    private static void configureStartClustersHook(Gradle gradle, TestClustersRegistry registry) {
         gradle.addListener(
             new TaskActionListener() {
                 @Override
@@ -180,17 +165,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                     if (task instanceof TestClustersAware == false) {
                         return;
                     }
-                    // we only start the cluster before the actions, so we'll not start it if the task is up-to-date
-                    List<ElasticsearchCluster> neededButNotRunning = ((TestClustersAware) task).getClusters()
-                        .stream()
-                        .filter(cluster -> runningClusters.contains(cluster) == false)
-                        .collect(Collectors.toList());
-
-                    neededButNotRunning
-                        .forEach(elasticsearchCluster -> {
-                            elasticsearchCluster.start();
-                            runningClusters.add(elasticsearchCluster);
-                        });
+                    ((TestClustersAware) task).getClusters().forEach(registry::maybeStartCluster);
                 }
                 @Override
                 public void afterActions(Task task) {}
@@ -198,7 +173,7 @@ public class TestClustersPlugin implements Plugin<Project> {
         );
     }
 
-    private static void configureStopClustersHook(Gradle gradle) {
+    private static void configureStopClustersHook(Gradle gradle, TestClustersRegistry registry) {
         gradle.addListener(
             new TaskExecutionListener() {
                 @Override
@@ -208,33 +183,8 @@ public class TestClustersPlugin implements Plugin<Project> {
                     }
                     // always unclaim the cluster, even if _this_ task is up-to-date, as others might not have been
                     // and caused the cluster to start.
-                    Collection<ElasticsearchCluster> clustersUsedByTask = ((TestClustersAware) task).getClusters();
-                    if (clustersUsedByTask.isEmpty()) {
-                        return;
-                    }
-                    logger.info("Clusters were used, stopping and releasing permits");
-                    final int permitsToRelease;
-                    if (state.getFailure() != null) {
-                        // If the task fails, and other tasks use this cluster, the other task will likely never be
-                        // executed at all, so we will never be called again to un-claim and terminate it.
-                        clustersUsedByTask.forEach(cluster -> stopCluster(cluster, true));
-                        permitsToRelease = clustersUsedByTask.stream()
-                            .map(ElasticsearchCluster::getNumberOfNodes)
-                            .reduce(Integer::sum).get();
-                    } else {
-                        clustersUsedByTask.forEach(
-                            cluster -> claimsInventory.put(cluster, claimsInventory.getOrDefault(cluster, 0) - 1)
-                        );
-                        List<ElasticsearchCluster> stoppingClusers = claimsInventory.entrySet().stream()
-                            .filter(entry -> entry.getValue() == 0)
-                            .filter(entry -> runningClusters.contains(entry.getKey()))
-                            .map(Map.Entry::getKey)
-                            .collect(Collectors.toList());
-                        stoppingClusers.forEach(cluster -> {
-                            stopCluster(cluster, false);
-                            runningClusters.remove(cluster);
-                        });
-                    }
+                    ((TestClustersAware) task).getClusters()
+                        .forEach(cluster -> registry.stopCluster(cluster, state.getFailure() == null));
                 }
                 @Override
                 public void beforeExecute(Task task) {}
@@ -242,25 +192,5 @@ public class TestClustersPlugin implements Plugin<Project> {
         );
     }
 
-    private static void stopCluster(ElasticsearchCluster cluster, boolean taskFailed) {
-        if (allowClusterToSurvive) {
-            logger.info("Not stopping clusters, disabled by property");
-            if (taskFailed) {
-                // task failed or this is the last one to stop
-                for (int i=1 ; ; i += i) {
-                    logger.lifecycle(
-                        "No more test clusters left to run, going to sleep because {} was set," +
-                            " interrupt (^C) to stop clusters.", TESTCLUSTERS_INSPECT_FAILURE
-                    );
-                    try {
-                        Thread.sleep(1000 * i);
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        return;
-                    }
-                }
-            }
-        }
-        cluster.stop(taskFailed);
-    }
+
 }

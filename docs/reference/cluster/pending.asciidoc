@@ -7,7 +7,7 @@ Returns cluster-level changes that have not yet been executed.
 [[cluster-pending-api-request]]
 ==== {api-request-title}
 
-GET /_cluster/pending_tasks
+`GET /_cluster/pending_tasks`
 
 
 [[cluster-pending-api-desc]]

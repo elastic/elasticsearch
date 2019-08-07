@@ -18,6 +18,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.PemUtils;
+import org.hamcrest.CoreMatchers;
 import org.junit.Before;
 import org.opensaml.saml.common.xml.SAMLConstants;
 import org.opensaml.saml.saml2.metadata.EntityDescriptor;
@@ -74,7 +75,8 @@ public class SamlMetadataCommandTests extends SamlTestCase {
             passwordProtectedKeystore = true;
             when(keyStore.hasPassword()).thenReturn(true);
             doNothing().when(keyStore).decrypt("keystore-password".toCharArray());
-            doThrow(new SecurityException("Provided keystore password was incorrect", new AEADBadTagException())).when(keyStore).decrypt("wrong-password".toCharArray());
+            doThrow(new SecurityException("Provided keystore password was incorrect", new AEADBadTagException()))
+                .when(keyStore).decrypt("wrong-password".toCharArray());
         }
     }
 
@@ -714,6 +716,29 @@ public class SamlMetadataCommandTests extends SamlTestCase {
                 assertTrue("Did not find all encryption certificates in exported SP metadata", encryptionCertificatesToMatch.isEmpty());
             }
         }
+    }
+
+    public void testWrongKeystorePassword() {
+
+        final Path certPath = getDataPath("saml.crt");
+        final Path keyPath = getDataPath("saml.key");
+
+        final SamlMetadataCommand command = new SamlMetadataCommand((e) -> keyStore);
+        final OptionSet options = command.getParser().parse(new String[]{
+            "-signing-cert", certPath.toString(),
+            "-signing-key", keyPath.toString()
+        });
+        final Settings settings = Settings.builder().put("path.home", createTempDir()).build();
+        final Environment env = TestEnvironment.newEnvironment(settings);
+
+        final MockTerminal terminal = new MockTerminal();
+        if (passwordProtectedKeystore) {
+            terminal.addSecretInput("wrong-password");
+        }
+        UserException e = expectThrows(UserException.class, () -> {
+            command.buildEntityDescriptor(terminal, options, env);
+        });
+        assertThat(e.getMessage(), CoreMatchers.containsString("Wrong password for elasticsearch.keystore"));
     }
 
     private String getAliasName(final Tuple<java.security.cert.X509Certificate, PrivateKey> certKeyPair) {

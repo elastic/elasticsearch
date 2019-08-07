@@ -102,7 +102,8 @@ public class SetupPasswordToolTests extends CommandTestCase {
             passwordProtectedKeystore = true;
             when(keyStore.hasPassword()).thenReturn(true);
             doNothing().when(keyStore).decrypt("keystore-password".toCharArray());
-            doThrow(new SecurityException("Provided keystore password was incorrect", new AEADBadTagException())).when(keyStore).decrypt("wrong-password".toCharArray());
+            doThrow(new SecurityException("Provided keystore password was incorrect", new AEADBadTagException()))
+                .when(keyStore).decrypt("wrong-password".toCharArray());
             terminal.addSecretInput("keystore-password");
         }
 

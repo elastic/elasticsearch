@@ -28,7 +28,7 @@ import java.util.function.Function;
 public class LoggedExec extends Exec {
 
     private Consumer<Logger> outputLogger;
-    
+
     public LoggedExec() {
 
         if (getLogger().isInfoEnabled() == false) {
@@ -116,10 +116,14 @@ public class LoggedExec extends Exec {
             });
         } catch (Exception e) {
             try {
-                project.getLogger().error("Standard output:");
-                project.getLogger().error(output.toString("UTF-8"));
-                project.getLogger().error("Standard error:");
-                project.getLogger().error(error.toString("UTF-8"));
+                if (output.size() != 0) {
+                    project.getLogger().error("Standard output:");
+                    project.getLogger().error(output.toString("UTF-8"));
+                }
+                if (error.size() != 0) {
+                    project.getLogger().error("Standard error:");
+                    project.getLogger().error(error.toString("UTF-8"));
+                }
             } catch (UnsupportedEncodingException ue) {
                 throw new GradleException("Failed to read exec output", ue);
             }

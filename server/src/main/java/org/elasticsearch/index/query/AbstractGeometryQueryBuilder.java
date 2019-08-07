@@ -41,7 +41,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.geo.geometry.Geometry;
+import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;

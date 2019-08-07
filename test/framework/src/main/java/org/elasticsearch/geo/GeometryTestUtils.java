@@ -20,17 +20,17 @@
 package org.elasticsearch.geo;
 
 import org.apache.lucene.geo.GeoTestUtil;
-import org.elasticsearch.geo.geometry.Circle;
-import org.elasticsearch.geo.geometry.Geometry;
-import org.elasticsearch.geo.geometry.GeometryCollection;
-import org.elasticsearch.geo.geometry.Line;
-import org.elasticsearch.geo.geometry.LinearRing;
-import org.elasticsearch.geo.geometry.MultiLine;
-import org.elasticsearch.geo.geometry.MultiPoint;
-import org.elasticsearch.geo.geometry.MultiPolygon;
-import org.elasticsearch.geo.geometry.Point;
-import org.elasticsearch.geo.geometry.Polygon;
-import org.elasticsearch.geo.geometry.Rectangle;
+import org.elasticsearch.geometry.Circle;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.GeometryCollection;
+import org.elasticsearch.geometry.Line;
+import org.elasticsearch.geometry.LinearRing;
+import org.elasticsearch.geometry.MultiLine;
+import org.elasticsearch.geometry.MultiPoint;
+import org.elasticsearch.geometry.MultiPolygon;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.Polygon;
+import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -53,10 +53,10 @@ public class GeometryTestUtils {
 
     public static Circle randomCircle(boolean hasAlt) {
         if (hasAlt) {
-            return new Circle(randomLat(), randomLon(), ESTestCase.randomDouble(),
+            return new Circle(randomLon(), randomLat(), ESTestCase.randomDouble(),
                 ESTestCase.randomDoubleBetween(0, 100, false));
         } else {
-            return new Circle(randomLat(), randomLon(), ESTestCase.randomDoubleBetween(0, 100, false));
+            return new Circle(randomLon(), randomLat(), ESTestCase.randomDoubleBetween(0, 100, false));
         }
     }
 
@@ -73,9 +73,9 @@ public class GeometryTestUtils {
             }
         }
         if (hasAlts) {
-            return new Line(lats, lons, alts);
+            return new Line(lons, lats, alts);
         }
-        return new Line(lats, lons);
+        return new Line(lons, lats);
     }
 
     public static Point randomPoint() {
@@ -84,9 +84,9 @@ public class GeometryTestUtils {
 
     public static Point randomPoint(boolean hasAlt) {
         if (hasAlt) {
-            return new Point(randomLat(), randomLon(), randomAlt());
+            return new Point(randomLon(), randomLat(), randomAlt());
         } else {
-            return new Point(randomLat(), randomLon());
+            return new Point(randomLon(), randomLat());
         }
     }
 
@@ -115,15 +115,15 @@ public class GeometryTestUtils {
 
     private static LinearRing linearRing(org.apache.lucene.geo.Polygon polygon, boolean generateAlts) {
         if (generateAlts) {
-            return new LinearRing(polygon.getPolyLats(), polygon.getPolyLons(), randomAltRing(polygon.numPoints()));
+            return new LinearRing(polygon.getPolyLons(), polygon.getPolyLats(), randomAltRing(polygon.numPoints()));
         } else {
-            return new LinearRing(polygon.getPolyLats(), polygon.getPolyLons());
+            return new LinearRing(polygon.getPolyLons(), polygon.getPolyLats());
         }
     }
 
     public static Rectangle randomRectangle() {
         org.apache.lucene.geo.Rectangle rectangle = GeoTestUtil.nextBox();
-        return new Rectangle(rectangle.minLat, rectangle.maxLat, rectangle.minLon, rectangle.maxLon);
+        return new Rectangle(rectangle.minLon, rectangle.maxLon, rectangle.maxLat, rectangle.minLat);
     }
 
     public static MultiPoint randomMultiPoint(boolean hasAlt) {

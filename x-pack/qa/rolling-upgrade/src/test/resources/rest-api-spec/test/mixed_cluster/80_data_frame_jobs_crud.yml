@@ -32,7 +32,10 @@
         transform_id: "mixed-simple-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "mixed-simple-transform" }
-  - match: { transforms.0.task_state: "/started|stopped/" }
+  # Since we are breaking the stats format between 7.3 and 7.4 (allowed because we're beta) we cannot
+  # assert on state in the mixed cluster as it could be state at the top level or state.task_state
+  # TODO: uncomment this assertion in master
+  #- match: { transforms.0.state: "/started|indexing|stopping|stopped/" }
 
   - do:
       data_frame.stop_data_frame_transform:
@@ -45,7 +48,10 @@
         transform_id: "mixed-simple-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "mixed-simple-transform" }
-  - match: { transforms.0.task_state: "stopped" }
+  # Since we are breaking the stats format between 7.3 and 7.4 (allowed because we're beta) we cannot
+  # assert on state in the mixed cluster as it could be state at the top level or state.task_state
+  # TODO: uncomment this assertion in master
+  #- match: { transforms.0.state: "stopped" }
 
   - do:
       data_frame.put_data_frame_transform:
@@ -92,7 +98,10 @@
         transform_id: "mixed-complex-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "mixed-complex-transform" }
-  - match: { transforms.0.task_state: "/started|stopped/" }
+  # Since we are breaking the stats format between 7.3 and 7.4 (allowed because we're beta) we cannot
+  # assert on state in the mixed cluster as it could be state at the top level or state.task_state
+  # TODO: uncomment this assertion in master
+  #- match: { transforms.0.state: "/started|indexing|stopping|stopped/" }
 
   - do:
       data_frame.stop_data_frame_transform:
@@ -105,7 +114,10 @@
         transform_id: "mixed-complex-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "mixed-complex-transform" }
-  - match: { transforms.0.task_state: "stopped" }
+  # Since we are breaking the stats format between 7.3 and 7.4 (allowed because we're beta) we cannot
+  # assert on state in the mixed cluster as it could be state at the top level or state.task_state
+  # TODO: uncomment this assertion in master
+  #- match: { transforms.0.state: "stopped" }
 
 ---
 "Test put continuous data frame transform on mixed cluster":
@@ -157,7 +169,10 @@
         transform_id: "mixed-simple-continuous-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "mixed-simple-continuous-transform" }
-  - match: { transforms.0.task_state: "started" }
+  # Since we are breaking the stats format between 7.3 and 7.4 (allowed because we're beta) we cannot
+  # assert on state in the mixed cluster as it could be state at the top level or state.task_state
+  # TODO: uncomment this assertion in master
+  #- match: { transforms.0.state: "/started|indexing/" }
 
   - do:
       data_frame.stop_data_frame_transform:
@@ -170,7 +185,10 @@
         transform_id: "mixed-simple-continuous-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "mixed-simple-continuous-transform" }
-  - match: { transforms.0.task_state: "stopped" }
+  # Since we are breaking the stats format between 7.3 and 7.4 (allowed because we're beta) we cannot
+  # assert on state in the mixed cluster as it could be state at the top level or state.task_state
+  # TODO: uncomment this assertion in master
+  #- match: { transforms.0.state: "stopped" }
 
 ---
 "Test GET, start, and stop old cluster batch transforms":
@@ -202,7 +220,10 @@
         transform_id: "old-simple-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "old-simple-transform" }
-  - match: { transforms.0.task_state: "/started|stopped/" }
+  # Since we are breaking the stats format between 7.3 and 7.4 (allowed because we're beta) we cannot
+  # assert on state in the mixed cluster as it could be state at the top level or state.task_state
+  # TODO: uncomment this assertion in master
+  #- match: { transforms.0.state: "/started|indexing|stopping|stopped/" }
 
   - do:
       data_frame.stop_data_frame_transform:
@@ -214,7 +235,10 @@
         transform_id: "old-simple-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "old-simple-transform" }
-  - match: { transforms.0.task_state: "stopped" }
+  # Since we are breaking the stats format between 7.3 and 7.4 (allowed because we're beta) we cannot
+  # assert on state in the mixed cluster as it could be state at the top level or state.task_state
+  # TODO: uncomment this assertion in master
+  #- match: { transforms.0.state: "stopped" }
 
   - do:
       data_frame.get_data_frame_transform:
@@ -238,7 +262,10 @@
         transform_id: "old-complex-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "old-complex-transform" }
-  - match: { transforms.0.task_state: "/started|stopped/" }
+  # Since we are breaking the stats format between 7.3 and 7.4 (allowed because we're beta) we cannot
+  # assert on state in the mixed cluster as it could be state at the top level or state.task_state
+  # TODO: uncomment this assertion in master
+  #- match: { transforms.0.state: "/started|indexing|stopping|stopped/" }
 
   - do:
       data_frame.stop_data_frame_transform:
@@ -250,7 +277,10 @@
         transform_id: "old-complex-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "old-complex-transform" }
-  - match: { transforms.0.task_state: "stopped" }
+  # Since we are breaking the stats format between 7.3 and 7.4 (allowed because we're beta) we cannot
+  # assert on state in the mixed cluster as it could be state at the top level or state.task_state
+  # TODO: uncomment this assertion in master
+  #- match: { transforms.0.state: "stopped" }
 
 ---
 "Test GET, stop, start, old continuous transforms":
@@ -282,7 +312,10 @@
         transform_id: "old-simple-continuous-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "old-simple-continuous-transform" }
-  - match: { transforms.0.task_state: "started" }
+  # Since we are breaking the stats format between 7.3 and 7.4 (allowed because we're beta) we cannot
+  # assert on state in the mixed cluster as it could be state at the top level or state.task_state
+  # TODO: uncomment this assertion in master
+  #- match: { transforms.0.state: "/started|indexing/" }
 
   - do:
       data_frame.stop_data_frame_transform:
@@ -295,4 +328,7 @@
         transform_id: "old-simple-continuous-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "old-simple-continuous-transform" }
-  - match: { transforms.0.task_state: "stopped" }
+  # Since we are breaking the stats format between 7.3 and 7.4 (allowed because we're beta) we cannot
+  # assert on state in the mixed cluster as it could be state at the top level or state.task_state
+  # TODO: uncomment this assertion in master
+  #- match: { transforms.0.state: "stopped" }

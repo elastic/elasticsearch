@@ -44,7 +44,6 @@ import org.elasticsearch.client.dataframe.transforms.DataFrameIndexerTransformSt
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfigUpdate;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformStats;
-import org.elasticsearch.client.dataframe.transforms.DataFrameTransformTaskState;
 import org.elasticsearch.client.dataframe.transforms.DestConfig;
 import org.elasticsearch.client.dataframe.transforms.SourceConfig;
 import org.elasticsearch.client.dataframe.transforms.TimeSyncConfig;
@@ -305,10 +304,11 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         GetDataFrameTransformStatsResponse statsResponse = execute(new GetDataFrameTransformStatsRequest(id),
                 client::getDataFrameTransformStats, client::getDataFrameTransformStatsAsync);
         assertThat(statsResponse.getTransformsStats(), hasSize(1));
-        DataFrameTransformTaskState taskState = statsResponse.getTransformsStats().get(0).getTaskState();
+        DataFrameTransformStats.State taskState = statsResponse.getTransformsStats().get(0).getState();
 
         // Since we are non-continuous, the transform could auto-stop between being started earlier and us gathering the statistics
-        assertThat(taskState, is(oneOf(DataFrameTransformTaskState.STARTED, DataFrameTransformTaskState.STOPPED)));
+        assertThat(taskState, oneOf(DataFrameTransformStats.State.STARTED, DataFrameTransformStats.State.INDEXING,
+            DataFrameTransformStats.State.STOPPING, DataFrameTransformStats.State.STOPPED));
 
         StopDataFrameTransformRequest stopRequest = new StopDataFrameTransformRequest(id, Boolean.TRUE, null);
         StopDataFrameTransformResponse stopResponse =
@@ -320,8 +320,8 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         // Calling stop with wait_for_completion assures that we will be in the `STOPPED` state for the transform task
         statsResponse = execute(new GetDataFrameTransformStatsRequest(id),
             client::getDataFrameTransformStats, client::getDataFrameTransformStatsAsync);
-        taskState = statsResponse.getTransformsStats().get(0).getTaskState();
-        assertThat(taskState, is(DataFrameTransformTaskState.STOPPED));
+        taskState = statsResponse.getTransformsStats().get(0).getState();
+        assertThat(taskState, is(DataFrameTransformStats.State.STOPPED));
     }
 
     @SuppressWarnings("unchecked")
@@ -404,7 +404,7 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
 
         assertEquals(1, statsResponse.getTransformsStats().size());
         DataFrameTransformStats stats = statsResponse.getTransformsStats().get(0);
-        assertEquals(DataFrameTransformTaskState.STOPPED, stats.getTaskState());
+        assertEquals(DataFrameTransformStats.State.STOPPED, stats.getState());
 
         DataFrameIndexerTransformStats zeroIndexerStats = new DataFrameIndexerTransformStats(0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L);
         assertEquals(zeroIndexerStats, stats.getIndexerStats());
@@ -419,8 +419,8 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
                     client::getDataFrameTransformStats, client::getDataFrameTransformStatsAsync);
             DataFrameTransformStats stateAndStats = response.getTransformsStats().get(0);
             assertNotEquals(zeroIndexerStats, stateAndStats.getIndexerStats());
-            assertThat(stateAndStats.getTaskState(),
-                is(oneOf(DataFrameTransformTaskState.STARTED, DataFrameTransformTaskState.STOPPED)));
+            assertThat(stateAndStats.getState(), oneOf(DataFrameTransformStats.State.STARTED, DataFrameTransformStats.State.INDEXING,
+                DataFrameTransformStats.State.STOPPING, DataFrameTransformStats.State.STOPPED));
             assertThat(stateAndStats.getReason(), is(nullValue()));
         });
     }

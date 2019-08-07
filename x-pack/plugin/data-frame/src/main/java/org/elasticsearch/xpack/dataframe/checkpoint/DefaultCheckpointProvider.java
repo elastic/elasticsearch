@@ -320,7 +320,7 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
     void reportSourceIndexChanges(final Set<String> lastSourceIndexes, final Set<String> newSourceIndexes) {
         // spam protection: only warn the first time
         if (newSourceIndexes.isEmpty() && lastSourceIndexes.isEmpty() == false) {
-            String message = "Source did not resolve to any concrete indexes";
+            String message = "Source did not resolve to any open indexes.";
             logger.warn("{} for transform [{}]", message, transformConfig.getId());
             dataFrameAuditor.warning(transformConfig.getId(), message);
         } else {

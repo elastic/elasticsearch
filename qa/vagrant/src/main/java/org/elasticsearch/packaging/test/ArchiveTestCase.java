@@ -266,6 +266,64 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         });
     }
 
+    public void test61PasswordProtectedKeystore() throws Exception {
+        assumeThat(installation, is(notNullValue()));
+        // cleanup from previous test
+        // rm(installation.config("elasticsearch.keystore"));
+
+        String password = "keystorepass";
+        final Shell sh = new Shell();
+        Platforms.onLinux(() -> {
+            String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
+            sh.getEnv().put("JAVA_HOME", systemJavaHome);
+        });
+        Platforms.onWindows(() -> {
+            final String systemJavaHome = sh.run("$Env:SYSTEM_JAVA_HOME").stdout.trim();
+            sh.getEnv().put("JAVA_HOME", systemJavaHome);
+        });
+
+
+        final Installation.Executables bin = installation.executables();
+
+        try {
+            // Platforms.onLinux(() -> sh.run("yes | sudo -u " + ARCHIVE_OWNER + " " + bin.elasticsearchKeystore + " create"));
+            // set the password by passing it to stdin twice
+            sh.run("echo $\'" + password + "\n" + password + "\n\' | sudo -u " + ARCHIVE_OWNER + " "
+                + bin.elasticsearchKeystore + " passwd");
+
+            Archives.runElasticsearch(installation, sh, password);
+            ServerUtils.runElasticsearchTests();
+            Archives.stopElasticsearch(installation);
+        } finally {
+            // do nothing atm
+        }
+    }
+
+    public void test62PasswordProtectedKeystoreIncorrectPassword() throws Exception {
+        assumeThat(installation, is(notNullValue()));
+
+        final Shell sh = new Shell();
+        Platforms.onLinux(() -> {
+            String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
+            sh.getEnv().put("JAVA_HOME", systemJavaHome);
+        });
+        Platforms.onWindows(() -> {
+            final String systemJavaHome = sh.run("$Env:SYSTEM_JAVA_HOME").stdout.trim();
+            sh.getEnv().put("JAVA_HOME", systemJavaHome);
+        });
+
+        RuntimeException expected = null;
+        try {
+            Archives.runElasticsearch(installation, sh, "wrong");
+        } catch (RuntimeException e) {
+            expected = e;
+        } finally {
+            rm(installation.config("elasticsearch.keystore"));
+        }
+        assertThat(expected, notNullValue());
+        assertThat(expected.getMessage(), containsString("Elasticsearch did not start"));
+    }
+
     public void test70CustomPathConfAndJvmOptions() throws Exception {
         assumeThat(installation, is(notNullValue()));
 

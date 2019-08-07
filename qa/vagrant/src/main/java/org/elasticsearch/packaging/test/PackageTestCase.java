@@ -23,6 +23,7 @@ import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.FileUtils;
+import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.packaging.util.Shell.Result;
 import org.hamcrest.CoreMatchers;
@@ -389,6 +390,9 @@ public abstract class PackageTestCase extends PackagingTestCase {
         Path esKeystorePassphraseFile = installation.config.resolve("eks");
         Path esEnv = installation.bin.resolve("elasticsearch-env");
         byte[] originalEnvFile = Files.readAllBytes(esEnv);
+
+        final Installation.Executables bin = installation.executables();
+
         try {
             Files.createFile(esKeystorePassphraseFile);
             Files.write(esEnv,
@@ -400,7 +404,7 @@ public abstract class PackageTestCase extends PackagingTestCase {
 
             // set the password by passing it to stdin twice
             sh.run("echo $\'" + passwordWithNewline + passwordWithNewline + "\' | "
-                + installation.bin.toString() + "/elasticsearch-keystore passwd");
+                + bin.elasticsearchKeystore + " passwd");
 
             startElasticsearch(sh);
             runElasticsearchTests();
@@ -419,6 +423,8 @@ public abstract class PackageTestCase extends PackagingTestCase {
         Path esEnv = installation.bin.resolve("elasticsearch-env");
         byte[] originalEnvFile = Files.readAllBytes(esEnv);
 
+        final Installation.Executables bin = installation.executables();
+
         RuntimeException expected = null;
         try {
             Files.createFile(esKeystorePassphraseFile);
@@ -429,10 +435,10 @@ public abstract class PackageTestCase extends PackagingTestCase {
                 "wrongpassword\n".getBytes(StandardCharsets.UTF_8),
                 StandardOpenOption.WRITE);
 
-            sh.run("yes | " + installation.bin.toString() + "/elasticsearch-keystore create");
+            sh.run("yes | " + bin.elasticsearchKeystore + " create");
             // set the password by passing it to stdin twice
             sh.run("echo $\'" + passwordWithNewline + passwordWithNewline + "\' | "
-                + installation.bin.toString() + "/elasticsearch-keystore passwd");
+                + bin.elasticsearchKeystore + " passwd");
 
             startElasticsearch(sh);
         } catch (RuntimeException e) {

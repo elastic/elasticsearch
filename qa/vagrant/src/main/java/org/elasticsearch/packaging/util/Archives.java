@@ -253,6 +253,10 @@ public class Archives {
     }
 
     public static void runElasticsearch(Installation installation, Shell sh) throws Exception {
+        runElasticsearch(installation, sh, "");
+    }
+
+    public static void runElasticsearch(Installation installation, Shell sh, String keystorePassword) throws Exception {
         final Path pidFile = installation.home.resolve("elasticsearch.pid");
 
         final Installation.Executables bin = installation.executables();
@@ -265,7 +269,8 @@ public class Archives {
                 sh.getEnv().put("JAVA_TOOL_OPTIONS", "-javaagent:/usr/share/java/jayatanaag.jar");
             }
             sh.run("sudo -E -u " + ARCHIVE_OWNER + " " +
-                bin.elasticsearch + " -d -p " + installation.home.resolve("elasticsearch.pid"));
+                bin.elasticsearch + " -d -p " + installation.home.resolve("elasticsearch.pid") +
+                " <<<'" + keystorePassword + "'");
         });
 
         Platforms.onWindows(() -> {

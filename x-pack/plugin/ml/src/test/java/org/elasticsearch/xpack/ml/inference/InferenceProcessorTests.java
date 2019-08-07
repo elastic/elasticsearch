@@ -14,22 +14,28 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class InferenceProcessorTests extends ESTestCase {
 
     public void testFactory() throws Exception {
-        InferenceProcessor.Factory factory = new InferenceProcessor.Factory(Collections.emptyMap());
+        Model mockModel = mock(Model.class);
+        ModelLoader mockLoader = mock(ModelLoader.class);
+        when(mockLoader.load(eq("k2"), eq("inference"), eq(false), any())).thenReturn(mockModel);
+
+        InferenceProcessor.Factory factory = new InferenceProcessor.Factory(Map.of("test", mockLoader));
 
         Map<String, Object> config = new HashMap<>();
-        config.put("model", "k2");
-        config.put("target_field", "lion");
+        config.put("model_id", "k2");
+        config.put("model_type", "test");
         String processorTag = randomAlphaOfLength(10);
 
         InferenceProcessor processor = factory.create(Collections.emptyMap(), processorTag, config);
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getType(), equalTo("inference"));
-        assertThat(processor.getModelId(), equalTo("k2"));
-//        assertThat(processor.getTargetField(), equalTo("lion"));
     }
 
     public void testFactory_givenMissingModel() {
@@ -41,6 +47,6 @@ public class InferenceProcessorTests extends ESTestCase {
 
         ElasticsearchParseException parseException = expectThrows(ElasticsearchParseException.class,
                 () -> factory.create(Collections.emptyMap(), processorTag, config));
-        assertThat(parseException.getMessage(), equalTo("[model] required property is missing"));
+        assertThat(parseException.getMessage(), equalTo("[model_id] required property is missing"));
     }
 }

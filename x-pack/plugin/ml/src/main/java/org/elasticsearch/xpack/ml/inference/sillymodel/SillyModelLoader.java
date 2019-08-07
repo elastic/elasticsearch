@@ -53,7 +53,7 @@ public class SillyModelLoader implements ModelLoader {
     }
 
     @Override
-    public void readConfiguration(String processorTag, Map<String, Object> config) {
+    public void consumeConfiguration(String processorTag, Map<String, Object> config) {
         ConfigurationUtils.readStringProperty(InferenceProcessor.TYPE, processorTag, config, INDEX);
     }
 

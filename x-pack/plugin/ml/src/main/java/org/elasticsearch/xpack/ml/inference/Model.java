@@ -8,7 +8,9 @@ package org.elasticsearch.xpack.ml.inference;
 
 import org.elasticsearch.ingest.IngestDocument;
 
+import java.util.function.BiConsumer;
+
 public interface Model {
 
-    IngestDocument infer(IngestDocument document);
+    void infer(IngestDocument document, BiConsumer<IngestDocument, Exception> handler);
 }

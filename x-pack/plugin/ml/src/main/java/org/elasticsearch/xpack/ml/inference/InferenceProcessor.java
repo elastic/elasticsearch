@@ -6,8 +6,6 @@
 
 package org.elasticsearch.xpack.ml.inference;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -15,10 +13,10 @@ import org.elasticsearch.ingest.Processor;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.BiConsumer;
 
 public class InferenceProcessor extends AbstractProcessor {
 
-    private static final Logger logger = LogManager.getLogger(InferenceProcessor.class);
     public static final String TYPE = "inference";
     private static final String MODEL_ID = "model_id";
     private static final String MODEL_TYPE = "model_type";
@@ -26,27 +24,26 @@ public class InferenceProcessor extends AbstractProcessor {
 
 
     private final Model model;
-    private final String modelId;
 
-
-    public InferenceProcessor(String tag, String modelId, Model model) {
+    public InferenceProcessor(String tag, Model model) {
         super(tag);
-        this.modelId = modelId;
         this.model = model;
     }
-    @Override
-    public IngestDocument execute(IngestDocument document) {
 
-        return model.infer(document);
+    @Override
+    public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
+        model.infer(ingestDocument, handler);
+    }
+
+    @Override
+    public IngestDocument execute(IngestDocument ingestDocument) {
+        assert false : "The async override of execute() must be used";
+        return null;
     }
 
     @Override
     public String getType() {
         return TYPE;
-    }
-
-    public String getModelId() {
-        return modelId;
     }
 
     public static final class Factory implements Processor.Factory {
@@ -73,9 +70,9 @@ public class InferenceProcessor extends AbstractProcessor {
                 ModelLoader loader = modelLoaders.get(modelType);
                 // read the model's config even though we don't need it here.
                 // it is an error to leave options in the config map
-                loader.readConfiguration(tag, config);
+                loader.consumeConfiguration(tag, config);
 
-                return new InferenceProcessor(tag, modelId, loadedModels.get(modelId));
+                return new InferenceProcessor(tag, loadedModels.get(modelId));
             } else {
                 ModelLoader loader = modelLoaders.get(modelType);
                 if (loader == null) {
@@ -84,7 +81,7 @@ public class InferenceProcessor extends AbstractProcessor {
 
                 Model model = loader.load(modelId, tag, ignoreMissing, config);
                 loadedModels.put(modelId, model);
-                return new InferenceProcessor(tag, modelId, model);
+                return new InferenceProcessor(tag, model);
             }
         }
     }

@@ -326,7 +326,8 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
 
         PersistentTasksService persistentTasksService = new PersistentTasksService(null, null, mockClient) {
             @Override
-            public void sendCompletionRequest(String taskId, long taskAllocationId, Exception taskFailure, ActionListener<PersistentTask<?>> listener) {
+            public void sendCompletionRequest(String taskId, long taskAllocationId, Exception taskFailure,
+                                              ActionListener<PersistentTask<?>> listener) {
                 assertThat(taskFailure, instanceOf(RuntimeException.class));
                 assertThat(taskFailure.getMessage(), equalTo("Something went wrong"));
                 listener.onResponse(mock(PersistentTask.class));

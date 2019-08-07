@@ -56,11 +56,11 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
             new MockLogAppender.SeenEventExpectation("warn when source is empty",
                 checkpointProviderlogger.getName(),
                 Level.WARN,
-                "Source did not resolve to any concrete indexes for transform [" + transformId + "]"),
+                "Source did not resolve to any open indexes for transform [" + transformId + "]"),
             new MockDataFrameAuditor.SeenAuditExpectation("warn when source is empty",
                 org.elasticsearch.xpack.core.common.notifications.Level.WARNING,
                 transformId,
-                "Source did not resolve to any concrete indexes"),
+                "Source did not resolve to any open indexes"),
             () -> {
                     provider.reportSourceIndexChanges(Collections.singleton("index"), Collections.emptySet());
                 });

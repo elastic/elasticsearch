@@ -14,9 +14,4 @@ public class DefaultTestClustersTask extends DefaultTask implements TestClusters
         return clusters;
     }
 
-    @Override
-    public void testCluster(ElasticsearchCluster cluster) {
-        this.clusters.add(cluster);
-    }
-
 }

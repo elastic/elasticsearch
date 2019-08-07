@@ -36,10 +36,6 @@ import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.api.tasks.TaskState;
 
 import java.io.File;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 public class TestClustersPlugin implements Plugin<Project> {
 
@@ -62,9 +58,6 @@ public class TestClustersPlugin implements Plugin<Project> {
 
         // provide a task to be able to list defined clusters.
         createListClustersTask(project, container);
-
-        // create DSL for tasks to mark clusters these use
-        createUseClusterTaskExtension(project, container);
 
         if (project.getRootProject().getExtensions().findByType(TestClustersRegistry.class) == null) {
             TestClustersRegistry registry = project.getRootProject().getExtensions()
@@ -112,36 +105,6 @@ public class TestClustersPlugin implements Plugin<Project> {
             container.forEach(cluster ->
                 logger.lifecycle("   * {}: {}", cluster.getName(), cluster.getNumberOfNodes())
             )
-        );
-    }
-
-    private void createUseClusterTaskExtension(Project project, NamedDomainObjectContainer<ElasticsearchCluster> container) {
-        // register an extension for all current and future tasks, so that any task can declare that it wants to use a
-        // specific cluster.
-        project.getTasks().withType(TestClustersAware.class, (Task task) ->
-            task.getExtensions().findByType(ExtraPropertiesExtension.class)
-                .set(
-                    "useCluster",
-                    new Closure<Void>(project, task) {
-                        public void doCall(ElasticsearchCluster cluster) {
-                            if (container.contains(cluster) == false) {
-                                throw new TestClustersException(
-                                    "Task " + task.getPath() + " can't use test cluster from" +
-                                    " another project " + cluster
-                                );
-                            }
-                            Object thisObject = this.getThisObject();
-                            if (thisObject instanceof Task == false) {
-                                throw new AssertionError("Expected " + thisObject + " to be an instance of " +
-                                    "Task, but got: " + thisObject.getClass());
-                            }
-                            for (ElasticsearchNode node : cluster.getNodes()) {
-                                ((Task) thisObject).dependsOn(node.getDistribution().getExtracted());
-                            }
-
-                            ((TestClustersAware) thisObject).testCluster(cluster);
-                        }
-                    })
         );
     }
 

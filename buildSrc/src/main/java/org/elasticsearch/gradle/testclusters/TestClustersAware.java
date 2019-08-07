@@ -10,5 +10,17 @@ interface TestClustersAware extends Task {
     @Nested
     Collection<ElasticsearchCluster> getClusters();
 
-    void testCluster(ElasticsearchCluster cluster);
+    default void useCluster(ElasticsearchCluster cluster) {
+        if (cluster.getPath().equals(getProject().getPath()) == false) {
+            throw new TestClustersException(
+                "Task " + getPath() + " can't use test cluster from" +
+                    " another project " + cluster
+            );
+        }
+
+        for (ElasticsearchNode node : cluster.getNodes()) {
+            this.dependsOn(node.getDistribution().getExtracted());
+        }
+        getClusters().add(cluster);
+    }
 }

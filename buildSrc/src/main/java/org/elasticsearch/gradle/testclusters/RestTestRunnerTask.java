@@ -36,8 +36,4 @@ public class RestTestRunnerTask extends Test implements TestClustersAware {
         return clusters;
     }
 
-    @Override
-    public void testCluster(ElasticsearchCluster cluster) {
-        this.clusters.add(cluster);
-    }
 }

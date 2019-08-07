@@ -27,12 +27,9 @@ import org.gradle.api.tasks.TaskAction;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public class BatsTestTask extends DefaultTask {
-
-    private static final Pattern TEST_FILE_PREFIX = Pattern.compile("^\\d+");
 
     private Directory testsDir;
     private Directory utilsDir;
@@ -81,7 +78,7 @@ public class BatsTestTask extends DefaultTask {
         command.add("bats");
         command.add("--tap");
         command.addAll(testsDir.getAsFileTree().getFiles().stream()
-            .filter(f -> TEST_FILE_PREFIX.matcher(f.getName()).find())
+            .filter(f -> f.getName().endsWith(".bats"))
             .sorted().collect(Collectors.toList()));
         getProject().exec(spec -> {
             spec.setWorkingDir(archivesDir.getAsFile());

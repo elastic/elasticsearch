@@ -91,7 +91,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
             in.readStringList(),
             in.readString(),
             in.readStringList(),
-            in.readBoolean() ? Version.readVersion(in) : null
+            Version.readVersion(in)
         );
     }
 
@@ -100,12 +100,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
                         List<String> indices,
                         String enrichKey,
                         List<String> enrichValues) {
-        this.type = type;
-        this.query= query;
-        this.indices = indices;
-        this.enrichKey = enrichKey;
-        this.enrichValues = enrichValues;
-        this.versionCreated = null;
+        this(type, query, indices, enrichKey, enrichValues, Version.CURRENT);
     }
 
     public EnrichPolicy(String type,
@@ -119,7 +114,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         this.indices = indices;
         this.enrichKey = enrichKey;
         this.enrichValues = enrichValues;
-        this.versionCreated = versionCreated;
+        this.versionCreated = versionCreated != null ? versionCreated : Version.CURRENT;
     }
 
     public String getType() {
@@ -157,12 +152,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         out.writeStringCollection(indices);
         out.writeString(enrichKey);
         out.writeStringCollection(enrichValues);
-        if (versionCreated != null) {
-            out.writeBoolean(true);
-            Version.writeVersion(versionCreated, out);
-        } else {
-            out.writeBoolean(false);
-        }
+        Version.writeVersion(versionCreated, out);
     }
 
     @Override
@@ -190,7 +180,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
             indices.equals(policy.indices) &&
             enrichKey.equals(policy.enrichKey) &&
             enrichValues.equals(policy.enrichValues) &&
-            Objects.equals(versionCreated, policy.versionCreated);
+            versionCreated.equals(policy.versionCreated);
     }
 
     @Override

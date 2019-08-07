@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.enrich;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -61,7 +62,8 @@ public class EnrichPolicyTests extends AbstractSerializingTestCase<EnrichPolicy>
                 randomBoolean() ? querySource : null,
                 Arrays.asList(generateRandomStringArray(8, 4, false, false)),
                 randomAlphaOfLength(4),
-                Arrays.asList(generateRandomStringArray(8, 4, false, false))
+                Arrays.asList(generateRandomStringArray(8, 4, false, false)),
+                Version.CURRENT
             );
         } catch (IOException e) {
             throw new UncheckedIOException(e);

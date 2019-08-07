@@ -35,13 +35,11 @@ public class EnrichRestartIT extends ESIntegTestCase {
         final int numPolicies = randomIntBetween(2, 4);
         internalCluster().startNode();
 
-        EnrichPolicy enrichPolicy = newPolicy();
+        EnrichPolicy enrichPolicy =
+            new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, List.of(SOURCE_INDEX_NAME), KEY_FIELD, List.of(DECORATE_FIELDS));
         for (int i = 0; i < numPolicies; i++) {
             String policyName = POLICY_NAME + i;
-            PutEnrichPolicyAction.Request request = new PutEnrichPolicyAction.Request(policyName, newPolicy());
-            if (request.validate() != null) {
-                throw request.validate();
-            }
+            PutEnrichPolicyAction.Request request = new PutEnrichPolicyAction.Request(policyName, enrichPolicy);
             client().execute(PutEnrichPolicyAction.INSTANCE, request).actionGet();
         }
 
@@ -65,11 +63,7 @@ public class EnrichRestartIT extends ESIntegTestCase {
                 .filter(namedPolicy -> namedPolicy.getName().equals(policyName))
                 .findFirst();
             assertThat(result.isPresent(), is(true));
-            assertThat(result.get().getPolicy().getType(), equalTo(enrichPolicy.getType()));
-            assertThat(result.get().getPolicy().getQuery(), equalTo(enrichPolicy.getQuery()));
-            assertThat(result.get().getPolicy().getIndices(), equalTo(enrichPolicy.getIndices()));
-            assertThat(result.get().getPolicy().getEnrichKey(), equalTo(enrichPolicy.getEnrichKey()));
-            assertThat(result.get().getPolicy().getEnrichValues(), equalTo(enrichPolicy.getEnrichValues()));
+            assertThat(result.get().getPolicy(), equalTo(enrichPolicy));
         }
     }
 

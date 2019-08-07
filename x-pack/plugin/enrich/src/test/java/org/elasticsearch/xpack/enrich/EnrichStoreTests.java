@@ -38,19 +38,11 @@ public class EnrichStoreTests extends ESSingleNodeTestCase {
         assertThat(error.get(), nullValue());
 
         EnrichPolicy result = EnrichStore.getPolicy(name, clusterService.state());
-        assertThat(result.getType(), equalTo(policy.getType()));
-        assertThat(result.getEnrichKey(), equalTo(policy.getEnrichKey()));
-        assertThat(result.getEnrichValues(), equalTo(policy.getEnrichValues()));
-        assertThat(result.getIndices(), equalTo(policy.getIndices()));
-        assertThat(result.getQuery(), equalTo(policy.getQuery()));
+        assertThat(result, equalTo(policy));
 
         Map<String, EnrichPolicy> listPolicies = EnrichStore.getPolicies(clusterService.state());
         assertThat(listPolicies.size(), equalTo(1));
-        assertThat(listPolicies.get(name).getType(), equalTo(policy.getType()));
-        assertThat(listPolicies.get(name).getEnrichKey(), equalTo(policy.getEnrichKey()));
-        assertThat(listPolicies.get(name).getEnrichValues(), equalTo(policy.getEnrichValues()));
-        assertThat(listPolicies.get(name).getIndices(), equalTo(policy.getIndices()));
-        assertThat(listPolicies.get(name).getQuery(), equalTo(policy.getQuery()));
+        assertThat(listPolicies.get(name), equalTo(policy));
 
         deleteEnrichPolicy(name, clusterService);
         result = EnrichStore.getPolicy(name, clusterService.state());

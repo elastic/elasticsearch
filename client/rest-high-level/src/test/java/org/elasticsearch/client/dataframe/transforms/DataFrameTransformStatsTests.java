@@ -41,7 +41,7 @@ public class DataFrameTransformStatsTests extends ESTestCase {
 
     public static DataFrameTransformStats randomInstance() {
         return new DataFrameTransformStats(randomAlphaOfLength(10),
-            randomBoolean() ? null : randomFrom(DataFrameTransformTaskState.values()),
+            randomBoolean() ? null : randomFrom(DataFrameTransformStats.State.values()),
             randomBoolean() ? null : randomAlphaOfLength(100),
             randomBoolean() ? null : NodeAttributesTests.createRandom(),
             DataFrameIndexerTransformStatsTests.randomStats(),
@@ -51,9 +51,9 @@ public class DataFrameTransformStatsTests extends ESTestCase {
     public static void toXContent(DataFrameTransformStats stats, XContentBuilder builder) throws IOException {
         builder.startObject();
         builder.field(DataFrameTransformStats.ID.getPreferredName(), stats.getId());
-        if (stats.getTaskState() != null) {
-            builder.field(DataFrameTransformStats.TASK_STATE_FIELD.getPreferredName(),
-                stats.getTaskState().value());
+        if (stats.getState() != null) {
+            builder.field(DataFrameTransformStats.STATE_FIELD.getPreferredName(),
+                stats.getState().value());
         }
         if (stats.getReason() != null) {
             builder.field(DataFrameTransformStats.REASON_FIELD.getPreferredName(), stats.getReason());

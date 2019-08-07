@@ -138,7 +138,8 @@ public class EdgeTreeReader implements ShapeTreeReader {
         if (root.maxY >= extent.minY()) {
             // is bbox-query contained within linearRing
             // cast infinite ray to the right from bottom-left of bbox-query to see if it intersects edge
-            if (lineCrossesLineWithBoundary(root.x1, root.y1, root.x2, root.y2, extent.minX(), extent.minY(), Integer.MAX_VALUE, extent.minY())) {
+            if (lineCrossesLineWithBoundary(root.x1, root.y1, root.x2, root.y2, extent.minX(), extent.minY(), Integer.MAX_VALUE,
+                    extent.minY())) {
                 res = true;
             }
 
@@ -161,10 +162,14 @@ public class EdgeTreeReader implements ShapeTreeReader {
         if (root.maxY >= extent.minY()) {
             // is bbox-query contained within linearRing
             // cast infinite ray to the right from each corner of the extent
-            if (lineCrossesLineWithBoundary(root.x1, root.y1, root.x2, root.y2, extent.minX(), extent.minY(), Integer.MAX_VALUE, extent.minY())
-                && lineCrossesLineWithBoundary(root.x1, root.y1, root.x2, root.y2, extent.minX(), extent.maxY(), Integer.MAX_VALUE, extent.maxY())
-                && lineCrossesLineWithBoundary(root.x1, root.y1, root.x2, root.y2, extent.maxX(), extent.minY(), Integer.MAX_VALUE, extent.minY())
-                && lineCrossesLineWithBoundary(root.x1, root.y1, root.x2, root.y2, extent.maxX(), extent.maxY(), Integer.MAX_VALUE, extent.maxY())
+            if (lineCrossesLineWithBoundary(root.x1, root.y1, root.x2, root.y2, extent.minX(), extent.minY(),
+                    Integer.MAX_VALUE, extent.minY())
+                && lineCrossesLineWithBoundary(root.x1, root.y1, root.x2, root.y2, extent.minX(), extent.maxY(),
+                    Integer.MAX_VALUE, extent.maxY())
+                && lineCrossesLineWithBoundary(root.x1, root.y1, root.x2, root.y2, extent.maxX(), extent.minY(),
+                    Integer.MAX_VALUE, extent.minY())
+                && lineCrossesLineWithBoundary(root.x1, root.y1, root.x2, root.y2, extent.maxX(), extent.maxY(),
+                    Integer.MAX_VALUE, extent.maxY())
             ) {
                 res = true;
             }

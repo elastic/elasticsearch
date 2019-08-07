@@ -49,10 +49,6 @@ public class EnrichRestartIT extends ESIntegTestCase {
         verifyPolicies(numPolicies, enrichPolicy);
     }
 
-    private EnrichPolicy newPolicy() {
-        return new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, List.of(SOURCE_INDEX_NAME), KEY_FIELD, List.of(DECORATE_FIELDS));
-    }
-
     private static void verifyPolicies(int numPolicies, EnrichPolicy enrichPolicy) {
         ListEnrichPolicyAction.Response response =
             client().execute(ListEnrichPolicyAction.INSTANCE, new ListEnrichPolicyAction.Request()).actionGet();

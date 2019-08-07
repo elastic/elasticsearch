@@ -5,7 +5,7 @@ tag::bytes[]
 end::bytes[]
 
 tag::cat-h[]
-`h` (headings)::
+`h`::
 (Optional, string) Comma-separated list of column names to display.
 end::cat-h[]
 
@@ -53,13 +53,13 @@ returned information.
 end::node-id[]
 
 tag::cat-s[]
-`s` (sort)::
+`s`::
 (Optional, string) Comma-separated list of column names or column aliases used
 to sort the response.
 end::cat-s[]
 
 tag::cat-v[]
-`v` (verbose)::
+`v`::
 (Optional, boolean) If `true`, the response includes column headings. Defaults
 to `false`.
 end::cat-v[]

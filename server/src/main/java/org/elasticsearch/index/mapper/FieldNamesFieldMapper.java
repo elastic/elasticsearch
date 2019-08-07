@@ -24,7 +24,6 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -73,21 +72,14 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static class Builder extends MetadataFieldMapper.Builder<Builder, FieldNamesFieldMapper> {
+    private static class Builder extends MetadataFieldMapper.Builder<Builder, FieldNamesFieldMapper> {
         private boolean enabled = Defaults.ENABLED;
 
-        public Builder(MappedFieldType existing) {
+        private Builder(MappedFieldType existing) {
             super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing, Defaults.FIELD_TYPE);
         }
 
-        @Override
-        @Deprecated
-        public Builder index(boolean index) {
-            enabled(index);
-            return super.index(index);
-        }
-
-        public Builder enabled(boolean enabled) {
+        private Builder enabled(boolean enabled) {
             this.enabled = enabled;
             return this;
         }
@@ -209,10 +201,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void postParse(ParseContext context) throws IOException {
-        if (context.indexSettings().getIndexVersionCreated().before(Version.V_6_1_0)) {
-            super.parse(context);
-        }
+    public void postParse(ParseContext context) {
     }
 
     @Override

@@ -86,6 +86,7 @@ final class ProcessContext {
         private boolean awaitCompletion;
         private boolean finish;
         private boolean silent;
+        private boolean shouldFinalizeJob = true;
         private String reason;
 
         KillBuilder setAwaitCompletion(boolean awaitCompletion) {
@@ -108,6 +109,11 @@ final class ProcessContext {
             return this;
         }
 
+        KillBuilder setShouldFinalizeJob(boolean shouldFinalizeJob) {
+            this.shouldFinalizeJob = shouldFinalizeJob;
+            return this;
+        }
+
         void kill() {
             if (autodetectCommunicator == null) {
                 return;
@@ -123,7 +129,7 @@ final class ProcessContext {
                 }
             }
             try {
-                autodetectCommunicator.killProcess(awaitCompletion, finish);
+                autodetectCommunicator.killProcess(awaitCompletion, finish, shouldFinalizeJob);
             } catch (IOException e) {
                 LOGGER.error("[{}] Failed to kill autodetect process for job", jobId);
             }

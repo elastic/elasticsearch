@@ -38,6 +38,7 @@ import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentiles;
 import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.PercentilesMethod;
 import org.elasticsearch.search.aggregations.metrics.TDigestPercentilesAggregator;
+import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 
 import java.io.IOException;
 import java.util.function.Consumer;
@@ -52,6 +53,7 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
             // Intentionally not writing any docs
         }, tdigest -> {
             assertEquals(0L, tdigest.state.size());
+            assertFalse(AggregationInspectionHelper.hasValue(tdigest));
         });
     }
 
@@ -61,6 +63,7 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 1)));
         }, tdigest -> {
             assertEquals(0L, tdigest.state.size());
+            assertFalse(AggregationInspectionHelper.hasValue(tdigest));
         });
     }
 
@@ -82,6 +85,7 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
             assertEquals("2.0", tdigest.percentileAsString(50));
             assertEquals(1.0d, tdigest.percentile(22), 0.0d);
             assertEquals("1.0", tdigest.percentileAsString(22));
+            assertTrue(AggregationInspectionHelper.hasValue(tdigest));
         });
     }
 
@@ -107,6 +111,7 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
             assertEquals("1.0", tdigest.percentileAsString(25));
             assertEquals(0.0d, tdigest.percentile(1), 0.0d);
             assertEquals("0.0", tdigest.percentileAsString(1));
+            assertTrue(AggregationInspectionHelper.hasValue(tdigest));
         });
     }
 
@@ -127,11 +132,13 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
             assertEquals(2.0d, tdigest.percentile(100), 0.0d);
             assertEquals(1.0d, tdigest.percentile(50), 0.0d);
             assertEquals(0.5d, tdigest.percentile(25), 0.0d);
+            assertTrue(AggregationInspectionHelper.hasValue(tdigest));
         });
 
         testCase(LongPoint.newRangeQuery("row", 100, 110), docs, tdigest -> {
             assertEquals(0L, tdigest.state.size());
             assertEquals(0L, tdigest.state.centroidCount());
+            assertFalse(AggregationInspectionHelper.hasValue(tdigest));
         });
     }
 

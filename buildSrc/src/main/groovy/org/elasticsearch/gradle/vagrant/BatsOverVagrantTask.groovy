@@ -27,22 +27,19 @@ import org.gradle.api.tasks.Input
 public class BatsOverVagrantTask extends VagrantCommandTask {
 
     @Input
-    String remoteCommand
+    Object remoteCommand
 
     BatsOverVagrantTask() {
         command = 'ssh'
     }
 
-    void setRemoteCommand(String remoteCommand) {
+    void setRemoteCommand(Object remoteCommand) {
         this.remoteCommand = Objects.requireNonNull(remoteCommand)
-        setArgs(['--command', remoteCommand])
+        setArgs((Iterable<?>) ['--command', remoteCommand])
     }
 
     @Override
     protected OutputStream createLoggerOutputStream() {
-        return new TapLoggerOutputStream(
-                command: commandLine.join(' '),
-                factory: getProgressLoggerFactory(),
-                logger: logger)
+        return new TapLoggerOutputStream(logger, getProgressLoggerFactory().newOperation(boxName).setDescription(boxName));
     }
 }

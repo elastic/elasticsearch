@@ -1,17 +1,14 @@
 ---
 "Score should match explanation in rescore":
-  - skip:
-      version: " - 6.99.99"
-      reason: Explanation for rescoring was corrected after these versions
   - do:
       bulk:
         refresh: true
         body:
-          - '{"index": {"_index": "test_index", "_type": "_doc", "_id": "1"}}'
+          - '{"index": {"_index": "test_index", "_id": "1"}}'
           - '{"f1": "1"}'
-          - '{"index": {"_index": "test_index", "_type": "_doc", "_id": "2"}}'
+          - '{"index": {"_index": "test_index", "_id": "2"}}'
           - '{"f1": "2"}'
-          - '{"index": {"_index": "test_index", "_type": "_doc", "_id": "3"}}'
+          - '{"index": {"_index": "test_index", "_id": "3"}}'
           - '{"f1": "3"}'
 
   - do:

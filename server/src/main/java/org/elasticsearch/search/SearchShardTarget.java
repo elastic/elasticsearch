@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.RemoteClusterAware;
 
@@ -50,7 +49,7 @@ public final class SearchShardTarget implements Writeable, Comparable<SearchShar
         } else {
             nodeId = null;
         }
-        shardId = ShardId.readShardId(in);
+        shardId = new ShardId(in);
         this.originalIndices = null;
         clusterAlias = in.readOptionalString();
     }
@@ -60,11 +59,6 @@ public final class SearchShardTarget implements Writeable, Comparable<SearchShar
         this.shardId = shardId;
         this.originalIndices = originalIndices;
         this.clusterAlias = clusterAlias;
-    }
-
-    //this constructor is only used in tests
-    public SearchShardTarget(String nodeId, Index index, int shardId, String clusterAlias) {
-        this(nodeId, new ShardId(index, shardId), clusterAlias, OriginalIndices.NONE);
     }
 
     @Nullable

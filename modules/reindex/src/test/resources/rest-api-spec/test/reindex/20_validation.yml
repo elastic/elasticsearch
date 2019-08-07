@@ -44,7 +44,6 @@
   - do:
       index:
         index:   source
-        type:    foo
         id:      1
         body:    { "text": "test" }
   - do:
@@ -96,22 +95,90 @@
           conflicts: cat
 
 ---
-"invalid size fails":
+"specifying size fails":
+  - skip:
+      version: " - 7.99.99"
+      reason: "size supported until 8"
+
   - do:
       index:
-        index:   test
-        type:    test
-        id:      1
-        body:    { "text": "test" }
+        index:  test
+        id:     1
+        body:   { "text": "test" }
+
   - do:
-      catch: /\[size\] parameter cannot be negative, found \[-4\]/
+      catch: /invalid parameter \[size\], use \[max_docs\] instead/
       reindex:
         body:
           source:
             index: test
           dest:
             index: dest
-          size: -4
+          size: 1
+
+---
+"invalid max_docs in body fails":
+  - skip:
+      version: " - 7.2.99"
+      reason: "max_docs introduced in 7.3.0"
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      catch: /\[max_docs\] parameter cannot be negative, found \[-4\]/
+      reindex:
+        body:
+          source:
+            index: test
+          dest:
+            index: dest
+          max_docs: -4
+
+---
+"invalid max_docs in URL fails":
+  - skip:
+      version: " - 7.2.99"
+      reason: "max_docs introduced in 7.3.0"
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      catch: /\[max_docs\] parameter cannot be negative, found \[-4\]/
+      reindex:
+        max_docs: -4
+        body:
+          source:
+            index: test
+          dest:
+            index: dest
+
+---
+"inconsistent max_docs in body and max_docs in URL fails":
+  - skip:
+      version: " - 7.2.99"
+      reason: "max_docs introduced in 7.3.0"
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      catch: /\[max_docs\] set to two different values \[4\] and \[5\]/
+      reindex:
+        max_docs: 5
+        body:
+          source:
+            index: test
+          dest:
+            index: dest
+          max_docs: 4
 
 ---
 "requests_per_second cannot be an empty string":
@@ -168,20 +235,18 @@
         index: test
         body:
           mappings:
-            test:
-              _source:
-                enabled: false
+            _source:
+              enabled: false
   - do:
       index:
         index:  test
-        type:   test
         id:     1
         body:   { age: 23 }
   - do:
       indices.refresh: {}
 
   - do:
-      catch: /\[test\]\[test\]\[1\] didn't store _source/
+      catch: /\[test\]\[_doc\]\[1\] didn't store _source/
       reindex:
         body:
           source:
@@ -301,7 +366,6 @@
   - do:
       index:
         index:   source
-        type:    foo
         id:      1
         body:    { "text": "test" }
   - do:

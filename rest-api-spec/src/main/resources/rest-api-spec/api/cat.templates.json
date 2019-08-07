@@ -1,9 +1,9 @@
 {
   "cat.templates": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cat-templates.html",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/cat-templates.html",
+    "stability": "stable",
     "methods": ["GET"],
     "url": {
-      "path": "/_cat/templates",
       "paths": ["/_cat/templates", "/_cat/templates/{name}"],
       "parts": {
         "name": {

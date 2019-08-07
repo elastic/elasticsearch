@@ -23,7 +23,7 @@ You can configure it like:
 
 [source,js]
 --------------------------------------------------
-PUT /keyword_marker_example?include_type_name=true
+PUT /keyword_marker_example
 {
   "settings": {
     "analysis": {

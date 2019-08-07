@@ -22,7 +22,7 @@ package org.elasticsearch.index.shard;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
@@ -32,9 +32,9 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-public class IndexingStats implements Streamable, ToXContentFragment {
+public class IndexingStats implements Writeable, ToXContentFragment {
 
-    public static class Stats implements Streamable, ToXContentFragment {
+    public static class Stats implements Writeable, ToXContentFragment {
 
         private long indexCount;
         private long indexTimeInMillis;
@@ -48,6 +48,19 @@ public class IndexingStats implements Streamable, ToXContentFragment {
         private boolean isThrottled;
 
         Stats() {}
+
+        public Stats(StreamInput in) throws IOException {
+            indexCount = in.readVLong();
+            indexTimeInMillis = in.readVLong();
+            indexCurrent = in.readVLong();
+            indexFailedCount = in.readVLong();
+            deleteCount = in.readVLong();
+            deleteTimeInMillis = in.readVLong();
+            deleteCurrent = in.readVLong();
+            noopUpdateCount = in.readVLong();
+            isThrottled = in.readBoolean();
+            throttleTimeInMillis = in.readLong();
+        }
 
         public Stats(long indexCount, long indexTimeInMillis, long indexCurrent, long indexFailedCount, long deleteCount,
                         long deleteTimeInMillis, long deleteCurrent, long noopUpdateCount, boolean isThrottled, long throttleTimeInMillis) {
@@ -133,26 +146,6 @@ public class IndexingStats implements Streamable, ToXContentFragment {
             return noopUpdateCount;
         }
 
-        public static Stats readStats(StreamInput in) throws IOException {
-            Stats stats = new Stats();
-            stats.readFrom(in);
-            return stats;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            indexCount = in.readVLong();
-            indexTimeInMillis = in.readVLong();
-            indexCurrent = in.readVLong();
-            indexFailedCount = in.readVLong();
-            deleteCount = in.readVLong();
-            deleteTimeInMillis = in.readVLong();
-            deleteCurrent = in.readVLong();
-            noopUpdateCount = in.readVLong();
-            isThrottled = in.readBoolean();
-            throttleTimeInMillis = in.readLong();
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(indexCount);
@@ -187,13 +180,20 @@ public class IndexingStats implements Streamable, ToXContentFragment {
         }
     }
 
-    private Stats totalStats;
+    private final Stats totalStats;
 
     @Nullable
     private Map<String, Stats> typeStats;
 
     public IndexingStats() {
         totalStats = new Stats();
+    }
+
+    public IndexingStats(StreamInput in) throws IOException {
+        totalStats = new Stats(in);
+        if (in.readBoolean()) {
+            typeStats = in.readMap(StreamInput::readString, Stats::new);
+        }
     }
 
     public IndexingStats(Stats totalStats, @Nullable Map<String, Stats> typeStats) {
@@ -274,14 +274,6 @@ public class IndexingStats implements Streamable, ToXContentFragment {
         static final String IS_THROTTLED = "is_throttled";
         static final String THROTTLED_TIME_IN_MILLIS = "throttle_time_in_millis";
         static final String THROTTLED_TIME = "throttle_time";
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        totalStats = Stats.readStats(in);
-        if (in.readBoolean()) {
-            typeStats = in.readMap(StreamInput::readString, Stats::readStats);
-        }
     }
 
     @Override

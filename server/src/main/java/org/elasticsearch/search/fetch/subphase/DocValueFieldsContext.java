@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.fetch.subphase;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -37,8 +36,6 @@ import java.util.Objects;
  * All the required context to pull a field from the doc values.
  */
 public class DocValueFieldsContext {
-
-    public static final String USE_DEFAULT_FORMAT = "use_field_mapping";
 
     /**
      * Wrapper around a field name and the format that should be used to
@@ -80,19 +77,13 @@ public class DocValueFieldsContext {
         /** Serialization constructor. */
         public FieldAndFormat(StreamInput in) throws IOException {
             this.field = in.readString();
-            if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
-                format = in.readOptionalString();
-            } else {
-                format = null;
-            }
+            format = in.readOptionalString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(field);
-            if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
-                out.writeOptionalString(format);
-            }
+            out.writeOptionalString(format);
         }
 
         @Override

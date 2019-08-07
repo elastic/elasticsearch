@@ -5,11 +5,10 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
@@ -19,8 +18,9 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.action.util.PageParams;
-import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
+import org.elasticsearch.xpack.core.action.AbstractGetResourcesResponse;
+import org.elasticsearch.xpack.core.action.util.PageParams;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -29,17 +29,12 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class GetCalendarEventsAction extends Action<GetCalendarEventsAction.Response> {
+public class GetCalendarEventsAction extends ActionType<GetCalendarEventsAction.Response> {
     public static final GetCalendarEventsAction INSTANCE = new GetCalendarEventsAction();
     public static final String NAME = "cluster:monitor/xpack/ml/calendars/events/get";
 
     private GetCalendarEventsAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        return new Response();
+        super(NAME, Response::new);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {
@@ -72,6 +67,15 @@ public class GetCalendarEventsAction extends Action<GetCalendarEventsAction.Resp
         private PageParams pageParams = PageParams.defaultParams();
 
         public Request() {
+        }
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            calendarId = in.readString();
+            start = in.readOptionalString();
+            end = in.readOptionalString();
+            jobId = in.readOptionalString();
+            pageParams = new PageParams(in);
         }
 
         public Request(String calendarId) {
@@ -130,16 +134,6 @@ public class GetCalendarEventsAction extends Action<GetCalendarEventsAction.Resp
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            calendarId = in.readString();
-            start = in.readOptionalString();
-            end = in.readOptionalString();
-            jobId = in.readOptionalString();
-            pageParams = new PageParams(in);
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(calendarId);
@@ -194,50 +188,19 @@ public class GetCalendarEventsAction extends Action<GetCalendarEventsAction.Resp
         }
     }
 
-    public static class Response extends ActionResponse implements ToXContentObject {
+    public static class Response extends AbstractGetResourcesResponse<ScheduledEvent> implements ToXContentObject {
 
-        private QueryPage<ScheduledEvent> scheduledEvents;
-
-        public Response() {
+        public Response(StreamInput in) throws IOException {
+            super(in);
         }
 
         public Response(QueryPage<ScheduledEvent> scheduledEvents) {
-            this.scheduledEvents = scheduledEvents;
+            super(scheduledEvents);
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            scheduledEvents = new QueryPage<>(in, ScheduledEvent::new);
-
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            scheduledEvents.writeTo(out);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return scheduledEvents.toXContent(builder, params);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(scheduledEvents);
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (obj == null) {
-                return false;
-            }
-            if (getClass() != obj.getClass()) {
-                return false;
-            }
-            Response other = (Response) obj;
-            return Objects.equals(scheduledEvents, other.scheduledEvents);
+        protected Reader<ScheduledEvent> getReader() {
+            return ScheduledEvent::new;
         }
     }
 

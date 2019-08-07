@@ -30,18 +30,8 @@ abstract class FilterRecycler<T> implements Recycler<T> {
     }
 
     @Override
-    public Recycler.V<T> obtain(int sizing) {
-        return wrap(getDelegate().obtain(sizing));
-    }
-
-    @Override
     public Recycler.V<T> obtain() {
         return wrap(getDelegate().obtain());
-    }
-
-    @Override
-    public void close() {
-        getDelegate().close();
     }
 
 }

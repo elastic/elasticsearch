@@ -73,10 +73,11 @@ public class DatafeedJobTests extends ESTestCase {
     private Auditor auditor;
     private DataExtractorFactory dataExtractorFactory;
     private DataExtractor dataExtractor;
+    private DatafeedTimingStatsReporter timingStatsReporter;
     private Client client;
     private DelayedDataDetector delayedDataDetector;
     private DataDescription.Builder dataDescription;
-    ActionFuture<PostDataAction.Response> postDataFuture;
+    private ActionFuture<PostDataAction.Response> postDataFuture;
     private ActionFuture<FlushJobAction.Response> flushJobFuture;
     private ActionFuture<IndexResponse> indexFuture;
     private ArgumentCaptor<FlushJobAction.Request> flushJobRequests;
@@ -93,6 +94,7 @@ public class DatafeedJobTests extends ESTestCase {
         dataExtractorFactory = mock(DataExtractorFactory.class);
         dataExtractor = mock(DataExtractor.class);
         when(dataExtractorFactory.newExtractor(anyLong(), anyLong())).thenReturn(dataExtractor);
+        timingStatsReporter = mock(DatafeedTimingStatsReporter.class);
         client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(client.threadPool()).thenReturn(threadPool);
@@ -370,13 +372,15 @@ public class DatafeedJobTests extends ESTestCase {
         verify(client, never()).execute(same(PersistJobAction.INSTANCE), any());
     }
 
-    public void testPostAnalysisProblem() throws Exception {
+    public void testPostAnalysisProblem() {
         client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(client.threadPool()).thenReturn(threadPool);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(client.execute(same(FlushJobAction.INSTANCE), any())).thenReturn(flushJobFuture);
         when(client.execute(same(PostDataAction.INSTANCE), any())).thenThrow(new RuntimeException());
+
+        when(dataExtractor.getEndTime()).thenReturn(1000L);
 
         DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1);
         DatafeedJob.AnalysisProblemException analysisProblemException =
@@ -397,13 +401,15 @@ public class DatafeedJobTests extends ESTestCase {
         verify(client, never()).execute(same(PersistJobAction.INSTANCE), any());
     }
 
-    public void testPostAnalysisProblemIsConflict() throws Exception {
+    public void testPostAnalysisProblemIsConflict() {
         client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(client.threadPool()).thenReturn(threadPool);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(client.execute(same(FlushJobAction.INSTANCE), any())).thenReturn(flushJobFuture);
         when(client.execute(same(PostDataAction.INSTANCE), any())).thenThrow(ExceptionsHelper.conflictStatusException("conflict"));
+
+        when(dataExtractor.getEndTime()).thenReturn(1000L);
 
         DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1);
         DatafeedJob.AnalysisProblemException analysisProblemException =
@@ -424,7 +430,7 @@ public class DatafeedJobTests extends ESTestCase {
         verify(client, never()).execute(same(PersistJobAction.INSTANCE), any());
     }
 
-    public void testFlushAnalysisProblem() throws Exception {
+    public void testFlushAnalysisProblem() {
         when(client.execute(same(FlushJobAction.INSTANCE), any())).thenThrow(new RuntimeException());
 
         currentTime = 60000L;
@@ -436,7 +442,7 @@ public class DatafeedJobTests extends ESTestCase {
         assertThat(analysisProblemException.shouldStop, is(false));
     }
 
-    public void testFlushAnalysisProblemIsConflict() throws Exception {
+    public void testFlushAnalysisProblemIsConflict() {
         when(client.execute(same(FlushJobAction.INSTANCE), any())).thenThrow(ExceptionsHelper.conflictStatusException("conflict"));
 
         currentTime = 60000L;
@@ -451,7 +457,7 @@ public class DatafeedJobTests extends ESTestCase {
     private DatafeedJob createDatafeedJob(long frequencyMs, long queryDelayMs, long latestFinalBucketEndTimeMs,
                                             long latestRecordTimeMs) {
         Supplier<Long> currentTimeSupplier = () -> currentTime;
-        return new DatafeedJob(jobId, dataDescription.build(), frequencyMs, queryDelayMs, dataExtractorFactory, client, auditor,
-                currentTimeSupplier, delayedDataDetector, latestFinalBucketEndTimeMs, latestRecordTimeMs);
+        return new DatafeedJob(jobId, dataDescription.build(), frequencyMs, queryDelayMs, dataExtractorFactory, timingStatsReporter,
+                client, auditor, currentTimeSupplier, delayedDataDetector, latestFinalBucketEndTimeMs, latestRecordTimeMs);
     }
 }

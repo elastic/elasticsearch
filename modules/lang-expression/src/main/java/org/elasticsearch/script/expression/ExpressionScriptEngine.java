@@ -221,10 +221,14 @@ public class ExpressionScriptEngine implements ScriptEngine {
         // NOTE: if we need to do anything complicated with bindings in the future, we can just extend Bindings,
         // instead of complicating SimpleBindings (which should stay simple)
         SimpleBindings bindings = new SimpleBindings();
+        boolean needsScores = false;
         ReplaceableConstDoubleValueSource specialValue = null;
         for (String variable : expr.variables) {
             try {
-                if (variable.equals("_value")) {
+                if (variable.equals("_score")) {
+                    bindings.add(new SortField("_score", SortField.Type.SCORE));
+                    needsScores = true;
+                } else if (variable.equals("_value")) {
                     specialValue = new ReplaceableConstDoubleValueSource();
                     bindings.add("_value", specialValue);
                     // noop: _value is special for aggregations, and is handled in ExpressionScriptBindings
@@ -237,6 +241,7 @@ public class ExpressionScriptEngine implements ScriptEngine {
                     // delegate valuesource creation based on field's type
                     // there are three types of "fields" to expressions, and each one has a different "api" of variables and methods.
                     final ValueSource valueSource = getDocValueSource(variable, lookup);
+                    needsScores |= valueSource.getSortField(false).needsScores();
                     bindings.add(variable, valueSource.asDoubleValuesSource());
                 }
             } catch (Exception e) {
@@ -244,7 +249,7 @@ public class ExpressionScriptEngine implements ScriptEngine {
                 throw convertToScriptException("link error", expr.sourceText, variable, e);
             }
         }
-        return new ExpressionAggregationScript(expr, bindings, specialValue);
+        return new ExpressionAggregationScript(expr, bindings, needsScores, specialValue);
     }
 
     private FieldScript.LeafFactory newFieldScript(Expression expr, SearchLookup lookup, @Nullable Map<String, Object> vars) {

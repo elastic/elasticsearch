@@ -9,7 +9,7 @@ supported attributes.
 In the search input's `request` object, you specify:
 
 * The indices you want to search
-* The {ref}/search-request-search-type.html[search type]
+* The {ref}/search-request-body.html#request-body-search-search-type[search type]
 * The search request body
 
 The search request body supports the full Elasticsearch Query DSL--it's the
@@ -24,7 +24,6 @@ documents from the `logs` index:
   "search" : {
     "request" : {
       "indices" : [ "logs" ],
-      "types" : [ "event" ],
       "body" : {
         "query" : { "match_all" : {}}
       }
@@ -171,9 +170,6 @@ accurately.
 
 | `request.indices`                             | no        | -                   | The indices to search. If omitted, all indices are searched, which is the
                                                                                     default behaviour in Elasticsearch.
-
-| `request.types`                               | no        | -                   | The document types to search for. If omitted, all document types are are
-                                                                                    searched, which is the default behaviour in Elasticsearch.
 
 | `request.body`                                | no        | -                   | The body of the request. The {ref}/search-request-body.html[request body]
                                                                                     follows the same structure you normally send in the body of a REST `_search`

@@ -1,5 +1,8 @@
 [[token-count]]
 === Token count datatype
+++++
+<titleabbrev>Token count</titleabbrev>
+++++
 
 A field of type `token_count` is really an <<number,`integer`>> field which
 accepts string values, analyzes them, then indexes the number of tokens in the
@@ -9,18 +12,16 @@ For instance:
 
 [source,js]
 --------------------------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "name": { <1>
-          "type": "text",
-          "fields": {
-            "length": { <2>
-              "type":     "token_count",
-              "analyzer": "standard"
-            }
+    "properties": {
+      "name": { <1>
+        "type": "text",
+        "fields": {
+          "length": { <2>
+            "type":     "token_count",
+            "analyzer": "standard"
           }
         }
       }

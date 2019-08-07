@@ -43,14 +43,18 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.rest.BaseRestHandler.DEFAULT_INCLUDE_TYPE_NAME_POLICY;
 
-/** Response object for {@link GetFieldMappingsRequest} API */
+/**
+ * Response object for {@link GetFieldMappingsRequest} API
+ *
+ * Note: there is a new class with the same name for the Java HLRC that uses a typeless format.
+ * Any changes done to this class should go to that client class as well.
+ */
 public class GetFieldMappingsResponse extends ActionResponse implements ToXContentObject {
 
     private static final ParseField MAPPINGS = new ParseField("mappings");
@@ -81,13 +85,33 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
         }, MAPPINGS, ObjectParser.ValueType.OBJECT);
     }
 
-    private Map<String, Map<String, Map<String, FieldMappingMetaData>>> mappings = emptyMap();
+    private final Map<String, Map<String, Map<String, FieldMappingMetaData>>> mappings;
 
     GetFieldMappingsResponse(Map<String, Map<String, Map<String, FieldMappingMetaData>>> mappings) {
         this.mappings = mappings;
     }
 
-    GetFieldMappingsResponse() {
+    GetFieldMappingsResponse(StreamInput in) throws IOException {
+        super(in);
+        int size = in.readVInt();
+        Map<String, Map<String, Map<String, FieldMappingMetaData>>> indexMapBuilder = new HashMap<>(size);
+        for (int i = 0; i < size; i++) {
+            String index = in.readString();
+            int typesSize = in.readVInt();
+            Map<String, Map<String, FieldMappingMetaData>> typeMapBuilder = new HashMap<>(typesSize);
+            for (int j = 0; j < typesSize; j++) {
+                String type = in.readString();
+                int fieldSize = in.readVInt();
+                Map<String, FieldMappingMetaData> fieldMapBuilder = new HashMap<>(fieldSize);
+                for (int k = 0; k < fieldSize; k++) {
+                    fieldMapBuilder.put(in.readString(), new FieldMappingMetaData(in.readString(), in.readBytesReference()));
+                }
+                typeMapBuilder.put(type, unmodifiableMap(fieldMapBuilder));
+            }
+            indexMapBuilder.put(index, unmodifiableMap(typeMapBuilder));
+        }
+        mappings = unmodifiableMap(indexMapBuilder);
+
     }
 
     /** returns the retrieved field mapping. The return map keys are index, type, field (as specified in the request). */
@@ -263,31 +287,7 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        int size = in.readVInt();
-        Map<String, Map<String, Map<String, FieldMappingMetaData>>> indexMapBuilder = new HashMap<>(size);
-        for (int i = 0; i < size; i++) {
-            String index = in.readString();
-            int typesSize = in.readVInt();
-            Map<String, Map<String, FieldMappingMetaData>> typeMapBuilder = new HashMap<>(typesSize);
-            for (int j = 0; j < typesSize; j++) {
-                String type = in.readString();
-                int fieldSize = in.readVInt();
-                Map<String, FieldMappingMetaData> fieldMapBuilder = new HashMap<>(fieldSize);
-                for (int k = 0; k < fieldSize; k++) {
-                    fieldMapBuilder.put(in.readString(), new FieldMappingMetaData(in.readString(), in.readBytesReference()));
-                }
-                typeMapBuilder.put(type, unmodifiableMap(fieldMapBuilder));
-            }
-            indexMapBuilder.put(index, unmodifiableMap(typeMapBuilder));
-        }
-        mappings = unmodifiableMap(indexMapBuilder);
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeVInt(mappings.size());
         for (Map.Entry<String, Map<String, Map<String, FieldMappingMetaData>>> indexEntry : mappings.entrySet()) {
             out.writeString(indexEntry.getKey());

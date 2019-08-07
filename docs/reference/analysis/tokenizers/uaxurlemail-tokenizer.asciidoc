@@ -92,7 +92,7 @@ In this example, we configure the `uax_url_email` tokenizer to have a
 
 [source,js]
 ----------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "settings": {
     "analysis": {

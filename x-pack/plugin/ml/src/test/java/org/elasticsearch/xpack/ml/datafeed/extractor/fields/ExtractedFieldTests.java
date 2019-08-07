@@ -6,11 +6,8 @@
 package org.elasticsearch.xpack.ml.datafeed.extractor.fields;
 
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedField;
 import org.elasticsearch.xpack.ml.test.SearchHitBuilder;
-import org.joda.time.DateTime;
 
 import java.util.Arrays;
 
@@ -65,6 +62,34 @@ public class ExtractedFieldTests extends ESTestCase {
         assertThat(nested.value(hit), equalTo(new String[] { "bar" }));
     }
 
+    public void testGeoPoint() {
+        double lat = 38.897676;
+        double lon = -77.03653;
+        String[] expected = new String[] {lat + "," + lon};
+
+        // doc_value field
+        ExtractedField geo = ExtractedField.newGeoPointField("geo", "geo");
+        SearchHit hit = new SearchHitBuilder(42).addField("geo", lat + ", " + lon).build();
+        assertThat(geo.value(hit), equalTo(expected));
+    }
+
+    public void testGeoShape() {
+        double lat = 38.897676;
+        double lon = -77.03653;
+        String[] expected = new String[] {lat + "," + lon};
+        // object format
+        SearchHit hit = new SearchHitBuilder(42)
+            .setSource("{\"geo\":{\"type\":\"point\", \"coordinates\": [" + lon + ", " + lat + "]}}")
+            .build();
+        ExtractedField geo = ExtractedField.newGeoShapeField("geo", "geo");
+        assertThat(geo.value(hit), equalTo(expected));
+
+        // WKT format
+        hit = new SearchHitBuilder(42).setSource("{\"geo\":\"POINT ("+ lon + " " + lat + ")\"}").build();
+        geo = ExtractedField.newGeoShapeField("geo", "geo");
+        assertThat(geo.value(hit), equalTo(expected));
+    }
+
     public void testValueGivenSourceAndHitWithNoSource() {
         ExtractedField missing = ExtractedField.newField("missing", ExtractedField.ExtractionMethod.SOURCE);
         assertThat(missing.value(new SearchHitBuilder(3).build()), equalTo(new Object[0]));
@@ -98,16 +123,16 @@ public class ExtractedFieldTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> ExtractedField.newTimeField("time", ExtractedField.ExtractionMethod.SOURCE));
     }
 
-    public void testValueGivenTimeField() {
+    public void testValueGivenStringTimeField() {
         final long millis = randomLong();
-        final SearchHit hit = new SearchHitBuilder(randomInt()).addField("time", new DateTime(millis)).build();
+        final SearchHit hit = new SearchHitBuilder(randomInt()).addField("time", Long.toString(millis)).build();
         final ExtractedField timeField = ExtractedField.newTimeField("time", ExtractedField.ExtractionMethod.DOC_VALUE);
         assertThat(timeField.value(hit), equalTo(new Object[] { millis }));
     }
 
-    public void testValueGivenStringTimeField() {
+    public void testValueGivenLongTimeField() {
         final long millis = randomLong();
-        final SearchHit hit = new SearchHitBuilder(randomInt()).addField("time", Long.toString(millis)).build();
+        final SearchHit hit = new SearchHitBuilder(randomInt()).addField("time", millis).build();
         final ExtractedField timeField = ExtractedField.newTimeField("time", ExtractedField.ExtractionMethod.DOC_VALUE);
         assertThat(timeField.value(hit), equalTo(new Object[] { millis }));
     }
@@ -145,7 +170,7 @@ public class ExtractedFieldTests extends ESTestCase {
 
     public void testGetDocValueFormat() {
         for (ExtractedField.ExtractionMethod method : ExtractedField.ExtractionMethod.values()) {
-            assertThat(ExtractedField.newField("f", method).getDocValueFormat(), equalTo(DocValueFieldsContext.USE_DEFAULT_FORMAT));
+            assertThat(ExtractedField.newField("f", method).getDocValueFormat(), equalTo(null));
         }
         assertThat(ExtractedField.newTimeField("doc_value_time", ExtractedField.ExtractionMethod.DOC_VALUE).getDocValueFormat(),
             equalTo("epoch_millis"));

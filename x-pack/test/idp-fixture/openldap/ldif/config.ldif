@@ -1,0 +1,15 @@
+
+dn: olcDatabase={1}mdb,cn=config
+changetype: modify
+replace: olcAccess
+olcAccess: {0}to attrs=userPassword,shadowLastChange
+         by self write
+         by anonymous auth
+         by dn="cn=admin,DC=oldap,DC=test,DC=elasticsearch,DC=com" write
+         by * none
+olcAccess: {1}to dn.base="" by * read
+olcAccess: {2}to *
+          by self write
+          by dn.base="gidNumber=0+uidNumber=0,cn=peercred,cn=external,cn=auth" write
+          by dn="cn=admin,DC=oldap,DC=test,DC=elasticsearch,DC=com" write
+          by * read

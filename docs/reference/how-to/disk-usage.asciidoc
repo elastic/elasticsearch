@@ -12,15 +12,13 @@ filter on, you can safely disable indexing on this field in your
 
 [source,js]
 --------------------------------------------------
-PUT index?include_type_name=true
+PUT index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "foo": {
-          "type": "integer",
-          "index": false
-        }
+    "properties": {
+      "foo": {
+        "type": "integer",
+        "index": false
       }
     }
   }
@@ -35,15 +33,13 @@ to not write norms to the index:
 
 [source,js]
 --------------------------------------------------
-PUT index?include_type_name=true
+PUT index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "foo": {
-          "type": "text",
-          "norms": false
-        }
+    "properties": {
+      "foo": {
+        "type": "text",
+        "norms": false
       }
     }
   }
@@ -58,15 +54,13 @@ Elasticsearch to not index positions:
 
 [source,js]
 --------------------------------------------------
-PUT index?include_type_name=true
+PUT index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "foo": {
-          "type": "text",
-          "index_options": "freqs"
-        }
+    "properties": {
+      "foo": {
+        "type": "text",
+        "index_options": "freqs"
       }
     }
   }
@@ -81,16 +75,14 @@ and scoring will assume that terms appear only once in every document.
 
 [source,js]
 --------------------------------------------------
-PUT index?include_type_name=true
+PUT index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "foo": {
-          "type": "text",
-          "norms": false,
-          "index_options": "freqs"
-        }
+    "properties": {
+      "foo": {
+        "type": "text",
+        "norms": false,
+        "index_options": "freqs"
       }
     }
   }
@@ -99,6 +91,7 @@ PUT index?include_type_name=true
 // CONSOLE
 
 [float]
+[[default-dynamic-string-mapping]]
 === Don't use default dynamic string mappings
 
 The default <<dynamic-mapping,dynamic string mappings>> will index string fields
@@ -115,21 +108,19 @@ fields as `keyword`:
 
 [source,js]
 --------------------------------------------------
-PUT index?include_type_name=true
+PUT index
 {
   "mappings": {
-    "_doc": {
-      "dynamic_templates": [
-        {
-          "strings": {
-            "match_mapping_type": "string",
-            "mapping": {
-              "type": "keyword"
-            }
+    "dynamic_templates": [
+      {
+        "strings": {
+          "match_mapping_type": "string",
+          "mapping": {
+            "type": "keyword"
           }
         }
-      ]
-    }
+      }
+    ]
   }
 }
 --------------------------------------------------
@@ -143,11 +134,13 @@ Larger shards are going to be more efficient at storing data. To increase the si
 Keep in mind that large shard sizes come with drawbacks, such as long full recovery times.
 
 [float]
+[[disable-source]]
 === Disable `_source`
 
 The <<mapping-source-field,`_source`>> field stores the original JSON body of the document. If you don’t need access to it you can disable it. However, APIs that needs access to `_source` such as update and reindex won’t work.
 
 [float]
+[[best-compression]]
 === Use `best_compression`
 
 The `_source` and stored fields can easily take a non negligible amount of disk

@@ -32,6 +32,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.set.Sets;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -40,6 +41,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 /**
@@ -159,6 +161,14 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         nodes.removeAll(dataNodes.keys());
         nodes.removeAll(ingestNodes.keys());
         return nodes.build();
+    }
+
+    /**
+     * Returns a stream of all nodes, with master nodes at the front
+     */
+    public Stream<DiscoveryNode> mastersFirstStream() {
+        return Stream.concat(StreamSupport.stream(masterNodes.spliterator(), false).map(cur -> cur.value),
+            StreamSupport.stream(this.spliterator(), false).filter(n -> n.isMasterNode() == false));
     }
 
     /**
@@ -344,19 +354,19 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                     if (index != -1) {
                         String matchAttrName = nodeId.substring(0, index);
                         String matchAttrValue = nodeId.substring(index + 1);
-                        if (DiscoveryNode.Role.DATA.getRoleName().equals(matchAttrName)) {
+                        if (DiscoveryNodeRole.DATA_ROLE.roleName().equals(matchAttrName)) {
                             if (Booleans.parseBoolean(matchAttrValue, true)) {
                                 resolvedNodesIds.addAll(dataNodes.keys());
                             } else {
                                 resolvedNodesIds.removeAll(dataNodes.keys());
                             }
-                        } else if (DiscoveryNode.Role.MASTER.getRoleName().equals(matchAttrName)) {
+                        } else if (DiscoveryNodeRole.MASTER_ROLE.roleName().equals(matchAttrName)) {
                             if (Booleans.parseBoolean(matchAttrValue, true)) {
                                 resolvedNodesIds.addAll(masterNodes.keys());
                             } else {
                                 resolvedNodesIds.removeAll(masterNodes.keys());
                             }
-                        } else if (DiscoveryNode.Role.INGEST.getRoleName().equals(matchAttrName)) {
+                        } else if (DiscoveryNodeRole.INGEST_ROLE.roleName().equals(matchAttrName)) {
                             if (Booleans.parseBoolean(matchAttrValue, true)) {
                                 resolvedNodesIds.addAll(ingestNodes.keys());
                             } else {
@@ -369,6 +379,17 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                                 resolvedNodesIds.removeAll(getCoordinatingOnlyNodes().keys());
                             }
                         } else {
+                            for (DiscoveryNode node : this) {
+                                for (DiscoveryNodeRole role : Sets.difference(node.getRoles(), DiscoveryNodeRole.BUILT_IN_ROLES)) {
+                                    if (role.roleName().equals(matchAttrName)) {
+                                        if (Booleans.parseBoolean(matchAttrValue, true)) {
+                                            resolvedNodesIds.add(node.getId());
+                                        } else {
+                                            resolvedNodesIds.remove(node.getId());
+                                        }
+                                    }
+                                }
+                            }
                             for (DiscoveryNode node : this) {
                                 for (Map.Entry<String, String> entry : node.getAttributes().entrySet()) {
                                     String attrName = entry.getKey();

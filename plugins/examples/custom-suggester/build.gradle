@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
+apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.esplugin'
 
 esplugin {
@@ -27,9 +27,9 @@ esplugin {
     noticeFile rootProject.file('NOTICE.txt')
 }
 
-integTestCluster {
-    numNodes = 2
+testClusters.integTest {
+    numberOfNodes = 2
 }
 
 // this plugin has no unit tests, only rest tests
-tasks.unitTest.enabled = false
+tasks.test.enabled = false

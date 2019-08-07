@@ -1,0 +1,60 @@
+{
+  "index_patterns": [ ".monitoring-alerts-${monitoring.template.version}" ],
+  "version": 7000099,
+  "settings": {
+    "index": {
+      "number_of_shards": 1,
+      "number_of_replicas": 0,
+      "auto_expand_replicas": "0-1",
+      "format": 7,
+      "codec": "best_compression"
+    }
+  },
+  "mappings": {
+    "_doc": {
+      "dynamic": false,
+      "properties": {
+        "timestamp": {
+          "type": "date"
+        },
+        "update_timestamp": {
+          "type": "date"
+        },
+        "resolved_timestamp": {
+          "type": "date"
+        },
+        "prefix": {
+          "type": "text"
+        },
+        "message": {
+          "type": "text"
+        },
+        "suffix": {
+          "type": "text"
+        },
+        "metadata": {
+          "properties": {
+            "cluster_uuid": {
+              "type": "keyword"
+            },
+            "link": {
+              "type": "keyword"
+            },
+            "severity": {
+              "type": "short"
+            },
+            "type": {
+              "type": "keyword"
+            },
+            "version": {
+              "type": "keyword"
+            },
+            "watch": {
+              "type": "keyword"
+            }
+          }
+        }
+      }
+    }
+  }
+}

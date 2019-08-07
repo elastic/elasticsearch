@@ -29,14 +29,10 @@ import org.elasticsearch.search.internal.AliasFilter;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
 public class ClusterSearchShardsResponse extends ActionResponse implements ToXContentObject {
-
-    public static final ClusterSearchShardsResponse EMPTY = new ClusterSearchShardsResponse(new ClusterSearchShardsGroup[0],
-            new DiscoveryNode[0], Collections.emptyMap());
 
     private final ClusterSearchShardsGroup[] groups;
     private final DiscoveryNode[] nodes;
@@ -46,7 +42,7 @@ public class ClusterSearchShardsResponse extends ActionResponse implements ToXCo
         super(in);
         groups = new ClusterSearchShardsGroup[in.readVInt()];
         for (int i = 0; i < groups.length; i++) {
-            groups[i] = ClusterSearchShardsGroup.readSearchShardsGroupResponse(in);
+            groups[i] = new ClusterSearchShardsGroup(in);
         }
         nodes = new DiscoveryNode[in.readVInt()];
         for (int i = 0; i < nodes.length; i++) {
@@ -62,13 +58,7 @@ public class ClusterSearchShardsResponse extends ActionResponse implements ToXCo
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeVInt(groups.length);
         for (ClusterSearchShardsGroup response : groups) {
             response.writeTo(out);

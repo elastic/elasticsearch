@@ -36,7 +36,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-class ScriptedMetricAggregatorFactory extends AggregatorFactory<ScriptedMetricAggregatorFactory> {
+class ScriptedMetricAggregatorFactory extends AggregatorFactory {
 
     private final ScriptedMetricAggContexts.MapScript.Factory mapScript;
     private final Map<String, Object> mapScriptParams;
@@ -53,7 +53,7 @@ class ScriptedMetricAggregatorFactory extends AggregatorFactory<ScriptedMetricAg
                                     ScriptedMetricAggContexts.InitScript.Factory initScript, Map<String, Object> initScriptParams,
                                     ScriptedMetricAggContexts.CombineScript.Factory combineScript,
                                     Map<String, Object> combineScriptParams, Script reduceScript, Map<String, Object> aggParams,
-                                    SearchLookup lookup, SearchContext context, AggregatorFactory<?> parent,
+                                    SearchLookup lookup, SearchContext context, AggregatorFactory parent,
                                     AggregatorFactories.Builder subFactories, Map<String, Object> metaData) throws IOException {
         super(name, context, parent, subFactories, metaData);
         this.mapScript = mapScript;
@@ -89,7 +89,7 @@ class ScriptedMetricAggregatorFactory extends AggregatorFactory<ScriptedMetricAg
         final ScriptedMetricAggContexts.CombineScript combineScript = this.combineScript.newInstance(
             mergeParams(aggParams, combineScriptParams), aggState);
 
-        final Script reduceScript = deepCopyScript(this.reduceScript, context);
+        final Script reduceScript = deepCopyScript(this.reduceScript, context, aggParams);
         if (initScript != null) {
             initScript.execute();
             CollectionUtils.ensureNoSelfReferences(aggState, "Scripted metric aggs init script");
@@ -99,12 +99,9 @@ class ScriptedMetricAggregatorFactory extends AggregatorFactory<ScriptedMetricAg
                 pipelineAggregators, metaData);
     }
 
-    private static Script deepCopyScript(Script script, SearchContext context) {
+    private static Script deepCopyScript(Script script, SearchContext context, Map<String, Object> aggParams) {
         if (script != null) {
-            Map<String, Object> params = script.getParams();
-            if (params != null) {
-                params = deepCopyParams(params, context);
-            }
+            Map<String, Object> params = mergeParams(aggParams, deepCopyParams(script.getParams(), context));
             return new Script(script.getType(), script.getLang(), script.getIdOrCode(), params);
         } else {
             return null;

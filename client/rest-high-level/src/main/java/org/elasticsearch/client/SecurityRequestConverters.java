@@ -26,6 +26,7 @@ import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.security.ChangePasswordRequest;
 import org.elasticsearch.client.security.ClearRealmCacheRequest;
 import org.elasticsearch.client.security.ClearRolesCacheRequest;
+import org.elasticsearch.client.security.CreateApiKeyRequest;
 import org.elasticsearch.client.security.CreateTokenRequest;
 import org.elasticsearch.client.security.DeletePrivilegesRequest;
 import org.elasticsearch.client.security.DeleteRoleMappingRequest;
@@ -33,11 +34,13 @@ import org.elasticsearch.client.security.DeleteRoleRequest;
 import org.elasticsearch.client.security.DeleteUserRequest;
 import org.elasticsearch.client.security.DisableUserRequest;
 import org.elasticsearch.client.security.EnableUserRequest;
+import org.elasticsearch.client.security.GetApiKeyRequest;
 import org.elasticsearch.client.security.GetPrivilegesRequest;
 import org.elasticsearch.client.security.GetRoleMappingsRequest;
 import org.elasticsearch.client.security.GetRolesRequest;
 import org.elasticsearch.client.security.GetUsersRequest;
 import org.elasticsearch.client.security.HasPrivilegesRequest;
+import org.elasticsearch.client.security.InvalidateApiKeyRequest;
 import org.elasticsearch.client.security.InvalidateTokenRequest;
 import org.elasticsearch.client.security.PutPrivilegesRequest;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
@@ -63,8 +66,9 @@ final class SecurityRequestConverters {
             .build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         request.setEntity(createEntity(changePasswordRequest, REQUEST_BODY_CONTENT_TYPE));
-        RequestConverters.Params params = new RequestConverters.Params(request);
+        RequestConverters.Params params = new RequestConverters.Params();
         params.withRefreshPolicy(changePasswordRequest.getRefreshPolicy());
+        request.addParameters(params.asMap());
         return request;
     }
 
@@ -84,8 +88,9 @@ final class SecurityRequestConverters {
             .build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
         request.setEntity(createEntity(putUserRequest, REQUEST_BODY_CONTENT_TYPE));
-        RequestConverters.Params params = new RequestConverters.Params(request);
+        RequestConverters.Params params = new RequestConverters.Params();
         params.withRefreshPolicy(putUserRequest.getRefreshPolicy());
+        request.addParameters(params.asMap());
         return request;
     }
 
@@ -95,8 +100,9 @@ final class SecurityRequestConverters {
             .addPathPart(deleteUserRequest.getName())
             .build();
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
-        RequestConverters.Params params = new RequestConverters.Params(request);
+        RequestConverters.Params params = new RequestConverters.Params();
         params.withRefreshPolicy(deleteUserRequest.getRefreshPolicy());
+        request.addParameters(params.asMap());
         return request;
     }
 
@@ -107,8 +113,9 @@ final class SecurityRequestConverters {
             .build();
         final Request request = new Request(HttpPut.METHOD_NAME, endpoint);
         request.setEntity(createEntity(putRoleMappingRequest, REQUEST_BODY_CONTENT_TYPE));
-        final RequestConverters.Params params = new RequestConverters.Params(request);
+        final RequestConverters.Params params = new RequestConverters.Params();
         params.withRefreshPolicy(putRoleMappingRequest.getRefreshPolicy());
+        request.addParameters(params.asMap());
         return request;
     }
 
@@ -136,8 +143,9 @@ final class SecurityRequestConverters {
             .addPathPart(setUserEnabledRequest.isEnabled() ? "_enable" : "_disable")
             .build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
-        RequestConverters.Params params = new RequestConverters.Params(request);
+        RequestConverters.Params params = new RequestConverters.Params();
         params.withRefreshPolicy(setUserEnabledRequest.getRefreshPolicy());
+        request.addParameters(params.asMap());
         return request;
     }
 
@@ -158,8 +166,9 @@ final class SecurityRequestConverters {
         final String endpoint = builder.addPathPartAsIs("_clear_cache").build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         if (clearRealmCacheRequest.getUsernames().isEmpty() == false) {
-            RequestConverters.Params params = new RequestConverters.Params(request);
+            RequestConverters.Params params = new RequestConverters.Params();
             params.putParam("usernames", Strings.collectionToCommaDelimitedString(clearRealmCacheRequest.getUsernames()));
+            request.addParameters(params.asMap());
         }
         return request;
     }
@@ -179,8 +188,9 @@ final class SecurityRequestConverters {
             .addPathPart(deleteRoleMappingRequest.getName())
             .build();
         final Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
-        final RequestConverters.Params params = new RequestConverters.Params(request);
+        final RequestConverters.Params params = new RequestConverters.Params();
         params.withRefreshPolicy(deleteRoleMappingRequest.getRefreshPolicy());
+        request.addParameters(params.asMap());
         return request;
     }
 
@@ -190,8 +200,9 @@ final class SecurityRequestConverters {
             .addPathPart(deleteRoleRequest.getName())
             .build();
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
-        RequestConverters.Params params = new RequestConverters.Params(request);
+        RequestConverters.Params params = new RequestConverters.Params();
         params.withRefreshPolicy(deleteRoleRequest.getRefreshPolicy());
+        request.addParameters(params.asMap());
         return request;
     }
 
@@ -228,8 +239,9 @@ final class SecurityRequestConverters {
     static Request putPrivileges(final PutPrivilegesRequest putPrivilegesRequest) throws IOException {
         Request request = new Request(HttpPut.METHOD_NAME, "/_security/privilege");
         request.setEntity(createEntity(putPrivilegesRequest, REQUEST_BODY_CONTENT_TYPE));
-        RequestConverters.Params params = new RequestConverters.Params(request);
+        RequestConverters.Params params = new RequestConverters.Params();
         params.withRefreshPolicy(putPrivilegesRequest.getRefreshPolicy());
+        request.addParameters(params.asMap());
         return request;
     }
 
@@ -240,8 +252,9 @@ final class SecurityRequestConverters {
             .addCommaSeparatedPathParts(deletePrivilegeRequest.getPrivileges())
             .build();
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
-        RequestConverters.Params params = new RequestConverters.Params(request);
+        RequestConverters.Params params = new RequestConverters.Params();
         params.withRefreshPolicy(deletePrivilegeRequest.getRefreshPolicy());
+        request.addParameters(params.asMap());
         return request;
     }
 
@@ -252,8 +265,42 @@ final class SecurityRequestConverters {
             .build();
         final Request request = new Request(HttpPut.METHOD_NAME, endpoint);
         request.setEntity(createEntity(putRoleRequest, REQUEST_BODY_CONTENT_TYPE));
-        final RequestConverters.Params params = new RequestConverters.Params(request);
+        final RequestConverters.Params params = new RequestConverters.Params();
         params.withRefreshPolicy(putRoleRequest.getRefreshPolicy());
+        request.addParameters(params.asMap());
+        return request;
+    }
+
+    static Request createApiKey(final CreateApiKeyRequest createApiKeyRequest) throws IOException {
+        final Request request = new Request(HttpPost.METHOD_NAME, "/_security/api_key");
+        request.setEntity(createEntity(createApiKeyRequest, REQUEST_BODY_CONTENT_TYPE));
+        final RequestConverters.Params params = new RequestConverters.Params();
+        params.withRefreshPolicy(createApiKeyRequest.getRefreshPolicy());
+        request.addParameters(params.asMap());
+        return request;
+    }
+
+    static Request getApiKey(final GetApiKeyRequest getApiKeyRequest) throws IOException {
+        final Request request = new Request(HttpGet.METHOD_NAME, "/_security/api_key");
+        if (Strings.hasText(getApiKeyRequest.getId())) {
+            request.addParameter("id", getApiKeyRequest.getId());
+        }
+        if (Strings.hasText(getApiKeyRequest.getName())) {
+            request.addParameter("name", getApiKeyRequest.getName());
+        }
+        if (Strings.hasText(getApiKeyRequest.getUserName())) {
+            request.addParameter("username", getApiKeyRequest.getUserName());
+        }
+        if (Strings.hasText(getApiKeyRequest.getRealmName())) {
+            request.addParameter("realm_name", getApiKeyRequest.getRealmName());
+        }
+
+        return request;
+    }
+
+    static Request invalidateApiKey(final InvalidateApiKeyRequest invalidateApiKeyRequest) throws IOException {
+        final Request request = new Request(HttpDelete.METHOD_NAME, "/_security/api_key");
+        request.setEntity(createEntity(invalidateApiKeyRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 }

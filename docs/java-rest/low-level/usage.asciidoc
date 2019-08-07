@@ -14,7 +14,7 @@ The javadoc for the low level REST client can be found at {rest-client-javadoc}/
 
 The low-level Java REST client is hosted on
 http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22org.elasticsearch.client%22[Maven
-Central]. The minimum Java version required is `1.7`.
+Central]. The minimum Java version required is `1.8`.
 
 The low-level REST client is subject to the same release cycle as
 Elasticsearch. Replace the version with the desired client version, first
@@ -179,15 +179,6 @@ include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-init-defaul
 --------------------------------------------------
 <1> Set the default headers that need to be sent with each request, to
 prevent having to specify them with each single request
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-init-max-retry-timeout]
---------------------------------------------------
-<1> Set the timeout that should be honoured in case multiple attempts are made
-for the same request. The default value is 30 seconds, same as the default
-socket timeout. In case the socket timeout is customized, the maximum retry
-timeout should be adjusted accordingly
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

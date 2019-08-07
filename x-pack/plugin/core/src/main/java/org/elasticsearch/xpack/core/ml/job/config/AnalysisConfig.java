@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -18,7 +17,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.ml.utils.time.TimeUtils;
+import org.elasticsearch.xpack.core.common.time.TimeUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -125,16 +124,12 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
     public AnalysisConfig(StreamInput in) throws IOException {
         bucketSpan = in.readTimeValue();
         categorizationFieldName = in.readOptionalString();
-        categorizationFilters = in.readBoolean() ? Collections.unmodifiableList(in.readList(StreamInput::readString)) : null;
-        if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
-            categorizationAnalyzerConfig = in.readOptionalWriteable(CategorizationAnalyzerConfig::new);
-        } else {
-            categorizationAnalyzerConfig = null;
-        }
+        categorizationFilters = in.readBoolean() ? Collections.unmodifiableList(in.readStringList()) : null;
+        categorizationAnalyzerConfig = in.readOptionalWriteable(CategorizationAnalyzerConfig::new);
         latency = in.readOptionalTimeValue();
         summaryCountFieldName = in.readOptionalString();
         detectors = Collections.unmodifiableList(in.readList(Detector::new));
-        influencers = Collections.unmodifiableList(in.readList(StreamInput::readString));
+        influencers = Collections.unmodifiableList(in.readStringList());
 
         multivariateByFields = in.readOptionalBoolean();
     }
@@ -145,17 +140,15 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         out.writeOptionalString(categorizationFieldName);
         if (categorizationFilters != null) {
             out.writeBoolean(true);
-            out.writeStringList(categorizationFilters);
+            out.writeStringCollection(categorizationFilters);
         } else {
             out.writeBoolean(false);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
-            out.writeOptionalWriteable(categorizationAnalyzerConfig);
-        }
+        out.writeOptionalWriteable(categorizationAnalyzerConfig);
         out.writeOptionalTimeValue(latency);
         out.writeOptionalString(summaryCountFieldName);
         out.writeList(detectors);
-        out.writeStringList(influencers);
+        out.writeStringCollection(influencers);
 
         out.writeOptionalBoolean(multivariateByFields);
     }
@@ -405,10 +398,10 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
             this.multivariateByFields = analysisConfig.multivariateByFields;
         }
 
-        public void setDetectors(List<Detector> detectors) {
+        public Builder setDetectors(List<Detector> detectors) {
             if (detectors == null) {
                 this.detectors = null;
-                return;
+                return this;
             }
             // We always assign sequential IDs to the detectors that are correct for this analysis config
             int detectorIndex = 0;
@@ -419,42 +412,52 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
                 sequentialIndexDetectors.add(builder.build());
             }
             this.detectors = sequentialIndexDetectors;
+            return this;
         }
 
-        public void setDetector(int detectorIndex, Detector detector) {
+        public Builder setDetector(int detectorIndex, Detector detector) {
             detectors.set(detectorIndex, detector);
+            return this;
         }
 
-        public void setBucketSpan(TimeValue bucketSpan) {
+        public Builder setBucketSpan(TimeValue bucketSpan) {
             this.bucketSpan = bucketSpan;
+            return this;
         }
 
-        public void setLatency(TimeValue latency) {
+        public Builder setLatency(TimeValue latency) {
             this.latency = latency;
+            return this;
         }
 
-        public void setCategorizationFieldName(String categorizationFieldName) {
+        public Builder setCategorizationFieldName(String categorizationFieldName) {
             this.categorizationFieldName = categorizationFieldName;
+            return this;
         }
 
-        public void setCategorizationFilters(List<String> categorizationFilters) {
+        public Builder setCategorizationFilters(List<String> categorizationFilters) {
             this.categorizationFilters = categorizationFilters;
+            return this;
         }
 
-        public void setCategorizationAnalyzerConfig(CategorizationAnalyzerConfig categorizationAnalyzerConfig) {
+        public Builder setCategorizationAnalyzerConfig(CategorizationAnalyzerConfig categorizationAnalyzerConfig) {
             this.categorizationAnalyzerConfig = categorizationAnalyzerConfig;
+            return this;
         }
 
-        public void setSummaryCountFieldName(String summaryCountFieldName) {
+        public Builder setSummaryCountFieldName(String summaryCountFieldName) {
             this.summaryCountFieldName = summaryCountFieldName;
+            return this;
         }
 
-        public void setInfluencers(List<String> influencers) {
+        public Builder setInfluencers(List<String> influencers) {
             this.influencers = ExceptionsHelper.requireNonNull(influencers, INFLUENCERS.getPreferredName());
+            return this;
         }
 
-        public void setMultivariateByFields(Boolean multivariateByFields) {
+        public Builder setMultivariateByFields(Boolean multivariateByFields) {
             this.multivariateByFields = multivariateByFields;
+            return this;
         }
 
         /**

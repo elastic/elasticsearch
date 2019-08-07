@@ -19,12 +19,12 @@
 
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
+import org.elasticsearch.geo.utils.Geohash;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
-import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregationBuilder.CellIdSource;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.GeoPoint;
@@ -37,14 +37,14 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint, GeoHashGridAggregatorFactory> {
+public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> {
 
     private final int precision;
     private final int requiredSize;
     private final int shardSize;
 
     GeoHashGridAggregatorFactory(String name, ValuesSourceConfig<GeoPoint> config, int precision, int requiredSize,
-            int shardSize, SearchContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder,
+            int shardSize, SearchContext context, AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
             Map<String, Object> metaData) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metaData);
         this.precision = precision;
@@ -56,7 +56,7 @@ public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory<
     protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
             throws IOException {
         final InternalAggregation aggregation = new InternalGeoHashGrid(name, requiredSize,
-                Collections.<InternalGeoHashGrid.Bucket> emptyList(), pipelineAggregators, metaData);
+                Collections.emptyList(), pipelineAggregators, metaData);
         return new NonCollectingAggregator(name, context, parent, pipelineAggregators, metaData) {
             @Override
             public InternalAggregation buildEmptyAggregation() {
@@ -71,10 +71,8 @@ public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory<
         if (collectsFromSingleBucket == false) {
             return asMultiBucketAggregator(this, context, parent);
         }
-        CellIdSource cellIdSource = new CellIdSource(valuesSource, precision);
+        CellIdSource cellIdSource = new CellIdSource(valuesSource, precision, Geohash::longEncode);
         return new GeoHashGridAggregator(name, factories, cellIdSource, requiredSize, shardSize, context, parent,
                 pipelineAggregators, metaData);
-
     }
-
 }

@@ -192,7 +192,7 @@ public final class NestedHelper {
         return true; // the field is not a sub field of the nested path
     }
 
-    private static String parentObject(String field) {
+    public static String parentObject(String field) {
         int lastDot = field.lastIndexOf('.');
         if (lastDot == -1) {
             return null;

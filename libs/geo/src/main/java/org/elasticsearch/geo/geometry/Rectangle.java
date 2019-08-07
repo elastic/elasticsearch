@@ -20,7 +20,7 @@
 package org.elasticsearch.geo.geometry;
 
 /**
- * Represents a lat/lon rectangle in decimal degrees.
+ * Represents a lat/lon rectangle in decimal degrees and optional altitude in meters.
  */
 public class Rectangle implements Geometry {
     public static final Rectangle EMPTY = new Rectangle();
@@ -33,6 +33,10 @@ public class Rectangle implements Geometry {
      */
     private final double minLon;
     /**
+     * maximum altitude value (in meters)
+     */
+    private final double minAlt;
+    /**
      * maximum latitude value (in degrees)
      */
     private final double maxLat;
@@ -40,6 +44,10 @@ public class Rectangle implements Geometry {
      * minimum latitude value (in degrees)
      */
     private final double maxLon;
+    /**
+     * minimum altitude value (in meters)
+     */
+    private final double maxAlt;
 
     private final boolean empty;
 
@@ -48,6 +56,8 @@ public class Rectangle implements Geometry {
         minLon = 0;
         maxLat = 0;
         maxLon = 0;
+        minAlt = Double.NaN;
+        maxAlt = Double.NaN;
         empty = true;
     }
 
@@ -55,29 +65,25 @@ public class Rectangle implements Geometry {
      * Constructs a bounding box by first validating the provided latitude and longitude coordinates
      */
     public Rectangle(double minLat, double maxLat, double minLon, double maxLon) {
-        GeometryUtils.checkLatitude(minLat);
-        GeometryUtils.checkLatitude(maxLat);
-        GeometryUtils.checkLongitude(minLon);
-        GeometryUtils.checkLongitude(maxLon);
+        this(minLat, maxLat, minLon, maxLon, Double.NaN, Double.NaN);
+    }
+    /**
+     * Constructs a bounding box by first validating the provided latitude and longitude coordinates
+     */
+    public Rectangle(double minLat, double maxLat, double minLon, double maxLon, double minAlt, double maxAlt) {
         this.minLon = minLon;
         this.maxLon = maxLon;
         this.minLat = minLat;
         this.maxLat = maxLat;
+        this.minAlt = minAlt;
+        this.maxAlt = maxAlt;
         empty = false;
         if (maxLat < minLat) {
             throw new IllegalArgumentException("max lat cannot be less than min lat");
         }
-    }
-
-    public double getWidth() {
-        if (crossesDateline()) {
-            return GeometryUtils.MAX_LON_INCL - minLon + maxLon - GeometryUtils.MIN_LON_INCL;
+        if (Double.isNaN(minAlt) != Double.isNaN(maxAlt)) {
+            throw new IllegalArgumentException("only one altitude value is specified");
         }
-        return maxLon - minLon;
-    }
-
-    public double getHeight() {
-        return maxLat - minLat;
     }
 
     public double getMinLat() {
@@ -88,12 +94,21 @@ public class Rectangle implements Geometry {
         return minLon;
     }
 
+
+    public double getMinAlt() {
+        return minAlt;
+    }
+
     public double getMaxLat() {
         return maxLat;
     }
 
     public double getMaxLon() {
         return maxLon;
+    }
+
+    public double getMaxAlt() {
+        return maxAlt;
     }
 
     @Override
@@ -115,16 +130,15 @@ public class Rectangle implements Geometry {
         if (maxLon < minLon) {
             b.append(" [crosses dateline!]");
         }
+        if (hasAlt()) {
+            b.append(" alt=");
+            b.append(minAlt);
+            b.append(" TO ");
+            b.append(maxAlt);
+        }
         b.append(")");
 
         return b.toString();
-    }
-
-    /**
-     * Returns true if this bounding box crosses the dateline
-     */
-    public boolean crossesDateline() {
-        return maxLon < minLon;
     }
 
     @Override
@@ -137,7 +151,9 @@ public class Rectangle implements Geometry {
         if (Double.compare(rectangle.minLat, minLat) != 0) return false;
         if (Double.compare(rectangle.minLon, minLon) != 0) return false;
         if (Double.compare(rectangle.maxLat, maxLat) != 0) return false;
-        return Double.compare(rectangle.maxLon, maxLon) == 0;
+        if (Double.compare(rectangle.maxLon, maxLon) != 0) return false;
+        if (Double.compare(rectangle.minAlt, minAlt) != 0) return false;
+        return Double.compare(rectangle.maxAlt, maxAlt) == 0;
 
     }
 
@@ -153,16 +169,25 @@ public class Rectangle implements Geometry {
         result = 31 * result + (int) (temp ^ (temp >>> 32));
         temp = Double.doubleToLongBits(maxLon);
         result = 31 * result + (int) (temp ^ (temp >>> 32));
+        temp = Double.doubleToLongBits(minAlt);
+        result = 31 * result + (int) (temp ^ (temp >>> 32));
+        temp = Double.doubleToLongBits(maxAlt);
+        result = 31 * result + (int) (temp ^ (temp >>> 32));
         return result;
     }
 
     @Override
-    public <T> T visit(GeometryVisitor<T> visitor) {
+    public <T, E extends Exception> T visit(GeometryVisitor<T, E> visitor) throws E {
         return visitor.visit(this);
     }
 
     @Override
     public boolean isEmpty() {
         return empty;
+    }
+
+    @Override
+    public boolean hasAlt() {
+        return Double.isNaN(maxAlt) == false;
     }
 }

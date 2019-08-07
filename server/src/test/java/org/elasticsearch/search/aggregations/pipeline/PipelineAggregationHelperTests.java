@@ -20,7 +20,7 @@
 package org.elasticsearch.search.aggregations.pipeline;
 
 
-import org.elasticsearch.common.rounding.Rounding;
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalOrder;
@@ -172,7 +172,8 @@ public class PipelineAggregationHelperTests extends ESTestCase {
             case 2:
             default:
                 AutoDateHistogramAggregationBuilder.RoundingInfo[] roundings = new AutoDateHistogramAggregationBuilder.RoundingInfo[1];
-                factory = new AutoDateHistogramAggregatorFactory("name", mock(ValuesSourceConfig.class), 1, roundings,
+                factory = new AutoDateHistogramAggregatorFactory("name", mock(ValuesSourceConfig.class),
+                    1, roundings,
                     mock(SearchContext.class), null, new AggregatorFactories.Builder(), Collections.emptyMap());
         }
 

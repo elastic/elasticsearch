@@ -32,7 +32,6 @@ setup:
   - do:
       index:
         index: foobar
-        type: type
         id: 1
         body:
           title: "contains some words"
@@ -40,7 +39,6 @@ setup:
   - do:
       index:
         index: unauthorized_index
-        type: type
         id: 2
         body:
           title: "contains some words too"

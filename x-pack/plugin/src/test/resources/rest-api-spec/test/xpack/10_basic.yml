@@ -24,5 +24,4 @@
     - contains:  { nodes.$master.modules: { name: x-pack-rollup } }
     - contains:  { nodes.$master.modules: { name: x-pack-security } }
     - contains:  { nodes.$master.modules: { name: x-pack-sql } }
-    - contains:  { nodes.$master.modules: { name: x-pack-upgrade } }
     - contains:  { nodes.$master.modules: { name: x-pack-watcher } }

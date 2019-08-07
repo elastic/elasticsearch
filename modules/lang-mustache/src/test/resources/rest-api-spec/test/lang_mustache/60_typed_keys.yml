@@ -1,7 +1,6 @@
 setup:
   - do:
       indices.put_template:
-        include_type_name: false
         name: index_template
         body:
           index_patterns: test-*

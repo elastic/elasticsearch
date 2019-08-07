@@ -32,14 +32,13 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-final class MatrixStatsAggregatorFactory
-    extends ArrayValuesSourceAggregatorFactory<ValuesSource.Numeric, MatrixStatsAggregatorFactory> {
+final class MatrixStatsAggregatorFactory extends ArrayValuesSourceAggregatorFactory<ValuesSource.Numeric> {
 
     private final MultiValueMode multiValueMode;
 
     MatrixStatsAggregatorFactory(String name,
             Map<String, ValuesSourceConfig<ValuesSource.Numeric>> configs, MultiValueMode multiValueMode,
-            SearchContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder,
+            SearchContext context, AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
             Map<String, Object> metaData) throws IOException {
         super(name, configs, context, parent, subFactoriesBuilder, metaData);
         this.multiValueMode = multiValueMode;

@@ -24,7 +24,6 @@ import org.elasticsearch.plugins.Plugin;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 
 public abstract class NodeConfigurationSource {
 
@@ -38,11 +37,6 @@ public abstract class NodeConfigurationSource {
         public Path nodeConfigPath(int nodeOrdinal) {
             return null;
         }
-
-        @Override
-        public Settings transportClientSettings() {
-            return Settings.EMPTY;
-        }
     };
 
     /**
@@ -52,22 +46,8 @@ public abstract class NodeConfigurationSource {
 
     public abstract Path nodeConfigPath(int nodeOrdinal);
 
-    public List<Settings> addExtraClusterBootstrapSettings(List<Settings> allNodesSettings) {
-        return allNodesSettings;
-    }
-
     /** Returns plugins that should be loaded on the node */
     public Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.emptyList();
     }
-
-    public Settings transportClientSettings() {
-        return Settings.EMPTY;
-    }
-
-    /** Returns plugins that should be loaded in the transport client */
-    public Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Collections.emptyList();
-    }
-
 }

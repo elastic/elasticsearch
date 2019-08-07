@@ -1,5 +1,5 @@
-[[search-request-source-filtering]]
-=== Source filtering
+[[request-body-search-source-filtering]]
+==== Source filtering
 
 
 Allows to control how the `_source` field is returned with every hit.
@@ -54,7 +54,10 @@ GET /_search
 // CONSOLE
 
 Finally, for complete control, you can specify both `includes` and `excludes`
-patterns:
+patterns. If `includes` is not empty, then only fields that match one of the
+patterns in `includes` but none of the patterns in `excludes` are provided in
+`_source`. If `includes` is empty, then all fields are provided in `_source`,
+except for those that match a pattern in `excludes`.
 
 [source,js]
 --------------------------------------------------

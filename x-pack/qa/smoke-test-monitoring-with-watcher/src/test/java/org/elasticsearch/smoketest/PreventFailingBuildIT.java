@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.smoketest;
 
-import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.rest.ESRestTestCase;
 
-public class PreventFailingBuildIT extends ESIntegTestCase {
+public class PreventFailingBuildIT extends ESRestTestCase {
 
     public void testSoThatTestsDoNotFail() {
         // Noop

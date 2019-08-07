@@ -51,15 +51,13 @@ The `position_increment_gap` can be specified in the mapping.  For instance:
 
 [source,js]
 --------------------------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "names": {
-          "type": "text",
-          "position_increment_gap": 0 <1>
-        }
+    "properties": {
+      "names": {
+        "type": "text",
+        "position_increment_gap": 0 <1>
       }
     }
   }

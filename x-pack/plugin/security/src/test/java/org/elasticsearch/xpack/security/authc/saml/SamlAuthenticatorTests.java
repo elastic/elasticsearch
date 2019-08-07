@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.xml.security.Init;
 import org.apache.xml.security.encryption.EncryptedData;
 import org.apache.xml.security.encryption.EncryptedKey;
@@ -17,7 +19,9 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.hamcrest.Matchers;
 import org.junit.AfterClass;
@@ -76,6 +80,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -1355,7 +1360,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
 
     public void testContentIsRejectedIfRestrictedToADifferentAudience() throws Exception {
         final String audience = "https://some.other.sp/SAML2";
-        final String xml = getResponseWithAudienceRestriction(audience);
+        final String xml = getResponseWithAudienceRestrictions(audience);
         final SamlToken token = token(signDoc(xml));
         final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
         assertThat(exception.getMessage(), containsString("required audience"));
@@ -1366,15 +1371,49 @@ public class SamlAuthenticatorTests extends SamlTestCase {
     }
 
     public void testContentIsAcceptedIfRestrictedToOurAudience() throws Exception {
-        final String xml = getResponseWithAudienceRestriction(SP_ENTITY_ID);
+        final String xml = getResponseWithAudienceRestrictions(SP_ENTITY_ID);
         final SamlToken token = token(signDoc(xml));
         final SamlAttributes attributes = authenticator.authenticate(token);
         assertThat(attributes, notNullValue());
         assertThat(attributes.attributes(), not(empty()));
     }
 
+    public void testLoggingWhenAudienceCheckFails() throws Exception {
+        final String similarAudience = SP_ENTITY_ID.replaceFirst("/$", ":80/");
+        final String wrongAudience = "http://" + randomAlphaOfLengthBetween(4, 12) + "." + randomAlphaOfLengthBetween(6, 8) + "/";
+        final String xml = getResponseWithAudienceRestrictions(similarAudience, wrongAudience);
+        final SamlToken token = token(signDoc(xml));
+
+        final Logger samlLogger = LogManager.getLogger(authenticator.getClass());
+        final MockLogAppender mockAppender = new MockLogAppender();
+        mockAppender.start();
+        try {
+            Loggers.addAppender(samlLogger, mockAppender);
+
+            mockAppender.addExpectation(new MockLogAppender.SeenEventExpectation(
+                "similar audience",
+                authenticator.getClass().getName(),
+                Level.INFO,
+                "Audience restriction [" + similarAudience + "] does not match required audience [" + SP_ENTITY_ID +
+                    "] (difference starts at character [#" + (SP_ENTITY_ID.length() - 1) + "] [:80/] vs [/])"
+            ));
+            mockAppender.addExpectation(new MockLogAppender.SeenEventExpectation(
+                "not similar audience",
+                authenticator.getClass().getName(),
+                Level.INFO,
+                "Audience restriction [" + wrongAudience + "] does not match required audience [" + SP_ENTITY_ID + "]"
+            ));
+            final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
+            assertThat(exception.getMessage(), containsString("required audience"));
+            mockAppender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(samlLogger, mockAppender);
+            mockAppender.stop();
+        }
+    }
+
     public void testContentIsRejectedIfNotMarkedAsSuccess() throws Exception {
-        final String xml = getSimpleResponse(clock.instant()).replace(StatusCode.SUCCESS, StatusCode.REQUESTER);
+        final String xml = getStatusFailedResponse();
         final SamlToken token = token(signDoc(xml));
         final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
         assertThat(exception.getMessage(), containsString("not a 'success' response"));
@@ -1408,8 +1447,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
                <ForgedAssertion></ForgedAssertion>
            </ForgedResponse>
         */
-        final Element response = (Element) legitimateDocument.
-                getElementsByTagNameNS(SAML20P_NS, "Response").item(0);
+        final Element response = (Element) legitimateDocument.getElementsByTagNameNS(SAML20P_NS, "Response").item(0);
         final Element clonedResponse = (Element) response.cloneNode(true);
         final Element clonedSignature = (Element) clonedResponse.
                 getElementsByTagNameNS("http://www.w3.org/2000/09/xmldsig#", "Signature").item(0);
@@ -1443,8 +1481,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
                <ForgedAssertion></ForgedAssertion>
            </ForgedResponse>
         */
-        final Element response = (Element) legitimateDocument.
-                getElementsByTagNameNS(SAML20P_NS, "Response").item(0);
+        final Element response = (Element) legitimateDocument.getElementsByTagNameNS(SAML20P_NS, "Response").item(0);
         final Element clonedResponse = (Element) response.cloneNode(true);
         final Element clonedSignature = (Element) clonedResponse.
                 getElementsByTagNameNS("http://www.w3.org/2000/09/xmldsig#", "Signature").item(0);
@@ -1482,8 +1519,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
                </LegitimateAssertion>
            </Response>
         */
-        final Element response = (Element) legitimateDocument.
-                getElementsByTagNameNS(SAML20P_NS, "Response").item(0);
+        final Element response = (Element) legitimateDocument.getElementsByTagNameNS(SAML20P_NS, "Response").item(0);
         final Element assertion = (Element) legitimateDocument.
                 getElementsByTagNameNS(SAML20_NS, "Assertion").item(0);
         final Element forgedAssertion = (Element) assertion.cloneNode(true);
@@ -1522,10 +1558,8 @@ public class SamlAuthenticatorTests extends SamlTestCase {
                </ForgedAssertion>
            </Response>
         */
-        final Element response = (Element) legitimateDocument.
-                getElementsByTagNameNS(SAML20P_NS, "Response").item(0);
-        final Element assertion = (Element) legitimateDocument.
-                getElementsByTagNameNS(SAML20_NS, "Assertion").item(0);
+        final Element response = (Element) legitimateDocument.getElementsByTagNameNS(SAML20P_NS, "Response").item(0);
+        final Element assertion = (Element) legitimateDocument.getElementsByTagNameNS(SAML20_NS, "Assertion").item(0);
         final Element forgedAssertion = (Element) assertion.cloneNode(true);
         forgedAssertion.setAttribute("ID", "_forged_assertion_id");
         final Element clonedSignature = (Element) forgedAssertion.
@@ -1559,17 +1593,14 @@ public class SamlAuthenticatorTests extends SamlTestCase {
                <LegitimateAssertion></LegitimateAssertion>
            </Response>
         */
-        final Element response = (Element) legitimateDocument.
-                getElementsByTagNameNS(SAML20P_NS, "Response").item(0);
-        final Element assertion = (Element) legitimateDocument.
-                getElementsByTagNameNS(SAML20_NS, "Assertion").item(0);
+        final Element response = (Element) legitimateDocument.getElementsByTagNameNS(SAML20P_NS, "Response").item(0);
+        final Element assertion = (Element) legitimateDocument.getElementsByTagNameNS(SAML20_NS, "Assertion").item(0);
         final Element signature = (Element) assertion.
-                getElementsByTagNameNS("http://www.w3.org/2000/09/xmldsig#", "Signature").item(0);
+            getElementsByTagNameNS("http://www.w3.org/2000/09/xmldsig#", "Signature").item(0);
         assertion.removeChild(signature);
         final Element forgedAssertion = (Element) assertion.cloneNode(true);
         forgedAssertion.setAttribute("ID", "_forged_assertion_id");
-        final Element issuer = (Element) forgedAssertion.
-                getElementsByTagNameNS(SAML20_NS, "Issuer").item(0);
+        final Element issuer = (Element) forgedAssertion.getElementsByTagNameNS(SAML20_NS, "Issuer").item(0);
         forgedAssertion.insertBefore(signature, issuer.getNextSibling());
         response.insertBefore(forgedAssertion, assertion);
         final SamlToken forgedToken = token(SamlUtils.toString((legitimateDocument.getDocumentElement())));
@@ -1598,10 +1629,8 @@ public class SamlAuthenticatorTests extends SamlTestCase {
                </ForgedAssertion>
            </Response>
         */
-        final Element response = (Element) legitimateDocument.
-                getElementsByTagNameNS(SAML20P_NS, "Response").item(0);
-        final Element assertion = (Element) legitimateDocument.
-                getElementsByTagNameNS(SAML20_NS, "Assertion").item(0);
+        final Element response = (Element) legitimateDocument.getElementsByTagNameNS(SAML20P_NS, "Response").item(0);
+        final Element assertion = (Element) legitimateDocument.getElementsByTagNameNS(SAML20_NS, "Assertion").item(0);
         final Element forgedAssertion = (Element) assertion.cloneNode(true);
         forgedAssertion.setAttribute("ID", "_forged_assertion_id");
         final Element signature = (Element) assertion.
@@ -1610,8 +1639,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
                 getElementsByTagNameNS("http://www.w3.org/2000/09/xmldsig#", "Signature").item(0);
         forgedAssertion.removeChild(forgedSignature);
         assertion.removeChild(signature);
-        final Element issuer = (Element) forgedAssertion.
-                getElementsByTagNameNS(SAML20_NS, "Issuer").item(0);
+        final Element issuer = (Element) forgedAssertion.getElementsByTagNameNS(SAML20_NS, "Issuer").item(0);
         forgedAssertion.insertBefore(signature, issuer.getNextSibling());
         signature.appendChild(assertion);
         response.appendChild(forgedAssertion);
@@ -1642,11 +1670,9 @@ public class SamlAuthenticatorTests extends SamlTestCase {
                </LegitimateAssertion>
            </Response>
         */
-        final Element response = (Element) legitimateDocument.
-                getElementsByTagNameNS(SAML20P_NS, "Response").item(0);
+        final Element response = (Element) legitimateDocument.getElementsByTagNameNS(SAML20P_NS, "Response").item(0);
         final Element extensions = legitimateDocument.createElement("Extensions");
-        final Element assertion = (Element) legitimateDocument.
-                getElementsByTagNameNS(SAML20_NS, "Assertion").item(0);
+        final Element assertion = (Element) legitimateDocument.getElementsByTagNameNS(SAML20_NS, "Assertion").item(0);
         response.insertBefore(extensions, assertion);
         final Element forgedAssertion = (Element) assertion.cloneNode(true);
         forgedAssertion.setAttribute("ID", "_forged_assertion_id");
@@ -1683,10 +1709,8 @@ public class SamlAuthenticatorTests extends SamlTestCase {
                </ForgedAssertion>
            </Response>
         */
-        final Element response = (Element) legitimateDocument.
-                getElementsByTagNameNS(SAML20P_NS, "Response").item(0);
-        final Element assertion = (Element) legitimateDocument.
-                getElementsByTagNameNS(SAML20_NS, "Assertion").item(0);
+        final Element response = (Element) legitimateDocument.getElementsByTagNameNS(SAML20P_NS, "Response").item(0);
+        final Element assertion = (Element) legitimateDocument.getElementsByTagNameNS(SAML20_NS, "Assertion").item(0);
         final Element forgedAssertion = (Element) assertion.cloneNode(true);
         forgedAssertion.setAttribute("ID", "_forged_assertion_id");
         final Element signature = (Element) assertion.
@@ -1695,8 +1719,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
                 getElementsByTagNameNS("http://www.w3.org/2000/09/xmldsig#", "Signature").item(0);
         forgedAssertion.removeChild(forgedSignature);
         assertion.removeChild(signature);
-        final Element issuer = (Element) forgedAssertion.
-                getElementsByTagNameNS(SAML20_NS, "Issuer").item(0);
+        final Element issuer = (Element) forgedAssertion.getElementsByTagNameNS(SAML20_NS, "Issuer").item(0);
         forgedAssertion.insertBefore(signature, issuer.getNextSibling());
         Element object = legitimateDocument.createElement("Object");
         object.appendChild(assertion);
@@ -2034,7 +2057,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
     }
 
     private Element buildEncryptedKeyElement(Document document, EncryptedKey encryptedKey, X509Certificate certificate)
-            throws XMLSecurityException {
+        throws XMLSecurityException {
         final XMLCipher cipher = XMLCipher.getInstance();
         final org.apache.xml.security.keys.KeyInfo keyInfo = new org.apache.xml.security.keys.KeyInfo(document);
         final X509Data x509Data = new X509Data(document);
@@ -2052,6 +2075,23 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         dbf.setNamespaceAware(true);
         final Document doc = dbf.newDocumentBuilder().parse(new InputSource(new StringReader(xml)));
         return authenticator.buildXmlObject(doc.getDocumentElement(), Response.class);
+    }
+
+    private String getStatusFailedResponse() {
+        final Instant now = clock.instant();
+        return "<?xml version='1.0' encoding='UTF-8'?>\n" +
+            "<proto:Response Destination='" + SP_ACS_URL + "' ID='" + randomId() + "' InResponseTo='" + requestId +
+            "' IssueInstant='" + now + "' Version='2.0'" +
+            " xmlns:proto='urn:oasis:names:tc:SAML:2.0:protocol'" +
+            " xmlns:assert='urn:oasis:names:tc:SAML:2.0:assertion'" +
+            " xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'" +
+            " xmlns:xs='http://www.w3.org/2001/XMLSchema'" +
+            " xmlns:ds='http://www.w3.org/2000/09/xmldsig#' >" +
+            "<assert:Issuer>" + IDP_ENTITY_ID + "</assert:Issuer>" +
+            "<proto:Status><proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:Requester'>" +
+            "<proto:StatusCode Value='urn:oasis:names:tc:SAML:2.0:status:InvalidNameIDPolicy'/></proto:StatusCode>" +
+            "</proto:Status>" +
+            "</proto:Response>";
     }
 
     private String getSimpleResponse(Instant now) {
@@ -2100,14 +2140,13 @@ public class SamlAuthenticatorTests extends SamlTestCase {
                 "</proto:Response>";
     }
 
-    private String getResponseWithAudienceRestriction(String requiredAudience) {
+    private String getResponseWithAudienceRestrictions(String... requiredAudiences) {
+        String inner = Stream.of(requiredAudiences)
+            .map(s -> "<assert:Audience>" + s + "</assert:Audience>")
+            .collect(Collectors.joining());
         return getSimpleResponse(clock.instant()).replaceFirst("<assert:AuthnStatement",
-                "<assert:Conditions><assert:AudienceRestriction>" +
-                        "<assert:Audience>" +
-                        requiredAudience +
-                        "</assert:Audience>" +
-                        "</assert:AudienceRestriction></assert:Conditions>" +
-                        "$0");
+            "<assert:Conditions><assert:AudienceRestriction>" + inner + "</assert:AudienceRestriction></assert:Conditions>" +
+                "$0");
     }
 
     private String randomId() {

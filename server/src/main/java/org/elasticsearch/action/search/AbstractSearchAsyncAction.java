@@ -26,6 +26,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.Nullable;
@@ -43,7 +44,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
@@ -70,7 +70,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final Object shardFailuresMutex = new Object();
     private final AtomicInteger successfulOps = new AtomicInteger();
     private final AtomicInteger skippedOps = new AtomicInteger();
-    private final TransportSearchAction.SearchTimeProvider timeProvider;
+    private final SearchTimeProvider timeProvider;
     private final SearchResponse.Clusters clusters;
 
     AbstractSearchAsyncAction(String name, Logger logger, SearchTransportService searchTransportService,
@@ -79,7 +79,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                                         Map<String, Set<String>> indexRoutings,
                                         Executor executor, SearchRequest request,
                                         ActionListener<SearchResponse> listener, GroupShardsIterator<SearchShardIterator> shardsIts,
-                                        TransportSearchAction.SearchTimeProvider timeProvider, long clusterStateVersion,
+                                        SearchTimeProvider timeProvider, long clusterStateVersion,
                                         SearchTask task, SearchPhaseResults<Result> resultConsumer, int maxConcurrentRequestsPerNode,
                                         SearchResponse.Clusters clusters) {
         super(name, request, shardsIts, logger, maxConcurrentRequestsPerNode, executor);
@@ -103,8 +103,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * Builds how long it took to execute the search.
      */
     long buildTookInMillis() {
-        return TimeUnit.NANOSECONDS.toMillis(
-                timeProvider.getRelativeCurrentNanos() - timeProvider.getRelativeStartNanos());
+        return timeProvider.buildTookInMillis();
     }
 
     /**
@@ -115,9 +114,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             //no search shards to search on, bail with empty response
             //(it happens with search across _all with no indices around and consistent with broadcast operations)
 
-            boolean withTotalHits = request.source() != null ?
-                // total hits is null in the response if the tracking of total hits is disabled
-                request.source().trackTotalHitsUpTo() != SearchContext.TRACK_TOTAL_HITS_DISABLED : true;
+            int trackTotalHitsUpTo = request.source() == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO :
+                request.source().trackTotalHitsUpTo() == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO :
+                    request.source().trackTotalHitsUpTo();
+            // total hits is null in the response if the tracking of total hits is disabled
+            boolean withTotalHits = trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED;
             listener.onResponse(new SearchResponse(InternalSearchResponse.empty(withTotalHits), null, 0, 0, 0, buildTookInMillis(),
                 ShardSearchFailure.EMPTY_ARRAY, clusters));
             return;
@@ -139,24 +140,29 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         } else {
             Boolean allowPartialResults = request.allowPartialSearchResults();
             assert allowPartialResults != null : "SearchRequest missing setting for allowPartialSearchResults";
-            if (allowPartialResults == false && shardFailures.get() != null ){
-                if (logger.isDebugEnabled()) {
-                    final ShardOperationFailedException[] shardSearchFailures = ExceptionsHelper.groupBy(buildShardFailures());
-                    Throwable cause = shardSearchFailures.length == 0 ? null :
-                        ElasticsearchException.guessRootCauses(shardSearchFailures[0].getCause())[0];
-                    logger.debug(() -> new ParameterizedMessage("{} shards failed for phase: [{}]",
-                            shardSearchFailures.length, getName()), cause);
+            if (allowPartialResults == false && shardFailures.get() != null) {
+                // check if there are actual failures in the atomic array since
+                // successful retries can reset the failures to null
+                ShardOperationFailedException[] shardSearchFailures = buildShardFailures();
+                if (shardSearchFailures.length > 0) {
+                    if (logger.isDebugEnabled()) {
+                        int numShardFailures = shardSearchFailures.length;
+                        shardSearchFailures = ExceptionsHelper.groupBy(shardSearchFailures);
+                        Throwable cause = ElasticsearchException.guessRootCauses(shardSearchFailures[0].getCause())[0];
+                        logger.debug(() -> new ParameterizedMessage("{} shards failed for phase: [{}]",
+                            numShardFailures, getName()), cause);
+                    }
+                    onPhaseFailure(currentPhase, "Partial shards failure", null);
+                    return;
                 }
-                onPhaseFailure(currentPhase, "Partial shards failure", null);
-            } else {
-                if (logger.isTraceEnabled()) {
-                    final String resultsFrom = results.getSuccessfulResults()
-                        .map(r -> r.getSearchShardTarget().toString()).collect(Collectors.joining(","));
-                    logger.trace("[{}] Moving to next phase: [{}], based on results from: {} (cluster state version: {})",
-                        currentPhase.getName(), nextPhase.getName(), resultsFrom, clusterStateVersion);
-                }
-                executePhase(nextPhase);
             }
+            if (logger.isTraceEnabled()) {
+                final String resultsFrom = results.getSuccessfulResults()
+                    .map(r -> r.getSearchShardTarget().toString()).collect(Collectors.joining(","));
+                logger.trace("[{}] Moving to next phase: [{}], based on results from: {} (cluster state version: {})",
+                    currentPhase.getName(), nextPhase.getName(), resultsFrom, clusterStateVersion);
+            }
+            executePhase(nextPhase);
         }
     }
 
@@ -227,7 +233,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         results.getSuccessfulResults().forEach((entry) -> {
             try {
                 SearchShardTarget searchShardTarget = entry.getSearchShardTarget();
-                Transport.Connection connection = getConnection(null, searchShardTarget.getNodeId());
+                Transport.Connection connection = getConnection(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());
                 sendReleaseSearchContext(entry.getRequestId(), connection, searchShardTarget.getOriginalIndices());
             } catch (Exception inner) {
                 inner.addSuppressed(exception);
@@ -278,18 +284,20 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         return request;
     }
 
-    @Override
-    public final SearchResponse buildSearchResponse(InternalSearchResponse internalSearchResponse, String scrollId) {
-
+    protected final SearchResponse buildSearchResponse(InternalSearchResponse internalSearchResponse, String scrollId) {
         ShardSearchFailure[] failures = buildShardFailures();
         Boolean allowPartialResults = request.allowPartialSearchResults();
         assert allowPartialResults != null : "SearchRequest missing setting for allowPartialSearchResults";
         if (allowPartialResults == false && failures.length > 0){
             raisePhaseFailure(new SearchPhaseExecutionException("", "Shard failures", null, failures));
         }
-
         return new SearchResponse(internalSearchResponse, scrollId, getNumShards(), successfulOps.get(),
             skippedOps.get(), buildTookInMillis(), failures, clusters);
+    }
+
+    @Override
+    public void sendSearchResponse(InternalSearchResponse internalSearchResponse, String scrollId) {
+        listener.onResponse(buildSearchResponse(internalSearchResponse, scrollId));
     }
 
     @Override
@@ -310,11 +318,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     @Override
     public final void execute(Runnable command) {
         executor.execute(command);
-    }
-
-    @Override
-    public final void onResponse(SearchResponse response) {
-        listener.onResponse(response);
     }
 
     @Override

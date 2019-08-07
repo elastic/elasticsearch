@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.BitSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -49,13 +50,18 @@ public class CompositeAggregationCursor implements Cursor {
     private final String[] indices;
     private final byte[] nextQuery;
     private final List<BucketExtractor> extractors;
+    private final BitSet mask;
     private final int limit;
+    private final boolean includeFrozen;
 
-    CompositeAggregationCursor(byte[] next, List<BucketExtractor> exts, int remainingLimit, String... indices) {
+    CompositeAggregationCursor(byte[] next, List<BucketExtractor> exts, BitSet mask, int remainingLimit, boolean includeFrozen,
+            String... indices) {
         this.indices = indices;
         this.nextQuery = next;
         this.extractors = exts;
+        this.mask = mask;
         this.limit = remainingLimit;
+        this.includeFrozen = includeFrozen;
     }
 
     public CompositeAggregationCursor(StreamInput in) throws IOException {
@@ -64,6 +70,8 @@ public class CompositeAggregationCursor implements Cursor {
         limit = in.readVInt();
 
         extractors = in.readNamedWriteableList(BucketExtractor.class);
+        mask = BitSet.valueOf(in.readByteArray());
+        includeFrozen = in.readBoolean();
     }
 
     @Override
@@ -73,6 +81,9 @@ public class CompositeAggregationCursor implements Cursor {
         out.writeVInt(limit);
 
         out.writeNamedWriteableList(extractors);
+        out.writeByteArray(mask.toByteArray());
+        out.writeBoolean(includeFrozen);
+
     }
 
     @Override
@@ -88,12 +99,20 @@ public class CompositeAggregationCursor implements Cursor {
         return nextQuery;
     }
 
+    BitSet mask() {
+        return mask;
+    }
+
     List<BucketExtractor> extractors() {
         return extractors;
     }
 
     int limit() {
         return limit;
+    }
+
+    boolean includeFrozen() {
+        return includeFrozen;
     }
 
     @Override
@@ -111,9 +130,9 @@ public class CompositeAggregationCursor implements Cursor {
             log.trace("About to execute composite query {} on {}", StringUtils.toString(query), indices);
         }
 
-        SearchRequest search = Querier.prepareRequest(client, query, cfg.pageTimeout(), indices);
+        SearchRequest search = Querier.prepareRequest(client, query, cfg.pageTimeout(), includeFrozen, indices);
 
-        client.search(search, new ActionListener<SearchResponse>() {
+        client.search(search, new ActionListener<>() {
             @Override
             public void onResponse(SearchResponse r) {
                 try {
@@ -124,8 +143,9 @@ public class CompositeAggregationCursor implements Cursor {
                         return;
                     }
 
-                    updateCompositeAfterKey(r, query);
-                    CompositeAggsRowSet rowSet = new CompositeAggsRowSet(extractors, r, limit, serializeQuery(query), indices);
+                    boolean hasAfterKey = updateCompositeAfterKey(r, query);
+                    CompositeAggsRowSet rowSet = new CompositeAggsRowSet(extractors, mask, r, limit,
+                            hasAfterKey ? serializeQuery(query) : null, includeFrozen, indices);
                     listener.onResponse(rowSet);
                 } catch (Exception ex) {
                     listener.onFailure(ex);
@@ -158,7 +178,7 @@ public class CompositeAggregationCursor implements Cursor {
         throw new SqlIllegalArgumentException("Unrecognized root group found; {}", agg.getClass());
     }
 
-    static void updateCompositeAfterKey(SearchResponse r, SearchSourceBuilder next) {
+    static boolean updateCompositeAfterKey(SearchResponse r, SearchSourceBuilder next) {
         CompositeAggregation composite = getComposite(r);
 
         if (composite == null) {
@@ -167,22 +187,25 @@ public class CompositeAggregationCursor implements Cursor {
 
         Map<String, Object> afterKey = composite.afterKey();
         // a null after-key means done
-        if (afterKey != null) {
-            AggregationBuilder aggBuilder = next.aggregations().getAggregatorFactories().iterator().next();
-            // update after-key with the new value
-            if (aggBuilder instanceof CompositeAggregationBuilder) {
-                CompositeAggregationBuilder comp = (CompositeAggregationBuilder) aggBuilder;
-                comp.aggregateAfter(afterKey);
-            } else {
-                throw new SqlIllegalArgumentException("Invalid client request; expected a group-by but instead got {}", aggBuilder);
-            }
+        if (afterKey == null) {
+            return false;
+        }
+
+        AggregationBuilder aggBuilder = next.aggregations().getAggregatorFactories().iterator().next();
+        // update after-key with the new value
+        if (aggBuilder instanceof CompositeAggregationBuilder) {
+            CompositeAggregationBuilder comp = (CompositeAggregationBuilder) aggBuilder;
+            comp.aggregateAfter(afterKey);
+            return true;
+        } else {
+            throw new SqlIllegalArgumentException("Invalid client request; expected a group-by but instead got {}", aggBuilder);
         }
     }
 
     /**
      * Deserializes the search source from a byte array.
      */
-    static SearchSourceBuilder deserializeQuery(NamedWriteableRegistry registry, byte[] source) throws IOException {
+    private static SearchSourceBuilder deserializeQuery(NamedWriteableRegistry registry, byte[] source) throws IOException {
         try (NamedWriteableAwareStreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(source), registry)) {
             return new SearchSourceBuilder(in);
         }

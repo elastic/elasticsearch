@@ -1,0 +1,11 @@
+apply plugin: 'elasticsearch.esplugin'
+
+version = System.getProperty("test.version_under_test")
+
+esplugin {
+    name 'dummy'
+    description 'A dummy plugin used for testing'
+    classname 'DummyPlugin'
+    licenseFile rootProject.file('empty.txt')
+    noticeFile rootProject.file('empty.txt')
+}

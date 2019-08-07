@@ -16,7 +16,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.License.OperationMode;
-import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -24,7 +23,7 @@ import java.util.EnumSet;
 /**
  * Contains metadata about registered licenses
  */
-public class LicensesMetaData extends AbstractNamedDiffable<MetaData.Custom> implements XPackPlugin.XPackMetaDataCustom,
+public class LicensesMetaData extends AbstractNamedDiffable<MetaData.Custom> implements MetaData.Custom,
         MergableCustomMetaData<LicensesMetaData> {
 
     public static final String TYPE = "licenses";
@@ -166,13 +165,11 @@ public class LicensesMetaData extends AbstractNamedDiffable<MetaData.Custom> imp
             streamOutput.writeBoolean(true); // has a license
             license.writeTo(streamOutput);
         }
-        if (streamOutput.getVersion().onOrAfter(Version.V_6_1_0)) {
-            if (trialVersion == null) {
-                streamOutput.writeBoolean(false);
-            } else {
-                streamOutput.writeBoolean(true);
-                Version.writeVersion(trialVersion, streamOutput);
-            }
+        if (trialVersion == null) {
+            streamOutput.writeBoolean(false);
+        } else {
+            streamOutput.writeBoolean(true);
+            Version.writeVersion(trialVersion, streamOutput);
         }
     }
 
@@ -182,11 +179,9 @@ public class LicensesMetaData extends AbstractNamedDiffable<MetaData.Custom> imp
         } else {
             license = LICENSE_TOMBSTONE;
         }
-        if (streamInput.getVersion().onOrAfter(Version.V_6_1_0)) {
-            boolean hasExercisedTrial = streamInput.readBoolean();
-            if (hasExercisedTrial) {
-                this.trialVersion = Version.readVersion(streamInput);
-            }
+        boolean hasExercisedTrial = streamInput.readBoolean();
+        if (hasExercisedTrial) {
+            this.trialVersion = Version.readVersion(streamInput);
         }
     }
 

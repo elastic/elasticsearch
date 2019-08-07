@@ -40,7 +40,7 @@ public class EqualsHashCodeTestUtils {
      */
     public interface CopyFunction<T> {
         T copy(T t) throws IOException;
-    };
+    }
 
     /**
      * A function that creates a copy of its input argument that is different from its
@@ -48,7 +48,7 @@ public class EqualsHashCodeTestUtils {
      */
     public interface MutateFunction<T> {
         T mutate(T t) throws IOException;
-    };
+    }
 
     /**
      * Perform common equality and hashCode checks on the input object

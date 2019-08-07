@@ -33,7 +33,7 @@ The `stopwords` parameter accepts either an array of stopwords:
 
 [source,js]
 ------------------------------------
-PUT /my_index?include_type_name=true
+PUT /my_index
 {
     "settings": {
         "analysis": {
@@ -53,7 +53,7 @@ or a predefined language-specific list:
 
 [source,js]
 ------------------------------------
-PUT /my_index?include_type_name=true
+PUT /my_index
 {
     "settings": {
         "analysis": {
@@ -78,4 +78,4 @@ Elasticsearch provides the following predefined list of languages:
 `_portuguese_`, `_romanian_`, `_russian_`, `_sorani_`, `_spanish_`,
 `_swedish_`, `_thai_`, `_turkish_`.
 
-For the empty stopwords list (to disable stopwords) use: `\_none_`.
+For the empty stopwords list (to disable stopwords) use: `_none_`.

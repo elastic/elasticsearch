@@ -24,10 +24,10 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValueType;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 
@@ -48,12 +48,14 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket, I
 
         @Override
         public Object getFrom() {
-            return Double.isInfinite(((Number) from).doubleValue()) ? null : new DateTime(((Number) from).longValue(), DateTimeZone.UTC);
+            return Double.isInfinite(((Number) from).doubleValue()) ? null :
+                Instant.ofEpochMilli(((Number) from).longValue()).atZone(ZoneOffset.UTC);
         }
 
         @Override
         public Object getTo() {
-            return Double.isInfinite(((Number) to).doubleValue()) ? null : new DateTime(((Number) to).longValue(), DateTimeZone.UTC);
+            return Double.isInfinite(((Number) to).doubleValue()) ? null :
+                Instant.ofEpochMilli(((Number) to).longValue()).atZone(ZoneOffset.UTC);
         }
 
         private Double internalGetFrom() {

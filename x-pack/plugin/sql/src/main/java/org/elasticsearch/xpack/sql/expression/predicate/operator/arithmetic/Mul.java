@@ -47,7 +47,7 @@ public class Mul extends ArithmeticOperation {
             return TypeResolution.TYPE_RESOLVED;
         }
 
-        return new TypeResolution(format("[{}] has arguments with incompatible types [{}] and [{}]", symbol(), l, r));
+        return new TypeResolution(format(null, "[{}] has arguments with incompatible types [{}] and [{}]", symbol(), l, r));
     }
 
     @Override

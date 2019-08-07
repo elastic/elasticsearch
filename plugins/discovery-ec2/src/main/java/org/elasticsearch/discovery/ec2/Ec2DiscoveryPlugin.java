@@ -28,7 +28,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.zen.UnicastHostsProvider;
+import org.elasticsearch.discovery.SeedHostsProvider;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -96,9 +96,9 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
     }
 
     @Override
-    public Map<String, Supplier<UnicastHostsProvider>> getZenHostsProviders(TransportService transportService,
-                                                                            NetworkService networkService) {
-        return Collections.singletonMap(EC2, () -> new AwsEc2UnicastHostsProvider(settings, transportService, ec2Service));
+    public Map<String, Supplier<SeedHostsProvider>> getSeedHostProviders(TransportService transportService,
+                                                                         NetworkService networkService) {
+        return Collections.singletonMap(EC2, () -> new AwsEc2SeedHostsProvider(settings, transportService, ec2Service));
     }
 
     @Override

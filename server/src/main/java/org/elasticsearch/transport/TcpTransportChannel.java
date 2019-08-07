@@ -20,48 +20,45 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
 import java.io.IOException;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class TcpTransportChannel implements TransportChannel {
 
     private final AtomicBoolean released = new AtomicBoolean();
-    private final TcpTransport transport;
-    private final Version version;
-    private final Set<String> features;
+    private final OutboundHandler outboundHandler;
+    private final TcpChannel channel;
     private final String action;
     private final long requestId;
-    private final String profileName;
+    private final Version version;
+    private final CircuitBreakerService breakerService;
     private final long reservedBytes;
-    private final String channelType;
-    private final TcpChannel channel;
     private final boolean compressResponse;
 
-    TcpTransportChannel(TcpTransport transport, TcpChannel channel, String channelType, String action, long requestId, Version version,
-                        Set<String> features, String profileName, long reservedBytes, boolean compressResponse) {
+    TcpTransportChannel(OutboundHandler outboundHandler, TcpChannel channel, String action, long requestId, Version version,
+                        CircuitBreakerService breakerService, long reservedBytes, boolean compressResponse) {
         this.version = version;
-        this.features = features;
         this.channel = channel;
-        this.transport = transport;
+        this.outboundHandler = outboundHandler;
         this.action = action;
         this.requestId = requestId;
-        this.profileName = profileName;
+        this.breakerService = breakerService;
         this.reservedBytes = reservedBytes;
-        this.channelType = channelType;
         this.compressResponse = compressResponse;
     }
 
     @Override
     public String getProfileName() {
-        return profileName;
+        return channel.getProfile();
     }
 
     @Override
     public void sendResponse(TransportResponse response) throws IOException {
         try {
-            transport.sendResponse(version, features, channel, response, requestId, action, compressResponse);
+            outboundHandler.sendResponse(version, channel, requestId, action, response, compressResponse, false);
         } finally {
             release(false);
         }
@@ -70,7 +67,7 @@ public final class TcpTransportChannel implements TransportChannel {
     @Override
     public void sendResponse(Exception exception) throws IOException {
         try {
-            transport.sendErrorResponse(version, features, channel, exception, requestId, action);
+            outboundHandler.sendErrorResponse(version, channel, requestId, action, exception);
         } finally {
             release(true);
         }
@@ -81,7 +78,7 @@ public final class TcpTransportChannel implements TransportChannel {
     private void release(boolean isExceptionResponse) {
         if (released.compareAndSet(false, true)) {
             assert (releaseBy = new Exception()) != null; // easier to debug if it's already closed
-            transport.getInFlightRequestBreaker().addWithoutBreaking(-reservedBytes);
+            breakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS).addWithoutBreaking(-reservedBytes);
         } else if (isExceptionResponse == false) {
             // only fail if we are not sending an error - we might send the error triggered by the previous
             // sendResponse call
@@ -91,7 +88,7 @@ public final class TcpTransportChannel implements TransportChannel {
 
     @Override
     public String getChannelType() {
-        return channelType;
+        return "transport";
     }
 
     @Override

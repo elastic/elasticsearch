@@ -68,7 +68,7 @@ for further customization:
 
 [source,js]
 ----------------------------------------------------
-PUT /keyword_example?include_type_name=true
+PUT /keyword_example
 {
   "settings": {
     "analysis": {

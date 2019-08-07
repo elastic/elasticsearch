@@ -18,13 +18,13 @@
  */
 package org.elasticsearch.index.replication;
 
-import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkShardRequest;
@@ -39,6 +39,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineTests;
 import org.elasticsearch.index.engine.SegmentsStats;
@@ -57,11 +58,12 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Future;
@@ -87,6 +89,9 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             final int docCount = randomInt(50);
             shards.indexDocs(docCount);
             shards.assertAllEqual(docCount);
+            for (IndexShard replica : shards.getReplicas()) {
+                assertThat(EngineTestCase.getNumVersionLookups(getEngine(replica)), equalTo(0L));
+            }
         }
     }
 
@@ -96,6 +101,9 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             final int docCount = randomInt(50);
             shards.appendDocs(docCount);
             shards.assertAllEqual(docCount);
+            for (IndexShard replica : shards.getReplicas()) {
+                assertThat(EngineTestCase.getNumVersionLookups(getEngine(replica)), equalTo(0L));
+            }
         }
     }
 
@@ -119,20 +127,21 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             };
             thread.start();
             IndexShard replica = shards.addReplica();
-            Future<Void> future = shards.asyncRecoverReplica(replica, (indexShard, node)
-                    -> new RecoveryTarget(indexShard, node, recoveryListener, version -> {
-            }) {
-                @Override
-                public void cleanFiles(int totalTranslogOps, Store.MetadataSnapshot sourceMetaData) throws IOException {
-                    super.cleanFiles(totalTranslogOps, sourceMetaData);
-                    latch.countDown();
-                    try {
-                        latch.await();
-                    } catch (InterruptedException e) {
-                        throw new AssertionError(e);
+            Future<Void> future = shards.asyncRecoverReplica(replica,
+                (indexShard, node) -> new RecoveryTarget(indexShard, node, recoveryListener) {
+                    @Override
+                    public void cleanFiles(int totalTranslogOps, long globalCheckpoint,
+                                           Store.MetadataSnapshot sourceMetaData, ActionListener<Void> listener) {
+                        super.cleanFiles(totalTranslogOps, globalCheckpoint, sourceMetaData, ActionListener.runAfter(listener, () -> {
+                            latch.countDown();
+                            try {
+                                latch.await();
+                            } catch (InterruptedException e) {
+                                throw new AssertionError(e);
+                            }
+                        }));
                     }
-                }
-            });
+                });
             future.get();
             thread.join();
             shards.assertAllEqual(numDocs);
@@ -196,15 +205,15 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             thread.start();
             IndexShard replica = shards.addReplica();
             Future<Void> fut = shards.asyncRecoverReplica(replica,
-                (shard, node) -> new RecoveryTarget(shard, node, recoveryListener, v -> {}){
+                (shard, node) -> new RecoveryTarget(shard, node, recoveryListener) {
                     @Override
-                    public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps) throws IOException {
+                    public void prepareForTranslogOperations(int totalTranslogOps, ActionListener<Void> listener) {
                         try {
                             indexedOnPrimary.await();
                         } catch (InterruptedException e) {
                             throw new AssertionError(e);
                         }
-                        super.prepareForTranslogOperations(fileBasedRecovery, totalTranslogOps);
+                        super.prepareForTranslogOperations(totalTranslogOps, listener);
                     }
                 });
             fut.get();
@@ -227,8 +236,8 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             IndexShard replica = shards.addReplica();
             shards.recoverReplica(replica);
 
-            SegmentsStats segmentsStats = replica.segmentStats(false);
-            SegmentsStats primarySegmentStats = shards.getPrimary().segmentStats(false);
+            SegmentsStats segmentsStats = replica.segmentStats(false, false);
+            SegmentsStats primarySegmentStats = shards.getPrimary().segmentStats(false, false);
             assertNotEquals(IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, primarySegmentStats.getMaxUnsafeAutoIdTimestamp());
             assertEquals(primarySegmentStats.getMaxUnsafeAutoIdTimestamp(), segmentsStats.getMaxUnsafeAutoIdTimestamp());
             assertNotEquals(Long.MAX_VALUE, segmentsStats.getMaxUnsafeAutoIdTimestamp());
@@ -306,7 +315,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             shards.refresh("test");
             for (IndexShard shard : shards) {
                 try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-                    TopDocs search = searcher.searcher().search(new TermQuery(new Term("f", "2")), 10);
+                    TopDocs search = searcher.search(new TermQuery(new Term("f", "2")), 10);
                     assertEquals("shard " + shard.routingEntry() + " misses new version", 1, search.totalHits.value);
                 }
             }
@@ -417,10 +426,8 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
      */
     public void testDocumentFailureReplication() throws Exception {
         final IOException indexException = new IOException("simulated indexing failure");
-        final IOException deleteException = new IOException("simulated deleting failure");
         final EngineFactory engineFactory = config -> InternalEngineTests.createInternalEngine((dir, iwc) ->
             new IndexWriter(dir, iwc) {
-                final AtomicBoolean throwAfterIndexedOneDoc = new AtomicBoolean(); // need one document to trigger delete in IW.
                 @Override
                 public long addDocument(Iterable<? extends IndexableField> doc) throws IOException {
                     boolean isTombstone = false;
@@ -429,19 +436,11 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                             isTombstone = true;
                         }
                     }
-                    if (isTombstone == false && throwAfterIndexedOneDoc.getAndSet(true)) {
-                        throw indexException;
+                    if (isTombstone) {
+                        return super.addDocument(doc); // allow to add Noop
                     } else {
-                        return super.addDocument(doc);
+                        throw indexException;
                     }
-                }
-                @Override
-                public long deleteDocuments(Term... terms) throws IOException {
-                    throw deleteException;
-                }
-                @Override
-                public long softUpdateDocument(Term term, Iterable<? extends IndexableField> doc, Field...fields) throws IOException {
-                    throw deleteException; // a delete uses softUpdateDocument API if soft-deletes enabled
                 }
             }, null, null, config);
         try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetaData(0)) {
@@ -453,20 +452,13 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             long primaryTerm = shards.getPrimary().getPendingPrimaryTerm();
             List<Translog.Operation> expectedTranslogOps = new ArrayList<>();
             BulkItemResponse indexResp = shards.index(new IndexRequest(index.getName(), "type", "1").source("{}", XContentType.JSON));
-            assertThat(indexResp.isFailed(), equalTo(false));
-            expectedTranslogOps.add(new Translog.Index("type", "1", 0, primaryTerm, 1, "{}".getBytes(StandardCharsets.UTF_8), null, -1));
+            assertThat(indexResp.isFailed(), equalTo(true));
+            assertThat(indexResp.getFailure().getCause(), equalTo(indexException));
+            expectedTranslogOps.add(new Translog.NoOp(0, primaryTerm, indexException.toString()));
             try (Translog.Snapshot snapshot = getTranslog(shards.getPrimary()).newSnapshot()) {
                 assertThat(snapshot, SnapshotMatchers.containsOperationsInAnyOrder(expectedTranslogOps));
             }
-
-            indexResp = shards.index(new IndexRequest(index.getName(), "type", "any").source("{}", XContentType.JSON));
-            assertThat(indexResp.getFailure().getCause(), equalTo(indexException));
-            expectedTranslogOps.add(new Translog.NoOp(1, primaryTerm, indexException.toString()));
-
-            BulkItemResponse deleteResp = shards.delete(new DeleteRequest(index.getName(), "type", "1"));
-            assertThat(deleteResp.getFailure().getCause(), equalTo(deleteException));
-            expectedTranslogOps.add(new Translog.NoOp(2, primaryTerm, deleteException.toString()));
-            shards.assertAllEqual(1);
+            shards.assertAllEqual(0);
 
             int nReplica = randomIntBetween(1, 3);
             for (int i = 0; i < nReplica; i++) {
@@ -481,14 +473,10 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                     assertThat(snapshot, SnapshotMatchers.containsOperationsInAnyOrder(expectedTranslogOps));
                 }
             }
-            // unlike previous failures, these two failures replicated directly from the replication channel.
+            // the failure replicated directly from the replication channel.
             indexResp = shards.index(new IndexRequest(index.getName(), "type", "any").source("{}", XContentType.JSON));
             assertThat(indexResp.getFailure().getCause(), equalTo(indexException));
-            expectedTranslogOps.add(new Translog.NoOp(3, primaryTerm, indexException.toString()));
-
-            deleteResp = shards.delete(new DeleteRequest(index.getName(), "type", "1"));
-            assertThat(deleteResp.getFailure().getCause(), equalTo(deleteException));
-            expectedTranslogOps.add(new Translog.NoOp(4, primaryTerm, deleteException.toString()));
+            expectedTranslogOps.add(new Translog.NoOp(1, primaryTerm, indexException.toString()));
 
             for (IndexShard shard : shards) {
                 try (Translog.Snapshot snapshot = getTranslog(shard).newSnapshot()) {
@@ -498,7 +486,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                     assertThat(snapshot, SnapshotMatchers.containsOperationsInAnyOrder(expectedTranslogOps));
                 }
             }
-            shards.assertAllEqual(1);
+            shards.assertAllEqual(0);
         }
     }
 
@@ -582,7 +570,6 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                 assertThat(op2.seqNo(), equalTo(op1.seqNo()));
                 assertThat(op2.primaryTerm(), greaterThan(op1.primaryTerm()));
                 assertThat("Remaining of snapshot should contain init operations", snapshot, containsOperationsInAnyOrder(initOperations));
-                assertThat(snapshot.overriddenOperations(), equalTo(0));
                 assertThat(snapshot.skippedOperations(), equalTo(1));
             }
 
@@ -665,6 +652,31 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             deleteOnReplica(deleteRequest, shards, replica);
             indexOnReplica(indexRequest, shards, replica);
             shards.assertAllEqual(0);
+        }
+    }
+
+    public void testIndexingOptimizationUsingSequenceNumbers() throws Exception {
+        final Set<String> liveDocs = new HashSet<>();
+        try (ReplicationGroup group = createGroup(2)) {
+            group.startAll();
+            int numDocs = randomIntBetween(1, 100);
+            long versionLookups = 0;
+            for (int i = 0; i < numDocs; i++) {
+                String id = Integer.toString(randomIntBetween(1, 100));
+                if (randomBoolean()) {
+                    group.index(new IndexRequest(index.getName(), "type", id).source("{}", XContentType.JSON));
+                    if (liveDocs.add(id) == false) {
+                        versionLookups++;
+                    }
+                } else {
+                    group.delete(new DeleteRequest(index.getName(), "type", id));
+                    liveDocs.remove(id);
+                    versionLookups++;
+                }
+            }
+            for (IndexShard replica : group.getReplicas()) {
+                assertThat(EngineTestCase.getNumVersionLookups(getEngine(replica)), equalTo(versionLookups));
+            }
         }
     }
 }

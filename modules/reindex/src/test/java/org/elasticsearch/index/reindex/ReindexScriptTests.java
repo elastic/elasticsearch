@@ -22,6 +22,7 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.script.ScriptService;
+import org.mockito.Mockito;
 
 import java.util.Map;
 
@@ -102,8 +103,8 @@ public class ReindexScriptTests extends AbstractAsyncBulkByScrollActionScriptTes
     }
 
     @Override
-    protected TransportReindexAction.AsyncIndexBySearchAction action(ScriptService scriptService, ReindexRequest request) {
-        return new TransportReindexAction.AsyncIndexBySearchAction(task, logger, null, threadPool, request, scriptService,
-                null, listener());
+    protected Reindexer.AsyncIndexBySearchAction action(ScriptService scriptService, ReindexRequest request) {
+        ReindexSslConfig sslConfig = Mockito.mock(ReindexSslConfig.class);
+        return new Reindexer.AsyncIndexBySearchAction(task, logger, null, threadPool, scriptService, sslConfig, request, listener());
     }
 }

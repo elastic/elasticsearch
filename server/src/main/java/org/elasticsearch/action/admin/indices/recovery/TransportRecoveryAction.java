@@ -93,9 +93,7 @@ public class TransportRecoveryAction extends TransportBroadcastByNodeAction<Reco
 
     @Override
     protected RecoveryRequest readRequestFrom(StreamInput in) throws IOException {
-        final RecoveryRequest recoveryRequest = new RecoveryRequest();
-        recoveryRequest.readFrom(in);
-        return recoveryRequest;
+        return new RecoveryRequest(in);
     }
 
     @Override
@@ -112,11 +110,11 @@ public class TransportRecoveryAction extends TransportBroadcastByNodeAction<Reco
 
     @Override
     protected ClusterBlockException checkGlobalBlock(ClusterState state, RecoveryRequest request) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.READ);
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 
     @Override
     protected ClusterBlockException checkRequestBlock(ClusterState state, RecoveryRequest request, String[] concreteIndices) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.READ, concreteIndices);
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, concreteIndices);
     }
 }

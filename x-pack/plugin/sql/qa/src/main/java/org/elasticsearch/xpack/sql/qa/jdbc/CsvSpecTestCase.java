@@ -10,10 +10,10 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.CsvTestCase;
 
+import java.net.URL;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.csvConnection;
@@ -29,21 +29,9 @@ public abstract class CsvSpecTestCase extends SpecBaseIntegrationTestCase {
 
     @ParametersFactory(argumentFormatting = PARAM_FORMATTING)
     public static List<Object[]> readScriptSpec() throws Exception {
-        Parser parser = specParser();
-        List<Object[]> tests = new ArrayList<>();
-        tests.addAll(readScriptSpec("/select.csv-spec", parser));
-        tests.addAll(readScriptSpec("/command.csv-spec", parser));
-        tests.addAll(readScriptSpec("/fulltext.csv-spec", parser));
-        tests.addAll(readScriptSpec("/agg.csv-spec", parser));
-        tests.addAll(readScriptSpec("/columns.csv-spec", parser));
-        tests.addAll(readScriptSpec("/datetime.csv-spec", parser));
-        tests.addAll(readScriptSpec("/alias.csv-spec", parser));
-        tests.addAll(readScriptSpec("/null.csv-spec", parser));
-        tests.addAll(readScriptSpec("/nested.csv-spec", parser));
-        tests.addAll(readScriptSpec("/functions.csv-spec", parser));
-        tests.addAll(readScriptSpec("/math.csv-spec", parser));
-        tests.addAll(readScriptSpec("/field-alias.csv-spec", parser));
-        return tests;
+        List<URL> urls = JdbcTestUtils.classpathResources("/*.csv-spec");
+        assertTrue("Not enough specs found " + urls.toString(), urls.size() > 15);
+        return readScriptSpec(urls, specParser());
     }
 
     public CsvSpecTestCase(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase) {
@@ -53,18 +41,23 @@ public abstract class CsvSpecTestCase extends SpecBaseIntegrationTestCase {
 
     @Override
     protected final void doTest() throws Throwable {
+        // Run the time tests always in UTC
+        // TODO: https://github.com/elastic/elasticsearch/issues/40779
         try (Connection csv = csvConnection(testCase); Connection es = esJdbc()) {
-
-            // pass the testName as table for debugging purposes (in case the underlying reader is missing)
-            ResultSet expected = executeCsvQuery(csv, testName);
-            ResultSet elasticResults = executeJdbcQuery(es, testCase.query);
-            assertResults(expected, elasticResults);
+            executeAndAssert(csv, es);
         }
     }
 
     @Override
     protected void assertResults(ResultSet expected, ResultSet elastic) throws SQLException {
         Logger log = logEsResultSet() ? logger : null;
-        JdbcAssert.assertResultSets(expected, elastic, log, false, false);
+        JdbcAssert.assertResultSets(expected, elastic, log, false, true);
+    }
+
+    private void executeAndAssert(Connection csv, Connection es) throws SQLException {
+        // pass the testName as table for debugging purposes (in case the underlying reader is missing)
+        ResultSet expected = executeCsvQuery(csv, testName);
+        ResultSet elasticResults = executeJdbcQuery(es, testCase.query);
+        assertResults(expected, elasticResults);
     }
 }

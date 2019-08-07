@@ -29,7 +29,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collection;
+import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
@@ -48,16 +48,18 @@ public final class IndicesPrivileges extends AbstractIndicesPrivileges implement
     static final ConstructingObjectParser<IndicesPrivileges, Void> PARSER =
         new ConstructingObjectParser<>("indices_privileges", false, constructorObjects -> {
             int i = 0;
-            final Collection<String> indices = (Collection<String>) constructorObjects[i++];
-            final Collection<String> privileges = (Collection<String>) constructorObjects[i++];
+            final List<String> indices = (List<String>) constructorObjects[i++];
+            final List<String> privileges = (List<String>) constructorObjects[i++];
+            final boolean allowRestrictedIndices = (Boolean) constructorObjects[i++];
             final FieldSecurity fields = (FieldSecurity) constructorObjects[i++];
             final String query = (String) constructorObjects[i];
-            return new IndicesPrivileges(indices, privileges, fields, query);
+            return new IndicesPrivileges(indices, privileges, allowRestrictedIndices, fields, query);
         });
 
     static {
         PARSER.declareStringArray(constructorArg(), NAMES);
         PARSER.declareStringArray(constructorArg(), PRIVILEGES);
+        PARSER.declareBoolean(constructorArg(), ALLOW_RESTRICTED_INDICES);
         PARSER.declareObject(optionalConstructorArg(), FieldSecurity::parse, FIELD_PERMISSIONS);
         PARSER.declareStringOrNull(optionalConstructorArg(), QUERY);
     }
@@ -66,9 +68,9 @@ public final class IndicesPrivileges extends AbstractIndicesPrivileges implement
     // missing query means all documents, i.e. no restrictions
     private final @Nullable String query;
 
-    private IndicesPrivileges(Collection<String> indices, Collection<String> privileges, @Nullable FieldSecurity fieldSecurity,
-                              @Nullable String query) {
-        super(indices, privileges);
+    private IndicesPrivileges(List<String> indices, List<String> privileges, boolean allowRestrictedIndices,
+                              @Nullable FieldSecurity fieldSecurity, @Nullable String query) {
+        super(indices, privileges, allowRestrictedIndices);
         this.fieldSecurity = fieldSecurity;
         this.query = query;
     }
@@ -118,13 +120,14 @@ public final class IndicesPrivileges extends AbstractIndicesPrivileges implement
         IndicesPrivileges that = (IndicesPrivileges) o;
         return indices.equals(that.indices)
             && privileges.equals(that.privileges)
+            && allowRestrictedIndices == that.allowRestrictedIndices
             && Objects.equals(this.fieldSecurity, that.fieldSecurity)
             && Objects.equals(query, that.query);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(indices, privileges, fieldSecurity, query);
+        return Objects.hash(indices, privileges, allowRestrictedIndices, fieldSecurity, query);
     }
 
     @Override
@@ -141,6 +144,7 @@ public final class IndicesPrivileges extends AbstractIndicesPrivileges implement
         builder.startObject();
         builder.field(NAMES.getPreferredName(), indices);
         builder.field(PRIVILEGES.getPreferredName(), privileges);
+        builder.field(ALLOW_RESTRICTED_INDICES.getPreferredName(), allowRestrictedIndices);
         if (fieldSecurity != null) {
             builder.field(FIELD_PERMISSIONS.getPreferredName(), fieldSecurity, params);
         }
@@ -161,15 +165,16 @@ public final class IndicesPrivileges extends AbstractIndicesPrivileges implement
     public static final class Builder {
 
         private @Nullable
-        Collection<String> indices = null;
+        List<String> indices = null;
         private @Nullable
-        Collection<String> privileges = null;
+        List<String> privileges = null;
         private @Nullable
-        Collection<String> grantedFields = null;
+        List<String> grantedFields = null;
         private @Nullable
-        Collection<String> deniedFields = null;
+        List<String> deniedFields = null;
         private @Nullable
         String query = null;
+        boolean allowRestrictedIndices = false;
 
         public Builder() {
         }
@@ -178,7 +183,7 @@ public final class IndicesPrivileges extends AbstractIndicesPrivileges implement
             return indices(Arrays.asList(Objects.requireNonNull(indices, "indices required")));
         }
 
-        public Builder indices(Collection<String> indices) {
+        public Builder indices(List<String> indices) {
             this.indices = Objects.requireNonNull(indices, "indices required");
             return this;
         }
@@ -187,7 +192,7 @@ public final class IndicesPrivileges extends AbstractIndicesPrivileges implement
             return privileges(Arrays.asList(Objects.requireNonNull(privileges, "privileges required")));
         }
 
-        public Builder privileges(Collection<String> privileges) {
+        public Builder privileges(List<String> privileges) {
             this.privileges = Objects.requireNonNull(privileges, "privileges required");
             return this;
         }
@@ -200,7 +205,7 @@ public final class IndicesPrivileges extends AbstractIndicesPrivileges implement
             return grantedFields(Arrays.asList(grantedFields));
         }
 
-        public Builder grantedFields(@Nullable Collection<String> grantedFields) {
+        public Builder grantedFields(@Nullable List<String> grantedFields) {
             this.grantedFields = grantedFields;
             return this;
         }
@@ -213,13 +218,18 @@ public final class IndicesPrivileges extends AbstractIndicesPrivileges implement
             return deniedFields(Arrays.asList(deniedFields));
         }
 
-        public Builder deniedFields(@Nullable Collection<String> deniedFields) {
+        public Builder deniedFields(@Nullable List<String> deniedFields) {
             this.deniedFields = deniedFields;
             return this;
         }
 
         public Builder query(@Nullable String query) {
             this.query = query;
+            return this;
+        }
+
+        public Builder allowRestrictedIndices(boolean allow) {
+            this.allowRestrictedIndices = allow;
             return this;
         }
 
@@ -230,7 +240,7 @@ public final class IndicesPrivileges extends AbstractIndicesPrivileges implement
             } else {
                 fieldSecurity = new FieldSecurity(grantedFields, deniedFields);
             }
-            return new IndicesPrivileges(indices, privileges, fieldSecurity, query);
+            return new IndicesPrivileges(indices, privileges, allowRestrictedIndices, fieldSecurity, query);
         }
     }
 

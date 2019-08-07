@@ -35,7 +35,7 @@ import static org.elasticsearch.xpack.sql.client.UriUtils.removeQuery;
  / Additional properties can be specified either through the Properties object or in the URL. In case of duplicates, the URL wins.
  */
 //TODO: beef this up for Security/SSL
-class JdbcConfiguration extends ConnectionConfiguration {
+public class JdbcConfiguration extends ConnectionConfiguration {
     static final String URL_PREFIX = "jdbc:es://";
     public static URI DEFAULT_URI = URI.create("http://localhost:9200/");
 
@@ -54,13 +54,21 @@ class JdbcConfiguration extends ConnectionConfiguration {
     // really, the way to move forward is to specify a calendar or the timezone manually
     static final String TIME_ZONE_DEFAULT = TimeZone.getDefault().getID();
 
+    static final String FIELD_MULTI_VALUE_LENIENCY = "field.multi.value.leniency";
+    static final String FIELD_MULTI_VALUE_LENIENCY_DEFAULT = "true";
+
+    static final String INDEX_INCLUDE_FROZEN = "index.include.frozen";
+    static final String INDEX_INCLUDE_FROZEN_DEFAULT = "false";
+
+
     // options that don't change at runtime
-    private static final Set<String> OPTION_NAMES = new LinkedHashSet<>(Arrays.asList(TIME_ZONE, DEBUG, DEBUG_OUTPUT));
+    private static final Set<String> OPTION_NAMES = new LinkedHashSet<>(
+            Arrays.asList(TIME_ZONE, FIELD_MULTI_VALUE_LENIENCY, INDEX_INCLUDE_FROZEN, DEBUG, DEBUG_OUTPUT));
 
     static {
         // trigger version initialization
         // typically this should have already happened but in case the
-        // JdbcDriver/JdbcDataSource are not used and the impl. classes used directly
+        // EsDriver/EsDataSource are not used and the impl. classes used directly
         // this covers that case
         Version.CURRENT.toString();
     }
@@ -71,6 +79,8 @@ class JdbcConfiguration extends ConnectionConfiguration {
 
     // mutable ones
     private ZoneId zoneId;
+    private boolean fieldMultiValueLeniency;
+    private boolean includeFrozen;
 
     public static JdbcConfiguration create(String u, Properties props, int loginTimeoutSeconds) throws JdbcSQLException {
         URI uri = parseUrl(u);
@@ -151,11 +161,19 @@ class JdbcConfiguration extends ConnectionConfiguration {
 
         this.zoneId = parseValue(TIME_ZONE, props.getProperty(TIME_ZONE, TIME_ZONE_DEFAULT),
                 s -> TimeZone.getTimeZone(s).toZoneId().normalized());
+        this.fieldMultiValueLeniency = parseValue(FIELD_MULTI_VALUE_LENIENCY,
+                props.getProperty(FIELD_MULTI_VALUE_LENIENCY, FIELD_MULTI_VALUE_LENIENCY_DEFAULT), Boolean::parseBoolean);
+        this.includeFrozen = parseValue(INDEX_INCLUDE_FROZEN, props.getProperty(INDEX_INCLUDE_FROZEN, INDEX_INCLUDE_FROZEN_DEFAULT),
+                Boolean::parseBoolean);
     }
 
     @Override
-    protected Collection<? extends String> extraOptions() {
+    protected Collection<String> extraOptions() {
         return OPTION_NAMES;
+    }
+
+    ZoneId zoneId() {
+        return zoneId;
     }
 
     public boolean debug() {
@@ -170,8 +188,12 @@ class JdbcConfiguration extends ConnectionConfiguration {
         return zoneId != null ? TimeZone.getTimeZone(zoneId) : null;
     }
 
-    public void timeZone(TimeZone timeZone) {
-        this.zoneId = timeZone != null ? timeZone.toZoneId() : null;
+    public boolean fieldMultiValueLeniency() {
+        return fieldMultiValueLeniency;
+    }
+
+    public boolean indexIncludeFrozen() {
+        return includeFrozen;
     }
 
     public static boolean canAccept(String url) {
@@ -180,9 +202,8 @@ class JdbcConfiguration extends ConnectionConfiguration {
 
     public DriverPropertyInfo[] driverPropertyInfo() {
         List<DriverPropertyInfo> info = new ArrayList<>();
-        for (String option : OPTION_NAMES) {
-            String value = null;
-            DriverPropertyInfo prop = new DriverPropertyInfo(option, value);
+        for (String option : optionNames()) {
+            DriverPropertyInfo prop = new DriverPropertyInfo(option, null);
             info.add(prop);
         }
 

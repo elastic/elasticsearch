@@ -6,17 +6,16 @@ setup:
         index: foo
         body:
           mappings:
-            _doc:
-              properties:
-                the_field:
-                  type: date
-                value_field:
-                  type: integer
+            properties:
+              the_field:
+                type: date
+              value_field:
+                type: integer
 
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.rollup.put_job:
+      rollup.put_job:
         id: foo
         body:  >
           {
@@ -27,7 +26,7 @@ setup:
             "groups" : {
               "date_histogram": {
                 "field": "the_field",
-                "interval": "1h"
+                "calendar_interval": "1h"
               }
             },
             "metrics": [
@@ -45,7 +44,7 @@ setup:
       catch: /Task for Rollup Job \[does_not_exist\] not found/
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.rollup.start_job:
+      rollup.start_job:
         id: does_not_exist
 
 
@@ -55,14 +54,15 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.rollup.start_job:
+      rollup.start_job:
         id: foo
   - is_true: started
 
   - do:
-      catch: /Cannot start task for Rollup Job \[foo\] because state was/
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.rollup.start_job:
+      rollup.start_job:
         id: foo
+  - is_true: started
+
 

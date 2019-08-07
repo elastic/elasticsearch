@@ -20,9 +20,7 @@
 package org.elasticsearch.action.admin.indices.mapping.put;
 
 import com.carrotsearch.hppc.ObjectHashSet;
-
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -74,8 +72,19 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
     private String type;
 
     private String source;
+    private String origin = "";
 
     private Index concreteIndex;
+
+    public PutMappingRequest(StreamInput in) throws IOException {
+        super(in);
+        indices = in.readStringArray();
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
+        type = in.readOptionalString();
+        source = in.readString();
+        concreteIndex = in.readOptionalWriteable(Index::new);
+        origin = in.readOptionalString();
+    }
 
     public PutMappingRequest() {
     }
@@ -184,6 +193,16 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         return source(buildFromSimplifiedDef(type, source));
     }
 
+    public String origin() {
+        return origin;
+    }
+
+    public PutMappingRequest origin(String origin) {
+        // reserve "null" for bwc.
+        this.origin = Objects.requireNonNull(origin);
+        return this;
+    }
+
     /**
      * @param type
      *            the mapping type
@@ -254,7 +273,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
      * The mapping source definition.
      */
     public PutMappingRequest source(XContentBuilder mappingBuilder) {
-        return source(Strings.toString(mappingBuilder), mappingBuilder.contentType());
+        return source(BytesReference.bytes(mappingBuilder), mappingBuilder.contentType());
     }
 
     /**
@@ -264,7 +283,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(mappingSource);
-            return source(Strings.toString(builder), XContentType.JSON);
+            return source(BytesReference.bytes(builder), builder.contentType());
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + mappingSource + "]", e);
         }
@@ -291,29 +310,14 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        indices = in.readStringArray();
-        indicesOptions = IndicesOptions.readIndicesOptions(in);
-        type = in.readOptionalString();
-        source = in.readString();
-        if (in.getVersion().before(Version.V_7_0_0)) {
-            in.readBoolean(); // updateAllTypes
-        }
-        concreteIndex = in.readOptionalWriteable(Index::new);
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArrayNullable(indices);
         indicesOptions.writeIndicesOptions(out);
         out.writeOptionalString(type);
         out.writeString(source);
-        if (out.getVersion().before(Version.V_7_0_0)) {
-            out.writeBoolean(true); // updateAllTypes
-        }
         out.writeOptionalWriteable(concreteIndex);
+        out.writeOptionalString(origin);
     }
 
     @Override

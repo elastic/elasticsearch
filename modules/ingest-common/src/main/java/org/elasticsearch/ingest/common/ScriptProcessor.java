@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.script.DeprecationMap;
 import org.elasticsearch.script.IngestScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptException;
@@ -37,6 +38,7 @@ import org.elasticsearch.script.ScriptService;
 
 import java.io.InputStream;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Map;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
@@ -45,6 +47,9 @@ import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationExcept
  * Processor that evaluates a script with an ingest document in its context.
  */
 public final class ScriptProcessor extends AbstractProcessor {
+
+    private static final Map<String, String> DEPRECATIONS =
+            Collections.singletonMap("_type", "[types removal] Looking up doc types [_type] in scripts is deprecated.");
 
     public static final String TYPE = "script";
 
@@ -72,7 +77,8 @@ public final class ScriptProcessor extends AbstractProcessor {
     @Override
     public IngestDocument execute(IngestDocument document) {
         IngestScript.Factory factory = scriptService.compile(script, IngestScript.CONTEXT);
-        factory.newInstance(script.getParams()).execute(document.getSourceAndMetadata());
+        factory.newInstance(script.getParams()).execute(
+                new DeprecationMap(document.getSourceAndMetadata(), DEPRECATIONS, "script_processor"));
         CollectionUtils.ensureNoSelfReferences(document.getSourceAndMetadata(), "ingest script");
         return document;
     }

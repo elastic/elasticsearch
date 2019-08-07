@@ -9,9 +9,7 @@ setup:
 
 ---
 "_analyze with No. generated tokens less than or equal to index.analyze.max_token_count should succeed":
-  - skip:
-      version: " - 6.99.99"
-      reason:  index.analyze.max_token_count setting has been added in 7.0.0
+
   - do:
       indices.analyze:
           index:  test_1
@@ -25,9 +23,7 @@ setup:
 
 ---
 "_analyze with No. generated tokens more than index.analyze.max_token_count should fail":
-  - skip:
-      version: " - 6.99.99"
-      reason:  index.analyze.max_token_count setting has been added in 7.0.0
+
   - do:
       catch: /The number of tokens produced by calling _analyze has exceeded the allowed maximum of \[3\]. This limit can be set by changing the \[index.analyze.max_token_count\] index level setting\./
       indices.analyze:
@@ -39,9 +35,7 @@ setup:
 
 ---
 "_analyze with explain with No. generated tokens more than index.analyze.max_token_count should fail":
-  - skip:
-      version: " - 6.99.99"
-      reason:  index.analyze.max_token_count setting has been added in 7.0.0
+
   - do:
       catch: /The number of tokens produced by calling _analyze has exceeded the allowed maximum of \[3\]. This limit can be set by changing the \[index.analyze.max_token_count\] index level setting\./
       indices.analyze:

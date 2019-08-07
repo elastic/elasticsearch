@@ -43,14 +43,23 @@ abstract class DateTimeArithmeticOperation extends ArithmeticOperation {
         // 2. 3. 4. intervals
         if ((DataTypes.isInterval(l) || DataTypes.isInterval(r))) {
             if (DataTypeConversion.commonType(l, r) == null) {
-                return new TypeResolution(format("[{}] has arguments with incompatible types [{}] and [{}]", symbol(), l, r));
+                return new TypeResolution(format(null, "[{}] has arguments with incompatible types [{}] and [{}]", symbol(), l, r));
             } else {
-                return TypeResolution.TYPE_RESOLVED;
+                return resolveWithIntervals();
             }
         }
 
         // fall-back to default checks
         return super.resolveType();
     }
-    
+
+    protected TypeResolution resolveWithIntervals() {
+        DataType l = left().dataType();
+        DataType r = right().dataType();
+
+        if (!(r.isDateOrTimeBased() || DataTypes.isInterval(r))|| !(l.isDateOrTimeBased() || DataTypes.isInterval(l))) {
+            return new TypeResolution(format(null, "[{}] has arguments with incompatible types [{}] and [{}]", symbol(), l, r));
+        }
+        return TypeResolution.TYPE_RESOLVED;
+    }
 }

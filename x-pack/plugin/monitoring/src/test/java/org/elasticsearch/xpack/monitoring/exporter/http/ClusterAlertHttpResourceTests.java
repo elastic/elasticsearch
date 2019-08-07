@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.monitoring.exporter.http;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import org.apache.http.HttpEntity;
@@ -127,11 +128,11 @@ public class ClusterAlertHttpResourceTests extends AbstractPublishableHttpResour
     }
 
     public void testDoPublishTrue() throws IOException {
-        assertPublishSucceeds(resource, "/_watcher/watch", watchId, StringEntity.class);
+        assertPublishSucceeds(resource, "/_watcher/watch", watchId, Collections.emptyMap(), StringEntity.class);
     }
 
     public void testDoPublishFalseWithException() throws IOException {
-        assertPublishWithException(resource, "/_watcher/watch", watchId, StringEntity.class);
+        assertPublishWithException(resource, "/_watcher/watch", watchId, Collections.emptyMap(), StringEntity.class);
     }
 
     public void testShouldReplaceClusterAlertRethrowsIOException() throws IOException {
@@ -181,7 +182,7 @@ public class ClusterAlertHttpResourceTests extends AbstractPublishableHttpResour
     }
 
     public void testParameters() {
-        final Map<String, String> parameters = new HashMap<>(resource.getParameters());
+        final Map<String, String> parameters = new HashMap<>(resource.getDefaultParameters());
 
         assertThat(parameters.remove("filter_path"), is("metadata.xpack.version_created"));
         assertThat(parameters.isEmpty(), is(true));

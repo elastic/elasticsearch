@@ -19,6 +19,11 @@
 
 package org.elasticsearch.monitor.jvm;
 
+import org.apache.lucene.util.Constants;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -150,10 +155,47 @@ public class JvmInfo implements Writeable, ToXContentFragment {
 
         }
 
-        INSTANCE = new JvmInfo(JvmPid.getPid(), System.getProperty("java.version"), runtimeMXBean.getVmName(), runtimeMXBean.getVmVersion(),
-                runtimeMXBean.getVmVendor(), runtimeMXBean.getStartTime(), configuredInitialHeapSize, configuredMaxHeapSize,
-                mem, inputArguments, bootClassPath, classPath, systemProperties, gcCollectors, memoryPools, onError, onOutOfMemoryError,
-                useCompressedOops, useG1GC, useSerialGC);
+        final boolean bundledJdk = Booleans.parseBoolean(System.getProperty("es.bundled_jdk", Boolean.FALSE.toString()));
+        final Boolean usingBundledJdk = bundledJdk ? usingBundledJdk() : null;
+
+        INSTANCE = new JvmInfo(
+                ProcessHandle.current().pid(),
+                System.getProperty("java.version"),
+                runtimeMXBean.getVmName(),
+                runtimeMXBean.getVmVersion(),
+                runtimeMXBean.getVmVendor(),
+                bundledJdk,
+                usingBundledJdk,
+                runtimeMXBean.getStartTime(),
+                configuredInitialHeapSize,
+                configuredMaxHeapSize,
+                mem,
+                inputArguments,
+                bootClassPath,
+                classPath,
+                systemProperties,
+                gcCollectors,
+                memoryPools,
+                onError,
+                onOutOfMemoryError,
+                useCompressedOops,
+                useG1GC,
+                useSerialGC);
+    }
+
+    @SuppressForbidden(reason = "PathUtils#get")
+    private static boolean usingBundledJdk() {
+        /*
+         * We are using the bundled JDK if java.home is the jdk sub-directory of our working directory. This is because we always set
+         * the working directory of Elasticsearch to home, and the bundled JDK is in the jdk sub-directory there.
+         */
+        final String javaHome = System.getProperty("java.home");
+        final String userDir = System.getProperty("user.dir");
+        if (Constants.MAC_OS_X) {
+            return PathUtils.get(javaHome).equals(PathUtils.get(userDir).resolve("jdk/Contents/Home").toAbsolutePath());
+        } else {
+            return PathUtils.get(javaHome).equals(PathUtils.get(userDir).resolve("jdk").toAbsolutePath());
+        }
     }
 
     public static JvmInfo jvmInfo() {
@@ -170,6 +212,8 @@ public class JvmInfo implements Writeable, ToXContentFragment {
     private final String vmName;
     private final String vmVersion;
     private final String vmVendor;
+    private final boolean bundledJdk;
+    private final Boolean usingBundledJdk;
     private final long startTime;
     private final long configuredInitialHeapSize;
     private final long configuredMaxHeapSize;
@@ -186,15 +230,18 @@ public class JvmInfo implements Writeable, ToXContentFragment {
     private final String useG1GC;
     private final String useSerialGC;
 
-    private JvmInfo(long pid, String version, String vmName, String vmVersion, String vmVendor, long startTime,
-                   long configuredInitialHeapSize, long configuredMaxHeapSize, Mem mem, String[] inputArguments, String bootClassPath,
-                   String classPath, Map<String, String> systemProperties, String[] gcCollectors, String[] memoryPools, String onError,
-                   String onOutOfMemoryError, String useCompressedOops, String useG1GC, String useSerialGC) {
+    private JvmInfo(long pid, String version, String vmName, String vmVersion, String vmVendor, boolean bundledJdk, Boolean usingBundledJdk,
+                    long startTime, long configuredInitialHeapSize, long configuredMaxHeapSize, Mem mem, String[] inputArguments,
+                    String bootClassPath, String classPath, Map<String, String> systemProperties, String[] gcCollectors,
+                    String[] memoryPools, String onError, String onOutOfMemoryError, String useCompressedOops, String useG1GC,
+                    String useSerialGC) {
         this.pid = pid;
         this.version = version;
         this.vmName = vmName;
         this.vmVersion = vmVersion;
         this.vmVendor = vmVendor;
+        this.bundledJdk = bundledJdk;
+        this.usingBundledJdk = usingBundledJdk;
         this.startTime = startTime;
         this.configuredInitialHeapSize = configuredInitialHeapSize;
         this.configuredMaxHeapSize = configuredMaxHeapSize;
@@ -218,6 +265,13 @@ public class JvmInfo implements Writeable, ToXContentFragment {
         vmName = in.readString();
         vmVersion = in.readString();
         vmVendor = in.readString();
+        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+            bundledJdk = in.readBoolean();
+            usingBundledJdk = in.readOptionalBoolean();
+        } else {
+            bundledJdk = false;
+            usingBundledJdk = null;
+        }
         startTime = in.readLong();
         inputArguments = new String[in.readInt()];
         for (int i = 0; i < inputArguments.length; i++) {
@@ -246,6 +300,10 @@ public class JvmInfo implements Writeable, ToXContentFragment {
         out.writeString(vmName);
         out.writeString(vmVersion);
         out.writeString(vmVendor);
+        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+            out.writeBoolean(bundledJdk);
+            out.writeOptionalBoolean(usingBundledJdk);
+        }
         out.writeLong(startTime);
         out.writeInt(inputArguments.length);
         for (String inputArgument : inputArguments) {
@@ -360,6 +418,14 @@ public class JvmInfo implements Writeable, ToXContentFragment {
         return this.vmVendor;
     }
 
+    public boolean getBundledJdk() {
+        return bundledJdk;
+    }
+
+    public Boolean getUsingBundledJdk() {
+        return usingBundledJdk;
+    }
+
     public long getStartTime() {
         return this.startTime;
     }
@@ -436,6 +502,8 @@ public class JvmInfo implements Writeable, ToXContentFragment {
         builder.field(Fields.VM_NAME, vmName);
         builder.field(Fields.VM_VERSION, vmVersion);
         builder.field(Fields.VM_VENDOR, vmVendor);
+        builder.field(Fields.BUNDLED_JDK, bundledJdk);
+        builder.field(Fields.USING_BUNDLED_JDK, usingBundledJdk);
         builder.timeField(Fields.START_TIME_IN_MILLIS, Fields.START_TIME, startTime);
 
         builder.startObject(Fields.MEM);
@@ -464,6 +532,8 @@ public class JvmInfo implements Writeable, ToXContentFragment {
         static final String VM_NAME = "vm_name";
         static final String VM_VERSION = "vm_version";
         static final String VM_VENDOR = "vm_vendor";
+        static final String BUNDLED_JDK = "bundled_jdk";
+        static final String USING_BUNDLED_JDK = "using_bundled_jdk";
         static final String START_TIME = "start_time";
         static final String START_TIME_IN_MILLIS = "start_time_in_millis";
 

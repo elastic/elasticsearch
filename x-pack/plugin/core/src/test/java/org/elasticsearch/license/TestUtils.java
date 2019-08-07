@@ -29,6 +29,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -51,11 +52,11 @@ public class TestUtils {
     private static final DateMathParser dateMathParser = formatDateTimeFormatter.toDateMathParser();
 
     public static String dateMathString(String time, final long now) {
-        return formatDateTimeFormatter.formatMillis(dateMathParser.parse(time, () -> now));
+        return formatDateTimeFormatter.format(dateMathParser.parse(time, () -> now).atZone(ZoneOffset.UTC));
     }
 
     public static long dateMath(String time, final long now) {
-        return dateMathParser.parse(time, () -> now);
+        return dateMathParser.parse(time, () -> now).toEpochMilli();
     }
 
     public static LicenseSpec generateRandomLicenseSpec(int version) {

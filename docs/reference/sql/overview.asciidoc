@@ -3,8 +3,6 @@
 [[sql-overview]]
 == Overview
 
-beta[]
-
 {es-sql} aims to provide a powerful yet lightweight SQL interface to {es}.
 
 [[sql-introduction]]

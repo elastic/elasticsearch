@@ -14,7 +14,7 @@ preserve both the stemmed and unstemmed version of tokens:
 
 [source,js]
 --------------------------------------------------
-PUT /keyword_repeat_example?include_type_name=true
+PUT /keyword_repeat_example
 {
   "settings": {
     "analysis": {

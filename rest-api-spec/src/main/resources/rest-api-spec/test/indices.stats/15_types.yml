@@ -79,4 +79,3 @@ setup:
 
   - match:    { _all.primaries.indexing.types.bar.index_total: 1 }
   - is_false:   _all.primaries.indexing.types.baz
-

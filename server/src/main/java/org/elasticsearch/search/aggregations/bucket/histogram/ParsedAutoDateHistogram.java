@@ -24,10 +24,10 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 
 public class ParsedAutoDateHistogram extends ParsedMultiBucketAggregation<ParsedAutoDateHistogram.ParsedBucket> implements Histogram {
@@ -83,7 +83,7 @@ public class ParsedAutoDateHistogram extends ParsedMultiBucketAggregation<Parsed
         @Override
         public Object getKey() {
             if (key != null) {
-                return new DateTime(key, DateTimeZone.UTC);
+                return Instant.ofEpochMilli(key).atZone(ZoneOffset.UTC);
             }
             return null;
         }

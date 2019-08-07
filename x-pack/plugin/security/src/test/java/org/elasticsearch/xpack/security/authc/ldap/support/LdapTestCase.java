@@ -18,6 +18,7 @@ import com.unboundid.ldap.sdk.SimpleBindRequest;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -25,6 +26,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapSessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.SearchGroupsResolverSettings;
@@ -46,6 +48,7 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLServerSocketFactory;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.X509ExtendedKeyManager;
+import java.net.InetAddress;
 import java.security.AccessController;
 import java.security.KeyStore;
 import java.security.PrivilegedAction;
@@ -76,7 +79,7 @@ public abstract class LdapTestCase extends ESTestCase {
         for (int i = 0; i < numberOfLdapServers; i++) {
             InMemoryDirectoryServerConfig serverConfig = new InMemoryDirectoryServerConfig("o=sevenSeas");
             List<InMemoryListenerConfig> listeners = new ArrayList<>(2);
-            listeners.add(InMemoryListenerConfig.createLDAPConfig("ldap"));
+            listeners.add(InMemoryListenerConfig.createLDAPConfig("ldap", null, 0, null));
             if (openLdapsPort()) {
                 final char[] ldapPassword = "ldap-password".toCharArray();
                 final KeyStore ks = CertParsingUtils.getKeyStoreFromPEM(
@@ -85,7 +88,7 @@ public abstract class LdapTestCase extends ESTestCase {
                     ldapPassword
                 );
                 X509ExtendedKeyManager keyManager = CertParsingUtils.keyManager(ks, ldapPassword, KeyManagerFactory.getDefaultAlgorithm());
-                final SSLContext context = SSLContext.getInstance("TLSv1.2");
+                final SSLContext context = SSLContext.getInstance(XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS.get(0));
                 context.init(new KeyManager[] { keyManager }, null, null);
                 SSLServerSocketFactory serverSocketFactory = context.getServerSocketFactory();
                 SSLSocketFactory clientSocketFactory = context.getSocketFactory();
@@ -111,7 +114,7 @@ public abstract class LdapTestCase extends ESTestCase {
     }
 
     @After
-    public void stopLdap() throws Exception {
+    public void stopLdap() {
         for (int i = 0; i < numberOfLdapServers; i++) {
             ldapServers[i].shutDown(true);
         }
@@ -120,7 +123,11 @@ public abstract class LdapTestCase extends ESTestCase {
     protected String[] ldapUrls() throws LDAPException {
         List<String> urls = new ArrayList<>(numberOfLdapServers);
         for (int i = 0; i < numberOfLdapServers; i++) {
-            LDAPURL url = new LDAPURL("ldap", "localhost", ldapServers[i].getListenPort(), null, null, null, null);
+            InetAddress listenAddress = ldapServers[i].getListenAddress();
+            if (listenAddress == null) {
+                listenAddress = InetAddress.getLoopbackAddress();
+            }
+            LDAPURL url = new LDAPURL("ldap", NetworkAddress.format(listenAddress), ldapServers[i].getListenPort(), null, null, null, null);
             urls.add(url.toString());
         }
         return urls.toArray(Strings.EMPTY_ARRAY);

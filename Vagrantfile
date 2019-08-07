@@ -46,12 +46,6 @@ Vagrant.configure(2) do |config|
   PROJECT_DIR = ENV['VAGRANT_PROJECT_DIR'] || Dir.pwd
   config.vm.synced_folder PROJECT_DIR, '/project'
 
-  'ubuntu-1404'.tap do |box|
-    config.vm.define box, define_opts do |config|
-      config.vm.box = 'elastic/ubuntu-14.04-x86_64'
-      deb_common config, box
-    end
-  end
   'ubuntu-1604'.tap do |box|
     config.vm.define box, define_opts do |config|
       config.vm.box = 'elastic/ubuntu-16.04-x86_64'
@@ -70,13 +64,13 @@ Vagrant.configure(2) do |config|
       SHELL
     end
   end
-  # Wheezy's backports don't contain Openjdk 8 and the backflips
-  # required to get the sun jdk on there just aren't worth it. We have
-  # jessie and stretch for testing debian and it works fine.
   'debian-8'.tap do |box|
     config.vm.define box, define_opts do |config|
       config.vm.box = 'elastic/debian-8-x86_64'
-      deb_common config, box
+      deb_common config, box, extra: <<-SHELL
+        # this sometimes gets a bad ip, and doesn't appear to be needed
+        rm -f /etc/apt/sources.list.d/http_debian_net_debian.list
+      SHELL
     end
   end
   'debian-9'.tap do |box|
@@ -109,13 +103,13 @@ Vagrant.configure(2) do |config|
       rpm_common config, box
     end
   end
-  'fedora-27'.tap do |box|
+  'fedora-28'.tap do |box|
     config.vm.define box, define_opts do |config|
-      config.vm.box = 'elastic/fedora-27-x86_64'
+      config.vm.box = 'elastic/fedora-28-x86_64'
       dnf_common config, box
     end
   end
-  'fedora-28'.tap do |box|
+  'fedora-29'.tap do |box|
     config.vm.define box, define_opts do |config|
       config.vm.box = 'elastic/fedora-28-x86_64'
       dnf_common config, box
@@ -131,6 +125,12 @@ Vagrant.configure(2) do |config|
     config.vm.define box, define_opts do |config|
       config.vm.box = 'elastic/sles-12-x86_64'
       sles_common config, box
+    end
+  end
+  'rhel-8'.tap do |box|
+    config.vm.define box, define_opts do |config|
+      config.vm.box = 'elastic/rhel-8-x86_64'
+      rpm_common config, box
     end
   end
 
@@ -161,13 +161,17 @@ def deb_common(config, name, extra: '')
       s.privileged = false
       s.inline = "sudo sed -i '/tty/!s/mesg n/tty -s \\&\\& mesg n/' /root/.profile"
   end
+  extra_with_lintian = <<-SHELL
+    #{extra}
+    install lintian
+  SHELL
   linux_common(
     config,
     name,
     update_command: 'apt-get update',
     update_tracking_file: '/var/cache/apt/archives/last_update',
     install_command: 'apt-get install -y',
-    extra: extra
+    extra: extra_with_lintian
   )
 end
 
@@ -346,6 +350,12 @@ def sh_install_deps(config,
       echo "==> Java is not installed"
       return 1
     }
+    cat \<\<JAVA > /etc/profile.d/java_home.sh
+if [ ! -z "\\\$JAVA_HOME" ]; then
+  export SYSTEM_JAVA_HOME=\\\$JAVA_HOME
+  unset JAVA_HOME
+fi
+JAVA
     ensure tar
     ensure curl
     ensure unzip
@@ -382,6 +392,8 @@ Defaults   env_keep += "BATS_UTILS"
 Defaults   env_keep += "BATS_TESTS"
 Defaults   env_keep += "PACKAGING_ARCHIVES"
 Defaults   env_keep += "PACKAGING_TESTS"
+Defaults   env_keep += "JAVA_HOME"
+Defaults   env_keep += "SYSTEM_JAVA_HOME"
 SUDOERS_VARS
     chmod 0440 /etc/sudoers.d/elasticsearch_vars
   SHELL
@@ -403,5 +415,6 @@ def windows_common(config, name)
     $ErrorActionPreference = "Stop"
     [Environment]::SetEnvironmentVariable("PACKAGING_ARCHIVES", "C:/project/build/packaging/archives", "Machine")
     [Environment]::SetEnvironmentVariable("PACKAGING_TESTS", "C:/project/build/packaging/tests", "Machine")
+    [Environment]::SetEnvironmentVariable("JAVA_HOME", $null, "Machine")
   SHELL
 end

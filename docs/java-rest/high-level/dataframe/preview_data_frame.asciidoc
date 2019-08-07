@@ -1,0 +1,31 @@
+--
+:api: preview-data-frame-transform
+:request: PreviewDataFrameTransformRequest
+:response: PreviewDataFrameTransformResponse
+--
+[id="{upid}-{api}"]
+=== Preview {dataframe-transform} API
+
+Previews the results of a {dataframe-transform}.
+
+The API accepts a +{request}+ object as a request and returns a +{response}+.
+
+[id="{upid}-{api}-request"]
+==== Preview {dataframe-transform} request
+
+A +{request}+ takes a single argument: a valid {dataframe-transform} config.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> The source config from which the data should be gathered
+<2> The pivot config used to transform the data
+<3> The configuration of the {dataframe-transform} to preview
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ contains the preview documents

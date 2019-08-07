@@ -32,6 +32,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.junit.Before;
 
 import java.util.HashSet;
@@ -68,6 +69,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         for (InternalFilters.InternalBucket filter : response.getBuckets()) {
             assertEquals(filter.getDocCount(), 0);
         }
+        assertFalse(AggregationInspectionHelper.hasValue(response));
         indexReader.close();
         directory.close();
     }
@@ -129,6 +131,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             assertEquals(filters.getBucketByKey("bar").getDocCount(), 1);
             assertEquals(filters.getBucketByKey("same").getDocCount(), 1);
             assertEquals(filters.getBucketByKey("other").getDocCount(), 2);
+            assertTrue(AggregationInspectionHelper.hasValue(filters));
         }
 
         indexReader.close();
@@ -157,44 +160,50 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
 
         IndexReader indexReader = DirectoryReader.open(directory);
         IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-        int numFilters = randomIntBetween(1, 10);
-        QueryBuilder[] filters = new QueryBuilder[numFilters];
-        int[] filterTerms = new int[numFilters];
-        int expectedOtherCount = numDocs;
-        Set<Integer> filterSet = new HashSet<>();
-        for (int i = 0; i < filters.length; i++) {
-            int value = randomInt(maxTerm-1);
-            filters[i] = QueryBuilders.termQuery("field", Integer.toString(value));
-            filterTerms[i] = value;
-            if (filterSet.contains(value) == false) {
-                expectedOtherCount -= expectedBucketCount[value];
-                filterSet.add(value);
-            }
-        }
-        FiltersAggregationBuilder builder = new FiltersAggregationBuilder("test", filters);
-        builder.otherBucket(true);
-        builder.otherBucketKey("other");
-
-        for (boolean doReduce : new boolean[] {true, false}) {
-            final InternalFilters response;
-            if (doReduce) {
-                response = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), builder, fieldType);
-            } else {
-                response = search(indexSearcher, new MatchAllDocsQuery(), builder, fieldType);
-            }
-            List<InternalFilters.InternalBucket> buckets = response.getBuckets();
-            assertEquals(buckets.size(), filters.length+1);
-
-            for (InternalFilters.InternalBucket bucket : buckets) {
-                if ("other".equals(bucket.getKey())) {
-                    assertEquals(bucket.getDocCount(), expectedOtherCount);
-                } else {
-                    int index = Integer.parseInt(bucket.getKey());
-                    assertEquals(bucket.getDocCount(), (long) expectedBucketCount[filterTerms[index]]);
+        try {
+            int numFilters = randomIntBetween(1, 10);
+            QueryBuilder[] filters = new QueryBuilder[numFilters];
+            int[] filterTerms = new int[numFilters];
+            int expectedOtherCount = numDocs;
+            Set<Integer> filterSet = new HashSet<>();
+            for (int i = 0; i < filters.length; i++) {
+                int value = randomInt(maxTerm - 1);
+                filters[i] = QueryBuilders.termQuery("field", Integer.toString(value));
+                filterTerms[i] = value;
+                if (filterSet.contains(value) == false) {
+                    expectedOtherCount -= expectedBucketCount[value];
+                    filterSet.add(value);
                 }
             }
+            FiltersAggregationBuilder builder = new FiltersAggregationBuilder("test", filters);
+            builder.otherBucket(true);
+            builder.otherBucketKey("other");
+
+            for (boolean doReduce : new boolean[]{true, false}) {
+                final InternalFilters response;
+                if (doReduce) {
+                    response = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), builder, fieldType);
+                } else {
+                    response = search(indexSearcher, new MatchAllDocsQuery(), builder, fieldType);
+                }
+                List<InternalFilters.InternalBucket> buckets = response.getBuckets();
+                assertEquals(buckets.size(), filters.length + 1);
+
+                for (InternalFilters.InternalBucket bucket : buckets) {
+                    if ("other".equals(bucket.getKey())) {
+                        assertEquals(bucket.getDocCount(), expectedOtherCount);
+                    } else {
+                        int index = Integer.parseInt(bucket.getKey());
+                        assertEquals(bucket.getDocCount(), (long) expectedBucketCount[filterTerms[index]]);
+                    }
+                }
+
+                // Always true because we include 'other' in the agg
+                assertTrue(AggregationInspectionHelper.hasValue(response));
+            }
+        } finally {
+            indexReader.close();
+            directory.close();
         }
-        indexReader.close();
-        directory.close();
     }
 }

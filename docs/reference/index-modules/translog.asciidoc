@@ -26,16 +26,15 @@ although this is rarely needed.
 === Translog settings
 
 The data in the translog is only persisted to disk when the translog is
-++fsync++ed and committed.  In the event of hardware failure, any data written
-since the previous translog commit will be lost.
+++fsync++ed and committed.  In the event of a hardware failure or an operating
+system crash or a JVM crash or a shard failure, any data written since the
+previous translog commit will be lost.
 
-By default, Elasticsearch ++fsync++s and commits the translog every 5 seconds
-if `index.translog.durability` is set to `async` or if set to `request`
-(default) at the end of every <<docs-index_,index>>, <<docs-delete,delete>>,
-<<docs-update,update>>, or  <<docs-bulk,bulk>> request. More precisely, if set
-to `request`, Elasticsearch will only report success of an index, delete,
+By default, `index.translog.durability` is set to `request` meaning that Elasticsearch will only report success of an index, delete,
 update, or bulk request to the client after the translog has been successfully
-++fsync++ed and committed on the primary and on every allocated replica.
+++fsync++ed and committed on the primary and on every allocated replica. If
+`index.translog.durability` is set to `async` then Elasticsearch ++fsync++s
+and commits the translog every `index.translog.sync_interval` (defaults to 5 seconds).
 
 The following <<indices-update-settings,dynamically updatable>> per-index
 settings control the behaviour of the translog:
@@ -61,7 +60,7 @@ update, or bulk request.  This setting accepts the following parameters:
 `async`::
 
     `fsync` and commit in the background every `sync_interval`. In
-    the event of hardware failure, all acknowledged writes since the last
+    the event of a failure, all acknowledged writes since the last
     automatic commit will be discarded.
 --
 

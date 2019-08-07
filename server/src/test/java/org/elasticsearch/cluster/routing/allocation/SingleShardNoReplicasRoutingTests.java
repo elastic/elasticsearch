@@ -91,7 +91,7 @@ public class SingleShardNoReplicasRoutingTests extends ESAllocationTestCase {
 
         logger.info("Marking the shard as started");
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
-        newState = strategy.applyStartedShards(clusterState, routingNodes.node("node1").shardsWithState(INITIALIZING));
+        newState = startInitializingShardsAndReroute(strategy, clusterState, routingNodes.node("node1"));
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
 
@@ -117,7 +117,7 @@ public class SingleShardNoReplicasRoutingTests extends ESAllocationTestCase {
         logger.info("Killing node1 where the shard is, checking the shard is unassigned");
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove("node1")).build();
-        newState = strategy.deassociateDeadNodes(clusterState, true, "reroute");
+        newState = strategy.disassociateDeadNodes(clusterState, true, "reroute");
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
 
@@ -150,7 +150,7 @@ public class SingleShardNoReplicasRoutingTests extends ESAllocationTestCase {
 
         logger.info("Start the shard on node 1");
         routingNodes = clusterState.getRoutingNodes();
-        newState = strategy.applyStartedShards(clusterState, routingNodes.node("node1").shardsWithState(INITIALIZING));
+        newState = startInitializingShardsAndReroute(strategy, clusterState, routingNodes.node("node1"));
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
 
@@ -290,7 +290,7 @@ public class SingleShardNoReplicasRoutingTests extends ESAllocationTestCase {
         assertThat(newState, equalTo(clusterState));
 
         logger.info("Marking the shard as started");
-        newState = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
+        newState = startShardsAndReroute(strategy, clusterState, routingNodes.shardsWithState(INITIALIZING));
         assertThat(newState, not(equalTo(clusterState)));
 
         clusterState = newState;
@@ -373,8 +373,7 @@ public class SingleShardNoReplicasRoutingTests extends ESAllocationTestCase {
         assertThat(newState, equalTo(clusterState));
         clusterState = newState;
 
-        routingNodes = clusterState.getRoutingNodes();
-        newState = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
+        newState = startInitializingShardsAndReroute(strategy, clusterState);
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
 
@@ -390,7 +389,7 @@ public class SingleShardNoReplicasRoutingTests extends ESAllocationTestCase {
         assertThat("4 target shard routing are initializing", numberOfShardsOfType(routingNodes, INITIALIZING), equalTo(4));
 
         logger.info("Now, mark the relocated as started");
-        newState = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
+        newState = startInitializingShardsAndReroute(strategy, clusterState);
 //        routingTable = strategy.reroute(new RoutingStrategyInfo(metaData, routingTable), nodes);
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;

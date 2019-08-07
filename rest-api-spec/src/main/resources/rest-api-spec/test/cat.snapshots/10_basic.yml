@@ -1,5 +1,9 @@
 ---
 "Help":
+  - skip:
+      version: " - 7.9.99"
+      reason: Repository field added in 8.0
+
   - do:
       cat.snapshots:
         help: true
@@ -7,6 +11,7 @@
   - match:
       $body: |
                /^   id                .+   \n
+                    repository        .+   \n
                     status            .+   \n
                     start_epoch       .+   \n
                     start_time        .+   \n
@@ -21,6 +26,9 @@
                $/
 ---
 "Test cat snapshots output":
+  - skip:
+      version: " - 7.9.99"
+      reason: Repository field added in 8.0
 
   - do:
       snapshot.create_repository:
@@ -74,6 +82,6 @@
 
   - match:
       $body: |
-               /^   snap1\s+ SUCCESS\s+ \d+\s+ \d\d\:\d\d\:\d\d\s+ \d+\s+ \d\d\:\d\d\:\d\d\s+ \S+\s+ 2\s+ 2\s+ 0\s+ 2\s*\n
-                    snap2\s+ SUCCESS\s+ \d+\s+ \d\d\:\d\d\:\d\d\s+ \d+\s+ \d\d\:\d\d\:\d\d\s+ \S+\s+ 2\s+ 2\s+ 0\s+ 2\s*\n
+               /^   snap1\s+ test_cat_snapshots_1\s+ SUCCESS\s+ \d+\s+ \d\d\:\d\d\:\d\d\s+ \d+\s+ \d\d\:\d\d\:\d\d\s+ \S+\s+ 2\s+ 2\s+ 0\s+ 2\s*\n
+                    snap2\s+ test_cat_snapshots_1\s+ SUCCESS\s+ \d+\s+ \d\d\:\d\d\:\d\d\s+ \d+\s+ \d\d\:\d\d\:\d\d\s+ \S+\s+ 2\s+ 2\s+ 0\s+ 2\s*\n
                $/

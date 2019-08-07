@@ -21,13 +21,14 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestSearchContext;
@@ -40,12 +41,12 @@ public class MockSearchServiceTests extends ESTestCase {
     public void testAssertNoInFlightContext() {
         final long nowInMillis = randomNonNegativeLong();
         SearchContext s = new TestSearchContext(new QueryShardContext(0,
-            new IndexSettings(EMPTY_INDEX_METADATA, Settings.EMPTY), null, null, null, null, null, xContentRegistry(),
-            writableRegistry(), null, null, () -> nowInMillis, null)) {
+            new IndexSettings(EMPTY_INDEX_METADATA, Settings.EMPTY), null, null, null, null, null, null,
+            xContentRegistry(), writableRegistry(), null, null, () -> nowInMillis, null)) {
 
             @Override
             public SearchShardTarget shardTarget() {
-                return new SearchShardTarget("node", new Index("idx", "ignored"), 0, null);
+                return new SearchShardTarget("node", new ShardId("idx", "ignored", 0), null, OriginalIndices.NONE);
             }
 
             @Override

@@ -27,14 +27,14 @@ import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.OutputFile;
+import org.gradle.api.tasks.SourceSet;
+import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.testing.Test;
-import org.gradle.api.tasks.util.PatternFilterable;
 
 import java.io.File;
 import java.io.IOException;
 import java.lang.annotation.Annotation;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.net.MalformedURLException;
@@ -65,24 +65,13 @@ public class TestingConventionsTasks extends DefaultTask {
     public TestingConventionsTasks() {
         setDescription("Tests various testing conventions");
         // Run only after everything is compiled
-        Boilerplate.getJavaSourceSets(getProject()).all(sourceSet -> dependsOn(sourceSet.getClassesTaskName()));
+        Boilerplate.getJavaSourceSets(getProject()).all(sourceSet -> dependsOn(sourceSet.getOutput().getClassesDirs()));
         naming = getProject().container(TestingConventionRule.class);
     }
 
     @Input
     public Map<String, Set<File>> classFilesPerEnabledTask(FileTree testClassFiles) {
         Map<String, Set<File>> collector = new HashMap<>();
-
-        // RandomizedTestingTask
-        collector.putAll(
-            getProject().getTasks().withType(getRandomizedTestingTask()).stream()
-                .filter(Task::getEnabled)
-                .collect(Collectors.toMap(
-                    Task::getPath,
-                    task -> testClassFiles.matching(getRandomizedTestingPatternSet(task)).getFiles()
-                    )
-                )
-        );
 
         // Gradle Test
         collector.putAll(
@@ -120,6 +109,23 @@ public class TestingConventionsTasks extends DefaultTask {
 
     public void naming(Closure<TestingConventionRule> action) {
         naming.configure(action);
+    }
+
+    @Input
+    public Set<String> getMainClassNamedLikeTests() {
+        SourceSetContainer javaSourceSets = Boilerplate.getJavaSourceSets(getProject());
+        if (javaSourceSets.findByName(SourceSet.MAIN_SOURCE_SET_NAME) == null) {
+            // some test projects don't have a main source set
+            return Collections.emptySet();
+        }
+        return javaSourceSets.getByName(SourceSet.MAIN_SOURCE_SET_NAME)
+            .getOutput().getClassesDirs().getAsFileTree()
+            .getFiles().stream()
+            .filter(file -> file.getName().endsWith(".class"))
+            .map(File::getName)
+            .map(name -> name.substring(0, name.length() - 6))
+            .filter(this::implementsNamingConvention)
+            .collect(Collectors.toSet());
     }
 
     @TaskAction
@@ -235,10 +241,12 @@ public class TestingConventionsTasks extends DefaultTask {
                             );
                         }).sorted()
                         .collect(Collectors.joining("\n"))
-                )
+                ),
                 // TODO: check that the testing tasks are included in the right task based on the name ( from the rule )
-                // TODO: check to make sure that the main source set doesn't have classes that match
-                //         the naming convention (just the names, don't load classes)
+                checkNoneExists(
+                    "Classes matching the test naming convention should be in test not main",
+                    getMainClassNamedLikeTests()
+                )
             );
         }
 
@@ -258,35 +266,21 @@ public class TestingConventionsTasks extends DefaultTask {
             .collect(Collectors.joining("\n"));
     }
 
-    @SuppressWarnings("unchecked")
-    private PatternFilterable getRandomizedTestingPatternSet(Task task) {
-        try {
-            if (
-                getRandomizedTestingTask().isAssignableFrom(task.getClass()) == false
-            ) {
-                throw new IllegalStateException("Expected " + task + " to be RandomizedTestingTask or Test but it was " + task.getClass());
-            }
-            Method getPatternSet = task.getClass().getMethod("getPatternSet");
-            return (PatternFilterable) getPatternSet.invoke(task);
-        } catch (NoSuchMethodException e) {
-            throw new IllegalStateException("Expecte task to have a `patternSet` " + task, e);
-        } catch (IllegalAccessException | InvocationTargetException e) {
-            throw new IllegalStateException("Failed to get pattern set from task" + task, e);
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private Class<? extends Task> getRandomizedTestingTask() {
-        try {
-            return (Class<? extends Task>) Class.forName("com.carrotsearch.gradle.junit4.RandomizedTestingTask");
-        } catch (ClassNotFoundException | ClassCastException e) {
-            throw new IllegalStateException("Failed to load randomized testing class", e);
-        }
-    }
-
     private String checkNoneExists(String message, Stream<? extends Class<?>> stream) {
         String problem = stream
             .map(each -> "  * " + each.getName())
+            .sorted()
+            .collect(Collectors.joining("\n"));
+        if (problem.isEmpty() == false) {
+            return message + ":\n" + problem;
+        } else {
+            return "";
+        }
+    }
+
+    private String checkNoneExists(String message, Set<? extends String> candidates) {
+        String problem = candidates.stream()
+            .map(each -> "  * " + each)
             .sorted()
             .collect(Collectors.joining("\n"));
         if (problem.isEmpty() == false) {
@@ -337,10 +331,14 @@ public class TestingConventionsTasks extends DefaultTask {
     }
 
     private boolean implementsNamingConvention(Class<?> clazz) {
+        return implementsNamingConvention(clazz.getName());
+    }
+
+    private boolean implementsNamingConvention(String className) {
         if (naming.stream()
             .map(TestingConventionRule::getSuffix)
-            .anyMatch(suffix -> clazz.getName().endsWith(suffix))) {
-            getLogger().debug("{} is a test because it matches the naming convention", clazz.getName());
+            .anyMatch(suffix -> className.endsWith(suffix))) {
+            getLogger().debug("{} is a test because it matches the naming convention", className);
             return true;
         }
         return false;

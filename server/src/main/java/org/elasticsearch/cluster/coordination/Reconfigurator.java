@@ -27,13 +27,10 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.set.Sets;
 
-import java.util.Collection;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Computes the optimal configuration of voting nodes in the cluster.
@@ -90,76 +87,96 @@ public class Reconfigurator {
      * @param retiredNodeIds Nodes that are leaving the cluster and which should not appear in the configuration if possible. Nodes that are
      *                       retired and not in the current configuration will never appear in the resulting configuration; this is useful
      *                       for shifting the vote in a 2-node cluster so one of the nodes can be restarted without harming availability.
+     * @param currentMaster  The current master. Unless retired, we prefer to keep the current master in the config.
      * @param currentConfig  The current configuration. As far as possible, we prefer to keep the current config as-is.
      * @return An optimal configuration, or leave the current configuration unchanged if the optimal configuration has no live quorum.
      */
-    public VotingConfiguration reconfigure(Set<DiscoveryNode> liveNodes, Set<String> retiredNodeIds, VotingConfiguration currentConfig) {
-        assert liveNodes.stream().noneMatch(Coordinator::isZen1Node) : liveNodes;
-        logger.trace("{} reconfiguring {} based on liveNodes={}, retiredNodeIds={}", this, currentConfig, liveNodes, retiredNodeIds);
-
-        /*
-         *  There are three true/false properties of each node in play: live/non-live, retired/non-retired and in-config/not-in-config.
-         *  Firstly we divide the nodes into disjoint sets based on these properties:
-         *
-         *  - nonRetiredInConfigNotLiveIds
-         *  - nonRetiredInConfigLiveIds
-         *  - nonRetiredLiveNotInConfigIds
-         *
-         *  The other 5 possibilities are not relevant:
-         *  - retired, in-config, live             -- retired nodes should be removed from the config
-         *  - retired, in-config, non-live         -- retired nodes should be removed from the config
-         *  - retired, not-in-config, live         -- cannot add a retired node back to the config
-         *  - retired, not-in-config, non-live     -- cannot add a retired node back to the config
-         *  - non-retired, non-live, not-in-config -- no evidence this node exists at all
-         */
+    public VotingConfiguration reconfigure(Set<DiscoveryNode> liveNodes, Set<String> retiredNodeIds, DiscoveryNode currentMaster,
+                                           VotingConfiguration currentConfig) {
+        assert liveNodes.contains(currentMaster) : "liveNodes = " + liveNodes + " master = " + currentMaster;
+        logger.trace("{} reconfiguring {} based on liveNodes={}, retiredNodeIds={}, currentMaster={}",
+            this, currentConfig, liveNodes, retiredNodeIds, currentMaster);
 
         final Set<String> liveNodeIds = liveNodes.stream()
             .filter(DiscoveryNode::isMasterNode).map(DiscoveryNode::getId).collect(Collectors.toSet());
-        final Set<String> liveInConfigIds = new TreeSet<>(currentConfig.getNodeIds());
-        liveInConfigIds.retainAll(liveNodeIds);
+        final Set<String> currentConfigNodeIds = currentConfig.getNodeIds();
 
-        final Set<String> inConfigNotLiveIds = Sets.sortedDifference(currentConfig.getNodeIds(), liveInConfigIds);
-        final Set<String> nonRetiredInConfigNotLiveIds = new TreeSet<>(inConfigNotLiveIds);
-        nonRetiredInConfigNotLiveIds.removeAll(retiredNodeIds);
-
-        final Set<String> nonRetiredInConfigLiveIds = new TreeSet<>(liveInConfigIds);
-        nonRetiredInConfigLiveIds.removeAll(retiredNodeIds);
-
-        final Set<String> nonRetiredLiveNotInConfigIds = Sets.sortedDifference(liveNodeIds, currentConfig.getNodeIds());
-        nonRetiredLiveNotInConfigIds.removeAll(retiredNodeIds);
+        final Set<VotingConfigNode> orderedCandidateNodes = new TreeSet<>();
+        liveNodes.stream()
+            .filter(DiscoveryNode::isMasterNode)
+            .filter(n -> retiredNodeIds.contains(n.getId()) == false)
+            .forEach(n -> orderedCandidateNodes.add(new VotingConfigNode(n.getId(), true,
+                n.getId().equals(currentMaster.getId()), currentConfigNodeIds.contains(n.getId()))));
+        currentConfigNodeIds.stream()
+            .filter(nid -> liveNodeIds.contains(nid) == false)
+            .filter(nid -> retiredNodeIds.contains(nid) == false)
+            .forEach(nid -> orderedCandidateNodes.add(new VotingConfigNode(nid, false, false, true)));
 
         /*
          * Now we work out how many nodes should be in the configuration:
          */
-        final int targetSize;
+        final int nonRetiredConfigSize = Math.toIntExact(orderedCandidateNodes.stream().filter(n -> n.inCurrentConfig).count());
+        final int minimumConfigEnforcedSize = autoShrinkVotingConfiguration ? (nonRetiredConfigSize < 3 ? 1 : 3) : nonRetiredConfigSize;
+        final int nonRetiredLiveNodeCount = Math.toIntExact(orderedCandidateNodes.stream().filter(n -> n.live).count());
+        final int targetSize = Math.max(roundDownToOdd(nonRetiredLiveNodeCount), minimumConfigEnforcedSize);
 
-        final int nonRetiredLiveNodeCount = nonRetiredInConfigLiveIds.size() + nonRetiredLiveNotInConfigIds.size();
-        final int nonRetiredConfigSize = nonRetiredInConfigLiveIds.size() + nonRetiredInConfigNotLiveIds.size();
-        if (autoShrinkVotingConfiguration) {
-            if (nonRetiredLiveNodeCount >= 3) {
-                targetSize = roundDownToOdd(nonRetiredLiveNodeCount);
-            } else {
-                // only have one or two available nodes; may not shrink below 3 nodes automatically, but if
-                // the config (excluding retired nodes) is already smaller than 3 then it's ok.
-                targetSize = nonRetiredConfigSize < 3 ? 1 : 3;
-            }
-        } else {
-            targetSize = Math.max(roundDownToOdd(nonRetiredLiveNodeCount), nonRetiredConfigSize);
-        }
-
-        /*
-         * The new configuration is formed by taking this many nodes in the following preference order:
-         */
         final VotingConfiguration newConfig = new VotingConfiguration(
-            // live nodes first, preferring the current config, and if we need more then use non-live nodes
-            Stream.of(nonRetiredInConfigLiveIds, nonRetiredLiveNotInConfigIds, nonRetiredInConfigNotLiveIds)
-                .flatMap(Collection::stream).limit(targetSize).collect(Collectors.toSet()));
+            orderedCandidateNodes.stream()
+                .limit(targetSize)
+                .map(n -> n.id)
+                .collect(Collectors.toSet()));
 
+        // new configuration should have a quorum
         if (newConfig.hasQuorum(liveNodeIds)) {
             return newConfig;
         } else {
             // If there are not enough live nodes to form a quorum in the newly-proposed configuration, it's better to do nothing.
             return currentConfig;
+        }
+    }
+
+    static class VotingConfigNode implements Comparable<VotingConfigNode> {
+        final String id;
+        final boolean live;
+        final boolean currentMaster;
+        final boolean inCurrentConfig;
+
+        VotingConfigNode(String id, boolean live, boolean currentMaster, boolean inCurrentConfig) {
+            this.id = id;
+            this.live = live;
+            this.currentMaster = currentMaster;
+            this.inCurrentConfig = inCurrentConfig;
+        }
+
+        @Override
+        public int compareTo(VotingConfigNode other) {
+            // prefer current master
+            final int currentMasterComp = Boolean.compare(other.currentMaster, currentMaster);
+            if (currentMasterComp != 0) {
+                return currentMasterComp;
+            }
+            // prefer nodes that are live
+            final int liveComp = Boolean.compare(other.live, live);
+            if (liveComp != 0) {
+                return liveComp;
+            }
+            // prefer nodes that are in current config for stability
+            final int inCurrentConfigComp = Boolean.compare(other.inCurrentConfig, inCurrentConfig);
+            if (inCurrentConfigComp != 0) {
+                return inCurrentConfigComp;
+            }
+            // tiebreak by node id to have stable ordering
+            return id.compareTo(other.id);
+        }
+
+        @Override
+        public String toString() {
+            return "VotingConfigNode{" +
+                "id='" + id + '\'' +
+                ", live=" + live +
+                ", currentMaster=" + currentMaster +
+                ", inCurrentConfig=" + inCurrentConfig +
+                '}';
         }
     }
 }

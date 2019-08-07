@@ -78,10 +78,6 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
         class ParserContext {
 
-            private final String type;
-
-            private final IndexAnalyzers indexAnalyzers;
-
             private final Function<String, SimilarityProvider> similarityLookupService;
 
             private final MapperService mapperService;
@@ -92,11 +88,9 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
             private final Supplier<QueryShardContext> queryShardContextSupplier;
 
-            public ParserContext(String type, IndexAnalyzers indexAnalyzers, Function<String, SimilarityProvider> similarityLookupService,
+            public ParserContext(Function<String, SimilarityProvider> similarityLookupService,
                                  MapperService mapperService, Function<String, TypeParser> typeParsers,
                                  Version indexVersionCreated, Supplier<QueryShardContext> queryShardContextSupplier) {
-                this.type = type;
-                this.indexAnalyzers = indexAnalyzers;
                 this.similarityLookupService = similarityLookupService;
                 this.mapperService = mapperService;
                 this.typeParsers = typeParsers;
@@ -104,12 +98,8 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
                 this.queryShardContextSupplier = queryShardContextSupplier;
             }
 
-            public String type() {
-                return type;
-            }
-
             public IndexAnalyzers getIndexAnalyzers() {
-                return indexAnalyzers;
+                return mapperService.getIndexAnalyzers();
             }
 
             public SimilarityProvider getSimilarity(String name) {
@@ -139,17 +129,17 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
             protected Function<String, SimilarityProvider> similarityLookupService() { return similarityLookupService; }
 
             public ParserContext createMultiFieldContext(ParserContext in) {
-                return new MultiFieldParserContext(in) {
-                    @Override
-                    public boolean isWithinMultiField() { return true; }
-                };
+                return new MultiFieldParserContext(in);
             }
 
             static class MultiFieldParserContext extends ParserContext {
                 MultiFieldParserContext(ParserContext in) {
-                    super(in.type(), in.indexAnalyzers, in.similarityLookupService(), in.mapperService(), in.typeParsers(),
+                    super(in.similarityLookupService(), in.mapperService(), in.typeParsers(),
                             in.indexVersionCreated(), in.queryShardContextSupplier());
                 }
+
+                @Override
+                public boolean isWithinMultiField() { return true; }
             }
 
         }
@@ -174,7 +164,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
     public abstract String name();
 
     /**
-     * Returns a name representing the the type of this mapper.
+     * Returns a name representing the type of this mapper.
      */
     public abstract String typeName();
 

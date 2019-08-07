@@ -561,4 +561,11 @@ public class IndexSettingsTests extends ESTestCase {
                 Settings.builder(), Settings.builder(), "index"));
         assertThat(error.getMessage(), equalTo("final index setting [index.soft_deletes.enabled], not updateable"));
     }
+
+    public void testSoftDeletesDefaultSetting() {
+        // enabled by default on 7.0+ or later
+        Version createdVersion = VersionUtils.randomIndexCompatibleVersion(random());
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), createdVersion).build();
+        assertTrue(IndexSettings.INDEX_SOFT_DELETES_SETTING.get(settings));
+    }
 }

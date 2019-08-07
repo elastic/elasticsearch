@@ -60,9 +60,9 @@ public final class RecoveryResponse extends TransportResponse {
 
     RecoveryResponse(StreamInput in) throws IOException {
         super(in);
-        phase1FileNames = in.readList(StreamInput::readString);
+        phase1FileNames = in.readStringList();
         phase1FileSizes = in.readList(StreamInput::readVLong);
-        phase1ExistingFileNames = in.readList(StreamInput::readString);
+        phase1ExistingFileNames = in.readStringList();
         phase1ExistingFileSizes = in.readList(StreamInput::readVLong);
         phase1TotalSize = in.readVLong();
         phase1ExistingTotalSize = in.readVLong();
@@ -75,10 +75,9 @@ public final class RecoveryResponse extends TransportResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeStringList(phase1FileNames);
+        out.writeStringCollection(phase1FileNames);
         out.writeCollection(phase1FileSizes, StreamOutput::writeVLong);
-        out.writeStringList(phase1ExistingFileNames);
+        out.writeStringCollection(phase1ExistingFileNames);
         out.writeCollection(phase1ExistingFileSizes, StreamOutput::writeVLong);
         out.writeVLong(phase1TotalSize);
         out.writeVLong(phase1ExistingTotalSize);

@@ -47,6 +47,11 @@ public class ByteBufferReference extends BytesReference {
     }
 
     @Override
+    public int getInt(int index) {
+        return buffer.getInt(index);
+    }
+
+    @Override
     public int length() {
         return length;
     }

@@ -32,13 +32,13 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-class NestedAggregatorFactory extends AggregatorFactory<NestedAggregatorFactory> {
+public class NestedAggregatorFactory extends AggregatorFactory {
 
     private final ObjectMapper parentObjectMapper;
     private final ObjectMapper childObjectMapper;
 
     NestedAggregatorFactory(String name, ObjectMapper parentObjectMapper, ObjectMapper childObjectMapper,
-            SearchContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactories,
+            SearchContext context, AggregatorFactory parent, AggregatorFactories.Builder subFactories,
                                    Map<String, Object> metaData) throws IOException {
         super(name, context, parent, subFactories, metaData);
         this.parentObjectMapper = parentObjectMapper;

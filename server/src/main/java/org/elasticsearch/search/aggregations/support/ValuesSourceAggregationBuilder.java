@@ -28,9 +28,9 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.internal.SearchContext;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.Map;
 import java.util.Objects;
 
@@ -81,7 +81,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     private ValueType valueType = null;
     private String format = null;
     private Object missing = null;
-    private DateTimeZone timeZone = null;
+    private ZoneId timeZone = null;
     protected ValuesSourceConfig<VS> config;
 
     protected ValuesSourceAggregationBuilder(String name, ValuesSourceType valuesSourceType, ValueType targetValueType) {
@@ -144,9 +144,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
         }
         format = in.readOptionalString();
         missing = in.readGenericValue();
-        if (in.readBoolean()) {
-            timeZone = DateTimeZone.forID(in.readString());
-        }
+        timeZone = in.readOptionalZoneId();
     }
 
     @Override
@@ -167,11 +165,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
         }
         out.writeOptionalString(format);
         out.writeGenericValue(missing);
-        boolean hasTimeZone = timeZone != null;
-        out.writeBoolean(hasTimeZone);
-        if (hasTimeZone) {
-            out.writeString(timeZone.getID());
-        }
+        out.writeOptionalZoneId(timeZone);
         innerWriteTo(out);
     }
 
@@ -289,7 +283,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
      * Sets the time zone to use for this aggregation
      */
     @SuppressWarnings("unchecked")
-    public AB timeZone(DateTimeZone timeZone) {
+    public AB timeZone(ZoneId timeZone) {
         if (timeZone == null) {
             throw new IllegalArgumentException("[timeZone] must not be null: [" + name + "]");
         }
@@ -300,15 +294,15 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     /**
      * Gets the time zone to use for this aggregation
      */
-    public DateTimeZone timeZone() {
+    public ZoneId timeZone() {
         return timeZone;
     }
 
     @Override
-    protected final ValuesSourceAggregatorFactory<VS, ?> doBuild(SearchContext context, AggregatorFactory<?> parent,
+    protected final ValuesSourceAggregatorFactory<VS> doBuild(SearchContext context, AggregatorFactory parent,
             AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         ValuesSourceConfig<VS> config = resolveConfig(context);
-        ValuesSourceAggregatorFactory<VS, ?> factory = innerBuild(context, config, parent, subFactoriesBuilder);
+        ValuesSourceAggregatorFactory<VS> factory = innerBuild(context, config, parent, subFactoriesBuilder);
         return factory;
     }
 
@@ -318,8 +312,8 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
                 valueType, field, script, missing, timeZone, format);
     }
 
-    protected abstract ValuesSourceAggregatorFactory<VS, ?> innerBuild(SearchContext context, ValuesSourceConfig<VS> config,
-            AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder) throws IOException;
+    protected abstract ValuesSourceAggregatorFactory<VS> innerBuild(SearchContext context, ValuesSourceConfig<VS> config,
+            AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder) throws IOException;
 
     @Override
     public final XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
@@ -350,34 +344,24 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     protected abstract XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException;
 
     @Override
-    protected final int doHashCode() {
-        return Objects.hash(field, format, missing, script, targetValueType, timeZone, valueType, valuesSourceType,
-                innerHashCode());
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), field, format, missing, script,
+            targetValueType, timeZone, valueType, valuesSourceType);
     }
-
-    protected abstract int innerHashCode();
 
     @Override
-    protected final boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         ValuesSourceAggregationBuilder<?, ?> other = (ValuesSourceAggregationBuilder<?, ?>) obj;
-        if (!Objects.equals(field, other.field))
-            return false;
-        if (!Objects.equals(format, other.format))
-            return false;
-        if (!Objects.equals(missing, other.missing))
-            return false;
-        if (!Objects.equals(script, other.script))
-            return false;
-        if (!Objects.equals(targetValueType, other.targetValueType))
-            return false;
-        if (!Objects.equals(timeZone, other.timeZone))
-            return false;
-        if (!Objects.equals(valueType, other.valueType))
-            return false;
-        if (!Objects.equals(valuesSourceType, other.valuesSourceType))
-            return false;
-        return innerEquals(obj);
+        return Objects.equals(valuesSourceType, other.valuesSourceType)
+            && Objects.equals(field, other.field)
+            && Objects.equals(format, other.format)
+            && Objects.equals(missing, other.missing)
+            && Objects.equals(script, other.script)
+            && Objects.equals(targetValueType, other.targetValueType)
+            && Objects.equals(timeZone, other.timeZone)
+            && Objects.equals(valueType, other.valueType);
     }
-
-    protected abstract boolean innerEquals(Object obj);
 }

@@ -45,7 +45,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 
-import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.hamcrest.Matchers.equalTo;
@@ -54,6 +53,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class UnassignedInfoTests extends ESAllocationTestCase {
+
     public void testReasonOrdinalOrder() {
         UnassignedInfo.Reason[] order = new UnassignedInfo.Reason[]{
                 UnassignedInfo.Reason.INDEX_CREATED,
@@ -70,7 +70,8 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                 UnassignedInfo.Reason.REALLOCATED_REPLICA,
                 UnassignedInfo.Reason.PRIMARY_FAILED,
                 UnassignedInfo.Reason.FORCED_EMPTY_PRIMARY,
-                UnassignedInfo.Reason.MANUAL_ALLOCATION,};
+                UnassignedInfo.Reason.MANUAL_ALLOCATION,
+                UnassignedInfo.Reason.INDEX_CLOSED,};
         for (int i = 0; i < order.length; i++) {
             assertThat(order[i].ordinal(), equalTo(i));
         }
@@ -191,7 +192,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
         clusterState = allocation.reroute(clusterState, "reroute");
         // starting primaries
-        clusterState = allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(allocation, clusterState);
         IndexRoutingTable.Builder builder = IndexRoutingTable.builder(index);
         for (IndexShardRoutingTable indexShardRoutingTable : clusterState.routingTable().index(index)) {
             builder.addIndexShard(indexShardRoutingTable);
@@ -235,13 +236,13 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2"))).build();
         clusterState = allocation.reroute(clusterState, "reroute");
         // starting primaries
-        clusterState = allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(allocation, clusterState);
         // starting replicas
-        clusterState = allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(allocation, clusterState);
         assertThat(clusterState.getRoutingNodes().unassigned().size() > 0, equalTo(false));
         // remove node2 and reroute
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove("node2")).build();
-        clusterState = allocation.deassociateDeadNodes(clusterState, true, "reroute");
+        clusterState = allocation.disassociateDeadNodes(clusterState, true, "reroute");
         // verify that NODE_LEAVE is the reason for meta
         assertThat(clusterState.getRoutingNodes().unassigned().size() > 0, equalTo(true));
         assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(1));
@@ -267,9 +268,9 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2"))).build();
         clusterState = allocation.reroute(clusterState, "reroute");
         // starting primaries
-        clusterState = allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(allocation, clusterState);
         // starting replicas
-        clusterState = allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(allocation, clusterState);
         assertThat(clusterState.getRoutingNodes().unassigned().size() > 0, equalTo(false));
         // fail shard
         ShardRouting shardToFail = clusterState.getRoutingNodes().shardsWithState(STARTED).get(0);
@@ -325,14 +326,14 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         clusterState = allocation.reroute(clusterState, "reroute");
         assertThat(UnassignedInfo.getNumberOfDelayedUnassigned(clusterState), equalTo(0));
         // starting primaries
-        clusterState = allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(allocation, clusterState);
         // starting replicas
-        clusterState = allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(allocation, clusterState);
         assertThat(clusterState.getRoutingNodes().unassigned().size() > 0, equalTo(false));
         // remove node2 and reroute
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove("node2")).build();
         // make sure both replicas are marked as delayed (i.e. not reallocated)
-        clusterState = allocation.deassociateDeadNodes(clusterState, true, "reroute");
+        clusterState = allocation.disassociateDeadNodes(clusterState, true, "reroute");
         assertThat(clusterState.toString(), UnassignedInfo.getNumberOfDelayedUnassigned(clusterState), equalTo(2));
     }
 
@@ -356,15 +357,15 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         clusterState = allocation.reroute(clusterState, "reroute");
         assertThat(UnassignedInfo.getNumberOfDelayedUnassigned(clusterState), equalTo(0));
         // starting primaries
-        clusterState = allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(allocation, clusterState);
         // starting replicas
-        clusterState = allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(allocation, clusterState);
         assertThat(clusterState.getRoutingNodes().unassigned().size() > 0, equalTo(false));
         // remove node2 and reroute
         final long baseTime = System.nanoTime();
         allocation.setNanoTimeOverride(baseTime);
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove("node2")).build();
-        clusterState = allocation.deassociateDeadNodes(clusterState, true, "reroute");
+        clusterState = allocation.disassociateDeadNodes(clusterState, true, "reroute");
 
         final long delta = randomBoolean() ? 0 : randomInt((int) expectMinDelaySettingsNanos - 1);
 

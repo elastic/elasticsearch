@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.test.disruption;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.test.ESTestCase;
 
@@ -36,6 +37,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/43387")
 public class LongGCDisruptionTests extends ESTestCase {
 
     static class LockedExecutor {
@@ -127,18 +129,18 @@ public class LongGCDisruptionTests extends ESTestCase {
         final LockedExecutor lockedExecutor = new LockedExecutor();
         final AtomicLong ops = new AtomicLong();
         final Thread[] threads = new Thread[5];
+        final Runnable yieldAndIncrement = () -> {
+            Thread.yield(); // give some chance to catch this stack trace
+            ops.incrementAndGet();
+        };
         try {
             for (int i = 0; i < threads.length; i++) {
                 threads[i] = new Thread(() -> {
                     for (int iter = 0; stop.get() == false; iter++) {
                         if (iter % 2 == 0) {
-                            lockedExecutor.executeLocked(() -> {
-                                Thread.yield(); // give some chance to catch this stack trace
-                                ops.incrementAndGet();
-                            });
+                            lockedExecutor.executeLocked(yieldAndIncrement);
                         } else {
-                            Thread.yield(); // give some chance to catch this stack trace
-                            ops.incrementAndGet();
+                            yieldAndIncrement.run();
                         }
                     }
                 });

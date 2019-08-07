@@ -45,7 +45,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -114,6 +113,11 @@ public class Setting<T> implements ToXContentObject {
         NodeScope,
 
         /**
+         * Secure setting values equal on all nodes
+         */
+        Consistent,
+
+        /**
          * Index scope
          */
         IndexScope,
@@ -168,6 +172,7 @@ public class Setting<T> implements ToXContentObject {
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.NotCopyableOnResize);
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.InternalIndex);
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.PrivateIndex);
+            checkPropertyRequiresNodeScope(propertiesAsSet, Property.Consistent);
             this.properties = propertiesAsSet;
         }
     }
@@ -175,6 +180,12 @@ public class Setting<T> implements ToXContentObject {
     private void checkPropertyRequiresIndexScope(final EnumSet<Property> properties, final Property property) {
         if (properties.contains(property) && properties.contains(Property.IndexScope) == false) {
             throw new IllegalArgumentException("non-index-scoped setting [" + key + "] can not have property [" + property + "]");
+        }
+    }
+
+    private void checkPropertyRequiresNodeScope(final EnumSet<Property> properties, final Property property) {
+        if (properties.contains(property) && properties.contains(Property.NodeScope) == false) {
+            throw new IllegalArgumentException("non-node-scoped setting [" + key + "] can not have property [" + property + "]");
         }
     }
 
@@ -323,6 +334,14 @@ public class Setting<T> implements ToXContentObject {
     }
 
     /**
+     * Returns <code>true</code> if this setting's value can be checked for equality across all nodes. Only {@link SecureSetting} instances
+     * may have this qualifier.
+     */
+    public boolean isConsistent() {
+        return properties.contains(Property.Consistent);
+    }
+
+    /**
      * Returns <code>true</code> if this setting has an index scope, otherwise <code>false</code>
      */
     public boolean hasIndexScope() {
@@ -467,6 +486,11 @@ public class Setting<T> implements ToXContentObject {
      * @return the raw string representation of the setting value
      */
     String innerGetRaw(final Settings settings) {
+        SecureSettings secureSettings = settings.getSecureSettings();
+        if (secureSettings != null && secureSettings.getSettingNames().contains(getKey())) {
+            throw new IllegalArgumentException("Setting [" + getKey() + "] is a non-secure setting" +
+                " and must be stored inside elasticsearch.yml, but was found inside the Elasticsearch keystore");
+        }
         return settings.get(getKey(), defaultValue.apply(settings));
     }
 
@@ -650,7 +674,7 @@ public class Setting<T> implements ToXContentObject {
             super(key, delegate.defaultValue, delegate.parser, delegate.properties.toArray(new Property[0]));
             this.key = key;
             this.delegateFactory = delegateFactory;
-            this.dependencies = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(dependencies)));
+            this.dependencies = Set.of(dependencies);
         }
 
         boolean isGroupSetting() {

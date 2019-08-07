@@ -1,13 +1,10 @@
 ---
 "Refresh":
 
- - skip:
-      version: " - 6.99.99"
-      reason: types are required in requests before 7.0.0
+
 
  - do:
       indices.create:
-          include_type_name: false
           index:    test_1
           body:
               settings:
@@ -49,9 +46,7 @@
 ---
 "When refresh url parameter is an empty string that means \"refresh immediately\"":
 
- - skip:
-      version: " - 6.99.99"
-      reason: types are required in requests before 7.0.0
+
 
  - do:
       index:
@@ -73,9 +68,7 @@
 ---
 "refresh=wait_for waits until changes are visible in search":
 
- - skip:
-      version: " - 6.99.99"
-      reason: types are required in requests before 7.0.0
+
 
  - do:
       index:

@@ -35,15 +35,13 @@ all other fields use `docs` as the default.
 
 [source,js]
 --------------------------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "text": {
-          "type": "text",
-          "index_options": "offsets"
-        }
+    "properties": {
+      "text": {
+        "type": "text",
+        "index_options": "offsets"
       }
     }
   }

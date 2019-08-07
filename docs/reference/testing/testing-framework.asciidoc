@@ -8,7 +8,7 @@ Testing is a crucial part of your application, and as information retrieval itse
 
 
 [[why-randomized-testing]]
-=== why randomized testing?
+=== Why randomized testing?
 
 The key concept of randomized testing is not to use the same input values for every testcase, but still be able to reproduce it in case of a failure. This allows to test with vastly different input variables in order to make sure, that your implementation is actually independent from your provided test data.
 
@@ -48,7 +48,7 @@ We provide a few classes that you can inherit from in your own test classes whic
 
 
 [[unit-tests]]
-=== unit tests
+=== Unit tests
 
 If your test is a well isolated unit test which doesn't need a running Elasticsearch cluster, you can use the `ESTestCase`. If you are testing lucene features, use `ESTestCase` and if you are testing concrete token streams, use the `ESTokenStreamTestCase` class. Those specific classes execute additional checks which ensure that no resources leaks are happening, after the test has run.
 

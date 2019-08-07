@@ -10,9 +10,12 @@ import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.SqlException;
+import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.io.IOException;
+import java.time.ZoneId;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -22,7 +25,8 @@ import static java.util.Collections.singletonMap;
 public class MetricAggExtractorTests extends AbstractWireSerializingTestCase<MetricAggExtractor> {
 
     public static MetricAggExtractor randomMetricAggExtractor() {
-        return new MetricAggExtractor(randomAlphaOfLength(16), randomAlphaOfLength(16), randomAlphaOfLength(16));
+        return new MetricAggExtractor(randomAlphaOfLength(16), randomAlphaOfLength(16), randomAlphaOfLength(16),
+            randomZone(), randomBoolean());
     }
 
     @Override
@@ -37,7 +41,12 @@ public class MetricAggExtractorTests extends AbstractWireSerializingTestCase<Met
 
     @Override
     protected MetricAggExtractor mutateInstance(MetricAggExtractor instance) throws IOException {
-        return new MetricAggExtractor(instance.name() + "mutated", instance.property(), instance.innerKey());
+        return new MetricAggExtractor(
+            instance.name() + "mutated",
+            instance.property() + "mutated",
+            instance.innerKey() + "mutated",
+            randomValueOtherThan(instance.zoneId(),
+                ESTestCase::randomZone), randomBoolean());
     }
 
     public void testNoAggs() {
@@ -48,7 +57,7 @@ public class MetricAggExtractorTests extends AbstractWireSerializingTestCase<Met
     }
 
     public void testSingleValueProperty() {
-        MetricAggExtractor extractor = randomMetricAggExtractor();
+        MetricAggExtractor extractor = new MetricAggExtractor("field", "property", "innerKey", null, false);
 
         double value = randomDouble();
         Aggregation agg = new TestSingleValueAggregation(extractor.name(), singletonList(extractor.property()), value);
@@ -56,8 +65,18 @@ public class MetricAggExtractorTests extends AbstractWireSerializingTestCase<Met
         assertEquals(value, extractor.extract(bucket));
     }
 
+    public void testSingleValuePropertyDate() {
+        ZoneId zoneId = randomZone();
+        MetricAggExtractor extractor = new MetricAggExtractor("my_date_field", "property", "innerKey", zoneId, true);
+
+        double value = randomDouble();
+        Aggregation agg = new TestSingleValueAggregation(extractor.name(), singletonList(extractor.property()), value);
+        Bucket bucket = new TestBucket(emptyMap(), 0, new Aggregations(singletonList(agg)));
+        assertEquals(DateUtils.asDateTime((long) value , zoneId), extractor.extract(bucket));
+    }
+
     public void testSingleValueInnerKey() {
-        MetricAggExtractor extractor = randomMetricAggExtractor();
+        MetricAggExtractor extractor = new MetricAggExtractor("field", "property", "innerKey", null, false);
         double innerValue = randomDouble();
         Aggregation agg = new TestSingleValueAggregation(extractor.name(), singletonList(extractor.property()),
                 singletonMap(extractor.innerKey(), innerValue));
@@ -65,12 +84,33 @@ public class MetricAggExtractorTests extends AbstractWireSerializingTestCase<Met
         assertEquals(innerValue, extractor.extract(bucket));
     }
 
+    public void testSingleValueInnerKeyDate() {
+        ZoneId zoneId = randomZone();
+        MetricAggExtractor extractor = new MetricAggExtractor("field", "property", "innerKey", zoneId, true);
+
+        double innerValue = randomDouble();
+        Aggregation agg = new TestSingleValueAggregation(extractor.name(), singletonList(extractor.property()),
+            singletonMap(extractor.innerKey(), innerValue));
+        Bucket bucket = new TestBucket(emptyMap(), 0, new Aggregations(singletonList(agg)));
+        assertEquals(DateUtils.asDateTime((long) innerValue , zoneId), extractor.extract(bucket));
+    }
+
     public void testMultiValueProperty() {
-        MetricAggExtractor extractor = randomMetricAggExtractor();
+        MetricAggExtractor extractor = new MetricAggExtractor("field", "property", "innerKey", null, false);
 
         double value = randomDouble();
         Aggregation agg = new TestMultiValueAggregation(extractor.name(), singletonMap(extractor.property(), value));
         Bucket bucket = new TestBucket(emptyMap(), 0, new Aggregations(singletonList(agg)));
         assertEquals(value, extractor.extract(bucket));
+    }
+
+    public void testMultiValuePropertyDate() {
+        ZoneId zoneId = randomZone();
+        MetricAggExtractor extractor = new MetricAggExtractor("field", "property", "innerKey", zoneId, true);
+
+        double value = randomDouble();
+        Aggregation agg = new TestMultiValueAggregation(extractor.name(), singletonMap(extractor.property(), value));
+        Bucket bucket = new TestBucket(emptyMap(), 0, new Aggregations(singletonList(agg)));
+        assertEquals(DateUtils.asDateTime((long) value , zoneId), extractor.extract(bucket));
     }
 }

@@ -19,8 +19,8 @@
 
 package org.elasticsearch.test;
 
-import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;

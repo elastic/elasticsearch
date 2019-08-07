@@ -1,5 +1,5 @@
 ---
-"Test logging":
+"Test with date processor":
   - do:
       ingest.put_pipeline:
         id: "_id"
@@ -28,7 +28,7 @@
                 "date" : {
                   "field" : "timestamp",
                   "target_field" : "timestamp",
-                  "formats" : ["dd/MMM/YYYY:HH:mm:ss Z"]
+                  "formats" : ["dd/MMM/yyyy:HH:mm:ss xx"]
                 }
               },
               {

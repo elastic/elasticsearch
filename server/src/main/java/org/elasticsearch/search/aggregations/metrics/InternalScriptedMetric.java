@@ -80,6 +80,10 @@ public class InternalScriptedMetric extends InternalAggregation implements Scrip
         return aggregation.get(0);
     }
 
+    List<Object> getAggregation() {
+        return aggregation;
+    }
+
     @Override
     public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         List<Object> aggregationObjects = new ArrayList<>();
@@ -131,15 +135,19 @@ public class InternalScriptedMetric extends InternalAggregation implements Scrip
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+
         InternalScriptedMetric other = (InternalScriptedMetric) obj;
         return Objects.equals(reduceScript, other.reduceScript) &&
                 Objects.equals(aggregation, other.aggregation);
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(reduceScript, aggregation);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), reduceScript, aggregation);
     }
 
 }

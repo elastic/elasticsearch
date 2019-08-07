@@ -83,8 +83,8 @@ public class MissingAggregationBuilder extends ValuesSourceAggregationBuilder<Va
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<ValuesSource, ?> innerBuild(SearchContext context,
-            ValuesSourceConfig<ValuesSource> config, AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
+    protected ValuesSourceAggregatorFactory<ValuesSource> innerBuild(SearchContext context,
+            ValuesSourceConfig<ValuesSource> config, AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
         return new MissingAggregatorFactory(name, config, context, parent, subFactoriesBuilder, metaData);
     }
 
@@ -92,17 +92,7 @@ public class MissingAggregationBuilder extends ValuesSourceAggregationBuilder<Va
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         return builder;
     }
-
-    @Override
-    protected int innerHashCode() {
-        return 0;
-    }
-
-    @Override
-    protected boolean innerEquals(Object obj) {
-        return true;
-    }
-
+    
     @Override
     public String getType() {
         return NAME;

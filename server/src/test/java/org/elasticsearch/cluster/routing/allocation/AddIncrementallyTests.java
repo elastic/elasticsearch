@@ -123,7 +123,7 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().node("node0").shardsWithState(INITIALIZING).size(), equalTo(0));
         assertThat(clusterState.getRoutingNodes().node("node1").shardsWithState(INITIALIZING).size(), equalTo(0));
 
-        ClusterState newState = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
+        ClusterState newState = startInitializingShardsAndReroute(service, clusterState);
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
         routingNodes = clusterState.getRoutingNodes();
@@ -132,7 +132,7 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().node("node0").shardsWithState(INITIALIZING).size(), equalTo(0));
         assertThat(clusterState.getRoutingNodes().node("node1").shardsWithState(INITIALIZING).size(), equalTo(0));
 
-        newState = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
+        newState = startInitializingShardsAndReroute(service, clusterState);
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
         routingNodes = clusterState.getRoutingNodes();
@@ -141,7 +141,7 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().node("node0").shardsWithState(INITIALIZING).size(), equalTo(0));
         assertThat(clusterState.getRoutingNodes().node("node1").shardsWithState(INITIALIZING).size(), equalTo(0));
 
-        newState  = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
+        newState  = startInitializingShardsAndReroute(service, clusterState);
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
         routingNodes = clusterState.getRoutingNodes();
@@ -150,7 +150,7 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().node("node0").shardsWithState(INITIALIZING).size(), equalTo(0));
         assertThat(clusterState.getRoutingNodes().node("node1").shardsWithState(INITIALIZING).size(), equalTo(0));
 
-        newState = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
+        newState = startInitializingShardsAndReroute(service, clusterState);
         assertThat(newState, equalTo(clusterState));
         assertNumIndexShardsPerNode(clusterState, equalTo(2));
         logger.debug("ClusterState: {}", clusterState.getRoutingNodes());
@@ -186,7 +186,7 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().node("node0").shardsWithState(INITIALIZING).size(), equalTo(0));
         assertThat(clusterState.getRoutingNodes().node("node1").shardsWithState(INITIALIZING).size(), equalTo(0));
 
-        ClusterState newState = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
+        ClusterState newState = startInitializingShardsAndReroute(service, clusterState);
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
         routingNodes = clusterState.getRoutingNodes();
@@ -195,7 +195,7 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().node("node0").shardsWithState(INITIALIZING).size(), equalTo(0));
         assertThat(clusterState.getRoutingNodes().node("node1").shardsWithState(INITIALIZING).size(), equalTo(0));
 
-        newState = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
+        newState = startInitializingShardsAndReroute(service, clusterState);
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
         routingNodes = clusterState.getRoutingNodes();
@@ -204,7 +204,7 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().node("node0").shardsWithState(INITIALIZING).size(), equalTo(0));
         assertThat(clusterState.getRoutingNodes().node("node1").shardsWithState(INITIALIZING).size(), equalTo(0));
 
-        newState = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
+        newState = startInitializingShardsAndReroute(service, clusterState);
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
         routingNodes = clusterState.getRoutingNodes();
@@ -213,7 +213,7 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().node("node0").shardsWithState(INITIALIZING).size(), equalTo(0));
         assertThat(clusterState.getRoutingNodes().node("node1").shardsWithState(INITIALIZING).size(), equalTo(0));
 
-        newState = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
+        newState = startInitializingShardsAndReroute(service, clusterState);
         assertThat(newState, equalTo(clusterState));
         assertNumIndexShardsPerNode(clusterState, equalTo(2));
         logger.debug("ClusterState: {}", clusterState.getRoutingNodes());
@@ -287,13 +287,10 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
         clusterState = service.reroute(clusterState, "reroute");
 
         logger.info("restart all the primary shards, replicas will start initializing");
-        RoutingNodes routingNodes = clusterState.getRoutingNodes();
-        clusterState = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(service, clusterState);
 
         logger.info("start the replica shards");
-        routingNodes = clusterState.getRoutingNodes();
-        clusterState = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
-        routingNodes = clusterState.getRoutingNodes();
+        clusterState = startInitializingShardsAndReroute(service, clusterState);
 
         logger.info("complete rebalancing");
         return applyStartedShardsUntilNoChange(clusterState, service);
@@ -316,12 +313,10 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
         clusterState = service.reroute(clusterState, "reroute");
 
         logger.info("restart all the primary shards, replicas will start initializing");
-        RoutingNodes routingNodes = clusterState.getRoutingNodes();
-        clusterState = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(service, clusterState);
 
         logger.info("start the replica shards");
-        routingNodes = clusterState.getRoutingNodes();
-        clusterState = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(service, clusterState);
 
         logger.info("complete rebalancing");
         return applyStartedShardsUntilNoChange(clusterState, service);
@@ -341,15 +336,13 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
         }
 
         clusterState = ClusterState.builder(clusterState).nodes(nodes.build()).build();
-        clusterState = service.deassociateDeadNodes(clusterState, true, "reroute");
+        clusterState = service.disassociateDeadNodes(clusterState, true, "reroute");
 
         logger.info("start all the primary shards, replicas will start initializing");
-        RoutingNodes routingNodes = clusterState.getRoutingNodes();
-        clusterState = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(service, clusterState);
 
         logger.info("start the replica shards");
-        routingNodes = clusterState.getRoutingNodes();
-        clusterState = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(service, clusterState);
 
         logger.info("rebalancing");
         clusterState = service.reroute(clusterState, "reroute");

@@ -1,5 +1,8 @@
 [[query-dsl-geo-distance-query]]
-=== Geo Distance Query
+=== Geo-distance query
+++++
+<titleabbrev>Geo-distance</titleabbrev>
+++++
 
 Filters documents that include only hits that exists within a specific
 distance from a geo point. Assuming the following mapping and indexed
@@ -7,16 +10,14 @@ document:
 
 [source,js]
 --------------------------------------------------
-PUT /my_locations?include_type_name=true
+PUT /my_locations
 {
     "mappings": {
-        "_doc": {
-            "properties": {
-                "pin": {
-                    "properties": {
-                        "location": {
-                            "type": "geo_point"
-                        }
+        "properties": {
+            "pin": {
+                "properties": {
+                    "location": {
+                        "type": "geo_point"
                     }
                 }
             }

@@ -130,12 +130,12 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
             stateBuilder.nodes(newNodesBuilder.build());
             clusterState = stateBuilder.build();
             if (nodesRemoved) {
-                clusterState = strategy.deassociateDeadNodes(clusterState, true, "reroute");
+                clusterState = strategy.disassociateDeadNodes(clusterState, true, "reroute");
             } else {
                 clusterState = strategy.reroute(clusterState, "reroute");
             }
             if (clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size() > 0) {
-                clusterState = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+                clusterState = startInitializingShardsAndReroute(strategy, clusterState);
             }
         }
         logger.info("Fill up nodes such that every shard can be allocated");
@@ -158,7 +158,7 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
             iterations++;
             clusterState = strategy.reroute(clusterState, "reroute");
             if (clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size() > 0) {
-                clusterState = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+                clusterState = startInitializingShardsAndReroute(strategy, clusterState);
             }
 
         } while (clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size() != 0 ||

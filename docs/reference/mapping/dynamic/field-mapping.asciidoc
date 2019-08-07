@@ -66,12 +66,10 @@ Dynamic date detection can be disabled by setting `date_detection` to `false`:
 
 [source,js]
 --------------------------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "date_detection": false
-    }
+    "date_detection": false
   }
 }
 
@@ -91,12 +89,10 @@ own <<mapping-date-format,date formats>>:
 
 [source,js]
 --------------------------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "dynamic_date_formats": ["MM/dd/yyyy"]
-    }
+    "dynamic_date_formats": ["MM/dd/yyyy"]
   }
 }
 
@@ -119,12 +115,10 @@ correct solution is to map these fields explicitly, but numeric detection
 
 [source,js]
 --------------------------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "numeric_detection": true
-    }
+    "numeric_detection": true
   }
 }
 

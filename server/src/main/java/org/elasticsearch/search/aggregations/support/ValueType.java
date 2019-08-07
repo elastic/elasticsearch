@@ -28,9 +28,9 @@ import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.ZoneOffset;
 
 public enum ValueType implements Writeable {
 
@@ -42,7 +42,8 @@ public enum ValueType implements Writeable {
     DOUBLE((byte) 3, "float|double", "double", ValuesSourceType.NUMERIC, IndexNumericFieldData.class, DocValueFormat.RAW),
     NUMBER((byte) 4, "number", "number", ValuesSourceType.NUMERIC, IndexNumericFieldData.class, DocValueFormat.RAW),
     DATE((byte) 5, "date", "date", ValuesSourceType.NUMERIC, IndexNumericFieldData.class,
-            new DocValueFormat.DateTime(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, DateTimeZone.UTC)),
+            new DocValueFormat.DateTime(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, ZoneOffset.UTC,
+                DateFieldMapper.Resolution.MILLISECONDS)),
     IP((byte) 6, "ip", "ip", ValuesSourceType.BYTES, IndexFieldData.class, DocValueFormat.IP),
     // TODO: what is the difference between "number" and "numeric"?
     NUMERIC((byte) 7, "numeric", "numeric", ValuesSourceType.NUMERIC, IndexNumericFieldData.class, DocValueFormat.RAW),

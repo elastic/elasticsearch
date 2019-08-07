@@ -27,7 +27,7 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoveryState.File;
 import org.elasticsearch.indices.recovery.RecoveryState.Index;
@@ -57,7 +57,7 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class RecoveryTargetTests extends ESTestCase {
-    abstract class Streamer<T extends Streamable> extends Thread {
+    abstract class Streamer<T extends Writeable> extends Thread {
         private T lastRead;
         private final AtomicBoolean shouldStop;
         private final T source;
@@ -93,12 +93,10 @@ public class RecoveryTargetTests extends ESTestCase {
         }
 
         protected T deserialize(StreamInput in) throws IOException {
-            T obj = createObj();
-            obj.readFrom(in);
-            return obj;
+            return createObj(in);
         }
 
-        abstract T createObj();
+        abstract T createObj(StreamInput in) throws IOException;
 
         @Override
         public void run() {
@@ -121,32 +119,32 @@ public class RecoveryTargetTests extends ESTestCase {
             timer = new Timer();
             streamer = new Streamer<Timer>(stop, timer) {
                 @Override
-                Timer createObj() {
-                    return new Timer();
+                Timer createObj(StreamInput in) throws IOException {
+                    return new Timer(in);
                 }
             };
         } else if (randomBoolean()) {
             timer = new Index();
             streamer = new Streamer<Timer>(stop, timer) {
                 @Override
-                Timer createObj() {
-                    return new Index();
+                Timer createObj(StreamInput in) throws IOException {
+                    return new Index(in);
                 }
             };
         } else if (randomBoolean()) {
             timer = new VerifyIndex();
             streamer = new Streamer<Timer>(stop, timer) {
                 @Override
-                Timer createObj() {
-                    return new VerifyIndex();
+                Timer createObj(StreamInput in) throws IOException {
+                    return new VerifyIndex(in);
                 }
             };
         } else {
             timer = new Translog();
             streamer = new Streamer<Timer>(stop, timer) {
                 @Override
-                Timer createObj() {
-                    return new Translog();
+                Timer createObj(StreamInput in) throws IOException {
+                    return new Translog(in);
                 }
             };
         }
@@ -256,8 +254,8 @@ public class RecoveryTargetTests extends ESTestCase {
 
         Streamer<Index> backgroundReader = new Streamer<RecoveryState.Index>(streamShouldStop, index) {
             @Override
-            Index createObj() {
-                return new Index();
+            Index createObj(StreamInput in) throws IOException {
+                return new Index(in);
             }
         };
 
@@ -381,8 +379,8 @@ public class RecoveryTargetTests extends ESTestCase {
         AtomicBoolean stop = new AtomicBoolean();
         Streamer<Translog> streamer = new Streamer<Translog>(stop, translog) {
             @Override
-            Translog createObj() {
-                return new Translog();
+            Translog createObj(StreamInput in) throws IOException {
+                return new Translog(in);
             }
         };
 
@@ -458,8 +456,8 @@ public class RecoveryTargetTests extends ESTestCase {
         AtomicBoolean stop = new AtomicBoolean();
         Streamer<VerifyIndex> streamer = new Streamer<VerifyIndex>(stop, verifyIndex) {
             @Override
-            VerifyIndex createObj() {
-                return new VerifyIndex();
+            VerifyIndex createObj(StreamInput in) throws IOException {
+                return new VerifyIndex(in);
             }
         };
 
@@ -508,8 +506,8 @@ public class RecoveryTargetTests extends ESTestCase {
         final AtomicBoolean stop = new AtomicBoolean(false);
         Streamer<Index> readWriteIndex = new Streamer<Index>(stop, index) {
             @Override
-            Index createObj() {
-                return new Index();
+            Index createObj(StreamInput in) throws IOException {
+                return new Index(in);
             }
         };
         Thread modifyThread = new Thread() {

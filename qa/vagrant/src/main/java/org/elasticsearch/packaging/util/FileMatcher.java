@@ -30,11 +30,10 @@ import java.nio.file.attribute.PosixFilePermission;
 import java.util.Objects;
 import java.util.Set;
 
+import static java.nio.file.attribute.PosixFilePermissions.fromString;
 import static org.elasticsearch.packaging.util.FileUtils.getBasicFileAttributes;
 import static org.elasticsearch.packaging.util.FileUtils.getFileOwner;
 import static org.elasticsearch.packaging.util.FileUtils.getPosixFileAttributes;
-
-import static java.nio.file.attribute.PosixFilePermissions.fromString;
 
 /**
  * Asserts that a file at a path matches its status as Directory/File, and its owner. If on a posix system, also matches the permission

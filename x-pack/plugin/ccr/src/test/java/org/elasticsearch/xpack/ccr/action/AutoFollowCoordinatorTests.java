@@ -21,6 +21,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
@@ -41,6 +44,9 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -92,13 +98,13 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             assertThat(entries.get(0).getKey().getName(), equalTo("logs-20190101"));
             assertThat(entries.get(0).getValue(), nullValue());
         };
-        AutoFollower autoFollower = new AutoFollower("remote", handler, localClusterStateSupplier(currentState), () -> 1L) {
+        AutoFollower autoFollower = new AutoFollower("remote", handler, localClusterStateSupplier(currentState), () -> 1L, Runnable::run) {
             @Override
             void getRemoteClusterState(String remoteCluster,
                                        long metadataVersion,
                                        BiConsumer<ClusterStateResponse, Exception> handler) {
                 assertThat(remoteCluster, equalTo("remote"));
-                handler.accept(new ClusterStateResponse(new ClusterName("name"), remoteState, 1L, false), null);
+                handler.accept(new ClusterStateResponse(new ClusterName("name"), remoteState, false), null);
             }
 
             @Override
@@ -109,7 +115,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                 assertThat(headers, equalTo(autoFollowHeaders.get("remote")));
                 assertThat(followRequest.getRemoteCluster(), equalTo("remote"));
                 assertThat(followRequest.getLeaderIndex(), equalTo("logs-20190101"));
-                assertThat(followRequest.getFollowRequest().getFollowerIndex(), equalTo("logs-20190101"));
+                assertThat(followRequest.getFollowerIndex(), equalTo("logs-20190101"));
                 successHandler.run();
             }
 
@@ -157,7 +163,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             assertThat(results.get(0).clusterStateFetchException, sameInstance(failure));
             assertThat(results.get(0).autoFollowExecutionResults.entrySet().size(), equalTo(0));
         };
-        AutoFollower autoFollower = new AutoFollower("remote", handler, localClusterStateSupplier(clusterState), () -> 1L) {
+        AutoFollower autoFollower = new AutoFollower("remote", handler, localClusterStateSupplier(clusterState), () -> 1L, Runnable::run) {
             @Override
             void getRemoteClusterState(String remoteCluster,
                                        long metadataVersion,
@@ -212,12 +218,12 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             assertThat(entries.get(0).getKey().getName(), equalTo("logs-20190101"));
             assertThat(entries.get(0).getValue(), sameInstance(failure));
         };
-        AutoFollower autoFollower = new AutoFollower("remote", handler, localClusterStateSupplier(clusterState), () -> 1L) {
+        AutoFollower autoFollower = new AutoFollower("remote", handler, localClusterStateSupplier(clusterState), () -> 1L, Runnable::run) {
             @Override
             void getRemoteClusterState(String remoteCluster,
                                        long metadataVersion,
                                        BiConsumer<ClusterStateResponse, Exception> handler) {
-                handler.accept(new ClusterStateResponse(new ClusterName("name"), remoteState, 1L, false), null);
+                handler.accept(new ClusterStateResponse(new ClusterName("name"), remoteState, false), null);
             }
 
             @Override
@@ -227,7 +233,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                                  Consumer<Exception> failureHandler) {
                 assertThat(followRequest.getRemoteCluster(), equalTo("remote"));
                 assertThat(followRequest.getLeaderIndex(), equalTo("logs-20190101"));
-                assertThat(followRequest.getFollowRequest().getFollowerIndex(), equalTo("logs-20190101"));
+                assertThat(followRequest.getFollowerIndex(), equalTo("logs-20190101"));
                 successHandler.run();
             }
 
@@ -269,12 +275,12 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             assertThat(entries.get(0).getKey().getName(), equalTo("logs-20190101"));
             assertThat(entries.get(0).getValue(), sameInstance(failure));
         };
-        AutoFollower autoFollower = new AutoFollower("remote", handler, localClusterStateSupplier(clusterState), () -> 1L) {
+        AutoFollower autoFollower = new AutoFollower("remote", handler, localClusterStateSupplier(clusterState), () -> 1L, Runnable::run) {
             @Override
             void getRemoteClusterState(String remoteCluster,
                                        long metadataVersion,
                                        BiConsumer<ClusterStateResponse, Exception> handler) {
-                handler.accept(new ClusterStateResponse(new ClusterName("name"), remoteState, 1L, false), null);
+                handler.accept(new ClusterStateResponse(new ClusterName("name"), remoteState, false), null);
             }
 
             @Override
@@ -284,7 +290,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                                  Consumer<Exception> failureHandler) {
                 assertThat(followRequest.getRemoteCluster(), equalTo("remote"));
                 assertThat(followRequest.getLeaderIndex(), equalTo("logs-20190101"));
-                assertThat(followRequest.getFollowRequest().getFollowerIndex(), equalTo("logs-20190101"));
+                assertThat(followRequest.getFollowerIndex(), equalTo("logs-20190101"));
                 failureHandler.accept(failure);
             }
 
@@ -538,7 +544,9 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             null,
             mockClusterService(),
             new CcrLicenseChecker(() -> true, () -> false),
-            () -> 1L, () -> 1L);
+            () -> 1L,
+            () -> 1L,
+            Runnable::run);
 
         autoFollowCoordinator.updateStats(Collections.singletonList(
             new AutoFollowCoordinator.AutoFollowResult("_alias1"))
@@ -603,7 +611,9 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             null,
             clusterService,
             new CcrLicenseChecker(() -> true, () -> false),
-            () -> 1L, () -> 1L);
+            () -> 1L,
+            () -> 1L,
+            Runnable::run);
         // Add 3 patterns:
         Map<String, AutoFollowPattern> patterns = new HashMap<>();
         patterns.put("pattern1", new AutoFollowPattern("remote1", Collections.singletonList("logs-*"), null, null, null,
@@ -671,7 +681,9 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             null,
             mockClusterService(),
             new CcrLicenseChecker(() -> true, () -> false),
-            () -> 1L, () -> 1L);
+            () -> 1L,
+            () -> 1L,
+            Runnable::run);
         ClusterState clusterState = ClusterState.builder(new ClusterName("remote"))
             .metaData(MetaData.builder().putCustom(AutoFollowMetadata.TYPE,
                 new AutoFollowMetadata(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap())))
@@ -686,7 +698,9 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             null,
             mockClusterService(),
             new CcrLicenseChecker(() -> true, () -> false),
-            () -> 1L, () -> 1L);
+            () -> 1L,
+            () -> 1L,
+            Runnable::run);
         ClusterState clusterState = ClusterState.builder(new ClusterName("remote")).build();
         autoFollowCoordinator.updateAutoFollowers(clusterState);
         assertThat(autoFollowCoordinator.getStats().getAutoFollowedClusters().size(), equalTo(0));
@@ -719,7 +733,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
         List<AutoFollowCoordinator.AutoFollowResult> allResults = new ArrayList<>();
         Consumer<List<AutoFollowCoordinator.AutoFollowResult>> handler = allResults::addAll;
-        AutoFollower autoFollower = new AutoFollower("remote", handler, localClusterStateSupplier(states), () -> 1L) {
+        AutoFollower autoFollower = new AutoFollower("remote", handler, localClusterStateSupplier(states), () -> 1L, Runnable::run) {
 
             long previousRequestedMetadataVersion = 0;
 
@@ -729,7 +743,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                                        BiConsumer<ClusterStateResponse, Exception> handler) {
                 assertThat(remoteCluster, equalTo("remote"));
                 assertThat(metadataVersion, greaterThan(previousRequestedMetadataVersion));
-                handler.accept(new ClusterStateResponse(new ClusterName("name"), leaderStates.poll(), 1L, false), null);
+                handler.accept(new ClusterStateResponse(new ClusterName("name"), leaderStates.poll(), false), null);
             }
 
             @Override
@@ -777,7 +791,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             fail("should not be invoked");
         };
         AtomicInteger counter = new AtomicInteger();
-        AutoFollower autoFollower = new AutoFollower("remote", handler, localClusterStateSupplier(states), () -> 1L) {
+        AutoFollower autoFollower = new AutoFollower("remote", handler, localClusterStateSupplier(states), () -> 1L, Runnable::run) {
 
             long previousRequestedMetadataVersion = 0;
 
@@ -788,7 +802,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                 counter.incrementAndGet();
                 assertThat(remoteCluster, equalTo("remote"));
                 assertThat(metadataVersion, greaterThan(previousRequestedMetadataVersion));
-                handler.accept(new ClusterStateResponse(new ClusterName("name"), null, 1L, true), null);
+                handler.accept(new ClusterStateResponse(new ClusterName("name"), null, true), null);
             }
 
             @Override
@@ -813,8 +827,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         Client client = mock(Client.class);
         when(client.getRemoteClusterClient(anyString())).thenReturn(client);
 
-        ClusterState remoteState = randomBoolean() ? createRemoteClusterState("logs-20190101", false) :
-            createRemoteClusterState("logs-20190101", null);
+        ClusterState remoteState = createRemoteClusterState("logs-20190101", false);
 
         AutoFollowPattern autoFollowPattern = new AutoFollowPattern("remote", Collections.singletonList("logs-*"),
             null, null, null, null, null, null, null, null, null, null, null);
@@ -832,13 +845,13 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
         List<AutoFollowCoordinator.AutoFollowResult> results = new ArrayList<>();
         Consumer<List<AutoFollowCoordinator.AutoFollowResult>> handler = results::addAll;
-        AutoFollower autoFollower = new AutoFollower("remote", handler, localClusterStateSupplier(currentState), () -> 1L) {
+        AutoFollower autoFollower = new AutoFollower("remote", handler, localClusterStateSupplier(currentState), () -> 1L, Runnable::run) {
             @Override
             void getRemoteClusterState(String remoteCluster,
                                        long metadataVersion,
                                        BiConsumer<ClusterStateResponse, Exception> handler) {
                 assertThat(remoteCluster, equalTo("remote"));
-                handler.accept(new ClusterStateResponse(new ClusterName("name"), remoteState, 1L, false), null);
+                handler.accept(new ClusterStateResponse(new ClusterName("name"), remoteState, false), null);
             }
 
             @Override
@@ -908,13 +921,13 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         Consumer<List<AutoFollowCoordinator.AutoFollowResult>> handler = results -> {
             resultHolder[0] = results;
         };
-        AutoFollower autoFollower = new AutoFollower("remote", handler, localClusterStateSupplier(currentState), () -> 1L) {
+        AutoFollower autoFollower = new AutoFollower("remote", handler, localClusterStateSupplier(currentState), () -> 1L, Runnable::run) {
             @Override
             void getRemoteClusterState(String remoteCluster,
                                        long metadataVersion,
                                        BiConsumer<ClusterStateResponse, Exception> handler) {
                 assertThat(remoteCluster, equalTo("remote"));
-                handler.accept(new ClusterStateResponse(new ClusterName("name"), remoteState, 1L, false), null);
+                handler.accept(new ClusterStateResponse(new ClusterName("name"), remoteState, false), null);
             }
 
             @Override
@@ -953,13 +966,88 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         assertThat(entries.get(0).getValue(), nullValue());
     }
 
-    private static ClusterState createRemoteClusterState(String indexName, Boolean enableSoftDeletes) {
-        Settings.Builder indexSettings;
-        if (enableSoftDeletes != null) {
-            indexSettings = settings(Version.CURRENT).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), enableSoftDeletes);
-        } else {
-            indexSettings = settings(Version.V_6_6_0);
+    /*
+     * This tests for a situation where in the face of repeated failures we would be called back on the same thread, and
+     * then recurse through the start method again, and eventually stack overflow. Now when we are called back on the
+     * same thread, we fork a new thread to avoid this. This test simulates a repeated failure to exercise this logic
+     * and ensures that we do not stack overflow. If we did stack overflow, it would go as an uncaught exception and
+     * fail the test. We have sufficiently high iterations here to ensure that we would indeed stack overflow were it
+     * not for this logic.
+     */
+    public void testRepeatedFailures() throws InterruptedException {
+        final ClusterState clusterState = mock(ClusterState.class);
+        final MetaData metaData = mock(MetaData.class);
+        when(clusterState.metaData()).thenReturn(metaData);
+        final AutoFollowPattern pattern = new AutoFollowPattern(
+            "remote",
+            List.of("*"),
+            "{}",
+            0,
+            0,
+            0,
+            0,
+            ByteSizeValue.ZERO,
+            ByteSizeValue.ZERO,
+            0,
+            ByteSizeValue.ZERO,
+            TimeValue.ZERO,
+            TimeValue.ZERO);
+        final AutoFollowMetadata autoFollowMetadata = new AutoFollowMetadata(Map.of("remote", pattern), Map.of(), Map.of());
+        when(metaData.custom(AutoFollowMetadata.TYPE)).thenReturn(autoFollowMetadata);
+
+        final int iterations = randomIntBetween(16384, 32768); // sufficiently large to exercise that we do not stack overflow
+        final AtomicInteger counter = new AtomicInteger();
+        final CountDownLatch latch = new CountDownLatch(1);
+        final ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            final AutoFollower autoFollower = new AutoFollower("remote", x -> {}, () -> clusterState, () -> 1, executor) {
+
+                @Override
+                void getRemoteClusterState(
+                    final String remoteCluster,
+                    final long metadataVersion,
+                    final BiConsumer<ClusterStateResponse, Exception> handler) {
+                    counter.incrementAndGet();
+                    if (counter.incrementAndGet() > iterations) {
+                        this.stop();
+                        latch.countDown();
+                        /*
+                         * Do not call back the handler here, when we unlatch the test thread it will shutdown the
+                         * executor which would lead to the execution of the callback facing a rejected execution
+                         * exception (from the executor being shutdown).
+                         */
+                        return;
+                    }
+                    handler.accept(null, new EsRejectedExecutionException());
+                }
+
+                @Override
+                void createAndFollow(
+                    final Map<String, String> headers,
+                    final PutFollowAction.Request followRequest,
+                    final Runnable successHandler,
+                    final Consumer<Exception> failureHandler) {
+
+                }
+
+                @Override
+                void updateAutoFollowMetadata(
+                    final Function<ClusterState, ClusterState> updateFunction,
+                    final Consumer<Exception> handler) {
+
+                }
+
+            };
+            autoFollower.start();
+            latch.await();
+        } finally {
+            executor.shutdown();
         }
+    }
+
+    private static ClusterState createRemoteClusterState(String indexName, boolean enableSoftDeletes) {
+        Settings.Builder indexSettings;
+        indexSettings = settings(Version.CURRENT).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), enableSoftDeletes);
 
         IndexMetaData indexMetaData = IndexMetaData.builder(indexName)
             .settings(indexSettings)
@@ -1016,7 +1104,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
     private ClusterService mockClusterService() {
         ClusterService clusterService = mock(ClusterService.class);
         ClusterSettings clusterSettings =
-            new ClusterSettings(Settings.EMPTY, Collections.singleton(CcrSettings.CCR_AUTO_FOLLOW_WAIT_FOR_METADATA_TIMEOUT));
+            new ClusterSettings(Settings.EMPTY, Collections.singleton(CcrSettings.CCR_WAIT_FOR_METADATA_TIMEOUT));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         return clusterService;
     }

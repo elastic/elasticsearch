@@ -20,10 +20,9 @@
 package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.rounding.DateTimeUnit;
-import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -32,47 +31,36 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateIntervalConsumer;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateIntervalWrapper;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.Objects;
-
-import static org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder.DATE_FIELD_UNITS;
 
 /**
  * A {@link CompositeValuesSourceBuilder} that builds a {@link RoundingValuesSource} from a {@link Script} or
  * a field name using the provided interval.
  */
-public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<DateHistogramValuesSourceBuilder> {
+public class DateHistogramValuesSourceBuilder
+    extends CompositeValuesSourceBuilder<DateHistogramValuesSourceBuilder> implements DateIntervalConsumer {
     static final String TYPE = "date_histogram";
 
     private static final ObjectParser<DateHistogramValuesSourceBuilder, Void> PARSER;
     static {
         PARSER = new ObjectParser<>(DateHistogramValuesSourceBuilder.TYPE);
         PARSER.declareString(DateHistogramValuesSourceBuilder::format, new ParseField("format"));
-        PARSER.declareField((histogram, interval) -> {
-            if (interval instanceof Long) {
-                histogram.interval((long) interval);
-            } else {
-                histogram.dateHistogramInterval((DateHistogramInterval) interval);
-            }
-        }, p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_NUMBER) {
-                return p.longValue();
-            } else {
-                return new DateHistogramInterval(p.text());
-            }
-        }, Histogram.INTERVAL_FIELD, ObjectParser.ValueType.LONG);
+        DateIntervalWrapper.declareIntervalFields(PARSER);
         PARSER.declareField(DateHistogramValuesSourceBuilder::timeZone, p -> {
             if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return DateTimeZone.forID(p.text());
+                return ZoneId.of(p.text());
             } else {
-                return DateTimeZone.forOffsetHours(p.intValue());
+                return ZoneOffset.ofHours(p.intValue());
             }
         }, new ParseField("time_zone"), ObjectParser.ValueType.LONG);
         CompositeValuesSourceParserHelper.declareValuesSourceFields(PARSER, ValueType.NUMERIC);
@@ -81,9 +69,8 @@ public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuild
         return PARSER.parse(parser, new DateHistogramValuesSourceBuilder(name), null);
     }
 
-    private long interval = 0;
-    private DateTimeZone timeZone = null;
-    private DateHistogramInterval dateHistogramInterval;
+    private ZoneId timeZone = null;
+    private DateIntervalWrapper dateHistogramInterval = new DateIntervalWrapper();
 
     public DateHistogramValuesSourceBuilder(String name) {
         super(name, ValueType.DATE);
@@ -91,45 +78,36 @@ public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuild
 
     protected DateHistogramValuesSourceBuilder(StreamInput in) throws IOException {
         super(in);
-        this.interval = in.readLong();
-        this.dateHistogramInterval = in.readOptionalWriteable(DateHistogramInterval::new);
-        if (in.readBoolean()) {
-            timeZone = DateTimeZone.forID(in.readString());
-        }
+        dateHistogramInterval = new DateIntervalWrapper(in);
+        timeZone = in.readOptionalZoneId();
     }
 
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
-        out.writeLong(interval);
-        out.writeOptionalWriteable(dateHistogramInterval);
-        boolean hasTimeZone = timeZone != null;
-        out.writeBoolean(hasTimeZone);
-        if (hasTimeZone) {
-            out.writeString(timeZone.getID());
-        }
+        dateHistogramInterval.writeTo(out);
+        out.writeOptionalZoneId(timeZone);
     }
 
     @Override
     protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        if (dateHistogramInterval == null) {
-            builder.field(Histogram.INTERVAL_FIELD.getPreferredName(), interval);
-        } else {
-            builder.field(Histogram.INTERVAL_FIELD.getPreferredName(), dateHistogramInterval.toString());
-        }
+        dateHistogramInterval.toXContent(builder, params);
         if (timeZone != null) {
             builder.field("time_zone", timeZone.toString());
         }
     }
 
     @Override
-    protected int innerHashCode() {
-        return Objects.hash(interval, dateHistogramInterval, timeZone);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), dateHistogramInterval, timeZone);
     }
 
     @Override
-    protected boolean innerEquals(DateHistogramValuesSourceBuilder other) {
-        return Objects.equals(interval, other.interval)
-            && Objects.equals(dateHistogramInterval, other.dateHistogramInterval)
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+        DateHistogramValuesSourceBuilder other = (DateHistogramValuesSourceBuilder) obj;
+        return Objects.equals(dateHistogramInterval, other.dateHistogramInterval)
             && Objects.equals(timeZone, other.timeZone);
     }
 
@@ -141,42 +119,88 @@ public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuild
     /**
      * Returns the interval in milliseconds that is set on this source
      **/
+    @Deprecated
     public long interval() {
-        return interval;
+        return dateHistogramInterval.interval();
     }
 
     /**
      * Sets the interval on this source.
      * If both {@link #interval()} and {@link #dateHistogramInterval()} are set,
      * then the {@link #dateHistogramInterval()} wins.
+     *
+     * @deprecated Use {@link #calendarInterval(DateHistogramInterval)} or {@link #fixedInterval(DateHistogramInterval)} instead
+     * @since 7.2.0
      **/
+    @Deprecated
     public DateHistogramValuesSourceBuilder interval(long interval) {
-        if (interval < 1) {
-            throw new IllegalArgumentException("[interval] must be 1 or greater for [date_histogram] source");
-        }
-        this.interval = interval;
+        dateHistogramInterval.interval(interval);
         return this;
     }
 
     /**
      * Returns the date interval that is set on this source
      **/
+    @Deprecated
     public DateHistogramInterval dateHistogramInterval() {
-        return dateHistogramInterval;
+        return dateHistogramInterval.dateHistogramInterval();
     }
 
-    public DateHistogramValuesSourceBuilder dateHistogramInterval(DateHistogramInterval dateHistogramInterval) {
-        if (dateHistogramInterval == null) {
-            throw new IllegalArgumentException("[dateHistogramInterval] must not be null");
-        }
-        this.dateHistogramInterval = dateHistogramInterval;
+    /**
+     * @deprecated Use {@link #calendarInterval(DateHistogramInterval)} or {@link #fixedInterval(DateHistogramInterval)} instead
+     * @since 7.2.0
+     */
+    @Deprecated
+    public DateHistogramValuesSourceBuilder dateHistogramInterval(DateHistogramInterval interval) {
+        dateHistogramInterval.dateHistogramInterval(interval);
         return this;
+    }
+
+    /**
+     * Sets the interval of the DateHistogram using calendar units (`1d`, `1w`, `1M`, etc).  These units
+     * are calendar-aware, meaning they respect leap additions, variable days per month, etc.
+     *
+     * This is mutually exclusive with {@link DateHistogramValuesSourceBuilder#fixedInterval(DateHistogramInterval)}
+     *
+     * @param interval The calendar interval to use with the aggregation
+     */
+    public DateHistogramValuesSourceBuilder calendarInterval(DateHistogramInterval interval) {
+        dateHistogramInterval.calendarInterval(interval);
+        return this;
+    }
+
+    /**
+     * Sets the interval of the DateHistogram using fixed units (`1ms`, `1s`, `10m`, `4h`, etc).  These are
+     * not calendar aware and are simply multiples of fixed, SI units.
+     *
+     * This is mutually exclusive with {@link DateHistogramValuesSourceBuilder#calendarInterval(DateHistogramInterval)}
+     *
+     * @param interval The fixed interval to use with the aggregation
+     */
+    public DateHistogramValuesSourceBuilder fixedInterval(DateHistogramInterval interval) {
+        dateHistogramInterval.fixedInterval(interval);
+        return this;
+    }
+
+    /** Return the interval as a date time unit if applicable, regardless of how it was configured. If this returns
+     *  {@code null} then it means that the interval is expressed as a fixed
+     *  {@link TimeValue} and may be accessed via {@link #getIntervalAsFixed()} ()}. */
+    public DateHistogramInterval getIntervalAsCalendar() {
+        return dateHistogramInterval.getAsCalendarInterval();
+    }
+
+    /**
+     * Get the interval as a {@link TimeValue}, regardless of how it was configured. Returns null if
+     * the interval cannot be parsed as a fixed time.
+     */
+    public DateHistogramInterval getIntervalAsFixed() {
+        return dateHistogramInterval.getAsFixedInterval();
     }
 
     /**
      * Sets the time zone to use for this aggregation
      */
-    public DateHistogramValuesSourceBuilder timeZone(DateTimeZone timeZone) {
+    public DateHistogramValuesSourceBuilder timeZone(ZoneId timeZone) {
         if (timeZone == null) {
             throw new IllegalArgumentException("[timeZone] must not be null: [" + name + "]");
         }
@@ -187,35 +211,13 @@ public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuild
     /**
      * Gets the time zone to use for this aggregation
      */
-    public DateTimeZone timeZone() {
+    public ZoneId timeZone() {
         return timeZone;
-    }
-
-    private Rounding createRounding() {
-        Rounding.Builder tzRoundingBuilder;
-        if (dateHistogramInterval != null) {
-            DateTimeUnit dateTimeUnit = DATE_FIELD_UNITS.get(dateHistogramInterval.toString());
-            if (dateTimeUnit != null) {
-                tzRoundingBuilder = Rounding.builder(dateTimeUnit);
-            } else {
-                // the interval is a time value?
-                tzRoundingBuilder = Rounding.builder(
-                    TimeValue.parseTimeValue(dateHistogramInterval.toString(), null, getClass().getSimpleName() + ".interval"));
-            }
-        } else {
-            // the interval is an integer time value in millis?
-            tzRoundingBuilder = Rounding.builder(TimeValue.timeValueMillis(interval));
-        }
-        if (timeZone() != null) {
-            tzRoundingBuilder.timeZone(timeZone());
-        }
-        Rounding rounding = tzRoundingBuilder.build();
-        return rounding;
     }
 
     @Override
     protected CompositeValuesSourceConfig innerBuild(SearchContext context, ValuesSourceConfig<?> config) throws IOException {
-        Rounding rounding = createRounding();
+        Rounding rounding = dateHistogramInterval.createRounding(timeZone());
         ValuesSource orig = config.toValuesSource(context.getQueryShardContext());
         if (orig == null) {
             orig = ValuesSource.Numeric.EMPTY;

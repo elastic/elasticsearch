@@ -1,3 +1,0 @@
-- name: restart slapd
-  become: yes
-  service: name=slapd state=restarted

@@ -102,23 +102,6 @@ public final class ConnectionProfile {
     }
 
     /**
-     * Builds a connection profile that is dedicated to a single channel type. Allows passing compression
-     * settings.
-     */
-    public static ConnectionProfile buildSingleChannelProfile(TransportRequestOptions.Type channelType, boolean compressionEnabled) {
-        return buildSingleChannelProfile(channelType, null, null, null, compressionEnabled);
-    }
-
-    /**
-     * Builds a connection profile that is dedicated to a single channel type. Allows passing connection and
-     * handshake timeouts.
-     */
-    public static ConnectionProfile buildSingleChannelProfile(TransportRequestOptions.Type channelType, @Nullable TimeValue connectTimeout,
-                                                              @Nullable TimeValue handshakeTimeout) {
-        return buildSingleChannelProfile(channelType, connectTimeout, handshakeTimeout, null, null);
-    }
-
-    /**
      * Builds a connection profile that is dedicated to a single channel type. Allows passing connection and
      * handshake timeouts and compression settings.
      */

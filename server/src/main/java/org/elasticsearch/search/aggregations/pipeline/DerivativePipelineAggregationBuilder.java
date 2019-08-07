@@ -21,9 +21,9 @@ package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.rounding.DateTimeUnit;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -34,7 +34,6 @@ import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -130,7 +129,7 @@ public class DerivativePipelineAggregationBuilder extends AbstractPipelineAggreg
     }
 
     @Override
-    protected PipelineAggregator createInternal(Map<String, Object> metaData) throws IOException {
+    protected PipelineAggregator createInternal(Map<String, Object> metaData) {
         DocValueFormat formatter;
         if (format != null) {
             formatter = new DocValueFormat.Decimal(format);
@@ -139,9 +138,9 @@ public class DerivativePipelineAggregationBuilder extends AbstractPipelineAggreg
         }
         Long xAxisUnits = null;
         if (units != null) {
-            DateTimeUnit dateTimeUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(units);
+            Rounding.DateTimeUnit dateTimeUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(units);
             if (dateTimeUnit != null) {
-                xAxisUnits = dateTimeUnit.field(DateTimeZone.UTC).getDurationField().getUnitMillis();
+                xAxisUnits = dateTimeUnit.getField().getBaseUnit().getDuration().toMillis();
             } else {
                 TimeValue timeValue = TimeValue.parseTimeValue(units, null, getClass().getSimpleName() + ".unit");
                 if (timeValue != null) {
@@ -153,7 +152,7 @@ public class DerivativePipelineAggregationBuilder extends AbstractPipelineAggreg
     }
 
     @Override
-    public void doValidate(AggregatorFactory<?> parent, Collection<AggregationBuilder> aggFactories,
+    public void doValidate(AggregatorFactory parent, Collection<AggregationBuilder> aggFactories,
             Collection<PipelineAggregationBuilder> pipelineAggregatoractories) {
         if (bucketsPaths.length != 1) {
             throw new IllegalStateException(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
@@ -239,23 +238,19 @@ public class DerivativePipelineAggregationBuilder extends AbstractPipelineAggreg
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         DerivativePipelineAggregationBuilder other = (DerivativePipelineAggregationBuilder) obj;
-        if (!Objects.equals(format, other.format)) {
-            return false;
-        }
-        if (!Objects.equals(gapPolicy, other.gapPolicy)) {
-            return false;
-        }
-        if (!Objects.equals(units, other.units)) {
-            return false;
-        }
-        return true;
+        return Objects.equals(format, other.format) &&
+            gapPolicy == other.gapPolicy &&
+            Objects.equals(units, other.units);
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(format, gapPolicy, units);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), format, gapPolicy, units);
     }
 
     @Override

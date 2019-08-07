@@ -32,8 +32,7 @@ import java.util.Set;
 public class Account {
 
     static final String SMTP_PROTOCOL = "smtp";
-    private static final String SMTP_PASSWORD = "password";
-    private static final Setting<SecureString> SECURE_PASSWORD_SETTING = SecureSetting.secureString("secure_" + SMTP_PASSWORD, null);
+    public static final Setting<SecureString> SECURE_PASSWORD_SETTING = SecureSetting.secureString("secure_password", null);
 
     static {
         SecurityManager sm = System.getSecurityManager();
@@ -213,7 +212,7 @@ public class Account {
 
                 port = settings.getAsInt("port", settings.getAsInt("localport", settings.getAsInt("local_port", 25)));
                 user = settings.get("user", settings.get("from", null));
-                password = getSecureSetting(SMTP_PASSWORD, settings, SECURE_PASSWORD_SETTING);
+                password = getSecureSetting(settings, SECURE_PASSWORD_SETTING);
                 //password = passStr != null ? passStr.toCharArray() : null;
                 properties = loadSmtpProperties(settings);
             }
@@ -225,17 +224,12 @@ public class Account {
              * Note: if your setting was not previously secure, than the string reference that is in the setting object is still
              * insecure. This is only constructing a new SecureString with the char[] of the insecure setting.
              */
-            private static SecureString getSecureSetting(String settingName, Settings settings, Setting<SecureString> secureSetting) {
-                String value = settings.get(settingName);
-                if (value == null) {
-                    SecureString secureString = secureSetting.get(settings);
-                    if (secureString != null && secureString.length() > 0) {
-                        return secureString;
-                    } else  {
-                        return null;
-                    }
+            private static SecureString getSecureSetting(Settings settings, Setting<SecureString> secureSetting) {
+                SecureString secureString = secureSetting.get(settings);
+                if (secureString != null && secureString.length() > 0) {
+                    return secureString;
                 } else {
-                    return new SecureString(value.toCharArray());
+                    return null;
                 }
             }
 

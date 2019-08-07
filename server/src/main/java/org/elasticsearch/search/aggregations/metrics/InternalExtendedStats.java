@@ -101,7 +101,8 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
 
     @Override
     public double getVariance() {
-        return (sumOfSqrs - ((sum * sum) / count)) / count;
+        double variance =  (sumOfSqrs - ((sum * sum) / count)) / count;
+        return variance < 0  ? 0 : variance;
     }
 
     @Override
@@ -214,15 +215,18 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(super.doHashCode(), sumOfSqrs, sigma);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), sumOfSqrs, sigma);
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+
         InternalExtendedStats other = (InternalExtendedStats) obj;
-        return super.doEquals(obj) &&
-            Double.compare(sumOfSqrs, other.sumOfSqrs) == 0 &&
+        return Double.compare(sumOfSqrs, other.sumOfSqrs) == 0 &&
             Double.compare(sigma, other.sigma) == 0;
     }
 }

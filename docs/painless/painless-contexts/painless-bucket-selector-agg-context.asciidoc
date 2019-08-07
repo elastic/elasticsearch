@@ -15,9 +15,13 @@ to determine if a bucket should be retained or filtered out.
 ==== Return
 
 boolean::
-        True if the the bucket should be retained, false if the bucket should be filtered out.
+        True if the bucket should be retained, false if the bucket should be filtered out.
 
 ==== API
+
+The standard <<painless-api-reference-shared, Painless API>> is available.
+
+==== Example
 
 
 To run this example, first follow the steps in <<painless-context-examples, context examples>>.

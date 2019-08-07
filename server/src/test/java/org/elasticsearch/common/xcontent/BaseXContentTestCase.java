@@ -22,6 +22,7 @@ package org.elasticsearch.common.xcontent;
 import com.fasterxml.jackson.core.JsonGenerationException;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParseException;
+
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -525,11 +526,11 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         assertResult("{'date':null}", () -> builder().startObject().timeField("date", (LocalDateTime) null).endObject());
         assertResult("{'date':null}", () -> builder().startObject().field("date").timeValue((LocalDateTime) null).endObject());
         assertResult("{'date':null}", () -> builder().startObject().field("date", (LocalDateTime) null).endObject());
-        assertResult("{'d1':'2016-01-01T00:00:00.000'}",
+        assertResult("{'d1':'2016-01-01T00:00:00.000Z'}",
             () -> builder().startObject().timeField("d1", d1.toLocalDateTime()).endObject());
-        assertResult("{'d1':'2016-01-01T00:00:00.000'}",
+        assertResult("{'d1':'2016-01-01T00:00:00.000Z'}",
             () -> builder().startObject().field("d1").timeValue(d1.toLocalDateTime()).endObject());
-        assertResult("{'d1':'2016-01-01T00:00:00.000'}", () -> builder().startObject().field("d1", d1.toLocalDateTime()).endObject());
+        assertResult("{'d1':'2016-01-01T00:00:00.000Z'}", () -> builder().startObject().field("d1", d1.toLocalDateTime()).endObject());
 
         // LocalDate (no time, no time zone)
         assertResult("{'date':null}", () -> builder().startObject().timeField("date", (LocalDate) null).endObject());
@@ -752,7 +753,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
                     .field("xcontent", xcontent0)
                 .endObject());
 
-        ToXContent xcontent1 = (builder, params) -> {
+        ToXContentObject xcontent1 = (builder, params) -> {
             builder.startObject();
             builder.field("field", "value");
             builder.startObject("foo");
@@ -762,7 +763,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
             return builder;
         };
 
-        ToXContent xcontent2 = (builder, params) -> {
+        ToXContentObject xcontent2 = (builder, params) -> {
             builder.startObject();
             builder.field("root", xcontent0);
             builder.array("childs", xcontent0, xcontent1);

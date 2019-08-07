@@ -49,27 +49,25 @@ public class DistinguishedNamePredicateTests extends ESTestCase {
     }
 
     public void testParsingMalformedInput() {
-        Predicate<FieldValue> predicate = new UserRoleMapper.DistinguishedNamePredicate(null);
-        assertPredicate(predicate, null, true);
-        assertPredicate(predicate, "", false);
-        assertPredicate(predicate, randomAlphaOfLengthBetween(1, 8), false);
-
-        predicate = new UserRoleMapper.DistinguishedNamePredicate("");
+        Predicate<FieldValue> predicate = new UserRoleMapper.DistinguishedNamePredicate("");
         assertPredicate(predicate, null, false);
         assertPredicate(predicate, "", true);
         assertPredicate(predicate, randomAlphaOfLengthBetween(1, 8), false);
+        assertPredicate(predicate, randomAlphaOfLengthBetween(1, 8) + "*", false);
 
         predicate = new UserRoleMapper.DistinguishedNamePredicate("foo=");
         assertPredicate(predicate, null, false);
         assertPredicate(predicate, "foo", false);
         assertPredicate(predicate, "foo=", true);
         assertPredicate(predicate, randomAlphaOfLengthBetween(5, 12), false);
+        assertPredicate(predicate, randomAlphaOfLengthBetween(5, 12) + "*", false);
 
         predicate = new UserRoleMapper.DistinguishedNamePredicate("=bar");
         assertPredicate(predicate, null, false);
         assertPredicate(predicate, "bar", false);
         assertPredicate(predicate, "=bar", true);
         assertPredicate(predicate, randomAlphaOfLengthBetween(5, 12), false);
+        assertPredicate(predicate, randomAlphaOfLengthBetween(5, 12) + "*", false);
     }
 
     private void assertPredicate(Predicate<FieldValue> predicate, Object value, boolean expected) {

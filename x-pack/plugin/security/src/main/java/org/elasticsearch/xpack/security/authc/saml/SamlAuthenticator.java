@@ -5,15 +5,6 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
-import java.time.Clock;
-import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Objects;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
-
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Strings;
@@ -40,6 +31,14 @@ import org.opensaml.saml.saml2.core.SubjectConfirmationData;
 import org.opensaml.xmlsec.encryption.support.DecryptionException;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
+
+import java.time.Clock;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.security.authc.saml.SamlUtils.samlException;
 import static org.opensaml.saml.saml2.core.SubjectConfirmation.METHOD_BEARER;
@@ -106,8 +105,7 @@ class SamlAuthenticator extends SamlRequestHandler {
             throw samlException("SAML Response has no status code");
         }
         if (isSuccess(status) == false) {
-            throw samlException("SAML Response is not a 'success' response: Code={} Message={} Detail={}",
-                    status.getStatusCode().getValue(), getMessage(status), getDetail(status));
+            throw samlException("SAML Response is not a 'success' response: {}", getStatusCodeMessage(status));
         }
         checkIssuer(response.getIssuer(), response);
         checkResponseDestination(response);
@@ -135,6 +133,32 @@ class SamlAuthenticator extends SamlRequestHandler {
         }
 
         return new SamlAttributes(nameId, session, attributes);
+    }
+
+    private String getStatusCodeMessage(Status status) {
+        StatusCode firstLevel = status.getStatusCode();
+        StatusCode subLevel = firstLevel.getStatusCode();
+        StringBuilder sb = new StringBuilder();
+        if (StatusCode.REQUESTER.equals(firstLevel.getValue())) {
+            sb.append("The SAML IdP did not grant the request. It indicated that the Elastic Stack side sent something invalid (");
+        } else if (StatusCode.RESPONDER.equals(firstLevel.getValue())) {
+            sb.append("The request could not be granted due to an error in the SAML IDP side (");
+        } else if (StatusCode.VERSION_MISMATCH.equals(firstLevel.getValue())) {
+            sb.append("The request could not be granted because the SAML IDP doesn't support SAML 2.0 (");
+        } else {
+            sb.append("The request could not be granted, the SAML IDP responded with a non-standard Status code (");
+        }
+        sb.append(firstLevel.getValue()).append(").");
+        if (getMessage(status) != null) {
+            sb.append(" Message: [").append(getMessage(status)).append("]");
+        }
+        if (getDetail(status) != null) {
+            sb.append(" Detail: [").append(getDetail(status)).append("]");
+        }
+        if (null != subLevel) {
+            sb.append(" Specific status code which might indicate what the issue is: [").append(subLevel.getValue()).append("]");
+        }
+        return sb.toString();
     }
 
     private String getMessage(Status status) {
@@ -329,13 +353,35 @@ class SamlAuthenticator extends SamlRequestHandler {
     }
 
     private void checkAudienceRestrictions(List<AudienceRestriction> restrictions) {
-        final String spEntityId = this.getSpConfiguration().getEntityId();
-        final Predicate<AudienceRestriction> predicate = ar ->
-                ar.getAudiences().stream().map(Audience::getAudienceURI).anyMatch(spEntityId::equals);
-        if (restrictions.stream().allMatch(predicate) == false) {
+        if (restrictions.stream().allMatch(this::checkAudienceRestriction) == false) {
             throw samlException("Conditions [{}] do not match required audience [{}]",
-                    restrictions.stream().map(r -> text(r, 32)).collect(Collectors.joining(" | ")), getSpConfiguration().getEntityId());
+                restrictions.stream().map(r -> text(r, 56, 8)).collect(Collectors.joining(" | ")), getSpConfiguration().getEntityId());
         }
+    }
+
+    private boolean checkAudienceRestriction(AudienceRestriction restriction) {
+        final String spEntityId = this.getSpConfiguration().getEntityId();
+        if (restriction.getAudiences().stream().map(Audience::getAudienceURI).anyMatch(spEntityId::equals) == false) {
+            restriction.getAudiences().stream().map(Audience::getAudienceURI).forEach(uri -> {
+                int diffChar;
+                for (diffChar = 0; diffChar < uri.length() && diffChar < spEntityId.length(); diffChar++) {
+                    if (uri.charAt(diffChar) != spEntityId.charAt(diffChar)) {
+                        break;
+                    }
+                }
+                // If the difference is less than half the length of the string, show it in detail
+                if (diffChar >= spEntityId.length() / 2) {
+                    logger.info("Audience restriction [{}] does not match required audience [{}] " +
+                            "(difference starts at character [#{}] [{}] vs [{}])",
+                        uri, spEntityId, diffChar, uri.substring(diffChar), spEntityId.substring(diffChar));
+                } else {
+                    logger.info("Audience restriction [{}] does not match required audience [{}]", uri, spEntityId);
+
+                }
+            });
+            return false;
+        }
+        return true;
     }
 
     private void checkLifetimeRestrictions(Conditions conditions) {

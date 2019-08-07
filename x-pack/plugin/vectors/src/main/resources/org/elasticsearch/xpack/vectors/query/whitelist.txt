@@ -1,0 +1,22 @@
+#
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the Elastic License;
+# you may not use this file except in compliance with the Elastic License.
+#
+class org.elasticsearch.xpack.vectors.query.VectorScriptDocValues {
+}
+class org.elasticsearch.xpack.vectors.query.VectorScriptDocValues$DenseVectorScriptDocValues {
+}
+class org.elasticsearch.xpack.vectors.query.VectorScriptDocValues$SparseVectorScriptDocValues {
+}
+
+static_import {
+    double l1norm(List, VectorScriptDocValues.DenseVectorScriptDocValues) from_class org.elasticsearch.xpack.vectors.query.ScoreScriptUtils
+    double l2norm(List, VectorScriptDocValues.DenseVectorScriptDocValues) from_class org.elasticsearch.xpack.vectors.query.ScoreScriptUtils
+    double cosineSimilarity(List, VectorScriptDocValues.DenseVectorScriptDocValues) bound_to org.elasticsearch.xpack.vectors.query.ScoreScriptUtils$CosineSimilarity
+    double dotProduct(List, VectorScriptDocValues.DenseVectorScriptDocValues) from_class org.elasticsearch.xpack.vectors.query.ScoreScriptUtils
+    double l1normSparse(Map, VectorScriptDocValues.SparseVectorScriptDocValues) bound_to org.elasticsearch.xpack.vectors.query.ScoreScriptUtils$L1NormSparse
+    double l2normSparse(Map, VectorScriptDocValues.SparseVectorScriptDocValues) bound_to org.elasticsearch.xpack.vectors.query.ScoreScriptUtils$L2NormSparse
+    double dotProductSparse(Map, VectorScriptDocValues.SparseVectorScriptDocValues) bound_to org.elasticsearch.xpack.vectors.query.ScoreScriptUtils$DotProductSparse
+    double cosineSimilaritySparse(Map, VectorScriptDocValues.SparseVectorScriptDocValues) bound_to org.elasticsearch.xpack.vectors.query.ScoreScriptUtils$CosineSimilaritySparse
+}

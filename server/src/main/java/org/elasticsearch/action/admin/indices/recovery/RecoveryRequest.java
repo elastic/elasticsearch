@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.recovery;
 
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -41,13 +42,19 @@ public class RecoveryRequest extends BroadcastRequest<RecoveryRequest> {
         this(Strings.EMPTY_ARRAY);
     }
 
+    public RecoveryRequest(StreamInput in) throws IOException {
+        super(in);
+        detailed = in.readBoolean();
+        activeOnly = in.readBoolean();
+    }
+
     /**
      * Constructs a request for recovery information for all shards for the given indices
      *
      * @param indices   Comma-separated list of indices about which to gather recovery information
      */
     public RecoveryRequest(String... indices) {
-        super(indices);
+        super(indices, IndicesOptions.STRICT_EXPAND_OPEN_CLOSED);
     }
 
     /**
@@ -93,12 +100,5 @@ public class RecoveryRequest extends BroadcastRequest<RecoveryRequest> {
         super.writeTo(out);
         out.writeBoolean(detailed);
         out.writeBoolean(activeOnly);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        detailed = in.readBoolean();
-        activeOnly = in.readBoolean();
     }
 }

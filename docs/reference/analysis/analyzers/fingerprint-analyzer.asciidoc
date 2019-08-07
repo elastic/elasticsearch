@@ -68,7 +68,7 @@ The `fingerprint` analyzer accepts the following parameters:
 `stopwords`::
 
     A pre-defined stop words list like `_english_` or an array  containing a
-    list of stop words.  Defaults to `\_none_`.
+    list of stop words.  Defaults to `_none_`.
 
 `stopwords_path`::
 
@@ -86,7 +86,7 @@ pre-defined list of English stop words:
 
 [source,js]
 ----------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "settings": {
     "analysis": {
@@ -158,7 +158,7 @@ customization:
 
 [source,js]
 ----------------------------------------------------
-PUT /fingerprint_example?include_type_name=true
+PUT /fingerprint_example
 {
   "settings": {
     "analysis": {

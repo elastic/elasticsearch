@@ -64,8 +64,8 @@ public class PutRoleRequestBuilder extends ActionRequestBuilder<PutRoleRequest, 
     }
 
     public PutRoleRequestBuilder addIndices(String[] indices, String[] privileges, String[] grantedFields, String[] deniedFields,
-                                            @Nullable BytesReference query) {
-        request.addIndex(indices, privileges, grantedFields, deniedFields, query);
+                                            @Nullable BytesReference query, boolean allowRestrictedIndices) {
+        request.addIndex(indices, privileges, grantedFields, deniedFields, query, allowRestrictedIndices);
         return this;
     }
 

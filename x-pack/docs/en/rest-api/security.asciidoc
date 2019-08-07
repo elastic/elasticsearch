@@ -8,6 +8,7 @@ You can use the following APIs to perform security activities.
 * <<security-api-clear-cache>>
 * <<security-api-has-privileges>>
 * <<security-api-ssl>>
+* <<security-api-get-builtin-privileges>>
 
 [float]
 [[security-api-app-privileges]]
@@ -52,6 +53,17 @@ without requiring basic authentication:
 * <<security-api-invalidate-token,Invalidate token>>
 
 [float]
+[[security-api-keys]]
+=== API Keys
+
+You can use the following APIs to create, retrieve and invalidate API keys for access
+without requiring basic authentication:
+
+* <<security-api-create-api-key,Create API Key>>
+* <<security-api-get-api-key,Get API Key>>
+* <<security-api-invalidate-api-key,Invalidate API Key>>
+
+[float]
 [[security-user-apis]]
 === Users
 
@@ -65,11 +77,23 @@ native realm:
 * <<security-api-enable-user,Enable users>>
 * <<security-api-get-user,Get users>>
 
+[float]
+[[security-openid-apis]]
+=== OpenID Connect
+
+You can use the following APIs to authenticate users against an OpenID Connect
+authentication realm
+
+* <<security-api-oidc-prepare-authentication, Prepare an authentication request>>
+* <<security-api-oidc-authenticate, Submit an authentication response>>
+* <<security-api-oidc-logout, Logout an authenticated user>>
+
 
 include::security/authenticate.asciidoc[]
 include::security/change-password.asciidoc[]
 include::security/clear-cache.asciidoc[]
 include::security/clear-roles-cache.asciidoc[]
+include::security/create-api-keys.asciidoc[]
 include::security/put-app-privileges.asciidoc[]
 include::security/create-role-mappings.asciidoc[]
 include::security/create-roles.asciidoc[]
@@ -80,11 +104,17 @@ include::security/delete-roles.asciidoc[]
 include::security/delete-users.asciidoc[]
 include::security/disable-users.asciidoc[]
 include::security/enable-users.asciidoc[]
+include::security/get-api-keys.asciidoc[]
 include::security/get-app-privileges.asciidoc[]
+include::security/get-builtin-privileges.asciidoc[]
 include::security/get-role-mappings.asciidoc[]
 include::security/get-roles.asciidoc[]
 include::security/get-tokens.asciidoc[]
 include::security/get-users.asciidoc[]
 include::security/has-privileges.asciidoc[]
+include::security/invalidate-api-keys.asciidoc[]
 include::security/invalidate-tokens.asciidoc[]
+include::security/oidc-prepare-authentication-api.asciidoc[]
+include::security/oidc-authenticate-api.asciidoc[]
+include::security/oidc-logout-api.asciidoc[]
 include::security/ssl.asciidoc[]

@@ -1,5 +1,5 @@
 [[indices-recovery]]
-== Indices Recovery
+=== Indices Recovery
 
 The indices recovery API provides insight into on-going index shard recoveries.
 Recovery status may be reported for specific indices, or cluster-wide.
@@ -24,7 +24,7 @@ indices recovery result.
 [source,js]
 --------------------------------------------------
 # create the index
-PUT index1?include_type_name=true
+PUT index1
 {"settings": {"index.number_of_shards": 1}}
 
 # create the repository
@@ -249,7 +249,7 @@ Response:
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"source" : \{[^}]*\}/"source" : $body.$_path/]
-// TESTRESPONSE[s/"details" : \[[^\]]*\]//]
+// TESTRESPONSE[s/"details" : \[[^\]]*\]/"details" : $body.$_path/]
 // TESTRESPONSE[s/: (\-)?[0-9]+/: $body.$_path/]
 // TESTRESPONSE[s/: "[^"]*"/: $body.$_path/]
 ////

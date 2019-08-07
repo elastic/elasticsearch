@@ -1,5 +1,8 @@
 [[boolean]]
 === Boolean datatype
+++++
+<titleabbrev>Boolean</titleabbrev>
+++++
 
 Boolean fields accept JSON `true` and `false` values, but can also accept
 strings which are interpreted as either true or false:
@@ -17,14 +20,12 @@ For example:
 
 [source,js]
 --------------------------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "is_published": {
-          "type": "boolean"
-        }
+    "properties": {
+      "is_published": {
+        "type": "boolean"
       }
     }
   }

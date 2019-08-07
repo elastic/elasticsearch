@@ -44,8 +44,7 @@ public class ResyncReplicationRequestTests extends ESTestCase {
         before.writeTo(out);
 
         final StreamInput in = out.bytes().streamInput();
-        final ResyncReplicationRequest after = new ResyncReplicationRequest();
-        after.readFrom(in);
+        final ResyncReplicationRequest after = new ResyncReplicationRequest(in);
 
         assertThat(after, equalTo(before));
     }

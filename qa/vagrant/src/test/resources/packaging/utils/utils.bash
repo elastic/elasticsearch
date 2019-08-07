@@ -67,7 +67,7 @@ if [ ! -x "`which unzip 2>/dev/null`" ]; then
     exit 1
 fi
 
-if [ ! -x "`which java 2>/dev/null`" ]; then
+if [ ! -x "$SYSTEM_JAVA_HOME"/bin/java ]; then
     # there are some tests that move java temporarily
     if [ ! -x "`command -v java.bak 2>/dev/null`" ]; then
         echo "'java' command is mandatory to run the tests"
@@ -231,17 +231,6 @@ assert_module_or_plugin_file() {
 
 assert_output() {
     echo "$output" | grep -E "$1"
-}
-
-assert_recursive_ownership() {
-    local directory=$1
-    local user=$2
-    local group=$3
-
-    realuser=$(find $directory -printf "%u\n" | sort | uniq)
-    [ "$realuser" = "$user" ]
-    realgroup=$(find $directory -printf "%g\n" | sort | uniq)
-    [ "$realgroup" = "$group" ]
 }
 
 # Deletes everything before running a test file
@@ -439,7 +428,7 @@ describe_port() {
 }
 
 debug_collect_logs() {
-    local es_logfile="$ESLOG/elasticsearch.log"
+    local es_logfile="$ESLOG/elasticsearch_server.json"
     local system_logfile='/var/log/messages'
 
     if [ -e "$es_logfile" ]; then

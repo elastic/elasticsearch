@@ -26,7 +26,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -247,9 +246,8 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
          *
          * @param file    file info
          * @param builder XContent builder
-         * @param params  parameters
          */
-        public static void toXContent(FileInfo file, XContentBuilder builder, ToXContent.Params params) throws IOException {
+        public static void toXContent(FileInfo file, XContentBuilder builder) throws IOException {
             builder.startObject();
             builder.field(NAME, file.name);
             builder.field(PHYSICAL_NAME, file.metadata.name());
@@ -382,20 +380,11 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
         assert indexVersion >= 0;
         this.snapshot = snapshot;
         this.indexVersion = indexVersion;
-        this.indexFiles = Collections.unmodifiableList(new ArrayList<>(indexFiles));
+        this.indexFiles = List.copyOf(indexFiles);
         this.startTime = startTime;
         this.time = time;
         this.incrementalFileCount = incrementalFileCount;
         this.incrementalSize = incrementalSize;
-    }
-
-    /**
-     * Returns index version
-     *
-     * @return index version
-     */
-    public long indexVersion() {
-        return indexVersion;
     }
 
     /**
@@ -493,7 +482,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
         builder.field(INCREMENTAL_SIZE, incrementalSize);
         builder.startArray(FILES);
         for (FileInfo fileInfo : indexFiles) {
-            FileInfo.toXContent(fileInfo, builder, params);
+            FileInfo.toXContent(fileInfo, builder);
         }
         builder.endArray();
         return builder;

@@ -44,5 +44,4 @@ public class TestFixtureExtension {
         fixtures.add(fixtureProject);
     }
 
-
 }

@@ -19,9 +19,8 @@
 
 package org.elasticsearch.common.geo.builders;
 
-import org.locationtech.jts.geom.Coordinate;
-
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.locationtech.jts.geom.Coordinate;
 
 import java.io.IOException;
 
@@ -59,7 +58,7 @@ public class CircleBuilderTests extends AbstractShapeBuilderTestCase<CircleBuild
             DistanceUnit newRandom = unit;
             while (newRandom == unit) {
                 newRandom = randomFrom(DistanceUnit.values());
-            };
+            }
             unit = newRandom;
         }
         return mutation.radius(radius, unit);

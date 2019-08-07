@@ -21,7 +21,6 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -32,7 +31,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
@@ -53,7 +51,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknown
  * Represents a single item response for an action executed as part of the bulk API. Holds the index/type/id
  * of the relevant action, and if it has failed or not (with the failure message incase it failed).
  */
-public class BulkItemResponse implements Streamable, StatusToXContentObject {
+public class BulkItemResponse implements Writeable, StatusToXContentObject {
 
     private static final String _INDEX = "_index";
     private static final String _TYPE = "_type";
@@ -238,16 +236,8 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
             id = in.readOptionalString();
             cause = in.readException();
             status = ExceptionsHelper.status(cause);
-            if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-                seqNo = in.readZLong();
-            } else {
-                seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
-            }
-            if (supportsAbortedFlag(in.getVersion())) {
-                aborted = in.readBoolean();
-            } else {
-                aborted = false;
-            }
+            seqNo = in.readZLong();
+            aborted = in.readBoolean();
         }
 
         @Override
@@ -256,17 +246,8 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
             out.writeString(getType());
             out.writeOptionalString(getId());
             out.writeException(getCause());
-            if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-                out.writeZLong(getSeqNo());
-            }
-            if (supportsAbortedFlag(out.getVersion())) {
-                out.writeBoolean(aborted);
-            }
-        }
-
-        private static boolean supportsAbortedFlag(Version version) {
-            // The "aborted" flag was not in 6.0.0-beta2
-            return version.after(Version.V_6_0_0_beta2);
+            out.writeZLong(getSeqNo());
+            out.writeBoolean(aborted);
         }
 
         /**
@@ -361,8 +342,24 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
 
     private Failure failure;
 
-    BulkItemResponse() {
+    BulkItemResponse() {}
 
+    BulkItemResponse(StreamInput in) throws IOException {
+        id = in.readVInt();
+        opType = OpType.fromId(in.readByte());
+
+        byte type = in.readByte();
+        if (type == 0) {
+            response = new IndexResponse(in);
+        } else if (type == 1) {
+            response = new DeleteResponse(in);
+        } else if (type == 3) { // make 3 instead of 2, because 2 is already in use for 'no responses'
+            response = new UpdateResponse(in);
+        }
+
+        if (in.readBoolean()) {
+            failure = new Failure(in);
+        }
     }
 
     public BulkItemResponse(int id, OpType opType, DocWriteResponse response) {
@@ -461,35 +458,6 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
      */
     public Failure getFailure() {
         return this.failure;
-    }
-
-    public static BulkItemResponse readBulkItem(StreamInput in) throws IOException {
-        BulkItemResponse response = new BulkItemResponse();
-        response.readFrom(in);
-        return response;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        id = in.readVInt();
-        opType = OpType.fromId(in.readByte());
-
-        byte type = in.readByte();
-        if (type == 0) {
-            response = new IndexResponse();
-            response.readFrom(in);
-        } else if (type == 1) {
-            response = new DeleteResponse();
-            response.readFrom(in);
-
-        } else if (type == 3) { // make 3 instead of 2, because 2 is already in use for 'no responses'
-            response = new UpdateResponse();
-            response.readFrom(in);
-        }
-
-        if (in.readBoolean()) {
-            failure = new Failure(in);
-        }
     }
 
     @Override

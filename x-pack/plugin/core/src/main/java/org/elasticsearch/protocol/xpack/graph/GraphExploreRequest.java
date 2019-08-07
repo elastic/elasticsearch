@@ -96,13 +96,54 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
         return this;
     }
 
+    /**
+     * The document types to execute the explore against. Defaults to be executed against
+     * all types.
+     *
+     * @deprecated Types are in the process of being removed. Instead of using a type, prefer to
+     * filter on a field on the document.
+     */
+    @Deprecated
     public String[] types() {
         return this.types;
     }
 
+    /**
+     * The document types to execute the explore request against. Defaults to be executed against
+     * all types.
+     *
+     * @deprecated Types are in the process of being removed. Instead of using a type, prefer to
+     * filter on a field on the document.
+     */
+    @Deprecated
     public GraphExploreRequest types(String... types) {
         this.types = types;
         return this;
+    }
+
+    public GraphExploreRequest(StreamInput in) throws IOException {
+        super(in);
+
+        indices = in.readStringArray();
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
+        types = in.readStringArray();
+        routing = in.readOptionalString();
+        timeout = in.readOptionalTimeValue();
+        sampleSize = in.readInt();
+        sampleDiversityField = in.readOptionalString();
+        maxDocsPerDiversityValue = in.readInt();
+
+        useSignificance = in.readBoolean();
+        returnDetailedInfo = in.readBoolean();
+
+        int numHops = in.readInt();
+        Hop parentHop = null;
+        for (int i = 0; i < numHops; i++) {
+            Hop hop = new Hop(parentHop);
+            hop.readFrom(in);
+            hops.add(hop);
+            parentHop = hop;
+        }
     }
 
     public String routing() {
@@ -144,33 +185,6 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
     public GraphExploreRequest timeout(String timeout) {
         timeout(TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout"));
         return this;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-
-        indices = in.readStringArray();
-        indicesOptions = IndicesOptions.readIndicesOptions(in);
-        types = in.readStringArray();
-        routing = in.readOptionalString();
-        timeout = in.readOptionalTimeValue();
-        sampleSize = in.readInt();
-        sampleDiversityField = in.readOptionalString();
-        maxDocsPerDiversityValue = in.readInt();
-
-        useSignificance = in.readBoolean();
-        returnDetailedInfo = in.readBoolean();
-
-        int numHops = in.readInt();
-        Hop parentHop = null;
-        for (int i = 0; i < numHops; i++) {
-            Hop hop = new Hop(parentHop);
-            hop.readFrom(in);
-            hops.add(hop);
-            parentHop = hop;
-        }
-
     }
 
     @Override

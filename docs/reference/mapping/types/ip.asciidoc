@@ -1,19 +1,20 @@
 [[ip]]
 === IP datatype
+++++
+<titleabbrev>IP</titleabbrev>
+++++
 
 An `ip` field can index/store either https://en.wikipedia.org/wiki/IPv4[IPv4] or
 https://en.wikipedia.org/wiki/IPv6[IPv6] addresses.
 
 [source,js]
 --------------------------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "ip_addr": {
-          "type": "ip"
-        }
+    "properties": {
+      "ip_addr": {
+        "type": "ip"
       }
     }
   }
@@ -71,6 +72,7 @@ The following parameters are accepted by `ip` fields:
     the <<mapping-source-field,`_source`>> field. Accepts `true` or `false`
     (default).
 
+[[query-ip-fields]]
 ==== Querying `ip` fields
 
 The most common way to query ip addresses is to use the

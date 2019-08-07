@@ -29,7 +29,7 @@ include::install_remove.asciidoc[]
 [[analysis-icu-analyzer]]
 ==== ICU Analyzer
 
-Performs basic normalization, tokenization and character folding, using the
+The `icu_analyzer` analyzer performs basic normalization, tokenization and character folding, using the
 `icu_normalizer` char filter, `icu_tokenizer` and `icu_normalizer` token filter
 
 The following parameters are accepted:
@@ -64,7 +64,7 @@ Here are two examples, the default usage and a customised character filter:
 
 [source,js]
 --------------------------------------------------
-PUT icu_sample?include_type_name=true
+PUT icu_sample
 {
   "settings": {
     "index": {
@@ -112,7 +112,7 @@ using custom rules to break Myanmar and Khmer text into syllables.
 
 [source,js]
 --------------------------------------------------
-PUT icu_sample?include_type_name=true
+PUT icu_sample
 {
   "settings": {
     "index": {
@@ -153,7 +153,7 @@ Then create an analyzer to use this rule file as follows:
 
 [source,js]
 --------------------------------------------------
-PUT icu_sample?include_type_name=true
+PUT icu_sample
 {
     "settings": {
         "index":{
@@ -221,7 +221,7 @@ Here are two examples, the default usage and a customised token filter:
 
 [source,js]
 --------------------------------------------------
-PUT icu_sample?include_type_name=true
+PUT icu_sample
 {
   "settings": {
     "index": {
@@ -267,7 +267,7 @@ available to all indices:
 
 [source,js]
 --------------------------------------------------
-PUT icu_sample?include_type_name=true
+PUT icu_sample
 {
   "settings": {
     "index": {
@@ -301,7 +301,7 @@ these filtered character are not lowercased which is why we add the
 
 [source,js]
 --------------------------------------------------
-PUT icu_sample?include_type_name=true
+PUT icu_sample
 {
   "settings": {
     "index": {
@@ -354,21 +354,19 @@ Below is an example of how to set up a field for sorting German names in
 
 [source,js]
 --------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "name": {   <1>
-          "type": "text",
-          "fields": {
-            "sort": {  <2>
-              "type": "icu_collation_keyword",
-              "index": false,
-              "language": "de",
-              "country": "DE",
-              "variant": "@collation=phonebook"
-            }
+    "properties": {
+      "name": {   <1>
+        "type": "text",
+        "fields": {
+          "sort": {  <2>
+            "type": "icu_collation_keyword",
+            "index": false,
+            "language": "de",
+            "country": "DE",
+            "variant": "@collation=phonebook"
           }
         }
       }
@@ -414,6 +412,14 @@ The following parameters are accepted by `icu_collation_keyword` fields:
 
     Accepts a string value which is substituted for any explicit `null`
     values.  Defaults to `null`, which means the field is treated as missing.
+
+{ref}/ignore-above.html[`ignore_above`]::
+
+    Strings longer than the `ignore_above` setting will be ignored.
+    Checking is performed on the original string before the collation.
+    The `ignore_above` setting can be updated on existing fields
+    using the {ref}/indices-put-mapping.html[PUT mapping API].
+    By default, there is no limit and all values will be indexed.
 
 `store`::
 
@@ -503,7 +509,7 @@ For example:
 
 [source,js]
 --------------------------------------------------
-PUT icu_sample?include_type_name=true
+PUT icu_sample
 {
   "settings": {
     "index": {

@@ -64,24 +64,14 @@ public class Count extends AggregateFunction {
     }
 
     @Override
-    public String name() {
-        if (distinct()) {
-            StringBuilder sb = new StringBuilder(super.name());
-            sb.insert(sb.indexOf("(") + 1, "DISTINCT ");
-            return sb.toString();
-        }
-        return super.name();
-    }
-
-    @Override
     public AggregateFunctionAttribute toAttribute() {
         // COUNT(*) gets its value from the parent aggregation on which _count is called
         if (field() instanceof Literal) {
-            return new AggregateFunctionAttribute(source(), name(), dataType(), id(), functionId(), "_count");
+            return new AggregateFunctionAttribute(source(), name(), dataType(), id(), functionId(), id(), "_count");
         }
         // COUNT(column) gets its value from a sibling aggregation (an exists filter agg) by calling its id and then _count on it
         if (!distinct()) {
-            return new AggregateFunctionAttribute(source(), name(), dataType(), id(), functionId(), functionId() + "._count");
+            return new AggregateFunctionAttribute(source(), name(), dataType(), id(), functionId(), id(), functionId() + "._count");
         }
         return super.toAttribute();
     }

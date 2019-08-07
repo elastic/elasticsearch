@@ -13,13 +13,19 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.Before;
 
+import java.io.EOFException;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static org.hamcrest.Matchers.instanceOf;
 
 public class SecurityContextTests extends ESTestCase {
 
@@ -50,12 +56,21 @@ public class SecurityContextTests extends ESTestCase {
         assertEquals(user, securityContext.getUser());
     }
 
+    public void testGetAuthenticationDoesNotSwallowIOException() {
+        threadContext.putHeader(AuthenticationField.AUTHENTICATION_KEY, ""); // an intentionally corrupt header
+        final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
+        final UncheckedIOException e = expectThrows(UncheckedIOException.class, securityContext::getAuthentication);
+        assertNotNull(e.getCause());
+        assertThat(e.getCause(), instanceOf(EOFException.class));
+    }
+
     public void testSetUser() {
         final User user = new User("test");
         assertNull(securityContext.getAuthentication());
         assertNull(securityContext.getUser());
         securityContext.setUser(user, Version.CURRENT);
         assertEquals(user, securityContext.getUser());
+        assertEquals(AuthenticationType.INTERNAL, securityContext.getAuthentication().getAuthenticationType());
 
         IllegalStateException e = expectThrows(IllegalStateException.class,
                 () -> securityContext.setUser(randomFrom(user, SystemUser.INSTANCE), Version.CURRENT));
@@ -76,11 +91,15 @@ public class SecurityContextTests extends ESTestCase {
         final AtomicReference<StoredContext> contextAtomicReference = new AtomicReference<>();
         securityContext.executeAsUser(executionUser, (originalCtx) -> {
             assertEquals(executionUser, securityContext.getUser());
+            assertEquals(AuthenticationType.INTERNAL, securityContext.getAuthentication().getAuthenticationType());
             contextAtomicReference.set(originalCtx);
         }, Version.CURRENT);
 
         final User userAfterExecution = securityContext.getUser();
         assertEquals(original, userAfterExecution);
+        if (original != null) {
+            assertEquals(AuthenticationType.REALM, securityContext.getAuthentication().getAuthenticationType());
+        }
         StoredContext originalContext = contextAtomicReference.get();
         assertNotNull(originalContext);
         originalContext.restore();
@@ -100,6 +119,7 @@ public class SecurityContextTests extends ESTestCase {
             assertEquals(original.getAuthenticatedBy(), authentication.getAuthenticatedBy());
             assertEquals(original.getLookedUpBy(), authentication.getLookedUpBy());
             assertEquals(VersionUtils.getPreviousVersion(), authentication.getVersion());
+            assertEquals(original.getAuthenticationType(), securityContext.getAuthentication().getAuthenticationType());
             contextAtomicReference.set(originalCtx);
         }, VersionUtils.getPreviousVersion());
 

@@ -12,16 +12,17 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
-import org.elasticsearch.xpack.core.ml.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
-import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory.BucketWithMissingData;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
-import org.joda.time.DateTime;
+import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory.BucketWithMissingData;
 
+import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -29,7 +30,6 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
 
 
 /**
@@ -102,7 +102,7 @@ public class DatafeedDelayedDataDetector implements DelayedDataDetector {
         request.setExcludeInterim(true);
         request.setPageParams(new PageParams(0, (int)((end - start)/bucketSpan)));
 
-        try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN)) {
+        try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
             GetBucketsAction.Response response = client.execute(GetBucketsAction.INSTANCE, request).actionGet();
             return response.getBuckets().results();
         }
@@ -111,11 +111,12 @@ public class DatafeedDelayedDataDetector implements DelayedDataDetector {
     private Map<Long, Long> checkCurrentBucketEventCount(long start, long end) {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder()
             .size(0)
-            .aggregation(new DateHistogramAggregationBuilder(DATE_BUCKETS).interval(bucketSpan).field(timeField))
+            .aggregation(new DateHistogramAggregationBuilder(DATE_BUCKETS)
+                .fixedInterval(new DateHistogramInterval(bucketSpan + "ms")).field(timeField))
             .query(ExtractorUtils.wrapInTimeRangeQuery(datafeedQuery, timeField, start, end));
 
         SearchRequest searchRequest = new SearchRequest(datafeedIndices).source(searchSourceBuilder);
-        try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN)) {
+        try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
             SearchResponse response = client.execute(SearchAction.INSTANCE, searchRequest).actionGet();
             List<? extends Histogram.Bucket> buckets = ((Histogram)response.getAggregations().get(DATE_BUCKETS)).getBuckets();
             Map<Long, Long> hashMap = new HashMap<>(buckets.size());
@@ -131,8 +132,8 @@ public class DatafeedDelayedDataDetector implements DelayedDataDetector {
     }
 
     private static long toHistogramKeyToEpoch(Object key) {
-        if (key instanceof DateTime) {
-            return ((DateTime)key).getMillis();
+        if (key instanceof ZonedDateTime) {
+            return ((ZonedDateTime)key).toInstant().toEpochMilli();
         } else if (key instanceof Double) {
             return ((Double)key).longValue();
         } else if (key instanceof Long){

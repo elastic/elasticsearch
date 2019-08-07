@@ -24,10 +24,11 @@ import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.MockDirectoryWrapper;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
@@ -53,8 +54,8 @@ public class DfsQueryPhaseTests extends ESTestCase {
     public void testDfsWith2Shards() throws IOException {
         AtomicArray<DfsSearchResult> results = new AtomicArray<>(2);
         AtomicReference<AtomicArray<SearchPhaseResult>> responseRef = new AtomicReference<>();
-        results.set(0, newSearchResult(0, 1, new SearchShardTarget("node1", new Index("test", "na"), 0, null)));
-        results.set(1, newSearchResult(1, 2, new SearchShardTarget("node2", new Index("test", "na"), 0, null)));
+        results.set(0, newSearchResult(0, 1, new SearchShardTarget("node1", new ShardId("test", "na", 0), null, OriginalIndices.NONE)));
+        results.set(1, newSearchResult(1, 2, new SearchShardTarget("node2", new ShardId("test", "na", 0), null, OriginalIndices.NONE)));
         results.get(0).termsStatistics(new Term[0], new TermStatistics[0]);
         results.get(1).termsStatistics(new Term[0], new TermStatistics[0]);
 
@@ -65,16 +66,16 @@ public class DfsQueryPhaseTests extends ESTestCase {
             public void sendExecuteQuery(Transport.Connection connection, QuerySearchRequest request, SearchTask task,
                                          SearchActionListener<QuerySearchResult> listener) {
                 if (request.id() == 1) {
-                    QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node1", new Index("test", "na"), 0,
-                        null));
+                    QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node1", new ShardId("test", "na", 0),
+                        null, OriginalIndices.NONE));
                     queryResult.topDocs(new TopDocsAndMaxScore(
                             new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                                     new ScoreDoc[] {new ScoreDoc(42, 1.0F)}), 2.0F), new DocValueFormat[0]);
                     queryResult.size(2); // the size of the result set
                     listener.onResponse(queryResult);
                 } else if (request.id() == 2) {
-                    QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node2", new Index("test", "na"), 0,
-                        null));
+                    QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node2", new ShardId("test", "na", 0),
+                        null, OriginalIndices.NONE));
                     queryResult.topDocs(new TopDocsAndMaxScore(
                             new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] {new ScoreDoc(84, 2.0F)}), 2.0F),
                             new DocValueFormat[0]);
@@ -113,8 +114,8 @@ public class DfsQueryPhaseTests extends ESTestCase {
     public void testDfsWith1ShardFailed() throws IOException {
         AtomicArray<DfsSearchResult> results = new AtomicArray<>(2);
         AtomicReference<AtomicArray<SearchPhaseResult>> responseRef = new AtomicReference<>();
-        results.set(0, newSearchResult(0, 1, new SearchShardTarget("node1", new Index("test", "na"), 0, null)));
-        results.set(1, newSearchResult(1, 2, new SearchShardTarget("node2", new Index("test", "na"), 0, null)));
+        results.set(0, newSearchResult(0, 1, new SearchShardTarget("node1", new ShardId("test", "na", 0), null, OriginalIndices.NONE)));
+        results.set(1, newSearchResult(1, 2, new SearchShardTarget("node2", new ShardId("test", "na", 0), null, OriginalIndices.NONE)));
         results.get(0).termsStatistics(new Term[0], new TermStatistics[0]);
         results.get(1).termsStatistics(new Term[0], new TermStatistics[0]);
 
@@ -125,8 +126,8 @@ public class DfsQueryPhaseTests extends ESTestCase {
             public void sendExecuteQuery(Transport.Connection connection, QuerySearchRequest request, SearchTask task,
                                          SearchActionListener<QuerySearchResult> listener) {
                 if (request.id() == 1) {
-                    QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node1", new Index("test", "na"), 0,
-                        null));
+                    QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node1", new ShardId("test", "na", 0),
+                        null, OriginalIndices.NONE));
                     queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(
                             new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                             new ScoreDoc[] {new ScoreDoc(42, 1.0F)}), 2.0F), new DocValueFormat[0]);
@@ -170,8 +171,8 @@ public class DfsQueryPhaseTests extends ESTestCase {
     public void testFailPhaseOnException() throws IOException {
         AtomicArray<DfsSearchResult> results = new AtomicArray<>(2);
         AtomicReference<AtomicArray<SearchPhaseResult>> responseRef = new AtomicReference<>();
-        results.set(0, newSearchResult(0, 1, new SearchShardTarget("node1", new Index("test", "na"), 0, null)));
-        results.set(1, newSearchResult(1, 2, new SearchShardTarget("node2", new Index("test", "na"), 0, null)));
+        results.set(0, newSearchResult(0, 1, new SearchShardTarget("node1", new ShardId("test", "na", 0), null, OriginalIndices.NONE)));
+        results.set(1, newSearchResult(1, 2, new SearchShardTarget("node2", new ShardId("test", "na", 0), null, OriginalIndices.NONE)));
         results.get(0).termsStatistics(new Term[0], new TermStatistics[0]);
         results.get(1).termsStatistics(new Term[0], new TermStatistics[0]);
 
@@ -182,8 +183,8 @@ public class DfsQueryPhaseTests extends ESTestCase {
             public void sendExecuteQuery(Transport.Connection connection, QuerySearchRequest request, SearchTask task,
                                          SearchActionListener<QuerySearchResult> listener) {
                 if (request.id() == 1) {
-                    QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node1", new Index("test", "na"), 0,
-                        null));
+                    QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node1", new ShardId("test", "na", 0),
+                        null, OriginalIndices.NONE));
                     queryResult.topDocs(new TopDocsAndMaxScore(
                             new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                                     new ScoreDoc[] {new ScoreDoc(42, 1.0F)}), 2.0F), new DocValueFormat[0]);
@@ -206,7 +207,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
                 }
             }, mockSearchPhaseContext);
         assertEquals("dfs_query", phase.getName());
-        expectThrows(UncheckedIOException.class, () -> phase.run());
+        expectThrows(UncheckedIOException.class, phase::run);
         assertTrue(mockSearchPhaseContext.releasedSearchContexts.isEmpty()); // phase execution will clean up on the contexts
     }
 

@@ -281,6 +281,14 @@ public abstract class Node<T extends Node<T>> {
         return getClass().getSimpleName();
     }
 
+    /**
+     * The values of all the properties that are important
+     * to this {@link Node}.
+     */
+    public List<Object> nodeProperties() {
+        return info().properties();
+    }
+
     public String nodeString() {
         StringBuilder sb = new StringBuilder();
         sb.append(nodeName());
@@ -349,7 +357,6 @@ public abstract class Node<T extends Node<T>> {
      * {@code [} and {@code ]} of the output of {@link #treeString}.
      */
     public String propertiesToString(boolean skipIfChild) {
-        NodeInfo<? extends Node<T>> info = info();
         StringBuilder sb = new StringBuilder();
 
         List<?> children = children();
@@ -358,7 +365,7 @@ public abstract class Node<T extends Node<T>> {
         int maxWidth = 0;
         boolean needsComma = false;
 
-        List<Object> props = info.properties();
+        List<Object> props = nodeProperties();
         for (Object prop : props) {
             // consider a property if it is not ignored AND
             // it's not a child (optional)
@@ -387,13 +394,5 @@ public abstract class Node<T extends Node<T>> {
         }
 
         return sb.toString();
-    }
-
-    /**
-     * The values of all the properties that are important
-     * to this {@link Node}.
-     */
-    public List<Object> properties() {
-        return info().properties();
     }
 }

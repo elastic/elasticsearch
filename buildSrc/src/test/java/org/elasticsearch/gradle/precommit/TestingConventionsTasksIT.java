@@ -62,7 +62,7 @@ public class TestingConventionsTasksIT extends GradleIntegrationTestCase {
         BuildResult result = runner.buildAndFail();
         assertOutputContains(result.getOutput(),
             "Expected at least one test class included in task :empty_test_task:emptyTest, but found none.",
-            "Expected at least one test class included in task :empty_test_task:emptyTestRandomized, but found none."
+            "Expected at least one test class included in task :empty_test_task:test, but found none."
         );
     }
 
@@ -71,9 +71,8 @@ public class TestingConventionsTasksIT extends GradleIntegrationTestCase {
             .withArguments("clean", ":all_classes_in_tasks:testingConventions", "-i", "-s");
         BuildResult result = runner.buildAndFail();
         assertOutputContains(result.getOutput(),
-            "Test classes are not included in any enabled task (:all_classes_in_tasks:emptyTestRandomized):",
-            "  * org.elasticsearch.gradle.testkit.NamingConventionIT",
-            "  * org.elasticsearch.gradle.testkit.NamingConventionTests"
+            "Test classes are not included in any enabled task (:all_classes_in_tasks:test):",
+            "  * org.elasticsearch.gradle.testkit.NamingConventionIT"
         );
     }
 
@@ -103,6 +102,17 @@ public class TestingConventionsTasksIT extends GradleIntegrationTestCase {
             .withArguments("clean", ":valid_setup_with_base:testingConventions", "-i", "-s");
         BuildResult result = runner.build();
         assertTaskSuccessful(result, ":valid_setup_with_base:testingConventions");
+    }
+
+    public void testTestsInMain() {
+        GradleRunner runner = getGradleRunner("testingConventions")
+            .withArguments("clean", ":tests_in_main:testingConventions", "-i", "-s");
+        BuildResult result = runner.buildAndFail();
+        assertOutputContains(result.getOutput(),
+          "Classes matching the test naming convention should be in test not main:",
+              "  * NamingConventionIT",
+              "  * NamingConventionTests"
+        );
     }
 
 }

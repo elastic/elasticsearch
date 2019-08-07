@@ -74,9 +74,10 @@ public class GetRoleMappingsResponseTests extends ESTestCase {
                 }, json));
         final List<ExpressionRoleMapping> expectedRoleMappingsList = new ArrayList<>();
         expectedRoleMappingsList.add(new ExpressionRoleMapping("kerberosmapping", FieldRoleMapperExpression.ofKeyValues("realm.name",
-                "kerb1"), Collections.singletonList("superuser"), null, true));
+                "kerb1"), Collections.singletonList("superuser"), Collections.emptyList(), null, true));
         expectedRoleMappingsList.add(new ExpressionRoleMapping("ldapmapping", FieldRoleMapperExpression.ofGroups(
-                "cn=ipausers,cn=groups,cn=accounts,dc=ipademo,dc=local"), Collections.singletonList("monitoring"), null, false));
+                "cn=ipausers,cn=groups,cn=accounts,dc=ipademo,dc=local"), Collections.singletonList("monitoring"), Collections.emptyList(),
+            null, false));
         final GetRoleMappingsResponse expectedResponse = new GetRoleMappingsResponse(expectedRoleMappingsList);
         assertThat(response, equalTo(expectedResponse));
     }
@@ -84,7 +85,7 @@ public class GetRoleMappingsResponseTests extends ESTestCase {
     public void testEqualsHashCode() {
         final List<ExpressionRoleMapping> roleMappingsList = new ArrayList<>();
         roleMappingsList.add(new ExpressionRoleMapping("kerberosmapping", FieldRoleMapperExpression.ofKeyValues("realm.name",
-                "kerb1"), Collections.singletonList("superuser"), null, true));
+                "kerb1"), Collections.singletonList("superuser"), Collections.emptyList(), null, true));
         final GetRoleMappingsResponse response = new GetRoleMappingsResponse(roleMappingsList);
         assertNotNull(response);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(response, (original) -> {
@@ -101,15 +102,16 @@ public class GetRoleMappingsResponseTests extends ESTestCase {
         case 0:
             final List<ExpressionRoleMapping> roleMappingsList1 = new ArrayList<>();
             roleMappingsList1.add(new ExpressionRoleMapping("ldapmapping", FieldRoleMapperExpression.ofGroups(
-                "cn=ipausers,cn=groups,cn=accounts,dc=ipademo,dc=local"), Collections.singletonList("monitoring"), null, false));
+                "cn=ipausers,cn=groups,cn=accounts,dc=ipademo,dc=local"), Collections.singletonList("monitoring"), Collections.emptyList(),
+                null, false));
             mutated = new GetRoleMappingsResponse(roleMappingsList1);
             break;
         case 1:
             final List<ExpressionRoleMapping> roleMappingsList2 = new ArrayList<>();
-            ExpressionRoleMapping orginialRoleMapping = original.getMappings().get(0);
-            roleMappingsList2.add(new ExpressionRoleMapping(orginialRoleMapping.getName(), FieldRoleMapperExpression.ofGroups(
-                    "cn=ipausers,cn=groups,cn=accounts,dc=ipademo,dc=local"),
-                    orginialRoleMapping.getRoles(), orginialRoleMapping.getMetadata(), !orginialRoleMapping.isEnabled()));
+            ExpressionRoleMapping originalRoleMapping = original.getMappings().get(0);
+            roleMappingsList2.add(new ExpressionRoleMapping(originalRoleMapping.getName(),
+                FieldRoleMapperExpression.ofGroups("cn=ipausers,cn=groups,cn=accounts,dc=ipademo,dc=local"), originalRoleMapping.getRoles(),
+                Collections.emptyList(), originalRoleMapping.getMetadata(), !originalRoleMapping.isEnabled()));
             mutated = new GetRoleMappingsResponse(roleMappingsList2);
             break;
         }

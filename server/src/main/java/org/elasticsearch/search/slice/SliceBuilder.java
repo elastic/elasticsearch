@@ -54,7 +54,7 @@ import java.util.Set;
 
 /**
  *  A slice builder allowing to split a scroll in multiple partitions.
- *  If the provided field is the "_uid" it uses a {@link org.elasticsearch.search.slice.TermsSliceQuery}
+ *  If the provided field is the "_id" it uses a {@link org.elasticsearch.search.slice.TermsSliceQuery}
  *  to do the slicing. The slicing is done at the shard level first and then each shard is split into multiple slices.
  *  For instance if the number of shards is equal to 2 and the user requested 4 slices
  *  then the slices 0 and 2 are assigned to the first shard and the slices 1 and 3 are assigned to the second shard.
@@ -79,7 +79,7 @@ public class SliceBuilder implements Writeable, ToXContentObject {
         PARSER.declareInt(SliceBuilder::setMax, MAX_FIELD);
     }
 
-    /** Name of field to slice against (_uid by default) */
+    /** Name of field to slice against (_id by default) */
     private String field = IdFieldMapper.NAME;
     /** The id of the slice */
     private int id = -1;
@@ -106,10 +106,6 @@ public class SliceBuilder implements Writeable, ToXContentObject {
 
     public SliceBuilder(StreamInput in) throws IOException {
         String field = in.readString();
-        if ("_uid".equals(field) && in.getVersion().before(Version.V_6_3_0)) {
-            // This is safe because _id and _uid are handled the same way in #toFilter
-            field = IdFieldMapper.NAME;
-        }
         this.field = field;
         this.id = in.readVInt();
         this.max = in.readVInt();
@@ -117,11 +113,7 @@ public class SliceBuilder implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (IdFieldMapper.NAME.equals(field) && out.getVersion().before(Version.V_6_3_0)) {
-            out.writeString("_uid");
-        } else {
-            out.writeString(field);
-        }
+        out.writeString(field);
         out.writeVInt(id);
         out.writeVInt(max);
     }
@@ -225,19 +217,15 @@ public class SliceBuilder implements Writeable, ToXContentObject {
 
         int shardId = request.shardId().id();
         int numShards = context.getIndexSettings().getNumberOfShards();
-        if (minNodeVersion.onOrAfter(Version.V_6_4_0) &&
-                (request.preference() != null || request.indexRoutings().length > 0)) {
+        if (request.preference() != null || request.indexRoutings().length > 0) {
             GroupShardsIterator<ShardIterator> group = buildShardIterator(clusterService, request);
             assert group.size() <= numShards : "index routing shards: " + group.size() +
                 " cannot be greater than total number of shards: " + numShards;
             if (group.size() < numShards) {
-                /**
+                /*
                  * The routing of this request targets a subset of the shards of this index so we need to we retrieve
                  * the original {@link GroupShardsIterator} and compute the request shard id and number of
                  * shards from it.
-                 * This behavior has been added in {@link Version#V_6_4_0} so if there is another node in the cluster
-                 * with an older version we use the original shard id and number of shards in order to ensure that all
-                 * slices use the same numbers.
                  */
                 numShards = group.size();
                 int ord = 0;
@@ -257,15 +245,7 @@ public class SliceBuilder implements Writeable, ToXContentObject {
 
         String field = this.field;
         boolean useTermQuery = false;
-        if ("_uid".equals(field)) {
-            // on new indices, the _id acts as a _uid
-            field = IdFieldMapper.NAME;
-            if (context.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
-                throw new IllegalArgumentException("Computing slices on the [_uid] field is illegal for 7.x indices, use [_id] instead");
-            }
-            DEPRECATION_LOG.deprecated("Computing slices on the [_uid] field is deprecated for 6.x indices, use [_id] instead");
-            useTermQuery = true;
-        } else if (IdFieldMapper.NAME.equals(field)) {
+        if (IdFieldMapper.NAME.equals(field)) {
             useTermQuery = true;
         } else if (type.hasDocValues() == false) {
             throw new IllegalArgumentException("cannot load numeric doc values on " + field);

@@ -19,9 +19,7 @@
 
 package org.elasticsearch.script.mustache;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -40,10 +38,6 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestMultiSearchTemplateAction extends BaseRestHandler {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(RestMultiSearchTemplateAction.class));
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +
-        " Specifying types in multi search template requests is deprecated.";
 
     private static final Set<String> RESPONSE_PARAMS;
 
@@ -65,10 +59,6 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
         controller.registerHandler(POST, "/_msearch/template", this);
         controller.registerHandler(GET, "/{index}/_msearch/template", this);
         controller.registerHandler(POST, "/{index}/_msearch/template", this);
-
-        // Deprecated typed endpoints.
-        controller.registerHandler(GET, "/{index}/{type}/_msearch/template", this);
-        controller.registerHandler(POST, "/{index}/{type}/_msearch/template", this);
     }
 
     @Override
@@ -79,14 +69,6 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         MultiSearchTemplateRequest multiRequest = parseRequest(request, allowExplicitIndex);
-
-        // Emit a single deprecation message if any search template contains types.
-        for (SearchTemplateRequest searchTemplateRequest : multiRequest.requests()) {
-            if (searchTemplateRequest.getRequest().types().length > 0) {
-                deprecationLogger.deprecatedAndMaybeLog("msearch_with_types", TYPES_DEPRECATION_MESSAGE);
-                break;
-            }
-        }
         return channel -> client.execute(MultiSearchTemplateAction.INSTANCE, multiRequest, new RestToXContentListener<>(channel));
     }
 

@@ -318,11 +318,6 @@ public class XPackInfoResponse {
                 return name;
             }
 
-            @Nullable
-            public String description() {
-                return description;
-            }
-
             public boolean available() {
                 return available;
             }
@@ -331,6 +326,11 @@ public class XPackInfoResponse {
                 return enabled;
             }
 
+            /**
+             * Return native code info
+             * @deprecated Use ML info api to find native code info
+             */
+            @Deprecated
             @Nullable
             public Map<String, Object> nativeCodeInfo() {
                 return nativeCodeInfo;

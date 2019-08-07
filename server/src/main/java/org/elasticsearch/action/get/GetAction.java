@@ -19,19 +19,15 @@
 
 package org.elasticsearch.action.get;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 
-public class GetAction extends Action<GetResponse> {
+public class GetAction extends ActionType<GetResponse> {
 
     public static final GetAction INSTANCE = new GetAction();
     public static final String NAME = "indices:data/read/get";
 
     private GetAction() {
-        super(NAME);
+        super(NAME, GetResponse::new);
     }
 
-    @Override
-    public GetResponse newResponse() {
-        return new GetResponse();
-    }
 }

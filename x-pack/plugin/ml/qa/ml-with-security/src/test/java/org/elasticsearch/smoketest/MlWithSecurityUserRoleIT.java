@@ -6,17 +6,29 @@
 package org.elasticsearch.smoketest;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
-
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.section.DoSection;
 import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
+import java.util.regex.Pattern;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 
 public class MlWithSecurityUserRoleIT extends MlWithSecurityIT {
+
+    /**
+     * These are actions that require the monitor role and/or access to the relevant source index.
+     * ml_user should have both of these in the tests.
+     */
+    private static final List<Pattern> ALLOWED_ACTION_PATTERNS = Arrays.asList(
+        Pattern.compile("ml\\.get_.*"),
+        Pattern.compile("ml\\.find_file_structure"),
+        Pattern.compile("ml\\.evaluate_data_frame")
+    );
 
     private final ClientYamlTestCandidate testCandidate;
 
@@ -30,14 +42,12 @@ public class MlWithSecurityUserRoleIT extends MlWithSecurityIT {
         try {
             super.test();
 
-            // We should have got here if and only if the only ML endpoints in the test were GETs
-            // or the find_file_structure API, which is also available to the machine_learning_user
-            // role
+            // We should have got here if and only if the only ML endpoints in the test were in the allowed list
             for (ExecutableSection section : testCandidate.getTestSection().getExecutableSections()) {
                 if (section instanceof DoSection) {
-                    if (((DoSection) section).getApiCallSection().getApi().startsWith("xpack.ml.") &&
-                            ((DoSection) section).getApiCallSection().getApi().startsWith("xpack.ml.get_") == false &&
-                            ((DoSection) section).getApiCallSection().getApi().equals("xpack.ml.find_file_structure") == false) {
+                    String apiName = ((DoSection) section).getApiCallSection().getApi();
+
+                    if (((DoSection) section).getApiCallSection().getApi().startsWith("ml.") && isAllowed(apiName) == false) {
                         fail("should have failed because of missing role");
                     }
                 }
@@ -48,6 +58,15 @@ public class MlWithSecurityUserRoleIT extends MlWithSecurityIT {
             assertThat(ae.getMessage(), containsString("returned [403 Forbidden]"));
             assertThat(ae.getMessage(), containsString("is unauthorized for user [ml_user]"));
         }
+    }
+
+    private static boolean isAllowed(String apiName) {
+        for (Pattern pattern : ALLOWED_ACTION_PATTERNS) {
+            if (pattern.matcher(apiName).find()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override

@@ -21,7 +21,7 @@
 package org.elasticsearch.action.bulk;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -104,8 +104,8 @@ public class TransportBulkActionTookTests extends ESTestCase {
         NodeClient client = new NodeClient(Settings.EMPTY, threadPool) {
             @Override
             public <Request extends ActionRequest, Response extends ActionResponse>
-            void doExecute(Action<Response> action, Request request, ActionListener<Response> listener) {
-                listener.onResponse((Response)new CreateIndexResponse());
+            void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
+                listener.onResponse((Response)new CreateIndexResponse(false, false, null));
             }
         };
 
@@ -115,7 +115,6 @@ public class TransportBulkActionTookTests extends ESTestCase {
                     threadPool,
                     transportService,
                     clusterService,
-                    null,
                     client,
                     actionFilters,
                     resolver,
@@ -139,7 +138,6 @@ public class TransportBulkActionTookTests extends ESTestCase {
                     threadPool,
                     transportService,
                     clusterService,
-                    null,
                     client,
                     actionFilters,
                     resolver,
@@ -218,7 +216,6 @@ public class TransportBulkActionTookTests extends ESTestCase {
                 ThreadPool threadPool,
                 TransportService transportService,
                 ClusterService clusterService,
-                TransportShardBulkAction shardBulkAction,
                 NodeClient client,
                 ActionFilters actionFilters,
                 IndexNameExpressionResolver indexNameExpressionResolver,
@@ -229,7 +226,6 @@ public class TransportBulkActionTookTests extends ESTestCase {
                     transportService,
                     clusterService,
                     null,
-                    shardBulkAction,
                     client,
                     actionFilters,
                     indexNameExpressionResolver,

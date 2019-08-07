@@ -1,5 +1,8 @@
 [[date]]
 === Date datatype
+++++
+<titleabbrev>Date</titleabbrev>
+++++
 
 JSON doesn't have a date datatype, so dates in Elasticsearch can either be:
 
@@ -30,14 +33,12 @@ For instance:
 
 [source,js]
 --------------------------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "date": {
-          "type": "date" <1>
-        }
+    "properties": {
+      "date": {
+        "type": "date" <1>
       }
     }
   }
@@ -74,15 +75,13 @@ into a string.
 
 [source,js]
 --------------------------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "date": {
-          "type":   "date",
-          "format": "yyyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis"
-        }
+    "properties": {
+      "date": {
+        "type":   "date",
+        "format": "yyyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis"
       }
     }
   }

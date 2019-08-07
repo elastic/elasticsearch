@@ -106,12 +106,8 @@ public class JobUpdate implements Writeable, ToXContentObject {
 
     public JobUpdate(StreamInput in) throws IOException {
         jobId = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-            String[] groupsArray = in.readOptionalStringArray();
-            groups = groupsArray == null ? null : Arrays.asList(groupsArray);
-        } else {
-            groups = null;
-        }
+        String[] groupsArray = in.readOptionalStringArray();
+        groups = groupsArray == null ? null : Arrays.asList(groupsArray);
         description = in.readOptionalString();
         if (in.readBoolean()) {
             detectorUpdates = in.readList(DetectorUpdate::new);
@@ -125,26 +121,18 @@ public class JobUpdate implements Writeable, ToXContentObject {
         modelSnapshotRetentionDays = in.readOptionalLong();
         resultsRetentionDays = in.readOptionalLong();
         if (in.readBoolean()) {
-            categorizationFilters = in.readList(StreamInput::readString);
+            categorizationFilters = in.readStringList();
         } else {
             categorizationFilters = null;
         }
         customSettings = in.readMap();
         modelSnapshotId = in.readOptionalString();
-        // was establishedModelMemory
-        if (in.getVersion().onOrAfter(Version.V_6_1_0) && in.getVersion().before(Version.V_7_0_0)) {
-            in.readOptionalLong();
-        }
-        if (in.getVersion().onOrAfter(Version.V_6_3_0) && in.readBoolean()) {
+        if (in.readBoolean()) {
             jobVersion = Version.readVersion(in);
         } else {
             jobVersion = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
-            clearJobFinishTime = in.readOptionalBoolean();
-        } else {
-            clearJobFinishTime = null;
-        }
+        clearJobFinishTime = in.readOptionalBoolean();
         if (in.getVersion().onOrAfter(Version.V_7_0_0) && in.readBoolean()) {
             modelSnapshotMinVersion = Version.readVersion(in);
         } else {
@@ -155,10 +143,8 @@ public class JobUpdate implements Writeable, ToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(jobId);
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-            String[] groupsArray = groups == null ? null : groups.toArray(new String[groups.size()]);
-            out.writeOptionalStringArray(groupsArray);
-        }
+        String[] groupsArray = groups == null ? null : groups.toArray(new String[groups.size()]);
+        out.writeOptionalStringArray(groupsArray);
         out.writeOptionalString(description);
         out.writeBoolean(detectorUpdates != null);
         if (detectorUpdates != null) {
@@ -172,25 +158,17 @@ public class JobUpdate implements Writeable, ToXContentObject {
         out.writeOptionalLong(resultsRetentionDays);
         out.writeBoolean(categorizationFilters != null);
         if (categorizationFilters != null) {
-            out.writeStringList(categorizationFilters);
+            out.writeStringCollection(categorizationFilters);
         }
         out.writeMap(customSettings);
         out.writeOptionalString(modelSnapshotId);
-        // was establishedModelMemory
-        if (out.getVersion().onOrAfter(Version.V_6_1_0) && out.getVersion().before(Version.V_7_0_0)) {
-            out.writeOptionalLong(null);
+        if (jobVersion != null) {
+            out.writeBoolean(true);
+            Version.writeVersion(jobVersion, out);
+        } else {
+            out.writeBoolean(false);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
-            if (jobVersion != null) {
-                out.writeBoolean(true);
-                Version.writeVersion(jobVersion, out);
-            } else {
-                out.writeBoolean(false);
-            }
-        }
-        if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
-            out.writeOptionalBoolean(clearJobFinishTime);
-        }
+        out.writeOptionalBoolean(clearJobFinishTime);
         if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
             if (modelSnapshotMinVersion != null) {
                 out.writeBoolean(true);

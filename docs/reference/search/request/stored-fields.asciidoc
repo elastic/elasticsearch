@@ -1,9 +1,9 @@
-[[search-request-stored-fields]]
-=== Fields
+[[request-body-search-stored-fields]]
+==== Stored Fields
 
 WARNING: The `stored_fields` parameter is about fields that are explicitly marked as
 stored in the mapping, which is off by default and generally not recommended.
-Use <<search-request-source-filtering,source filtering>> instead to select
+Use <<request-body-search-source-filtering,source filtering>> instead to select
 subsets of the original source document to be returned.
 
 Allows to selectively load specific stored fields for each document represented
@@ -49,7 +49,12 @@ Script fields can also be automatically detected and used as fields, so
 things like `_source.obj1.field1` can be used, though not recommended, as
 `obj1.field1` will work as well.
 
-==== Disable stored fields entirely
+NOTE: On its own, `stored_fields` cannot be used to load fields in nested
+objects -- if a field contains a nested object in its path, then no data will
+be returned for that stored field. To access nested fields, `stored_fields`
+must be used within an <<request-body-search-inner-hits, `inner_hits`>> block.
+
+===== Disable stored fields entirely
 
 To disable the stored fields (and metadata fields) entirely use: `_none_`:
 
@@ -65,5 +70,5 @@ GET /_search
 --------------------------------------------------
 // CONSOLE
 
-NOTE: <<search-request-source-filtering,`_source`>> and <<search-request-version, `version`>> parameters cannot be activated if `_none_` is used.
+NOTE: <<request-body-search-source-filtering,`_source`>> and <<request-body-search-version, `version`>> parameters cannot be activated if `_none_` is used.
 

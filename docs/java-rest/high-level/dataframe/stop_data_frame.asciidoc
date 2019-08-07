@@ -1,0 +1,41 @@
+--
+:api: stop-data-frame-transform
+:request: StopDataFrameTransformRequest
+:response: StopDataFrameTransformResponse
+--
+[id="{upid}-{api}"]
+=== Stop {dataframe-transform} API
+
+Stops a started {dataframe-transform}.
+It accepts a +{request}+ object and responds with a +{response}+ object.
+
+[id="{upid}-{api}-request"]
+==== Stop {dataframe-transform} request
+
+A +{request}+ object requires a non-null `id`. `id` can be a comma separated
+list of IDs or a single ID. Wildcards, `*` and `_all` are also accepted.
+
+
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+---------------------------------------------------
+<1> Constructing a new stop request referencing an existing {dataframe-transform}
+
+==== Optional arguments
+
+The following arguments are optional.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-options]
+--------------------------------------------------
+<1> If true wait for the data frame task to stop before responding
+<2> Controls the amount of time to wait until the {dataframe-transform} stops.
+<3> Whether to ignore if a wildcard expression matches no transforms.
+
+include::../execution.asciidoc[]
+
+==== Response
+
+The returned +{response}+ object acknowledges the {dataframe-transform} has stopped.

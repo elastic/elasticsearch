@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
@@ -50,7 +51,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
     public void setUp() throws Exception {
         nodeEnvironment = newNodeEnvironment();
         localNode = new DiscoveryNode("node1", buildNewFakeTransportAddress(), Collections.emptyMap(),
-                Sets.newHashSet(DiscoveryNode.Role.MASTER), Version.CURRENT);
+                Sets.newHashSet(DiscoveryNodeRole.MASTER_ROLE), Version.CURRENT);
         clusterName = new ClusterName(randomAlphaOfLength(10));
         settings = Settings.builder().put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName.value()).build();
         super.setUp();
@@ -213,22 +214,24 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
         } while (coordinationMetaData.getLastAcceptedConfiguration().equals(coordinationMetaData.getLastCommittedConfiguration()));
 
         ClusterState state = createClusterState(randomNonNegativeLong(),
-                MetaData.builder().coordinationMetaData(coordinationMetaData).build());
+                MetaData.builder().coordinationMetaData(coordinationMetaData)
+                    .clusterUUID(randomAlphaOfLength(10)).build());
         gateway.setLastAcceptedState(state);
 
         gateway = maybeNew(gateway);
         assertThat(gateway.getLastAcceptedState().getLastAcceptedConfiguration(),
                 not(equalTo(gateway.getLastAcceptedState().getLastCommittedConfiguration())));
-        gateway.markLastAcceptedConfigAsCommitted();
+        gateway.markLastAcceptedStateAsCommitted();
 
         CoordinationMetaData expectedCoordinationMetaData = CoordinationMetaData.builder(coordinationMetaData)
                 .lastCommittedConfiguration(coordinationMetaData.getLastAcceptedConfiguration()).build();
         ClusterState expectedClusterState =
-                ClusterState.builder(state).metaData(MetaData.builder().coordinationMetaData(expectedCoordinationMetaData).build()).build();
+                ClusterState.builder(state).metaData(MetaData.builder().coordinationMetaData(expectedCoordinationMetaData)
+                    .clusterUUID(state.metaData().clusterUUID()).clusterUUIDCommitted(true).build()).build();
 
         gateway = maybeNew(gateway);
         assertClusterStateEqual(expectedClusterState, gateway.getLastAcceptedState());
-        gateway.markLastAcceptedConfigAsCommitted();
+        gateway.markLastAcceptedStateAsCommitted();
 
         gateway = maybeNew(gateway);
         assertClusterStateEqual(expectedClusterState, gateway.getLastAcceptedState());

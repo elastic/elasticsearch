@@ -9,7 +9,7 @@ Example:
 
 [source,js]
 --------------------------------------------------
-PUT /logs/_doc/_bulk?refresh
+PUT /logs/_bulk?refresh
 { "index" : { "_id" : 1 } }
 { "body" : "warning: page could not be rendered" }
 { "index" : { "_id" : 2 } }
@@ -118,6 +118,7 @@ request.  The response for this example would be:
 // TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
 // TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
 
+[[other-bucket]]
 ==== `Other` Bucket
 
 The `other_bucket` parameter can be set to add a bucket to the response which will contain all documents that do 

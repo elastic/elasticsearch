@@ -22,9 +22,9 @@ package org.elasticsearch.ingest.common;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.test.ESTestCase;
-import org.joda.time.DateTimeZone;
 import org.junit.Before;
 
+import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -105,10 +105,10 @@ public class DateProcessorFactoryTests extends ESTestCase {
         config.put("field", sourceField);
         config.put("formats", Collections.singletonList("dd/MM/yyyyy"));
 
-        DateTimeZone timezone = randomDateTimeZone();
-        config.put("timezone", timezone.getID());
+        ZoneId timezone = randomZone();
+        config.put("timezone", timezone.getId());
         DateProcessor processor = factory.create(null, null, config);
-        assertThat(processor.getTimezone().newInstance(Collections.emptyMap()).execute(), equalTo(timezone.getID()));
+        assertThat(processor.getTimezone().newInstance(Collections.emptyMap()).execute(), equalTo(timezone.getId()));
     }
 
     public void testParseMatchFormats() throws Exception {

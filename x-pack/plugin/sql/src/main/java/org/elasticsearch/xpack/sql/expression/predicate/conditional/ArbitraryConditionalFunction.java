@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.ConditionalProcessor.ConditionalOperation;
 import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -31,14 +30,6 @@ public abstract class ArbitraryConditionalFunction extends ConditionalFunction {
     ArbitraryConditionalFunction(Source source, List<Expression> fields, ConditionalOperation operation) {
         super(source, fields);
         this.operation = operation;
-    }
-
-    @Override
-    protected TypeResolution resolveType() {
-        for (Expression e : children()) {
-            dataType = DataTypeConversion.commonType(dataType, e.dataType());
-        }
-        return TypeResolution.TYPE_RESOLVED;
     }
 
     @Override

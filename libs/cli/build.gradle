@@ -23,10 +23,10 @@ apply plugin: 'nebula.maven-scm'
 
 dependencies {
     compile 'net.sf.jopt-simple:jopt-simple:5.0.2'
-    compile "org.elasticsearch:elasticsearch-core:${version}"
+    compile project(':libs:elasticsearch-core')
 }
 
-unitTest.enabled = false
+test.enabled = false
 // Since CLI does not depend on :server, it cannot run the jarHell task
 jarHell.enabled = false
 

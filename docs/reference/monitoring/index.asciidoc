@@ -33,7 +33,7 @@ indexing (storage). The routing and indexing processes in {es} are handled by
 what are called <<es-monitoring-collectors,collectors>> and 
 <<es-monitoring-exporters,exporters>>. 
 
-beta[] Alternatively, in 6.4 and later, you can use {metricbeat} to collect 
+Alternatively, in 6.4 and later, you can use {metricbeat} to collect 
 monitoring data about {kib} and ship it directly to the monitoring cluster, 
 rather than routing it through the production cluster. In 6.5 and later, you 
 can also use {metricbeat} to collect and ship data about {es}. 

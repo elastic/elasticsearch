@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -37,7 +38,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class ForecastIT extends MlNativeAutodetectIntegTestCase {
 
     @After
-    public void tearDownData() throws Exception {
+    public void tearDownData() {
         cleanUp();
     }
 
@@ -142,7 +143,7 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
         }
     }
 
-    public void testDurationCannotBeLessThanBucketSpan() throws Exception {
+    public void testDurationCannotBeLessThanBucketSpan() {
         Detector.Builder detector = new Detector.Builder("mean", "value");
 
         TimeValue bucketSpan = TimeValue.timeValueHours(1);
@@ -163,7 +164,7 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
                 equalTo("[duration] must be greater or equal to the bucket span: [10m/1h]"));
     }
 
-    public void testNoData() throws Exception {
+    public void testNoData() {
         Detector.Builder detector = new Detector.Builder("mean", "value");
 
         TimeValue bucketSpan = TimeValue.timeValueMinutes(1);
@@ -211,6 +212,7 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
     }
 
     public void testOverflowToDisk() throws Exception {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/44609", Constants.WINDOWS);
         Detector.Builder detector = new Detector.Builder("mean", "value");
         detector.setByFieldName("clientIP");
 
@@ -381,20 +383,20 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
         long now = Instant.now().getEpochSecond();
         long timestamp = now - 15 * bucketSpan.seconds();
 
+        List<String> data = new ArrayList<>();
         for (int h = 0; h < 15; h++) {
+            double value = 10.0 + h;
             for (int i = 1; i < 101; i++) {
-                List<String> data = new ArrayList<>();
                 for (int j = 1; j < 81; j++) {
-                    Map<String, Object> record = new HashMap<>();
-                    record.put("time", timestamp);
-                    record.put("value", 10.0 + h);
-                    record.put("clientIP", String.format(Locale.ROOT, "192.168.%d.%d", i, j));
-                    data.add(createJsonRecord(record));
+                    String json = String.format(Locale.ROOT, "{\"time\": %d, \"value\": %f, \"clientIP\": \"192.168.%d.%d\"}\n",
+                            timestamp, value, i, j);
+                    data.add(json);
                 }
-                postData(job.getId(), data.stream().collect(Collectors.joining()));
             }
             timestamp += bucketSpan.seconds();
         }
+
+        postData(job.getId(), data.stream().collect(Collectors.joining()));
         flushJob(job.getId(), false);
     }
 

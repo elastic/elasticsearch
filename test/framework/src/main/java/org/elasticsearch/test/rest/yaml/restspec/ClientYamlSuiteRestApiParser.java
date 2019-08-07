@@ -51,6 +51,19 @@ public class ClientYamlSuiteRestApiParser {
         while (parser.nextToken() != XContentParser.Token.END_OBJECT || level >= 0) {
 
             if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
+                if ("stability".equals(parser.currentName()))
+                {
+                    parser.nextToken();
+                    String stability = parser.textOrNull();
+                    try {
+                        restApi.setStability(stability);
+                    } catch (IllegalArgumentException ex)
+                    {
+                        throw new IllegalArgumentException("API [" + apiName + "] sets wrong state for stability ("
+                            + stability + ") [" + location + "]");
+                    }
+                }
+
                 if ("methods".equals(parser.currentName())) {
                     parser.nextToken();
                     while (parser.nextToken() == XContentParser.Token.VALUE_STRING) {
@@ -70,11 +83,16 @@ public class ClientYamlSuiteRestApiParser {
                         }
                         if (parser.currentToken() == XContentParser.Token.START_ARRAY && "paths".equals(currentFieldName)) {
                             while (parser.nextToken() == XContentParser.Token.VALUE_STRING) {
-                                String path = parser.text();
-                                if (restApi.getPaths().contains(path)) {
-                                    throw new IllegalArgumentException("Found duplicate path [" + path + "]");
+                                addPathToApi(parser.text(), restApi);
+                            }
+                        }
+                        if (parser.currentToken() == XContentParser.Token.START_ARRAY && "deprecated_paths".equals(currentFieldName)) {
+                            while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                                if (parser.currentToken() == XContentParser.Token.FIELD_NAME && "path".equals(parser.currentName()))
+                                {
+                                    parser.nextToken();
+                                    addPathToApi(parser.text(), restApi);
                                 }
-                                restApi.addPath(path);
                             }
                         }
 
@@ -139,7 +157,18 @@ public class ClientYamlSuiteRestApiParser {
         assert parser.currentToken() == XContentParser.Token.END_OBJECT : "Expected [END_OBJECT] but was ["  + parser.currentToken() +"]";
         parser.nextToken();
 
+        if (restApi.getStability() == ClientYamlSuiteRestApi.Stability.UNKNOWN) {
+            throw new IllegalArgumentException("API [" + apiName + "] does not explicitly declare its stability in [" + location + "]");
+        }
+
         return restApi;
+    }
+
+    private void addPathToApi(String path, ClientYamlSuiteRestApi restApi) {
+        if (restApi.getPaths().contains(path)) {
+            throw new IllegalArgumentException("Found duplicate path [" + path + "]");
+        }
+        restApi.addPath(path);
     }
 
     private static class Parameter {

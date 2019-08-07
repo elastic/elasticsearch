@@ -40,7 +40,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -87,15 +86,14 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                         assertThat(groupBuilder.must(), Matchers.contains(QueryBuilders.termQuery("foo", "bar")));
                     }
                     assertArrayEquals(mockSearchPhaseContext.getRequest().indices(), searchRequest.indices());
-                    assertArrayEquals(mockSearchPhaseContext.getRequest().types(), searchRequest.types());
 
 
                     List<MultiSearchResponse.Item> mSearchResponses = new ArrayList<>(numInnerHits);
                     for (int innerHitNum = 0; innerHitNum < numInnerHits; innerHitNum++) {
                         InternalSearchResponse internalSearchResponse = new InternalSearchResponse(collapsedHits.get(innerHitNum),
                             null, null, null, false, null, 1);
-                        SearchResponse response = mockSearchPhaseContext.buildSearchResponse(internalSearchResponse, null);
-                        mSearchResponses.add(new MultiSearchResponse.Item(response, null));
+                        mockSearchPhaseContext.sendSearchResponse(internalSearchResponse, null);
+                        mSearchResponses.add(new MultiSearchResponse.Item(mockSearchPhaseContext.searchResponse.get(), null));
                     }
 
                     listener.onResponse(
@@ -107,20 +105,19 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                 Collections.singletonMap("someField", new DocumentField("someField", Collections.singletonList(collapseValue))))},
                 new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0F);
             InternalSearchResponse internalSearchResponse = new InternalSearchResponse(hits, null, null, null, false, null, 1);
-            AtomicReference<SearchResponse> reference = new AtomicReference<>();
             ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, internalSearchResponse, (r) ->
                 new SearchPhase("test") {
                     @Override
-                    public void run() throws IOException {
-                        reference.set(mockSearchPhaseContext.buildSearchResponse(r, null));
+                    public void run() {
+                        mockSearchPhaseContext.sendSearchResponse(r, null);
                     }
                 }
             );
 
             phase.run();
             mockSearchPhaseContext.assertNoFailure();
-            assertNotNull(reference.get());
-            SearchResponse theResponse = reference.get();
+            SearchResponse theResponse = mockSearchPhaseContext.searchResponse.get();
+            assertNotNull(theResponse);
             assertEquals(numInnerHits, theResponse.getHits().getHits()[0].getInnerHits().size());
 
             for (int innerHitNum = 0; innerHitNum < numInnerHits; innerHitNum++) {
@@ -148,11 +145,12 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                 assertTrue(executedMultiSearch.compareAndSet(false, true));
                 InternalSearchResponse internalSearchResponse = new InternalSearchResponse(collapsedHits,
                     null, null, null, false, null, 1);
-                SearchResponse response = mockSearchPhaseContext.buildSearchResponse(internalSearchResponse, null);
+                SearchResponse searchResponse = new SearchResponse(internalSearchResponse, null, 1, 1, 0, 0,
+                    ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
                 listener.onResponse(new MultiSearchResponse(
                     new MultiSearchResponse.Item[]{
                             new MultiSearchResponse.Item(null, new RuntimeException("boom")),
-                            new MultiSearchResponse.Item(response, null)
+                            new MultiSearchResponse.Item(searchResponse, null)
                     }, randomIntBetween(1, 10000)));
             }
         };
@@ -163,12 +161,11 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                 Collections.singletonMap("someField", new DocumentField("someField", Collections.singletonList(collapseValue))))},
             new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0F);
         InternalSearchResponse internalSearchResponse = new InternalSearchResponse(hits, null, null, null, false, null, 1);
-        AtomicReference<SearchResponse> reference = new AtomicReference<>();
         ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, internalSearchResponse, r ->
             new SearchPhase("test") {
                 @Override
-                public void run() throws IOException {
-                    reference.set(mockSearchPhaseContext.buildSearchResponse(r, null));
+                public void run() {
+                    mockSearchPhaseContext.sendSearchResponse(r, null);
                 }
             }
         );
@@ -176,7 +173,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
         assertThat(mockSearchPhaseContext.phaseFailure.get(), Matchers.instanceOf(RuntimeException.class));
         assertEquals("boom", mockSearchPhaseContext.phaseFailure.get().getMessage());
         assertNotNull(mockSearchPhaseContext.phaseFailure.get());
-        assertNull(reference.get());
+        assertNull(mockSearchPhaseContext.searchResponse.get());
         assertEquals(0, mockSearchPhaseContext.phasesExecuted.get());
     }
 
@@ -195,18 +192,17 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                 Collections.singletonMap("someField", new DocumentField("someField", Collections.singletonList(null))))},
             new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0F);
         InternalSearchResponse internalSearchResponse = new InternalSearchResponse(hits, null, null, null, false, null, 1);
-        AtomicReference<SearchResponse> reference = new AtomicReference<>();
         ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, internalSearchResponse, r ->
             new SearchPhase("test") {
                 @Override
-                public void run() throws IOException {
-                    reference.set(mockSearchPhaseContext.buildSearchResponse(r, null));
+                public void run() {
+                    mockSearchPhaseContext.sendSearchResponse(r, null);
                 }
             }
         );
         phase.run();
         mockSearchPhaseContext.assertNoFailure();
-        assertNotNull(reference.get());
+        assertNotNull(mockSearchPhaseContext.searchResponse.get());
         assertEquals(1, mockSearchPhaseContext.phasesExecuted.get());
     }
 
@@ -223,24 +219,24 @@ public class ExpandSearchPhaseTests extends ESTestCase {
 
         SearchHits hits = new SearchHits(new SearchHit[0], new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
         InternalSearchResponse internalSearchResponse = new InternalSearchResponse(hits, null, null, null, false, null, 1);
-        AtomicReference<SearchResponse> reference = new AtomicReference<>();
         ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, internalSearchResponse, r ->
             new SearchPhase("test") {
                 @Override
-                public void run() throws IOException {
-                    reference.set(mockSearchPhaseContext.buildSearchResponse(r, null));
+                public void run() {
+                    mockSearchPhaseContext.sendSearchResponse(r, null);
                 }
             }
         );
         phase.run();
         mockSearchPhaseContext.assertNoFailure();
-        assertNotNull(reference.get());
+        assertNotNull(mockSearchPhaseContext.searchResponse.get());
         assertEquals(1, mockSearchPhaseContext.phasesExecuted.get());
     }
 
     public void testExpandRequestOptions() throws IOException {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(1);
         boolean version = randomBoolean();
+        final boolean seqNoAndTerm = randomBoolean();
 
         mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null) {
             @Override
@@ -249,32 +245,36 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                 assertTrue(request.requests().stream().allMatch((r) -> "foo".equals(r.preference())));
                 assertTrue(request.requests().stream().allMatch((r) -> "baz".equals(r.routing())));
                 assertTrue(request.requests().stream().allMatch((r) -> version == r.source().version()));
+                assertTrue(request.requests().stream().allMatch((r) -> seqNoAndTerm == r.source().seqNoAndPrimaryTerm()));
                 assertTrue(request.requests().stream().allMatch((r) -> postFilter.equals(r.source().postFilter())));
+                assertTrue(request.requests().stream().allMatch((r) -> r.source().fetchSource().fetchSource() == false));
+                assertTrue(request.requests().stream().allMatch((r) -> r.source().fetchSource().includes().length == 0));
+                assertTrue(request.requests().stream().allMatch((r) -> r.source().fetchSource().excludes().length == 0));
             }
         };
         mockSearchPhaseContext.getRequest().source(new SearchSourceBuilder()
             .collapse(
                 new CollapseBuilder("someField")
-                    .setInnerHits(new InnerHitBuilder().setName("foobarbaz").setVersion(version))
+                    .setInnerHits(new InnerHitBuilder().setName("foobarbaz").setVersion(version).setSeqNoAndPrimaryTerm(seqNoAndTerm))
             )
+            .fetchSource(false)
             .postFilter(QueryBuilders.existsQuery("foo")))
             .preference("foobar")
             .routing("baz");
 
         SearchHits hits = new SearchHits(new SearchHit[0], new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
         InternalSearchResponse internalSearchResponse = new InternalSearchResponse(hits, null, null, null, false, null, 1);
-        AtomicReference<SearchResponse> reference = new AtomicReference<>();
         ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, internalSearchResponse, r ->
             new SearchPhase("test") {
                 @Override
-                public void run() throws IOException {
-                    reference.set(mockSearchPhaseContext.buildSearchResponse(r, null));
+                public void run() {
+                    mockSearchPhaseContext.sendSearchResponse(r, null);
                 }
             }
         );
         phase.run();
         mockSearchPhaseContext.assertNoFailure();
-        assertNotNull(reference.get());
+        assertNotNull(mockSearchPhaseContext.searchResponse.get());
         assertEquals(1, mockSearchPhaseContext.phasesExecuted.get());
     }
 }

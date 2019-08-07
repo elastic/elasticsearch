@@ -46,7 +46,6 @@ import java.util.Set;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TermsSliceQueryTests extends ESTestCase {
-
     public void testBasics() {
         TermsSliceQuery query1 =
             new TermsSliceQuery("field1", 1, 10);
@@ -60,6 +59,24 @@ public class TermsSliceQueryTests extends ESTestCase {
         QueryUtils.checkEqual(query1, query2);
         QueryUtils.checkUnequal(query1, query3);
         QueryUtils.checkUnequal(query1, query4);
+    }
+
+    public void testEmpty() throws Exception {
+        final Directory dir = newDirectory();
+        final RandomIndexWriter w = new RandomIndexWriter(random(), dir, new KeywordAnalyzer());
+        for (int i = 0; i < 10; ++i) {
+            Document doc = new Document();
+            doc.add(new StringField("field", Integer.toString(i), Field.Store.YES));
+            w.addDocument(doc);
+        }
+        final IndexReader reader = w.getReader();
+        final IndexSearcher searcher = newSearcher(reader);
+        TermsSliceQuery query =
+            new TermsSliceQuery("unknown", 1, 1);
+        assertThat(searcher.count(query), equalTo(0));
+        w.close();
+        reader.close();
+        dir.close();
     }
 
     public void testSearch() throws Exception {

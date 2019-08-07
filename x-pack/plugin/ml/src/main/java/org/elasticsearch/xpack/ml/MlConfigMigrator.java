@@ -17,7 +17,6 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
@@ -41,7 +40,6 @@ import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
@@ -66,6 +64,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -246,10 +245,14 @@ public class MlConfigMigrator {
                         currentState.metaData().custom(PersistentTasksCustomMetaData.TYPE), currentState.nodes());
 
                 ClusterState.Builder newState = ClusterState.builder(currentState);
-                newState.metaData(MetaData.builder(currentState.getMetaData())
-                        .putCustom(MlMetadata.TYPE, removed.mlMetadata)
-                        .putCustom(PersistentTasksCustomMetaData.TYPE, updatedTasks)
-                        .build());
+                MetaData.Builder metaDataBuilder = MetaData.builder(currentState.getMetaData())
+                    .putCustom(MlMetadata.TYPE, removed.mlMetadata);
+
+                // If there are no tasks in the cluster state metadata to begin with, this could be null.
+                if (updatedTasks != null) {
+                    metaDataBuilder = metaDataBuilder.putCustom(PersistentTasksCustomMetaData.TYPE, updatedTasks);
+                }
+                newState.metaData(metaDataBuilder.build());
                 return newState.build();
             }
 
@@ -291,8 +294,8 @@ public class MlConfigMigrator {
                                                                             PersistentTasksCustomMetaData currentTasks,
                                                                             DiscoveryNodes nodes) {
 
-        Collection<PersistentTasksCustomMetaData.PersistentTask> unallocatedJobTasks = MlTasks.unallocatedJobTasks(currentTasks, nodes);
-        Collection<PersistentTasksCustomMetaData.PersistentTask> unallocatedDatafeedsTasks =
+        Collection<PersistentTasksCustomMetaData.PersistentTask<?>> unallocatedJobTasks = MlTasks.unallocatedJobTasks(currentTasks, nodes);
+        Collection<PersistentTasksCustomMetaData.PersistentTask<?>> unallocatedDatafeedsTasks =
                 MlTasks.unallocatedDatafeedTasks(currentTasks, nodes);
 
         if (unallocatedJobTasks.isEmpty() && unallocatedDatafeedsTasks.isEmpty()) {
@@ -301,7 +304,7 @@ public class MlConfigMigrator {
 
         PersistentTasksCustomMetaData.Builder taskBuilder = PersistentTasksCustomMetaData.builder(currentTasks);
 
-        for (PersistentTasksCustomMetaData.PersistentTask jobTask : unallocatedJobTasks) {
+        for (PersistentTasksCustomMetaData.PersistentTask<?> jobTask : unallocatedJobTasks) {
             OpenJobAction.JobParams originalParams = (OpenJobAction.JobParams) jobTask.getParams();
             if (originalParams.getJob() == null) {
                 Job job = jobs.get(originalParams.getJobId());
@@ -322,7 +325,7 @@ public class MlConfigMigrator {
             }
         }
 
-        for (PersistentTasksCustomMetaData.PersistentTask datafeedTask : unallocatedDatafeedsTasks) {
+        for (PersistentTasksCustomMetaData.PersistentTask<?> datafeedTask : unallocatedDatafeedsTasks) {
             StartDatafeedAction.DatafeedParams originalParams = (StartDatafeedAction.DatafeedParams) datafeedTask.getParams();
 
             if (originalParams.getJobId() == null) {
@@ -414,7 +417,7 @@ public class MlConfigMigrator {
     }
 
     private IndexRequest indexRequest(ToXContentObject source, String documentId, ToXContent.Params params) {
-        IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.configIndexName(), ElasticsearchMappings.DOC_TYPE, documentId);
+        IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.configIndexName()).id(documentId);
 
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             indexRequest.source(source.toXContent(builder, params));
@@ -439,9 +442,9 @@ public class MlConfigMigrator {
 
         logger.debug("taking a snapshot of ml_metadata");
         String documentId = "ml-config";
-        IndexRequestBuilder indexRequest = client.prepareIndex(AnomalyDetectorsIndex.jobStateIndexName(),
-                ElasticsearchMappings.DOC_TYPE, documentId)
-                .setOpType(DocWriteRequest.OpType.CREATE);
+        IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.jobStateIndexWriteAlias())
+                .id(documentId)
+                .opType(DocWriteRequest.OpType.CREATE);
 
         ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"));
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
@@ -449,15 +452,17 @@ public class MlConfigMigrator {
             mlMetadata.toXContent(builder, params);
             builder.endObject();
 
-            indexRequest.setSource(builder);
+            indexRequest.source(builder);
         } catch (IOException e) {
             logger.error("failed to serialise ml_metadata", e);
             listener.onFailure(e);
             return;
         }
 
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, indexRequest.request(),
-                ActionListener.<IndexResponse>wrap(
+        AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, clusterService.state(), ActionListener.wrap(
+            r -> {
+                executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, indexRequest,
+                    ActionListener.<IndexResponse>wrap(
                         indexResponse -> {
                             listener.onResponse(indexResponse.getResult() == DocWriteResponse.Result.CREATED);
                         },
@@ -469,8 +474,11 @@ public class MlConfigMigrator {
                                 listener.onFailure(e);
                             }
                         }),
-                client::index
-        );
+                    client::index
+                );
+            },
+            listener::onFailure
+        ));
     }
 
     private void createConfigIndex(ActionListener<Boolean> listener) {
@@ -484,7 +492,7 @@ public class MlConfigMigrator {
                             .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
                             .put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), AnomalyDetectorsIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW)
             );
-            createIndexRequest.mapping(ElasticsearchMappings.DOC_TYPE, ElasticsearchMappings.configMapping());
+            createIndexRequest.mapping(SINGLE_MAPPING_NAME, ElasticsearchMappings.configMapping());
         } catch (Exception e) {
             logger.error("error writing the .ml-config mappings", e);
             listener.onFailure(e);
@@ -504,18 +512,7 @@ public class MlConfigMigrator {
         String version = job.getJobVersion() != null ? job.getJobVersion().toString() : null;
         custom.put(MIGRATED_FROM_VERSION, version);
         builder.setCustomSettings(custom);
-        // Increase the model memory limit for 6.1 - 6.3 jobs
         Version jobVersion = job.getJobVersion();
-        if (jobVersion != null && jobVersion.onOrAfter(Version.V_6_1_0) && jobVersion.before(Version.V_6_3_0)) {
-            // Increase model memory limit if < 512MB
-            if (job.getAnalysisLimits() != null && job.getAnalysisLimits().getModelMemoryLimit() != null &&
-                    job.getAnalysisLimits().getModelMemoryLimit() < 512L) {
-                long updatedModelMemoryLimit = (long) (job.getAnalysisLimits().getModelMemoryLimit() * 1.3);
-                AnalysisLimits limits = new AnalysisLimits(updatedModelMemoryLimit,
-                        job.getAnalysisLimits().getCategorizationExamplesLimit());
-                builder.setAnalysisLimits(limits);
-            }
-        }
         // Pre v5.5 (ml beta) jobs do not have a version.
         // These jobs cannot be opened, we rely on the missing version
         // to indicate this.

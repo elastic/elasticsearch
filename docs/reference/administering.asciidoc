@@ -1,0 +1,12 @@
+[[administer-elasticsearch]]
+= Administering {es}
+
+[partintro]
+--
+Elasticsearch is a complex piece of software, with many moving parts. There are
+many APIs and features that are designed to help you manage your Elasticsearch
+cluster.
+
+--
+
+include::administering/backup-cluster.asciidoc[]

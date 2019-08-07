@@ -34,8 +34,8 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.discovery.gce.GceUnicastHostsProvider;
-import org.elasticsearch.discovery.zen.UnicastHostsProvider;
+import org.elasticsearch.discovery.SeedHostsProvider;
+import org.elasticsearch.discovery.gce.GceSeedHostsProvider;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.transport.TransportService;
@@ -84,11 +84,11 @@ public class GceDiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
     }
 
     @Override
-    public Map<String, Supplier<UnicastHostsProvider>> getZenHostsProviders(TransportService transportService,
-                                                                            NetworkService networkService) {
+    public Map<String, Supplier<SeedHostsProvider>> getSeedHostProviders(TransportService transportService,
+                                                                         NetworkService networkService) {
         return Collections.singletonMap(GCE, () -> {
             gceInstancesService.set(createGceInstancesService());
-            return new GceUnicastHostsProvider(settings, gceInstancesService.get(), transportService, networkService);
+            return new GceSeedHostsProvider(settings, gceInstancesService.get(), transportService, networkService);
         });
     }
 
@@ -105,7 +105,7 @@ public class GceDiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
                 // Register GCE settings
                 GceInstancesService.PROJECT_SETTING,
                 GceInstancesService.ZONE_SETTING,
-                GceUnicastHostsProvider.TAGS_SETTING,
+                GceSeedHostsProvider.TAGS_SETTING,
                 GceInstancesService.REFRESH_SETTING,
                 GceInstancesService.RETRY_SETTING,
                 GceInstancesService.MAX_WAIT_SETTING)

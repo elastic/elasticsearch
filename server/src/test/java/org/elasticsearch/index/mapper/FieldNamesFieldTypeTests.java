@@ -63,10 +63,10 @@ public class FieldNamesFieldTypeTests extends FieldTypeTestCase {
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.fullName("_field_names")).thenReturn(fieldNamesFieldType);
         when(mapperService.fullName("field_name")).thenReturn(fieldType);
-        when(mapperService.simpleMatchToFullName("field_name")).thenReturn(Collections.singletonList("field_name"));
+        when(mapperService.simpleMatchToFullName("field_name")).thenReturn(Collections.singleton("field_name"));
 
         QueryShardContext queryShardContext = new QueryShardContext(0,
-                indexSettings, null, null, mapperService, null, null, null, null, null, null, () -> 0L, null);
+                indexSettings, null, null, null, mapperService, null, null, null, null, null, null, () -> 0L, null);
         fieldNamesFieldType.setEnabled(true);
         Query termQuery = fieldNamesFieldType.termQuery("field_name", queryShardContext);
         assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.CONTENT_TYPE, "field_name")), termQuery);

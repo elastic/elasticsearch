@@ -26,13 +26,17 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
-import org.joda.time.DateTimeZone;
+
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.util.function.Function;
 
 /**
  * A configuration that tells aggregations how to retrieve data from the index
@@ -48,7 +52,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
             ValueType valueType,
             String field, Script script,
             Object missing,
-            DateTimeZone timeZone,
+            ZoneId timeZone,
             String format) {
 
         if (field == null) {
@@ -121,7 +125,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         }
     }
 
-    private static DocValueFormat resolveFormat(@Nullable String format, @Nullable ValueType valueType, @Nullable DateTimeZone tz) {
+    private static DocValueFormat resolveFormat(@Nullable String format, @Nullable ValueType valueType, @Nullable ZoneId tz) {
         if (valueType == null) {
             return DocValueFormat.RAW; // we can't figure it out
         }
@@ -130,7 +134,8 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
             valueFormat = new DocValueFormat.Decimal(format);
         }
         if (valueFormat instanceof DocValueFormat.DateTime && format != null) {
-            valueFormat = new DocValueFormat.DateTime(DateFormatter.forPattern(format), tz != null ? tz : DateTimeZone.UTC);
+            valueFormat = new DocValueFormat.DateTime(DateFormatter.forPattern(format), tz != null ? tz : ZoneOffset.UTC,
+                DateFieldMapper.Resolution.MILLISECONDS);
         }
         return valueFormat;
     }
@@ -142,7 +147,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
     private boolean unmapped = false;
     private DocValueFormat format = DocValueFormat.RAW;
     private Object missing;
-    private DateTimeZone timeZone;
+    private ZoneId timeZone;
 
     public ValuesSourceConfig(ValuesSourceType valueSourceType) {
         this.valueSourceType = valueSourceType;
@@ -206,12 +211,12 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         return this.missing;
     }
 
-    public ValuesSourceConfig<VS> timezone(final DateTimeZone timeZone) {
-        this.timeZone= timeZone;
+    public ValuesSourceConfig<VS> timezone(final ZoneId timeZone) {
+        this.timeZone = timeZone;
         return this;
     }
 
-    public DateTimeZone timezone() {
+    public ZoneId timezone() {
         return this.timeZone;
     }
 
@@ -219,10 +224,15 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         return format;
     }
 
+    @Nullable
+    public VS toValuesSource(QueryShardContext context) {
+        return toValuesSource(context, value -> ValuesSource.Bytes.WithOrdinals.EMPTY);
+    }
+
     /** Get a value source given its configuration. A return value of null indicates that
      *  no value source could be built. */
     @Nullable
-    public VS toValuesSource(QueryShardContext context) {
+    public VS toValuesSource(QueryShardContext context, Function<Object, ValuesSource> resolveMissingAny) {
         if (!valid()) {
             throw new IllegalStateException(
                     "value source config is invalid; must have either a field context or a script or marked as unwrapped");
@@ -237,8 +247,10 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
                 vs = (VS) ValuesSource.Numeric.EMPTY;
             } else if (valueSourceType() == ValuesSourceType.GEOPOINT) {
                 vs = (VS) ValuesSource.GeoPoint.EMPTY;
-            } else if (valueSourceType() == ValuesSourceType.ANY || valueSourceType() == ValuesSourceType.BYTES) {
+            } else if (valueSourceType() == ValuesSourceType.BYTES) {
                 vs = (VS) ValuesSource.Bytes.WithOrdinals.EMPTY;
+            } else if (valueSourceType() == ValuesSourceType.ANY) {
+                vs = (VS) resolveMissingAny.apply(missing());
             } else {
                 throw new IllegalArgumentException("Can't deal with unmapped ValuesSource type " + valueSourceType());
             }

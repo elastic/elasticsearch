@@ -5,15 +5,11 @@
  */
 package org.elasticsearch.integration;
 
-import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetaData;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
-import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -23,11 +19,9 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 
-import java.util.Locale;
 import java.util.Map;
 
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -147,33 +141,6 @@ public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
                 .admin().indices().prepareGetIndex()
                 .setIndices(index).get();
         assertThat(response.getIndices(), arrayContaining(index));
-    }
-
-    public void testCreateIndexDeleteInKibanaIndex() throws Exception {
-        final String index = randomBoolean()? ".kibana" : ".kibana-" + randomAlphaOfLengthBetween(1, 10).toLowerCase(Locale.ENGLISH);
-
-        if (randomBoolean()) {
-            CreateIndexResponse createIndexResponse = client().filterWithHeader(singletonMap("Authorization",
-                UsernamePasswordToken.basicAuthHeaderValue("kibana_user", USERS_PASSWD)))
-                .admin().indices().prepareCreate(index).get();
-            assertThat(createIndexResponse.isAcknowledged(), is(true));
-        }
-
-        IndexResponse response = client()
-            .filterWithHeader(singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue("kibana_user", USERS_PASSWD)))
-            .prepareIndex()
-            .setIndex(index)
-            .setType("dashboard")
-            .setSource("foo", "bar")
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
-        assertEquals(DocWriteResponse.Result.CREATED, response.getResult());
-
-        DeleteResponse deleteResponse = client()
-            .filterWithHeader(singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue("kibana_user", USERS_PASSWD)))
-            .prepareDelete(index, "dashboard", response.getId())
-            .get();
-        assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
     }
 
     public void testGetMappings() throws Exception {

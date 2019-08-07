@@ -49,6 +49,7 @@ public final class ECallLocal extends AExpression {
     private LocalMethod localMethod = null;
     private PainlessMethod importedMethod = null;
     private PainlessClassBinding classBinding = null;
+    private int classBindingOffset = 0;
     private PainlessInstanceBinding instanceBinding = null;
 
     public ECallLocal(Location location, String name, List<AExpression> arguments) {
@@ -75,12 +76,37 @@ public final class ECallLocal extends AExpression {
             if (importedMethod == null) {
                 classBinding = locals.getPainlessLookup().lookupPainlessClassBinding(name, arguments.size());
 
-                if (classBinding == null) {
-                    instanceBinding = locals.getPainlessLookup().lookupPainlessInstanceBinding(name, arguments.size());
+                // check to see if this class binding requires an implicit this reference
+                if (classBinding != null && classBinding.typeParameters.isEmpty() == false &&
+                        classBinding.typeParameters.get(0) == locals.getBaseClass()) {
+                    classBinding = null;
+                }
 
-                    if (instanceBinding == null) {
-                        throw createError(
-                                new IllegalArgumentException("Unknown call [" + name + "] with [" + arguments.size() + "] arguments."));
+                if (classBinding == null) {
+                    // This extra check looks for a possible match where the class binding requires an implicit this
+                    // reference.  This is a temporary solution to allow the class binding access to data from the
+                    // base script class without need for a user to add additional arguments.  A long term solution
+                    // will likely involve adding a class instance binding where any instance can have a class binding
+                    // as part of its API.  However, the situation at run-time is difficult and will modifications that
+                    // are a substantial change if even possible to do.
+                    classBinding = locals.getPainlessLookup().lookupPainlessClassBinding(name, arguments.size() + 1);
+
+                    if (classBinding != null) {
+                        if (classBinding.typeParameters.isEmpty() == false &&
+                                classBinding.typeParameters.get(0) == locals.getBaseClass()) {
+                            classBindingOffset = 1;
+                        } else {
+                            classBinding = null;
+                        }
+                    }
+
+                    if (classBinding == null) {
+                        instanceBinding = locals.getPainlessLookup().lookupPainlessInstanceBinding(name, arguments.size());
+
+                        if (instanceBinding == null) {
+                            throw createError(new IllegalArgumentException(
+                                    "Unknown call [" + name + "] with [" + arguments.size() + "] arguments."));
+                        }
                     }
                 }
             }
@@ -104,10 +130,13 @@ public final class ECallLocal extends AExpression {
             throw new IllegalStateException("Illegal tree structure.");
         }
 
+        // if the class binding is using an implicit this reference then the arguments counted must
+        // be incremented by 1 as the this reference will not be part of the arguments passed into
+        // the class binding call
         for (int argument = 0; argument < arguments.size(); ++argument) {
             AExpression expression = arguments.get(argument);
 
-            expression.expected = typeParameters.get(argument);
+            expression.expected = typeParameters.get(argument + classBindingOffset);
             expression.internal = true;
             expression.analyze(locals);
             arguments.set(argument, expression.cast(locals));
@@ -136,7 +165,7 @@ public final class ECallLocal extends AExpression {
         } else if (classBinding != null) {
             String name = globals.addClassBinding(classBinding.javaConstructor.getDeclaringClass());
             Type type = Type.getType(classBinding.javaConstructor.getDeclaringClass());
-            int javaConstructorParameterCount = classBinding.javaConstructor.getParameterCount();
+            int javaConstructorParameterCount = classBinding.javaConstructor.getParameterCount() - classBindingOffset;
 
             Label nonNull = new Label();
 
@@ -146,6 +175,10 @@ public final class ECallLocal extends AExpression {
             writer.loadThis();
             writer.newInstance(type);
             writer.dup();
+
+            if (classBindingOffset == 1) {
+                writer.loadThis();
+            }
 
             for (int argument = 0; argument < javaConstructorParameterCount; ++argument) {
                 arguments.get(argument).write(writer, globals);

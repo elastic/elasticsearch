@@ -212,12 +212,16 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(count, min, max, sum);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), count, min, max, sum);
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+
         InternalStats other = (InternalStats) obj;
         return count == other.count &&
             Double.compare(min, other.min) == 0 &&

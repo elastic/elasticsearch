@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.fields;
 
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
-import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
@@ -63,7 +62,7 @@ public class ExtractedFieldsTests extends ESTestCase {
         assertThat(extractedFields.getDocValueFields().get(0).getName(), equalTo("time"));
         assertThat(extractedFields.getDocValueFields().get(0).getDocValueFormat(), equalTo("epoch_millis"));
         assertThat(extractedFields.getDocValueFields().get(1).getName(), equalTo("value"));
-        assertThat(extractedFields.getDocValueFields().get(1).getDocValueFormat(), equalTo(DocValueFieldsContext.USE_DEFAULT_FORMAT));
+        assertThat(extractedFields.getDocValueFields().get(1).getDocValueFormat(), equalTo(null));
         assertThat(extractedFields.getSourceFields(), equalTo(new String[] {"airline"}));
         assertThat(extractedFields.getAllFields().size(), equalTo(4));
     }

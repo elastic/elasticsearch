@@ -1,9 +1,9 @@
 {
   "indices.put_template": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-templates.html",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-templates.html",
+    "stability": "stable",
     "methods": ["PUT", "POST"],
     "url": {
-      "path": "/_template/{name}",
       "paths": ["/_template/{name}"],
       "parts": {
         "name": {

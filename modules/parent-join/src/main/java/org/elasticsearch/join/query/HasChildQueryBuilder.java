@@ -66,7 +66,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
     /**
      * The default minimum number of children that are required to match for the parent to be considered a match.
      */
-    public static final int DEFAULT_MIN_CHILDREN = 0;
+    public static final int DEFAULT_MIN_CHILDREN = 1;
 
     /**
      * The default value for ignore_unmapped.
@@ -133,11 +133,11 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
      * the maximum number of children that are required to match for the parent to be considered a match.
      */
     public HasChildQueryBuilder minMaxChildren(int minChildren, int maxChildren) {
-        if (minChildren < 0) {
-            throw new IllegalArgumentException("[" + NAME + "] requires non-negative 'min_children' field");
+        if (minChildren <= 0) {
+            throw new IllegalArgumentException("[" + NAME + "] requires positive 'min_children' field");
         }
-        if (maxChildren < 0) {
-            throw new IllegalArgumentException("[" + NAME + "] requires non-negative 'max_children' field");
+        if (maxChildren <= 0) {
+            throw new IllegalArgumentException("[" + NAME + "] requires positive 'max_children' field");
         }
         if (maxChildren < minChildren) {
             throw new IllegalArgumentException("[" + NAME + "] 'max_children' is less than 'min_children'");
@@ -460,9 +460,13 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
     @Override
     protected void extractInnerHitBuilders(Map<String, InnerHitContextBuilder> innerHits) {
         if (innerHitBuilder != null) {
+            String name = innerHitBuilder.getName() != null ? innerHitBuilder.getName() : type;
+            if (innerHits.containsKey(name)) {
+                throw new IllegalArgumentException("[inner_hits] already contains an entry for key [" + name + "]");
+            }
+
             Map<String, InnerHitContextBuilder> children = new HashMap<>();
             InnerHitContextBuilder.extractInnerHits(query, children);
-            String name = innerHitBuilder.getName() != null ? innerHitBuilder.getName() : type;
             InnerHitContextBuilder innerHitContextBuilder =
                 new ParentChildInnerHitContextBuilder(type, true, query, innerHitBuilder, children);
             innerHits.put(name, innerHitContextBuilder);

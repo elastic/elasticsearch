@@ -21,8 +21,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.watcher.transport.actions.delete.DeleteWatchAction;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 
-import java.util.function.Supplier;
-
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -36,13 +34,13 @@ public class TransportDeleteWatchAction extends HandledTransportAction<DeleteWat
 
     @Inject
     public TransportDeleteWatchAction(TransportService transportService, ActionFilters actionFilters, Client client) {
-        super(DeleteWatchAction.NAME, transportService, actionFilters, (Supplier<DeleteWatchRequest>) DeleteWatchRequest::new);
+        super(DeleteWatchAction.NAME, transportService, actionFilters, DeleteWatchRequest::new);
         this.client = client;
     }
 
     @Override
     protected void doExecute(Task task, DeleteWatchRequest request, ActionListener<DeleteWatchResponse> listener) {
-        DeleteRequest deleteRequest = new DeleteRequest(Watch.INDEX, Watch.DOC_TYPE, request.getId());
+        DeleteRequest deleteRequest = new DeleteRequest(Watch.INDEX, request.getId());
         deleteRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN, deleteRequest,
                 ActionListener.<DeleteResponse>wrap(deleteResponse -> {

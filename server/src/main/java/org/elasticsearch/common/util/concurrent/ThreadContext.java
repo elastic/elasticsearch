@@ -30,20 +30,24 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpTransportSettings;
+import org.elasticsearch.tasks.Task;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
+import java.util.function.BinaryOperator;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
+import java.util.stream.Collector;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_COUNT;
@@ -116,7 +120,7 @@ public final class ThreadContext implements Closeable, Writeable {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         threadLocal.close();
     }
 
@@ -126,8 +130,30 @@ public final class ThreadContext implements Closeable, Writeable {
      */
     public StoredContext stashContext() {
         final ThreadContextStruct context = threadLocal.get();
-        threadLocal.set(null);
-        return () -> threadLocal.set(context);
+        /**
+         * X-Opaque-ID should be preserved in a threadContext in order to propagate this across threads.
+         * This is needed so the DeprecationLogger in another thread can see the value of X-Opaque-ID provided by a user.
+         * Otherwise when context is stash, it should be empty.
+         */
+        if (context.requestHeaders.containsKey(Task.X_OPAQUE_ID)) {
+            ThreadContextStruct threadContextStruct =
+                DEFAULT_CONTEXT.putHeaders(Map.of(Task.X_OPAQUE_ID, context.requestHeaders.get(Task.X_OPAQUE_ID)));
+            threadLocal.set(threadContextStruct);
+        } else {
+            threadLocal.set(null);
+        }
+        return () -> {
+            // If the node and thus the threadLocal get closed while this task
+            // is still executing, we don't want this runnable to fail with an
+            // uncaught exception
+            try {
+                threadLocal.set(context);
+            } catch (IllegalStateException e) {
+                if (isClosed() == false) {
+                    throw e;
+                }
+            }
+        };
     }
 
     /**
@@ -229,7 +255,31 @@ public final class ThreadContext implements Closeable, Writeable {
      * Reads the headers from the stream into the current context
      */
     public void readHeaders(StreamInput in) throws IOException {
-        threadLocal.set(new ThreadContext.ThreadContextStruct(in));
+        final Map<String, String>  requestHeaders = in.readMap(StreamInput::readString, StreamInput::readString);
+        final Map<String, Set<String>> responseHeaders = in.readMap(StreamInput::readString, input -> {
+            final int size = input.readVInt();
+            if (size == 0) {
+                return Collections.emptySet();
+            } else if (size == 1) {
+                return Collections.singleton(input.readString());
+            } else {
+                // use a linked hash set to preserve order
+                final LinkedHashSet<String> values = new LinkedHashSet<>(size);
+                for (int i = 0; i < size; i++) {
+                    final String value = input.readString();
+                    final boolean added = values.add(value);
+                    assert added : value;
+                }
+                return values;
+            }
+        });
+        final ThreadContextStruct struct;
+        if (requestHeaders.isEmpty() && responseHeaders.isEmpty()) {
+            struct = ThreadContextStruct.EMPTY;
+        } else {
+            struct = new ThreadContextStruct(requestHeaders, responseHeaders, Collections.emptyMap(), false);
+        }
+        threadLocal.set(struct);
     }
 
     /**
@@ -258,11 +308,11 @@ public final class ThreadContext implements Closeable, Writeable {
      * @return Never {@code null}.
      */
     public Map<String, List<String>> getResponseHeaders() {
-        Map<String, List<String>> responseHeaders = threadLocal.get().responseHeaders;
+        Map<String, Set<String>> responseHeaders = threadLocal.get().responseHeaders;
         HashMap<String, List<String>> map = new HashMap<>(responseHeaders.size());
 
-        for (Map.Entry<String, List<String>> entry : responseHeaders.entrySet()) {
-            map.put(entry.getKey(), Collections.unmodifiableList(entry.getValue()));
+        for (Map.Entry<String, Set<String>> entry : responseHeaders.entrySet()) {
+            map.put(entry.getKey(), List.copyOf(entry.getValue()));
         }
 
         return Collections.unmodifiableMap(map);
@@ -323,7 +373,17 @@ public final class ThreadContext implements Closeable, Writeable {
      * @param uniqueValue the function that produces de-duplication values
      */
     public void addResponseHeader(final String key, final String value, final Function<String, String> uniqueValue) {
-        threadLocal.set(threadLocal.get().putResponse(key, value, uniqueValue, maxWarningHeaderCount, maxWarningHeaderSize));
+        /*
+         * Updating the thread local is expensive due to a shared reference that we synchronize on, so we should only do it if the thread
+         * context struct changed. It will not change if we de-duplicate this value to an existing one, or if we don't add a new one because
+         * we have reached capacity.
+         */
+        final ThreadContextStruct current = threadLocal.get();
+        final ThreadContextStruct maybeNext =
+                current.putResponse(key, value, uniqueValue, maxWarningHeaderCount, maxWarningHeaderSize);
+        if (current != maybeNext) {
+            threadLocal.set(maybeNext);
+        }
     }
 
     /**
@@ -378,7 +438,7 @@ public final class ThreadContext implements Closeable, Writeable {
     /**
      * Returns <code>true</code> if the context is closed, otherwise <code>true</code>
      */
-    boolean isClosed() {
+    public boolean isClosed() {
         return threadLocal.closed.get();
     }
 
@@ -393,24 +453,16 @@ public final class ThreadContext implements Closeable, Writeable {
     }
 
     private static final class ThreadContextStruct {
+
+        private static final ThreadContextStruct EMPTY =
+            new ThreadContextStruct(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), false);
+
         private final Map<String, String> requestHeaders;
         private final Map<String, Object> transientHeaders;
-        private final Map<String, List<String>> responseHeaders;
+        private final Map<String, Set<String>> responseHeaders;
         private final boolean isSystemContext;
-        private long warningHeadersSize; //saving current warning headers' size not to recalculate the size with every new warning header
-        private ThreadContextStruct(StreamInput in) throws IOException {
-            final int numRequest = in.readVInt();
-            Map<String, String> requestHeaders = numRequest == 0 ? Collections.emptyMap() : new HashMap<>(numRequest);
-            for (int i = 0; i < numRequest; i++) {
-                requestHeaders.put(in.readString(), in.readString());
-            }
-
-            this.requestHeaders = requestHeaders;
-            this.responseHeaders = in.readMapOfLists(StreamInput::readString, StreamInput::readString);
-            this.transientHeaders = Collections.emptyMap();
-            isSystemContext = false; // we never serialize this it's a transient flag
-            this.warningHeadersSize = 0L;
-        }
+        //saving current warning headers' size not to recalculate the size with every new warning header
+        private final long warningHeadersSize;
 
         private ThreadContextStruct setSystemContext() {
             if (isSystemContext) {
@@ -420,7 +472,7 @@ public final class ThreadContext implements Closeable, Writeable {
         }
 
         private ThreadContextStruct(Map<String, String> requestHeaders,
-                                    Map<String, List<String>> responseHeaders,
+                                    Map<String, Set<String>> responseHeaders,
                                     Map<String, Object> transientHeaders, boolean isSystemContext) {
             this.requestHeaders = requestHeaders;
             this.responseHeaders = responseHeaders;
@@ -430,7 +482,7 @@ public final class ThreadContext implements Closeable, Writeable {
         }
 
         private ThreadContextStruct(Map<String, String> requestHeaders,
-                                    Map<String, List<String>> responseHeaders,
+                                    Map<String, Set<String>> responseHeaders,
                                     Map<String, Object> transientHeaders, boolean isSystemContext,
                                     long warningHeadersSize) {
             this.requestHeaders = requestHeaders;
@@ -471,19 +523,19 @@ public final class ThreadContext implements Closeable, Writeable {
             }
         }
 
-        private ThreadContextStruct putResponseHeaders(Map<String, List<String>> headers) {
+        private ThreadContextStruct putResponseHeaders(Map<String, Set<String>> headers) {
             assert headers != null;
             if (headers.isEmpty()) {
                 return this;
             }
-            final Map<String, List<String>> newResponseHeaders = new HashMap<>(this.responseHeaders);
-            for (Map.Entry<String, List<String>> entry : headers.entrySet()) {
+            final Map<String, Set<String>> newResponseHeaders = new HashMap<>(this.responseHeaders);
+            for (Map.Entry<String, Set<String>> entry : headers.entrySet()) {
                 String key = entry.getKey();
-                final List<String> existingValues = newResponseHeaders.get(key);
+                final Set<String> existingValues = newResponseHeaders.get(key);
                 if (existingValues != null) {
-                    List<String> newValues = Stream.concat(entry.getValue().stream(),
-                        existingValues.stream()).distinct().collect(Collectors.toList());
-                    newResponseHeaders.put(key, Collections.unmodifiableList(newValues));
+                    final Set<String> newValues =
+                            Stream.concat(entry.getValue().stream(), existingValues.stream()).collect(LINKED_HASH_SET_COLLECTOR);
+                    newResponseHeaders.put(key, Collections.unmodifiableSet(newValues));
                 } else {
                     newResponseHeaders.put(key, entry.getValue());
                 }
@@ -513,20 +565,19 @@ public final class ThreadContext implements Closeable, Writeable {
                 }
             }
 
-            final Map<String, List<String>> newResponseHeaders = new HashMap<>(this.responseHeaders);
-            final List<String> existingValues = newResponseHeaders.get(key);
+            final Map<String, Set<String>> newResponseHeaders;
+            final Set<String> existingValues = responseHeaders.get(key);
             if (existingValues != null) {
-                final Set<String> existingUniqueValues = existingValues.stream().map(uniqueValue).collect(Collectors.toSet());
-                assert existingValues.size() == existingUniqueValues.size() :
-                        "existing values: [" + existingValues + "], existing unique values [" + existingUniqueValues + "]";
-                if (existingUniqueValues.contains(uniqueValue.apply(value))) {
+                if (existingValues.contains(uniqueValue.apply(value))) {
                     return this;
                 }
-                final List<String> newValues = new ArrayList<>(existingValues);
-                newValues.add(value);
-                newResponseHeaders.put(key, Collections.unmodifiableList(newValues));
+                // preserve insertion order
+                final Set<String> newValues = Stream.concat(existingValues.stream(), Stream.of(value)).collect(LINKED_HASH_SET_COLLECTOR);
+                newResponseHeaders = new HashMap<>(responseHeaders);
+                newResponseHeaders.put(key, Collections.unmodifiableSet(newValues));
             } else {
-                newResponseHeaders.put(key, Collections.singletonList(value));
+                newResponseHeaders = new HashMap<>(responseHeaders);
+                newResponseHeaders.put(key, Collections.singleton(value));
             }
 
             //check if we can add another warning header - if max count within limits
@@ -549,10 +600,6 @@ public final class ThreadContext implements Closeable, Writeable {
                 throw new IllegalArgumentException("value for key [" + key + "] already present");
             }
             return new ThreadContextStruct(requestHeaders, responseHeaders, newTransient, isSystemContext);
-        }
-
-        boolean isEmpty() {
-            return requestHeaders.isEmpty() && responseHeaders.isEmpty() && transientHeaders.isEmpty();
         }
 
         private ThreadContextStruct copyHeaders(Iterable<Map.Entry<String, String>> headers) {
@@ -578,7 +625,7 @@ public final class ThreadContext implements Closeable, Writeable {
                 out.writeString(entry.getValue());
             }
 
-            out.writeMapOfLists(responseHeaders, StreamOutput::writeString, StreamOutput::writeString);
+            out.writeMap(responseHeaders, StreamOutput::writeString, StreamOutput::writeStringCollection);
         }
     }
 
@@ -741,4 +788,40 @@ public final class ThreadContext implements Closeable, Writeable {
             return in;
         }
     }
+
+    private static final Collector<String, Set<String>, Set<String>> LINKED_HASH_SET_COLLECTOR = new LinkedHashSetCollector<>();
+
+    private static class LinkedHashSetCollector<T> implements Collector<T, Set<T>, Set<T>> {
+        @Override
+        public Supplier<Set<T>> supplier() {
+            return LinkedHashSet::new;
+        }
+
+        @Override
+        public BiConsumer<Set<T>, T> accumulator() {
+            return Set::add;
+        }
+
+        @Override
+        public BinaryOperator<Set<T>> combiner() {
+            return (left, right) -> {
+                left.addAll(right);
+                return left;
+            };
+        }
+
+        @Override
+        public Function<Set<T>, Set<T>> finisher() {
+            return Function.identity();
+        }
+
+        private static final Set<Characteristics> CHARACTERISTICS =
+                Collections.unmodifiableSet(EnumSet.of(Collector.Characteristics.IDENTITY_FINISH));
+
+        @Override
+        public Set<Characteristics> characteristics() {
+            return CHARACTERISTICS;
+        }
+    }
+
 }

@@ -89,6 +89,9 @@ public final class Pipeline {
 
     /**
      * Modifies the data of a document to be indexed based on the processor this pipeline holds
+     *
+     * If <code>null</code> is returned then this document will be dropped and not indexed, otherwise
+     * this document will be kept and indexed.
      */
     public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
         long startTimeInNanos = relativeTimeProvider.getAsLong();

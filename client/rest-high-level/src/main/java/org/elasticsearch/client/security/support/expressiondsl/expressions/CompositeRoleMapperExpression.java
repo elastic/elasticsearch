@@ -23,8 +23,6 @@ import org.elasticsearch.client.security.support.expressiondsl.RoleMapperExpress
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -53,7 +51,7 @@ public abstract class CompositeRoleMapperExpression implements RoleMapperExpress
         assert name != null : "field name cannot be null";
         assert elements != null : "at least one field expression is required";
         this.name = name;
-        this.elements = Collections.unmodifiableList(Arrays.asList(elements));
+        this.elements = List.of(elements);
     }
 
     public String getName() {

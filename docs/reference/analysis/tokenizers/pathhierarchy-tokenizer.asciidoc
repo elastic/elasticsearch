@@ -93,7 +93,7 @@ characters, and to replace them with `/`.  The first two tokens are skipped:
 
 [source,js]
 ----------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "settings": {
     "analysis": {
@@ -170,3 +170,7 @@ If we were to set `reverse` to `true`, it would produce the following:
 ---------------------------
 [ one/two/three/, two/three/, three/ ]
 ---------------------------
+
+[float]
+=== Detailed Examples
+See <<analysis-pathhierarchy-tokenizer-examples, detailed examples here>>. 

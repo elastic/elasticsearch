@@ -9,17 +9,20 @@
 
 ---
 "Nodes stats level":
-  - do:
-      cluster.state: {}
+  - skip:
+      features: [arbitrary_key]
 
-  - set: { master_node: master }
+  - do:
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
 
   - do:
       nodes.stats:
         metric: [ indices ]
         level: "indices"
 
-  - is_true: nodes.$master.indices.indices
+  - is_true: nodes.$node_id.indices.indices
 
 ---
 "Nodes stats unrecognized parameter":

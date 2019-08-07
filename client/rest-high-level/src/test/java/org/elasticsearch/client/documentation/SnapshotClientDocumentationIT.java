@@ -38,7 +38,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStats;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
@@ -46,6 +45,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.settings.Settings;
@@ -452,7 +452,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         List<VerifyRepositoryResponse.NodeView> repositoryMetaDataResponse = response.getNodes();
         // end::verify-repository-response
         assertThat(1, equalTo(repositoryMetaDataResponse.size()));
-        assertThat("node-0", equalTo(repositoryMetaDataResponse.get(0).getName()));
+        assertThat("integTest-0", equalTo(repositoryMetaDataResponse.get(0).getName()));
     }
 
     public void testSnapshotVerifyRepositoryAsync() throws InterruptedException {
@@ -590,7 +590,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         // end::get-snapshots-request
 
         // tag::get-snapshots-request-repositoryName
-        request.repository(repositoryName); // <1>
+        request.repositories(repositoryName); // <1>
         // end::get-snapshots-request-repositoryName
 
         // tag::get-snapshots-request-snapshots
@@ -616,7 +616,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         // end::get-snapshots-execute
 
         // tag::get-snapshots-response
-        List<SnapshotInfo> snapshotsInfos = response.getSnapshots();
+        List<SnapshotInfo> snapshotsInfos = response.getSnapshots(repositoryName);
         SnapshotInfo snapshotInfo = snapshotsInfos.get(0);
         RestStatus restStatus = snapshotInfo.status(); // <1>
         SnapshotId snapshotId = snapshotInfo.snapshotId(); // <2>

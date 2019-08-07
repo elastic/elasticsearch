@@ -1,9 +1,9 @@
 {
   "get_script": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/modules-scripting.html",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/modules-scripting.html",
+    "stability": "stable",
     "methods": ["GET"],
     "url": {
-      "path": "/_scripts/{id}",
       "paths": [ "/_scripts/{id}" ],
       "parts": {
         "id": {

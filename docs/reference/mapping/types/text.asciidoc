@@ -1,5 +1,8 @@
 [[text]]
 === Text datatype
+++++
+<titleabbrev>Text</titleabbrev>
+++++
 
 A field to index full-text values, such as the body of an email or the
 description of a product. These fields are `analyzed`, that is they are passed through an
@@ -17,14 +20,12 @@ Below is an example of a mapping for a text field:
 
 [source,js]
 --------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "full_name": {
-          "type":  "text"
-        }
+    "properties": {
+      "full_name": {
+        "type":  "text"
       }
     }
   }
@@ -32,6 +33,8 @@ PUT my_index?include_type_name=true
 --------------------------------
 // CONSOLE
 
+[[text-multi-fields]]
+==== Use a field as both text and keyword
 Sometimes it is useful to have both a full text (`text`) and a keyword
 (`keyword`) version of the same field: one for full text search and the
 other for aggregations and sorting. This can be achieved with

@@ -11,13 +11,11 @@ setup:
   - do:
       index:
         index:  test
-        type:   test
         id:     1
         body:   { "test": 1 }
   - do:
       index:
         index:  test
-        type:   test
         id:     2
         body:   { "test": 2 }
   - do:

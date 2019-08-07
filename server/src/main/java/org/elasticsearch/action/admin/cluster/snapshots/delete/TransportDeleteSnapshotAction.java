@@ -29,9 +29,13 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.io.IOException;
 
 /**
  * Transport action for delete snapshot operation
@@ -54,8 +58,8 @@ public class TransportDeleteSnapshotAction extends TransportMasterNodeAction<Del
     }
 
     @Override
-    protected AcknowledgedResponse newResponse() {
-        return new AcknowledgedResponse();
+    protected AcknowledgedResponse read(StreamInput in) throws IOException {
+        return new AcknowledgedResponse(in);
     }
 
     @Override
@@ -65,18 +69,9 @@ public class TransportDeleteSnapshotAction extends TransportMasterNodeAction<Del
     }
 
     @Override
-    protected void masterOperation(final DeleteSnapshotRequest request, ClusterState state,
+    protected void masterOperation(Task task, final DeleteSnapshotRequest request, ClusterState state,
                                    final ActionListener<AcknowledgedResponse> listener) {
-        snapshotsService.deleteSnapshot(request.repository(), request.snapshot(), new SnapshotsService.DeleteSnapshotListener() {
-            @Override
-            public void onResponse() {
-                listener.onResponse(new AcknowledgedResponse(true));
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        }, false);
+        snapshotsService.deleteSnapshot(request.repository(), request.snapshot(),
+            ActionListener.map(listener, v -> new AcknowledgedResponse(true)), false);
     }
 }

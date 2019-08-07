@@ -15,7 +15,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.OpenLdapTests;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -43,15 +42,14 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 
-@TestLogging("org.elasticsearch.xpack.core.ssl.SSLService:TRACE")
 public class OpenLdapUserSearchSessionFactoryTests extends ESTestCase {
 
     private Settings globalSettings;
     private ThreadPool threadPool;
-    private static final String LDAPCACERT_PATH = "/ca.crt";
+    private static final String LDAPCACERT_PATH = "/ca_server.pem";
 
     @Before
-    public void init() throws Exception {
+    public void init() {
         Path caPath = getDataPath(LDAPCACERT_PATH);
         /*
          * Prior to each test we reinitialize the socket factory with a new SSLService so that we get a new SSLContext.
@@ -60,7 +58,7 @@ public class OpenLdapUserSearchSessionFactoryTests extends ESTestCase {
          */
         globalSettings = Settings.builder()
             .put("path.home", createTempDir())
-            .put("xpack.security.authc.realms.ldap.ssl.certificate_authorities", caPath)
+            .put("xpack.security.authc.realms.ldap.oldap-test.ssl.certificate_authorities", caPath)
             .build();
         threadPool = new TestThreadPool("LdapUserSearchSessionFactoryTests");
     }

@@ -27,7 +27,6 @@ import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -42,13 +41,15 @@ public class AuthenticateResponseTests extends ESTestCase {
             this::createTestInstance,
             this::toXContent,
             AuthenticateResponse::fromXContent)
-            .supportsUnknownFields(false)
+            .supportsUnknownFields(true)
+            //metadata is a series of kv pairs, so we dont want to add random fields here for test equality
+            .randomFieldsExcludeFilter(f -> f.startsWith("metadata"))
             .test();
     }
 
     public void testEqualsAndHashCode() {
-        final AuthenticateResponse reponse = createTestInstance();
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(reponse, this::copy,
+        final AuthenticateResponse response = createTestInstance();
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(response, this::copy,
             this::mutate);
     }
 
@@ -121,7 +122,7 @@ public class AuthenticateResponseTests extends ESTestCase {
                     originalUser.getMetadata(), originalUser.getFullName(), originalUser.getEmail()), response.enabled(),
                     response.getAuthenticationRealm(), response.getLookupRealm());
             case 2:
-                final Collection<String> wrongRoles = new ArrayList<>(originalUser.getRoles());
+                final List<String> wrongRoles = new ArrayList<>(originalUser.getRoles());
                 wrongRoles.add(randomAlphaOfLengthBetween(1, 4));
                 return new AuthenticateResponse(new User(originalUser.getUsername(), wrongRoles, originalUser.getMetadata(),
                     originalUser.getFullName(), originalUser.getEmail()), response.enabled(), response.getAuthenticationRealm(),

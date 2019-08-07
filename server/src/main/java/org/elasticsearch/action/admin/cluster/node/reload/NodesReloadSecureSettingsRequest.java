@@ -20,6 +20,9 @@
 package org.elasticsearch.action.admin.cluster.node.reload;
 
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
+import org.elasticsearch.common.io.stream.StreamInput;
+
+import java.io.IOException;
 
 /**
  * Request for a reload secure settings action.
@@ -27,6 +30,11 @@ import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 public class NodesReloadSecureSettingsRequest extends BaseNodesRequest<NodesReloadSecureSettingsRequest> {
 
     public NodesReloadSecureSettingsRequest() {
+        super((String[]) null);
+    }
+
+    public NodesReloadSecureSettingsRequest(StreamInput in) throws IOException {
+        super(in);
     }
 
     /**

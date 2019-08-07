@@ -24,9 +24,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -36,7 +38,9 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.engine.DocumentMissingException;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -411,6 +415,45 @@ public class UpdateIT extends ESIntegTestCase {
         }
     }
 
+    public void testUpdateWithIfSeqNo() throws Exception {
+        createTestIndex();
+        ensureGreen();
+
+        IndexResponse result = client().prepareIndex("test", "type1", "1").setSource("field", 1).get();
+        expectThrows(VersionConflictEngineException.class, () ->
+            client().prepareUpdate(indexOrAlias(), "type1", "1")
+                .setDoc(XContentFactory.jsonBuilder().startObject().field("field", 2).endObject())
+                .setIfSeqNo(result.getSeqNo() + 1)
+                .setIfPrimaryTerm(result.getPrimaryTerm())
+                .get()
+        );
+
+        expectThrows(VersionConflictEngineException.class, () ->
+            client().prepareUpdate(indexOrAlias(), "type1", "1")
+                .setDoc(XContentFactory.jsonBuilder().startObject().field("field", 2).endObject())
+                .setIfSeqNo(result.getSeqNo())
+                .setIfPrimaryTerm(result.getPrimaryTerm() + 1)
+                .get()
+        );
+
+        expectThrows(VersionConflictEngineException.class, () ->
+            client().prepareUpdate(indexOrAlias(), "type1", "1")
+                .setDoc(XContentFactory.jsonBuilder().startObject().field("field", 2).endObject())
+                .setIfSeqNo(result.getSeqNo() + 1)
+                .setIfPrimaryTerm(result.getPrimaryTerm() + 1)
+                .get()
+        );
+
+        UpdateResponse updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
+            .setDoc(XContentFactory.jsonBuilder().startObject().field("field", 2).endObject())
+            .setIfSeqNo(result.getSeqNo())
+            .setIfPrimaryTerm(result.getPrimaryTerm())
+            .get();
+
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+        assertThat(updateResponse.getSeqNo(), equalTo(result.getSeqNo() + 1));
+    }
+
     public void testUpdateRequestWithBothScriptAndDoc() throws Exception {
         createTestIndex();
         ensureGreen();
@@ -658,7 +701,18 @@ public class UpdateIT extends ESIntegTestCase {
                                         .setRetryOnConflict(retryOnConflict)
                                         .setUpsert(jsonBuilder().startObject().field("field", 1).endObject())
                                         .request();
-                                client().update(ur, new UpdateListener(j));
+                                if (randomBoolean()) {
+                                    client().update(ur, new UpdateListener(j));
+                                } else {
+                                    client().prepareBulk().add(ur).execute(ActionListener.map(new UpdateListener(j), br -> {
+                                        final BulkItemResponse ir = br.getItems()[0];
+                                        if (ir.isFailed()) {
+                                            throw ir.getFailure().getCause();
+                                        } else {
+                                            return ir.getResponse();
+                                        }
+                                    }));
+                                }
                             } catch (NoNodeAvailableException nne) {
                                 updateRequestsOutstanding.release();
                                 synchronized (failedMap) {

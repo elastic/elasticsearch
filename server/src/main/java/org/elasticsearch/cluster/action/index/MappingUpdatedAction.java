@@ -19,8 +19,10 @@
 
 package org.elasticsearch.cluster.action.index;
 
-import org.elasticsearch.ElasticsearchTimeoutException;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequestBuilder;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.common.inject.Inject;
@@ -29,6 +31,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
@@ -57,35 +60,36 @@ public class MappingUpdatedAction {
         this.dynamicMappingUpdateTimeout = dynamicMappingUpdateTimeout;
     }
 
-
     public void setClient(Client client) {
         this.client = client.admin().indices();
     }
 
-    private PutMappingRequestBuilder updateMappingRequest(Index index, String type, Mapping mappingUpdate, final TimeValue timeout) {
+    /**
+     * Update mappings on the master node, waiting for the change to be committed,
+     * but not for the mapping update to be applied on all nodes. The timeout specified by
+     * {@code timeout} is the master node timeout ({@link MasterNodeRequest#masterNodeTimeout()}),
+     * potentially waiting for a master node to be available.
+     */
+    public void updateMappingOnMaster(Index index, String type, Mapping mappingUpdate, ActionListener<Void> listener) {
         if (type.equals(MapperService.DEFAULT_MAPPING)) {
             throw new IllegalArgumentException("_default_ mapping should not be updated");
         }
-        return client.preparePutMapping().setConcreteIndex(index).setType(type).setSource(mappingUpdate.toString(), XContentType.JSON)
-                .setMasterNodeTimeout(timeout).setTimeout(timeout);
+        client.preparePutMapping().setConcreteIndex(index).setType(type).setSource(mappingUpdate.toString(), XContentType.JSON)
+            .setMasterNodeTimeout(dynamicMappingUpdateTimeout).setTimeout(TimeValue.ZERO)
+            .execute(new ActionListener<AcknowledgedResponse>() {
+                @Override
+                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                    listener.onResponse(null);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(unwrapException(e));
+                }
+            });
     }
 
-    /**
-     * Same as {@link #updateMappingOnMaster(Index, String, Mapping, TimeValue)}
-     * using the default timeout.
-     */
-    public void updateMappingOnMaster(Index index, String type, Mapping mappingUpdate) {
-        updateMappingOnMaster(index, type, mappingUpdate, dynamicMappingUpdateTimeout);
-    }
-
-    /**
-     * Update mappings synchronously on the master node, waiting for at most
-     * {@code timeout}. When this method returns successfully mappings have
-     * been applied to the master node and propagated to data nodes.
-     */
-    public void updateMappingOnMaster(Index index, String type, Mapping mappingUpdate, TimeValue timeout) {
-        if (updateMappingRequest(index, type, mappingUpdate, timeout).get().isAcknowledged() == false) {
-            throw new ElasticsearchTimeoutException("Failed to acknowledge mapping update within [" + timeout + "]");
-        }
+    private static Exception unwrapException(Exception cause) {
+        return cause instanceof ElasticsearchException ? FutureUtils.unwrapEsException((ElasticsearchException) cause) : cause;
     }
 }

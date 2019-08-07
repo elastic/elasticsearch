@@ -29,7 +29,6 @@ import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
-import static java.util.Collections.unmodifiableMap;
 
 public class HttpRequestTemplate implements ToXContentObject {
 
@@ -469,8 +468,8 @@ public class HttpRequestTemplate implements ToXContentObject {
         }
 
         public HttpRequestTemplate build() {
-            return new HttpRequestTemplate(host, port, scheme, method, path, unmodifiableMap(new HashMap<>(params)),
-                    unmodifiableMap(new HashMap<>(headers)), auth, body, connectionTimeout, readTimeout, proxy);
+            return new HttpRequestTemplate(host, port, scheme, method, path, Map.copyOf(params),
+                    Map.copyOf(headers), auth, body, connectionTimeout, readTimeout, proxy);
         }
 
         public Builder fromUrl(String supposedUrl) {

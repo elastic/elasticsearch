@@ -76,7 +76,7 @@ public class AdjacencyMatrixAggregationBuilderTests extends ESTestCase {
         Map<String, QueryBuilder> emptyFilters = Collections.emptyMap();
 
         AdjacencyMatrixAggregationBuilder aggregationBuilder = new AdjacencyMatrixAggregationBuilder("dummy", emptyFilters);
-        AggregatorFactory<?> factory = aggregationBuilder.doBuild(context, null, new AggregatorFactories.Builder());
+        AggregatorFactory factory = aggregationBuilder.doBuild(context, null, new AggregatorFactories.Builder());
         assertThat(factory instanceof AdjacencyMatrixAggregatorFactory, is(true));
         assertThat(factory.name(), equalTo("dummy"));
     }

@@ -19,12 +19,18 @@
 
 package org.elasticsearch.test;
 
+import com.carrotsearch.randomizedtesting.RandomizedTest;
+import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction.AnalyzeToken;
 import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo;
 import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo.Failure;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -33,7 +39,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.index.shard.IndexShardRecoveringException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
@@ -43,7 +48,9 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 
 import static com.carrotsearch.randomizedtesting.generators.RandomNumbers.randomIntBetween;
@@ -310,7 +317,7 @@ public final class RandomObjects {
         int type = randomIntBetween(random, 0, 3);
         switch (type) {
             case 0:
-                actualException = new ClusterBlockException(singleton(DiscoverySettings.NO_MASTER_BLOCK_WRITES));
+                actualException = new ClusterBlockException(singleton(NoMasterBlockService.NO_MASTER_BLOCK_WRITES));
                 expectedException = new ElasticsearchException("Elasticsearch exception [type=cluster_block_exception, " +
                         "reason=blocked by: [SERVICE_UNAVAILABLE/2/no master];]");
                 break;
@@ -340,5 +347,44 @@ public final class RandomObjects {
         Failure expected = new Failure(new ShardId(index, INDEX_UUID_NA_VALUE, shardId), nodeId, expectedException, status, primary);
 
         return Tuple.tuple(actual, expected);
+    }
+
+    public static AnalyzeToken randomToken(Random random) {
+        String token = RandomStrings.randomAsciiLettersOfLengthBetween(random, 1, 20);
+        int position = RandomizedTest.randomIntBetween(0, 1000);
+        int startOffset = RandomizedTest.randomIntBetween(0, 1000);
+        int endOffset = RandomizedTest.randomIntBetween(0, 1000);
+        int posLength = RandomizedTest.randomIntBetween(1, 5);
+        String type =  RandomStrings.randomAsciiLettersOfLengthBetween(random, 1, 20);
+        Map<String, Object> extras = new HashMap<>();
+        if (random.nextBoolean()) {
+            int entryCount = RandomNumbers.randomIntBetween(random, 0, 6);
+            for (int i = 0; i < entryCount; i++) {
+                switch (RandomNumbers.randomIntBetween(random, 0, 6)) {
+                    case 0:
+                    case 1:
+                    case 2:
+                    case 3:
+                        String key = RandomStrings.randomAsciiLettersOfLength(random, 5);
+                        String value = RandomStrings.randomAsciiLettersOfLength(random, 10);
+                        extras.put(key, value);
+                        break;
+                    case 4:
+                        String objkey = RandomStrings.randomAsciiLettersOfLength(random, 5);
+                        Map<String, String> obj = new HashMap<>();
+                        obj.put(RandomStrings.randomAsciiLettersOfLength(random, 5), RandomStrings.randomAsciiLettersOfLength(random, 10));
+                        extras.put(objkey, obj);
+                        break;
+                    case 5:
+                        String listkey = RandomStrings.randomAsciiLettersOfLength(random, 5);
+                        List<String> list = new ArrayList<>();
+                        list.add(RandomStrings.randomAsciiLettersOfLength(random, 4));
+                        list.add(RandomStrings.randomAsciiLettersOfLength(random, 6));
+                        extras.put(listkey, list);
+                        break;
+                }
+            }
+        }
+        return new AnalyzeAction.AnalyzeToken(token, position, startOffset, endOffset, posLength, type, extras);
     }
 }

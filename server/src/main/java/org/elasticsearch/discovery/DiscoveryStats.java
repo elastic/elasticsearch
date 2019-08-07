@@ -19,14 +19,13 @@
 
 package org.elasticsearch.discovery;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.discovery.zen.PendingClusterStateStats;
-import org.elasticsearch.discovery.zen.PublishClusterStateStats;
+import org.elasticsearch.cluster.coordination.PendingClusterStateStats;
+import org.elasticsearch.cluster.coordination.PublishClusterStateStats;
 
 import java.io.IOException;
 
@@ -42,21 +41,13 @@ public class DiscoveryStats implements Writeable, ToXContentFragment {
 
     public DiscoveryStats(StreamInput in) throws IOException {
         queueStats = in.readOptionalWriteable(PendingClusterStateStats::new);
-
-        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-            publishStats = in.readOptionalWriteable(PublishClusterStateStats::new);
-        } else {
-            publishStats = null;
-        }
+        publishStats = in.readOptionalWriteable(PublishClusterStateStats::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalWriteable(queueStats);
-
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-            out.writeOptionalWriteable(publishStats);
-        }
+        out.writeOptionalWriteable(publishStats);
     }
 
     @Override

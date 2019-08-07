@@ -127,6 +127,18 @@ public class PrivilegeTests extends ESTestCase {
         assertThat(predicate.test("indices:admin/seq_no/global_checkpoint_sync"), is(true));
         assertThat(predicate.test("indices:admin/seq_no/global_checkpoint_sync[p]"), is(true));
         assertThat(predicate.test("indices:admin/seq_no/global_checkpoint_sync[r]"), is(true));
+        assertThat(predicate.test("indices:admin/seq_no/retention_lease_sync"), is(true));
+        assertThat(predicate.test("indices:admin/seq_no/retention_lease_sync[p]"), is(true));
+        assertThat(predicate.test("indices:admin/seq_no/retention_lease_sync[r]"), is(true));
+        assertThat(predicate.test("indices:admin/seq_no/retention_lease_background_sync"), is(true));
+        assertThat(predicate.test("indices:admin/seq_no/retention_lease_background_sync[p]"), is(true));
+        assertThat(predicate.test("indices:admin/seq_no/retention_lease_background_sync[r]"), is(true));
+        assertThat(predicate.test("indices:admin/seq_no/add_retention_lease"), is(true));
+        assertThat(predicate.test("indices:admin/seq_no/add_retention_lease[s]"), is(true));
+        assertThat(predicate.test("indices:admin/seq_no/remove_retention_lease"), is(true));
+        assertThat(predicate.test("indices:admin/seq_no/remove_retention_lease[s]"), is(true));
+        assertThat(predicate.test("indices:admin/seq_no/renew_retention_lease"), is(true));
+        assertThat(predicate.test("indices:admin/seq_no/renew_retention_lease[s]"), is(true));
         assertThat(predicate.test("indices:admin/settings/update"), is(true));
         assertThat(predicate.test("indices:admin/settings/foo"), is(false));
     }
@@ -190,6 +202,36 @@ public class PrivilegeTests extends ESTestCase {
             assertThat(predicate.test("indices:admin/ilm/explain"), is(true));
             // check non-ilm action
             assertThat(predicate.test("indices:admin/whatever"), is(false));
+        }
+    }
+
+    public void testSlmPriviledges() {
+        {
+            Predicate<String> predicate = ClusterPrivilege.MANAGE_SLM.predicate();
+            // check cluster actions
+            assertThat(predicate.test("cluster:admin/slm/delete"), is(true));
+            assertThat(predicate.test("cluster:admin/slm/put"), is(true));
+            assertThat(predicate.test("cluster:admin/slm/get"), is(true));
+            assertThat(predicate.test("cluster:admin/ilm/start"), is(true));
+            assertThat(predicate.test("cluster:admin/ilm/stop"), is(true));
+            assertThat(predicate.test("cluster:admin/slm/execute"), is(true));
+            assertThat(predicate.test("cluster:admin/ilm/operation_mode/get"), is(true));
+            // check non-slm action
+            assertThat(predicate.test("cluster:admin/whatever"), is(false));
+        }
+
+        {
+            Predicate<String> predicate = ClusterPrivilege.READ_SLM.predicate();
+            // check cluster actions
+            assertThat(predicate.test("cluster:admin/slm/delete"), is(false));
+            assertThat(predicate.test("cluster:admin/slm/put"), is(false));
+            assertThat(predicate.test("cluster:admin/slm/get"), is(true));
+            assertThat(predicate.test("cluster:admin/ilm/start"), is(false));
+            assertThat(predicate.test("cluster:admin/ilm/stop"), is(false));
+            assertThat(predicate.test("cluster:admin/slm/execute"), is(false));
+            assertThat(predicate.test("cluster:admin/ilm/operation_mode/get"), is(true));
+            // check non-slm action
+            assertThat(predicate.test("cluster:admin/whatever"), is(false));
         }
     }
 }

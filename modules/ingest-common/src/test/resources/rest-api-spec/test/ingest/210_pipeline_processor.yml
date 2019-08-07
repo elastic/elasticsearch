@@ -54,7 +54,6 @@ teardown:
 - do:
     index:
       index: test
-      type: test
       id: 1
       pipeline: "outer"
       body: {}
@@ -62,7 +61,6 @@ teardown:
 - do:
     get:
       index: test
-      type: test
       id: 1
 - match: { _source.foo: "bar" }
 - match: { _source.baz: "blub" }
@@ -105,7 +103,6 @@ teardown:
     catch: /illegal_state_exception/
     index:
       index: test
-      type: test
       id: 1
       pipeline: "outer"
       body: {}

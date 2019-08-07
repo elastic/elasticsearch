@@ -1,5 +1,8 @@
 [[keyword]]
 === Keyword datatype
+++++
+<titleabbrev>Keyword</titleabbrev>
+++++
 
 A field to index structured content such as email addresses, hostnames, status
 codes, zip codes or tags.
@@ -15,14 +18,12 @@ Below is an example of a mapping for a keyword field:
 
 [source,js]
 --------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "tags": {
-          "type":  "keyword"
-        }
+    "properties": {
+      "tags": {
+        "type":  "keyword"
       }
     }
   }

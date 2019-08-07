@@ -133,6 +133,54 @@ public class ConditionalProcessorTests extends ESTestCase {
         assertMutatingCtxThrows(ctx -> ((List<Object>)ctx.get("listField")).remove("bar"));
     }
 
+    public void testTypeDeprecation() throws Exception {
+        String scriptName = "conditionalScript";
+        ScriptService scriptService = new ScriptService(Settings.builder().build(),
+                Collections.singletonMap(
+                        Script.DEFAULT_SCRIPT_LANG,
+                        new MockScriptEngine(
+                                Script.DEFAULT_SCRIPT_LANG,
+                                Collections.singletonMap(
+                                        scriptName, ctx -> {
+                                                ctx.get("_type");
+                                                return true;
+                                        }
+                                ),
+                                Collections.emptyMap()
+                        )
+                ),
+                new HashMap<>(ScriptModule.CORE_CONTEXTS)
+        );
+
+        LongSupplier relativeTimeProvider = mock(LongSupplier.class);
+        when(relativeTimeProvider.getAsLong()).thenReturn(0L, TimeUnit.MILLISECONDS.toNanos(1), 0L, TimeUnit.MILLISECONDS.toNanos(2));
+        ConditionalProcessor processor = new ConditionalProcessor(
+                randomAlphaOfLength(10),
+                new Script(
+                        ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG,
+                        scriptName, Collections.emptyMap()), scriptService,
+                new Processor() {
+                    @Override
+                    public IngestDocument execute(final IngestDocument ingestDocument){
+                        return ingestDocument;
+                    }
+
+                    @Override
+                    public String getType() {
+                        return null;
+                    }
+
+                    @Override
+                    public String getTag() {
+                        return null;
+                    }
+                }, relativeTimeProvider);
+
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
+        processor.execute(ingestDocument);
+        assertWarnings("[types removal] Looking up doc types [_type] in scripts is deprecated.");
+    }
+
     private static void assertMutatingCtxThrows(Consumer<Map<String, Object>> mutation) throws Exception {
         String scriptName = "conditionalScript";
         CompletableFuture<Exception> expectedException = new CompletableFuture<>();

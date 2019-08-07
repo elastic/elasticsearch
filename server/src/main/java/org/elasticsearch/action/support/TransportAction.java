@@ -18,24 +18,28 @@
  */
 
 package org.elasticsearch.action.support;
-
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskListener;
 import org.elasticsearch.tasks.TaskManager;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
-public abstract class TransportAction<Request extends ActionRequest, Response extends ActionResponse> extends AbstractComponent {
+public abstract class TransportAction<Request extends ActionRequest, Response extends ActionResponse> {
 
     protected final String actionName;
     private final ActionFilter[] filters;
     protected final TaskManager taskManager;
+    /**
+     * @deprecated declare your own logger.
+     */
+    @Deprecated
+    protected Logger logger = LogManager.getLogger(getClass());
 
     protected TransportAction(String actionName, ActionFilters actionFilters, TaskManager taskManager) {
         this.actionName = actionName;
@@ -60,14 +64,20 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
         execute(task, request, new ActionListener<Response>() {
             @Override
             public void onResponse(Response response) {
-                taskManager.unregister(task);
-                listener.onResponse(response);
+                try {
+                    taskManager.unregister(task);
+                } finally {
+                    listener.onResponse(response);
+                }
             }
 
             @Override
             public void onFailure(Exception e) {
-                taskManager.unregister(task);
-                listener.onFailure(e);
+                try {
+                    taskManager.unregister(task);
+                } finally {
+                    listener.onFailure(e);
+                }
             }
         });
         return task;
@@ -82,18 +92,20 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
         execute(task, request, new ActionListener<Response>() {
             @Override
             public void onResponse(Response response) {
-                if (task != null) {
+                try {
                     taskManager.unregister(task);
+                } finally {
+                    listener.onResponse(task, response);
                 }
-                listener.onResponse(task, response);
             }
 
             @Override
             public void onFailure(Exception e) {
-                if (task != null) {
+                try {
                     taskManager.unregister(task);
+                } finally {
+                    listener.onFailure(task, e);
                 }
-                listener.onFailure(task, e);
             }
         });
         return task;

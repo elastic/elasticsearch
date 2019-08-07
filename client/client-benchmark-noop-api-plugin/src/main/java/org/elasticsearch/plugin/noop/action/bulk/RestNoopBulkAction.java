@@ -76,7 +76,7 @@ public class RestNoopBulkAction extends BaseRestHandler {
         bulkRequest.timeout(request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT));
         bulkRequest.setRefreshPolicy(request.param("refresh"));
         bulkRequest.add(request.requiredContent(), defaultIndex, defaultType, defaultRouting,
-            null, defaultPipeline, null, true, request.getXContentType());
+            null, defaultPipeline, true, request.getXContentType());
 
         // short circuit the call to the transport layer
         return channel -> {
@@ -87,7 +87,7 @@ public class RestNoopBulkAction extends BaseRestHandler {
 
     private static class BulkRestBuilderListener extends RestBuilderListener<BulkRequest> {
         private final BulkItemResponse ITEM_RESPONSE = new BulkItemResponse(1, DocWriteRequest.OpType.UPDATE,
-            new UpdateResponse(new ShardId("mock", "", 1), "mock_type", "1", 1L, DocWriteResponse.Result.CREATED));
+            new UpdateResponse(new ShardId("mock", "", 1), "mock_type", "1", 0L, 1L, 1L, DocWriteResponse.Result.CREATED));
 
         private final RestRequest request;
 

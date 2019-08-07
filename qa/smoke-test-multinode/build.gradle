@@ -17,6 +17,7 @@
  * under the License.
  */
 
+apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
@@ -24,12 +25,18 @@ integTest {
   includePackaged = true
 }
 
-integTestCluster {
-  numNodes = 2
+File repo = file("$buildDir/testclusters/repo")
+testClusters.integTest {
+  numberOfNodes = 2
+  setting 'path.repo', repo.absolutePath
 }
 
-integTestRunner {
-  if ('zip'.equals(integTestCluster.distribution)) {
+integTest.runner {
+  doFirst {
+    project.delete(repo)
+    repo.mkdirs()
+  }
+  if ('default'.equalsIgnoreCase(System.getProperty('tests.distribution', 'oss'))) {
     systemProperty 'tests.rest.blacklist', [
         'cat.templates/10_basic/No templates',
         'cat.templates/10_basic/Sort templates',

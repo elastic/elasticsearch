@@ -21,13 +21,14 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridAggregationBuilder;
 
 public class GeoHashGridTests extends BaseAggregationTestCase<GeoGridAggregationBuilder> {
 
     @Override
-    protected GeoGridAggregationBuilder createTestAggregatorBuilder() {
+    protected GeoHashGridAggregationBuilder createTestAggregatorBuilder() {
         String name = randomAlphaOfLengthBetween(3, 20);
-        GeoGridAggregationBuilder factory = new GeoGridAggregationBuilder(name);
+        GeoHashGridAggregationBuilder factory = new GeoHashGridAggregationBuilder(name);
         if (randomBoolean()) {
             int precision = randomIntBetween(1, 12);
             factory.precision(precision);

@@ -36,7 +36,7 @@ public class FIPS140SecureSettingsBootstrapCheck implements BootstrapCheck {
         if (fipsModeEnabled) {
             try (KeyStoreWrapper secureSettings = KeyStoreWrapper.load(environment.configFile())) {
                 if (secureSettings != null && secureSettings.getFormatVersion() < 3) {
-                    return BootstrapCheckResult.failure("Secure settings store is not of the latest version. Please use " +
+                    return BootstrapCheckResult.failure("Secure settings store is not of the appropriate version. Please use " +
                         "bin/elasticsearch-keystore create to generate a new secure settings store and migrate the secure settings there.");
                 }
             } catch (IOException e) {

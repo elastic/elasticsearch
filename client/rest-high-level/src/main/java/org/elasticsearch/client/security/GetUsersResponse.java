@@ -27,12 +27,14 @@ import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -42,26 +44,27 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  * Returns a List of {@link User} objects
  */
 public class GetUsersResponse {
-    private final Set<User> users;
-    private final Set<User> enabledUsers;
 
-    public GetUsersResponse(Set<User> users, Set<User> enabledUsers) {
-        this.users = Collections.unmodifiableSet(users);
-        this.enabledUsers = Collections.unmodifiableSet(enabledUsers);
+    private final Map<String, User> users;
+    private final Map<String, User> enabledUsers;
+
+    GetUsersResponse(final Map<String, User> users, final Map<String, User> enabledUsers) {
+        this.users = Map.copyOf(users);
+        this.enabledUsers = Map.copyOf(enabledUsers);
     }
 
-    public Set<User> getUsers() {
-        return users;
+    public List<User> getUsers() {
+        return List.copyOf(users.values());
     }
 
-    public Set<User> getEnabledUsers() {
-        return enabledUsers;
+    public List<User> getEnabledUsers() {
+        return List.copyOf(enabledUsers.values());
     }
 
     public static GetUsersResponse fromXContent(XContentParser parser) throws IOException {
         XContentParserUtils.ensureExpectedToken(Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
-        final Set<User> users = new HashSet<>();
-        final Set<User> enabledUsers = new HashSet<>();
+        final List<User> users = new ArrayList<>();
+        final List<User> enabledUsers = new ArrayList<>();
         Token token;
         while ((token = parser.nextToken()) != Token.END_OBJECT) {
             XContentParserUtils.ensureExpectedToken(Token.FIELD_NAME, token, parser::getTokenLocation);
@@ -71,7 +74,11 @@ public class GetUsersResponse {
                 enabledUsers.add(parsedUser.user);
             }
         }
-        return new GetUsersResponse(users, enabledUsers);
+        return new GetUsersResponse(toMap(users), toMap(enabledUsers));
+    }
+
+    static Map<String, User> toMap(final Collection<User> users) {
+        return users.stream().collect(Collectors.toUnmodifiableMap(User::getUsername, Function.identity()));
     }
 
     @Override
@@ -95,11 +102,11 @@ public class GetUsersResponse {
     public static final ParseField ENABLED = new ParseField("enabled");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<ParsedUser, String> USER_PARSER = new ConstructingObjectParser<>("user_info",
+    public static final ConstructingObjectParser<ParsedUser, String> USER_PARSER = new ConstructingObjectParser<>("user_info", true,
         (constructorObjects) -> {
             int i = 0;
             final String username = (String) constructorObjects[i++];
-            final Collection<String> roles = (Collection<String>) constructorObjects[i++];
+            final List<String> roles = (List<String>) constructorObjects[i++];
             final Map<String, Object> metadata = (Map<String, Object>) constructorObjects[i++];
             final Boolean enabled = (Boolean) constructorObjects[i++];
             final String fullName = (String) constructorObjects[i++];
@@ -120,13 +127,13 @@ public class GetUsersResponse {
         protected User user;
         protected boolean enabled;
 
-        public ParsedUser(String username, Collection<String> roles, Map<String, Object> metadata, Boolean enabled,
+        public ParsedUser(String username, List<String> roles, Map<String, Object> metadata, Boolean enabled,
                           @Nullable String fullName, @Nullable String email) {
-            String checkedUsername = username = Objects.requireNonNull(username, "`username` is required, cannot be null");
-            Collection<String> checkedRoles = Collections.unmodifiableSet(new HashSet<>(
-                Objects.requireNonNull(roles, "`roles` is required, cannot be null. Pass an empty Collection instead.")));
-            Map<String, Object> checkedMetadata = Collections
-                .unmodifiableMap(Objects.requireNonNull(metadata, "`metadata` is required, cannot be null. Pass an empty map instead."));
+            String checkedUsername = Objects.requireNonNull(username, "`username` is required, cannot be null");
+            List<String> checkedRoles =
+                    List.copyOf(Objects.requireNonNull(roles, "`roles` is required, cannot be null. Pass an empty list instead."));
+            Map<String, Object> checkedMetadata = Collections.unmodifiableMap(
+                    Objects.requireNonNull(metadata, "`metadata` is required, cannot be null. Pass an empty map instead."));
             this.user = new User(checkedUsername, checkedRoles, checkedMetadata, fullName, email);
             this.enabled = enabled;
         }

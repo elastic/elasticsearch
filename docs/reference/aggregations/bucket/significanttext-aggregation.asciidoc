@@ -92,7 +92,7 @@ It only occurs 5 times in our index as a whole (see the `bg_count`) and yet 4 of
 were lucky enough to appear in our 100 document sample of "bird flu" results. That suggests
 a significant word and one which the user can potentially add to their search. 
 
-
+[[filter-duplicate-text-noisy-data]]
 ==== Dealing with noisy data using `filter_duplicate_text`
 Free-text fields often contain a mix of original content and mechanical copies of text (cut-and-paste biographies, email reply chains, 
 retweets, boilerplate headers/footers, page navigation menus, sidebar news links, copyright notices, standard disclaimers, addresses).
@@ -353,7 +353,7 @@ However, the `size` and `shard size` settings covered in the next section provid
 
 This aggregation supports the same scoring heuristics (JLH, mutual_information, gnd, chi_square etc) as the <<search-aggregations-bucket-significantterms-aggregation,significant terms>> aggregation
 
-
+[[sig-text-shard-size]]
 ===== Size & Shard Size
 
 The `size` parameter can be set to define how many term buckets should be returned out of the overall terms list. By

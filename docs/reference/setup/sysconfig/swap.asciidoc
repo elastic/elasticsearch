@@ -28,6 +28,8 @@ On Linux systems, you can disable swap temporarily by running:
 sudo swapoff -a
 --------------
 
+This doesn't require a restart of Elasticsearch.
+
 To disable it permanently, you will need to edit the `/etc/fstab` file and
 comment out any lines that contain the word `swap`.
 

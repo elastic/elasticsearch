@@ -23,6 +23,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -151,13 +152,19 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
 
     /** Read from a stream, for internal use only. */
     public DateHistogramAggregationBuilder(StreamInput in) throws IOException {
-        super(in, ValuesSourceType.NUMERIC, ValueType.DATE);
+        super(in, ValuesSourceType.ANY, ValueType.DATE);
         order = InternalOrder.Streams.readHistogramOrder(in);
         keyed = in.readBoolean();
         minDocCount = in.readVLong();
         dateHistogramInterval = new DateIntervalWrapper(in);
         offset = in.readLong();
         extendedBounds = in.readOptionalWriteable(ExtendedBounds::new);
+    }
+
+    @Override
+    protected boolean serializeTargetValueType(Version version) {
+        // TODO: Update version number after backport
+        return version.onOrAfter(Version.V_8_0_0);
     }
 
     @Override

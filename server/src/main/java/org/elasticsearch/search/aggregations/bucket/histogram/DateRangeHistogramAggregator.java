@@ -119,7 +119,7 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
                     for (int i = 0; i < valuesCount; i++) {
                         BytesRef encodedRanges = values.nextValue();
                         List<RangeFieldMapper.Range> ranges = rangeType.decodeRanges(encodedRanges);
-                        double previousFrom = Double.NEGATIVE_INFINITY;
+                        long previousFrom = Long.MIN_VALUE;
                         for (RangeFieldMapper.Range range : ranges) {
                             final Long from = (Long) range.getFrom();
                             // The encoding should ensure that this assert is always true.
@@ -132,7 +132,7 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
                                     continue;
                                 }
                                 // Bucket collection identical to NumericHistogramAggregator, could be refactored
-                                long bucketOrd = bucketOrds.add(Double.doubleToLongBits(key));
+                                long bucketOrd = bucketOrds.add(key);
                                 if (bucketOrd < 0) { // already seen
                                     bucketOrd = -1 - bucketOrd;
                                     collectExistingBucket(sub, doc, bucketOrd);

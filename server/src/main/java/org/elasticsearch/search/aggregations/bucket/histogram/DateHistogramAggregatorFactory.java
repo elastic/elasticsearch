@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.common.Rounding;
+import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -74,14 +75,14 @@ public final class DateHistogramAggregatorFactory
             return createAggregator((ValuesSource.Numeric) valuesSource, parent, pipelineAggregators, metaData);
         } else if (valuesSource instanceof ValuesSource.Range) {
             ValuesSource.Range rangeValueSource = (ValuesSource.Range) valuesSource;
-            if (rangeValueSource.rangeType().isNumeric() == false) {
-                throw new IllegalArgumentException("Expected numeric range type but found non-numeric range ["
-                    + rangeValueSource.rangeType().name + "]");
+            if (rangeValueSource.rangeType() != RangeType.DATE) {
+                throw new IllegalArgumentException("Expected date range type but found range type [" + rangeValueSource.rangeType().name
+                    + "]");
             }
             return createRangeAggregator((ValuesSource.Range) valuesSource, parent, pipelineAggregators, metaData);
         }
         else {
-            throw new IllegalArgumentException("Expected one of [Numeric, Range] values source, found ["
+            throw new IllegalArgumentException("Expected one of [Date, Range] values source, found ["
                 + valuesSource.toString() + "]");
         }
     }

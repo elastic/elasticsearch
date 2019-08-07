@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.core.security.user.RemoteMonitoringUser;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.esnative.tool.HttpResponse.HttpResponseBuilder;
 
+import javax.crypto.AEADBadTagException;
 import javax.net.ssl.SSLException;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -125,7 +126,7 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
         @Override
         protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
             terminal.println(Verbosity.VERBOSE, "Running with configuration path: " + env.configFile());
-            setupOptions(options, env);
+            setupOptions(terminal, options, env);
             checkElasticKeystorePasswordValid(terminal, env);
             checkClusterHealth(terminal);
 
@@ -171,7 +172,7 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
         @Override
         protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
             terminal.println(Verbosity.VERBOSE, "Running with configuration path: " + env.configFile());
-            setupOptions(options, env);
+            setupOptions(terminal, options, env);
             checkElasticKeystorePasswordValid(terminal, env);
             checkClusterHealth(terminal);
 
@@ -248,10 +249,19 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
             }
         }
 
-        void setupOptions(OptionSet options, Environment env) throws Exception {
+        void setupOptions(Terminal terminal, OptionSet options, Environment env) throws Exception {
             keyStoreWrapper = keyStoreFunction.apply(env);
-            // TODO: We currently do not support keystore passwords
-            keyStoreWrapper.decrypt(new char[0]);
+            try (SecureString keystorePassword = keyStoreWrapper.hasPassword() ?
+                new SecureString(terminal.readSecret("Enter the password for elasticsearch.keystore: ")) : new SecureString(new char[0])) {
+                keyStoreWrapper.decrypt(keystorePassword.getChars());
+            } catch (SecurityException e) {
+                if (e.getCause() instanceof AEADBadTagException) {
+                    terminal.println("");
+                    terminal.println("Failed to decrypt elasticsearch.keystore with the provided password.");
+                    terminal.println("");
+                    throw new UserException(ExitCodes.DATA_ERROR, "Wrong password for elasticsearch.keystore");
+                }
+            }
 
             Settings.Builder settingsBuilder = Settings.builder();
             settingsBuilder.put(env.settings(), true);

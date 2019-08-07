@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.esnative.tool.HttpResponse.HttpResponseBuilder;
-import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.Rule;
@@ -44,6 +43,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
 
+import javax.crypto.AEADBadTagException;
 import javax.net.ssl.SSLException;
 import java.io.IOException;
 import java.net.HttpURLConnection;
@@ -59,9 +59,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -74,6 +76,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
     private CommandLineHttpClient httpClient;
     private KeyStoreWrapper keyStore;
     private List<String> usersInSetOrder;
+    private boolean passwordProtectedKeystore = false;
     @Rule
     public ExpectedException thrown = ExpectedException.none();
 
@@ -94,6 +97,13 @@ public class SetupPasswordToolTests extends CommandTestCase {
         } else {
             when(keyStore.getSettingNames()).thenReturn(Collections.singleton(KeyStoreWrapper.SEED_SETTING.getKey()));
             when(keyStore.getString(KeyStoreWrapper.SEED_SETTING.getKey())).thenReturn(bootstrapPassword);
+        }
+        if (randomBoolean()) {
+            passwordProtectedKeystore = true;
+            when(keyStore.hasPassword()).thenReturn(true);
+            doNothing().when(keyStore).decrypt("keystore-password".toCharArray());
+            doThrow(new SecurityException("Provided keystore password was incorrect", new AEADBadTagException())).when(keyStore).decrypt("wrong-password".toCharArray());
+            terminal.addSecretInput("keystore-password");
         }
 
         when(httpClient.getDefaultURL()).thenReturn("http://localhost:9200");
@@ -165,8 +175,12 @@ public class SetupPasswordToolTests extends CommandTestCase {
             terminal.addTextInput("Y");
             execute("auto", pathHomeParameter);
         }
-
-        verify(keyStore).decrypt(new char[0]);
+        if (passwordProtectedKeystore) {
+            // SecureString is already closed (zero-filled) and keystore-password is 17 char long
+            verify(keyStore).decrypt(new char[17]);
+        } else {
+            verify(keyStore).decrypt(new char[0]);
+        }
 
         InOrder inOrder = Mockito.inOrder(httpClient);
 
@@ -401,7 +415,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
             ArgumentCaptor<CheckedSupplier<String, Exception>> passwordCaptor = ArgumentCaptor.forClass((Class) CheckedSupplier.class);
             inOrder.verify(httpClient).execute(eq("PUT"), eq(urlWithRoute), eq(ElasticUser.NAME), eq(bootstrapPassword),
                     passwordCaptor.capture(), any(CheckedFunction.class));
-            assertThat(passwordCaptor.getValue().get(), CoreMatchers.containsString(user + "-password"));
+            assertThat(passwordCaptor.getValue().get(), containsString(user + "-password"));
         }
     }
 
@@ -409,6 +423,9 @@ public class SetupPasswordToolTests extends CommandTestCase {
         URL url = new URL(httpClient.getDefaultURL());
 
         terminal.reset();
+        if (passwordProtectedKeystore) {
+            terminal.addSecretInput("keystore-password");
+        }
         terminal.addTextInput("Y");
         for (String user : SetupPasswordTool.USERS) {
             // fail in strength and match
@@ -439,8 +456,23 @@ public class SetupPasswordToolTests extends CommandTestCase {
             ArgumentCaptor<CheckedSupplier<String, Exception>> passwordCaptor = ArgumentCaptor.forClass((Class) CheckedSupplier.class);
             inOrder.verify(httpClient).execute(eq("PUT"), eq(urlWithRoute), eq(ElasticUser.NAME), eq(bootstrapPassword),
                     passwordCaptor.capture(), any(CheckedFunction.class));
-            assertThat(passwordCaptor.getValue().get(), CoreMatchers.containsString(user + "-password"));
+            assertThat(passwordCaptor.getValue().get(), containsString(user + "-password"));
         }
+    }
+
+    public void testWrongKeystorePassword() throws Exception {
+        assumeFalse("Can't test this when the keystore isn't password protected", passwordProtectedKeystore == false);
+        terminal.reset();
+        terminal.addSecretInput("wrong-password");
+        final UserException e = expectThrows(UserException.class, () -> {
+            if (randomBoolean()) {
+                execute("auto", pathHomeParameter, "-b", "true");
+            } else {
+                terminal.addTextInput("Y");
+                execute("auto", pathHomeParameter);
+            }
+        });
+        assertThat(e.getMessage(), containsString("Wrong password for elasticsearch.keystore"));
     }
 
     private String parsePassword(String value) throws IOException {

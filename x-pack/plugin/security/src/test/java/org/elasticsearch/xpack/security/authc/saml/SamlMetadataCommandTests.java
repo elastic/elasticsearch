@@ -33,6 +33,7 @@ import org.opensaml.xmlsec.signature.X509Certificate;
 import org.opensaml.xmlsec.signature.X509Data;
 import org.opensaml.xmlsec.signature.support.SignatureValidator;
 
+import javax.crypto.AEADBadTagException;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -54,25 +55,34 @@ import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class SamlMetadataCommandTests extends SamlTestCase {
 
     private KeyStoreWrapper keyStore;
+    private boolean passwordProtectedKeystore = false;
 
     @Before
     public void setup() throws Exception {
         SamlUtils.initialize(logger);
         this.keyStore = mock(KeyStoreWrapper.class);
         when(keyStore.isLoaded()).thenReturn(true);
+        if (randomBoolean()) {
+            passwordProtectedKeystore = true;
+            when(keyStore.hasPassword()).thenReturn(true);
+            doNothing().when(keyStore).decrypt("keystore-password".toCharArray());
+            doThrow(new SecurityException("Provided keystore password was incorrect", new AEADBadTagException())).when(keyStore).decrypt("wrong-password".toCharArray());
+        }
     }
 
     public void testDefaultOptions() throws Exception {
         final Path certPath = getDataPath("saml.crt");
         final Path keyPath = getDataPath("saml.key");
 
-        final SamlMetadataCommand command = new SamlMetadataCommand((e) -> randomFrom(keyStore, null));
+        final SamlMetadataCommand command = new SamlMetadataCommand((e) -> keyStore);
         final OptionSet options = command.getParser().parse(new String[0]);
 
         final boolean useSigningCredentials = randomBoolean();
@@ -93,6 +103,9 @@ public class SamlMetadataCommandTests extends SamlTestCase {
 
         final MockTerminal terminal = new MockTerminal();
 
+        if (passwordProtectedKeystore) {
+            terminal.addSecretInput("keystore-password");
+        }
         // What is the friendly name for "principal" attribute "urn:oid:0.9.2342.19200300.100.1.1" [default: principal]
         terminal.addTextInput("");
 
@@ -158,11 +171,13 @@ public class SamlMetadataCommandTests extends SamlTestCase {
                 .build();
         final Environment env = TestEnvironment.newEnvironment(settings);
 
-        final SamlMetadataCommand command = new SamlMetadataCommand((e) -> randomFrom(keyStore, null));
+        final SamlMetadataCommand command = new SamlMetadataCommand((e) -> keyStore);
         final OptionSet options = command.getParser().parse(new String[0]);
 
         final MockTerminal terminal = new MockTerminal();
-
+        if (passwordProtectedKeystore) {
+            terminal.addSecretInput("keystore-password");
+        }
         final UserException userException = expectThrows(UserException.class, () -> command.buildEntityDescriptor(terminal, options, env));
         assertThat(userException.getMessage(), containsString("multiple SAML realms"));
         assertThat(terminal.getOutput(), containsString("saml_a"));
@@ -188,6 +203,9 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         });
 
         final MockTerminal terminal = new MockTerminal();
+        if (passwordProtectedKeystore) {
+            terminal.addSecretInput("keystore-password");
+        }
         final EntityDescriptor descriptor = command.buildEntityDescriptor(terminal, options, env);
 
         assertThat(descriptor, notNullValue());
@@ -212,14 +230,16 @@ public class SamlMetadataCommandTests extends SamlTestCase {
                 .build();
         final Environment env = TestEnvironment.newEnvironment(settings);
 
-        final SamlMetadataCommand command = new SamlMetadataCommand((e) -> randomFrom(keyStore, null));
+        final SamlMetadataCommand command = new SamlMetadataCommand((e) -> keyStore);
         final OptionSet options = command.getParser().parse(new String[] {
                 "-attribute", "urn:oid:0.9.2342.19200300.100.1.3",
                 "-attribute", "groups"
         });
 
         final MockTerminal terminal = new MockTerminal();
-
+        if (passwordProtectedKeystore) {
+            terminal.addSecretInput("keystore-password");
+        }
         // What is the friendly name for command line attribute "urn:oid:0.9.2342.19200300.100.1.3" [default: none]
         terminal.addTextInput("mail");
         // What is the standard (urn) name for attribute "groups" (required)
@@ -265,13 +285,16 @@ public class SamlMetadataCommandTests extends SamlTestCase {
                 .build();
         final Environment env = TestEnvironment.newEnvironment(settings);
 
-        final SamlMetadataCommand command = new SamlMetadataCommand((e) -> randomFrom(keyStore, null));
+        final SamlMetadataCommand command = new SamlMetadataCommand((e) -> keyStore);
         final OptionSet options = command.getParser().parse(new String[] {
                 "-attribute", "urn:oid:0.9.2342.19200300.100.1.3",
                 "-batch"
         });
 
         final MockTerminal terminal = new MockTerminal();
+        if (passwordProtectedKeystore) {
+            terminal.addSecretInput("keystore-password");
+        }
         final EntityDescriptor descriptor = command.buildEntityDescriptor(terminal, options, env);
 
         assertThat(descriptor, notNullValue());
@@ -297,7 +320,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         final Path certPath = getDataPath("saml.crt");
         final Path keyPath = getDataPath("saml.key");
         final Path p12Path = getDataPath("saml.p12");
-        final SamlMetadataCommand command = new SamlMetadataCommand((e) -> randomFrom(keyStore, null));
+        final SamlMetadataCommand command = new SamlMetadataCommand((e) -> keyStore);
         final OptionSet options = command.getParser().parse(new String[]{
                 "-signing-bundle", p12Path.toString()
         });
@@ -320,7 +343,9 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         final Environment env = TestEnvironment.newEnvironment(settings);
 
         final MockTerminal terminal = new MockTerminal();
-
+        if (passwordProtectedKeystore) {
+            terminal.addSecretInput("keystore-password");
+        }
         // What is the friendly name for "principal" attribute "urn:oid:0.9.2342.19200300.100.1.1" [default: principal]
         terminal.addTextInput("");
         terminal.addSecretInput("");
@@ -357,7 +382,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         final Path certPath = getDataPath("saml.crt");
         final Path keyPath = getDataPath("saml.key");
         final Path p12Path = getDataPath("saml_with_password.p12");
-        final SamlMetadataCommand command = new SamlMetadataCommand((e) -> randomFrom(keyStore, null));
+        final SamlMetadataCommand command = new SamlMetadataCommand((e) -> keyStore);
         final OptionSet options = command.getParser().parse(new String[]{
                 "-signing-bundle", p12Path.toString(),
                 "-signing-key-password", "saml"
@@ -380,7 +405,9 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         final Environment env = TestEnvironment.newEnvironment(settings);
 
         final MockTerminal terminal = new MockTerminal();
-
+        if (passwordProtectedKeystore) {
+            terminal.addSecretInput("keystore-password");
+        }
         final EntityDescriptor descriptor = command.buildEntityDescriptor(terminal, options, env);
         command.possiblySignDescriptor(terminal, options, descriptor, env);
         assertThat(descriptor, notNullValue());
@@ -393,7 +420,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         final Path certPath = getDataPath("saml.crt");
         final Path keyPath = getDataPath("saml.key");
         final Path signingKeyPath = getDataPath("saml_with_password.key");
-        final SamlMetadataCommand command = new SamlMetadataCommand((e) -> randomFrom(keyStore, null));
+        final SamlMetadataCommand command = new SamlMetadataCommand((e) -> keyStore);
         final OptionSet options = command.getParser().parse(new String[]{
             "-signing-cert", certPath.toString(),
             "-signing-key", signingKeyPath.toString(),
@@ -418,7 +445,9 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         final Environment env = TestEnvironment.newEnvironment(settings);
 
         final MockTerminal terminal = new MockTerminal();
-
+        if (passwordProtectedKeystore) {
+            terminal.addSecretInput("keystore-password");
+        }
         final EntityDescriptor descriptor = command.buildEntityDescriptor(terminal, options, env);
         final UserException userException = expectThrows(UserException.class, () -> command.possiblySignDescriptor(terminal, options,
                 descriptor, env));
@@ -431,7 +460,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         final Path certPath = getDataPath("saml.crt");
         final Path keyPath = getDataPath("saml.key");
 
-        final SamlMetadataCommand command = new SamlMetadataCommand((e) -> randomFrom(keyStore, null));
+        final SamlMetadataCommand command = new SamlMetadataCommand((e) -> keyStore);
         final OptionSet options = command.getParser().parse(new String[]{
                 "-signing-cert", certPath.toString(),
                 "-signing-key", keyPath.toString()
@@ -454,7 +483,9 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         final Environment env = TestEnvironment.newEnvironment(settings);
 
         final MockTerminal terminal = new MockTerminal();
-
+        if (passwordProtectedKeystore) {
+            terminal.addSecretInput("keystore-password");
+        }
         final EntityDescriptor descriptor = command.buildEntityDescriptor(terminal, options, env);
         command.possiblySignDescriptor(terminal, options, descriptor, env);
         assertThat(descriptor, notNullValue());
@@ -495,7 +526,9 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         final Environment env = TestEnvironment.newEnvironment(settings);
 
         final MockTerminal terminal = new MockTerminal();
-
+        if (passwordProtectedKeystore) {
+            terminal.addSecretInput("keystore-password");
+        }
         final EntityDescriptor descriptor = command.buildEntityDescriptor(terminal, options, env);
         command.possiblySignDescriptor(terminal, options, descriptor, env);
         assertThat(descriptor, notNullValue());
@@ -511,7 +544,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         final Path certPath = getDataPath("saml.crt");
         final Path keyPath = getDataPath("saml.key");
 
-        final SamlMetadataCommand command = new SamlMetadataCommand((e) -> randomFrom(keyStore, null));
+        final SamlMetadataCommand command = new SamlMetadataCommand((e) -> keyStore);
         final OptionSet options = command.getParser().parse(new String[]{
                 "-signing-cert", certPath.toString(),
                 "-signing-key", signingKeyPath.toString()
@@ -535,7 +568,9 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         final Environment env = TestEnvironment.newEnvironment(settings);
 
         final MockTerminal terminal = new MockTerminal();
-
+        if (passwordProtectedKeystore) {
+            terminal.addSecretInput("keystore-password");
+        }
         terminal.addSecretInput("saml");
 
         final EntityDescriptor descriptor = command.buildEntityDescriptor(terminal, options, env);
@@ -604,7 +639,9 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         final Environment env = TestEnvironment.newEnvironment(settings);
 
         final MockTerminal terminal = new MockTerminal();
-
+        if (passwordProtectedKeystore) {
+            terminal.addSecretInput("keystore-password");
+        }
         // What is the friendly name for "principal" attribute
         // "urn:oid:0.9.2342.19200300.100.1.1" [default: principal]
         terminal.addTextInput("");

@@ -42,6 +42,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -64,6 +65,8 @@ import org.opensaml.xmlsec.signature.support.SignatureConstants;
 import org.opensaml.xmlsec.signature.support.Signer;
 import org.w3c.dom.Element;
 import org.xml.sax.SAXException;
+
+import javax.crypto.AEADBadTagException;
 
 /**
  * CLI tool to generate SAML Metadata for a Service Provider (realm)
@@ -414,13 +417,22 @@ public class SamlMetadataCommand extends EnvironmentAwareCommand {
     /**
      * @TODO REALM-SETTINGS[TIM] This can be redone a lot now the realm settings are keyed by type
      */
-    private RealmConfig findRealm(Terminal terminal, OptionSet options, Environment env) throws UserException, IOException, Exception {
+    private RealmConfig findRealm(Terminal terminal, OptionSet options, Environment env) throws Exception {
 
         keyStoreWrapper = keyStoreFunction.apply(env);
         final Settings settings;
         if (keyStoreWrapper != null) {
-            // TODO: We currently do not support keystore passwords
-            keyStoreWrapper.decrypt(new char[0]);
+            try (SecureString keystorePassword = keyStoreWrapper.hasPassword() ?
+                new SecureString(terminal.readSecret("Enter the password for elasticsearch.keystore: ")) : new SecureString(new char[0])) {
+                keyStoreWrapper.decrypt(keystorePassword.getChars());
+            } catch (SecurityException e) {
+                if (e.getCause() instanceof AEADBadTagException) {
+                    terminal.println("");
+                    terminal.println("Failed to decrypt elasticsearch.keystore with the provided password.");
+                    terminal.println("");
+                    throw new UserException(ExitCodes.DATA_ERROR, "Wrong password for elasticsearch.keystore");
+                }
+            }
 
             final Settings.Builder settingsBuilder = Settings.builder();
             settingsBuilder.put(env.settings(), true);

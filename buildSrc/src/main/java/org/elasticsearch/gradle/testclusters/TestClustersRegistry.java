@@ -5,10 +5,8 @@ import org.gradle.api.logging.Logging;
 
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 public class TestClustersRegistry {
     private static final Logger logger =  Logging.getLogger(TestClustersRegistry.class);

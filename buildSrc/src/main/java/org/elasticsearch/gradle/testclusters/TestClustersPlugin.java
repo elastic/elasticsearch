@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.gradle.testclusters;
 
-import groovy.lang.Closure;
 import org.elasticsearch.gradle.DistributionDownloadPlugin;
 import org.elasticsearch.gradle.ElasticsearchDistribution;
 import org.elasticsearch.gradle.ReaperPlugin;
@@ -32,7 +31,6 @@ import org.gradle.api.execution.TaskExecutionListener;
 import org.gradle.api.invocation.Gradle;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
-import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.api.tasks.TaskState;
 
 import java.io.File;

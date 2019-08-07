@@ -1,23 +1,23 @@
 [role="xpack"]
 [testenv="basic"]
-[[put-data-frame-transform]]
-=== Create {dataframe-transforms} API
+[[update-data-frame-transform]]
+=== Update {dataframe-transforms} API
 
 [subs="attributes"]
 ++++
-<titleabbrev>Create {dataframe-transforms}</titleabbrev>
+<titleabbrev>Update {dataframe-transforms}</titleabbrev>
 ++++
 
-Instantiates a {dataframe-transform}.
+Updates an existing {dataframe-transform}.
 
 beta[]
 
-[[put-data-frame-transform-request]]
+[[update-data-frame-transform-request]]
 ==== {api-request-title}
 
-`PUT _data_frame/transforms/<data_frame_transform_id>`
+`POST _data_frame/transforms/<data_frame_transform_id>/_update`
 
-[[put-data-frame-transform-prereqs]]
+[[update-data-frame-transform-prereqs]]
 ==== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have
@@ -28,38 +28,24 @@ have `read` and `view_index_metadata` privileges on the source index and `read`,
 information, see {stack-ov}/security-privileges.html[Security privileges] and
 {stack-ov}/built-in-roles.html[Built-in roles].
 
-[[put-data-frame-transform-desc]]
+[[update-data-frame-transform-desc]]
 ==== {api-description-title}
 
-This API defines a {dataframe-transform}, which copies data from source indices,
-transforms it, and persists it into an entity-centric destination index. The
-entities are defined by the set of `group_by` fields in the `pivot` object. You
-can also think of the destination index as a two-dimensional tabular data
-structure (known as a {dataframe}). The ID for each document in the
-{dataframe} is generated from a hash of the entity, so there is a unique row
-per entity. For more information, see
-{stack-ov}/ml-dataframes.html[{dataframe-transforms-cap}].
+This API updates an existing {dataframe-transform}. All settings except description do not
+take effect until after the {dataframe-transform} starts the next checkpoint. This is
+so there is consistency with the pivoted data in each checkpoint.
 
-When the {dataframe-transform} is created, a series of validations occur to
-ensure its success. For example, there is a check for the existence of the
-source indices and a check that the destination index is not part of the source
-index pattern. You can use the `defer_validation` parameter to skip these
-checks.
+IMPORTANT: When {es} {security-features} are enabled, your {dataframe-transform}
+remembers which roles the user who updated it had at the time of update and
+runs with those privileges.
 
-Deferred validations are always run when the {dataframe-transform} is started,
-with the exception of privilege checks. When {es} {security-features} are
-enabled, the {dataframe-transform} remembers which roles the user that created
-it had at the time of creation and uses those same roles. If those roles do not
-have the required privileges on the source and destination indices, the
-{dataframe-transform} fails when it attempts unauthorized operations.
-
-IMPORTANT:  You must use {kib} or this API to create a {dataframe-transform}.
-            Do not put a {dataframe-transform} directly into any
+IMPORTANT:  You must use {kib} or this API to update a {dataframe-transform}.
+            Do not update a {dataframe-transform} directly via
             `.data-frame-internal*` indices using the Elasticsearch index API.
             If {es} {security-features} are enabled, do not give users any
             privileges on `.data-frame-internal*` indices.
 
-[[put-data-frame-transform-path-parms]]
+[[update-data-frame-transform-path-parms]]
 ==== {api-path-parms-title}
 
 `<data_frame_transform_id>`::
@@ -67,22 +53,22 @@ IMPORTANT:  You must use {kib} or this API to create a {dataframe-transform}.
   can contain lowercase alphanumeric characters (a-z and 0-9), hyphens, and
   underscores. It must start and end with alphanumeric characters.
 
-[[put-data-frame-transform-query-parms]]
+[[update-data-frame-transform-query-parms]]
 ==== {api-query-parms-title}
 
 `defer_validation`::
   (Optional, boolean) When `true`, deferrable validations are not run. This
   behavior may be desired if the source index does not exist until after the
-  {dataframe-transform} is created.
+  {dataframe-transform} is updated.
 
-[[put-data-frame-transform-request-body]]
+[[update-data-frame-transform-request-body]]
 ==== {api-request-body-title}
 
 `description`::
   (Optional, string) Free text description of the {dataframe-transform}.
 
 `dest`::
-  (Required, object) Required. The destination configuration, which has the
+  (Optional, object) The destination configuration, which has the
   following properties:
   
   `index`:::
@@ -92,18 +78,14 @@ IMPORTANT:  You must use {kib} or this API to create a {dataframe-transform}.
     (Optional, string) The unique identifier for a <<pipeline,pipeline>>.
 
 `frequency`::
-  (Optional, <<time-units, time units>>) The interval between checks for changes in the source
+  (Optional, time units) The interval between checks for changes in the source
   indices when the {dataframe-transform} is running continuously. Also determines
   the retry interval in the event of transient failures while the {dataframe-transform} is
   searching or indexing. The minimum value is `1s` and the maximum is `1h`. The
   default value is `1m`.
 
-`pivot`::
-  (Required, object) Defines the pivot function `group by` fields and the aggregation to
-  reduce the data. See <<data-frame-transform-pivot>>.
-
 `source`::
-  (Required, object) The source configuration, which has the following
+  (Optional, object) The source configuration, which has the following
   properties:
   
   `index`:::
@@ -133,18 +115,50 @@ delays.
 
 --
     `delay`::::
-      (Optional, <<time-units, time units>>) The time delay between the current time and the
+      (Optional, time units) The time delay between the current time and the
       latest input data time. The default value is `60s`.
 
-[[put-data-frame-transform-example]]
+[[update-data-frame-transform-example]]
 ==== {api-examples-title}
 
 [source,js]
 --------------------------------------------------
-PUT _data_frame/transforms/ecommerce_transform
+POST _data_frame/transforms/simple-kibana-ecomm-pivot/_update
 {
   "source": {
     "index": "kibana_sample_data_ecommerce",
+    "query": {
+      "term": {
+        "geoip.continent_name": {
+          "value": "Asia"
+        }
+      }
+    }
+  },
+  "description": "Maximum priced ecommerce data by customer_id in Asia",
+  "dest": {
+    "index": "kibana_sample_data_ecommerce_transform_v2",
+    "pipeline": "add_timestamp_pipeline"
+  },
+  "frequency": "15m",
+  "sync": {
+    "time": {
+      "field": "order_date",
+      "delay": "120s"
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:simple_kibana_continuous_pivot]
+
+When the transform is updated, you receive the updated configuration:
+[source,js]
+----
+{
+  "id": "simple-kibana-ecomm-pivot",
+  "source": {
+    "index": ["kibana_sample_data_ecommerce"],
     "query": {
       "term": {
         "geoip.continent_name": {
@@ -171,26 +185,19 @@ PUT _data_frame/transforms/ecommerce_transform
   },
   "description": "Maximum priced ecommerce data by customer_id in Asia",
   "dest": {
-    "index": "kibana_sample_data_ecommerce_transform",
+    "index": "kibana_sample_data_ecommerce_transform_v2",
     "pipeline": "add_timestamp_pipeline"
   },
-  "frequency": "5m",
+  "frequency": "15m",
   "sync": {
     "time": {
       "field": "order_date",
-      "delay": "60s"
+      "delay": "120s"
     }
-  }
-}
---------------------------------------------------
-// CONSOLE
-// TEST[setup:kibana_sample_data_ecommerce]
-
-When the transform is created, you receive the following results:
-[source,js]
-----
-{
-  "acknowledged" : true
+  },
+  "version": "8.0.0-alpha1",
+  "create_time": 1518808660505
 }
 ----
-// TESTRESPONSE
+// TESTRESPONSE[s/"version": "8.0.0-alpha1"/"version": $body.version/]
+// TESTRESPONSE[s/"create_time": 1518808660505/"create_time": $body.create_time/]

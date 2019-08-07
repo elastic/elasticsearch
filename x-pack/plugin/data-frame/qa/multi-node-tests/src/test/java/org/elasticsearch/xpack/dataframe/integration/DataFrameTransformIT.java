@@ -7,28 +7,40 @@
 package org.elasticsearch.xpack.dataframe.integration;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig;
+import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfigUpdate;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformTaskState;
+import org.elasticsearch.client.dataframe.transforms.DestConfig;
 import org.elasticsearch.client.dataframe.transforms.TimeSyncConfig;
 import org.elasticsearch.client.dataframe.transforms.pivot.SingleGroupSource;
 import org.elasticsearch.client.dataframe.transforms.pivot.TermsGroupSource;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.junit.After;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -115,30 +127,7 @@ public class DataFrameTransformIT extends DataFrameIntegTestCase {
         // index some more docs
         long timeStamp = Instant.now().toEpochMilli() - 1_000;
         long user = 42;
-        BulkRequest bulk = new BulkRequest(indexName);
-        for (int i = 0; i < 25; i++) {
-            int stars = (i + 20) % 5;
-            long business = (i + 100) % 50;
-
-            StringBuilder sourceBuilder = new StringBuilder();
-            sourceBuilder.append("{\"user_id\":\"")
-                .append("user_")
-                .append(user)
-                .append("\",\"count\":")
-                .append(i)
-                .append(",\"business_id\":\"")
-                .append("business_")
-                .append(business)
-                .append("\",\"stars\":")
-                .append(stars)
-                .append(",\"timestamp\":")
-                .append(timeStamp)
-                .append("}");
-            bulk.add(new IndexRequest().source(sourceBuilder.toString(), XContentType.JSON));
-        }
-        bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        bulkIndexDocs(bulk);
-
+        indexMoreDocs(timeStamp, user, indexName);
         waitUntilCheckpoint(config.getId(), 2L);
 
         // Assert that we wrote the new docs
@@ -150,5 +139,124 @@ public class DataFrameTransformIT extends DataFrameIntegTestCase {
 
         stopDataFrameTransform(config.getId());
         deleteDataFrameTransform(config.getId());
+    }
+
+    public void testContinuousDataFrameTransformUpdate() throws Exception {
+        String indexName = "continuous-reviews-update";
+        createReviewsIndex(indexName, 10);
+
+        Map<String, SingleGroupSource> groups = new HashMap<>();
+        groups.put("by-user", TermsGroupSource.builder().setField("user_id").build());
+
+        AggregatorFactories.Builder aggs = AggregatorFactories.builder()
+            .addAggregator(AggregationBuilders.avg("review_score").field("stars"))
+            .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"));
+
+        String id = "data-frame-transform-to-update";
+        String dest = "reviews-by-user-business-day-to-update";
+        DataFrameTransformConfig config = createTransformConfigBuilder(id,
+            groups,
+            aggs,
+            dest,
+            QueryBuilders.matchAllQuery(),
+            indexName)
+            .setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)))
+            .build();
+
+        assertTrue(putDataFrameTransform(config, RequestOptions.DEFAULT).isAcknowledged());
+        assertTrue(startDataFrameTransform(config.getId(), RequestOptions.DEFAULT).isAcknowledged());
+
+        waitUntilCheckpoint(config.getId(), 1L);
+        assertThat(getDataFrameTransformStats(config.getId()).getTransformsStats().get(0).getTaskState(),
+            equalTo(DataFrameTransformTaskState.STARTED));
+
+        long docsIndexed = getDataFrameTransformStats(config.getId())
+            .getTransformsStats()
+            .get(0)
+            .getIndexerStats()
+            .getNumDocuments();
+
+        DataFrameTransformConfig storedConfig = getDataFrameTransform(config.getId()).getTransformConfigurations().get(0);
+        assertThat(storedConfig.getVersion(), equalTo(Version.CURRENT));
+        Instant now = Instant.now();
+        assertTrue("[create_time] is not before current time", storedConfig.getCreateTime().isBefore(now));
+
+        String pipelineId = "add_forty_two";
+        DataFrameTransformConfigUpdate update = DataFrameTransformConfigUpdate.builder()
+            .setDescription("updated config")
+            .setDest(DestConfig.builder().setIndex(dest).setPipeline(pipelineId).build())
+            .build();
+
+        RestHighLevelClient hlrc = new TestRestHighLevelClient();
+        final XContentBuilder pipelineBuilder = jsonBuilder()
+            .startObject()
+            .startArray("processors")
+            .startObject()
+            .startObject("set")
+            .field("field", "static_forty_two")
+            .field("value", 42)
+            .endObject()
+            .endObject()
+            .endArray()
+            .endObject();
+        hlrc.ingest().putPipeline(new PutPipelineRequest(pipelineId, BytesReference.bytes(pipelineBuilder), XContentType.JSON),
+            RequestOptions.DEFAULT);
+
+        updateConfig(id, update);
+
+        // index some more docs
+        long timeStamp = Instant.now().toEpochMilli() - 1_000;
+        long user = 42;
+        indexMoreDocs(timeStamp, user, indexName);
+
+        // Since updates are loaded on checkpoint start, we should see the updated config on this next run
+        waitUntilCheckpoint(config.getId(), 2L);
+        long numDocsAfterCp2 = getDataFrameTransformStats(config.getId())
+            .getTransformsStats()
+            .get(0)
+            .getIndexerStats()
+            .getNumDocuments();
+        assertThat(numDocsAfterCp2, greaterThan(docsIndexed));
+
+        final SearchRequest searchRequest = new SearchRequest(dest)
+                .source(new SearchSourceBuilder()
+                    .trackTotalHits(true)
+                    .query(QueryBuilders.boolQuery()
+                        .filter(QueryBuilders.termQuery("static_forty_two", 42))));
+        // assert that we have the new field and its value is 42 in at least some docs
+        assertBusy(() -> {
+            final SearchResponse searchResponse = hlrc.search(searchRequest, RequestOptions.DEFAULT);
+            assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L));
+            hlrc.indices().refresh(new RefreshRequest(dest), RequestOptions.DEFAULT);
+        }, 30, TimeUnit.SECONDS);
+
+        stopDataFrameTransform(config.getId());
+        deleteDataFrameTransform(config.getId());
+    }
+
+    private void indexMoreDocs(long timestamp, long userId, String index) throws Exception {
+        BulkRequest bulk = new BulkRequest(index);
+        for (int i = 0; i < 25; i++) {
+            int stars = (i + 20) % 5;
+            long business = (i + 100) % 50;
+
+            StringBuilder sourceBuilder = new StringBuilder();
+            sourceBuilder.append("{\"user_id\":\"")
+                .append("user_")
+                .append(userId)
+                .append("\",\"count\":")
+                .append(i)
+                .append(",\"business_id\":\"")
+                .append("business_")
+                .append(business)
+                .append("\",\"stars\":")
+                .append(stars)
+                .append(",\"timestamp\":")
+                .append(timestamp)
+                .append("}");
+            bulk.add(new IndexRequest().source(sourceBuilder.toString(), XContentType.JSON));
+        }
+        bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        bulkIndexDocs(bulk);
     }
 }

@@ -1,4 +1,9 @@
 
+tag::bytes[]
+`bytes`::
+(Optional, <<byte-units,byte size units>>) Unit used to display byte values.
+end::bytes[]
+
 tag::cat-h[]
 `h` (headings)::
 (Optional, string) Comma-separated list of column names to display.
@@ -17,6 +22,18 @@ https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html[HTTP accept header].
 Valid values include JSON, YAML, etc.
 end::http-format[]
 
+tag::include-unloaded-segments[]
+`include_unloaded_segments`::
+(Optional, boolean) If `true`, the response includes information from segments
+that are **not** loaded into memory. Defaults to `false`.
+end::include-unloaded-segments[]
+
+tag::index[]
+`{index}`::
+(Optional, string) Comma-separated list or wildcard expression of index names
+used to limit the request.
+end::index[]
+
 tag::local[]
 `local`::
 (Optional, boolean) If `true`, the request retrieves information from the local
@@ -28,6 +45,12 @@ tag::name[]
 `{name}`::
 (Optional, string) Comma-separated list of alias names to return.
 end::name[]
+
+tag::node-id[]
+`{node_id}`::
+(Optional, string) Comma-separated list of node IDs or names used to limit
+returned information.
+end::node-id[]
 
 tag::cat-s[]
 `s` (sort)::

@@ -113,6 +113,7 @@ public class CloseIndexResponseTests extends AbstractWireSerializingTestCase<Clo
                             assertThat(actualFailure.getNodeId(), equalTo(expectedFailure.getNodeId()));
                             assertThat(actualFailure.index(), equalTo(expectedFailure.index()));
                             assertThat(actualFailure.shardId(), equalTo(expectedFailure.shardId()));
+                            assertThat(actualFailure.reason(), equalTo(expectedFailure.reason()));
                             assertThat(actualFailure.getCause().getMessage(), equalTo(expectedFailure.getCause().getMessage()));
                             assertThat(actualFailure.getCause().getClass(), equalTo(expectedFailure.getCause().getClass()));
                             assertArrayEquals(actualFailure.getCause().getStackTrace(), expectedFailure.getCause().getStackTrace());

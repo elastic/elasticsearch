@@ -24,7 +24,9 @@ import org.elasticsearch.client.dataframe.StartDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.StartDataFrameTransformResponse;
 import org.elasticsearch.client.dataframe.StopDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.StopDataFrameTransformResponse;
+import org.elasticsearch.client.dataframe.UpdateDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig;
+import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfigUpdate;
 import org.elasticsearch.client.dataframe.transforms.DestConfig;
 import org.elasticsearch.client.dataframe.transforms.QueryConfig;
 import org.elasticsearch.client.dataframe.transforms.SourceConfig;
@@ -231,6 +233,11 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
         assertThat(response.buildFailureMessage(), response.hasFailures(), is(false));
     }
 
+    protected void updateConfig(String id, DataFrameTransformConfigUpdate update) throws Exception {
+        RestHighLevelClient restClient = new TestRestHighLevelClient();
+        restClient.dataFrame().updateDataFrameTransform(new UpdateDataFrameTransformRequest(update, id), RequestOptions.DEFAULT);
+    }
+
     protected void createReviewsIndex(String indexName, int numDocs) throws Exception {
         RestHighLevelClient restClient = new TestRestHighLevelClient();
 
@@ -341,7 +348,7 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
             .build();
     }
 
-    private static class TestRestHighLevelClient extends RestHighLevelClient {
+    protected static class TestRestHighLevelClient extends RestHighLevelClient {
         private static final List<NamedXContentRegistry.Entry> X_CONTENT_ENTRIES =
             new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents();
         TestRestHighLevelClient() {

@@ -38,17 +38,22 @@ import org.elasticsearch.client.dataframe.StartDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.StartDataFrameTransformResponse;
 import org.elasticsearch.client.dataframe.StopDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.StopDataFrameTransformResponse;
+import org.elasticsearch.client.dataframe.UpdateDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.UpdateDataFrameTransformResponse;
 import org.elasticsearch.client.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig;
+import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfigUpdate;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformStats;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformTaskState;
 import org.elasticsearch.client.dataframe.transforms.DestConfig;
 import org.elasticsearch.client.dataframe.transforms.SourceConfig;
+import org.elasticsearch.client.dataframe.transforms.TimeSyncConfig;
 import org.elasticsearch.client.dataframe.transforms.pivot.GroupConfig;
 import org.elasticsearch.client.dataframe.transforms.pivot.PivotConfig;
 import org.elasticsearch.client.dataframe.transforms.pivot.TermsGroupSource;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexResponse;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -176,6 +181,33 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
                 () -> execute(new DeleteDataFrameTransformRequest(transform.getId()), client::deleteDataFrameTransform,
                         client::deleteDataFrameTransformAsync));
         assertThat(deleteError.getMessage(), containsString("Transform with id [test-crud] could not be found"));
+    }
+
+    public void testUpdate() throws IOException {
+        String sourceIndex = "update-transform-source";
+        createIndex(sourceIndex);
+
+        String id = "test-update";
+        DataFrameTransformConfig transform = validDataFrameTransformConfigBuilder(id, sourceIndex, "pivot-dest")
+            .setSyncConfig(new TimeSyncConfig("timefield", TimeValue.timeValueSeconds(60)))
+            .build();
+
+        DataFrameClient client = highLevelClient().dataFrame();
+        AcknowledgedResponse ack = execute(new PutDataFrameTransformRequest(transform), client::putDataFrameTransform,
+            client::putDataFrameTransformAsync);
+        assertTrue(ack.isAcknowledged());
+
+        String updatedDescription = "my new description";
+        DataFrameTransformConfigUpdate update = DataFrameTransformConfigUpdate.builder().setDescription(updatedDescription).build();
+        UpdateDataFrameTransformResponse response = execute(
+            new UpdateDataFrameTransformRequest(update, id), client::updateDataFrameTransform,
+            client::updateDataFrameTransformAsync);
+        assertThat(response.getTransformConfiguration().getDescription(), equalTo(updatedDescription));
+
+        ElasticsearchStatusException updateError = expectThrows(ElasticsearchStatusException.class,
+            () -> execute(new UpdateDataFrameTransformRequest(update, "missing-transform"), client::updateDataFrameTransform,
+                client::updateDataFrameTransformAsync));
+        assertThat(updateError.getMessage(), containsString("Transform with id [missing-transform] could not be found"));
     }
 
     public void testCreateDeleteWithDefer() throws IOException {
@@ -323,6 +355,10 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
     }
 
     private DataFrameTransformConfig validDataFrameTransformConfig(String id, String source, String destination) {
+        return validDataFrameTransformConfigBuilder(id, source, destination).build();
+    }
+
+    private DataFrameTransformConfig.Builder validDataFrameTransformConfigBuilder(String id, String source, String destination) {
         GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer",
             TermsGroupSource.builder().setField("user_id").build()).build();
         AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
@@ -336,8 +372,7 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
             .setSource(SourceConfig.builder().setIndex(source).setQuery(new MatchAllQueryBuilder()).build())
             .setDest(destConfig)
             .setPivotConfig(pivotConfig)
-            .setDescription("this is a test transform")
-            .build();
+            .setDescription("this is a test transform");
     }
 
     // TODO add tests to cover continuous situations

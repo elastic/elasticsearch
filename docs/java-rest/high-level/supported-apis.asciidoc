@@ -578,6 +578,7 @@ APIs:
 * <<{upid}-get-data-frame-transform>>
 * <<{upid}-get-data-frame-transform-stats>>
 * <<{upid}-put-data-frame-transform>>
+* <<{upid}-update-data-frame-transform>>
 * <<{upid}-delete-data-frame-transform>>
 * <<{upid}-preview-data-frame-transform>>
 * <<{upid}-start-data-frame-transform>>
@@ -586,6 +587,7 @@ APIs:
 include::dataframe/get_data_frame.asciidoc[]
 include::dataframe/get_data_frame_stats.asciidoc[]
 include::dataframe/put_data_frame.asciidoc[]
+include::dataframe/update_data_frame.asciidoc[]
 include::dataframe/delete_data_frame.asciidoc[]
 include::dataframe/preview_data_frame.asciidoc[]
 include::dataframe/start_data_frame.asciidoc[]

@@ -30,7 +30,7 @@ import java.io.IOException;
  * Used in {@link IndexShard} to hold the reference to the current {@link Engine}.
  */
 final class EngineReference implements Closeable {
-    private volatile boolean closed;
+    private boolean closed;
     private volatile Engine current;
 
     Engine get() {

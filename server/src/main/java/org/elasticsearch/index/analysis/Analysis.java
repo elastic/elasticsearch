@@ -84,7 +84,7 @@ public class Analysis {
         // check for the setting on the specific index component
         // and on the index itself as default for all analysis components
         if (settings.hasValue(settingName) || indexSettings.getSettings().hasValue("index.analysis." + settingName)) {
-            if (indexSettings.getIndexVersionCreated().before(version)) {
+            if (Version.CURRENT.before(version)) {
                 deprecationLogger.deprecatedAndMaybeLog("analysis_" + settingName,
                     "Index component '{}': [{}] is deprecated and will be removed in the next major release", componentName, settingName);
             } else {

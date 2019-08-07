@@ -58,6 +58,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.MatcherAssert;
+import org.junit.Assume;
 import org.junit.Test;
 
 import java.io.BufferedWriter;
@@ -160,20 +161,20 @@ public class AnalysisModuleTests extends ESTestCase {
 
     @Test
     public void defaultAnalyzersVersion_preV8_IsDeprecated() throws Exception {
-        Version versionCreated = VersionUtils.randomVersionBetween(random(),
-            Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_8_0_0));
+        Assume.assumeTrue(Version.CURRENT.before(Version.V_8_0_0));
+        Version versionCreated = VersionUtils.randomVersion(random());
 
         // 'version' on the index as default for all analysis components
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .put(IndexMetaData.SETTING_VERSION_CREATED, versionCreated)
-            .put("index.analysis.version", Version.V_7_0_0)
+            .put("index.analysis.version", "8.1.0")
             .put("index.analysis.analyzer.custom.type", "standard")
             .build();
 
         IndexAnalyzers indexAnalyzers = getIndexAnalyzers(getNewRegistry(settings), settings);
 
-        assertEquals(versionCreated.luceneVersion, indexAnalyzers.get("standard").analyzer().getVersion());
+        assertEquals(versionCreated.luceneVersion, indexAnalyzers.get("custom").analyzer().getVersion());
         assertWarnings(
             "Index component 'stop': [version] is deprecated and will be removed in the next major release",
             "Index component 'shingle': [version] is deprecated and will be removed in the next major release",
@@ -183,23 +184,23 @@ public class AnalysisModuleTests extends ESTestCase {
 
     @Test
     public void specificAnalyzersVersion_preV8_IsDeprecated() throws Exception {
-        Version versionCreated = VersionUtils.randomVersionBetween(random(),
-            Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_8_0_0));
+        Assume.assumeTrue(Version.CURRENT.before(Version.V_8_0_0));
+        Version versionCreated = VersionUtils.randomVersion(random());
 
         // 'version' on the specific analyzer components
-        Settings settings2 = Settings.builder()
+        Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .put(IndexMetaData.SETTING_VERSION_CREATED, versionCreated)
             .put("index.analysis.analyzer.very_old.type", "standard")
-            .put("index.analysis.analyzer.very_old.version", Version.fromString("3.6.0"))
+            .put("index.analysis.analyzer.very_old.version", "3.6.0")
             .put("index.analysis.analyzer.brand_new.type", "standard")
-            .put("index.analysis.analyzer.brand_new.version", Version.CURRENT)
+            .put("index.analysis.analyzer.brand_new.version", Version.CURRENT.luceneVersion)
             .build();
 
-        IndexAnalyzers indexAnalyzers2 = getIndexAnalyzers(getNewRegistry(settings2), settings2);
+        IndexAnalyzers indexAnalyzers = getIndexAnalyzers(getNewRegistry(settings), settings);
 
-        assertEquals(versionCreated.luceneVersion, indexAnalyzers2.get("very_old").analyzer().getVersion());
-        assertEquals(versionCreated.luceneVersion, indexAnalyzers2.get("brand_new").analyzer().getVersion());
+        assertEquals(versionCreated.luceneVersion, indexAnalyzers.get("very_old").analyzer().getVersion());
+        assertEquals(versionCreated.luceneVersion, indexAnalyzers.get("brand_new").analyzer().getVersion());
 
         assertWarnings(
             "Index component 'very_old': [version] is deprecated and will be removed in the next major release",
@@ -208,14 +209,13 @@ public class AnalysisModuleTests extends ESTestCase {
 
     @Test
     public void defaultAnalyzersVersion_sinceV8_IsRemoved() throws Exception {
-        Version versionCreated = VersionUtils.randomVersionBetween(random(),
-            Version.V_8_0_0, Version.CURRENT);
+        Assume.assumeTrue(Version.CURRENT.onOrAfter(Version.V_8_0_0));
 
         // 'version' on the index as default for all analysis components
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-            .put(IndexMetaData.SETTING_VERSION_CREATED, versionCreated)
-            .put("index.analysis.version", Version.CURRENT)
+            .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersion(random()))
+            .put("index.analysis.version", Version.CURRENT.luceneVersion)
             .put("index.analysis.analyzer.custom.type", "standard")
             .build();
 
@@ -227,19 +227,18 @@ public class AnalysisModuleTests extends ESTestCase {
 
     @Test
     public void specificAnalyzersVersion_sinceV8_IsRemoved() throws Exception {
-        Version versionCreated = VersionUtils.randomVersionBetween(random(),
-            Version.V_8_0_0, Version.CURRENT);
+        Assume.assumeTrue(Version.CURRENT.onOrAfter(Version.V_8_0_0));
 
         // 'version' on the specific analyzer component
-        Settings settings2 = Settings.builder()
+        Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-            .put(IndexMetaData.SETTING_VERSION_CREATED, versionCreated)
+            .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersion(random()))
             .put("index.analysis.analyzer.custom.type", "standard")
-            .put("index.analysis.analyzer.custom.version", Version.CURRENT)
+            .put("index.analysis.analyzer.custom.version", Version.CURRENT.luceneVersion)
             .build();
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> getIndexAnalyzers(getNewRegistry(settings2), settings2));
+            () -> getIndexAnalyzers(getNewRegistry(settings), settings));
 
         assertThat(e.getMessage(), equalTo("Index component 'custom': [version] is not supported..."));
     }

@@ -143,7 +143,7 @@
         "script": "!ctx.vars.found_state"
       },
       "logging" : {
-        "text" : "Watcher could not determine cluster state for cluster [{{ctx.metadata.xpack.cluster_uuid}}]. This likely means the cluster has not sent any monitoring data recently.",
+        "text" : "Watch [{{ctx.metadata.xpack.watch}}] could not determine cluster state for cluster [{{ctx.metadata.xpack.cluster_uuid}}]. This likely means the cluster has not sent any monitoring data recently.",
         "level" : "debug"
       }
     },

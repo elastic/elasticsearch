@@ -30,11 +30,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -163,8 +163,31 @@ public class PersistentTasksNodeService implements ClusterStateListener {
                 return executor.createTask(id, type, action, parentTaskId, taskInProgress, headers);
             }
         };
-        AllocatedPersistentTask task = (AllocatedPersistentTask) taskManager.register("persistent", taskInProgress.getTaskName() + "[c]",
-                request);
+
+        AllocatedPersistentTask task;
+        try {
+            task = (AllocatedPersistentTask) taskManager.register("persistent", taskInProgress.getTaskName() + "[c]", request);
+        } catch (Exception e) {
+            logger.error("Fatal error registering persistent task [{}] with id [{}] and allocation id [{}], removing from persistent tasks",
+                taskInProgress.getTaskName(), taskInProgress.getId(), taskInProgress.getAllocationId());
+
+            persistentTasksService.sendCompletionRequest(taskInProgress.getId(), taskInProgress.getAllocationId(), e,
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(PersistentTask<?> persistentTask) {
+                        logger.trace("completion notification for task [{}] with id [{}] was successful", taskInProgress.getTaskName(),
+                            taskInProgress.getAllocationId());
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.warn(new ParameterizedMessage("notification for task [{}] with id [{}] failed",
+                            taskInProgress.getTaskName(), taskInProgress.getAllocationId()), e);
+                    }
+            });
+            return;
+        }
+
         boolean processed = false;
         try {
             task.init(persistentTasksService, taskManager, logger, taskInProgress.getId(), taskInProgress.getAllocationId());

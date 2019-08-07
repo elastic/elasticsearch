@@ -88,7 +88,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
         final IndexCommit safeCommit;
         synchronized (this) {
             final int keptPosition = indexOfKeptCommits(commits, globalCheckpointSupplier.getAsLong());
-            lastCommit = commits.get(commits.size() - 1);
+            this.lastCommit = commits.get(commits.size() - 1);
             this.safeCommit = commits.get(keptPosition);
             for (int i = 0; i < keptPosition; i++) {
                 if (snapshottedCommits.containsKey(commits.get(i)) == false) {

@@ -1,5 +1,5 @@
 [[cat-templates]]
-== cat templates
+=== cat templates
 
 The `templates` command provides information about existing templates.
 

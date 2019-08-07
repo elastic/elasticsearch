@@ -41,11 +41,13 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geo.geometry.Geometry;
+import org.elasticsearch.geo.geometry.GeometryCollection;
 import org.elasticsearch.geo.geometry.Line;
 import org.elasticsearch.geo.geometry.MultiLine;
 import org.elasticsearch.geo.geometry.MultiPoint;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
+import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
@@ -131,6 +133,9 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         if (numPoints == 0) {
             expectedGeom = MultiPoint.EMPTY;
             actual = new MultiPointBuilder();
+        } else if (numPoints == 1) {
+            expectedGeom = points.get(0);
+            actual = new MultiPointBuilder(coordinates);
         } else {
             expectedGeom = new MultiPoint(points);
             actual = new MultiPointBuilder(coordinates);
@@ -195,7 +200,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         }
         Geometry expectedGeom;
         if (lines.isEmpty()) {
-            expectedGeom = MultiLine.EMPTY;
+            expectedGeom = GeometryCollection.EMPTY;
         } else if (lines.size() == 1) {
             expectedGeom = new Line(lines.get(0).getLats(), lines.get(0).getLons());
         } else {
@@ -466,7 +471,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         } else {
             GeometryCollectionBuilder gcb = RandomShapeGenerator.createGeometryCollection(random());
             assertExpected(gcb.buildS4J(), gcb, true);
-            assertExpected(gcb.buildGeometry(), gcb, false);
+            assertExpected(new GeoShapeIndexer(true, "name").prepareForIndexing(gcb.buildGeometry()), gcb, false);
         }
     }
 

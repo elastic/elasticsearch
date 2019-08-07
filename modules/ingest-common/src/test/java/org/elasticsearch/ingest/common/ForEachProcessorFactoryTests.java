@@ -49,7 +49,7 @@ public class ForEachProcessorFactoryTests extends ESTestCase {
         ForEachProcessor forEachProcessor = forEachFactory.create(registry, null, config);
         assertThat(forEachProcessor, Matchers.notNullValue());
         assertThat(forEachProcessor.getField(), equalTo("_field"));
-        assertThat(forEachProcessor.getProcessor(), Matchers.sameInstance(processor));
+        assertThat(forEachProcessor.getInnerProcessor(), Matchers.sameInstance(processor));
         assertFalse(forEachProcessor.isIgnoreMissing());
     }
 
@@ -66,7 +66,7 @@ public class ForEachProcessorFactoryTests extends ESTestCase {
         ForEachProcessor forEachProcessor = forEachFactory.create(registry, null, config);
         assertThat(forEachProcessor, Matchers.notNullValue());
         assertThat(forEachProcessor.getField(), equalTo("_field"));
-        assertThat(forEachProcessor.getProcessor(), Matchers.sameInstance(processor));
+        assertThat(forEachProcessor.getInnerProcessor(), Matchers.sameInstance(processor));
         assertTrue(forEachProcessor.isIgnoreMissing());
     }
 

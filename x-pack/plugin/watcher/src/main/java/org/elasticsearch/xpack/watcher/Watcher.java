@@ -515,11 +515,13 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
      * @param settings The current settings
      * @return A number between 5 and the number of processors
      */
-    static int getWatcherThreadPoolSize(Settings settings) {
-        boolean isDataNode = Node.NODE_DATA_SETTING.get(settings);
+    static int getWatcherThreadPoolSize(final Settings settings) {
+        return getWatcherThreadPoolSize(Node.NODE_DATA_SETTING.get(settings), EsExecutors.numberOfProcessors(settings));
+    }
+
+    static int getWatcherThreadPoolSize(final boolean isDataNode, final int numberOfProcessors) {
         if (isDataNode) {
-            int numberOfProcessors = EsExecutors.numberOfProcessors(settings);
-            long size = Math.max(Math.min(5 * numberOfProcessors, 50), numberOfProcessors);
+            final long size = Math.max(Math.min(5 * numberOfProcessors, 50), numberOfProcessors);
             return Math.toIntExact(size);
         } else {
             return 1;

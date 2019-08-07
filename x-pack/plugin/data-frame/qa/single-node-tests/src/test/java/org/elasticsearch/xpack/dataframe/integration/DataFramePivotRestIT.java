@@ -6,12 +6,7 @@
 
 package org.elasticsearch.xpack.dataframe.integration;
 
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.dataframe.transforms.DataFrameTransformTaskState;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.junit.Before;
 
@@ -22,9 +17,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -135,6 +128,49 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         Map<String, Object> searchResult = getAsMap(dataFrameIndex + "/_search?q=reviewer:user_0");
         Integer actual = (Integer) ((List<?>) XContentMapValues.extractValue("hits.hits._source.pipeline_field", searchResult)).get(0);
         assertThat(actual, equalTo(pipelineValue));
+    }
+
+    public void testBucketSelectorPivot() throws Exception {
+        String transformId = "simple_bucket_selector_pivot";
+        String dataFrameIndex = "bucket_selector_idx";
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, dataFrameIndex);
+        final Request createDataframeTransformRequest = createRequestWithAuth("PUT", DATAFRAME_ENDPOINT + transformId,
+            BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
+        String config = "{"
+            + " \"source\": {\"index\":\"" + REVIEWS_INDEX_NAME + "\"},"
+            + " \"dest\": {\"index\":\"" + dataFrameIndex + "\"},"
+            + " \"frequency\": \"1s\","
+            + " \"pivot\": {"
+            + "   \"group_by\": {"
+            + "     \"reviewer\": {"
+            + "       \"terms\": {"
+            + "         \"field\": \"user_id\""
+            + " } } },"
+            + "   \"aggregations\": {"
+            + "     \"avg_rating\": {"
+            + "       \"avg\": {"
+            + "         \"field\": \"stars\""
+            + "    } },"
+            + "     \"over_38\": {"
+            + "         \"bucket_selector\" : {"
+            + "            \"buckets_path\": {\"rating\":\"avg_rating\"}, "
+            + "            \"script\": \"params.rating > 3.8\""
+            + "         }"
+            + "      } } }"
+            + "}";
+        createDataframeTransformRequest.setJsonEntity(config);
+        Map<String, Object> createDataframeTransformResponse = entityAsMap(client().performRequest(createDataframeTransformRequest));
+        assertThat(createDataframeTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        startAndWaitForTransform(transformId, dataFrameIndex);
+        assertTrue(indexExists(dataFrameIndex));
+        // get and check some users
+        assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_11", 3.846153846);
+        assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_26", 3.918918918);
+
+        Map<String, Object> indexStats = getAsMap(dataFrameIndex + "/_stats");
+        // Should be less than the total number of users since we filtered every user who had an average review less than or equal to 3.8
+        assertEquals(21, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
     }
 
     public void testContinuousPivot() throws Exception {
@@ -641,6 +677,60 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         assertEquals(3.878048780, actual.doubleValue(), 0.000001);
     }
 
+    @SuppressWarnings("unchecked")
+    public void testPivotWithGeoBoundsAgg() throws Exception {
+        String transformId = "geo_bounds_pivot";
+        String dataFrameIndex = "geo_bounds_pivot_reviews";
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, dataFrameIndex);
+
+        final Request createDataframeTransformRequest = createRequestWithAuth("PUT", DATAFRAME_ENDPOINT + transformId,
+            BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
+
+        String config = "{"
+            + " \"source\": {\"index\":\"" + REVIEWS_INDEX_NAME + "\"},"
+            + " \"dest\": {\"index\":\"" + dataFrameIndex + "\"},";
+
+        config += " \"pivot\": {"
+            + "   \"group_by\": {"
+            + "     \"reviewer\": {"
+            + "       \"terms\": {"
+            + "         \"field\": \"user_id\""
+            + " } } },"
+            + "   \"aggregations\": {"
+            + "     \"avg_rating\": {"
+            + "       \"avg\": {"
+            + "         \"field\": \"stars\""
+            + " } },"
+            + "     \"boundary\": {"
+            + "       \"geo_bounds\": {\"field\": \"location\"}"
+            + " } } }"
+            + "}";
+
+        createDataframeTransformRequest.setJsonEntity(config);
+        Map<String, Object> createDataframeTransformResponse = entityAsMap(client().performRequest(createDataframeTransformRequest));
+        assertThat(createDataframeTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        startAndWaitForTransform(transformId, dataFrameIndex, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
+        assertTrue(indexExists(dataFrameIndex));
+
+        // we expect 27 documents as there shall be 27 user_id's
+        Map<String, Object> indexStats = getAsMap(dataFrameIndex + "/_stats");
+        assertEquals(27, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
+
+        // get and check some users
+        Map<String, Object> searchResult = getAsMap(dataFrameIndex + "/_search?q=reviewer:user_4");
+        assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
+        Number actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.avg_rating", searchResult)).get(0);
+        assertEquals(3.878048780, actual.doubleValue(), 0.000001);
+        Map<String, Object> actualObj = (Map<String, Object>) ((List<?>) XContentMapValues.extractValue("hits.hits._source.boundary",
+            searchResult))
+            .get(0);
+        assertThat(actualObj.get("type"), equalTo("point"));
+        List<Double> coordinates = (List<Double>)actualObj.get("coordinates");
+        assertEquals((4 + 10), coordinates.get(1), 0.000001);
+        assertEquals((4 + 15), coordinates.get(0), 0.000001);
+    }
+
     public void testPivotWithGeoCentroidAgg() throws Exception {
         String transformId = "geo_centroid_pivot";
         String dataFrameIndex = "geo_centroid_pivot_reviews";
@@ -728,44 +818,6 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
         Number actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.avg_rating", searchResult)).get(0);
         assertEquals(4.47169811, actual.doubleValue(), 0.000001);
-    }
-
-    public void testBulkIndexFailuresCauseTaskToFail() throws Exception {
-        String transformId = "bulk-failure-pivot";
-        String dataFrameIndex = "pivot-failure-index";
-        createPivotReviewsTransform(transformId, dataFrameIndex, null, null, null);
-
-        try (XContentBuilder builder = jsonBuilder()) {
-            builder.startObject();
-            {
-                builder.startObject("mappings")
-                    .startObject("properties")
-                    .startObject("reviewer")
-                    // This type should cause mapping coercion type conflict on bulk index
-                    .field("type", "long")
-                    .endObject()
-                    .endObject()
-                    .endObject();
-            }
-            builder.endObject();
-            final StringEntity entity = new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
-            Request req = new Request("PUT", dataFrameIndex);
-            req.setEntity(entity);
-            client().performRequest(req);
-        }
-        startDataframeTransform(transformId, false, null);
-
-        assertBusy(() -> assertEquals(DataFrameTransformTaskState.FAILED.value(), getDataFrameTaskState(transformId)),
-            120,
-            TimeUnit.SECONDS);
-
-        Map<?, ?> state = getDataFrameState(transformId);
-        assertThat((String) XContentMapValues.extractValue("state.reason", state),
-            containsString("task encountered more than 10 failures; latest failure: Bulk index experienced failures."));
-
-        // Force stop the transform as bulk indexing caused it to go into a failed state
-        stopDataFrameTransform(transformId, true);
-        deleteIndex(dataFrameIndex);
     }
 
     private void assertOnePivotValue(String query, double expected) throws IOException {

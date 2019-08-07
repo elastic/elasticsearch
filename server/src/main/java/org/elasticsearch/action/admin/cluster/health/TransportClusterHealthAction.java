@@ -26,7 +26,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.StreamableTransportMasterNodeReadAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -46,10 +47,11 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
-public class TransportClusterHealthAction extends StreamableTransportMasterNodeReadAction<ClusterHealthRequest, ClusterHealthResponse> {
+public class TransportClusterHealthAction extends TransportMasterNodeReadAction<ClusterHealthRequest, ClusterHealthResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportClusterHealthAction.class);
 
@@ -71,14 +73,14 @@ public class TransportClusterHealthAction extends StreamableTransportMasterNodeR
     }
 
     @Override
-    protected ClusterBlockException checkBlock(ClusterHealthRequest request, ClusterState state) {
-        // we want users to be able to call this even when there are global blocks, just to check the health (are there blocks?)
-        return null;
+    protected ClusterHealthResponse read(StreamInput in) throws IOException {
+        return new ClusterHealthResponse(in);
     }
 
     @Override
-    protected ClusterHealthResponse newResponse() {
-        return new ClusterHealthResponse();
+    protected ClusterBlockException checkBlock(ClusterHealthRequest request, ClusterState state) {
+        // we want users to be able to call this even when there are global blocks, just to check the health (are there blocks?)
+        return null;
     }
 
     @Override
@@ -138,7 +140,13 @@ public class TransportClusterHealthAction extends StreamableTransportMasterNodeR
                         final long timeoutInMillis = Math.max(0, endTimeRelativeMillis - threadPool.relativeTimeInMillis());
                         final TimeValue newTimeout = TimeValue.timeValueMillis(timeoutInMillis);
                         request.timeout(newTimeout);
-                        executeHealth(request, newState, listener, waitCount,
+
+                        // we must use the state from the applier service, because if the state-not-recovered block is in place then the
+                        // applier service has a different view of the cluster state from the one supplied here
+                        final ClusterState appliedState = clusterService.state();
+                        assert newState.stateUUID().equals(appliedState.stateUUID())
+                            : newState.stateUUID() + " vs " + appliedState.stateUUID();
+                        executeHealth(request, appliedState, listener, waitCount,
                             observedState -> waitForEventsAndExecuteHealth(request, listener, waitCount, endTimeRelativeMillis));
                     }
 

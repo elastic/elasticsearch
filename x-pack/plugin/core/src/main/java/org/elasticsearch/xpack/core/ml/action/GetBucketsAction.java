@@ -86,7 +86,7 @@ public class GetBucketsAction extends ActionType<GetBucketsAction.Response> {
         }
 
         public Request(StreamInput in) throws IOException {
-            super.readFrom(in);
+            super(in);
             jobId = in.readString();
             timestamp = in.readOptionalString();
             expand = in.readBoolean();
@@ -206,11 +206,6 @@ public class GetBucketsAction extends ActionType<GetBucketsAction.Response> {
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override

@@ -6,24 +6,23 @@
 
 package org.elasticsearch.xpack.core.dataframe.transforms;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.indexing.IndexerJobStats;
 
 import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class DataFrameIndexerTransformStats extends IndexerJobStats {
-    public static final String DEFAULT_TRANSFORM_ID = "_all";
+
+    private static final String DEFAULT_TRANSFORM_ID = "_all";  // TODO remove when no longer needed for wire BWC
 
     public static final String NAME = "data_frame_indexer_transform_stats";
     public static ParseField NUM_PAGES = new ParseField("pages_processed");
@@ -39,12 +38,11 @@ public class DataFrameIndexerTransformStats extends IndexerJobStats {
 
     private static final ConstructingObjectParser<DataFrameIndexerTransformStats, Void> LENIENT_PARSER = new ConstructingObjectParser<>(
             NAME, true,
-            args -> new DataFrameIndexerTransformStats(args[0] != null ? (String) args[0] : DEFAULT_TRANSFORM_ID,
-                    (long) args[1], (long) args[2], (long) args[3], (long) args[4], (long) args[5], (long) args[6], (long) args[7],
-                    (long) args[8], (long) args[9], (long) args[10]));
+            args -> new DataFrameIndexerTransformStats(
+                    (long) args[0], (long) args[1], (long) args[2], (long) args[3], (long) args[4], (long) args[5], (long) args[6],
+                    (long) args[7], (long) args[8], (long) args[9]));
 
     static {
-        LENIENT_PARSER.declareString(optionalConstructorArg(), DataFrameField.ID);
         LENIENT_PARSER.declareLong(constructorArg(), NUM_PAGES);
         LENIENT_PARSER.declareLong(constructorArg(), NUM_INPUT_DOCUMENTS);
         LENIENT_PARSER.declareLong(constructorArg(), NUM_OUTPUT_DOCUMENTS);
@@ -55,63 +53,40 @@ public class DataFrameIndexerTransformStats extends IndexerJobStats {
         LENIENT_PARSER.declareLong(constructorArg(), SEARCH_TOTAL);
         LENIENT_PARSER.declareLong(constructorArg(), INDEX_FAILURES);
         LENIENT_PARSER.declareLong(constructorArg(), SEARCH_FAILURES);
-        LENIENT_PARSER.declareString(optionalConstructorArg(), DataFrameField.INDEX_DOC_TYPE);
     }
-
-    private final String transformId;
 
     /**
-     * Certain situations call for a default transform ID, e.g. when merging many different transforms for statistics gather.
-     *
-     * The returned stats object cannot be stored in the index as the transformId does not refer to a real transform configuration
-     *
-     * @return new DataFrameIndexerTransformStats with empty stats and a default transform ID
+     * Create with all stats set to zero
      */
-    public static DataFrameIndexerTransformStats withDefaultTransformId() {
-        return new DataFrameIndexerTransformStats(DEFAULT_TRANSFORM_ID);
-    }
-
-    public static DataFrameIndexerTransformStats withDefaultTransformId(long numPages, long numInputDocuments, long numOutputDocuments,
-                                                                        long numInvocations, long indexTime, long searchTime,
-                                                                        long indexTotal, long searchTotal, long indexFailures,
-                                                                        long searchFailures) {
-        return new DataFrameIndexerTransformStats(DEFAULT_TRANSFORM_ID, numPages, numInputDocuments,
-            numOutputDocuments, numInvocations, indexTime, searchTime, indexTotal, searchTotal,
-            indexFailures, searchFailures);
-    }
-
-    public DataFrameIndexerTransformStats(String transformId) {
+    public DataFrameIndexerTransformStats() {
         super();
-        this.transformId = Objects.requireNonNull(transformId, "parameter transformId must not be null");
     }
 
-    public DataFrameIndexerTransformStats(String transformId, long numPages, long numInputDocuments, long numOutputDocuments,
+    public DataFrameIndexerTransformStats(long numPages, long numInputDocuments, long numOutputDocuments,
                                           long numInvocations, long indexTime, long searchTime, long indexTotal, long searchTotal,
                                           long indexFailures, long searchFailures) {
         super(numPages, numInputDocuments, numOutputDocuments, numInvocations, indexTime, searchTime, indexTotal, searchTotal,
             indexFailures, searchFailures);
-        this.transformId = Objects.requireNonNull(transformId, "parameter transformId must not be null");
     }
 
     public DataFrameIndexerTransformStats(DataFrameIndexerTransformStats other) {
-        this(other.transformId, other.numPages, other.numInputDocuments, other.numOuputDocuments, other.numInvocations,
+        this(other.numPages, other.numInputDocuments, other.numOuputDocuments, other.numInvocations,
             other.indexTime, other.searchTime, other.indexTotal, other.searchTotal, other.indexFailures, other.searchFailures);
     }
 
     public DataFrameIndexerTransformStats(StreamInput in) throws IOException {
         super(in);
-        transformId = in.readString();
+        if (in.getVersion().before(Version.V_7_4_0)) {
+            in.readString(); // was transformId
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(transformId);
-    }
-
-    @Nullable
-    public String getTransformId() {
-        return transformId;
+        if (out.getVersion().before(Version.V_7_4_0)) {
+            out.writeString(DEFAULT_TRANSFORM_ID);
+        }
     }
 
     @Override
@@ -127,22 +102,11 @@ public class DataFrameIndexerTransformStats extends IndexerJobStats {
         builder.field(SEARCH_TIME_IN_MS.getPreferredName(), searchTime);
         builder.field(SEARCH_TOTAL.getPreferredName(), searchTotal);
         builder.field(SEARCH_FAILURES.getPreferredName(), searchFailures);
-        if (params.paramAsBoolean(DataFrameField.FOR_INTERNAL_STORAGE, false)) {
-            // If we are storing something, it should have a valid transform ID.
-            if (transformId.equals(DEFAULT_TRANSFORM_ID)) {
-                throw new IllegalArgumentException("when storing transform statistics, a valid transform id must be provided");
-            }
-            builder.field(DataFrameField.ID.getPreferredName(), transformId);
-            builder.field(DataFrameField.INDEX_DOC_TYPE.getPreferredName(), NAME);
-        }
         builder.endObject();
         return builder;
     }
 
     public DataFrameIndexerTransformStats merge(DataFrameIndexerTransformStats other) {
-        // We should probably not merge two sets of stats unless one is an accumulation object (i.e. with the default transform id)
-        // or the stats are referencing the same transform
-        assert transformId.equals(DEFAULT_TRANSFORM_ID) || this.transformId.equals(other.transformId);
         numPages += other.numPages;
         numInputDocuments += other.numInputDocuments;
         numOuputDocuments += other.numOuputDocuments;
@@ -169,8 +133,7 @@ public class DataFrameIndexerTransformStats extends IndexerJobStats {
 
         DataFrameIndexerTransformStats that = (DataFrameIndexerTransformStats) other;
 
-        return Objects.equals(this.transformId, that.transformId)
-            && Objects.equals(this.numPages, that.numPages)
+        return Objects.equals(this.numPages, that.numPages)
             && Objects.equals(this.numInputDocuments, that.numInputDocuments)
             && Objects.equals(this.numOuputDocuments, that.numOuputDocuments)
             && Objects.equals(this.numInvocations, that.numInvocations)
@@ -184,7 +147,7 @@ public class DataFrameIndexerTransformStats extends IndexerJobStats {
 
     @Override
     public int hashCode() {
-        return Objects.hash(transformId, numPages, numInputDocuments, numOuputDocuments, numInvocations,
+        return Objects.hash(numPages, numInputDocuments, numOuputDocuments, numInvocations,
             indexTime, searchTime, indexFailures, searchFailures, indexTotal, searchTotal);
     }
 

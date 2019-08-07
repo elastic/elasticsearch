@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
+import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 
 import java.util.Objects;
 
@@ -35,8 +36,9 @@ public class TimingStatsReporter {
         return new TimingStats(currentTimingStats);
     }
 
-    public void reportBucketProcessingTime(long bucketProcessingTimeMs) {
-        currentTimingStats.updateStats(bucketProcessingTimeMs);
+    public void reportBucket(Bucket bucket) {
+        currentTimingStats.updateStats(bucket.getProcessingTimeMs());
+        currentTimingStats.setLatestRecordTimestamp(bucket.getTimestamp().toInstant().plusSeconds(bucket.getBucketSpan()));
         if (differSignificantly(currentTimingStats, persistedTimingStats)) {
             flush();
         }

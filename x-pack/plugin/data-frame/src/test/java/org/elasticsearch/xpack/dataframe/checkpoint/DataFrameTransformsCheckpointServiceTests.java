@@ -35,7 +35,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -54,14 +53,14 @@ public class DataFrameTransformsCheckpointServiceTests extends ESTestCase {
 
         ShardStats[] shardStatsArray = createRandomShardStats(expectedCheckpoints, indices, false, false, false);
 
-        Map<String, long[]> checkpoints = DataFrameTransformsCheckpointService.extractIndexCheckPoints(shardStatsArray, indices);
+        Map<String, long[]> checkpoints = DefaultCheckpointProvider.extractIndexCheckPoints(shardStatsArray, indices);
 
         assertEquals(expectedCheckpoints.size(), checkpoints.size());
         assertEquals(expectedCheckpoints.keySet(), checkpoints.keySet());
 
         // low-level compare
         for (Entry<String, long[]> entry : expectedCheckpoints.entrySet()) {
-            assertTrue(Arrays.equals(entry.getValue(), checkpoints.get(entry.getKey())));
+            assertArrayEquals(entry.getValue(), checkpoints.get(entry.getKey()));
         }
     }
 
@@ -71,14 +70,14 @@ public class DataFrameTransformsCheckpointServiceTests extends ESTestCase {
 
         ShardStats[] shardStatsArray = createRandomShardStats(expectedCheckpoints, indices, false, false, true);
 
-        Map<String, long[]> checkpoints = DataFrameTransformsCheckpointService.extractIndexCheckPoints(shardStatsArray, indices);
+        Map<String, long[]> checkpoints = DefaultCheckpointProvider.extractIndexCheckPoints(shardStatsArray, indices);
 
         assertEquals(expectedCheckpoints.size(), checkpoints.size());
         assertEquals(expectedCheckpoints.keySet(), checkpoints.keySet());
 
         // low-level compare
         for (Entry<String, long[]> entry : expectedCheckpoints.entrySet()) {
-            assertTrue(Arrays.equals(entry.getValue(), checkpoints.get(entry.getKey())));
+            assertArrayEquals(entry.getValue(), checkpoints.get(entry.getKey()));
         }
     }
 
@@ -88,14 +87,14 @@ public class DataFrameTransformsCheckpointServiceTests extends ESTestCase {
 
         ShardStats[] shardStatsArray = createRandomShardStats(expectedCheckpoints, indices, true, false, false);
 
-        Map<String, long[]> checkpoints = DataFrameTransformsCheckpointService.extractIndexCheckPoints(shardStatsArray, indices);
+        Map<String, long[]> checkpoints = DefaultCheckpointProvider.extractIndexCheckPoints(shardStatsArray, indices);
 
         assertEquals(expectedCheckpoints.size(), checkpoints.size());
         assertEquals(expectedCheckpoints.keySet(), checkpoints.keySet());
 
         // low-level compare
         for (Entry<String, long[]> entry : expectedCheckpoints.entrySet()) {
-            assertTrue(Arrays.equals(entry.getValue(), checkpoints.get(entry.getKey())));
+            assertArrayEquals(entry.getValue(), checkpoints.get(entry.getKey()));
         }
     }
 
@@ -107,9 +106,10 @@ public class DataFrameTransformsCheckpointServiceTests extends ESTestCase {
 
         // fail
         CheckpointException e = expectThrows(CheckpointException.class,
-                () -> DataFrameTransformsCheckpointService.extractIndexCheckPoints(shardStatsArray, indices));
+                () -> DefaultCheckpointProvider.extractIndexCheckPoints(shardStatsArray, indices));
 
-        assertThat(e.getMessage(), containsString("Global checkpoints mismatch"));    }
+        assertThat(e.getMessage(), containsString("Global checkpoints mismatch"));
+    }
 
     /**
      * Create a random set of 3 index names

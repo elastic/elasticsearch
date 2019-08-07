@@ -24,6 +24,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationTestScriptsPlugin;
+import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
@@ -410,5 +411,35 @@ public class MaxIT extends AbstractNumericTestCase {
         ValueCount count = searchResponse.getAggregations().get("count");
         assertThat(count.getName(), equalTo("count"));
         assertThat(count.getValue(), equalTo(20L));
+    }
+
+    public void testNestedEarlyTermination() throws Exception {
+        for (Aggregator.SubAggCollectionMode collectionMode : Aggregator.SubAggCollectionMode.values()) {
+            SearchResponse searchResponse = client().prepareSearch("idx")
+                .setTrackTotalHits(false)
+                .setQuery(matchAllQuery())
+                .addAggregation(max("max").field("values"))
+                .addAggregation(count("count").field("values"))
+                .addAggregation(terms("terms").field("value")
+                    .collectMode(collectionMode)
+                    .subAggregation(max("sub_max").field("invalid")))
+                .get();
+
+            Max max = searchResponse.getAggregations().get("max");
+            assertThat(max, notNullValue());
+            assertThat(max.getName(), equalTo("max"));
+            assertThat(max.getValue(), equalTo(12.0));
+
+            ValueCount count = searchResponse.getAggregations().get("count");
+            assertThat(count.getName(), equalTo("count"));
+            assertThat(count.getValue(), equalTo(20L));
+
+            Terms terms = searchResponse.getAggregations().get("terms");
+            assertThat(terms.getBuckets().size(), equalTo(10));
+            for (Terms.Bucket b : terms.getBuckets()) {
+                InternalMax subMax = b.getAggregations().get("sub_max");
+                assertThat(subMax.getValue(), equalTo(Double.NEGATIVE_INFINITY));
+            }
+        }
     }
 }

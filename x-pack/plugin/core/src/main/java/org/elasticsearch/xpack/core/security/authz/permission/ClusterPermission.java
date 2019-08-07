@@ -90,11 +90,15 @@ public class ClusterPermission {
             return this;
         }
 
-        public Builder add(final ConfigurableClusterPrivilege configurableClusterPrivilege, final Predicate<String> actionPredicate,
-                           final Predicate<TransportRequest> requestPredicate) {
+        public Builder add(final ConfigurableClusterPrivilege configurableClusterPrivilege,
+                           final Set<String> allowedActionPatterns,
+                           final Set<String> excludeActionPatterns,
+                           final PermissionCheckPredicate<TransportRequest> requestPredicate) {
+            final Automaton allowedAutomaton = Automatons.patterns(allowedActionPatterns);
+            final Automaton excludedAutomaton = Automatons.patterns(excludeActionPatterns);
             return add(configurableClusterPrivilege, new ActionRequestPredicatePermissionCheck(configurableClusterPrivilege,
-                                                                                               actionPredicate,
-                                                                                               requestPredicate));
+                Automatons.minusAndMinimize(allowedAutomaton, excludedAutomaton),
+                requestPredicate));
         }
 
         public Builder add(final ClusterPrivilege clusterPrivilege, final PermissionCheck permissionCheck) {
@@ -144,6 +148,21 @@ public class ClusterPermission {
         boolean implies(PermissionCheck permissionCheck);
     }
 
+    /**
+     * This class is a wrapper to {@link Predicate} used for building permission checks.
+     */
+    public interface PermissionCheckPredicate<T> {
+        /**
+         * Checks whether specified {@link PermissionCheckPredicate} is implied by this {@link PermissionCheckPredicate}.
+         * @param permissionCheckPredicate  {@link PermissionCheckPredicate}
+         * @return {@code true} if the specified permission is implied by this {@link PermissionCheckPredicate} else
+         * returns {@code false}
+         */
+        boolean implies(PermissionCheckPredicate<T> permissionCheckPredicate);
+
+        Predicate<T> predicate();
+    }
+
     // Automaton based permission check
     private static class AutomatonPermissionCheck implements PermissionCheck {
         private final Automaton automaton;
@@ -171,26 +190,31 @@ public class ClusterPermission {
     // action and request based permission check
     private static class ActionRequestPredicatePermissionCheck implements PermissionCheck {
         private final ClusterPrivilege clusterPrivilege;
+        private final Automaton actionAutomaton;
         final Predicate<String> actionPredicate;
-        final Predicate<TransportRequest> requestPredicate;
+        final PermissionCheckPredicate<TransportRequest> requestPredicate;
 
-        ActionRequestPredicatePermissionCheck(final ClusterPrivilege clusterPrivilege, final Predicate<String> actionPredicate,
-                                              final Predicate<TransportRequest> requestPredicate) {
+        ActionRequestPredicatePermissionCheck(final ClusterPrivilege clusterPrivilege,
+                                              final Automaton actionAutomaton,
+                                              final PermissionCheckPredicate<TransportRequest> requestPredicate) {
             this.clusterPrivilege = clusterPrivilege;
-            this.actionPredicate = actionPredicate;
+            this.actionAutomaton = actionAutomaton;
+            this.actionPredicate = Automatons.predicate(actionAutomaton);
             this.requestPredicate = requestPredicate;
         }
 
         @Override
         public boolean check(final String action, final TransportRequest request) {
-            return actionPredicate.test(action) && requestPredicate.test(request);
+            return actionPredicate.test(action) && requestPredicate.predicate().test(request);
         }
 
         @Override
         public boolean implies(final PermissionCheck permissionCheck) {
             if (permissionCheck instanceof ActionRequestPredicatePermissionCheck) {
                 final ActionRequestPredicatePermissionCheck otherCheck = (ActionRequestPredicatePermissionCheck) permissionCheck;
-                return this.clusterPrivilege.equals(otherCheck.clusterPrivilege);
+
+                return Operations.subsetOf(otherCheck.actionAutomaton,
+                    this.actionAutomaton) && this.requestPredicate.implies(otherCheck.requestPredicate);
             }
             return false;
         }

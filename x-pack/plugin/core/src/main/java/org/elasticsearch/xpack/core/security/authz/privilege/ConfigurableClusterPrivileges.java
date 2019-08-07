@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
+import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -125,26 +126,12 @@ public final class ConfigurableClusterPrivileges {
      * of applications (identified by a wildcard-aware application-name).
      */
     public static class ManageApplicationPrivileges implements ConfigurableClusterPrivilege {
-
-        private static final Predicate<String> ACTION_PREDICATE = Automatons.predicate("cluster:admin/xpack/security/privilege/*");
         public static final String WRITEABLE_NAME = "manage-application-privileges";
 
         private final Set<String> applicationNames;
-        private final Predicate<String> applicationPredicate;
-        private final Predicate<TransportRequest> requestPredicate;
 
         public ManageApplicationPrivileges(Set<String> applicationNames) {
             this.applicationNames = Collections.unmodifiableSet(applicationNames);
-            this.applicationPredicate = Automatons.predicate(applicationNames);
-            this.requestPredicate = request -> {
-                if (request instanceof ApplicationPrivilegesRequest) {
-                    final ApplicationPrivilegesRequest privRequest = (ApplicationPrivilegesRequest) request;
-                    final Collection<String> requestApplicationNames = privRequest.getApplicationNames();
-                    return requestApplicationNames.isEmpty() ? this.applicationNames.contains("*")
-                        : requestApplicationNames.stream().allMatch(application -> applicationPredicate.test(application));
-                }
-                return false;
-            };
         }
 
         @Override
@@ -215,12 +202,47 @@ public final class ConfigurableClusterPrivileges {
 
         @Override
         public ClusterPermission.Builder buildPermission(final ClusterPermission.Builder builder) {
-            return builder.add(this, ACTION_PREDICATE, requestPredicate);
+            return builder.add(this, Set.of("cluster:admin/xpack/security/privilege/*"), Set.of(),
+                new ManageApplicationPrivilegesPredicate(applicationNames));
         }
 
         private interface Fields {
             ParseField MANAGE = new ParseField("manage");
             ParseField APPLICATIONS = new ParseField("applications");
+        }
+
+        private static class ManageApplicationPrivilegesPredicate implements ClusterPermission.PermissionCheckPredicate<TransportRequest> {
+            private final Set<String> applicationNames;
+            private final Predicate<String> applicationPredicate;
+            private final Predicate<TransportRequest> requestPredicate;
+            ManageApplicationPrivilegesPredicate(Set<String> applicationNames) {
+                this.applicationNames = applicationNames;
+                this.applicationPredicate = Automatons.predicate(applicationNames);
+                this.requestPredicate = request -> {
+                    if (request instanceof ApplicationPrivilegesRequest) {
+                        final ApplicationPrivilegesRequest privRequest = (ApplicationPrivilegesRequest) request;
+                        final Collection<String> requestApplicationNames = privRequest.getApplicationNames();
+                        return requestApplicationNames.isEmpty() ? applicationNames.contains("*")
+                            : requestApplicationNames.stream().allMatch(application -> applicationPredicate.test(application));
+                    }
+                    return false;
+                };
+            }
+
+            @Override
+            public boolean implies(ClusterPermission.PermissionCheckPredicate<TransportRequest> permissionCheckPredicate) {
+                if (permissionCheckPredicate instanceof ManageApplicationPrivilegesPredicate) {
+                    ManageApplicationPrivilegesPredicate other = (ManageApplicationPrivilegesPredicate) permissionCheckPredicate;
+                    return Operations.subsetOf(Automatons.patterns(other.applicationNames),
+                        Automatons.patterns(this.applicationNames));
+                }
+                return false;
+            }
+
+            @Override
+            public Predicate<TransportRequest> predicate() {
+                return requestPredicate;
+            }
         }
     }
 }

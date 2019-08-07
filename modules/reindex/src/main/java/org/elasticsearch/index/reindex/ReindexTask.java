@@ -21,7 +21,6 @@ package org.elasticsearch.index.reindex;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.Client;
@@ -225,7 +224,7 @@ public class ReindexTask extends AllocatedPersistentTask {
         TaskManager taskManager = getTaskManager();
         assert taskManager != null : "TaskManager should have been set before reindex started";
 
-        ReindexTaskIndexState reindexState = new ReindexTaskIndexState(reindexRequest, null, wrapException(ex));
+        ReindexTaskIndexState reindexState = new ReindexTaskIndexState(reindexRequest, null, ex);
 
         reindexIndexClient.updateReindexTaskDoc(getPersistentTaskId(), reindexState, new ActionListener<>() {
             @Override
@@ -265,14 +264,6 @@ public class ReindexTask extends AllocatedPersistentTask {
             taskManager.storeResult(ReindexTask.this, ex, ActionListener.wrap(() -> markAsFailed(ex)));
         } else {
             markAsFailed(ex);
-        }
-    }
-
-    private static ElasticsearchException wrapException(Exception ex) {
-        if (ex instanceof ElasticsearchException) {
-            return (ElasticsearchException) ex;
-        } else {
-            return new ElasticsearchException(ex);
         }
     }
 

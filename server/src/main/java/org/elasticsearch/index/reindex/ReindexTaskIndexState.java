@@ -51,14 +51,14 @@ public class ReindexTaskIndexState implements ToXContentObject {
 
     private final ReindexRequest reindexRequest;
     private final BulkByScrollResponse reindexResponse;
-    private final ElasticsearchException exception;
+    private final Exception exception;
 
     public ReindexTaskIndexState(ReindexRequest reindexRequest) {
         this(reindexRequest, null, null);
     }
 
     public ReindexTaskIndexState(ReindexRequest reindexRequest, @Nullable BulkByScrollResponse reindexResponse,
-                                 @Nullable ElasticsearchException exception) {
+                                 @Nullable Exception exception) {
         assert (reindexResponse == null) || (exception == null) : "Either response or exception must be null";
         this.reindexRequest = reindexRequest;
         this.reindexResponse = reindexResponse;
@@ -79,7 +79,7 @@ public class ReindexTaskIndexState implements ToXContentObject {
         if (exception != null) {
             builder.field(REINDEX_EXCEPTION);
             builder.startObject();
-            exception.toXContent(builder, params);
+            ElasticsearchException.generateThrowableXContent(builder, params, exception);
             builder.endObject();
         }
         return builder.endObject();
@@ -97,7 +97,7 @@ public class ReindexTaskIndexState implements ToXContentObject {
         return reindexResponse;
     }
 
-    public ElasticsearchException getException() {
+    public Exception getException() {
         return exception;
     }
 }

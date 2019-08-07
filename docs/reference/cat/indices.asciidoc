@@ -13,8 +13,8 @@ Returns high-level information about indices in a cluster.
 [[cat-indices-api-desc]]
 ==== {api-description-title}
 
-You can use the cat indices API to get the following information for each index
-in a cluster:
+Use the cat indices API to get the following information for each index in a
+cluster:
 
 * Shard count
 * Document count

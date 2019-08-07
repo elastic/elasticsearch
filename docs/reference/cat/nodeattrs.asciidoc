@@ -91,12 +91,12 @@ The `attr` and `value` columns return custom node attributes, one per line.
 [[cat-nodeattrs-api-ex-headings]]
 ===== Example with explicit columns
 
-The following API request returns the `node`, `pid`, `attr`, and `value`
+The following API request returns the `name`, `pid`, `attr`, and `value`
 columns.
 
 [source,js]
 --------------------------------------------------
-GET /_cat/nodeattrs?v&h=node,pid,attr,value
+GET /_cat/nodeattrs?v&h=name,pid,attr,value
 --------------------------------------------------
 // CONSOLE
 // TEST[s/,value/,value&s=node,attr/]

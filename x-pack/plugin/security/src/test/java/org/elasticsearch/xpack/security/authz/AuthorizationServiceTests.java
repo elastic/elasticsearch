@@ -119,7 +119,6 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
-import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
@@ -320,10 +319,18 @@ public class AuthorizationServiceTests extends ESTestCase {
         final ConfigurableClusterPrivilege configurableClusterPrivilege = new MockConfigurableClusterPrivilege() {
             @Override
             public ClusterPermission.Builder buildPermission(ClusterPermission.Builder builder) {
-                final Predicate<TransportRequest> requestPredicate = r -> r == request;
-                final Predicate<String> actionPredicate =
-                    Automatons.predicate(((ActionClusterPrivilege) ClusterPrivilegeResolver.MANAGE_SECURITY).getAllowedActionPatterns());
-                builder.add(this, actionPredicate, requestPredicate);
+                builder.add(this, ((ActionClusterPrivilege) ClusterPrivilegeResolver.MANAGE_SECURITY).getAllowedActionPatterns(), Set.of(),
+                    new ClusterPermission.PermissionCheckPredicate<TransportRequest>() {
+                        @Override
+                        public boolean implies(ClusterPermission.PermissionCheckPredicate<TransportRequest> permissionCheckPredicate) {
+                            return this.equals(permissionCheckPredicate);
+                        }
+
+                        @Override
+                        public Predicate<TransportRequest> predicate() {
+                            return r -> r == request;
+                        }
+                    });
                 return builder;
             }
         };
@@ -347,10 +354,19 @@ public class AuthorizationServiceTests extends ESTestCase {
         final ConfigurableClusterPrivilege configurableClusterPrivilege = new MockConfigurableClusterPrivilege() {
             @Override
             public ClusterPermission.Builder buildPermission(ClusterPermission.Builder builder) {
-                final Predicate<TransportRequest> requestPredicate = r -> false;
-                final Predicate<String> actionPredicate =
-                    Automatons.predicate(((ActionClusterPrivilege) ClusterPrivilegeResolver.MANAGE_SECURITY).getAllowedActionPatterns());
-                builder.add(this, actionPredicate,requestPredicate);
+                builder.add(this, ((ActionClusterPrivilege) ClusterPrivilegeResolver.MANAGE_SECURITY).getAllowedActionPatterns(),
+                    Set.of(), new ClusterPermission.PermissionCheckPredicate<TransportRequest>() {
+
+                        @Override
+                        public boolean implies(ClusterPermission.PermissionCheckPredicate<TransportRequest> permissionCheckPredicate) {
+                            return this.predicate() == permissionCheckPredicate.predicate();
+                        }
+
+                        @Override
+                        public Predicate<TransportRequest> predicate() {
+                            return r -> r == request;
+                        }
+                    });
                 return builder;
             }
         };

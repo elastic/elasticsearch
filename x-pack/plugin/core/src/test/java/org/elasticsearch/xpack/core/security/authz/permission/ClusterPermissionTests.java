@@ -8,22 +8,15 @@
 
 package org.elasticsearch.xpack.core.security.authz.permission;
 
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
-import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.junit.Before;
 import org.mockito.Mockito;
 
-import java.io.IOException;
-import java.util.Objects;
 import java.util.Set;
-import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;

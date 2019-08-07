@@ -117,7 +117,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
             suggestCurrent += stats.suggestCurrent;
         }
 
-        public void addNonCurrentScroll(Stats stats) {
+        public void addForClosedShard(Stats stats) {
             queryCount += stats.queryCount;
             queryTimeInMillis += stats.queryTimeInMillis;
 
@@ -290,11 +290,11 @@ public class SearchStats implements Writeable, ToXContentFragment {
         totalStats.add(searchStats.totalStats);
     }
 
-    public void addTotalsNonCurrentScroll(SearchStats searchStats) {
+    public void addTotalsForClosedShard(SearchStats searchStats) {
         if (searchStats == null) {
             return;
         }
-        totalStats.addNonCurrentScroll(searchStats.totalStats);
+        totalStats.addForClosedShard(searchStats.totalStats);
     }
 
     public Stats getTotal() {

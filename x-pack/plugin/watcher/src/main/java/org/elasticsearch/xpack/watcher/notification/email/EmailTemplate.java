@@ -148,6 +148,11 @@ public class EmailTemplate implements ToXContentObject {
             renderedHtml = htmlSanitizer.sanitize(renderedHtml);
             builder.htmlBody(renderedHtml);
         }
+
+        if(htmlBody == null && textBody == null && Strings.isNullOrEmpty(textWarnings) == false){
+            builder.textBody(textWarnings);
+        }
+
         return builder;
     }
 

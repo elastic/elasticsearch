@@ -163,7 +163,8 @@ is _green_ and it has three nodes:
 epoch      timestamp cluster       status node.total node.data shards pri relo init unassign pending_tasks max_task_wait_time active_shards_percent
 1565052807 00:53:27  elasticsearch green           3         3      6   3    0    0        0             0                  -                100.0%
 --------------------------------------------------
-// TESTRESPONSE[s/1565052807 00:53:27  elasticsearch green           3         3      6   3/\\d+ \\d+:\\d+:\\d+ integTest green           \\d+         \\d+      \\d+   \\d+/]
+// TESTRESPONSE[s/1565052807 00:53:27  elasticsearch/\\d+ \\d+:\\d+:\\d+ integTest/]
+// TESTRESPONSE[s/3         3      6   3/\\d+         \\d+      \\d+   \\d+/]
 // TESTRESPONSE[s/0             0                  -/0             \\d+                  -/]
 // TESTRESPONSE[non_json]
 +

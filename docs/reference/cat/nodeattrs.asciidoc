@@ -16,11 +16,9 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=http-format]
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-h]
 +
 --
-If no column values are provided, the default columns are returned in the order
-below. If any column value is provided, no default columns are returned and
-must be explicitly requested instead.
+If you do not specify which columns to include, the API returns the default columns in the order listed below. If you explicitly specify one or more columns, it only returns the specified columns.
 
-Valid values are:
+Valid columns are:
 
 `node`,`name`::
 (Default) Name of the node, such as `DKDM97B`.

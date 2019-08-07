@@ -151,6 +151,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
+import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 
 import static java.util.Arrays.asList;
@@ -320,7 +321,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         final ConfigurableClusterPrivilege configurableClusterPrivilege = new MockConfigurableClusterPrivilege() {
             @Override
             public ClusterPermission.Builder buildPermission(ClusterPermission.Builder builder) {
-                final Predicate<TransportRequest> requestPredicate = r -> r == request;
+                final BiPredicate<TransportRequest, Authentication> requestPredicate = (r,a) -> r == request;
                 final Predicate<String> actionPredicate =
                     Automatons.predicate(((ActionClusterPrivilege) ClusterPrivilegeResolver.MANAGE_SECURITY).getAllowedActionPatterns());
                 builder.add(this, actionPredicate, requestPredicate);
@@ -347,7 +348,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         final ConfigurableClusterPrivilege configurableClusterPrivilege = new MockConfigurableClusterPrivilege() {
             @Override
             public ClusterPermission.Builder buildPermission(ClusterPermission.Builder builder) {
-                final Predicate<TransportRequest> requestPredicate = r -> false;
+                final BiPredicate<TransportRequest, Authentication> requestPredicate = (r,a) -> false;
                 final Predicate<String> actionPredicate =
                     Automatons.predicate(((ActionClusterPrivilege) ClusterPrivilegeResolver.MANAGE_SECURITY).getAllowedActionPatterns());
                 builder.add(this, actionPredicate,requestPredicate);

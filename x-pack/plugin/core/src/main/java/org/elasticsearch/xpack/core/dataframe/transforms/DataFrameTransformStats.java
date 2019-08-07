@@ -258,7 +258,8 @@ public class DataFrameTransformStats implements Writeable, ToXContentObject {
                 return FAILED;
             } else {
 
-                // Note: indexer state CAN be null if the task state is stopped or failed
+                // If we get here then the task state must be started, and that means we should have an indexer state
+                assert(taskState == DataFrameTransformTaskState.STARTED);
                 assert(indexerState != null);
 
                 switch (indexerState) {

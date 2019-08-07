@@ -27,6 +27,7 @@ import org.gradle.api.tasks.TaskAction;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class BatsTestTask extends DefaultTask {
 
@@ -76,7 +77,7 @@ public class BatsTestTask extends DefaultTask {
         List<Object> command = new ArrayList<>();
         command.add("bats");
         command.add("--tap");
-        command.addAll(testsDir.getAsFileTree().getFiles());
+        command.addAll(testsDir.getAsFileTree().getFiles().stream().sorted().collect(Collectors.toList()));
         getProject().exec(spec -> {
             spec.setWorkingDir(archivesDir.getAsFile());
             spec.environment(System.getenv());

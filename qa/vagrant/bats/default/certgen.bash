@@ -426,3 +426,8 @@ DATA_SETTINGS
         false
     }
 }
+
+@test "[$GROUP] remove Elasticsearch" {
+    # NOTE: this must be the last test, so that running oss tests does not already have the default distro still installed
+    clean_before_test
+}

@@ -122,6 +122,7 @@ setup() {
     curl -s localhost:9200/library2/book/1?pretty | grep Darkness
 }
 
-@test "[UPGRADE] stop version under test" {
+@test "[UPGRADE] cleanup version under test" {
     stop_elasticsearch_service
+    clean_before_test
 }

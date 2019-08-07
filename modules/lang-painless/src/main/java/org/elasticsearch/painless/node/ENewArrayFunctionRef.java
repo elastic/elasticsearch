@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -36,6 +37,8 @@ import java.util.Set;
 public final class ENewArrayFunctionRef extends AExpression implements ILambda {
     private final String type;
 
+    private CompilerSettings settings;
+
     private SFunction function;
     private FunctionRef ref;
     private String defPointer;
@@ -47,16 +50,24 @@ public final class ENewArrayFunctionRef extends AExpression implements ILambda {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {}
+    void storeSettings(CompilerSettings settings) {
+        this.settings = settings;
+    }
+
+    @Override
+    void extractVariables(Set<String> variables) {
+        // do nothing
+    }
 
     @Override
     void analyze(Locals locals) {
         SReturn code = new SReturn(location, new ENewArray(location, type, Arrays.asList(new EVariable(location, "size")), false));
         function = new SFunction(new SFunction.FunctionReserved(), location, type, locals.getNextSyntheticName(),
                 Arrays.asList("int"), Arrays.asList("size"), Arrays.asList(code), true);
+        function.storeSettings(settings);
         function.generateSignature(locals.getPainlessLookup());
         function.analyze(Locals.newLambdaScope(locals.getProgramScope(), function.name, function.returnType,
-                function.parameters, 0, 0));
+                function.parameters, 0, settings.getMaxLoopCounter()));
 
         if (expected == null) {
             ref = null;

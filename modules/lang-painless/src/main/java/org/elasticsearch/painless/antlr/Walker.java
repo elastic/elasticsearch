@@ -253,7 +253,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             statements.add((AStatement)visit(statement));
         }
 
-        return new SSource(scriptClassInfo, settings, sourceName, sourceText, debugStream,
+        return new SSource(scriptClassInfo, sourceName, sourceText, debugStream,
                            (MainMethodReserved)reserved.pop(), location(ctx), functions, statements);
     }
 
@@ -319,8 +319,6 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitWhile(WhileContext ctx) {
-        reserved.peek().setMaxLoopCounter(settings.getMaxLoopCounter());
-
         AExpression expression = (AExpression)visit(ctx.expression());
 
         if (ctx.trailer() != null) {
@@ -336,8 +334,6 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitDo(DoContext ctx) {
-        reserved.peek().setMaxLoopCounter(settings.getMaxLoopCounter());
-
         AExpression expression = (AExpression)visit(ctx.expression());
         SBlock block = (SBlock)visit(ctx.block());
 
@@ -346,8 +342,6 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitFor(ForContext ctx) {
-        reserved.peek().setMaxLoopCounter(settings.getMaxLoopCounter());
-
         ANode initializer = ctx.initializer() == null ? null : visit(ctx.initializer());
         AExpression expression = ctx.expression() == null ? null : (AExpression)visit(ctx.expression());
         AExpression afterthought = ctx.afterthought() == null ? null : (AExpression)visit(ctx.afterthought());
@@ -365,8 +359,6 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitEach(EachContext ctx) {
-        reserved.peek().setMaxLoopCounter(settings.getMaxLoopCounter());
-
         String type = ctx.decltype().getText();
         String name = ctx.ID().getText();
         AExpression expression = (AExpression)visit(ctx.expression());
@@ -377,8 +369,6 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitIneach(IneachContext ctx) {
-        reserved.peek().setMaxLoopCounter(settings.getMaxLoopCounter());
-
         String name = ctx.ID().getText();
         AExpression expression = (AExpression)visit(ctx.expression());
         SBlock block = (SBlock)visit(ctx.trailer());

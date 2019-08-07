@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -44,6 +45,12 @@ public final class PBrace extends AStoreable {
         super(location, prefix);
 
         this.index = Objects.requireNonNull(index);
+    }
+
+    @Override
+    void storeSettings(CompilerSettings settings) {
+        prefix.storeSettings(settings);
+        index.storeSettings(settings);
     }
 
     @Override

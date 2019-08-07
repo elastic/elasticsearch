@@ -5,9 +5,15 @@ tag::bytes[]
 end::bytes[]
 
 tag::cat-h[]
-`h` (headings)::
+`h`::
 (Optional, string) Comma-separated list of column names to display.
 end::cat-h[]
+
+tag::flat-settings[]
+`flat_settings`::
+(Optional, boolean) If `true`, returns settings in flat format. Defaults to 
+`false`.
+end::flat-settings[]
 
 tag::help[]
 `help`::
@@ -21,6 +27,18 @@ tag::http-format[]
 https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html[HTTP accept header].
 Valid values include JSON, YAML, etc.
 end::http-format[]
+
+tag::include-unloaded-segments[]
+`include_unloaded_segments`::
+(Optional, boolean) If `true`, the response includes information from segments
+that are **not** loaded into memory. Defaults to `false`.
+end::include-unloaded-segments[]
+
+tag::index[]
+`{index}`::
+(Optional, string) Comma-separated list or wildcard expression of index names
+used to limit the request.
+end::index[]
 
 tag::local[]
 `local`::
@@ -41,13 +59,13 @@ returned information.
 end::node-id[]
 
 tag::cat-s[]
-`s` (sort)::
+`s`::
 (Optional, string) Comma-separated list of column names or column aliases used
 to sort the response.
 end::cat-s[]
 
 tag::cat-v[]
-`v` (verbose)::
+`v`::
 (Optional, boolean) If `true`, the response includes column headings. Defaults
 to `false`.
 end::cat-v[]

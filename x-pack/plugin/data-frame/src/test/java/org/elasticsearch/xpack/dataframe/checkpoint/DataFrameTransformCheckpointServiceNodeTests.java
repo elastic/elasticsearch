@@ -174,6 +174,7 @@ public class DataFrameTransformCheckpointServiceNodeTests extends DataFrameSingl
                 DataFrameTransformCheckpoint.EMPTY, null, null);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/45238")
     public void testGetCheckpointStats() throws InterruptedException {
         String transformId = randomAlphaOfLengthBetween(3, 10);
         long timestamp = 1000;

@@ -27,6 +27,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.gradle.vagrant.VagrantMachine.convertLinuxPath;
+import static org.elasticsearch.gradle.vagrant.VagrantMachine.convertWindowsPath;
+
 /**
  * Run a gradle task of the current build, within the configured vagrant VM.
  */
@@ -61,19 +64,22 @@ public class GradleDistroTestTask extends VagrantShellTask {
 
     @Override
     protected List<String> getWindowsScript() {
-        return getScript("& .\\gradlew");
+        return getScript(true);
     }
 
     @Override
     protected List<String> getLinuxScript() {
-        return getScript("./gradlew");
+        return getScript(false);
     }
 
-    private List<String> getScript(String gradle) {
+    private List<String> getScript(boolean isWindows) {
+        String cacheDir = getProject().getBuildDir() + "/gradle-cache";
         StringBuilder line = new StringBuilder();
-        line.append(gradle);
-        line.append(" ");
+        line.append(isWindows ? "& .\\gradlew " : "./gradlew ");
         line.append(taskName);
+        line.append(" --project-cache-dir ");
+        line.append(isWindows ? convertWindowsPath(getProject(), cacheDir) : convertLinuxPath(getProject(), cacheDir));
+        line.append(" -S");
         line.append(" -D'org.gradle.logging.level'=" + getProject().getGradle().getStartParameter().getLogLevel());
         if (testClass != null) {
             line.append(" --tests=");

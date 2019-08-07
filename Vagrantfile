@@ -42,7 +42,10 @@ Vagrant.configure(2) do |config|
   config.vm.synced_folder '.', '/vagrant', disabled: true
   config.vm.synced_folder '.', '/elasticsearch'
   # TODO: make these syncs work for windows!!!
-  config.vm.synced_folder "#{Dir.home}/.vagrant/gradle/caches", "/root/.gradle/caches",
+  config.vm.synced_folder "#{Dir.home}/.vagrant/gradle/caches/jars-3", "/root/.gradle/caches/jars-3",
+      create: true,
+      owner: "vagrant"
+  config.vm.synced_folder "#{Dir.home}/.vagrant/gradle/caches/modules-2", "/root/.gradle/caches/modules-2",
       create: true,
       owner: "vagrant"
   config.vm.synced_folder "#{Dir.home}/.gradle/wrapper", "/root/.gradle/wrapper",

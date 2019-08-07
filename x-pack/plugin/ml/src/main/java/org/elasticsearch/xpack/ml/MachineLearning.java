@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -280,6 +281,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
@@ -300,6 +302,21 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
 
     public static final Setting<Boolean> ML_ENABLED =
             Setting.boolSetting("node.ml", XPackSettings.MACHINE_LEARNING_ENABLED, Property.NodeScope);
+
+    public static final DiscoveryNodeRole ML_ROLE = new DiscoveryNodeRole("ml", "l") {
+
+        @Override
+        protected Setting<Boolean> roleSetting() {
+            return ML_ENABLED;
+        }
+
+    };
+
+    @Override
+    public Set<DiscoveryNodeRole> getRoles() {
+        return Collections.singleton(ML_ROLE);
+    }
+
     // This is not used in v7 and higher, but users are still prevented from setting it directly to avoid confusion
     private static final String PRE_V7_ML_ENABLED_NODE_ATTR = "ml.enabled";
     public static final String MAX_OPEN_JOBS_NODE_ATTR = "ml.max_open_jobs";

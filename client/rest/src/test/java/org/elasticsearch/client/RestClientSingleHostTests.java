@@ -62,6 +62,7 @@ import java.io.StringWriter;
 import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -526,7 +527,8 @@ public class RestClientSingleHostTests extends RestClientTestCase {
      * cases. We don't have that available because we're testing against 1.7.
      */
     private static String formatWarning(String warningBody) {
-        return "299 Elasticsearch-1.2.2-SNAPSHOT-eeeeeee \"" + warningBody + "\" \"Mon, 01 Jan 2001 00:00:00 GMT\"";
+        final String hash = new String(new byte[40], StandardCharsets.UTF_8).replace('\0', 'e');
+        return "299 Elasticsearch-1.2.2-SNAPSHOT-" + hash + " \"" + warningBody + "\" \"Mon, 01 Jan 2001 00:00:00 GMT\"";
     }
 
     private HttpUriRequest performRandomRequest(String method) throws Exception {

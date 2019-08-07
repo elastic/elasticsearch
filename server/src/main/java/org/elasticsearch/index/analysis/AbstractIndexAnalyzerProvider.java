@@ -42,8 +42,7 @@ public abstract class AbstractIndexAnalyzerProvider<T extends Analyzer> extends 
         this.name = name;
 
         Analysis.deprecateSetting("version", Version.V_8_0_0, indexSettings, settings, name, deprecationLogger);
-        // resolve the analysis version based on the version the index was created with
-        this.version = indexSettings.getIndexVersionCreated().luceneVersion;
+        this.version = Analysis.parseAnalysisVersion(indexSettings.getSettings(), settings, logger);
     }
 
     /**

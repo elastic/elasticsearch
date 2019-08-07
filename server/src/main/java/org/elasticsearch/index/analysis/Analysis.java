@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.ar.ArabicAnalyzer;
 import org.apache.lucene.analysis.bg.BulgarianAnalyzer;
@@ -56,6 +57,7 @@ import org.apache.lucene.analysis.tr.TurkishAnalyzer;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -92,6 +94,18 @@ public class Analysis {
                     "Index component '%s': [%s] is not supported...", componentName, settingName));
             }
         }
+    }
+
+    static org.apache.lucene.util.Version parseAnalysisVersion(Settings indexSettings, Settings settings, Logger logger) {
+        // check for explicit version on the specific analyzer component, if not found
+        // check on the index itself as default for all analysis components
+        String sVersion = settings.get("version", indexSettings.get("index.analysis.version"));
+        if (sVersion != null) {
+            return Lucene.parseVersion(sVersion, org.apache.lucene.util.Version.LATEST, logger);
+        }
+
+        // resolve the analysis version based on the version the index was created with
+        return org.elasticsearch.Version.indexCreated(indexSettings).luceneVersion;
     }
 
     public static boolean isNoStopwords(Settings settings) {

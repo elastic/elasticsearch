@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.lucene;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.CodecUtil;
@@ -124,6 +126,18 @@ public class Lucene {
     public static final TopDocs EMPTY_TOP_DOCS = new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), EMPTY_SCORE_DOCS);
 
     private Lucene() {
+    }
+
+    public static Version parseVersion(@Nullable String version, Version defaultVersion, Logger logger) {
+        if (version == null) {
+            return defaultVersion;
+        }
+        try {
+            return Version.parse(version);
+        } catch (ParseException e) {
+            logger.warn(() -> new ParameterizedMessage("no version match {}, default to {}", version, defaultVersion), e);
+            return defaultVersion;
+        }
     }
 
     /**

@@ -162,19 +162,18 @@ public class AnalysisModuleTests extends ESTestCase {
     @Test
     public void defaultAnalyzersVersion_preV8_IsDeprecated() throws Exception {
         Assume.assumeTrue(Version.CURRENT.before(Version.V_8_0_0));
-        Version versionCreated = VersionUtils.randomVersion(random());
 
         // 'version' on the index as default for all analysis components
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-            .put(IndexMetaData.SETTING_VERSION_CREATED, versionCreated)
+            .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersion(random()))
             .put("index.analysis.version", "8.1.0")
             .put("index.analysis.analyzer.custom.type", "standard")
             .build();
 
         IndexAnalyzers indexAnalyzers = getIndexAnalyzers(getNewRegistry(settings), settings);
 
-        assertEquals(versionCreated.luceneVersion, indexAnalyzers.get("custom").analyzer().getVersion());
+        assertEquals(org.apache.lucene.util.Version.fromBits(8, 1, 0), indexAnalyzers.get("custom").analyzer().getVersion());
         assertWarnings(
             "Index component 'stop': [version] is deprecated and will be removed in the next major release",
             "Index component 'shingle': [version] is deprecated and will be removed in the next major release",
@@ -185,26 +184,37 @@ public class AnalysisModuleTests extends ESTestCase {
     @Test
     public void specificAnalyzersVersion_preV8_IsDeprecated() throws Exception {
         Assume.assumeTrue(Version.CURRENT.before(Version.V_8_0_0));
+
         Version versionCreated = VersionUtils.randomVersion(random());
 
         // 'version' on the specific analyzer components
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .put(IndexMetaData.SETTING_VERSION_CREATED, versionCreated)
-            .put("index.analysis.analyzer.very_old.type", "standard")
-            .put("index.analysis.analyzer.very_old.version", "3.6.0")
             .put("index.analysis.analyzer.brand_new.type", "standard")
             .put("index.analysis.analyzer.brand_new.version", Version.CURRENT.luceneVersion)
+            .put("index.analysis.analyzer.very_old.type", "standard")
+            .put("index.analysis.analyzer.very_old.version", "3.6.0")
+            .put("index.analysis.analyzer.not_a_number.type", "standard")
+            .put("index.analysis.analyzer.not_a_number.version", "not-a-number")
+            .put("index.analysis.analyzer.empty.type", "standard")
+            .put("index.analysis.analyzer.empty.version", (String) null)
+            .put("index.analysis.analyzer.no_version.type", "standard")
             .build();
 
         IndexAnalyzers indexAnalyzers = getIndexAnalyzers(getNewRegistry(settings), settings);
 
-        assertEquals(versionCreated.luceneVersion, indexAnalyzers.get("very_old").analyzer().getVersion());
-        assertEquals(versionCreated.luceneVersion, indexAnalyzers.get("brand_new").analyzer().getVersion());
+        assertEquals(Version.CURRENT.luceneVersion, indexAnalyzers.get("brand_new").analyzer().getVersion());
+        assertEquals(org.apache.lucene.util.Version.fromBits(3, 6, 0), indexAnalyzers.get("very_old").analyzer().getVersion());
+        assertEquals(org.apache.lucene.util.Version.LATEST, indexAnalyzers.get("not_a_number").analyzer().getVersion());
+        assertEquals(versionCreated.luceneVersion, indexAnalyzers.get("empty").analyzer().getVersion());
+        assertEquals(versionCreated.luceneVersion, indexAnalyzers.get("no_version").analyzer().getVersion());
 
         assertWarnings(
+            "Index component 'brand_new': [version] is deprecated and will be removed in the next major release",
             "Index component 'very_old': [version] is deprecated and will be removed in the next major release",
-            "Index component 'brand_new': [version] is deprecated and will be removed in the next major release");
+            "Index component 'not_a_number': [version] is deprecated and will be removed in the next major release");
+        // note: no warning is logged for version with empty value
     }
 
     @Test

@@ -719,6 +719,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
     }
 
     public void testWrongKeystorePassword() {
+        assumeFalse("Can't test this when the keystore isn't password protected", passwordProtectedKeystore == false);
 
         final Path certPath = getDataPath("saml.crt");
         final Path keyPath = getDataPath("saml.key");

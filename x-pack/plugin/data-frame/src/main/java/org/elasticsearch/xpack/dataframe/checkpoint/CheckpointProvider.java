@@ -11,7 +11,6 @@ import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerPositio
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpoint;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointingInfo;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformProgress;
-import org.elasticsearch.xpack.core.indexing.IndexerState;
 
 /**
  * Interface for checkpoint creation, checking for changes and getting statistics about checkpoints
@@ -41,14 +40,12 @@ public interface CheckpointProvider {
      *
      * @param lastCheckpoint the last checkpoint
      * @param nextCheckpoint the next checkpoint
-     * @param nextCheckpointIndexerState indexer state for the next checkpoint
      * @param nextCheckpointPosition position for the next checkpoint
      * @param nextCheckpointProgress progress for the next checkpoint
      * @param listener listener to retrieve the result
      */
     void getCheckpointingInfo(DataFrameTransformCheckpoint lastCheckpoint,
                               DataFrameTransformCheckpoint nextCheckpoint,
-                              IndexerState nextCheckpointIndexerState,
                               DataFrameIndexerPosition nextCheckpointPosition,
                               DataFrameTransformProgress nextCheckpointProgress,
                               ActionListener<DataFrameTransformCheckpointingInfo> listener);
@@ -59,13 +56,11 @@ public interface CheckpointProvider {
      * For stopped data frames we need to do lookups in the internal index.
      *
      * @param lastCheckpointNumber the last checkpoint number
-     * @param nextCheckpointIndexerState indexer state for the next checkpoint
      * @param nextCheckpointPosition position for the next checkpoint
      * @param nextCheckpointProgress progress for the next checkpoint
      * @param listener listener to retrieve the result
      */
     void getCheckpointingInfo(long lastCheckpointNumber,
-                              IndexerState nextCheckpointIndexerState,
                               DataFrameIndexerPosition nextCheckpointPosition,
                               DataFrameTransformProgress nextCheckpointProgress,
                               ActionListener<DataFrameTransformCheckpointingInfo> listener);

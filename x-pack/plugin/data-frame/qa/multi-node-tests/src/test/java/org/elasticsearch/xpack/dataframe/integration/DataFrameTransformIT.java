@@ -12,7 +12,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig;
-import org.elasticsearch.client.dataframe.transforms.DataFrameTransformTaskState;
+import org.elasticsearch.client.dataframe.transforms.DataFrameTransformStats;
 import org.elasticsearch.client.dataframe.transforms.TimeSyncConfig;
 import org.elasticsearch.client.dataframe.transforms.pivot.SingleGroupSource;
 import org.elasticsearch.client.dataframe.transforms.pivot.TermsGroupSource;
@@ -98,8 +98,8 @@ public class DataFrameTransformIT extends DataFrameIntegTestCase {
         assertTrue(startDataFrameTransform(config.getId(), RequestOptions.DEFAULT).isAcknowledged());
 
         waitUntilCheckpoint(config.getId(), 1L);
-        assertThat(getDataFrameTransformStats(config.getId()).getTransformsStats().get(0).getTaskState(),
-                equalTo(DataFrameTransformTaskState.STARTED));
+        assertThat(getDataFrameTransformStats(config.getId()).getTransformsStats().get(0).getState(),
+                equalTo(DataFrameTransformStats.State.STARTED));
 
         long docsIndexed = getDataFrameTransformStats(config.getId())
             .getTransformsStats()

@@ -24,7 +24,6 @@ memory usage) and information about the current nodes that form the cluster
 [[cluster-stats-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=node-id]
 

@@ -18,7 +18,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfigUpdate;
-import org.elasticsearch.client.dataframe.transforms.DataFrameTransformTaskState;
+import org.elasticsearch.client.dataframe.transforms.DataFrameTransformStats;
 import org.elasticsearch.client.dataframe.transforms.DestConfig;
 import org.elasticsearch.client.dataframe.transforms.TimeSyncConfig;
 import org.elasticsearch.client.dataframe.transforms.pivot.SingleGroupSource;
@@ -43,6 +43,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.oneOf;
 
 public class DataFrameTransformIT extends DataFrameIntegTestCase {
 
@@ -110,8 +111,8 @@ public class DataFrameTransformIT extends DataFrameIntegTestCase {
         assertTrue(startDataFrameTransform(config.getId(), RequestOptions.DEFAULT).isAcknowledged());
 
         waitUntilCheckpoint(config.getId(), 1L);
-        assertThat(getDataFrameTransformStats(config.getId()).getTransformsStats().get(0).getTaskState(),
-                equalTo(DataFrameTransformTaskState.STARTED));
+        assertThat(getDataFrameTransformStats(config.getId()).getTransformsStats().get(0).getState(),
+                equalTo(DataFrameTransformStats.State.STARTED));
 
         long docsIndexed = getDataFrameTransformStats(config.getId())
             .getTransformsStats()
@@ -167,8 +168,8 @@ public class DataFrameTransformIT extends DataFrameIntegTestCase {
         assertTrue(startDataFrameTransform(config.getId(), RequestOptions.DEFAULT).isAcknowledged());
 
         waitUntilCheckpoint(config.getId(), 1L);
-        assertThat(getDataFrameTransformStats(config.getId()).getTransformsStats().get(0).getTaskState(),
-            equalTo(DataFrameTransformTaskState.STARTED));
+        assertThat(getDataFrameTransformStats(config.getId()).getTransformsStats().get(0).getState(),
+            oneOf(DataFrameTransformStats.State.STARTED, DataFrameTransformStats.State.INDEXING));
 
         long docsIndexed = getDataFrameTransformStats(config.getId())
             .getTransformsStats()

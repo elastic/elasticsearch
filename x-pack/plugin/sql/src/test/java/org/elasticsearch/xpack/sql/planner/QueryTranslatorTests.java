@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.planner;
 
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
@@ -56,6 +57,7 @@ import org.elasticsearch.xpack.sql.util.DateUtils;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
+import java.time.ZonedDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
@@ -179,7 +181,42 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue(query instanceof RangeQuery);
         RangeQuery rq = (RangeQuery) query;
         assertEquals("date", rq.field());
-        assertEquals(DateUtils.asDateTime("1969-05-13T12:34:56Z"), rq.lower());
+        assertEquals("1969-05-13T12:34:56.000Z", rq.lower());
+    }
+    
+    public void testDateRangeWithCurrentTimestamp() {
+        testDateRangeWithCurrentFunctions("CURRENT_TIMESTAMP()", "strict_date_time", TestUtils.TEST_CFG.now());
+    }
+    
+    public void testDateRangeWithCurrentDate() {
+        testDateRangeWithCurrentFunctions("CURRENT_DATE()", "strict_date_time", DateUtils.asDateOnly(TestUtils.TEST_CFG.now()));
+    }
+    
+    public void testDateRangeWithToday() {
+        testDateRangeWithCurrentFunctions("TODAY()", "strict_date_time", DateUtils.asDateOnly(TestUtils.TEST_CFG.now()));
+    }
+    
+    public void testDateRangeWithNow() {
+        testDateRangeWithCurrentFunctions("NOW()", "strict_date_time", TestUtils.TEST_CFG.now());
+    }
+    
+    public void testDateRangeWithCurrentTime() {
+        testDateRangeWithCurrentFunctions("CURRENT_TIME()", "strict_hour_minute_second_millis", TestUtils.TEST_CFG.now());
+    }
+    
+    private void testDateRangeWithCurrentFunctions(String function, String pattern, ZonedDateTime now) {
+        LogicalPlan p = plan("SELECT some.string FROM test WHERE date < " + function);
+        assertTrue(p instanceof Project);
+        p = ((Project) p).child();
+        assertTrue(p instanceof Filter);
+        Expression condition = ((Filter) p).condition();
+        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        Query query = translation.query;
+        assertTrue(query instanceof RangeQuery);
+        RangeQuery rq = (RangeQuery) query;
+        assertEquals("date", rq.field());
+        assertEquals(DateFormatter.forPattern(pattern).format(now.withNano(DateUtils.getNanoPrecision(null, now.getNano()))), rq.upper());
+        assertEquals(pattern, rq.format());
     }
 
     public void testLikeOnInexact() {

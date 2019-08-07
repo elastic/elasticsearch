@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.planner;
 
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.geo.geometry.Geometry;
 import org.elasticsearch.geo.geometry.Point;
 import org.elasticsearch.search.sort.SortOrder;
@@ -107,6 +108,8 @@ import org.elasticsearch.xpack.sql.util.Check;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 import org.elasticsearch.xpack.sql.util.ReflectionUtils;
 
+import java.time.OffsetTime;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -120,7 +123,6 @@ import static org.elasticsearch.xpack.sql.expression.Foldables.valueOf;
 import static org.elasticsearch.xpack.sql.type.DataType.DATE;
 
 final class QueryTranslator {
-
     private QueryTranslator(){}
 
     private static final List<ExpressionTranslator<?>> QUERY_TRANSLATORS = Arrays.asList(
@@ -660,6 +662,25 @@ final class QueryTranslator {
             String name = nameOf(bc.left());
             Object value = valueOf(bc.right());
             String format = dateFormat(bc.left());
+
+            // for a date constant comparison, we need to use a format for the date, to make sure that the format is the same
+            // no matter the timezone provided by the user
+            if ((bc instanceof LessThan || bc instanceof LessThanOrEqual || bc instanceof GreaterThan || bc instanceof GreaterThanOrEqual)
+                    && (value instanceof ZonedDateTime || value instanceof OffsetTime)
+                    && format == null) {
+                DateFormatter formatter;
+                if (value instanceof ZonedDateTime) {
+                    formatter = DateFormatter.forPattern("strict_date_time");
+                    // RangeQueryBuilder accepts an Object as its parameter, but it will call .toString() on the ZonedDateTime instance
+                    // which can have a slightly different format depending on the ZoneId used to create the ZonedDateTime
+                    // Since RangeQueryBuilder can handle date as String as well, we'll format it as String and provide the format as well.
+                    value = formatter.format((ZonedDateTime) value);
+                } else {
+                    formatter = DateFormatter.forPattern("strict_hour_minute_second_millis"); 
+                    value = formatter.format((OffsetTime) value);
+                }
+                format = formatter.pattern();
+            }
 
             // Possible geo optimization
             if (bc.left() instanceof StDistance && value instanceof Number) {

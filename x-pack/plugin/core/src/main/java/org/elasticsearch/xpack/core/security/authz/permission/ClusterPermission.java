@@ -8,14 +8,15 @@ package org.elasticsearch.xpack.core.security.authz.permission;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 
 /**
@@ -34,14 +35,16 @@ public class ClusterPermission {
     }
 
     /**
-     * Checks permission to a cluster action for a given request.
+     * Checks permission to a cluster action for a given request in the context of given
+     * authentication.
      *
      * @param action  cluster action
      * @param request {@link TransportRequest}
+     * @param authentication {@link Authentication}
      * @return {@code true} if the access is allowed else returns {@code false}
      */
-    public boolean check(final String action, final TransportRequest request) {
-        return checks.stream().anyMatch(permission -> permission.check(action, request));
+    public boolean check(final String action, final TransportRequest request, final Authentication authentication) {
+        return checks.stream().anyMatch(permission -> permission.check(action, request, authentication));
     }
 
     /**
@@ -90,11 +93,10 @@ public class ClusterPermission {
             return this;
         }
 
-        public Builder add(final ConfigurableClusterPrivilege configurableClusterPrivilege, final Predicate<String> actionPredicate,
-                           final Predicate<TransportRequest> requestPredicate) {
-            return add(configurableClusterPrivilege, new ActionRequestPredicatePermissionCheck(configurableClusterPrivilege,
-                                                                                               actionPredicate,
-                                                                                               requestPredicate));
+        public Builder add(final ClusterPrivilege clusterPrivilege, final Predicate<String> actionPredicate,
+                           final BiPredicate<TransportRequest, Authentication> requestAuthnPredicate) {
+            return add(clusterPrivilege, new ActionRequestAuthenticationPredicatePermissionCheck(clusterPrivilege,
+                actionPredicate, requestAuthnPredicate));
         }
 
         public Builder add(final ClusterPrivilege clusterPrivilege, final PermissionCheck permissionCheck) {
@@ -124,13 +126,15 @@ public class ClusterPermission {
      */
     public interface PermissionCheck {
         /**
-         * Checks permission to a cluster action for a given request.
+         * Checks permission to a cluster action for a given request in the context of given
+         * authentication.
          *
          * @param action  action name
          * @param request {@link TransportRequest}
+         * @param authentication {@link Authentication}
          * @return {@code true} if the specified action for given request is allowed else returns {@code false}
          */
-        boolean check(String action, TransportRequest request);
+        boolean check(String action, TransportRequest request, Authentication authentication);
 
         /**
          * Checks whether specified {@link PermissionCheck} is implied by this {@link PermissionCheck}.<br>
@@ -156,7 +160,7 @@ public class ClusterPermission {
         }
 
         @Override
-        public boolean check(final String action, final TransportRequest request) {
+        public boolean check(final String action, final TransportRequest request, final Authentication authentication) {
             return actionPredicate.test(action);
         }
 
@@ -169,28 +173,30 @@ public class ClusterPermission {
         }
     }
 
-    // action and request based permission check
-    private static class ActionRequestPredicatePermissionCheck implements PermissionCheck {
+    // action, request and authentication based permission check
+    private static class ActionRequestAuthenticationPredicatePermissionCheck implements PermissionCheck {
         private final ClusterPrivilege clusterPrivilege;
         final Predicate<String> actionPredicate;
-        final Predicate<TransportRequest> requestPredicate;
+        final BiPredicate<TransportRequest, Authentication> requestAuthnPredicate;
 
-        ActionRequestPredicatePermissionCheck(final ClusterPrivilege clusterPrivilege, final Predicate<String> actionPredicate,
-                                              final Predicate<TransportRequest> requestPredicate) {
+        ActionRequestAuthenticationPredicatePermissionCheck(final ClusterPrivilege clusterPrivilege,
+                                                            final Predicate<String> actionPredicate,
+                                                            final BiPredicate<TransportRequest, Authentication> requestAuthnPredicate) {
             this.clusterPrivilege = clusterPrivilege;
             this.actionPredicate = actionPredicate;
-            this.requestPredicate = requestPredicate;
+            this.requestAuthnPredicate = requestAuthnPredicate;
         }
 
         @Override
-        public boolean check(final String action, final TransportRequest request) {
-            return actionPredicate.test(action) && requestPredicate.test(request);
+        public boolean check(final String action, final TransportRequest request, final Authentication authentication) {
+            return actionPredicate.test(action) && requestAuthnPredicate.test(request, authentication);
         }
 
         @Override
         public boolean implies(final PermissionCheck permissionCheck) {
-            if (permissionCheck instanceof ActionRequestPredicatePermissionCheck) {
-                final ActionRequestPredicatePermissionCheck otherCheck = (ActionRequestPredicatePermissionCheck) permissionCheck;
+            if (permissionCheck instanceof ActionRequestAuthenticationPredicatePermissionCheck) {
+                final ActionRequestAuthenticationPredicatePermissionCheck otherCheck =
+                    (ActionRequestAuthenticationPredicatePermissionCheck) permissionCheck;
                 return this.clusterPrivilege.equals(otherCheck.clusterPrivilege);
             }
             return false;

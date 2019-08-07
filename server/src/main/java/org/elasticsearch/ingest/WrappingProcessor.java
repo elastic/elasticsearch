@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,18 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.client.dataframe.transforms;
+package org.elasticsearch.ingest;
 
-import java.util.Locale;
+/**
+ * A srapping processor is one that encapsulates an inner processor, or a processor that the wrapped processor enacts upon. All processors
+ * that contain an "inner" processor should implement this interface, such that the actual processor can be obtained.
+ */
+public interface WrappingProcessor extends Processor {
 
-public enum DataFrameTransformTaskState {
-    STOPPED, STARTED, FAILED;
-
-    public static DataFrameTransformTaskState fromString(String name) {
-        return valueOf(name.trim().toUpperCase(Locale.ROOT));
-    }
-
-    public String value() {
-        return name().toLowerCase(Locale.ROOT);
-    }
+    /**
+     * Method for retrieving the inner processor from a wrapped processor.
+     * @return the inner processor
+     */
+    Processor getInnerProcessor();
 }

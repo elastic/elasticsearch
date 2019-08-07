@@ -31,6 +31,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
@@ -171,7 +172,6 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
         final String policyName = "test-policy";
         final String repoId = "my-repo";
         int docCount = randomIntBetween(10, 50);
-        List<IndexRequestBuilder> indexReqs = new ArrayList<>();
         for (int i = 0; i < docCount; i++) {
             index(client(), indexName, "" + i, "foo", "bar");
         }
@@ -209,6 +209,68 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
                     fail("expected snapshot to exist but it does not: " + EntityUtils.toString(e.getResponse().getEntity()));
                 }
             });
+        }
+
+        Request delReq = new Request("DELETE", "/_slm/policy/" + policyName);
+        assertOK(client().performRequest(delReq));
+
+        // It's possible there could have been a snapshot in progress when the
+        // policy is deleted, so wait for it to be finished
+        assertBusy(() -> {
+            assertThat(wipeSnapshots().size(), equalTo(0));
+        });
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testSnapshotInProgress() throws Exception {
+        final String indexName = "test";
+        final String policyName = "test-policy";
+        final String repoId = "my-repo";
+        int docCount = 20;
+        for (int i = 0; i < docCount; i++) {
+            index(client(), indexName, "" + i, "foo", "bar");
+        }
+
+        // Create a snapshot repo
+        inializeRepo(repoId, 1);
+
+        createSnapshotPolicy(policyName, "snap", "1 2 3 4 5 ?", repoId, indexName, true);
+
+        Response executeRepsonse = client().performRequest(new Request("PUT", "/_slm/policy/" + policyName + "/_execute"));
+
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
+            DeprecationHandler.THROW_UNSUPPORTED_OPERATION, EntityUtils.toByteArray(executeRepsonse.getEntity()))) {
+            final String snapshotName = parser.mapStrings().get("snapshot_name");
+
+            // Check that the executed snapshot shows up in the SLM output
+            assertBusy(() -> {
+                try {
+                    Response response = client().performRequest(new Request("GET", "/_slm/policy" + (randomBoolean() ? "" : "?human")));
+                    Map<String, Object> policyResponseMap;
+                    try (InputStream content = response.getEntity().getContent()) {
+                        policyResponseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), content, true);
+                    }
+                    assertThat(policyResponseMap.size(), greaterThan(0));
+                    Optional<Map<String, Object>> inProgress = Optional.ofNullable((Map<String, Object>) policyResponseMap.get(policyName))
+                        .map(policy -> (Map<String, Object>) policy.get("in_progress"));
+
+                    if (inProgress.isPresent()) {
+                        Map<String, Object> inProgressMap = inProgress.get();
+                        assertThat(inProgressMap.get("name"), equalTo(snapshotName));
+                        assertNotNull(inProgressMap.get("uuid"));
+                        assertThat(inProgressMap.get("state"), equalTo("STARTED"));
+                        assertThat((long) inProgressMap.get("start_time_millis"), greaterThan(0L));
+                        assertNull(inProgressMap.get("failure"));
+                    } else {
+                        fail("expected in_progress to contain a running snapshot, but the response was " + policyResponseMap);
+                    }
+                } catch (ResponseException e) {
+                    fail("expected policy to exist but it does not: " + EntityUtils.toString(e.getResponse().getEntity()));
+                }
+            });
+
+            // Cancel the snapshot since it is not going to complete quickly
+            assertOK(client().performRequest(new Request("DELETE", "/_snapshot/" + repoId + "/" + snapshotName)));
         }
 
         Request delReq = new Request("DELETE", "/_slm/policy/" + policyName);
@@ -304,6 +366,10 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
     }
 
     private void inializeRepo(String repoName) throws IOException {
+        inializeRepo(repoName, 256);
+    }
+
+    private void inializeRepo(String repoName, int maxBytesPerSecond) throws IOException {
         Request request = new Request("PUT", "/_snapshot/" + repoName);
         request.setJsonEntity(Strings
             .toString(JsonXContent.contentBuilder()
@@ -312,7 +378,7 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
                 .startObject("settings")
                 .field("compress", randomBoolean())
                 .field("location", System.getProperty("tests.path.repo"))
-                .field("max_snapshot_bytes_per_sec", "256b")
+                .field("max_snapshot_bytes_per_sec", maxBytesPerSecond + "b")
                 .endObject()
                 .endObject()));
         assertOK(client().performRequest(request));

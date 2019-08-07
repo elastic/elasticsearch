@@ -18,26 +18,32 @@ buildScan {
             value 'Jenkins Worker Label', it
         }
 
+        def isPrBuild = System.getenv('ROOT_BUILD_CAUSE_GHPRBCAUSE') != null
+
         // Capture changes included in this CI build except for pull request builds
-        if (System.getenv('GIT_COMMIT') && System.getenv('ROOT_BUILD_CAUSE_GHPRBCAUSE') == null) {
+        if (System.getenv('GIT_COMMIT') && !isPrBuild) {
             background {
                 def changes = "git diff --name-only ${System.getenv('GIT_PREVIOUS_COMMIT')}..${System.getenv('GIT_COMMIT')}".execute().text.trim()
                 value 'Git Changes', changes
             }
         }
+
+        // Add SCM information
+        if (isPrBuild) {
+            value 'Git Commit ID', System.getenv('ghprbActualCommit')
+            value 'Git Branch', System.getenv('ghprbTargetBranch')
+            tag System.getenv('ghprbTargetBranch')
+            tag "pr/${System.getenv('ghprbPullId')}"
+            link 'Source', "https://github.com/elastic/elasticsearch/tree/${System.getenv('ghprbActualCommit')}"
+            link 'Pull Request', System.getenv('ghprbPullLink')
+        } else {
+            def branch = System.getenv('GIT_BRANCH').split('/').last()
+            value 'Git Commit ID', System.getenv('GIT_COMMIT')
+            value 'Git Branch', branch
+            tag branch
+            link 'Source', "https://github.com/elastic/elasticsearch/tree/${System.getenv('GIT_COMMIT')}"
+        }
     } else {
         tag 'LOCAL'
-    }
-
-    // Add SCM information
-    def scmInfo = project.extensions.findByType(ScmInfoExtension)
-    if (scmInfo && scmInfo.change && scmInfo.branch) {
-        value 'Git Commit ID', scmInfo.change
-        // Don't tag the branch if we are in a detached head state
-        if (scmInfo.branch ==~ /[0-9a-f]{5,40}/ == false) {
-            value 'Git Branch', scmInfo.branch
-            tag scmInfo.branch
-        }
-        link 'Source', "https://github.com/elastic/elasticsearch/commit/${scmInfo.change}"
     }
 }

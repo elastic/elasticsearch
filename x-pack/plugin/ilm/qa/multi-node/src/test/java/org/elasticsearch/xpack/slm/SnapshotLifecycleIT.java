@@ -36,6 +36,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
@@ -293,12 +294,13 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
             assertBusy(() -> {
                 // We expect a failed response because the snapshot should not exist
                 try {
+                    logger.info("--> checking to see if snapshot has been deleted...");
                     Response response = client().performRequest(new Request("GET", "/_snapshot/" + repoId + "/" + snapshotName));
                     assertThat(EntityUtils.toString(response.getEntity()), containsString("snapshot_missing_exception"));
                 } catch (ResponseException e) {
                     assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("snapshot_missing_exception"));
                 }
-            });
+            }, 60, TimeUnit.SECONDS);
 
             Request delReq = new Request("DELETE", "/_slm/policy/" + policyName);
             assertOK(client().performRequest(delReq));
@@ -424,7 +426,6 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
                 .startObject("settings")
                 .field("compress", randomBoolean())
                 .field("location", System.getProperty("tests.path.repo"))
-                .field("max_snapshot_bytes_per_sec", "256b")
                 .endObject()
                 .endObject()));
         assertOK(client().performRequest(request));

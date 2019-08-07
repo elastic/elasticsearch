@@ -75,7 +75,7 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
 
     protected final DataFrameAuditor auditor;
 
-    protected final DataFrameTransformConfig transformConfig;
+    protected volatile DataFrameTransformConfig transformConfig;
     protected volatile DataFrameTransformProgress progress;
     private final Map<String, String> fieldMappings;
 

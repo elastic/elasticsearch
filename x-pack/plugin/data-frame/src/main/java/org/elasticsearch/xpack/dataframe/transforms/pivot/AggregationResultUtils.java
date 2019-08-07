@@ -8,10 +8,16 @@ package org.elasticsearch.xpack.dataframe.transforms.pivot;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Numbers;
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.builders.LineStringBuilder;
+import org.elasticsearch.common.geo.builders.PointBuilder;
+import org.elasticsearch.common.geo.builders.PolygonBuilder;
+import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
+import org.elasticsearch.search.aggregations.metrics.GeoBounds;
 import org.elasticsearch.search.aggregations.metrics.GeoCentroid;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation.SingleValue;
 import org.elasticsearch.search.aggregations.metrics.ScriptedMetric;
@@ -20,6 +26,7 @@ import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransfo
 import org.elasticsearch.xpack.core.dataframe.transforms.pivot.GroupConfig;
 import org.elasticsearch.xpack.dataframe.transforms.IDGenerator;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -38,6 +45,7 @@ public final class AggregationResultUtils {
         tempMap.put(SingleValue.class.getName(), new SingleValueAggExtractor());
         tempMap.put(ScriptedMetric.class.getName(), new ScriptedMetricAggExtractor());
         tempMap.put(GeoCentroid.class.getName(), new GeoCentroidAggExtractor());
+        tempMap.put(GeoBounds.class.getName(), new GeoBoundsAggExtractor());
         TYPE_VALUE_EXTRACTOR_MAP = Collections.unmodifiableMap(tempMap);
     }
 
@@ -99,6 +107,8 @@ public final class AggregationResultUtils {
             return TYPE_VALUE_EXTRACTOR_MAP.get(ScriptedMetric.class.getName());
         } else if (aggregation instanceof GeoCentroid) {
             return TYPE_VALUE_EXTRACTOR_MAP.get(GeoCentroid.class.getName());
+        } else if (aggregation instanceof GeoBounds) {
+            return TYPE_VALUE_EXTRACTOR_MAP.get(GeoBounds.class.getName());
         } else {
             // Execution should never reach this point!
             // Creating transforms with unsupported aggregations shall not be possible
@@ -155,11 +165,11 @@ public final class AggregationResultUtils {
         }
     }
 
-    private interface AggValueExtractor {
+    interface AggValueExtractor {
         Object value(Aggregation aggregation, String fieldType);
     }
 
-    private static class SingleValueAggExtractor implements AggValueExtractor {
+    static class SingleValueAggExtractor implements AggValueExtractor {
         @Override
         public Object value(Aggregation agg, String fieldType) {
             SingleValue aggregation = (SingleValue)agg;
@@ -178,7 +188,7 @@ public final class AggregationResultUtils {
         }
     }
 
-    private static class ScriptedMetricAggExtractor implements AggValueExtractor {
+    static class ScriptedMetricAggExtractor implements AggValueExtractor {
         @Override
         public Object value(Aggregation agg, String fieldType) {
             ScriptedMetric aggregation = (ScriptedMetric)agg;
@@ -186,12 +196,50 @@ public final class AggregationResultUtils {
         }
     }
 
-    private static class GeoCentroidAggExtractor implements AggValueExtractor {
+    static class GeoCentroidAggExtractor implements AggValueExtractor {
         @Override
         public Object value(Aggregation agg, String fieldType) {
             GeoCentroid aggregation = (GeoCentroid)agg;
             // if the account is `0` iff there is no contained centroid
             return aggregation.count() > 0 ? aggregation.centroid().toString() : null;
+        }
+    }
+
+    static class GeoBoundsAggExtractor implements AggValueExtractor {
+        @Override
+        public Object value(Aggregation agg, String fieldType) {
+            GeoBounds aggregation = (GeoBounds)agg;
+            if (aggregation.bottomRight() == null || aggregation.topLeft() == null) {
+                return null;
+            }
+            final Map<String, Object> geoShape = new HashMap<>();
+            // If the two geo_points are equal, it is a point
+            if (aggregation.topLeft().equals(aggregation.bottomRight())) {
+                geoShape.put(ShapeParser.FIELD_TYPE.getPreferredName(), PointBuilder.TYPE.shapeName());
+                geoShape.put(ShapeParser.FIELD_COORDINATES.getPreferredName(),
+                    Arrays.asList(aggregation.topLeft().getLon(), aggregation.bottomRight().getLat()));
+            // If only the lat or the lon of the two geo_points are equal, than we know it should be a line
+            } else if (Double.compare(aggregation.topLeft().getLat(), aggregation.bottomRight().getLat()) == 0
+                || Double.compare(aggregation.topLeft().getLon(), aggregation.bottomRight().getLon()) == 0) {
+                geoShape.put(ShapeParser.FIELD_TYPE.getPreferredName(), LineStringBuilder.TYPE.shapeName());
+                geoShape.put(ShapeParser.FIELD_COORDINATES.getPreferredName(),
+                    Arrays.asList(
+                        new Double[]{aggregation.topLeft().getLon(), aggregation.topLeft().getLat()},
+                        new Double[]{aggregation.bottomRight().getLon(), aggregation.bottomRight().getLat()}));
+            } else {
+            // neither points are equal, we have a polygon that is a square
+                geoShape.put(ShapeParser.FIELD_TYPE.getPreferredName(), PolygonBuilder.TYPE.shapeName());
+                final GeoPoint tl = aggregation.topLeft();
+                final GeoPoint br = aggregation.bottomRight();
+                geoShape.put(ShapeParser.FIELD_COORDINATES.getPreferredName(),
+                    Collections.singletonList(Arrays.asList(
+                        new Double[]{tl.getLon(), tl.getLat()},
+                        new Double[]{br.getLon(), tl.getLat()},
+                        new Double[]{br.getLon(), br.getLat()},
+                        new Double[]{tl.getLon(), br.getLat()},
+                        new Double[]{tl.getLon(), tl.getLat()})));
+            }
+            return geoShape;
         }
     }
 }

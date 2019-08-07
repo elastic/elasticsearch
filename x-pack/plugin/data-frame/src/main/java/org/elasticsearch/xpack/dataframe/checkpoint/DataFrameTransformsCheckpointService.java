@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheck
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformProgress;
 import org.elasticsearch.xpack.core.dataframe.transforms.TimeSyncConfig;
-import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 
 /**
@@ -52,14 +51,12 @@ public class DataFrameTransformsCheckpointService {
      *
      * @param transformId The data frame task
      * @param lastCheckpointNumber the last checkpoint
-     * @param nextCheckpointIndexerState indexer state for the next checkpoint
      * @param nextCheckpointPosition position for the next checkpoint
      * @param nextCheckpointProgress progress for the next checkpoint
      * @param listener listener to retrieve the result
      */
     public void getCheckpointingInfo(final String transformId,
                                      final long lastCheckpointNumber,
-                                     final IndexerState nextCheckpointIndexerState,
                                      final DataFrameIndexerPosition nextCheckpointPosition,
                                      final DataFrameTransformProgress nextCheckpointProgress,
                                      final ActionListener<DataFrameTransformCheckpointingInfo> listener) {
@@ -67,7 +64,7 @@ public class DataFrameTransformsCheckpointService {
         // we need to retrieve the config first before we can defer the rest to the corresponding provider
         dataFrameTransformsConfigManager.getTransformConfiguration(transformId, ActionListener.wrap(
             transformConfig -> {
-                getCheckpointProvider(transformConfig).getCheckpointingInfo(lastCheckpointNumber, nextCheckpointIndexerState,
+                getCheckpointProvider(transformConfig).getCheckpointingInfo(lastCheckpointNumber,
                             nextCheckpointPosition, nextCheckpointProgress, listener);
                 },
             transformError -> {

@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheck
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointingInfo;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformProgress;
-import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 
 import java.util.Arrays;
@@ -40,7 +39,6 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
      * Builder for collecting checkpointing information for the purpose of _stats
      */
     private static class DataFrameTransformCheckpointingInfoBuilder {
-        private IndexerState nextCheckpointIndexerState;
         private DataFrameIndexerPosition nextCheckpointPosition;
         private DataFrameTransformProgress nextCheckpointProgress;
         private DataFrameTransformCheckpoint lastCheckpoint;
@@ -66,9 +64,9 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
             long nextCheckpointNumber = nextCheckpoint.getCheckpoint() > 0 ? nextCheckpoint.getCheckpoint() : 0;
 
             return new DataFrameTransformCheckpointingInfo(
-                new DataFrameTransformCheckpointStats(lastCheckpointNumber, null, null, null,
+                new DataFrameTransformCheckpointStats(lastCheckpointNumber, null, null,
                     lastCheckpoint.getTimestamp(), lastCheckpoint.getTimeUpperBound()),
-                new DataFrameTransformCheckpointStats(nextCheckpointNumber, nextCheckpointIndexerState, nextCheckpointPosition,
+                new DataFrameTransformCheckpointStats(nextCheckpointNumber, nextCheckpointPosition,
                     nextCheckpointProgress, nextCheckpoint.getTimestamp(), nextCheckpoint.getTimeUpperBound()),
                 DataFrameTransformCheckpoint.getBehind(lastCheckpoint, sourceCheckpoint));
         }
@@ -97,12 +95,6 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
             this.nextCheckpointPosition = nextCheckpointPosition;
             return this;
         }
-
-        public DataFrameTransformCheckpointingInfoBuilder setNextCheckpointIndexerState(IndexerState nextCheckpointIndexerState) {
-            this.nextCheckpointIndexerState = nextCheckpointIndexerState;
-            return this;
-        }
-
     }
 
     private static final Logger logger = LogManager.getLogger(DefaultCheckpointProvider.class);
@@ -226,17 +218,15 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
 
     @Override
     public void getCheckpointingInfo(DataFrameTransformCheckpoint lastCheckpoint,
-                                   DataFrameTransformCheckpoint nextCheckpoint,
-                                   IndexerState nextCheckpointIndexerState,
-                                   DataFrameIndexerPosition nextCheckpointPosition,
-                                   DataFrameTransformProgress nextCheckpointProgress,
-                                   ActionListener<DataFrameTransformCheckpointingInfo> listener) {
+                                     DataFrameTransformCheckpoint nextCheckpoint,
+                                     DataFrameIndexerPosition nextCheckpointPosition,
+                                     DataFrameTransformProgress nextCheckpointProgress,
+                                     ActionListener<DataFrameTransformCheckpointingInfo> listener) {
 
         DataFrameTransformCheckpointingInfoBuilder checkpointingInfoBuilder = new DataFrameTransformCheckpointingInfoBuilder();
 
         checkpointingInfoBuilder.setLastCheckpoint(lastCheckpoint)
             .setNextCheckpoint(nextCheckpoint)
-            .setNextCheckpointIndexerState(nextCheckpointIndexerState)
             .setNextCheckpointPosition(nextCheckpointPosition)
             .setNextCheckpointProgress(nextCheckpointProgress);
 
@@ -250,15 +240,13 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
     }
 
     @Override
-    public void getCheckpointingInfo(long lastCheckpointNumber, IndexerState nextCheckpointIndexerState,
-            DataFrameIndexerPosition nextCheckpointPosition, DataFrameTransformProgress nextCheckpointProgress,
-            ActionListener<DataFrameTransformCheckpointingInfo> listener) {
+    public void getCheckpointingInfo(long lastCheckpointNumber, DataFrameIndexerPosition nextCheckpointPosition,
+                                     DataFrameTransformProgress nextCheckpointProgress,
+                                     ActionListener<DataFrameTransformCheckpointingInfo> listener) {
 
         DataFrameTransformCheckpointingInfoBuilder checkpointingInfoBuilder = new DataFrameTransformCheckpointingInfoBuilder();
 
-        checkpointingInfoBuilder.setNextCheckpointIndexerState(nextCheckpointIndexerState)
-            .setNextCheckpointPosition(nextCheckpointPosition)
-            .setNextCheckpointProgress(nextCheckpointProgress);
+        checkpointingInfoBuilder.setNextCheckpointPosition(nextCheckpointPosition).setNextCheckpointProgress(nextCheckpointProgress);
 
         long timestamp = System.currentTimeMillis();
 

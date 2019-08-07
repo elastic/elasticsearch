@@ -51,32 +51,34 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
 include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 `wait_for_active_shards`::
-    A number controlling to how many active shards to wait for, `all` to wait
-    for all shards in the cluster to be active, or `0` to not wait. Defaults to `0`.
+    (Optional, string) A number controlling to how many active shards to wait 
+    for, `all` to wait for all shards in the cluster to be active, or `0` to not 
+    wait. Defaults to `0`.
     
 `wait_for_events`::
-    Can be one of `immediate`, `urgent`, `high`, `normal`, `low`, `languid`.
-    Wait until all currently queued events with the given priority are processed.
+    (Optional, string) Can be one of `immediate`, `urgent`, `high`, `normal`, 
+    `low`, `languid`. Wait until all currently queued events with the given 
+    priority are processed.
 
 `wait_for_no_initializing_shards`::
-    A boolean value which controls whether to wait (until the timeout provided)
-    for the cluster to have no shard initializations. Defaults to false, which means
-    it will not wait for initializing shards.
+    (Optional, boolean) A boolean value which controls whether to wait (until 
+    the timeout provided) for the cluster to have no shard initializations. 
+    Defaults to false, which means it will not wait for initializing shards.
 
 `wait_for_no_relocating_shards`::
-    A boolean value which controls whether to wait (until the timeout provided)
-    for the cluster to have no shard relocations. Defaults to false, which means
-    it will not wait for relocating shards.
+    (Optional, boolean) A boolean value which controls whether to wait (until 
+    the timeout provided) for the cluster to have no shard relocations. Defaults 
+    to false, which means it will not wait for relocating shards.
 
 `wait_for_nodes`::
-    The request waits until the specified number `N` of
+    (Optional, string) The request waits until the specified number `N` of
     nodes is available. It also accepts `>=N`, `<=N`, `>N` and `<N`.
     Alternatively, it is possible to use `ge(N)`, `le(N)`, `gt(N)` and
     `lt(N)` notation.
 
 `wait_for_status`::
-    One of `green`, `yellow` or `red`. Will wait (until
-    the timeout provided) until the status of the cluster changes to the one
+    (Optional, string) One of `green`, `yellow` or `red`. Will wait (until the 
+    timeout provided) until the status of the cluster changes to the one
     provided or better, i.e. `green` > `yellow` > `red`. By default, will not
     wait for any status.
 

@@ -29,7 +29,6 @@ import org.antlr.v4.runtime.Recognizer;
 import org.antlr.v4.runtime.atn.PredictionMode;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.ScriptClassInfo;
@@ -127,6 +126,7 @@ import org.elasticsearch.painless.node.ELambda;
 import org.elasticsearch.painless.node.EListInit;
 import org.elasticsearch.painless.node.EMapInit;
 import org.elasticsearch.painless.node.ENewArray;
+import org.elasticsearch.painless.node.ENewArrayFunctionRef;
 import org.elasticsearch.painless.node.ENewObj;
 import org.elasticsearch.painless.node.ENull;
 import org.elasticsearch.painless.node.ENumeric;
@@ -163,8 +163,6 @@ import org.objectweb.asm.util.Printer;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.BitSet;
 import java.util.Deque;
 import java.util.List;
 
@@ -184,11 +182,10 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     private final CompilerSettings settings;
     private final Printer debugStream;
     private final String sourceName;
+    private final String sourceText;
     private final PainlessLookup painlessLookup;
 
     private final Deque<Reserved> reserved = new ArrayDeque<>();
-    private final Globals globals;
-    private int syntheticCounter = 0;
 
     private Walker(ScriptClassInfo scriptClassInfo, MainMethodReserved reserved, String sourceName, String sourceText,
                    CompilerSettings settings, PainlessLookup painlessLookup, Printer debugStream) {
@@ -197,7 +194,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         this.debugStream = debugStream;
         this.settings = settings;
         this.sourceName = Location.computeSourceName(sourceName);
-        this.globals = new Globals(new BitSet(sourceText.length()));
+        this.sourceText = sourceText;
         this.painlessLookup = painlessLookup;
         this.source = (SSource)visit(buildAntlrTree(sourceText));
     }
@@ -242,11 +239,6 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         return new Location(sourceName, ctx.getStart().getStartIndex());
     }
 
-    /** Returns name of next lambda */
-    private String nextLambda() {
-        return "lambda$" + syntheticCounter++;
-    }
-
     @Override
     public ANode visitSource(SourceContext ctx) {
         List<SFunction> functions = new ArrayList<>();
@@ -261,8 +253,8 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             statements.add((AStatement)visit(statement));
         }
 
-        return new SSource(scriptClassInfo, settings, sourceName, debugStream, (MainMethodReserved)reserved.pop(),
-                           location(ctx), functions, globals, statements);
+        return new SSource(scriptClassInfo, settings, sourceName, sourceText, debugStream,
+                           (MainMethodReserved)reserved.pop(), location(ctx), functions, statements);
     }
 
     @Override
@@ -1099,8 +1091,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         FunctionReserved lambdaReserved = (FunctionReserved)reserved.pop();
         reserved.peek().addUsedVariables(lambdaReserved);
 
-        String name = nextLambda();
-        return new ELambda(name, lambdaReserved, location(ctx), paramTypes, paramNames, statements);
+        return new ELambda(lambdaReserved, location(ctx), paramTypes, paramNames, statements);
     }
 
     @Override
@@ -1115,22 +1106,9 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitConstructorfuncref(ConstructorfuncrefContext ctx) {
-        if (!ctx.decltype().LBRACE().isEmpty()) {
-            // array constructors are special: we need to make a synthetic method
-            // taking integer as argument and returning a new instance, and return a ref to that.
-            Location location = location(ctx);
-            String arrayType = ctx.decltype().getText();
-            SReturn code = new SReturn(location,
-                new ENewArray(location, arrayType, Arrays.asList(
-                    new EVariable(location, "size")), false));
-            String name = nextLambda();
-            globals.addSyntheticMethod(new SFunction(new FunctionReserved(), location, arrayType, name,
-                Arrays.asList("int"), Arrays.asList("size"), Arrays.asList(code), true));
-
-            return new EFunctionRef(location(ctx), "this", name);
-        }
-
-        return new EFunctionRef(location(ctx), ctx.decltype().getText(), ctx.NEW().getText());
+        return ctx.decltype().LBRACE().isEmpty() ?
+                new EFunctionRef(location(ctx), ctx.decltype().getText(), ctx.NEW().getText()) :
+                new ENewArrayFunctionRef(location(ctx), ctx.decltype().getText());
     }
 
     @Override

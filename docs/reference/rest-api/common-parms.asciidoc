@@ -9,6 +9,12 @@ tag::cat-h[]
 (Optional, string) Comma-separated list of column names to display.
 end::cat-h[]
 
+tag::flat-settings[]
+`flat_settings`::
+(Optional, boolean) If `true`, returns settings in flat format. Defaults to 
+`false`.
+end::flat-settings[]
+
 tag::help[]
 `help`::
 (Optional, boolean) If `true`, the response returns help information. Defaults

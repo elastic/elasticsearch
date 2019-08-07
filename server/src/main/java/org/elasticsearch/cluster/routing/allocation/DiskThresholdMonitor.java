@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.ObjectLookupContainer;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
@@ -80,7 +81,8 @@ public class DiskThresholdMonitor {
         this.diskThresholdSettings = new DiskThresholdSettings(settings, clusterSettings);
         this.client = client;
         if (diskThresholdSettings.isAutoReleaseIndexEnabled() == false) {
-            deprecationLogger.deprecated("[{}] will be removed in version {}", DiskThresholdSettings.AUTO_RELEASE_INDEX_ENABLED_KEY, Version.V_7_4_0.major + 1);
+            deprecationLogger.deprecated("[{}] will be removed in version {}",
+                DiskThresholdSettings.AUTO_RELEASE_INDEX_ENABLED_KEY, Version.V_7_4_0.major + 1);
         }
     }
 
@@ -230,8 +232,10 @@ public class DiskThresholdMonitor {
                 logger.info("releasing read-only-allow-delete block on indices: [{}]", indicesToAutoRelease);
                 updateIndicesReadOnly(indicesToAutoRelease, listener, false);
             } else {
-                deprecationLogger.deprecated("[{}] will be removed in version {}", DiskThresholdSettings.AUTO_RELEASE_INDEX_ENABLED_KEY, Version.V_7_4_0.major + 1);
-                logger.debug("[{}] disabled, not releasing read-only-allow-delete block on indices: [{}]", DiskThresholdSettings.AUTO_RELEASE_INDEX_ENABLED_KEY, indicesToAutoRelease);
+                deprecationLogger.deprecated("[{}] will be removed in version {}",
+                    DiskThresholdSettings.AUTO_RELEASE_INDEX_ENABLED_KEY, Version.V_7_4_0.major + 1);
+                logger.debug("[{}] disabled, not releasing read-only-allow-delete block on indices: [{}]",
+                    DiskThresholdSettings.AUTO_RELEASE_INDEX_ENABLED_KEY, indicesToAutoRelease);
                 listener.onResponse(null);
             }
         } else {
@@ -271,11 +275,12 @@ public class DiskThresholdMonitor {
             setLastRunTimeMillis();
             listener.onResponse(r);
         }, e -> {
-            logger.debug("marking indices read-only [{}] failed", readOnly, e);
+            logger.debug(new ParameterizedMessage("setting indices [{}] read-only failed", readOnly), e);
             setLastRunTimeMillis();
             listener.onFailure(e);
         });
-        Settings readOnlySettings = readOnly ? Settings.builder().put(IndexMetaData.SETTING_READ_ONLY_ALLOW_DELETE, Boolean.TRUE.toString()).build() :
+        Settings readOnlySettings = readOnly ? Settings.builder()
+            .put(IndexMetaData.SETTING_READ_ONLY_ALLOW_DELETE, Boolean.TRUE.toString()).build() :
             Settings.builder().putNull(IndexMetaData.SETTING_READ_ONLY_ALLOW_DELETE).build();
         client.admin().indices().prepareUpdateSettings(indicesToUpdate.toArray(Strings.EMPTY_ARRAY))
             .setSettings(readOnlySettings)

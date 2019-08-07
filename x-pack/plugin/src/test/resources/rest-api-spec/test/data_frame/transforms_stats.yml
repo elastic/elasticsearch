@@ -47,7 +47,7 @@ teardown:
         transform_id: "airline-transform-stats"
   - match: { count: 1 }
   - match: { transforms.0.id: "airline-transform-stats" }
-  - match: { transforms.0.task_state: "/started|stopped/" }
+  - match: { transforms.0.state: "/started|indexing|stopping|stopped/" }
   - lte: { transforms.0.checkpointing.last.checkpoint: 1 }
   - lte: { transforms.0.stats.pages_processed: 1 }
   - match: { transforms.0.stats.documents_processed: 0 }
@@ -227,7 +227,7 @@ teardown:
   - match: { count: 1 }
   - match: { transforms.0.id: "airline-transform-stats-continuous" }
   # Since this is continuous, there is no worry of it automatically stopping
-  - match: { transforms.0.task_state: "started" }
+  - match: { transforms.0.state: "/started|indexing/" }
   - lte: { transforms.0.checkpointing.last.checkpoint: 1 }
   # Since this is continuous, and _start does not return until it is assigned
   # we should see a node assignment

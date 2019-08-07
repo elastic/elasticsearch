@@ -49,8 +49,8 @@ public final class TrackingResultProcessor implements Processor {
                 if (conditionalProcessor.evaluate(ingestDocument) == false) {
                     return ingestDocument;
                 }
-                if (conditionalProcessor.getProcessor() instanceof PipelineProcessor) {
-                    processor = conditionalProcessor.getProcessor();
+                if (conditionalProcessor.getInnerProcessor() instanceof PipelineProcessor) {
+                    processor = conditionalProcessor.getInnerProcessor();
                 }
             }
             if (processor instanceof PipelineProcessor) {

@@ -99,9 +99,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
     that are open, closed or both. Available options: `open`, `closed`, `none`, 
     `all`.
 
-`flat_settings`::
-    (Optional, boolean) If `true`, returns settings in flat format (default: 
-    false).
+include::{docdir}/rest-api/common-parms.asciidoc[tag=flat-settings]
     
 `ignore_unavailable`::
     (Optional, boolean) If `true`, unavailable indices (missing or closed) will 

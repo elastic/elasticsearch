@@ -97,10 +97,18 @@ public class SearchHttpCancellationIT extends HttpSmokeTestCase {
     }
 
     @Before
-    public void init() {
+    public void init() throws Exception {
         if (client == null) {
-            client = HttpAsyncClientBuilder.create().build();
-            client.start();
+            try {
+                client = AccessController.doPrivileged((PrivilegedExceptionAction<CloseableHttpAsyncClient>)
+                    () -> client = HttpAsyncClientBuilder.create().build());
+                AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
+                    client.start();
+                    return null;
+                });
+            } catch (PrivilegedActionException e) {
+                throw (Exception) e.getCause();
+            }
             readNodesInfo(hosts, nodeIdToName);
         }
     }

@@ -53,7 +53,6 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
     private volatile IndexCommit safeCommit; // the most recent safe commit point - its max_seqno at most the persisted global checkpoint.
     private volatile IndexCommit lastCommit; // the most recent commit point
     private volatile SafeCommitInfo safeCommitInfo = SafeCommitInfo.EMPTY;
-    private final Object onCommitMutex = new Object();
 
     CombinedDeletionPolicy(Logger logger, TranslogDeletionPolicy translogDeletionPolicy,
                            SoftDeletesPolicy softDeletesPolicy, LongSupplier globalCheckpointSupplier) {
@@ -67,7 +66,15 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
     @Override
     public synchronized void onInit(List<? extends IndexCommit> commits) throws IOException {
         assert commits.isEmpty() == false : "index is opened, but we have no commits";
-        onCommit(commits);
+        final int keptPosition = indexOfKeptCommits(commits, globalCheckpointSupplier.getAsLong());
+        lastCommit = commits.get(commits.size() - 1);
+        safeCommit = commits.get(keptPosition);
+        for (int i = 0; i < keptPosition; i++) {
+            if (snapshottedCommits.containsKey(commits.get(i)) == false) {
+                deleteCommit(commits.get(i));
+            }
+        }
+        updateRetentionPolicy();
         if (safeCommit != commits.get(commits.size() - 1)) {
             throw new IllegalStateException("Engine is opened, but the last commit isn't safe. Global checkpoint ["
                 + globalCheckpointSupplier.getAsLong() + "], seqNo is last commit ["
@@ -78,23 +85,26 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
 
     @Override
     public void onCommit(List<? extends IndexCommit> commits) throws IOException {
-        synchronized (onCommitMutex) {
-            updateCommitsAndRetentionPolicy(commits);
-            safeCommitInfo = new SafeCommitInfo(Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)),
-                getDocCountOfCommit(safeCommit));
+        final IndexCommit safeCommit;
+        synchronized (this) {
+            final int keptPosition = indexOfKeptCommits(commits, globalCheckpointSupplier.getAsLong());
+            lastCommit = commits.get(commits.size() - 1);
+            this.safeCommit = commits.get(keptPosition);
+            for (int i = 0; i < keptPosition; i++) {
+                if (snapshottedCommits.containsKey(commits.get(i)) == false) {
+                    deleteCommit(commits.get(i));
+                }
+            }
+            updateRetentionPolicy();
+            safeCommit = this.safeCommit;
         }
-    }
-
-    private synchronized void updateCommitsAndRetentionPolicy(List<? extends IndexCommit> commits) throws IOException {
-        final int keptPosition = indexOfKeptCommits(commits, globalCheckpointSupplier.getAsLong());
-        lastCommit = commits.get(commits.size() - 1);
-        safeCommit = commits.get(keptPosition);
-        for (int i = 0; i < keptPosition; i++) {
-            if (snapshottedCommits.containsKey(commits.get(i)) == false) {
-                deleteCommit(commits.get(i));
+        final SafeCommitInfo safeCommitInfo = new SafeCommitInfo(Long.parseLong(
+            safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)), getDocCountOfCommit(safeCommit));
+        synchronized (this) {
+            if (this.safeCommit == safeCommit) {
+                this.safeCommitInfo = safeCommitInfo;
             }
         }
-        updateRetentionPolicy();
     }
 
     private void deleteCommit(IndexCommit commit) throws IOException {

@@ -65,28 +65,14 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
 
     @Override
     public void onInit(List<? extends IndexCommit> commits) throws IOException {
-        final IndexCommit safeCommit;
-
-        synchronized (this) {
-            assert commits.isEmpty() == false : "index is opened, but we have no commits";
-            final int keptPosition = indexOfKeptCommits(commits, globalCheckpointSupplier.getAsLong());
-            this.lastCommit = commits.get(commits.size() - 1);
-            this.safeCommit = commits.get(keptPosition);
-            for (int i = 0; i < keptPosition; i++) {
-                if (snapshottedCommits.containsKey(commits.get(i)) == false) {
-                    deleteCommit(commits.get(i));
-                }
-            }
-            updateRetentionPolicy();
-            if (this.safeCommit != commits.get(commits.size() - 1)) {
-                throw new IllegalStateException("Engine is opened, but the last commit isn't safe. Global checkpoint ["
-                    + globalCheckpointSupplier.getAsLong() + "], seqNo is last commit ["
-                    + SequenceNumbers.loadSeqNoInfoFromLuceneCommit(lastCommit.getUserData().entrySet()) + "], seqNos in safe commit ["
-                    + SequenceNumbers.loadSeqNoInfoFromLuceneCommit(this.safeCommit.getUserData().entrySet()) + "]");
-            }
-            safeCommit = this.safeCommit;
+        assert commits.isEmpty() == false : "index is opened, but we have no commits";
+        onCommit(commits);
+        if (safeCommit != commits.get(commits.size() - 1)) {
+            throw new IllegalStateException("Engine is opened, but the last commit isn't safe. Global checkpoint ["
+                + globalCheckpointSupplier.getAsLong() + "], seqNo is last commit ["
+                + SequenceNumbers.loadSeqNoInfoFromLuceneCommit(lastCommit.getUserData().entrySet()) + "], "
+                + "seqNos in safe commit [" + SequenceNumbers.loadSeqNoInfoFromLuceneCommit(safeCommit.getUserData().entrySet()) + "]");
         }
-        computeSafeCommitInfo(safeCommit);
     }
 
     @Override

@@ -39,6 +39,11 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
             config.put("ignore_missing", keyIgnoreMissing);
         }
 
+        Boolean overrideEnabled = randomBoolean() ? null : randomBoolean();
+        if (overrideEnabled != null) {
+            config.put("override", overrideEnabled);
+        }
+
         int numRandomValues = randomIntBetween(1, 8);
         List<Tuple<String, String>> randomValues = new ArrayList<>(numRandomValues);
         for (int i = 0; i < numRandomValues; i++) {
@@ -59,6 +64,11 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
         assertThat(result.getPolicyName(), equalTo("majestic"));
         assertThat(result.getEnrichKey(), equalTo("host"));
         assertThat(result.isIgnoreMissing(), is(keyIgnoreMissing));
+        if (overrideEnabled != null) {
+            assertThat(result.isOverrideEnabled(), is(overrideEnabled));
+        } else {
+            assertThat(result.isOverrideEnabled(), is(true));
+        }
         assertThat(result.getSpecifications().size(), equalTo(numRandomValues));
         for (int i = 0; i < numRandomValues; i++) {
             EnrichSpecification actual = result.getSpecifications().get(i);

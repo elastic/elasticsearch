@@ -56,7 +56,7 @@ public class ExactMatchProcessorTests extends ESTestCase {
             documents.put("elastic.co", document1);
         }
         MockSearchFunction mockSearch = mockedSearchFunction(documents);
-        ExactMatchProcessor processor = new ExactMatchProcessor("_tag", mockSearch, "_name", "domain", false,
+        ExactMatchProcessor processor = new ExactMatchProcessor("_tag", mockSearch, "_name", "domain", false, true,
             Arrays.asList(new EnrichSpecification("tldRank", "tld_rank"), new EnrichSpecification("tld", "tld")));
         IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", "_routing", 1L, VersionType.INTERNAL,
             Collections.singletonMap("domain", "elastic.co"));
@@ -85,7 +85,7 @@ public class ExactMatchProcessorTests extends ESTestCase {
 
     public void testNoMatch() throws Exception {
         MockSearchFunction mockSearch = mockedSearchFunction();
-        ExactMatchProcessor processor = new ExactMatchProcessor("_tag", mockSearch, "_name", "domain", false,
+        ExactMatchProcessor processor = new ExactMatchProcessor("_tag", mockSearch, "_name", "domain", false, true,
             Arrays.asList(new EnrichSpecification("tldRank", "tld_rank"), new EnrichSpecification("tld", "tld")));
         IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", "_routing", 1L, VersionType.INTERNAL,
             Collections.singletonMap("domain", "elastic.com"));
@@ -115,7 +115,7 @@ public class ExactMatchProcessorTests extends ESTestCase {
     public void testSearchFailure() throws Exception {
         String indexName = ".enrich-_name";
         MockSearchFunction mockSearch = mockedSearchFunction(new IndexNotFoundException(indexName));
-        ExactMatchProcessor processor = new ExactMatchProcessor("_tag", mockSearch, "_name", "domain", false,
+        ExactMatchProcessor processor = new ExactMatchProcessor("_tag", mockSearch, "_name", "domain", false, true,
             Arrays.asList(new EnrichSpecification("tldRank", "tld_rank"), new EnrichSpecification("tld", "tld")));
         IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", "_routing", 1L, VersionType.INTERNAL,
             Collections.singletonMap("domain", "elastic.com"));
@@ -150,7 +150,7 @@ public class ExactMatchProcessorTests extends ESTestCase {
     public void testIgnoreKeyMissing() throws Exception {
         {
             ExactMatchProcessor processor = new ExactMatchProcessor("_tag", mockedSearchFunction(), "_name", "domain",
-                true, Arrays.asList(new EnrichSpecification("tldRank", "tld_rank"), new EnrichSpecification("tld", "tld")));
+                true, true, Arrays.asList(new EnrichSpecification("tldRank", "tld_rank"), new EnrichSpecification("tld", "tld")));
             IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", "_routing", 1L, VersionType.INTERNAL,
                 Collections.emptyMap());
 
@@ -162,7 +162,7 @@ public class ExactMatchProcessorTests extends ESTestCase {
         }
         {
             ExactMatchProcessor processor = new ExactMatchProcessor("_tag", mockedSearchFunction(), "_name", "domain",
-                false, Arrays.asList(new EnrichSpecification("tldRank", "tld_rank"), new EnrichSpecification("tld", "tld")));
+                false, true, Arrays.asList(new EnrichSpecification("tldRank", "tld_rank"), new EnrichSpecification("tld", "tld")));
             IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", "_routing", 1L, VersionType.INTERNAL,
                 Collections.emptyMap());
             IngestDocument[] resultHolder = new IngestDocument[1];
@@ -175,6 +175,43 @@ public class ExactMatchProcessorTests extends ESTestCase {
             assertThat(exceptionHolder[0], notNullValue());
             assertThat(exceptionHolder[0], instanceOf(IllegalArgumentException.class));
         }
+    }
+
+    public void testExistingFieldWithOverrideDisabled() throws Exception {
+        MockSearchFunction mockSearch = mockedSearchFunction(mapOf("elastic.co", mapOf("globalRank", 451, "tldRank", 23, "tld", "co")));
+        ExactMatchProcessor processor = new ExactMatchProcessor("_tag", mockSearch, "_name", "domain", false, false,
+            Collections.singletonList(new EnrichSpecification("tld", "tld")));
+
+        IngestDocument ingestDocument = new IngestDocument(new HashMap<>(mapOf("domain", "elastic.co", "tld", "tld")), mapOf());
+        IngestDocument[] resultHolder = new IngestDocument[1];
+        Exception[] exceptionHolder = new Exception[1];
+        processor.execute(ingestDocument, (result, e) -> {
+            resultHolder[0] = result;
+            exceptionHolder[0] = e;
+        });
+        assertThat(exceptionHolder[0], nullValue());
+        assertThat(resultHolder[0].hasField("tld"), equalTo(true));
+        assertThat(resultHolder[0].getFieldValue("tld", Object.class), equalTo("tld"));
+    }
+
+    public void testExistingNullFieldWithOverrideDisabled() throws Exception {
+        MockSearchFunction mockSearch = mockedSearchFunction(mapOf("elastic.co", mapOf("globalRank", 451, "tldRank", 23, "tld", "co")));
+        ExactMatchProcessor processor = new ExactMatchProcessor("_tag", mockSearch, "_name", "domain", false, false,
+            Collections.singletonList(new EnrichSpecification("tld", "tld")));
+
+        Map<String, Object> source = new HashMap<>();
+        source.put("domain", "elastic.co");
+        source.put("tld", null);
+        IngestDocument ingestDocument = new IngestDocument(source, mapOf());
+        IngestDocument[] resultHolder = new IngestDocument[1];
+        Exception[] exceptionHolder = new Exception[1];
+        processor.execute(ingestDocument, (result, e) -> {
+            resultHolder[0] = result;
+            exceptionHolder[0] = e;
+        });
+        assertThat(exceptionHolder[0], nullValue());
+        assertThat(resultHolder[0].hasField("tld"), equalTo(true));
+        assertThat(resultHolder[0].getFieldValue("tld", Object.class), equalTo(null));
     }
 
     private static final class MockSearchFunction implements BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>>  {
@@ -239,5 +276,30 @@ public class ExactMatchProcessorTests extends ESTestCase {
             new SearchHits(searchHits, new TotalHits(documents.size(), TotalHits.Relation.EQUAL_TO), 1.0f),
             new Aggregations(Collections.emptyList()), new Suggest(Collections.emptyList()),
             false, false, null, 1), null, 1, 1, 0, 1, ShardSearchFailure.EMPTY_ARRAY, new SearchResponse.Clusters(1, 1, 0));
+    }
+
+    static  <K, V> Map<K, V> mapOf() {
+        return Collections.emptyMap();
+    }
+
+    static  <K, V> Map<K, V> mapOf(K key1, V value1) {
+        Map<K, V> map = new HashMap<>();
+        map.put(key1, value1);
+        return map;
+    }
+
+    static  <K, V> Map<K, V> mapOf(K key1, V value1, K key2, V value2) {
+        Map<K, V> map = new HashMap<>();
+        map.put(key1, value1);
+        map.put(key2, value2);
+        return map;
+    }
+
+    static Map<String, ?> mapOf(String key1, Object value1, String key2, Object value2, String key3, Object value3) {
+        Map<String, Object> map = new HashMap<>();
+        map.put(key1, value1);
+        map.put(key2, value2);
+        map.put(key3, value3);
+        return map;
     }
 }

@@ -39,6 +39,7 @@ public class Point2DTests extends ESTestCase {
         output.close();
         Point2DReader reader = new Point2DReader(new ByteBufferStreamInput(ByteBuffer.wrap(output.bytes().toBytesRef().bytes)));
         assertThat(reader.getExtent(), equalTo(Extent.fromPoint(x, y)));
+        assertThat(reader.getExtent(), equalTo(reader.getExtent()));
         assertTrue(reader.intersects(Extent.fromPoint(x, y)));
         assertTrue(reader.intersects(Extent.fromPoints(x, y, x + randomIntBetween(1, 10), y + randomIntBetween(1, 10))));
         assertTrue(reader.intersects(Extent.fromPoints(x - randomIntBetween(1, 10), y - randomIntBetween(1, 10), x, y)));
@@ -69,6 +70,7 @@ public class Point2DTests extends ESTestCase {
             writer.writeTo(output);
             output.close();
             Point2DReader reader = new Point2DReader(new ByteBufferStreamInput(ByteBuffer.wrap(output.bytes().toBytesRef().bytes)));
+            assertThat(reader.getExtent(), equalTo(reader.getExtent()));
             assertThat(reader.getExtent(), equalTo(writer.getExtent()));
             assertTrue(reader.intersects(extent));
         }

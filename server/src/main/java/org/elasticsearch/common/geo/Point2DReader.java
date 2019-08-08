@@ -45,6 +45,7 @@ class Point2DReader implements ShapeTreeReader {
             int y = readY(0);
             return Extent.fromPoint(x, y);
         } else {
+            input.position(startPosition);
             return new Extent(input);
         }
     }
@@ -93,12 +94,14 @@ class Point2DReader implements ShapeTreeReader {
     }
 
     private int readX(int pointIdx) throws IOException {
-        input.position(startPosition + 2 * pointIdx * Integer.BYTES);
+        int extentOffset = size == 1 ? 0 : Extent.WRITEABLE_SIZE_IN_BYTES;
+        input.position(startPosition + extentOffset + 2 * pointIdx * Integer.BYTES);
         return input.readInt();
     }
 
     private int readY(int pointIdx) throws IOException {
-        input.position(startPosition + (2 * pointIdx + 1) * Integer.BYTES);
+        int extentOffset = size == 1 ? 0 : Extent.WRITEABLE_SIZE_IN_BYTES;
+        input.position(startPosition + extentOffset + (2 * pointIdx + 1) * Integer.BYTES);
         return input.readInt();
     }
 }

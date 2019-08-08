@@ -26,12 +26,12 @@ public class SpatialFeatureSet implements XPackFeatureSet {
 
     @Override
     public String name() {
-        return XPackField.GRAPH;
+        return XPackField.SPATIAL;
     }
 
     @Override
     public boolean available() {
-        return licenseState != null && licenseState.isGraphAllowed();
+        return licenseState != null && licenseState.isSpatialAllowed();
     }
 
     @Override

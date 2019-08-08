@@ -64,9 +64,9 @@ GET /_search
 the query string.
 
 Defaults to the `index.query.default_field` index setting, which has a default
-value of `*`. The `*` value extracts all fields in the mapping that are eligible
-to term queries and filters the metadata fields. All extracted fields are then
-combined to build a query if no `prefix` is specified.
+value of `*`. The `*` value extracts all fields that are eligible to term
+queries and filters the metadata fields. All extracted fields are then combined
+to build a query if no `prefix` is specified.
 
 WARNING: There is a limit on the number of fields that can be queried at once.
 It is defined by the `indices.query.bool.max_clause_count`

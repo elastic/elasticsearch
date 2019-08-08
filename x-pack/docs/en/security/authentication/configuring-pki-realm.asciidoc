@@ -151,7 +151,7 @@ xpack.security.authc.realms.pki.pki1.truststore.secure_password
 
 The `certificate_authorities` option can be used as an alternative to the
 `truststore.path` setting, when the certificate files are PEM formatted
-(accepts a list). The two options are exclusive, they cannot be both used
+. The setting accepts a list. The two options are exclusive, they cannot be both used
 simultaneously.
 --
 

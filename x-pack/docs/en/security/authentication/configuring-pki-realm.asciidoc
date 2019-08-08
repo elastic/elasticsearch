@@ -5,9 +5,9 @@
 You can configure {es} to use Public Key Infrastructure (PKI) certificates to
 authenticate users. This requires clients connecting directly to {es} to
 present X.509 certificates. The certificates must first be accepted for
-authentication on the SSL/TLS layer on {es}, before they are optionally further
-validated by a PKI realm. Users might also connect to {kib}, where they present
-their certificate, but this requires a little
+authentication on the SSL/TLS layer on {es}. Only then they are optionally
+further validated by a PKI realm. Users might also connect to {kib} and
+present their certificate, but this requires a little
 <<pki-realm-for-proxied-clients,extra configuration>>. On {es}, this
 configuration enables {kib} to act as a proxy for SSL/TLS authentication and
 submit the client certificates to {es} to be further validated by a PKI realm.
@@ -31,8 +31,9 @@ authenticating HTTP traffic using username and password credentials. You can
 also set `xpack.security.transport.ssl.client_authentication` to `optional` to
 allow clients without certificates to authenticate with other credentials.
 
-IMPORTANT: If you only allow PKI authentication for clients connecting directly
-to {es}, you must enable SSL/TLS and enable client authentication.
+IMPORTANT: You must enable SSL/TLS and enable client authentication, if you
+only allow PKI authentication for clients connecting directly to {es}, but not
+through {kib}.
 
 . Add a realm configuration for a `pki` realm to `elasticsearch.yml` under the
 `xpack.security.authc.realms.pki` namespace.
@@ -80,7 +81,7 @@ xpack:
 ------------------------------------------------------------
 
 NOTE: If the regex is too restrictive and does not match the Subject DN of the
-client's certificate, then the realm will not authenticate the certificate.
+client's certificate, then the realm does not authenticate the certificate.
 
 --
 
@@ -258,7 +259,9 @@ users authenticated directly, because the former ones have the following two
 extra fields `pki_delegated_by_user` and `pki_delegated_by_realm` in the user's
 metadata. In the common setup, where authentication is delegated to {kib}, the
 values of these fields are `kibana` and `reserved`, respectively. For example,
-the following role mapping rule:
+the following role mapping rule will assign the `role_for_pki1_direct` role to
+all users that have been authenticated directly by the `pki1` realm, by
+connecting to {es} instead of going through {kib}:
 
 [source,js]
 --------------------------------------------------
@@ -286,6 +289,3 @@ PUT /_security/role_mapping/direct_pki_only
 <1> only when this metadata field is set (it is *not* `null`) the user has been
 authenticated in the delegation scenario.
 
-will assign the `role_for_pki1_direct` role to all users that have been
-authenticated directly by the `pki1` realm, by connecting to {es} instead of
-going through {kib}.

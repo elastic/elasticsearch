@@ -241,10 +241,10 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
            } else if (token == Token.START_OBJECT) {
                switch (name) {
                    case SearchFailure.REASON_FIELD:
-                       bulkExc = ElasticsearchException.fromXContent(parser);
+                       searchExc = ElasticsearchException.fromXContent(parser);
                        break;
                    case Failure.CAUSE_FIELD:
-                       searchExc = ElasticsearchException.fromXContent(parser);
+                       bulkExc = ElasticsearchException.fromXContent(parser);
                        break;
                    default:
                        parser.skipChildren();

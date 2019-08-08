@@ -22,7 +22,6 @@ package org.elasticsearch.index.reindex;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -360,7 +359,7 @@ public abstract class ScrollableHitSource {
      */
     public static class SearchFailure implements Writeable, ToXContentObject {
         private final Throwable reason;
-        private final RestStatus restStatus;
+        private final RestStatus status;
         @Nullable
         private final String index;
         @Nullable
@@ -379,12 +378,12 @@ public abstract class ScrollableHitSource {
         }
 
         public SearchFailure(Throwable reason, @Nullable String index, @Nullable Integer shardId, @Nullable String nodeId,
-                             RestStatus restStatus) {
+                             RestStatus status) {
             this.index = index;
             this.shardId = shardId;
             this.reason = requireNonNull(reason, "reason cannot be null");
             this.nodeId = nodeId;
-            this.restStatus = restStatus;
+            this.status = status;
         }
 
         /**
@@ -402,7 +401,7 @@ public abstract class ScrollableHitSource {
             index = in.readOptionalString();
             shardId = in.readOptionalVInt();
             nodeId = in.readOptionalString();
-            restStatus = ExceptionsHelper.status(reason);
+            status = ExceptionsHelper.status(reason);
         }
 
         @Override
@@ -420,6 +419,11 @@ public abstract class ScrollableHitSource {
         public Integer getShardId() {
             return shardId;
         }
+
+        public RestStatus getStatus() {
+            return this.status;
+        }
+
 
         public Throwable getReason() {
             return reason;
@@ -442,7 +446,7 @@ public abstract class ScrollableHitSource {
             if (nodeId != null) {
                 builder.field(NODE_FIELD, nodeId);
             }
-            builder.field(STATUS_FIELD, restStatus.getStatus());
+            builder.field(STATUS_FIELD, status.getStatus());
             builder.field(REASON_FIELD);
             {
                 builder.startObject();

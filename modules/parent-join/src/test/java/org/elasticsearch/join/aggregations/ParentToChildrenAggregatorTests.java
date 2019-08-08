@@ -120,6 +120,23 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
         directory.close();
     }
 
+    public void testParentChildWithNullFieldMapper() throws IOException {
+        Directory directory = newDirectory();
+
+        RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
+//        final Map<String, Tuple<Integer, Integer>> expectedParentChildRelations = setupIndex(indexWriter);
+        indexWriter.close();
+        IndexReader indexReader = DirectoryReader.open(directory);
+
+        testCase(new MatchAllDocsQuery(), newSearcher(indexReader, false, true), null, parentToChild -> {
+            assertEquals(0, parentToChild.getDocCount());
+            assertEquals(Double.POSITIVE_INFINITY, ((InternalMin) parentToChild.getAggregations().get("in_child")).getValue(),
+                Double.MIN_VALUE);
+        });
+        indexReader.close();
+        directory.close();
+    }
+
     private static Map<String, Tuple<Integer, Integer>> setupIndex(RandomIndexWriter iw) throws IOException {
         Map<String, Tuple<Integer, Integer>> expectedValues = new HashMap<>();
         int numParents = randomIntBetween(1, 10);
@@ -184,6 +201,15 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
         fieldType.setName("number");
+        InternalChildren result = search(indexSearcher, query, aggregationBuilder, fieldType);
+        verify.accept(result);
+    }
+
+    private void testCase(Query query, IndexSearcher indexSearcher, MappedFieldType fieldType, Consumer<InternalChildren> verify)
+            throws IOException {
+        ChildrenAggregationBuilder aggregationBuilder = new ChildrenAggregationBuilder("_name", CHILD_TYPE);
+        aggregationBuilder.subAggregation(new MinAggregationBuilder("in_child").field("number"));
+
         InternalChildren result = search(indexSearcher, query, aggregationBuilder, fieldType);
         verify.accept(result);
     }

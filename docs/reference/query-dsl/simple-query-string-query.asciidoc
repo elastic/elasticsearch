@@ -4,8 +4,8 @@
 <titleabbrev>Simple query string</titleabbrev>
 ++++
 
-Returns documents based on a provided query string, using a limited but
-fault-tolerant syntax.
+Returns documents based on a provided query string, using a parser with a
+limited but fault-tolerant syntax.
 
 This query uses a <<simple-query-string-syntax,simple syntax>> to parse and
 split the provided query string into terms based on special operators. The query

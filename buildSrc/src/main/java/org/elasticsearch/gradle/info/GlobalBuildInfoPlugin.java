@@ -77,7 +77,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
 
         project.allprojects(p -> {
             // Make sure than any task execution generates and prints build info
-            p.getTasks().all(task -> {
+            p.getTasks().configureEach(task -> {
                 if (task != generateTask && task != printTask) {
                     task.dependsOn(printTask);
                 }

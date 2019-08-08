@@ -94,6 +94,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
 
                         // Finally, delete the snapshots that need to be deleted
                         deleteSnapshots(snapshotsToBeDeleted, maxDeletionTime);
+                        running.set(false);
                     }
 
                     @Override
@@ -102,8 +103,9 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                     }
                 }, err -> running.set(false));
 
-            } finally {
+            } catch (Exception e) {
                 running.set(false);
+                throw e;
             }
         } else {
             logger.trace("snapshot lifecycle retention task started, but a task is already running, skipping");

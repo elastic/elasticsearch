@@ -24,7 +24,6 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.client.Client;
@@ -40,7 +39,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
@@ -71,7 +69,6 @@ public class DiskThresholdMonitor {
     private final RerouteService rerouteService;
     private final AtomicLong lastRunTimeMillis = new AtomicLong(Long.MIN_VALUE);
     private final AtomicBoolean checkInProgress = new AtomicBoolean();
-    private final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     public DiskThresholdMonitor(Settings settings, Supplier<ClusterState> clusterStateSupplier, ClusterSettings clusterSettings,
                                 Client client, LongSupplier currentTimeMillisSupplier, RerouteService rerouteService) {
@@ -80,10 +77,6 @@ public class DiskThresholdMonitor {
         this.rerouteService = rerouteService;
         this.diskThresholdSettings = new DiskThresholdSettings(settings, clusterSettings);
         this.client = client;
-        if (diskThresholdSettings.isAutoReleaseIndexEnabled() == false) {
-            deprecationLogger.deprecated("[{}] will be removed in version {}",
-                DiskThresholdSettings.AUTO_RELEASE_INDEX_ENABLED_KEY, Version.V_7_4_0.major + 1);
-        }
     }
 
     /**
@@ -228,16 +221,7 @@ public class DiskThresholdMonitor {
             .collect(Collectors.toSet());
 
         if (indicesToAutoRelease.isEmpty() == false) {
-            if (diskThresholdSettings.isAutoReleaseIndexEnabled()) {
-                logger.info("releasing read-only-allow-delete block on indices: [{}]", indicesToAutoRelease);
-                updateIndicesReadOnly(indicesToAutoRelease, listener, false);
-            } else {
-                deprecationLogger.deprecated("[{}] will be removed in version {}",
-                    DiskThresholdSettings.AUTO_RELEASE_INDEX_ENABLED_KEY, Version.V_7_4_0.major + 1);
-                logger.debug("[{}] disabled, not releasing read-only-allow-delete block on indices: [{}]",
-                    DiskThresholdSettings.AUTO_RELEASE_INDEX_ENABLED_KEY, indicesToAutoRelease);
-                listener.onResponse(null);
-            }
+            updateIndicesReadOnly(indicesToAutoRelease, listener, false);
         } else {
             listener.onResponse(null);
         }
@@ -254,11 +238,9 @@ public class DiskThresholdMonitor {
                                                            Set<String> indicesToMarkIneligibleForAutoRelease) {
         for (RoutingNode routingNode : routingNodes) {
             if (usages.containsKey(routingNode.nodeId()) == false) {
-                if (routingNode != null) {
-                    for (ShardRouting routing : routingNode) {
-                        String indexName = routing.index().getName();
-                        indicesToMarkIneligibleForAutoRelease.add(indexName);
-                    }
+                for (ShardRouting routing : routingNode) {
+                    String indexName = routing.index().getName();
+                    indicesToMarkIneligibleForAutoRelease.add(indexName);
                 }
             }
         }

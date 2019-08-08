@@ -34,7 +34,6 @@ public abstract class ExtractedField {
         SOURCE, DOC_VALUE, SCRIPT_FIELD
     }
 
-
     /** The name of the field as configured in the job */
     protected final String alias;
 

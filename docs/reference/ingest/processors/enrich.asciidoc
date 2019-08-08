@@ -8,7 +8,7 @@ that is managed by an enrich policy prior to indexing.
 
 The data that is used by the enrich index is managed by the user in a regular indices.
 An enrich policy is configuration that indicates how an enrich index is created from
-the data  in the user's maintained indices. When an enrich policy is executed
+the data in the user's maintained indices. When an enrich policy is executed
 a new enrich index is created for that policy, which the enrich process can then use.
 
 An enrich policy also controls what kind of enrichment the `enrich` processor is able to do.
@@ -62,7 +62,7 @@ Create a regular index that contains data you like to enrich your incoming docum
 --------------------------------------------------
 PUT /users/_doc/1?refresh
 {
-    "email": "mardy.brown@gmail.com",
+    "email": "mardy.brown@email.me",
     "first_name": "Mardy",
     "last_name": "Brown",
     "address": "6649 N Blue Gum St",
@@ -158,7 +158,7 @@ PUT _ingest/pipeline/user_lookup
 
 PUT my_index/_doc/my_id?pipeline=user_lookup
 {
-  "email": "mardy.brown@gmail.com"
+  "email": "mardy.brown@email.me"
 }
 
 GET my_index/_doc/my_id
@@ -183,7 +183,7 @@ Which returns:
     "address": "6649 N Blue Gum St",
     "city": "New Orleans",
     "state": "LA",
-    "email": "mardy.brown@gmail.com"
+    "email": "mardy.brown@email.me"
   }
 }
 --------------------------------------------------
@@ -319,13 +319,20 @@ It may take some time before this API returns a response.
 Executing a policy involves creating a new enrich index, indexing the documents from
 the indices specified in policy into the enrich index and some other operations.
 
+Note that this api needs to be re-executed in order to incorporate new changes
+in the index the policy is pointing to after the policy has been executed.
+
+This API creates an index with the `.enrich-*` prefix in the name. This index purpose
+is the be used by the enrich processor only and should not be used by anything else.
+Internally old `.enrich-*` are removed by an internal cleanup mechanism.
+
 //////////////////////////
 
 [source,js]
 --------------------------------------------------
 PUT /users/_doc/1?refresh
 {
-    "email": "mardy.brown@gmail.com",
+    "email": "mardy.brown@email.me",
     "first_name": "Mardy",
     "last_name": "Brown",
     "address": "6649 N Blue Gum St",

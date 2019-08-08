@@ -151,6 +151,9 @@ public class Netty4Transport extends TcpTransport {
     private Bootstrap createClientBootstrap(NioEventLoopGroup eventLoopGroup) {
         final Bootstrap bootstrap = new Bootstrap();
         bootstrap.group(eventLoopGroup);
+
+        // If direct buffer pooling is disabled, use the CopyBytesSocketChannel which will pool a single
+        // direct buffer per-event-loop thread which will be used for IO operations.
         if (ByteBufAllocator.DEFAULT.isDirectBufferPooled()) {
             bootstrap.channel(NioSocketChannel.class);
         } else {
@@ -212,6 +215,10 @@ public class Netty4Transport extends TcpTransport {
         final ServerBootstrap serverBootstrap = new ServerBootstrap();
 
         serverBootstrap.group(eventLoopGroup);
+
+        // If direct buffer pooling is disabled, use the CopyBytesServerSocketChannel which will create child
+        // channels of type CopyBytesSocketChannel. CopyBytesSocketChannel pool a single direct buffer
+        // per-event-loop thread to be used for IO operations.
         if (ByteBufAllocator.DEFAULT.isDirectBufferPooled()) {
             serverBootstrap.channel(NioServerSocketChannel.class);
         } else {

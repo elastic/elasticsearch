@@ -186,6 +186,9 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             serverBootstrap.group(new NioEventLoopGroup(workerCount, daemonThreadFactory(settings,
                 HTTP_SERVER_WORKER_THREAD_NAME_PREFIX)));
 
+            // If direct buffer pooling is disabled, use the CopyBytesServerSocketChannel which will create child
+            // channels of type CopyBytesSocketChannel. CopyBytesSocketChannel pool a single direct buffer
+            // per-event-loop thread to be used for IO operations.
             if (ByteBufAllocator.DEFAULT.isDirectBufferPooled()) {
                 serverBootstrap.channel(NioServerSocketChannel.class);
             } else {

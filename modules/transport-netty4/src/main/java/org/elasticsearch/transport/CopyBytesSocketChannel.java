@@ -43,6 +43,8 @@ import org.elasticsearch.common.SuppressForbidden;
 
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
+import java.util.Arrays;
+import java.util.Objects;
 
 import static io.netty.channel.internal.ChannelUtils.MAX_BYTES_PER_GATHERING_WRITE_ATTEMPTED_LOW_THRESHOLD;
 
@@ -51,6 +53,11 @@ import static io.netty.channel.internal.ChannelUtils.MAX_BYTES_PER_GATHERING_WRI
  * This class is adapted from {@link NioSocketChannel} class in the Netty project. It overrides the channel
  * read/write behavior to ensure that the bytes are always copied to a thread-local direct bytes buffer. This
  * happens BEFORE the call to the Java {@link SocketChannel} is issued.
+ *
+ * The purpose of this class is to allow the disabling of netty direct buffer pooling while allowing us to
+ * control how bytes end up being copied to direct memory. If we simply disabled netty pooling, we would rely
+ * on the JDK's internal thread local buffer pooling. Instead, this class allows us to create a one thread
+ * local buffer with a defined size.
  */
 @SuppressForbidden(reason = "Channel#write")
 public class CopyBytesSocketChannel extends NioSocketChannel {
@@ -83,6 +90,7 @@ public class CopyBytesSocketChannel extends NioSocketChannel {
             // Ensure the pending writes are made of ByteBufs only.
             int maxBytesPerGatheringWrite = writeConfig.getMaxBytesPerGatheringWrite();
             ByteBuffer[] nioBuffers = in.nioBuffers(1024, maxBytesPerGatheringWrite);
+            assert Arrays.stream(nioBuffers).filter(Objects::nonNull).noneMatch(ByteBuffer::isDirect) : "Expected all to be heap buffers";
             int nioBufferCnt = in.nioBufferCount();
 
             if (nioBufferCnt == 0) {// We have something else beside ByteBuffers to write so fallback to normal writes.
@@ -114,11 +122,10 @@ public class CopyBytesSocketChannel extends NioSocketChannel {
         final RecvByteBufAllocator.Handle allocHandle = unsafe().recvBufAllocHandle();
         allocHandle.attemptedBytesRead(byteBuf.writableBytes());
         ByteBuffer ioBuffer = getIoBuffer();
-        ByteBuf wrapped = Unpooled.wrappedBuffer(ioBuffer);
-        wrapped.clear();
-        int bytesRead = wrapped.writeBytes(javaChannel(), allocHandle.attemptedBytesRead());
+        int bytesRead = javaChannel().read(ioBuffer);
+        ioBuffer.flip();
         if (bytesRead > 0) {
-            byteBuf.writeBytes(wrapped, bytesRead);
+            byteBuf.writeBytes(ioBuffer);
         }
         return bytesRead;
     }

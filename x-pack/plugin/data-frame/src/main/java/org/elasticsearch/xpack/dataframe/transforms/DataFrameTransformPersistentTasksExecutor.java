@@ -152,7 +152,8 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
                         indexerBuilder.setInitialPosition(null);
                         indexerBuilder.setProgress(null);
                     } else {
-                        logger.trace("[{}] Loaded next checkpoint [{}] found, starting the task", transformId, nextCheckpoint.getCheckpoint());
+                        logger.trace("[{}] Loaded next checkpoint [{}] found, starting the task", transformId,
+                                nextCheckpoint.getCheckpoint());
                         indexerBuilder.setNextCheckpoint(nextCheckpoint);
                     }
 

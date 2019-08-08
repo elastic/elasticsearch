@@ -147,8 +147,8 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
                 nextCheckpoint -> {
 
                     if (nextCheckpoint.isEmpty()) {
-                        // corner case which should not happen ;-)
-                        // reset the position to force a full re-run with checkpoint creation
+                        // extra safety: reset position and progress if next checkpoint is empty
+                        // prevents if a failure if for some reason next checkpoint has been deleted
                         indexerBuilder.setInitialPosition(null);
                         indexerBuilder.setProgress(null);
                     } else {

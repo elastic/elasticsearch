@@ -126,7 +126,7 @@ public class LoggedExec extends Exec {
         } catch (Exception e) {
             try {
                 if (output.size() != 0) {
-                    project.getLogger().error("Standard output:");
+                    project.getLogger().error("Exec output and error:");
                     NEWLINE.splitAsStream(output.toString("UTF-8")).forEach(s -> project.getLogger().error("| " + s));
                 }
             } catch (UnsupportedEncodingException ue) {

@@ -18,6 +18,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerPosition;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpoint;
@@ -25,15 +26,20 @@ import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheck
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointingInfo;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformProgress;
+import org.elasticsearch.xpack.dataframe.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 
 public class DefaultCheckpointProvider implements CheckpointProvider {
+
+    // threshold when to audit concrete index names, above this threshold we only report the number of changes
+    private static final int AUDIT_CONCRETED_SOURCE_INDEX_CHANGES = 10;
 
     /**
      * Builder for collecting checkpointing information for the purpose of _stats
@@ -101,13 +107,16 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
 
     protected final Client client;
     protected final DataFrameTransformsConfigManager dataFrameTransformsConfigManager;
+    protected final DataFrameAuditor dataFrameAuditor;
     protected final DataFrameTransformConfig transformConfig;
 
     public DefaultCheckpointProvider(final Client client,
                                      final DataFrameTransformsConfigManager dataFrameTransformsConfigManager,
+                                     final DataFrameAuditor dataFrameAuditor,
                                      final DataFrameTransformConfig transformConfig) {
         this.client = client;
         this.dataFrameTransformsConfigManager = dataFrameTransformsConfigManager;
+        this.dataFrameAuditor = dataFrameAuditor;
         this.transformConfig = transformConfig;
     }
 
@@ -123,6 +132,9 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
         final long checkpoint = lastCheckpoint != null ? lastCheckpoint.getCheckpoint() + 1 : 1;
 
         getIndexCheckpoints(ActionListener.wrap(checkpointsByIndex -> {
+            reportSourceIndexChanges(lastCheckpoint != null ? lastCheckpoint.getIndicesCheckpoints().keySet() : Collections.emptySet(),
+                                     checkpointsByIndex.keySet());
+
             listener.onResponse(new DataFrameTransformCheckpoint(transformConfig.getId(), timestamp, checkpoint, checkpointsByIndex, 0L));
         }, listener::onFailure));
     }
@@ -299,4 +311,34 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
             getIndexCheckpoints(checkpointsByIndexListener);
         }
     }
+
+    /**
+     * Inspect source changes and report differences
+     *
+     * @param lastSourceIndexes the set of indexes seen in the previous checkpoint
+     * @param newSourceIndexes the set of indexes seen in the new checkpoint
+     */
+    void reportSourceIndexChanges(final Set<String> lastSourceIndexes, final Set<String> newSourceIndexes) {
+        // spam protection: only warn the first time
+        if (newSourceIndexes.isEmpty() && lastSourceIndexes.isEmpty() == false) {
+            String message = "Source did not resolve to any open indexes";
+            logger.warn("{} for transform [{}]", message, transformConfig.getId());
+            dataFrameAuditor.warning(transformConfig.getId(), message);
+        } else {
+            Set<String> removedIndexes = Sets.difference(lastSourceIndexes, newSourceIndexes);
+            Set<String> addedIndexes = Sets.difference(newSourceIndexes, lastSourceIndexes);
+
+            if (removedIndexes.size() + addedIndexes.size() > AUDIT_CONCRETED_SOURCE_INDEX_CHANGES) {
+                String message = "Source index resolve found more than " + AUDIT_CONCRETED_SOURCE_INDEX_CHANGES + " changes, ["
+                        + removedIndexes.size() + "] removed indexes, [" + addedIndexes.size() + "] new indexes";
+                logger.debug("{} for transform [{}]", message, transformConfig.getId());
+                dataFrameAuditor.info(transformConfig.getId(), message);
+            } else if (removedIndexes.size() + addedIndexes.size() > 0) {
+                String message = "Source index resolve found changes, removedIndexes: " + removedIndexes + ", new indexes: " + addedIndexes;
+                logger.debug("{} for transform [{}]", message, transformConfig.getId());
+                dataFrameAuditor.info(transformConfig.getId(), message);
+            }
+        }
+    }
+
 }

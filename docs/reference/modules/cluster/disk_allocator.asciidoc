@@ -42,8 +42,6 @@ shards allocated on the node that has at least one disk exceeding the flood
 stage. This is a last resort to prevent nodes from running out of disk space.
 The index block is automatically released once the disk utilization falls below
 the high watermark.
-The automatic release can however be disabled in 7.x through a system property
-`es.disk.auto_release_flood_stage_block`
 
 NOTE: You can not mix the usage of percentage values and byte values within
 these settings. Either all are set to percentage values, or all are set to byte

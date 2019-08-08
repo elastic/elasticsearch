@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -50,6 +51,25 @@ public final class SFor extends AStatement {
         this.condition = condition;
         this.afterthought = afterthought;
         this.block = block;
+    }
+
+    @Override
+    void storeSettings(CompilerSettings settings) {
+        if (initializer != null) {
+            initializer.storeSettings(settings);
+        }
+
+        if (condition != null) {
+            condition.storeSettings(settings);
+        }
+
+        if (afterthought != null) {
+            afterthought.storeSettings(settings);
+        }
+
+        if (block != null) {
+            block.storeSettings(settings);
+        }
     }
 
     @Override

@@ -222,7 +222,7 @@ alternative to role mapping.
 [[pki-realm-for-proxied-clients]]
 ==== PKI authentication for clients connecting to {kib}
 
-Clients must normally connect directly to {es}, because the {es} PKI realm
+Clients must normally connect directly to {es} because the {es} PKI realm
 relies on the node's network interface to do the SSL/TLS authentication and to
 also internally forward the client's certificate chain for the realm to be able
 to optionally validate it. If SSL/TLS authenticatication is to be performed

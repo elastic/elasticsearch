@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfi
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformProgress;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformProgressTests;
 import org.elasticsearch.xpack.dataframe.DataFrameSingleNodeTestCase;
+import org.elasticsearch.xpack.dataframe.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 import org.junit.After;
 import org.junit.Before;
@@ -123,7 +124,10 @@ public class DataFrameTransformCheckpointServiceNodeTests extends DataFrameSingl
 
         // use a mock for the checkpoint service
         mockClientForCheckpointing = new MockClientForCheckpointing(getTestName());
-        transformsCheckpointService = new DataFrameTransformsCheckpointService(mockClientForCheckpointing, transformsConfigManager);
+        DataFrameAuditor mockAuditor = mock(DataFrameAuditor.class);
+        transformsCheckpointService = new DataFrameTransformsCheckpointService(mockClientForCheckpointing,
+                                                                               transformsConfigManager,
+                                                                               mockAuditor);
     }
 
     @After

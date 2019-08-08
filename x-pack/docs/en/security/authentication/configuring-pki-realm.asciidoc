@@ -249,7 +249,7 @@ NOTE: PKI authentication delegation requires that
 NOTE: {kib} also needs to be configured to allow PKI certificate authentication.
 
 A PKI realm with `delegation.enabled` still works unchanged for clients
-connecting directly to {es}. Directly authenticated users and users PKI
+connecting directly to {es}. Directly authenticated users and users that are PKI
 authenticated by delegation to {kib} indistinctly follow the same
 {stack-ov}/mapping-roles.html[role mapping rules] or
 {stack-ov}/realm-chains.html#authorization_realms[authorization realms

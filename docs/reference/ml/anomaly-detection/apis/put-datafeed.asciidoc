@@ -58,10 +58,10 @@ IMPORTANT:  You must use {kib} or this API to create a {dfeed}. Do not put a {df
   <<ml-datafeed-delayed-data-check-config>>.
 
 `frequency`::
-  (time units) The interval at which scheduled queries are made while the {dfeed}
-  runs in real time. The default value is either the bucket span for short
-  bucket spans, or, for longer bucket spans, a sensible fraction of the bucket
-  span. For example: `150s`.
+  (Optional, <<time-units, time units>>) The interval at which scheduled queries 
+  are made while the {dfeed} runs in real time. The default value is either the 
+  bucket span for short bucket spans, or, for longer bucket spans, a sensible 
+  fraction of the bucket span. For example: `150s`.
 
 `indices`::
   (Required, array) An array of index names. Wildcards are supported. For example:
@@ -79,9 +79,10 @@ IMPORTANT:  You must use {kib} or this API to create a {dfeed}. Do not put a {df
   value: `{"match_all": {"boost": 1}}`.
 
 `query_delay`::
-  (time units) The number of seconds behind real time that data is queried. For
-  example, if data from 10:04 a.m. might not be searchable in {es} until
-  10:06 a.m., set this property to 120 seconds. The default value is `60s`.
+  (Optional, <<time-units, time units>>) The number of seconds behind real time 
+  that data is queried. For example, if data from 10:04 a.m. might not be 
+  searchable in {es} until 10:06 a.m., set this property to 120 seconds. The 
+  default value is `60s`.
 
 `script_fields`::
   (object) Specifies scripts that evaluate custom expressions and returns

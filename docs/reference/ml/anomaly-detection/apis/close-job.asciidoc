@@ -78,8 +78,8 @@ when there are no matches or only partial matches.
   responded to its initial close request.
 
 `timeout`::
-  (time units) Controls the time to wait until a job has closed.
-  The default value is 30 minutes.
+  (Optional, <<time-units, time units>>) Controls the time to wait until a job 
+  has closed. The default value is 30 minutes.
 
 [[ml-close-job-prereqs]]
 ==== {api-prereq-title}

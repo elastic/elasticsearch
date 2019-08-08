@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.dataframe.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -131,7 +132,8 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
         final long checkpoint = lastCheckpoint != null ? lastCheckpoint.getCheckpoint() + 1 : 1;
 
         getIndexCheckpoints(ActionListener.wrap(checkpointsByIndex -> {
-            reportSourceIndexChanges(lastCheckpoint.getIndicesCheckpoints().keySet(), checkpointsByIndex.keySet());
+            reportSourceIndexChanges(lastCheckpoint != null ? lastCheckpoint.getIndicesCheckpoints().keySet() : Collections.emptySet(),
+                                     checkpointsByIndex.keySet());
 
             listener.onResponse(new DataFrameTransformCheckpoint(transformConfig.getId(), timestamp, checkpoint, checkpointsByIndex, 0L));
         }, listener::onFailure));

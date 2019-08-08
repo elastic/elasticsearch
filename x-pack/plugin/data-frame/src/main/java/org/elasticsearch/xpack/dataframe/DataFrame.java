@@ -187,7 +187,9 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
         }
         dataFrameAuditor.set(new DataFrameAuditor(client, clusterService.getNodeName()));
         dataFrameTransformsConfigManager.set(new DataFrameTransformsConfigManager(client, xContentRegistry));
-        dataFrameTransformsCheckpointService.set(new DataFrameTransformsCheckpointService(client, dataFrameTransformsConfigManager.get()));
+        dataFrameTransformsCheckpointService.set(new DataFrameTransformsCheckpointService(client,
+                                                                                          dataFrameTransformsConfigManager.get(),
+                                                                                          dataFrameAuditor.get()));
 
         return Arrays.asList(dataFrameTransformsConfigManager.get(), dataFrameAuditor.get(), dataFrameTransformsCheckpointService.get());
     }
@@ -235,6 +237,7 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
                 settingsModule.getSettings()));
     }
 
+    @Override
     public List<Setting<?>> getSettings() {
         return Collections.singletonList(DataFrameTransformTask.NUM_FAILURE_RETRIES_SETTING);
     }

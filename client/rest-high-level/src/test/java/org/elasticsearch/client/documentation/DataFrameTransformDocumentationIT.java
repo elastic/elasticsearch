@@ -25,7 +25,6 @@ import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.core.AcknowledgedResponse;
-import org.elasticsearch.client.core.IndexerState;
 import org.elasticsearch.client.core.PageParams;
 import org.elasticsearch.client.dataframe.DeleteDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.GetDataFrameTransformRequest;
@@ -46,7 +45,6 @@ import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfigUpdate;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformProgress;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformStats;
-import org.elasticsearch.client.dataframe.transforms.DataFrameTransformTaskState;
 import org.elasticsearch.client.dataframe.transforms.DestConfig;
 import org.elasticsearch.client.dataframe.transforms.NodeAttributes;
 import org.elasticsearch.client.dataframe.transforms.QueryConfig;
@@ -622,24 +620,21 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
             assertThat(response.getTransformsStats(), hasSize(1));
 
             // tag::get-data-frame-transform-stats-response
-            DataFrameTransformStats stateAndStatsInfo =
+            DataFrameTransformStats stats =
                 response.getTransformsStats().get(0); // <1>
-            DataFrameTransformTaskState taskState =
-                stateAndStatsInfo.getTaskState(); // <2>
-            IndexerState indexerState =
-                stateAndStatsInfo.getCheckpointingInfo()
-                    .getNext().getIndexerState(); // <3>
-            DataFrameIndexerTransformStats transformStats =
-                stateAndStatsInfo.getIndexerStats(); // <4>
+            DataFrameTransformStats.State state =
+                stats.getState(); // <2>
+            DataFrameIndexerTransformStats indexerStats =
+                stats.getIndexerStats(); // <3>
             DataFrameTransformProgress progress =
-                stateAndStatsInfo.getCheckpointingInfo()
-                    .getNext().getCheckpointProgress(); // <5>
+                stats.getCheckpointingInfo()
+                    .getNext().getCheckpointProgress(); // <4>
             NodeAttributes node =
-                stateAndStatsInfo.getNode(); // <6>
+                stats.getNode(); // <5>
             // end::get-data-frame-transform-stats-response
 
-            assertEquals(DataFrameTransformTaskState.STOPPED, taskState);
-            assertNotNull(transformStats);
+            assertEquals(DataFrameTransformStats.State.STOPPED, state);
+            assertNotNull(indexerStats);
             assertNull(progress);
         }
         {

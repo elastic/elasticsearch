@@ -44,8 +44,9 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 `priority`::
     (string) The priority of the pending task.
     
-// `source`::
-//    (string) TBD
+`source`::
+    (string) A general description of the cluster task that may include a reason 
+    and origin. 
     
 `time_in_queue_millis`::
     (integer) The time expressed in milliseconds since the task is waiting for 

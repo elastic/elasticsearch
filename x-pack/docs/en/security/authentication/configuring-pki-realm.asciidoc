@@ -98,7 +98,7 @@ restart for last.
 When clients connect directly to {es} and are not proxy-authenticated by
 {kib}, the PKI realm relies on the TLS settings of the node's network
 interface. The realm can be configured to be more restrictive than the
-underlying network connection - that is, it is possible to configure the node
+underlying network connection. That is to say, it is possible to configure the node
 such that some connections are accepted by the network interface but then fail
 to be authenticated by the PKI realm. However, the reverse is not possible. The
 PKI realm cannot authenticate a connection that has been refused by the network

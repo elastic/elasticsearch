@@ -38,31 +38,9 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class GeometryTreeTests extends ESTestCase {
 
-    private static class GeoExtent extends Extent {
-
-        GeoExtent(int minX, int minY, int maxX, int maxY) {
-            super(GeoEncodingUtils.encodeLongitude(minX),
-                GeoEncodingUtils.encodeLatitude(minY),
-                GeoEncodingUtils.encodeLongitude(maxX),
-                GeoEncodingUtils.encodeLatitude(maxY));
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null ||  o instanceof Extent == false) return false;
-            Extent extent = (Extent) o;
-            return minX == extent.minX &&
-                minY == extent.minY &&
-                maxX == extent.maxX &&
-                maxY == extent.maxY;
-        }
-
-        @Override
-        public int hashCode() {
-            return super.hashCode();
-        }
-
+    static Extent geoExtent(double minX, double minY, double maxX, double maxY) {
+        return Extent.fromPoints(GeoEncodingUtils.encodeLongitude(minX), GeoEncodingUtils.encodeLatitude(minY),
+            GeoEncodingUtils.encodeLongitude(maxX), GeoEncodingUtils.encodeLatitude(maxY));
     }
 
     public void testRectangleShape() throws IOException {
@@ -82,43 +60,43 @@ public class GeometryTreeTests extends ESTestCase {
             output.close();
             GeometryTreeReader reader = new GeometryTreeReader(output.bytes().toBytesRef());
 
-            assertThat(new GeoExtent(minX, minY, maxX, maxY), equalTo(reader.getExtent()));
+            assertThat(geoExtent(minX, minY, maxX, maxY), equalTo(reader.getExtent()));
 
             // box-query touches bottom-left corner
-            assertTrue(reader.intersects(new GeoExtent(minX - randomIntBetween(1, 10), minY - randomIntBetween(1, 10), minX, minY)));
+            assertTrue(reader.intersects(geoExtent(minX - randomIntBetween(1, 10), minY - randomIntBetween(1, 10), minX, minY)));
             // box-query touches bottom-right corner
-            assertTrue(reader.intersects(new GeoExtent(maxX, minY - randomIntBetween(1, 10), maxX + randomIntBetween(1, 10), minY)));
+            assertTrue(reader.intersects(geoExtent(maxX, minY - randomIntBetween(1, 10), maxX + randomIntBetween(1, 10), minY)));
             // box-query touches top-right corner
-            assertTrue(reader.intersects(new GeoExtent(maxX, maxY, maxX + randomIntBetween(1, 10), maxY + randomIntBetween(1, 10))));
+            assertTrue(reader.intersects(geoExtent(maxX, maxY, maxX + randomIntBetween(1, 10), maxY + randomIntBetween(1, 10))));
             // box-query touches top-left corner
-            assertTrue(reader.intersects(new GeoExtent(minX - randomIntBetween(1, 10), maxY, minX, maxY + randomIntBetween(1, 10))));
+            assertTrue(reader.intersects(geoExtent(minX - randomIntBetween(1, 10), maxY, minX, maxY + randomIntBetween(1, 10))));
             // box-query fully-enclosed inside rectangle
-            assertTrue(reader.intersects(new GeoExtent((3 * minX + maxX) / 4, (3 * minY + maxY) / 4, (3 * maxX + minX) / 4,
+            assertTrue(reader.intersects(geoExtent((3 * minX + maxX) / 4, (3 * minY + maxY) / 4, (3 * maxX + minX) / 4,
                 (3 * maxY + minY) / 4)));
             // box-query fully-contains poly
-            assertTrue(reader.intersects(new GeoExtent(minX - randomIntBetween(1, 10), minY - randomIntBetween(1, 10),
+            assertTrue(reader.intersects(geoExtent(minX - randomIntBetween(1, 10), minY - randomIntBetween(1, 10),
                 maxX + randomIntBetween(1, 10), maxY + randomIntBetween(1, 10))));
             // box-query half-in-half-out-right
-            assertTrue(reader.intersects(new GeoExtent((3 * minX + maxX) / 4, (3 * minY + maxY) / 4, maxX + randomIntBetween(1, 10),
+            assertTrue(reader.intersects(geoExtent((3 * minX + maxX) / 4, (3 * minY + maxY) / 4, maxX + randomIntBetween(1, 10),
                 (3 * maxY + minY) / 4)));
             // box-query half-in-half-out-left
-            assertTrue(reader.intersects(new GeoExtent(minX - randomIntBetween(1, 10), (3 * minY + maxY) / 4, (3 * maxX + minX) / 4,
+            assertTrue(reader.intersects(geoExtent(minX - randomIntBetween(1, 10), (3 * minY + maxY) / 4, (3 * maxX + minX) / 4,
                 (3 * maxY + minY) / 4)));
             // box-query half-in-half-out-top
-            assertTrue(reader.intersects(new GeoExtent((3 * minX + maxX) / 4, (3 * minY + maxY) / 4, maxX + randomIntBetween(1, 10),
+            assertTrue(reader.intersects(geoExtent((3 * minX + maxX) / 4, (3 * minY + maxY) / 4, maxX + randomIntBetween(1, 10),
                 maxY + randomIntBetween(1, 10))));
             // box-query half-in-half-out-bottom
-            assertTrue(reader.intersects(new GeoExtent((3 * minX + maxX) / 4, minY - randomIntBetween(1, 10),
+            assertTrue(reader.intersects(geoExtent((3 * minX + maxX) / 4, minY - randomIntBetween(1, 10),
                 maxX + randomIntBetween(1, 10), (3 * maxY + minY) / 4)));
 
             // box-query outside to the right
-            assertFalse(reader.intersects(new GeoExtent(maxX + randomIntBetween(1, 4), minY, maxX + randomIntBetween(5, 10), maxY)));
+            assertFalse(reader.intersects(geoExtent(maxX + randomIntBetween(1, 4), minY, maxX + randomIntBetween(5, 10), maxY)));
             // box-query outside to the left
-            assertFalse(reader.intersects(new GeoExtent(maxX - randomIntBetween(5, 10), minY, minX - randomIntBetween(1, 4), maxY)));
+            assertFalse(reader.intersects(geoExtent(maxX - randomIntBetween(5, 10), minY, minX - randomIntBetween(1, 4), maxY)));
             // box-query outside to the top
-            assertFalse(reader.intersects(new GeoExtent(minX, maxY + randomIntBetween(1, 4), maxX, maxY + randomIntBetween(5, 10))));
+            assertFalse(reader.intersects(geoExtent(minX, maxY + randomIntBetween(1, 4), maxX, maxY + randomIntBetween(5, 10))));
             // box-query outside to the bottom
-            assertFalse(reader.intersects(new GeoExtent(minX, minY - randomIntBetween(5, 10), maxX, minY - randomIntBetween(1, 4))));
+            assertFalse(reader.intersects(geoExtent(minX, minY - randomIntBetween(5, 10), maxX, minY - randomIntBetween(1, 4))));
         }
     }
 
@@ -133,10 +111,10 @@ public class GeometryTreeTests extends ESTestCase {
         writer.writeTo(output);
         output.close();
         GeometryTreeReader reader = new GeometryTreeReader(output.bytes().toBytesRef());
-        assertTrue(reader.intersects(new GeoExtent(2, -1, 11, 1)));
-        assertTrue(reader.intersects(new GeoExtent(-12, -12, 12, 12)));
-        assertTrue(reader.intersects(new GeoExtent(-2, -1, 2, 0)));
-        assertTrue(reader.intersects(new GeoExtent(-5, -6, 2, -2)));
+        assertTrue(reader.intersects(geoExtent(2, -1, 11, 1)));
+        assertTrue(reader.intersects(geoExtent(-12, -12, 12, 12)));
+        assertTrue(reader.intersects(geoExtent(-2, -1, 2, 0)));
+        assertTrue(reader.intersects(geoExtent(-5, -6, 2, -2)));
     }
 
     // adapted from org.apache.lucene.geo.TestPolygon2D#testMultiPolygon
@@ -150,12 +128,12 @@ public class GeometryTreeTests extends ESTestCase {
         output.close();
         GeometryTreeReader reader = new GeometryTreeReader(output.bytes().toBytesRef());
 
-        assertFalse(reader.intersects(new GeoExtent(6, -6, 6, -6))); // in the hole
-        assertTrue(reader.intersects(new GeoExtent(25, -25, 25, -25))); // on the mainland
-        assertFalse(reader.intersects(new GeoExtent(51, 51, 52, 52))); // outside of mainland
-        assertTrue(reader.intersects(new GeoExtent(-60, -60, 60, 60))); // enclosing us completely
-        assertTrue(reader.intersects(new GeoExtent(49, 49, 51, 51))); // overlapping the mainland
-        assertTrue(reader.intersects(new GeoExtent(9, 9, 11, 11))); // overlapping the hole
+        assertFalse(reader.intersects(geoExtent(6, -6, 6, -6))); // in the hole
+        assertTrue(reader.intersects(geoExtent(25, -25, 25, -25))); // on the mainland
+        assertFalse(reader.intersects(geoExtent(51, 51, 52, 52))); // outside of mainland
+        assertTrue(reader.intersects(geoExtent(-60, -60, 60, 60))); // enclosing us completely
+        assertTrue(reader.intersects(geoExtent(49, 49, 51, 51))); // overlapping the mainland
+        assertTrue(reader.intersects(geoExtent(9, 9, 11, 11))); // overlapping the hole
     }
 
     public void testCombPolygon() throws Exception {
@@ -172,9 +150,9 @@ public class GeometryTreeTests extends ESTestCase {
         writer.writeTo(output);
         output.close();
         GeometryTreeReader reader = new GeometryTreeReader(output.bytes().toBytesRef());
-        assertTrue(reader.intersects(new GeoExtent(5, 10, 5, 10)));
-        assertFalse(reader.intersects(new GeoExtent(15, 10, 15, 10)));
-        assertFalse(reader.intersects(new GeoExtent(25, 10, 25, 10)));
+        assertTrue(reader.intersects(geoExtent(5, 10, 5, 10)));
+        assertFalse(reader.intersects(geoExtent(15, 10, 15, 10)));
+        assertFalse(reader.intersects(geoExtent(25, 10, 25, 10)));
     }
 
     public void testPacManClosedLineString() throws Exception {
@@ -188,10 +166,10 @@ public class GeometryTreeTests extends ESTestCase {
         writer.writeTo(output);
         output.close();
         GeometryTreeReader reader = new GeometryTreeReader(output.bytes().toBytesRef());
-        assertTrue(reader.intersects(new GeoExtent(2, -1, 11, 1)));
-        assertTrue(reader.intersects(new GeoExtent(-12, -12, 12, 12)));
-        assertTrue(reader.intersects(new GeoExtent(-2, -1, 2, 0)));
-        assertFalse(reader.intersects(new GeoExtent(-5, -6, 2, -2)));
+        assertTrue(reader.intersects(geoExtent(2, -1, 11, 1)));
+        assertTrue(reader.intersects(geoExtent(-12, -12, 12, 12)));
+        assertTrue(reader.intersects(geoExtent(-2, -1, 2, 0)));
+        assertFalse(reader.intersects(geoExtent(-5, -6, 2, -2)));
     }
 
     public void testPacManLineString() throws Exception {
@@ -205,10 +183,10 @@ public class GeometryTreeTests extends ESTestCase {
         writer.writeTo(output);
         output.close();
         GeometryTreeReader reader = new GeometryTreeReader(output.bytes().toBytesRef());
-        assertTrue(reader.intersects(new GeoExtent(2, -1, 11, 1)));
-        assertTrue(reader.intersects(new GeoExtent(-12, -12, 12, 12)));
-        assertTrue(reader.intersects(new GeoExtent(-2, -1, 2, 0)));
-        assertFalse(reader.intersects(new GeoExtent(-5, -6, 2, -2)));
+        assertTrue(reader.intersects(geoExtent(2, -1, 11, 1)));
+        assertTrue(reader.intersects(geoExtent(-12, -12, 12, 12)));
+        assertTrue(reader.intersects(geoExtent(-2, -1, 2, 0)));
+        assertFalse(reader.intersects(geoExtent(-5, -6, 2, -2)));
     }
 
     public void testPacManPoints() throws Exception {
@@ -239,6 +217,6 @@ public class GeometryTreeTests extends ESTestCase {
         writer.writeTo(output);
         output.close();
         GeometryTreeReader reader = new GeometryTreeReader(output.bytes().toBytesRef());
-        assertTrue(reader.intersects(new GeoExtent(xMin, yMin, xMax, yMax)));
+        assertTrue(reader.intersects(geoExtent(xMin, yMin, xMax, yMax)));
     }
 }

@@ -43,8 +43,9 @@ class Point2DReader implements ShapeTreeReader {
         if (size == 1) {
             int x = readX(0);
             int y = readY(0);
-            return new Extent(x, y, x, y);
+            return Extent.fromPoint(x, y);
         } else {
+            input.position(startPosition);
             return new Extent(input);
         }
     }
@@ -64,7 +65,7 @@ class Point2DReader implements ShapeTreeReader {
                     // TODO serialize to re-usable array instead of serializing in each step
                     int x = readX(i);
                     int y = readY(i);
-                    if (x >= extent.minX && x <= extent.maxX && y >= extent.minY && y <= extent.maxY) {
+                    if (x >= extent.minX() && x <= extent.maxX() && y >= extent.minY() && y <= extent.maxY()) {
                         return true;
                     }
                 }
@@ -74,15 +75,15 @@ class Point2DReader implements ShapeTreeReader {
             int middle = (right - left) >> 1;
             int x = readX(middle);
             int y = readY(middle);
-            if (x >= extent.minX && x <= extent.maxX && y >= extent.minY && y <= extent.maxY) {
+            if (x >= extent.minX() && x <= extent.maxX() && y >= extent.minY() && y <= extent.maxY()) {
                 return true;
             }
-            if ((axis == 0 && extent.minX <= x) || (axis == 1 && extent.minY <= y)) {
+            if ((axis == 0 && extent.minX() <= x) || (axis == 1 && extent.minY() <= y)) {
                 stack.push(left);
                 stack.push(middle - 1);
                 stack.push(1 - axis);
             }
-            if ((axis == 0 && extent.maxX >= x) || (axis == 1 && extent.maxY >= y)) {
+            if ((axis == 0 && extent.maxX() >= x) || (axis == 1 && extent.maxY() >= y)) {
                 stack.push(middle + 1);
                 stack.push(right);
                 stack.push(1 - axis);
@@ -93,12 +94,14 @@ class Point2DReader implements ShapeTreeReader {
     }
 
     private int readX(int pointIdx) throws IOException {
-        input.position(startPosition + 2 * pointIdx * Integer.BYTES);
+        int extentOffset = size == 1 ? 0 : Extent.WRITEABLE_SIZE_IN_BYTES;
+        input.position(startPosition + extentOffset + 2 * pointIdx * Integer.BYTES);
         return input.readInt();
     }
 
     private int readY(int pointIdx) throws IOException {
-        input.position(startPosition + (2 * pointIdx + 1) * Integer.BYTES);
+        int extentOffset = size == 1 ? 0 : Extent.WRITEABLE_SIZE_IN_BYTES;
+        input.position(startPosition + extentOffset + (2 * pointIdx + 1) * Integer.BYTES);
         return input.readInt();
     }
 }

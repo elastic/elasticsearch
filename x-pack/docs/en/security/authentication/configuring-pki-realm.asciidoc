@@ -244,7 +244,7 @@ This realm is now allowed to validate delegated PKI authentication (after
 restarting {es}).
 
 NOTE: PKI authentication delegation requires that
-`xpack.security.authc.token.enabled` be `true`.
+the `xpack.security.authc.token.enabled` setting is `true`.
 
 NOTE: {kib} also needs to be configured to allow PKI certificate authentication.
 

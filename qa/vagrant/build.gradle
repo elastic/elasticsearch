@@ -39,7 +39,7 @@ configurations.create('testClasses')
 
 String classesDir = project.file(project.sourceSets.main.output.classesDirs.singleFile).toString()
 artifacts.add('testClasses', project.layout.projectDirectory.dir(classesDir)) {
-  builtBy 'testClasses' 
+  builtBy tasks.named('testClasses')
 } 
 
 forbiddenApisMain {

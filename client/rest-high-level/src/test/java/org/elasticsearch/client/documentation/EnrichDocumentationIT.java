@@ -35,13 +35,9 @@ public class EnrichDocumentationIT extends ESRestHighLevelClientTestCase {
     public void testPutPolicy() throws Exception {
         RestHighLevelClient client = highLevelClient();
         // tag::enrich-put-policy-request
-        PutPolicyRequest putPolicyRequest = new PutPolicyRequest();
-        putPolicyRequest.setName("users-policy");
-        putPolicyRequest.setType("exact_match");
-        putPolicyRequest.setIndices(List.of("users"));
-        putPolicyRequest.setEnrichKey("email");
-        putPolicyRequest.setEnrichValues(
-            List.of("address", "zip", "city", "state"));
+        PutPolicyRequest putPolicyRequest = new PutPolicyRequest(
+            "users-policy", "exact_match", List.of("users"),
+            "email", List.of("address", "zip", "city", "state"));
         // end::enrich-put-policy-request
 
         // tag::enrich-put-policy-execute

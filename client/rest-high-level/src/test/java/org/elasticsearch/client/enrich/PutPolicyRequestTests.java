@@ -40,37 +40,38 @@ public class PutPolicyRequestTests extends AbstractRequestTestCase<PutPolicyRequ
         PutPolicyRequest request = createClientTestInstance();
         assertThat(request.validate().isPresent(), is(false));
 
-        request.setEnrichKey(null);
-        assertThat(request.validate().isPresent(), is((true)));
-        assertThat(request.validate().get().getMessage(), containsString("enrichKey must be a non-null and non-empty string"));
+        Exception e = expectThrows(IllegalArgumentException.class,
+            () -> new PutPolicyRequest(request.getName(), request.getType(), request.getIndices(), null, request.getEnrichValues()));
+        assertThat(e.getMessage(), containsString("enrichKey must be a non-null and non-empty string"));
     }
 
     public void testEqualsAndHashcode() {
         PutPolicyRequest testInstance = createTestInstance();
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(testInstance, (original) -> {
-            PutPolicyRequest copy = new PutPolicyRequest();
-            copy.setName(original.getName());
-            copy.setType(original.getType());
-            copy.setIndices(original.getIndices());
+            PutPolicyRequest copy = new PutPolicyRequest(original.getName(), original.getType(), original.getIndices(),
+                original.getEnrichKey(), original.getEnrichValues());
             copy.setQuery(original.getQuery());
-            copy.setEnrichKey(original.getEnrichKey());
-            copy.setEnrichValues(original.getEnrichValues());
             return copy;
         });
     }
 
     @Override
     protected PutPolicyRequest createClientTestInstance() {
-        PutPolicyRequest testInstance = createTestInstance();
-        testInstance.setName("name");
-        return testInstance;
+        return createTestInstance("name");
     }
 
     public static PutPolicyRequest createTestInstance() {
-        PutPolicyRequest testInstance = new PutPolicyRequest();
-        testInstance.setName(randomAlphaOfLength(4));
-        testInstance.setType(randomAlphaOfLength(4));
-        testInstance.setIndices(Arrays.asList(generateRandomStringArray(4, 4, false, false)));
+        return createTestInstance(randomAlphaOfLength(4));
+    }
+
+    public static PutPolicyRequest createTestInstance(String name) {
+        PutPolicyRequest testInstance = new PutPolicyRequest(
+            name,
+            randomAlphaOfLength(4),
+            Arrays.asList(generateRandomStringArray(4, 4, false, false)),
+            randomAlphaOfLength(4),
+            Arrays.asList(generateRandomStringArray(4, 4, false, false))
+        );
         if (randomBoolean()) {
             try {
                 testInstance.setQuery(new MatchAllQueryBuilder());
@@ -78,8 +79,6 @@ public class PutPolicyRequestTests extends AbstractRequestTestCase<PutPolicyRequ
                 throw new UncheckedIOException(e);
             }
         }
-        testInstance.setEnrichKey(randomAlphaOfLength(4));
-        testInstance.setEnrichValues(Arrays.asList(generateRandomStringArray(4, 4, false, false)));
         return testInstance;
     }
 

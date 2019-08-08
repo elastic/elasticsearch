@@ -35,12 +35,8 @@ public class EnrichIT extends ESRestHighLevelClientTestCase {
 
     public void testCRUD() throws Exception {
         final EnrichClient enrichClient = highLevelClient().enrich();
-        PutPolicyRequest putPolicyRequest = new PutPolicyRequest();
-        putPolicyRequest.setName("my-policy" );
-        putPolicyRequest.setType("exact_match");
-        putPolicyRequest.setIndices(List.of("my-index"));
-        putPolicyRequest.setEnrichKey("enrich_key");
-        putPolicyRequest.setEnrichValues(List.of("enrich_value"));
+        PutPolicyRequest putPolicyRequest =
+            new PutPolicyRequest("my-policy", "exact_match", List.of("my-index"), "enrich_key", List.of("enrich_value"));
         AcknowledgedResponse putPolicyResponse = execute(putPolicyRequest, enrichClient::putPolicy, enrichClient::putPolicyAsync);
         assertThat(putPolicyResponse.isAcknowledged(), is(true));
 

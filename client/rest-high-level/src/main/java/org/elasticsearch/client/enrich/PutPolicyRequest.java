@@ -19,7 +19,6 @@
 package org.elasticsearch.client.enrich;
 
 import org.elasticsearch.client.Validatable;
-import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -34,7 +33,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 
 public class PutPolicyRequest implements Validatable, ToXContentObject {
 
@@ -44,27 +42,43 @@ public class PutPolicyRequest implements Validatable, ToXContentObject {
     static final ParseField ENRICH_KEY_FIELD = new ParseField("enrich_key");
     static final ParseField ENRICH_VALUES_FIELD = new ParseField("enrich_values");
 
-    private String name;
-    private String type;
+    private final String name;
+    private final String type;
     private BytesReference query;
-    private List<String> indices;
-    private String enrichKey;
-    private List<String> enrichValues;
+    private final List<String> indices;
+    private final String enrichKey;
+    private final List<String> enrichValues;
+
+    public PutPolicyRequest(String name, String type, List<String> indices, String enrichKey, List<String> enrichValues) {
+        if (Strings.hasLength(name) == false) {
+            throw new IllegalArgumentException("name must be a non-null and non-empty string");
+        }
+        if (Strings.hasLength(type) == false) {
+            throw new IllegalArgumentException("type must be a non-null and non-empty string");
+        }
+        if (indices == null || indices.isEmpty()) {
+            throw new IllegalArgumentException("indices must be specified");
+        }
+        if (Strings.hasLength(enrichKey) == false) {
+            throw new IllegalArgumentException("enrichKey must be a non-null and non-empty string");
+        }
+        if (enrichValues == null || enrichValues.isEmpty()) {
+            throw new IllegalArgumentException("enrichValues must be specified");
+        }
+
+        this.name = name;
+        this.type = type;
+        this.indices = indices;
+        this.enrichKey = enrichKey;
+        this.enrichValues = enrichValues;
+    }
 
     public String getName() {
         return name;
     }
 
-    public void setName(String name) {
-        this.name = name;
-    }
-
     public String getType() {
         return type;
-    }
-
-    public void setType(String type) {
-        this.type = type;
     }
 
     public BytesReference getQuery() {
@@ -83,50 +97,12 @@ public class PutPolicyRequest implements Validatable, ToXContentObject {
         return indices;
     }
 
-    public void setIndices(List<String> indices) {
-        this.indices = indices;
-    }
-
     public String getEnrichKey() {
         return enrichKey;
     }
 
-    public void setEnrichKey(String enrichKey) {
-        this.enrichKey = enrichKey;
-    }
-
     public List<String> getEnrichValues() {
         return enrichValues;
-    }
-
-    public void setEnrichValues(List<String> enrichValues) {
-        this.enrichValues = enrichValues;
-    }
-
-    @Override
-    public Optional<ValidationException> validate() {
-        final ValidationException validationException = new ValidationException();
-        if (Strings.hasLength(name) == false) {
-            validationException.addValidationError("name must be a non-null and non-empty string");
-        }
-        if (Strings.hasLength(type) == false) {
-            validationException.addValidationError("type must be a non-null and non-empty string");
-        }
-        if (indices == null || indices.isEmpty()) {
-            validationException.addValidationError("indices must be specified");
-        }
-        if (Strings.hasLength(enrichKey) == false) {
-            validationException.addValidationError("enrichKey must be a non-null and non-empty string");
-        }
-        if (enrichValues == null || enrichValues.isEmpty()) {
-            validationException.addValidationError("enrichValues must be specified");
-        }
-
-        if (validationException.validationErrors().isEmpty()) {
-            return Optional.empty();
-        } else {
-            return Optional.of(validationException);
-        }
     }
 
     @Override

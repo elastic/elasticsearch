@@ -34,7 +34,6 @@
 package org.elasticsearch.transport;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelOutboundBuffer;
 import io.netty.channel.RecvByteBufAllocator;

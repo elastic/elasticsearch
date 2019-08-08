@@ -29,6 +29,7 @@ import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.common.logging.Loggers;
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
@@ -394,6 +395,7 @@ public class NodeEnvironmentTests extends ESTestCase {
     }
 
     public void testCustomDataPaths() throws Exception {
+        assumeFalse("Fails on Windows, see https://github.com/elastic/elasticsearch/issues/45333", Constants.WINDOWS);
         String[] dataPaths = tmpPaths();
         NodeEnvironment env = newNodeEnvironment(dataPaths, "/tmp", Settings.EMPTY);
 

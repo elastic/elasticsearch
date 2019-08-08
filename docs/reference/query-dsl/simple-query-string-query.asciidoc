@@ -52,9 +52,9 @@ matches to particular fields using a caret (`^`) notation. See
 <<simple-query-string-boost>> for examples.
 
 Defaults to the `index.query.default_field` index setting, which has a default
-value of `*`. The `*` value extracts all eligible fields in the mapping
-to term queries and filters the metadata fields. All extracted fields are then
-combined to build a query if no `prefix` is specified.
+value of `*`. The `*` value extracts all fields that are eligible to term
+queries and filters the metadata fields. All extracted fields are then combined
+to build a query if no `prefix` is specified.
 
 WARNING: There is a limit on the number of fields that can be queried at once.
 It is defined by the `indices.query.bool.max_clause_count`

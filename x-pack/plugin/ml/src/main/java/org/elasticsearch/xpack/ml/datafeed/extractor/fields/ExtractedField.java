@@ -84,7 +84,7 @@ public abstract class ExtractedField {
     }
 
     public static ExtractedField newGeoShapeField(String alias, String name) {
-        return new GeoShapeField(alias, name, new HashSet<>(Collections.singletonList("geo_shape")));
+        return new GeoShapeField(alias, name, Collections.singleton("geo_shape"));
     }
 
     public static ExtractedField newGeoPointField(String alias, String name) {

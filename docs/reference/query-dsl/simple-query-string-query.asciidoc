@@ -85,7 +85,7 @@ search all searchable fields in the index's field mapping.
 the query string. Defaults to `false`.
 
 `analyzer`::
-(Optional, string) <<analysis,Analyzer>> used to convert unquoted text in the
+(Optional, string) <<analysis,Analyzer>> used to convert text in the
 query string into tokens. Defaults to the
 <<specify-index-time-analyzer,index-time analyzer>> mapped for the
 `default_field`. If no analyzer is mapped, the index's default analyzer is used.

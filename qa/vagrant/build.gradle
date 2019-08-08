@@ -91,6 +91,9 @@ subprojects { Project platformProject ->
     tasks.register('packagingTest') {
       dependsOn 'distroTest', 'batsTest.oss', 'batsTest.default'
     }
+    tasks.register('destructivePackagingTest') {
+      dependsOn 'destructiveDistroTest', 'destructiveBatsTest.oss', 'destructiveBatsTest.default'
+    }
   }
 
   vagrant {

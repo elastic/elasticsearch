@@ -1,8 +1,5 @@
 ---
 "Test put batch data frame transforms on mixed cluster":
-  - skip:
-      version: "7.4.0 - "
-      reason: waiting backport of https://github.com/elastic/elasticsearch/pull/45276
   - do:
       cluster.health:
         index: "dataframe-transform-airline-data"
@@ -32,10 +29,7 @@
         transform_id: "mixed-simple-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "mixed-simple-transform" }
-  # Since we are breaking the stats format between 7.3 and 7.4 (allowed because we're beta) we cannot
-  # assert on state in the mixed cluster as it could be state at the top level or state.task_state
-  # TODO: uncomment this assertion in master
-  #- match: { transforms.0.state: "/started|indexing|stopping|stopped/" }
+  - match: { transforms.0.state: "/started|indexing|stopping|stopped/" }
 
   - do:
       data_frame.stop_data_frame_transform:
@@ -48,10 +42,7 @@
         transform_id: "mixed-simple-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "mixed-simple-transform" }
-  # Since we are breaking the stats format between 7.3 and 7.4 (allowed because we're beta) we cannot
-  # assert on state in the mixed cluster as it could be state at the top level or state.task_state
-  # TODO: uncomment this assertion in master
-  #- match: { transforms.0.state: "stopped" }
+  - match: { transforms.0.state: "stopped" }
 
   - do:
       data_frame.put_data_frame_transform:
@@ -98,10 +89,7 @@
         transform_id: "mixed-complex-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "mixed-complex-transform" }
-  # Since we are breaking the stats format between 7.3 and 7.4 (allowed because we're beta) we cannot
-  # assert on state in the mixed cluster as it could be state at the top level or state.task_state
-  # TODO: uncomment this assertion in master
-  #- match: { transforms.0.state: "/started|indexing|stopping|stopped/" }
+  - match: { transforms.0.state: "/started|indexing|stopping|stopped/" }
 
   - do:
       data_frame.stop_data_frame_transform:
@@ -114,16 +102,10 @@
         transform_id: "mixed-complex-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "mixed-complex-transform" }
-  # Since we are breaking the stats format between 7.3 and 7.4 (allowed because we're beta) we cannot
-  # assert on state in the mixed cluster as it could be state at the top level or state.task_state
-  # TODO: uncomment this assertion in master
-  #- match: { transforms.0.state: "stopped" }
+  - match: { transforms.0.state: "stopped" }
 
 ---
 "Test put continuous data frame transform on mixed cluster":
-  - skip:
-      version: "7.4.0 - "
-      reason: waiting backport of https://github.com/elastic/elasticsearch/pull/45276
   - do:
       cluster.health:
         index: "dataframe-transform-airline-data-cont"
@@ -169,10 +151,7 @@
         transform_id: "mixed-simple-continuous-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "mixed-simple-continuous-transform" }
-  # Since we are breaking the stats format between 7.3 and 7.4 (allowed because we're beta) we cannot
-  # assert on state in the mixed cluster as it could be state at the top level or state.task_state
-  # TODO: uncomment this assertion in master
-  #- match: { transforms.0.state: "/started|indexing/" }
+  - match: { transforms.0.state: "/started|indexing/" }
 
   - do:
       data_frame.stop_data_frame_transform:
@@ -185,16 +164,10 @@
         transform_id: "mixed-simple-continuous-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "mixed-simple-continuous-transform" }
-  # Since we are breaking the stats format between 7.3 and 7.4 (allowed because we're beta) we cannot
-  # assert on state in the mixed cluster as it could be state at the top level or state.task_state
-  # TODO: uncomment this assertion in master
-  #- match: { transforms.0.state: "stopped" }
+  - match: { transforms.0.state: "stopped" }
 
 ---
 "Test GET, start, and stop old cluster batch transforms":
-  - skip:
-      version: "7.4.0 - "
-      reason: waiting backport of https://github.com/elastic/elasticsearch/pull/45276
   - do:
       cluster.health:
         index: "dataframe-transform-airline-data"
@@ -220,10 +193,7 @@
         transform_id: "old-simple-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "old-simple-transform" }
-  # Since we are breaking the stats format between 7.3 and 7.4 (allowed because we're beta) we cannot
-  # assert on state in the mixed cluster as it could be state at the top level or state.task_state
-  # TODO: uncomment this assertion in master
-  #- match: { transforms.0.state: "/started|indexing|stopping|stopped/" }
+  - match: { transforms.0.state: "/started|indexing|stopping|stopped/" }
 
   - do:
       data_frame.stop_data_frame_transform:
@@ -235,10 +205,7 @@
         transform_id: "old-simple-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "old-simple-transform" }
-  # Since we are breaking the stats format between 7.3 and 7.4 (allowed because we're beta) we cannot
-  # assert on state in the mixed cluster as it could be state at the top level or state.task_state
-  # TODO: uncomment this assertion in master
-  #- match: { transforms.0.state: "stopped" }
+  - match: { transforms.0.state: "stopped" }
 
   - do:
       data_frame.get_data_frame_transform:
@@ -262,10 +229,7 @@
         transform_id: "old-complex-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "old-complex-transform" }
-  # Since we are breaking the stats format between 7.3 and 7.4 (allowed because we're beta) we cannot
-  # assert on state in the mixed cluster as it could be state at the top level or state.task_state
-  # TODO: uncomment this assertion in master
-  #- match: { transforms.0.state: "/started|indexing|stopping|stopped/" }
+  - match: { transforms.0.state: "/started|indexing|stopping|stopped/" }
 
   - do:
       data_frame.stop_data_frame_transform:
@@ -277,16 +241,10 @@
         transform_id: "old-complex-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "old-complex-transform" }
-  # Since we are breaking the stats format between 7.3 and 7.4 (allowed because we're beta) we cannot
-  # assert on state in the mixed cluster as it could be state at the top level or state.task_state
-  # TODO: uncomment this assertion in master
-  #- match: { transforms.0.state: "stopped" }
+  - match: { transforms.0.state: "stopped" }
 
 ---
 "Test GET, stop, start, old continuous transforms":
-  - skip:
-      version: "7.4.0 - "
-      reason: waiting backport of https://github.com/elastic/elasticsearch/pull/45276
   - do:
       cluster.health:
         index: "dataframe-transform-airline-data-cont"
@@ -312,10 +270,7 @@
         transform_id: "old-simple-continuous-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "old-simple-continuous-transform" }
-  # Since we are breaking the stats format between 7.3 and 7.4 (allowed because we're beta) we cannot
-  # assert on state in the mixed cluster as it could be state at the top level or state.task_state
-  # TODO: uncomment this assertion in master
-  #- match: { transforms.0.state: "/started|indexing/" }
+  - match: { transforms.0.state: "/started|indexing/" }
 
   - do:
       data_frame.stop_data_frame_transform:
@@ -328,7 +283,4 @@
         transform_id: "old-simple-continuous-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "old-simple-continuous-transform" }
-  # Since we are breaking the stats format between 7.3 and 7.4 (allowed because we're beta) we cannot
-  # assert on state in the mixed cluster as it could be state at the top level or state.task_state
-  # TODO: uncomment this assertion in master
-  #- match: { transforms.0.state: "stopped" }
+  - match: { transforms.0.state: "stopped" }

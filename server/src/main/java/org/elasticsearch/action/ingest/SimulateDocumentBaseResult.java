@@ -84,8 +84,7 @@ public final class SimulateDocumentBaseResult implements SimulateDocumentResult 
      * Read from a stream.
      */
     public SimulateDocumentBaseResult(StreamInput in) throws IOException {
-        // TODO: s/V_8_0_0/V_7_4_0 when change has been backported
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
             failure = in.readException();
             ingestDocument = in.readOptionalWriteable(WriteableIngestDocument::new);
         } else {
@@ -101,8 +100,7 @@ public final class SimulateDocumentBaseResult implements SimulateDocumentResult 
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        // TODO: s/V_8_0_0/V_7_4_0 when change has been backported
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
             out.writeException(failure);
             out.writeOptionalWriteable(ingestDocument);
         } else {

@@ -86,7 +86,7 @@ public final class ExactMatchProcessor extends AbstractEnrichProcessor {
             searchBuilder.query(constantScore);
 
             SearchRequest req = new SearchRequest();
-            req.indices(EnrichPolicy.getBaseName(policyName));
+            req.indices(EnrichPolicy.getBaseName(getPolicyName()));
             req.preference(Preference.LOCAL.type());
             req.source(searchBuilder);
 

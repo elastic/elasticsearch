@@ -9,7 +9,7 @@ import org.elasticsearch.ingest.AbstractProcessor;
 
 public abstract class AbstractEnrichProcessor extends AbstractProcessor {
 
-    protected final String policyName;
+    private final String policyName;
 
     protected AbstractEnrichProcessor(String tag, String policyName) {
         super(tag);

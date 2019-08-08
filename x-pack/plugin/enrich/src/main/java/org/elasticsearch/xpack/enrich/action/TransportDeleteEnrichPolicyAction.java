@@ -18,18 +18,18 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.ingest.PipelineConfiguration;
-import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.AbstractEnrichProcessor;
 import org.elasticsearch.xpack.enrich.EnrichStore;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 public class TransportDeleteEnrichPolicyAction extends TransportMasterNodeAction<DeleteEnrichPolicyAction.Request, AcknowledgedResponse> {
@@ -66,19 +66,23 @@ public class TransportDeleteEnrichPolicyAction extends TransportMasterNodeAction
     protected void masterOperation(Task task, DeleteEnrichPolicyAction.Request request, ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) throws Exception {
         List<PipelineConfiguration> pipelines = IngestService.getPipelines(state);
-        for (PipelineConfiguration pc: pipelines) {
-            Pipeline pipeline = ingestService.getPipeline(pc.getId());
+        EnrichPolicy policy = EnrichStore.getPolicy(request.getName(), state);
+        List<String> pipelinesWithProcessors = new ArrayList<>();
 
-            for (Processor processor: pipeline.getProcessors()) {
-                if (processor instanceof AbstractEnrichProcessor) {
-                    AbstractEnrichProcessor enrichProcessor = (AbstractEnrichProcessor) processor;
-                    if (enrichProcessor.getPolicyName().equals(request.getName())) {
-                        listener.onFailure(
-                            new ElasticsearchStatusException("Could not delete policy [{}] because a pipeline is referencing it [{}]",
-                                RestStatus.INTERNAL_SERVER_ERROR, request.getName(), pipeline.getId()));
-                    }
+        for (PipelineConfiguration pipelineConfiguration : pipelines) {
+            List<AbstractEnrichProcessor> enrichProcessors =
+                ingestService.getProcessorsInPipeline(pipelineConfiguration.getId(), AbstractEnrichProcessor.class);
+            for (AbstractEnrichProcessor processor: enrichProcessors) {
+                if (processor.getPolicyName().equalsIgnoreCase(request.getName())) {
+                    pipelinesWithProcessors.add(pipelineConfiguration.getId());
                 }
             }
+        }
+
+        if (pipelinesWithProcessors.isEmpty() == false) {
+            listener.onFailure(
+                new ElasticsearchStatusException("Could not delete policy [{}] because a pipeline is referencing it {}",
+                    RestStatus.CONFLICT, request.getName(), pipelinesWithProcessors));
         }
 
         EnrichStore.deletePolicy(request.getName(), clusterService, e -> {

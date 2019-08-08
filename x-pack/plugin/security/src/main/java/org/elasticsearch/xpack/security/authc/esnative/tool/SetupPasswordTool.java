@@ -9,8 +9,8 @@ import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.KeyStoreAwareCommand;
 import org.elasticsearch.cli.LoggingAwareMultiCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.Terminal.Verbosity;
@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.core.security.user.RemoteMonitoringUser;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.esnative.tool.HttpResponse.HttpResponseBuilder;
 
-import javax.crypto.AEADBadTagException;
 import javax.net.ssl.SSLException;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -222,7 +221,7 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
      * An abstract class that provides functionality common to both the auto and
      * interactive setup modes.
      */
-    private abstract class SetupCommand extends EnvironmentAwareCommand {
+    private abstract class SetupCommand extends KeyStoreAwareCommand {
 
         boolean shouldPrompt;
 
@@ -251,17 +250,7 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
 
         void setupOptions(Terminal terminal, OptionSet options, Environment env) throws Exception {
             keyStoreWrapper = keyStoreFunction.apply(env);
-            try (SecureString keystorePassword = keyStoreWrapper.hasPassword() ?
-                new SecureString(terminal.readSecret("Enter the password for elasticsearch.keystore: ")) : new SecureString(new char[0])) {
-                keyStoreWrapper.decrypt(keystorePassword.getChars());
-            } catch (SecurityException e) {
-                if (e.getCause() instanceof AEADBadTagException) {
-                    terminal.println("");
-                    terminal.println("Failed to decrypt elasticsearch.keystore with the provided password.");
-                    terminal.println("");
-                    throw new UserException(ExitCodes.DATA_ERROR, "Wrong password for elasticsearch.keystore");
-                }
-            }
+            decryptKeyStore(keyStoreWrapper, terminal);
 
             Settings.Builder settingsBuilder = Settings.builder();
             settingsBuilder.put(env.settings(), true);

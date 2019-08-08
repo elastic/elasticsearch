@@ -1,41 +1,71 @@
 [[full-text-queries]]
-== Full text queries
+== Full-text queries
 
-The full text queries enable you to search <<analysis,analyzed text fields>> such as the 
-body of an email. The query string is processed using the same analyzer that was applied to 
-the field during indexing. 
+You can use full-text queries to search <<text,`text`>> fields. Text fields
+typically store human-readable, unstructured text, such as the body of an email
+or a product description.
 
-The queries in this group are:
+To better store text for retrieval, {es} changes `text` field values into
+individual words, called <<analysis-tokenizers, tokens>>, during a process
+called <<analysis,analysis>>. For example, the default
+<<analysis-standard-analyzer, standard analyzer>> changes make the following
+changes to a text:
+
+* Removes most punctuation
+* Separates the remaining text into tokens
+* Changes the tokens to lowercase
+
+To match this analyzed text, full-text queries also analyze the search terms you
+provide before performing a search. This means full-text queries can search
+`text` fields for analyzed tokens rather than an exact term, like term-level
+queries. See <<avoid-term-query-text-fields>> for an example.
+
+
+[float]
+[[full-text-query-types]]
+=== Types of term-level queries
 
 <<query-dsl-intervals-query,`intervals` query>>::
-A full text query that allows fine-grained control of the ordering and
-proximity of matching terms.
+Returns documents based on the order and proximity of matching terms.
 
 <<query-dsl-match-query,`match` query>>::
-The standard query for performing full text queries, including fuzzy matching
-and phrase or proximity queries.
++
+--
+Returns documents that match an analyzed text, number, or date.
+
+The `match` query is the standard query for performing a full-text search,
+including options for fuzzy and proximity matching.
+--
 
 <<query-dsl-match-bool-prefix-query,`match_bool_prefix` query>>::
-Creates a `bool` query that matches each term as a `term` query, except for
-the last term, which is matched as a `prefix` query
+Returns documents that match an analyzed text. {es} treats the last
+term of the provided text as a <<query-dsl-prefix-query,prefix>>, matching any
+words that begin with that term.
 
 <<query-dsl-match-query-phrase,`match_phrase` query>>::
-Like the `match` query but used for matching exact phrases or word proximity matches.
+Returns documents that contain all words of a provided text, in the same
+order as provided.
     
 <<query-dsl-match-query-phrase-prefix,`match_phrase_prefix` query>>::
-Like the `match_phrase` query, but does a wildcard search on the final word.
+Returns documents that contain the words of a provided text, in the same
+order as provided. {es} treats the last term of the provided text as a
+<<query-dsl-prefix-query,prefix>>, matching any words that begin with that term.
   
 <<query-dsl-multi-match-query,`multi_match` query>>::
-The multi-field version of the `match` query.
+Returns documents that match an analyzed text, number, or date in
+one or more fields. You can use the `multi-match` query to perform a
+<<query-dsl-match-query,`match`>> search across multiple fields.
 
 <<query-dsl-query-string-query,`query_string` query>>::
-Supports the compact Lucene <<query-string-syntax,query string syntax>>,
-allowing you to specify AND|OR|NOT conditions and multi-field search
-within a single query string. For expert users only.
+Returns documents based on a provided query string, using a strict syntax. While
+versatile, the `query_string` query returns an error if the query string
+includes any invalid syntax.
 
 <<query-dsl-simple-query-string-query,`simple_query_string` query>>::
-A simpler, more robust version of the `query_string` syntax suitable
-for exposing directly to users.
+Returns documents based on a provided query string, using a limited but
+fault-tolerant syntax. Unlike the `query_string` query, the
+`simple_query_string` query ignores invalid syntax instead of returning an
+error.
 
 
 include::intervals-query.asciidoc[]

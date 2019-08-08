@@ -254,7 +254,7 @@ authenticated by delegation to {kib} indistinctly follow the same
 {stack-ov}/mapping-roles.html[role mapping rules] or
 {stack-ov}/realm-chains.html#authorization_realms[authorization realms
 configurations]. If using the <<security-role-mapping-apis,role mapping APIs>>,
-it is possible to distinguish between users authenticated by delegation from
+you can distinguish between users that are authenticated by delegation and
 users that are authenticated directly. The former have the
 extra fields `pki_delegated_by_user` and `pki_delegated_by_realm` in the user's
 metadata. In the common setup, where authentication is delegated to {kib}, the

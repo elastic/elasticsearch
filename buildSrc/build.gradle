@@ -67,6 +67,7 @@ if (JavaVersion.current() < JavaVersion.VERSION_11) {
 }
 
 allprojects {
+  apply plugin: 'java'
   targetCompatibility = '11'
   sourceCompatibility = '11'
 }
@@ -83,6 +84,13 @@ configurations {
 compileMinimumRuntimeJava {
     targetCompatibility = 8
     sourceCompatibility = 8
+}
+
+normalization {
+    runtimeClasspath {
+        // Ignore the embedded JAR as we track this separately below as a runtime dependency
+        ignore 'META-INF/*.jar'
+    }
 }
 
 jar {
@@ -142,6 +150,10 @@ if (project == rootProject) {
     if (System.getProperty("repos.mavenLocal") != null) {
       mavenLocal()
     }
+  }
+  dependencies {
+    // add this so the runtime classpath so Gradle will properly track it as a build runtime classpath input
+    runtimeOnly project('reaper')
   }
   // only run tests as build-tools
   test.enabled = false

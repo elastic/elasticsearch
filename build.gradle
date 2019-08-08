@@ -24,9 +24,12 @@ import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.BwcVersions
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
+import org.elasticsearch.gradle.tool.Boilerplate
 import org.gradle.util.GradleVersion
 import org.gradle.util.DistributionLocator
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
+
+import static org.elasticsearch.gradle.tool.Boilerplate.maybeConfigure
 
 plugins {
     id 'com.gradle.build-scan' version '2.3'
@@ -209,7 +212,7 @@ task branchConsistency {
 
 allprojects {
   // ignore missing javadocs
-  tasks.withType(Javadoc) { Javadoc javadoc ->
+  tasks.withType(Javadoc).configureEach { Javadoc javadoc ->
     // the -quiet here is because of a bug in gradle, in that adding a string option
     // by itself is not added to the options. By adding quiet, both this option and
     // the "value" -quiet is added, separated by a space. This is ok since the javadoc
@@ -326,13 +329,9 @@ allprojects {
     }
   }
 
-  task cleanIdeaBuildDir(type: Delete) {
-    delete 'build-idea'
+  tasks.named('cleanIdea') {
+      delete 'build-idea'
   }
-  cleanIdeaBuildDir.setGroup("ide")
-  cleanIdeaBuildDir.setDescription("Deletes the IDEA build directory.")
-
-  tasks.cleanIdea.dependsOn(cleanIdeaBuildDir)
 }
 
 idea {
@@ -387,29 +386,20 @@ allprojects {
 
   String lineSeparator = Os.isFamily(Os.FAMILY_WINDOWS) ? '\\\\r\\\\n' : '\\\\n'
   String licenseHeader = licenseHeaderFile.getText('UTF-8').replace(System.lineSeparator(), lineSeparator)
-  task copyEclipseSettings(type: Copy) {
+  tasks.register('copyEclipseSettings', Copy) {
+    mustRunAfter 'wipeEclipseSettings'
     // TODO: "package this up" for external builds
     from new File(project.rootDir, 'buildSrc/src/main/resources/eclipse.settings')
     into '.settings'
     filter{ it.replaceAll('@@LICENSE_HEADER_TEXT@@', licenseHeader)}
   }
   // otherwise .settings is not nuked entirely
-  task wipeEclipseSettings(type: Delete) {
+  tasks.register('wipeEclipseSettings', Delete) {
     delete '.settings'
   }
-  tasks.cleanEclipse.dependsOn(wipeEclipseSettings)
+  tasks.named('cleanEclipse') { dependsOn 'wipeEclipseSettings' }
   // otherwise the eclipse merging is *super confusing*
-  tasks.eclipse.dependsOn(cleanEclipse, copyEclipseSettings)
-
-  // work arround https://github.com/gradle/gradle/issues/6582 
-  tasks.eclipseProject.mustRunAfter tasks.cleanEclipseProject
-  tasks.matching { it.name == 'eclipseClasspath' }.all {
-    it.mustRunAfter { tasks.cleanEclipseClasspath }
-  }
-  tasks.matching { it.name == 'eclipseJdt' }.all {
-    it.mustRunAfter { tasks.cleanEclipseJdt }
-  }
-  tasks.copyEclipseSettings.mustRunAfter tasks.wipeEclipseSettings
+  tasks.named('eclipse') { dependsOn 'cleanEclipse', 'copyEclipseSettings' }
 }
 
 allprojects {
@@ -474,13 +464,11 @@ gradle.projectsEvaluated {
      * need to publish artifacts for them.
      */
     if (project.name.equals('qa') || project.path.contains(':qa:')) {
-      Task assemble = project.tasks.findByName('assemble')
-      if (assemble) {
-        assemble.enabled = false
+      maybeConfigure(project.tasks, 'assemble') {
+        it.enabled = false
       }
-      Task dependenciesInfo = project.tasks.findByName('dependenciesInfo')
-      if (dependenciesInfo) {
-        dependenciesInfo.enabled = false
+      maybeConfigure(project.tasks, 'dependenciesInfo') {
+        it.enabled = false
       }
     }
   }
@@ -502,7 +490,7 @@ gradle.projectsEvaluated {
 }
 
 allprojects {
-  task resolveAllDependencies {
+  tasks.register('resolveAllDependencies') {
       dependsOn tasks.matching { it.name == "pullFixture"}
       doLast {
         configurations.findAll { it.isCanBeResolved() }.each { it.resolve() }
@@ -532,13 +520,13 @@ allprojects {
     }
   }
 
-  task checkPart1
-  task checkPart2 
-  tasks.matching { it.name == "check" }.all { check ->
-    if (check.path.startsWith(":x-pack:")) {
-      checkPart2.dependsOn check
-    } else {
-      checkPart1.dependsOn check
-    }
-  } 
+  def checkPart1 = tasks.register('checkPart1')
+  def checkPart2 = tasks.register('checkPart2')
+  plugins.withId('lifecycle-base') {
+      if (project.path.startsWith(":x-pack:")) {
+          checkPart1.configure { dependsOn 'check' }
+      } else {
+          checkPart2.configure { dependsOn 'check' }
+      }
+  }
 }

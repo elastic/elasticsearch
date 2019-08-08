@@ -403,6 +403,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         startAnalytics(id);
         waitUntilAnalyticsIsStopped(id);
 
+        int resultsWithPrediction = 0;
         SearchResponse sourceData = client().prepareSearch(sourceIndex).get();
         for (SearchHit hit : sourceData.getHits()) {
             GetResponse destDocGetResponse = client().prepareGet().setIndex(config.getDest().getIndex()).setId(hit.getId()).get();
@@ -418,7 +419,6 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             @SuppressWarnings("unchecked")
             Map<String, Object> resultsObject = (Map<String, Object>) destDoc.get("ml");
 
-            int resultsWithPrediction = 0;
             if (resultsObject.containsKey("prediction")) {
                 resultsWithPrediction++;
                 double featureValue = (double) destDoc.get("feature");

@@ -13,9 +13,18 @@ import java.util.Set;
 
 public interface DataFrameAnalysis extends ToXContentObject, NamedWriteable {
 
+    /**
+     * @return The analysis parameters as a map
+     */
     Map<String, Object> getParams();
 
+    /**
+     * @return {@code true} if this analysis supports fields with categorical values (i.e. text, keyword, ip)
+     */
     boolean supportsCategoricalFields();
 
+    /**
+     * @return The set of fields that analyzed documents must have for the analysis to operate
+     */
     Set<String> getRequiredFields();
 }

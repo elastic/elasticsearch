@@ -21,21 +21,22 @@ package org.elasticsearch.rest.action.admin.cluster;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptsRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptsResponse;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.script.StoredScriptSource;
 
 import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.HEAD;
+import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
+import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestGetStoredScriptsAction extends BaseRestHandler {
 
@@ -43,6 +44,8 @@ public class RestGetStoredScriptsAction extends BaseRestHandler {
         super(settings);
 
         controller.registerHandler(GET, "/_scripts", this);
+        controller.registerHandler(GET, "/_script/{name}", this);
+        controller.registerHandler(HEAD, "/_script/{name}", this);
     }
 
     @Override
@@ -52,36 +55,20 @@ public class RestGetStoredScriptsAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, NodeClient client) throws IOException {
-        GetStoredScriptsRequest getRequest = new GetStoredScriptsRequest();
+        final String[] names = Strings.splitStringByCommaToArray(request.param("name"));
 
+        GetStoredScriptsRequest getRequest = new GetStoredScriptsRequest(names);
+        getRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getRequest.masterNodeTimeout()));
 
-        return channel -> client.admin().cluster().getStoredScripts(getRequest, new
-            RestBuilderListener<GetStoredScriptsResponse>(channel) {
+        final boolean implicitAll = getRequest.names().length == 0;
+
+        return channel -> client.admin().cluster().getStoredScripts(getRequest, new RestToXContentListener<>(channel) {
             @Override
-            public RestResponse buildResponse(GetStoredScriptsResponse response, XContentBuilder builder)
-                throws Exception {
-                builder.startObject();
-
+            protected RestStatus getStatus(final GetStoredScriptsResponse response)
+            {
                 Map<String, StoredScriptSource> storedScripts = response.getStoredScripts();
-                for (Map.Entry<String, StoredScriptSource> storedScript : storedScripts.entrySet()) {
-                    builder.startObject(storedScript.getKey());
-
-                    StoredScriptSource source = storedScript.getValue();
-                    builder.startObject(StoredScriptSource.SCRIPT_PARSE_FIELD.getPreferredName());
-                    builder.field(StoredScriptSource.LANG_PARSE_FIELD.getPreferredName(), source.getLang());
-                    builder.field(StoredScriptSource.SOURCE_PARSE_FIELD.getPreferredName(), source.getSource());
-
-                    if (!source.getOptions().isEmpty()) {
-                        builder.field(StoredScriptSource.OPTIONS_PARSE_FIELD.getPreferredName(), source.getOptions());
-                    }
-
-                    builder.endObject();
-                    builder.endObject();
-                }
-
-                builder.endObject();
-
-                return new BytesRestResponse(RestStatus.OK, builder);
+                final boolean templateExists = storedScripts != null && !storedScripts.isEmpty();
+                return (templateExists || implicitAll) ? OK : NOT_FOUND;
             }
         });
     }

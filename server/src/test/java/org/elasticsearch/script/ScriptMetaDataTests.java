@@ -98,24 +98,23 @@ public class ScriptMetaDataTests extends AbstractSerializingTestCase<ScriptMetaD
         ScriptMetaData.Builder builder = new ScriptMetaData.Builder(null);
 
         XContentBuilder sourceBuilder = XContentFactory.jsonBuilder();
-        sourceBuilder.startObject().startObject("template").field("field", "value").endObject().endObject();
-        builder.storeScript("template", StoredScriptSource.parse(sourceBuilder.bytes(), sourceBuilder.contentType()));
-
-        sourceBuilder = XContentFactory.jsonBuilder();
-        sourceBuilder.startObject().field("template", "value").endObject();
-        builder.storeScript("template_field", StoredScriptSource.parse(sourceBuilder.bytes(), sourceBuilder.contentType()));
+        sourceBuilder.startObject().startObject("script")
+            .field("lang", "_lang")
+            .startObject("source").field("field", "value").endObject()
+            .endObject().endObject();
+        builder.storeScript("source_template", StoredScriptSource.parse(BytesReference.bytes(sourceBuilder),
+            sourceBuilder.contentType()));
 
         sourceBuilder = XContentFactory.jsonBuilder();
         sourceBuilder.startObject().startObject("script").field("lang", "_lang").field("source", "_source").endObject().endObject();
-        builder.storeScript("script", StoredScriptSource.parse(sourceBuilder.bytes(), sourceBuilder.contentType()));
+        builder.storeScript("script", StoredScriptSource.parse(BytesReference.bytes(sourceBuilder), sourceBuilder.contentType()));
 
         ScriptMetaData scriptMetaData = builder.build();
         Map<String, StoredScriptSource> storedScripts = scriptMetaData.getStoredScripts();
 
-        assertEquals(3, storedScripts.size());
+        assertEquals(2, storedScripts.size());
         assertEquals("_source", storedScripts.get("script").getSource());
-        assertEquals("{\"field\":\"value\"}", storedScripts.get("template").getSource());
-        assertEquals("value", storedScripts.get("template_field").getSource());
+        assertEquals("{\"field\":\"value\"}", storedScripts.get("source_template").getSource());
     }
 
     public void testDiff() throws Exception {

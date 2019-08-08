@@ -28,10 +28,17 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.StoredScriptSource;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 public class TransportGetStoredScriptsAction extends TransportMasterNodeReadAction<GetStoredScriptsRequest,
         GetStoredScriptsResponse> {
@@ -39,11 +46,10 @@ public class TransportGetStoredScriptsAction extends TransportMasterNodeReadActi
     private final ScriptService scriptService;
 
     @Inject
-    public TransportGetStoredScriptsAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                           ThreadPool threadPool, ActionFilters actionFilters,
-                                           IndexNameExpressionResolver indexNameExpressionResolver, ScriptService scriptService) {
-        super(settings, GetStoredScriptsAction.NAME, transportService, clusterService, threadPool,
-            actionFilters,
+    public TransportGetStoredScriptsAction(TransportService transportService, ClusterService clusterService,
+                                          ThreadPool threadPool, ActionFilters actionFilters,
+                                          IndexNameExpressionResolver indexNameExpressionResolver, ScriptService scriptService) {
+        super(GetStoredScriptsAction.NAME, transportService, clusterService, threadPool, actionFilters,
             GetStoredScriptsRequest::new, indexNameExpressionResolver);
         this.scriptService = scriptService;
     }
@@ -54,14 +60,39 @@ public class TransportGetStoredScriptsAction extends TransportMasterNodeReadActi
     }
 
     @Override
-    protected GetStoredScriptsResponse newResponse() {
-        return new GetStoredScriptsResponse();
+    protected GetStoredScriptsResponse read(StreamInput in) throws IOException {
+        return new GetStoredScriptsResponse(in);
     }
 
     @Override
-    protected void masterOperation(GetStoredScriptsRequest request, ClusterState state,
+    protected void masterOperation(Task task, GetStoredScriptsRequest request, ClusterState state,
                                    ActionListener<GetStoredScriptsResponse> listener) throws Exception {
-        listener.onResponse(new GetStoredScriptsResponse(scriptService.getStoredScripts(state)));
+
+        Map<String, StoredScriptSource> results;
+
+        Map<String, StoredScriptSource> storedScripts = scriptService.getStoredScripts(state);
+        // If we did not ask for a specific name, then we return all templates
+        if (request.names().length == 0) {
+            results = storedScripts;
+        } else {
+            results = new HashMap<>();
+        }
+
+        if (storedScripts != null) {
+            for (String name : request.names()) {
+                if (Regex.isSimpleMatchPattern(name)) {
+                    for (Map.Entry<String, StoredScriptSource> entry : storedScripts.entrySet()) {
+                        if (Regex.simpleMatch(name, entry.getKey())) {
+                            results.put(entry.getKey(), entry.getValue());
+                        }
+                    }
+                } else if (storedScripts.containsKey(name)) {
+                    results.put(name, storedScripts.get(name));
+                }
+            }
+        }
+
+        listener.onResponse(new GetStoredScriptsResponse(results));
     }
 
     @Override

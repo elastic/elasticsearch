@@ -23,6 +23,7 @@ import org.gradle.api.DefaultTask;
 import org.gradle.api.file.Directory;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputDirectory;
+import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.TaskAction;
 
 import java.util.ArrayList;
@@ -34,6 +35,8 @@ public class BatsTestTask extends DefaultTask {
     private Directory testsDir;
     private Directory utilsDir;
     private Directory archivesDir;
+    private Directory pluginsDir;
+    private Directory upgradeDir;
     private String packageName;
 
     @InputDirectory
@@ -63,6 +66,26 @@ public class BatsTestTask extends DefaultTask {
         this.archivesDir = archivesDir;
     }
 
+    @InputDirectory
+    @Optional
+    public Directory getPluginsDir() {
+        return pluginsDir;
+    }
+
+    public void setPluginsDir(Directory pluginsDir) {
+        this.pluginsDir = pluginsDir;
+    }
+
+    @InputDirectory
+    @Optional
+    public Directory getUpgradeDir() {
+        return upgradeDir;
+    }
+
+    public void setUpgradeDir(Directory upgradeDir) {
+        this.upgradeDir = upgradeDir;
+    }
+
     @Input
     public String getPackageName() {
         return packageName;
@@ -85,6 +108,12 @@ public class BatsTestTask extends DefaultTask {
             spec.environment(System.getenv());
             spec.environment("BATS_TESTS", testsDir.getAsFile().toString());
             spec.environment("BATS_UTILS", utilsDir.getAsFile().toString());
+            if (pluginsDir != null) {
+                spec.environment("BATS_PLUGINS", pluginsDir.getAsFile().toString());
+            }
+            if (upgradeDir != null) {
+                spec.environment("BATS_UPGRADE", upgradeDir.getAsFile().toString());
+            }
             spec.environment("PACKAGE_NAME", packageName);
             spec.setCommandLine(command);
         });

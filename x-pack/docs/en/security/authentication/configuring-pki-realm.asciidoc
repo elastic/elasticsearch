@@ -226,7 +226,7 @@ Clients must normally connect directly to {es} because the {es} PKI realm
 relies on the node's network interface to do the SSL/TLS authentication and to
 also internally forward the client's certificate chain for the realm to be able
 to optionally validate it. If SSL/TLS authenticatication is to be performed
-by {kib}, then the PKI realm must be configured to permit delegating it.
+by {kib}, the PKI realm must be configured to permit delegation.
 
 Specifically, when clients presenting X.509 certificates connect to {kib},
 {kib} will perform the SSL/TLS authentication and will forward the client's

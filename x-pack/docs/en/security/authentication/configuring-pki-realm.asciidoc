@@ -21,7 +21,7 @@ For more general information, see {stack-ov}/pki-realm.html[PKI user authenticat
 
 To use PKI in {es}, you configure a PKI realm, enable client authentication on
 the desired network layers (transport or http), and map the Distinguished Name
-(DN) from the Subject field in the user certificate to roles, using the
+(DN) from the Subject field in the user certificate to roles by using the
 <<security-api-role-mapping,role-mapping API>> or the role-mapping file.
 
 You can also use a combination of PKI and username/password authentication. For

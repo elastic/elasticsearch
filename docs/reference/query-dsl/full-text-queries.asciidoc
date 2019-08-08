@@ -57,13 +57,13 @@ one or more fields. You can use the `multi-match` query to perform a
 <<query-dsl-match-query,`match`>> search across multiple fields.
 
 <<query-dsl-query-string-query,`query_string` query>>::
-Returns documents based on a provided query string, using a strict syntax. While
-versatile, the `query_string` query returns an error if the query string
-includes any invalid syntax.
+Returns documents based on a provided query string, using parser with a strict
+syntax. While versatile, the `query_string` query returns an error if the query
+string includes any invalid syntax.
 
 <<query-dsl-simple-query-string-query,`simple_query_string` query>>::
-Returns documents based on a provided query string, using a limited but
-fault-tolerant syntax. Unlike the `query_string` query, the
+Returns documents based on a provided query string, using a parser with a
+limited but fault-tolerant syntax. Unlike the `query_string` query, the
 `simple_query_string` query ignores invalid syntax instead of returning an
 error.
 

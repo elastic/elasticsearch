@@ -419,14 +419,14 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             @SuppressWarnings("unchecked")
             Map<String, Object> resultsObject = (Map<String, Object>) destDoc.get("ml");
 
-            if (resultsObject.containsKey("prediction")) {
+            if (resultsObject.containsKey("variable_prediction")) {
                 resultsWithPrediction++;
                 double featureValue = (double) destDoc.get("feature");
-                double predictionValue = (double) resultsObject.get("prediction");
-                // it seems for this case values can be as far off as 1.5
-                assertThat(predictionValue, closeTo(10 * featureValue, 1.5));
+                double predictionValue = (double) resultsObject.get("variable_prediction");
+                // it seems for this case values can be as far off as 2.0
+                assertThat(predictionValue, closeTo(10 * featureValue, 2.0));
             }
-            assertThat(resultsWithPrediction, greaterThan(0));
         }
+        assertThat(resultsWithPrediction, greaterThan(0));
     }
 }

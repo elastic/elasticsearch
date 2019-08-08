@@ -159,7 +159,7 @@ simultaneously.
 +
 --
 You map roles for PKI users through the <<security-role-mapping-apis,role
-mapping APIs>> or by using a file stored on each node. Configurations of both
+mapping APIs>> or by using a file stored on each node. Both configuration
 options are merged together. When a user authenticates against a PKI realm, the
 privileges for that user are the union of all privileges defined by the roles
 to which the user is mapped.

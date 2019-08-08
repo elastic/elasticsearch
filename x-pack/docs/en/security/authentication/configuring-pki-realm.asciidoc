@@ -12,7 +12,7 @@ present their certificate, but this requires a little
 configuration enables {kib} to act as a proxy for SSL/TLS authentication and
 to submit the client certificates to {es} for further validation by a PKI realm.
 
-For more general information, see {stack-ov}/pki-realm.html[PKI User Authentication].
+For more general information, see {stack-ov}/pki-realm.html[PKI user authentication].
 
 [float]
 [role="xpack"]

@@ -180,7 +180,7 @@ public class ExtractedFieldsDetector {
         Set<String> missingFields = config.getAnalysis().getRequiredFields()
             .stream()
             .filter(f -> fields.contains(f) == false)
-            .collect(Collectors.toSet());
+            .collect(Collectors.toList());
         if (missingFields.isEmpty() == false) {
             throw ExceptionsHelper.badRequestException("required fields {} are missing", missingFields);
         }

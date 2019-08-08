@@ -229,7 +229,7 @@ to optionally validate it. If SSL/TLS authenticatication is to be performed
 by {kib}, the PKI realm must be configured to permit delegation.
 
 Specifically, when clients presenting X.509 certificates connect to {kib},
-{kib} will perform the SSL/TLS authentication and will forward the client's
+{kib} performs the SSL/TLS authentication. {kib} then forwards the client's
 certificate chain, by calling an {es} API, to have them further validated by
 the PKI realms that have been configured for delegation.
 

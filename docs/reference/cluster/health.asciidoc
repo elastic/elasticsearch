@@ -137,6 +137,13 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 [[cluster-health-api-example]]
 ==== {api-examples-title}
 
+[source,js]
+--------------------------------------------------
+GET _cluster/health
+--------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT test1\n/]
+
 The API returns the following response in case of a quiet single node cluster 
 with a single index with one shard and one replica:
 

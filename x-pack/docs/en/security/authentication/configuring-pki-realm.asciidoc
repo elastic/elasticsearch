@@ -236,7 +236,7 @@ the PKI realms that have been configured for delegation.
 To permit authentication delegation for a specific {es} PKI realm, start by
 configuring the realm for the usual case, as detailed in the
 <<pki-realm-for-direct-clients>>
-directly to {es}>> section, but make sure that you have explicitly configured
+section. However, you must make sure that you have explicitly configured
 a `truststore` (or, equivalently `certificate_authorities`) even though it is
 the same trust configuration that you have configured on the network layer.
 Afterwards, simply toggle the `delegation.enabled` realm setting to `true`.

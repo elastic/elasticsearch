@@ -78,11 +78,11 @@ IMPORTANT:  You must use {kib} or this API to update a {dataframe-transform}.
     (Optional, string) The unique identifier for a <<pipeline,pipeline>>.
 
 `frequency`::
-  (Optional, time units) The interval between checks for changes in the source
-  indices when the {dataframe-transform} is running continuously. Also determines
-  the retry interval in the event of transient failures while the {dataframe-transform} is
-  searching or indexing. The minimum value is `1s` and the maximum is `1h`. The
-  default value is `1m`.
+  (Optional, <<time-units, time units>>) The interval between checks for changes 
+  in the source indices when the {dataframe-transform} is running continuously. 
+  Also determines the retry interval in the event of transient failures while 
+  the {dataframe-transform} is searching or indexing. The minimum value is `1s` 
+  and the maximum is `1h`. The default value is `1m`.
 
 `source`::
   (Optional, object) The source configuration, which has the following
@@ -115,8 +115,8 @@ delays.
 
 --
     `delay`::::
-      (Optional, time units) The time delay between the current time and the
-      latest input data time. The default value is `60s`.
+      (Optional, <<time-units, time units>>) The time delay between the current 
+      time and the latest input data time. The default value is `60s`.
 
 [[update-data-frame-transform-example]]
 ==== {api-examples-title}

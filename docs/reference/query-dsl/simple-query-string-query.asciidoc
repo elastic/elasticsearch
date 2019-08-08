@@ -1,5 +1,8 @@
 [[query-dsl-simple-query-string-query]]
-=== Simple Query String Query
+=== Simple query string query
+++++
+<titleabbrev>Simple query string</titleabbrev>
+++++
 
 A query that uses the SimpleQueryParser to parse its context. Unlike the
 regular `query_string` query, the `simple_query_string` query will never

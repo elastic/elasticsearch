@@ -18,13 +18,14 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.common.CheckedBiFunction;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
@@ -57,6 +58,7 @@ import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
 import org.elasticsearch.xpack.core.ml.job.results.ReservedFieldNames;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.core.ml.notifications.AuditMessage;
+import org.elasticsearch.xpack.core.ml.utils.ExponentialAverageCalculationContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -139,9 +141,13 @@ public class ElasticsearchMappings {
     }
 
     public static XContentBuilder configMapping() throws IOException {
+        return configMapping(SINGLE_MAPPING_NAME);
+    }
+
+    public static XContentBuilder configMapping(String mappingType) throws IOException {
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
-        builder.startObject(SINGLE_MAPPING_NAME);
+        builder.startObject(mappingType);
         addMetaInformation(builder);
         addDefaultMapping(builder);
         builder.startObject(PROPERTIES);
@@ -510,6 +516,7 @@ public class ElasticsearchMappings {
         addCategoryDefinitionMapping(builder);
         addDataCountsMapping(builder);
         addTimingStatsExceptBucketCountMapping(builder);
+        addDatafeedTimingStats(builder);
         addModelSnapshotMapping(builder);
 
         addTermFields(builder, extraTermFields);
@@ -925,6 +932,39 @@ public class ElasticsearchMappings {
             .endObject()
             .startObject(TimingStats.EXPONENTIAL_AVG_BUCKET_PROCESSING_TIME_MS.getPreferredName())
                 .field(TYPE, DOUBLE)
+            .endObject()
+            .startObject(TimingStats.EXPONENTIAL_AVG_CALCULATION_CONTEXT.getPreferredName())
+                .startObject(PROPERTIES)
+                    .startObject(ExponentialAverageCalculationContext.INCREMENTAL_METRIC_VALUE_MS.getPreferredName())
+                        .field(TYPE, DOUBLE)
+                    .endObject()
+                    .startObject(ExponentialAverageCalculationContext.LATEST_TIMESTAMP.getPreferredName())
+                        .field(TYPE, DATE)
+                    .endObject()
+                    .startObject(ExponentialAverageCalculationContext.PREVIOUS_EXPONENTIAL_AVERAGE_MS.getPreferredName())
+                        .field(TYPE, DOUBLE)
+                    .endObject()
+                .endObject()
+            .endObject();
+    }
+
+    /**
+     * {@link DatafeedTimingStats} mapping.
+     * Does not include mapping for BUCKET_COUNT as this mapping is added by {@link #addDataCountsMapping} method.
+     * Does not include mapping for EXPONENTIAL_AVG_CALCULATION_CONTEXT as this mapping is added by
+     *     {@link #addTimingStatsExceptBucketCountMapping} method.
+     *
+     * @throws IOException On builder write error
+     */
+    private static void addDatafeedTimingStats(XContentBuilder builder) throws IOException {
+        builder
+            .startObject(DatafeedTimingStats.SEARCH_COUNT.getPreferredName())
+                .field(TYPE, LONG)
+            .endObject()
+            // re-used: BUCKET_COUNT
+            .startObject(DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName())
+                .field(TYPE, DOUBLE)
+            // re-used: EXPONENTIAL_AVG_CALCULATION_CONTEXT
             .endObject();
     }
 
@@ -1129,7 +1169,7 @@ public class ElasticsearchMappings {
     }
 
     public static void addDocMappingIfMissing(String alias,
-                                              CheckedBiFunction<String, Collection<String>, XContentBuilder, IOException> mappingSupplier,
+                                              CheckedFunction<String, XContentBuilder, IOException> mappingSupplier,
                                               Client client, ClusterState state, ActionListener<Boolean> listener) {
         AliasOrIndex aliasOrIndex = state.metaData().getAliasAndIndexLookup().get(alias);
         if (aliasOrIndex == null) {
@@ -1153,7 +1193,7 @@ public class ElasticsearchMappings {
             IndexMetaData indexMetaData = state.metaData().index(indicesThatRequireAnUpdate[0]);
             String mappingType = indexMetaData.mapping().type();
 
-            try (XContentBuilder mapping = mappingSupplier.apply(mappingType, Collections.emptyList())) {
+            try (XContentBuilder mapping = mappingSupplier.apply(mappingType)) {
                 PutMappingRequest putMappingRequest = new PutMappingRequest(indicesThatRequireAnUpdate);
                 putMappingRequest.type(mappingType);
                 putMappingRequest.source(mapping);

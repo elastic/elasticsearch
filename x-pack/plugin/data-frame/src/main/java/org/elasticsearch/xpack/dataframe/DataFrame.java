@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
@@ -51,6 +52,7 @@ import org.elasticsearch.xpack.core.dataframe.action.PutDataFrameTransformAction
 import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformAction;
 import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformTaskAction;
 import org.elasticsearch.xpack.core.dataframe.action.StopDataFrameTransformAction;
+import org.elasticsearch.xpack.core.dataframe.action.UpdateDataFrameTransformAction;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.dataframe.action.TransportDeleteDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.action.TransportGetDataFrameTransformsAction;
@@ -60,6 +62,7 @@ import org.elasticsearch.xpack.dataframe.action.TransportPutDataFrameTransformAc
 import org.elasticsearch.xpack.dataframe.action.TransportStartDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.action.TransportStartDataFrameTransformTaskAction;
 import org.elasticsearch.xpack.dataframe.action.TransportStopDataFrameTransformAction;
+import org.elasticsearch.xpack.dataframe.action.TransportUpdateDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.checkpoint.DataFrameTransformsCheckpointService;
 import org.elasticsearch.xpack.dataframe.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex;
@@ -71,7 +74,9 @@ import org.elasticsearch.xpack.dataframe.rest.action.RestPreviewDataFrameTransfo
 import org.elasticsearch.xpack.dataframe.rest.action.RestPutDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.rest.action.RestStartDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.rest.action.RestStopDataFrameTransformAction;
+import org.elasticsearch.xpack.dataframe.rest.action.RestUpdateDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformPersistentTasksExecutor;
+import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformTask;
 
 import java.io.IOException;
 import java.time.Clock;
@@ -122,7 +127,8 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
                 new RestDeleteDataFrameTransformAction(settings, restController),
                 new RestGetDataFrameTransformsAction(settings, restController),
                 new RestGetDataFrameTransformsStatsAction(settings, restController),
-                new RestPreviewDataFrameTransformAction(settings, restController)
+                new RestPreviewDataFrameTransformAction(settings, restController),
+                new RestUpdateDataFrameTransformAction(settings, restController)
         );
     }
 
@@ -143,6 +149,7 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
                 new ActionHandler<>(GetDataFrameTransformsAction.INSTANCE, TransportGetDataFrameTransformsAction.class),
                 new ActionHandler<>(GetDataFrameTransformsStatsAction.INSTANCE, TransportGetDataFrameTransformsStatsAction.class),
                 new ActionHandler<>(PreviewDataFrameTransformAction.INSTANCE, TransportPreviewDataFrameTransformAction.class),
+                new ActionHandler<>(UpdateDataFrameTransformAction.INSTANCE, TransportUpdateDataFrameTransformAction.class),
                 usageAction,
                 infoAction);
     }
@@ -205,8 +212,19 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
         assert dataFrameAuditor.get() != null;
         assert dataFrameTransformsCheckpointService.get() != null;
 
-        return Collections.singletonList(new DataFrameTransformPersistentTasksExecutor(client, dataFrameTransformsConfigManager.get(),
-                dataFrameTransformsCheckpointService.get(), schedulerEngine.get(), dataFrameAuditor.get(), threadPool));
+        return Collections.singletonList(
+            new DataFrameTransformPersistentTasksExecutor(client,
+                dataFrameTransformsConfigManager.get(),
+                dataFrameTransformsCheckpointService.get(),
+                schedulerEngine.get(),
+                dataFrameAuditor.get(),
+                threadPool,
+                clusterService,
+                settingsModule.getSettings()));
+    }
+
+    public List<Setting<?>> getSettings() {
+        return Collections.singletonList(DataFrameTransformTask.NUM_FAILURE_RETRIES_SETTING);
     }
 
     @Override

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
+import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 
 import java.util.Objects;
 
@@ -20,9 +21,9 @@ public class TimingStatsReporter {
     /** Persisted timing stats. May be stale. */
     private TimingStats persistedTimingStats;
     /** Current timing stats. */
-    private TimingStats currentTimingStats;
+    private volatile TimingStats currentTimingStats;
     /** Object used to persist current timing stats. */
-    private JobResultsPersister.Builder bulkResultsPersister;
+    private final JobResultsPersister.Builder bulkResultsPersister;
 
     public TimingStatsReporter(TimingStats timingStats, JobResultsPersister.Builder jobResultsPersister) {
         Objects.requireNonNull(timingStats);
@@ -35,8 +36,9 @@ public class TimingStatsReporter {
         return new TimingStats(currentTimingStats);
     }
 
-    public void reportBucketProcessingTime(long bucketProcessingTimeMs) {
-        currentTimingStats.updateStats(bucketProcessingTimeMs);
+    public void reportBucket(Bucket bucket) {
+        currentTimingStats.updateStats(bucket.getProcessingTimeMs());
+        currentTimingStats.setLatestRecordTimestamp(bucket.getTimestamp().toInstant().plusSeconds(bucket.getBucketSpan()));
         if (differSignificantly(currentTimingStats, persistedTimingStats)) {
             flush();
         }
@@ -50,7 +52,7 @@ public class TimingStatsReporter {
         flush();
     }
 
-    public void flush() {
+    private void flush() {
         persistedTimingStats = new TimingStats(currentTimingStats);
         bulkResultsPersister.persistTimingStats(persistedTimingStats);
     }

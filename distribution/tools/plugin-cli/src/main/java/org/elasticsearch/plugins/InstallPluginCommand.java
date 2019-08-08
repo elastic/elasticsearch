@@ -24,7 +24,7 @@ import joptsimple.OptionSpec;
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
 import org.bouncycastle.bcpg.ArmoredInputStream;
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider;
 import org.bouncycastle.openpgp.PGPException;
 import org.bouncycastle.openpgp.PGPPublicKey;
 import org.bouncycastle.openpgp.PGPPublicKeyRingCollection;
@@ -500,17 +500,26 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             }
         }
 
-        try {
-            final byte[] zipBytes = Files.readAllBytes(zip);
-            final String actualChecksum = MessageDigests.toHexString(MessageDigest.getInstance(digestAlgo).digest(zipBytes));
-            if (expectedChecksum.equals(actualChecksum) == false) {
-                throw new UserException(
+        // read the bytes of the plugin zip in chunks to avoid out of memory errors
+        try (InputStream zis = Files.newInputStream(zip)) {
+            try {
+                final MessageDigest digest = MessageDigest.getInstance(digestAlgo);
+                final byte[] bytes = new byte[8192];
+                int read;
+                while ((read = zis.read(bytes)) != -1) {
+                    assert read > 0 : read;
+                    digest.update(bytes, 0, read);
+                }
+                final String actualChecksum = MessageDigests.toHexString(digest.digest());
+                if (expectedChecksum.equals(actualChecksum) == false) {
+                    throw new UserException(
                         ExitCodes.IO_ERROR,
                         digestAlgo + " mismatch, expected " + expectedChecksum + " but got " + actualChecksum);
+                }
+            } catch (final NoSuchAlgorithmException e) {
+                // this should never happen as we are using SHA-1 and SHA-512 here
+                throw new AssertionError(e);
             }
-        } catch (final NoSuchAlgorithmException e) {
-            // this should never happen as we are using SHA-1 and SHA-512 here
-            throw new AssertionError(e);
         }
 
         if (officialPlugin) {
@@ -551,7 +560,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             // compute the signature of the downloaded plugin zip
             final PGPPublicKeyRingCollection collection = new PGPPublicKeyRingCollection(ain, new JcaKeyFingerprintCalculator());
             final PGPPublicKey key = collection.getPublicKey(signature.getKeyID());
-            signature.init(new JcaPGPContentVerifierBuilderProvider().setProvider(new BouncyCastleProvider()), key);
+            signature.init(new JcaPGPContentVerifierBuilderProvider().setProvider(new BouncyCastleFipsProvider()), key);
             final byte[] buffer = new byte[1024];
             int read;
             while ((read = fin.read(buffer)) != -1) {
@@ -697,7 +706,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                 Locale.ROOT,
                 "plugin directory [%s] already exists; if you need to update the plugin, " +
                     "uninstall it first using command 'remove %s'",
-                destination.toAbsolutePath(),
+                destination,
                 pluginName);
             throw new UserException(PLUGIN_EXISTS, message);
         }

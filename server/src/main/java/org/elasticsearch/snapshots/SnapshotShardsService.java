@@ -404,8 +404,13 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         private ShardId shardId;
         private ShardSnapshotStatus status;
 
-        public UpdateIndexShardSnapshotStatusRequest() {
+        public UpdateIndexShardSnapshotStatusRequest() {}
 
+        public UpdateIndexShardSnapshotStatusRequest(StreamInput in) throws IOException {
+            super(in);
+            snapshot = new Snapshot(in);
+            shardId = new ShardId(in);
+            status = new ShardSnapshotStatus(in);
         }
 
         public UpdateIndexShardSnapshotStatusRequest(Snapshot snapshot, ShardId shardId, ShardSnapshotStatus status) {
@@ -419,14 +424,6 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            snapshot = new Snapshot(in);
-            shardId = new ShardId(in);
-            status = new ShardSnapshotStatus(in);
         }
 
         @Override
@@ -487,9 +484,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 new TransportResponseHandler<UpdateIndexShardSnapshotStatusResponse>() {
                     @Override
                     public UpdateIndexShardSnapshotStatusResponse read(StreamInput in) throws IOException {
-                        final UpdateIndexShardSnapshotStatusResponse response = new UpdateIndexShardSnapshotStatusResponse();
-                        response.readFrom(in);
-                        return response;
+                        return new UpdateIndexShardSnapshotStatusResponse(in);
                     }
 
                     @Override
@@ -588,6 +583,14 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
 
     static class UpdateIndexShardSnapshotStatusResponse extends ActionResponse {
 
+        UpdateIndexShardSnapshotStatusResponse() {}
+
+        UpdateIndexShardSnapshotStatusResponse(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {}
     }
 
     private class UpdateSnapshotStatusAction
@@ -596,7 +599,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
                     super(
                         SnapshotShardsService.UPDATE_SNAPSHOT_STATUS_ACTION_NAME, transportService, clusterService, threadPool,
-                        actionFilters, indexNameExpressionResolver, UpdateIndexShardSnapshotStatusRequest::new
+                        actionFilters, UpdateIndexShardSnapshotStatusRequest::new, indexNameExpressionResolver
                     );
         }
 
@@ -606,8 +609,8 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         }
 
         @Override
-        protected UpdateIndexShardSnapshotStatusResponse newResponse() {
-            return new UpdateIndexShardSnapshotStatusResponse();
+        protected UpdateIndexShardSnapshotStatusResponse read(StreamInput in) throws IOException {
+            return new UpdateIndexShardSnapshotStatusResponse(in);
         }
 
         @Override

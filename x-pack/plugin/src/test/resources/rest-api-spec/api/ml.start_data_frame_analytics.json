@@ -1,5 +1,6 @@
 {
   "ml.start_data_frame_analytics": {
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/start-dfanalytics.html",
     "stability": "experimental",
     "methods": [ "POST" ],
     "url": {

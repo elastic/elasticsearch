@@ -42,6 +42,10 @@ public class AggregationsTests extends ESTestCase {
         assertEquals("geo_point", Aggregations.resolveTargetMapping("geo_centroid", "geo_point"));
         assertEquals("geo_point", Aggregations.resolveTargetMapping("geo_centroid", null));
 
+        // geo_bounds
+        assertEquals("geo_shape", Aggregations.resolveTargetMapping("geo_bounds", "geo_shape"));
+        assertEquals("geo_shape", Aggregations.resolveTargetMapping("geo_bounds", null));
+
         // scripted_metric
         assertEquals("_dynamic", Aggregations.resolveTargetMapping("scripted_metric", null));
         assertEquals("_dynamic", Aggregations.resolveTargetMapping("scripted_metric", "int"));
@@ -49,6 +53,10 @@ public class AggregationsTests extends ESTestCase {
         // bucket_script
         assertEquals("_dynamic", Aggregations.resolveTargetMapping("bucket_script", null));
         assertEquals("_dynamic", Aggregations.resolveTargetMapping("bucket_script", "int"));
+
+        // bucket_selector
+        assertEquals("_dynamic", Aggregations.resolveTargetMapping("bucket_selector", null));
+        assertEquals("_dynamic", Aggregations.resolveTargetMapping("bucket_selector", "int"));
 
         // weighted_avg
         assertEquals("_dynamic", Aggregations.resolveTargetMapping("weighted_avg", null));

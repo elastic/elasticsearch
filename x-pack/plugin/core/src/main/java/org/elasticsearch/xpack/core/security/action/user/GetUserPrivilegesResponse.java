@@ -37,8 +37,13 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
     private Set<RoleDescriptor.ApplicationResourcePrivileges> application;
     private Set<String> runAs;
 
-    public GetUserPrivilegesResponse() {
-        this(Collections.emptySet(), Collections.emptySet(), Collections.emptySet(), Collections.emptySet(), Collections.emptySet());
+    public GetUserPrivilegesResponse(StreamInput in) throws IOException {
+        super(in);
+        cluster = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
+        conditionalCluster = Collections.unmodifiableSet(in.readSet(ConditionalClusterPrivileges.READER));
+        index = Collections.unmodifiableSet(in.readSet(Indices::new));
+        application = Collections.unmodifiableSet(in.readSet(RoleDescriptor.ApplicationResourcePrivileges::new));
+        runAs = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
     }
 
     public GetUserPrivilegesResponse(Set<String> cluster, Set<ConditionalClusterPrivilege> conditionalCluster,
@@ -72,18 +77,8 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         return runAs;
     }
 
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        cluster = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
-        conditionalCluster = Collections.unmodifiableSet(in.readSet(ConditionalClusterPrivileges.READER));
-        index = Collections.unmodifiableSet(in.readSet(Indices::new));
-        application = Collections.unmodifiableSet(in.readSet(RoleDescriptor.ApplicationResourcePrivileges::new));
-        runAs = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeCollection(cluster, StreamOutput::writeString);
         out.writeCollection(conditionalCluster, ConditionalClusterPrivileges.WRITER);
         out.writeCollection(index);

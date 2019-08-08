@@ -202,6 +202,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
 
     private void addIndices(MetaData.Builder metaData, RoutingTable.Builder routingTable) {
         List<String> indices = new ArrayList<>();
+        indices.add(AnomalyDetectorsIndex.configIndexName());
         indices.add(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX);
         indices.add(MlMetaIndex.INDEX_NAME);
         indices.add(AuditorField.NOTIFICATIONS_INDEX);

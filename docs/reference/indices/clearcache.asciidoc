@@ -1,5 +1,5 @@
 [[indices-clearcache]]
-== Clear Cache
+=== Clear Cache
 
 The clear cache API allows to clear either all caches or specific cached
 associated with one or more indices.
@@ -40,7 +40,7 @@ POST /twitter/_cache/clear?fields=foo,bar   <1>
 <1> Clear the cache for the `foo` an `bar` field
 
 [float]
-=== Multi Index
+==== Multi Index
 
 The clear cache API can be applied to more than one index with a single
 call, or even on `_all` the indices.

@@ -127,7 +127,7 @@ class Elasticsearch extends EnvironmentAwareCommand {
                 Build.CURRENT.getQualifiedVersion(),
                 Build.CURRENT.flavor().displayName(),
                 Build.CURRENT.type().displayName(),
-                Build.CURRENT.shortHash(),
+                Build.CURRENT.hash(),
                 Build.CURRENT.date(),
                 JvmInfo.jvmInfo().version()
             );

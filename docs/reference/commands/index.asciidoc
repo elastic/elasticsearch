@@ -9,6 +9,7 @@ tasks from the command line:
 
 * <<certgen>>
 * <<certutil>>
+* <<elasticsearch-croneval>>
 * <<node-tool>>
 * <<saml-metadata>>
 * <<setup-passwords>>
@@ -20,6 +21,7 @@ tasks from the command line:
 
 include::certgen.asciidoc[]
 include::certutil.asciidoc[]
+include::croneval.asciidoc[]
 include::node-tool.asciidoc[]
 include::saml-metadata.asciidoc[]
 include::setup-passwords.asciidoc[]

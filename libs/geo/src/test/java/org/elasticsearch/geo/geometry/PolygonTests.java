@@ -19,7 +19,9 @@
 
 package org.elasticsearch.geo.geometry;
 
+import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.utils.GeographyValidator;
+import org.elasticsearch.geo.utils.StandardValidator;
 import org.elasticsearch.geo.utils.WellKnownText;
 
 import java.io.IOException;
@@ -29,7 +31,7 @@ import java.util.Collections;
 public class PolygonTests extends BaseGeometryTestCase<Polygon> {
     @Override
     protected Polygon createTestInstance(boolean hasAlt) {
-        return randomPolygon(hasAlt);
+        return GeometryTestUtils.randomPolygon(hasAlt);
     }
 
     public void testBasicSerialization() throws IOException, ParseException {
@@ -70,6 +72,13 @@ public class PolygonTests extends BaseGeometryTestCase<Polygon> {
             () -> new Polygon(new LinearRing(new double[]{1, 2, 3, 1}, new double[]{3, 4, 5, 3}, new double[]{5, 4, 3, 5}),
                 Collections.singletonList(new LinearRing(new double[]{1, 2, 3, 1}, new double[]{3, 4, 5, 3}))));
         assertEquals("holes must have the same number of dimensions as the polygon", ex.getMessage());
+
+        ex = expectThrows(IllegalArgumentException.class, () -> new StandardValidator(false).validate(
+            new Polygon(new LinearRing(new double[]{1, 2, 3, 1}, new double[]{3, 4, 5, 3}, new double[]{1, 2, 3, 1}))));
+        assertEquals("found Z value [1.0] but [ignore_z_value] parameter is [false]", ex.getMessage());
+
+        new StandardValidator(true).validate(
+                new Polygon(new LinearRing(new double[]{1, 2, 3, 1}, new double[]{3, 4, 5, 3}, new double[]{1, 2, 3, 1})));
     }
 
     public void testWKTValidation() {

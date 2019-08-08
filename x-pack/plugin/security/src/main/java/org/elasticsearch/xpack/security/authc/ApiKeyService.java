@@ -211,7 +211,6 @@ public class ApiKeyService {
         boolQuery.filter(expiredQuery);
 
         final SearchRequest searchRequest = client.prepareSearch(SECURITY_MAIN_ALIAS)
-            .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
             .setQuery(boolQuery)
             .setVersion(false)
             .setSize(1)

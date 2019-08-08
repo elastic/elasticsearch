@@ -131,6 +131,7 @@ public class DataFrameTransformProgressIT extends ESRestTestCase {
             destConfig,
             null,
             null,
+            null,
             pivotConfig,
             null);
 
@@ -155,6 +156,7 @@ public class DataFrameTransformProgressIT extends ESRestTestCase {
             destConfig,
             null,
             null,
+            null,
             pivotConfig,
             null);
 
@@ -172,6 +174,7 @@ public class DataFrameTransformProgressIT extends ESRestTestCase {
         config = new DataFrameTransformConfig("get_progress_transform",
             sourceConfig,
             destConfig,
+            null,
             null,
             null,
             pivotConfig,

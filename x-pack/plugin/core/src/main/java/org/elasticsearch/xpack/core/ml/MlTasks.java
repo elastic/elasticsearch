@@ -193,7 +193,7 @@ public final class MlTasks {
      * @param nodes The cluster nodes
      * @return Unallocated job tasks
      */
-    public static Collection<PersistentTasksCustomMetaData.PersistentTask> unallocatedJobTasks(
+    public static Collection<PersistentTasksCustomMetaData.PersistentTask<?>> unallocatedJobTasks(
             @Nullable PersistentTasksCustomMetaData tasks,
             DiscoveryNodes nodes) {
         if (tasks == null) {
@@ -247,7 +247,7 @@ public final class MlTasks {
      * @param nodes The cluster nodes
      * @return Unallocated datafeed tasks
      */
-    public static Collection<PersistentTasksCustomMetaData.PersistentTask> unallocatedDatafeedTasks(
+    public static Collection<PersistentTasksCustomMetaData.PersistentTask<?>> unallocatedDatafeedTasks(
             @Nullable PersistentTasksCustomMetaData tasks,
             DiscoveryNodes nodes) {
         if (tasks == null) {

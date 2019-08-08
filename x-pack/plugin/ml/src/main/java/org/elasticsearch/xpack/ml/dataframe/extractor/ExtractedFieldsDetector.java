@@ -177,7 +177,7 @@ public class ExtractedFieldsDetector {
     }
 
     private void checkRequiredFieldsArePresent(Set<String> fields) {
-        Set<String> missingFields = config.getAnalysis().getRequiredFields()
+        List<String> missingFields = config.getAnalysis().getRequiredFields()
             .stream()
             .filter(f -> fields.contains(f) == false)
             .collect(Collectors.toList());

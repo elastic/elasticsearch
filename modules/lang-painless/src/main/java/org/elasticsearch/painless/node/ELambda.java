@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -68,6 +69,8 @@ public final class ELambda extends AExpression implements ILambda {
     private final List<String> paramNameStrs;
     private final List<AStatement> statements;
 
+    private CompilerSettings settings;
+
     // desugared synthetic method (lambda body)
     private SFunction desugared;
     // captured variables
@@ -85,6 +88,15 @@ public final class ELambda extends AExpression implements ILambda {
         this.paramTypeStrs = Collections.unmodifiableList(paramTypes);
         this.paramNameStrs = Collections.unmodifiableList(paramNames);
         this.statements = Collections.unmodifiableList(statements);
+    }
+
+    @Override
+    void storeSettings(CompilerSettings settings) {
+        for (AStatement statement : statements) {
+            statement.storeSettings(settings);
+        }
+
+        this.settings = settings;
     }
 
     @Override
@@ -168,9 +180,10 @@ public final class ELambda extends AExpression implements ILambda {
         String name = locals.getNextSyntheticName();
         desugared = new SFunction(reserved, location, PainlessLookupUtility.typeToCanonicalTypeName(returnType), name,
                                   paramTypes, paramNames, statements, true);
+        desugared.storeSettings(settings);
         desugared.generateSignature(locals.getPainlessLookup());
         desugared.analyze(Locals.newLambdaScope(locals.getProgramScope(), desugared.name, returnType,
-                                                desugared.parameters, captures.size(), reserved.getMaxLoopCounter()));
+                                                desugared.parameters, captures.size(), settings.getMaxLoopCounter()));
 
         // setup method reference to synthetic method
         if (expected == null) {

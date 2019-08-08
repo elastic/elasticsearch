@@ -25,7 +25,6 @@ import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.core.AcknowledgedResponse;
-import org.elasticsearch.client.core.IndexerState;
 import org.elasticsearch.client.core.PageParams;
 import org.elasticsearch.client.dataframe.DeleteDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.GetDataFrameTransformRequest;
@@ -39,15 +38,18 @@ import org.elasticsearch.client.dataframe.StartDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.StartDataFrameTransformResponse;
 import org.elasticsearch.client.dataframe.StopDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.StopDataFrameTransformResponse;
+import org.elasticsearch.client.dataframe.UpdateDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.UpdateDataFrameTransformResponse;
 import org.elasticsearch.client.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig;
+import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfigUpdate;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformProgress;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformStats;
-import org.elasticsearch.client.dataframe.transforms.DataFrameTransformTaskState;
 import org.elasticsearch.client.dataframe.transforms.DestConfig;
 import org.elasticsearch.client.dataframe.transforms.NodeAttributes;
 import org.elasticsearch.client.dataframe.transforms.QueryConfig;
 import org.elasticsearch.client.dataframe.transforms.SourceConfig;
+import org.elasticsearch.client.dataframe.transforms.TimeSyncConfig;
 import org.elasticsearch.client.dataframe.transforms.pivot.AggregationConfig;
 import org.elasticsearch.client.dataframe.transforms.pivot.GroupConfig;
 import org.elasticsearch.client.dataframe.transforms.pivot.PivotConfig;
@@ -68,6 +70,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTestCase {
@@ -213,6 +216,96 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
             transformsToClean.add(request.getConfig().getId());
+        }
+    }
+
+    public void testUpdateDataFrameTransform() throws IOException, InterruptedException {
+        createIndex("source-data");
+
+        RestHighLevelClient client = highLevelClient();
+        QueryConfig queryConfig = new QueryConfig(new MatchAllQueryBuilder());
+        GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer",
+            TermsGroupSource.builder().setField("user_id").build()).build();
+        AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
+        aggBuilder.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
+        AggregationConfig aggConfig = new AggregationConfig(aggBuilder);
+        PivotConfig pivotConfig = PivotConfig.builder().setGroups(groupConfig).setAggregationConfig(aggConfig).build();
+
+        DataFrameTransformConfig transformConfig = DataFrameTransformConfig.builder()
+            .setId("my-transform-to-update")
+            .setSource(SourceConfig.builder().setIndex("source-data").setQueryConfig(queryConfig).build())
+            .setDest(DestConfig.builder().setIndex("pivot-dest").build())
+            .setPivotConfig(pivotConfig)
+            .setSyncConfig(new TimeSyncConfig("time-field", TimeValue.timeValueSeconds(120)))
+            .build();
+
+        client.dataFrame().putDataFrameTransform(new PutDataFrameTransformRequest(transformConfig), RequestOptions.DEFAULT);
+        transformsToClean.add(transformConfig.getId());
+
+        // tag::update-data-frame-transform-config
+        DataFrameTransformConfigUpdate update = DataFrameTransformConfigUpdate
+            .builder()
+            .setSource(SourceConfig.builder()
+                .setIndex("source-data")
+                .build()) // <1>
+            .setDest(DestConfig.builder()
+                .setIndex("pivot-dest")
+                .build()) // <2>
+            .setFrequency(TimeValue.timeValueSeconds(15)) // <3>
+            .setSyncConfig(new TimeSyncConfig("time-field",
+                TimeValue.timeValueSeconds(120))) // <4>
+            .setDescription("This is my updated transform") // <5>
+            .build();
+        // end::update-data-frame-transform-config
+
+        {
+        // tag::update-data-frame-transform-request
+        UpdateDataFrameTransformRequest request =
+            new UpdateDataFrameTransformRequest(
+                update, // <1>
+                "my-transform-to-update"); // <2>
+        request.setDeferValidation(false); // <3>
+        // end::update-data-frame-transform-request
+
+        // tag::update-data-frame-transform-execute
+        UpdateDataFrameTransformResponse response =
+            client.dataFrame().updateDataFrameTransform(request,
+                RequestOptions.DEFAULT);
+        DataFrameTransformConfig updatedConfig =
+            response.getTransformConfiguration();
+        // end::update-data-frame-transform-execute
+
+        assertThat(updatedConfig.getDescription(), equalTo("This is my updated transform"));
+        }
+        {
+        UpdateDataFrameTransformRequest request = new UpdateDataFrameTransformRequest(update,
+            "my-transform-to-update");
+
+        // tag::update-data-frame-transform-execute-listener
+        ActionListener<UpdateDataFrameTransformResponse> listener =
+            new ActionListener<UpdateDataFrameTransformResponse>() {
+                @Override
+                public void onResponse(UpdateDataFrameTransformResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+        // end::update-data-frame-transform-execute-listener
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::update-data-frame-transform-execute-async
+        client.dataFrame().updateDataFrameTransformAsync(
+            request, RequestOptions.DEFAULT, listener); // <1>
+        // end::update-data-frame-transform-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }
 
@@ -527,24 +620,21 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
             assertThat(response.getTransformsStats(), hasSize(1));
 
             // tag::get-data-frame-transform-stats-response
-            DataFrameTransformStats stateAndStatsInfo =
+            DataFrameTransformStats stats =
                 response.getTransformsStats().get(0); // <1>
-            DataFrameTransformTaskState taskState =
-                stateAndStatsInfo.getTaskState(); // <2>
-            IndexerState indexerState =
-                stateAndStatsInfo.getCheckpointingInfo()
-                    .getNext().getIndexerState(); // <3>
-            DataFrameIndexerTransformStats transformStats =
-                stateAndStatsInfo.getIndexerStats(); // <4>
+            DataFrameTransformStats.State state =
+                stats.getState(); // <2>
+            DataFrameIndexerTransformStats indexerStats =
+                stats.getIndexerStats(); // <3>
             DataFrameTransformProgress progress =
-                stateAndStatsInfo.getCheckpointingInfo()
-                    .getNext().getCheckpointProgress(); // <5>
+                stats.getCheckpointingInfo()
+                    .getNext().getCheckpointProgress(); // <4>
             NodeAttributes node =
-                stateAndStatsInfo.getNode(); // <6>
+                stats.getNode(); // <5>
             // end::get-data-frame-transform-stats-response
 
-            assertEquals(DataFrameTransformTaskState.STOPPED, taskState);
-            assertNotNull(transformStats);
+            assertEquals(DataFrameTransformStats.State.STOPPED, state);
+            assertNotNull(indexerStats);
             assertNull(progress);
         }
         {

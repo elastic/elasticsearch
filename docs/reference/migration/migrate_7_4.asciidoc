@@ -91,3 +91,25 @@ _cluster/health?wait_for_no_relocating_shards` APIs would return only once all
 pending reroutes have completed too, but starting in version 7.4 if you want to
 wait for the rerouting process to completely finish you should add the
 `wait_for_events=languid` query parameter when calling these APIs.
+
+[float]
+[[breaking_74_allocation_changes]]
+=== Allocation changes
+
+[float]
+==== Auto-release of read-only-allow-delete block
+
+If a node exceeds the flood-stage disk watermark then {es} adds the
+`index.blocks.read_only_allow_delete` block to all of its indices to prevent
+further writes, as a last-resort attempt to prevent the node completely
+exhausting its disk space. In earlier versions this block would remain in place
+until manually removed, causing confusion for users who currently have ample
+disk space and who are not aware that they nearly ran out at some point in the
+past. From 7.4 onwards the block is automatically removed when the node drops
+below the high watermark again, with the expectation that the high watermark is
+some distance below the flood-stage watermark and therefore the disk space
+problem is truly resolved. Since this block may be automatically removed, you
+can no longer rely on adding this block manually to prevent writes to an index.
+You should use the `index.blocks.read_only` block instead. This behaviour can
+be disabled by setting the system property
+`es.disk.auto_release_flood_stage_block` to `false`.

@@ -871,6 +871,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         public final String profileName;
         public final boolean tcpNoDelay;
         public final boolean tcpKeepAlive;
+        public final int tcpKeepIdle;
+        public final int tcpKeepInterval;
+        public final int tcpKeepCount;
         public final boolean reuseAddress;
         public final ByteSizeValue sendBufferSize;
         public final ByteSizeValue receiveBufferSize;
@@ -884,6 +887,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             this.profileName = profileName;
             isDefaultProfile = TransportSettings.DEFAULT_PROFILE.equals(profileName);
             tcpKeepAlive = TransportSettings.TCP_KEEP_ALIVE_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);
+            tcpKeepIdle = TransportSettings.TCP_KEEP_IDLE_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);
+            tcpKeepInterval = TransportSettings.TCP_KEEP_INTERVAL_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);
+            tcpKeepCount = TransportSettings.TCP_KEEP_COUNT_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);
             tcpNoDelay = TransportSettings.TCP_NO_DELAY_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);
             reuseAddress = TransportSettings.TCP_REUSE_ADDRESS_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);
             sendBufferSize = TransportSettings.TCP_SEND_BUFFER_SIZE_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);

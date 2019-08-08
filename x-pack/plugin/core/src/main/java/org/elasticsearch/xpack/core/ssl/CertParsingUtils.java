@@ -63,6 +63,10 @@ public class CertParsingUtils {
         return PathUtils.get(path).normalize();
     }
 
+    static List<Path> resolvePaths(List<String> certPaths, @Nullable Environment environment) {
+        return certPaths.stream().map(p -> resolvePath(p, environment)).collect(Collectors.toList());
+    }
+
     public static KeyStore readKeyStore(Path path, String type, char[] password)
             throws IOException, KeyStoreException, CertificateException, NoSuchAlgorithmException {
         try (InputStream in = Files.newInputStream(path)) {
@@ -82,7 +86,7 @@ public class CertParsingUtils {
      */
     public static Certificate[] readCertificates(List<String> certPaths, @Nullable Environment environment)
             throws CertificateException, IOException {
-        final List<Path> resolvedPaths = certPaths.stream().map(p -> resolvePath(p, environment)).collect(Collectors.toList());
+        final List<Path> resolvedPaths = resolvePaths(certPaths, environment);
         return readCertificates(resolvedPaths);
     }
 

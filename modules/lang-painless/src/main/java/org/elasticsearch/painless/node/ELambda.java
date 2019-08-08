@@ -63,7 +63,6 @@ import java.util.Set;
  */
 public final class ELambda extends AExpression implements ILambda {
 
-    private final String name;
     private final FunctionReserved reserved;
     private final List<String> paramTypeStrs;
     private final List<String> paramNameStrs;
@@ -78,11 +77,10 @@ public final class ELambda extends AExpression implements ILambda {
     // dynamic parent, deferred until link time
     private String defPointer;
 
-    public ELambda(String name, FunctionReserved reserved,
-                   Location location, List<String> paramTypes, List<String> paramNames,
+    public ELambda(FunctionReserved reserved, Location location,
+                   List<String> paramTypes, List<String> paramNames,
                    List<AStatement> statements) {
         super(location);
-        this.name = Objects.requireNonNull(name);
         this.reserved = Objects.requireNonNull(reserved);
         this.paramTypeStrs = Collections.unmodifiableList(paramTypes);
         this.paramNameStrs = Collections.unmodifiableList(paramNames);
@@ -167,6 +165,7 @@ public final class ELambda extends AExpression implements ILambda {
         paramNames.addAll(paramNameStrs);
 
         // desugar lambda body into a synthetic method
+        String name = locals.getNextSyntheticName();
         desugared = new SFunction(reserved, location, PainlessLookupUtility.typeToCanonicalTypeName(returnType), name,
                                   paramTypes, paramNames, statements, true);
         desugared.generateSignature(locals.getPainlessLookup());

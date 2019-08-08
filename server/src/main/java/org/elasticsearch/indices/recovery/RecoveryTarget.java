@@ -281,7 +281,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     /*** Implementation of {@link RecoveryTargetHandler } */
 
     @Override
-    public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps, ActionListener<Void> listener) {
+    public void prepareForTranslogOperations(int totalTranslogOps, ActionListener<Void> listener) {
         ActionListener.completeWith(listener, () -> {
             state().getTranslog().totalOperations(totalTranslogOps);
             indexShard().openEngineAndSkipTranslogRecovery();
@@ -377,6 +377,8 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                                 int totalTranslogOps,
                                 ActionListener<Void> listener) {
         ActionListener.completeWith(listener, () -> {
+            indexShard.resetRecoveryStage();
+            indexShard.prepareForIndexRecovery();
             final RecoveryState.Index index = state().getIndex();
             for (int i = 0; i < phase1ExistingFileNames.size(); i++) {
                 index.addFileDetail(phase1ExistingFileNames.get(i), phase1ExistingFileSizes.get(i), true);
@@ -417,7 +419,8 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                 } else {
                     assert indexShard.assertRetentionLeasesPersisted();
                 }
-
+                indexShard.maybeCheckIndex();
+                state().setStage(RecoveryState.Stage.TRANSLOG);
             } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
                 // this is a fatal exception at this stage.
                 // this means we transferred files from the remote that have not be checksummed and they are

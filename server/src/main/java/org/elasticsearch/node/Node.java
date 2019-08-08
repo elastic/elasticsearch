@@ -285,7 +285,7 @@ public class Node implements Closeable {
                 jvmInfo.pid(),
                 Build.CURRENT.flavor().displayName(),
                 Build.CURRENT.type().displayName(),
-                Build.CURRENT.shortHash(),
+                Build.CURRENT.hash(),
                 Build.CURRENT.date(),
                 Constants.OS_NAME,
                 Constants.OS_VERSION,

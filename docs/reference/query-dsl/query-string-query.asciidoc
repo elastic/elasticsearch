@@ -4,7 +4,8 @@
 <titleabbrev>Query string</titleabbrev>
 ++++
 
-Returns documents based on a provided query string, using a strict syntax.
+Returns documents based on a provided query string, using a parser with a strict
+syntax.
 
 This query uses a <<query-string-syntax,syntax>> to parse and split the provided
 query string into terms based on operators, such as `AND` or `NOT`. The query

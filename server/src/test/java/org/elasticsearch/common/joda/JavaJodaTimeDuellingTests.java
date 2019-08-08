@@ -45,7 +45,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
     }
 
     public void testDayOfWeek() {
-        //7 (ok joda) vs 1 (java by default) but 7 with customized org.elasticsearch.common.time.Locale.ISO8601
+        //7 (ok joda) vs 1 (java by default) but 7 with customized org.elasticsearch.common.time.IsoLocale.ISO8601
         ZonedDateTime now = LocalDateTime.of(2009,11,15,1,32,8,328402)
                                          .atZone(ZoneOffset.UTC); //Sunday
         DateFormatter jodaFormatter = Joda.forPattern("e").withLocale(Locale.ROOT).withZone(ZoneOffset.UTC);
@@ -54,7 +54,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
     }
 
     public void testStartOfWeek() {
-        //2019-21 (ok joda) vs 2019-22 (java by default) but 2019-21 with customized org.elasticsearch.common.time.Locale.ISO8601
+        //2019-21 (ok joda) vs 2019-22 (java by default) but 2019-21 with customized org.elasticsearch.common.time.IsoLocale.ISO8601
         ZonedDateTime now = LocalDateTime.of(2019,5,26,1,32,8,328402)
                                          .atZone(ZoneOffset.UTC);
         DateFormatter jodaFormatter = Joda.forPattern("xxxx-ww").withLocale(Locale.ROOT).withZone(ZoneOffset.UTC);

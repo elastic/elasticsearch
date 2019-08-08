@@ -6,7 +6,7 @@
 
 package org.elasticsearch.xpack.sql.proto;
 
-import org.elasticsearch.common.time.Locale;
+import org.elasticsearch.common.time.IsoLocale;
 
 import java.sql.Timestamp;
 import java.time.Duration;
@@ -38,7 +38,7 @@ public final class StringUtils {
             .appendValue(SECOND_OF_MINUTE, 2)
             .appendFraction(MILLI_OF_SECOND, 3, 3, true)
             .appendOffsetId()
-            .toFormatter(Locale.ISO8601);
+            .toFormatter(IsoLocale.ROOT);
 
     public static final DateTimeFormatter ISO_TIME_WITH_MILLIS = new DateTimeFormatterBuilder()
         .parseCaseInsensitive()
@@ -49,7 +49,7 @@ public final class StringUtils {
         .appendValue(SECOND_OF_MINUTE, 2)
         .appendFraction(MILLI_OF_SECOND, 3, 3, true)
         .appendOffsetId()
-        .toFormatter(Locale.ISO8601);
+        .toFormatter(IsoLocale.ROOT);
 
     private static final int SECONDS_PER_MINUTE = 60;
     private static final int SECONDS_PER_HOUR = SECONDS_PER_MINUTE * 60;

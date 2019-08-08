@@ -18,17 +18,23 @@
  */
 package org.elasticsearch.common.time;
 
+import java.util.Locale;
+
 /**
  * Locale constants to be used across elasticsearch code base.
  * java.util.Locale.ROOT should not be used as it defaults start of the week incorrectly to Sunday.
  */
-public class Locale {
+public final class IsoLocale {
+    private IsoLocale() {
+        throw new UnsupportedOperationException();
+    }
+
     /**
      * We want to use Locale.ROOT but with a start of the week as defined in ISO8601 to be compatible with the behaviour in joda-time
      * https://github.com/elastic/elasticsearch/issues/42588
-     * @see java.time.temporal.WeekFields#of(java.util.Locale)
+     * @see java.time.temporal.WeekFields#of(Locale)
       */
-    public static final java.util.Locale ISO8601 = new java.util.Locale.Builder()
-        .setLocale(java.util.Locale.ROOT)
+    public static final Locale ROOT = new Locale.Builder()
+        .setLocale(Locale.ROOT)
         .setUnicodeLocaleKeyword("fw", "mon").build();
 }

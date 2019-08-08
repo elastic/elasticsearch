@@ -29,7 +29,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.time.Locale;
+import org.elasticsearch.common.time.IsoLocale;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -530,7 +530,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
             builder.field("type", CONTENT_TYPE);
         }
         if (dynamic != null) {
-            builder.field("dynamic", dynamic.name().toLowerCase(Locale.ISO8601));
+            builder.field("dynamic", dynamic.name().toLowerCase(IsoLocale.ROOT));
         }
         if (enabled != Defaults.ENABLED) {
             builder.field("enabled", enabled);

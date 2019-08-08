@@ -24,6 +24,7 @@ import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.PageCacheRecycler;
 
@@ -38,20 +39,39 @@ public class TransportDecompressor {
     private final PageCacheRecycler recycler;
     private final ArrayDeque<Recycler.V<byte[]>> pages;
     private int pageOffset = PageCacheRecycler.BYTE_PAGE_SIZE;
-    private int uncompressedBytes = 0;
+    private boolean readHeader = false;
 
     public TransportDecompressor(PageCacheRecycler recycler) {
         this.recycler = recycler;
-        inflater = new Inflater(false);
+        inflater = new Inflater(true);
         pages = new ArrayDeque<>(4);
     }
 
     public int decompress(BytesReference bytesReference) throws IOException {
-        int initialUncompressedBytes = this.uncompressedBytes;
+        int bytesConsumed = 0;
+        if (readHeader == false) {
+            if (CompressorFactory.COMPRESSOR.isCompressed(bytesReference) == false) {
+                int maxToRead = Math.min(bytesReference.length(), 10);
+                StringBuilder sb = new StringBuilder("stream marked as compressed, but no compressor found, first [")
+                    .append(maxToRead).append("] content bytes out of [").append(bytesReference.length())
+                    .append("] readable bytes with message size [").append(bytesReference.length()).append("] ").append("] are [");
+                for (int i = 0; i < maxToRead; i++) {
+                    sb.append(bytesReference.get(i)).append(",");
+                }
+                sb.append("]");
+                throw new IllegalStateException(sb.toString());
+            }
+            readHeader = true;
+            int headerLength = CompressorFactory.COMPRESSOR.headerLength();
+            bytesReference = bytesReference.slice(headerLength, bytesReference.length() - headerLength);
+            bytesConsumed += headerLength;
+        }
+
         BytesRefIterator refIterator = bytesReference.iterator();
         BytesRef ref;
         while ((ref = refIterator.next()) != null) {
-            inflater.setInput(ref.bytes);
+            inflater.setInput(ref.bytes, ref.offset, ref.length);
+            bytesConsumed += ref.length;
             boolean continueInflating = true;
             while (continueInflating) {
                 if (pageOffset == PageCacheRecycler.BYTE_PAGE_SIZE) {
@@ -62,24 +82,41 @@ public class TransportDecompressor {
                 try {
                     int bytesInflated = inflater.inflate(output, pageOffset, PageCacheRecycler.BYTE_PAGE_SIZE - pageOffset);
                     pageOffset += bytesInflated;
-                    this.uncompressedBytes += bytesInflated;
                 } catch (DataFormatException e) {
                     throw new IOException("Exception while inflating bytes", e);
                 }
-                if (inflater.needsInput() || inflater.finished() || inflater.needsDictionary()) {
+                if (inflater.needsInput()) {
                     continueInflating = false;
                 }
+                if (inflater.finished()) {
+                    bytesConsumed -= inflater.getRemaining();
+                    continueInflating = false;
+                }
+                assert inflater.needsDictionary() == false;
             }
         }
 
-        return uncompressedBytes - initialUncompressedBytes;
+        return bytesConsumed;
+    }
+
+    public boolean isEOS() {
+        return inflater.finished();
     }
 
     public ReleasableBytesReference pollDecompressedPage() {
-        Recycler.V<byte[]> page = pages.pollLast();
-        if (page == null) {
+        if (pages.isEmpty()) {
             return null;
+        } else if (pages.size() == 1) {
+            if (isEOS()) {
+                Recycler.V<byte[]> page = pages.pollFirst();
+                ReleasableBytesReference reference = new ReleasableBytesReference(new BytesArray(page.v(), 0, pageOffset), page);
+                pageOffset = 0;
+                return reference;
+            } else {
+                return null;
+            }
         } else {
+            Recycler.V<byte[]> page = pages.pollFirst();
             return new ReleasableBytesReference(new BytesArray(page.v()), page);
         }
     }

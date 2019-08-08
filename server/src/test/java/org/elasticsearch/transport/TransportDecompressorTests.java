@@ -75,6 +75,7 @@ public class TransportDecompressorTests extends ESTestCase {
             assertNull(decompressor.pollDecompressedPage());
             CompositeBytesReference composite = new CompositeBytesReference(reference1.getReference(), reference2.getReference(),
                 reference3.getReference());
+            assertEquals(4 * 10000, composite.length());
             StreamInput streamInput = composite.streamInput();
             for (int i = 0; i < 10000; ++i) {
                 assertEquals(i, streamInput.readInt());

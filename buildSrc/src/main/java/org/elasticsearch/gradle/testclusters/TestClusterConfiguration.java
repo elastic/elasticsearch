@@ -169,7 +169,7 @@ public interface TestClusterConfiguration {
     default String safeName(String name) {
         return name
             .replaceAll("^[^a-zA-Z0-9]+", "")
-            .replaceAll("[^a-zA-Z0-9]+", "-");
+            .replaceAll("[^a-zA-Z0-9\\.]+", "-");
     }
 
     boolean isProcessAlive();

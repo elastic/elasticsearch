@@ -166,7 +166,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         waitConditions.put("ports files", this::checkPortsFilesExistWithDelay);
 
         setTestDistribution(TestDistribution.INTEG_TEST);
-        setVersion(VersionProperties.getElasticsearch());
     }
 
     public String getName() {
@@ -336,8 +335,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     @Override
     public void freeze() {
         requireNonNull(distributions, "null distribution passed when configuring test cluster `" + this + "`");
-        requireNonNull(getVersion(), "null version passed when configuring test cluster `" + this + "`");
         requireNonNull(javaHome, "null javaHome passed when configuring test cluster `" + this + "`");
+        if (distributions.isEmpty()) {
+            setVersion(VersionProperties.getElasticsearch());
+        }
         LOGGER.info("Locking configuration of `{}`", this);
         configurationFrozen.set(true);
     }

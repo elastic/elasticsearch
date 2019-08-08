@@ -253,8 +253,8 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         if (nodes.stream().map(ElasticsearchNode::getName).anyMatch( name -> name == null)) {
             nodeNames = null;
         } else {
-            nodeNames = nodes.stream().map(ElasticsearchNode::getName).collect(Collectors.joining(","));
-        };
+            nodeNames = nodes.stream().map(ElasticsearchNode::getName).map(this::safeName).collect(Collectors.joining(","));
+        }
         for (ElasticsearchNode node : nodes) {
             if (nodeNames != null) {
                 // Can only configure master nodes if we have node names defined

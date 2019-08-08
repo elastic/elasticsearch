@@ -52,6 +52,14 @@ public abstract class Boilerplate {
 
     }
 
+    public static <T extends Task> TaskProvider<T> maybeRegister(TaskContainer tasks, String name, Class<T> clazz, Action<T> action) {
+        try {
+            return tasks.named(name, clazz);
+        } catch (UnknownTaskException e) {
+            return tasks.register(name, clazz, action);
+        }
+    }
+
     public static void maybeConfigure(TaskContainer tasks, String name, Action<? super Task> config) {
         TaskProvider<?> task;
         try {

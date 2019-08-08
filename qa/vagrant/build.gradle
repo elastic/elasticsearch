@@ -18,10 +18,7 @@
  */
 
 plugins {
-  id 'java'
   id 'elasticsearch.build'
-  id 'elasticsearch.vagrantsupport'
-  id 'elasticsearch.vagrant'
 }
 
 dependencies {
@@ -36,34 +33,14 @@ dependencies {
   compile "commons-logging:commons-logging:${versions.commonslogging}"
 
   compile project(':libs:elasticsearch-core')
-
-  // pulls in the jar built by this project and its dependencies
-  packagingTest project(path: project.path, configuration: 'runtime')
 }
 
-List<String> plugins = []
-for (Project subproj : project.rootProject.subprojects) {
-  if (subproj.parent.path == ':plugins' || subproj.path.equals(':example-plugins:custom-settings')) {
-    // add plugin as a dep
-    dependencies {
-      packaging project(path: "${subproj.path}", configuration: 'zip')
-    }
-    plugins.add(subproj.name)
-  }
-}
-plugins = plugins.toSorted()
+configurations.create('testClasses')
 
-setupPackagingTest {
-  doFirst {
-    File expectedPlugins = file('build/plugins/expected')
-    expectedPlugins.parentFile.mkdirs()
-    expectedPlugins.setText(plugins.join('\n'), 'UTF-8')
-  }
-}
-
-esvagrant {
-  testClass 'org.elasticsearch.packaging.PackagingTests'
-}
+String classesDir = project.file(project.sourceSets.main.output.classesDirs.singleFile).toString()
+artifacts.add('testClasses', project.layout.projectDirectory.dir(classesDir)) {
+  builtBy 'testClasses' 
+} 
 
 forbiddenApisMain {
   replaceSignatureFiles 'jdk-signatures'
@@ -91,3 +68,61 @@ tasks.thirdPartyAudit.ignoreMissingClasses (
         'javax.servlet.ServletContextEvent',
         'javax.servlet.ServletContextListener'
 )
+
+boolean sample = project.properties.get('vagrant.boxes') != 'all'
+
+subprojects { Project platformProject ->
+  apply plugin: 'elasticsearch.distro-test'
+  apply plugin: 'java'
+
+  configurations.create('testClasses')
+  dependencies {
+    testClasses project(path: ':qa:vagrant', configuration: 'testClasses')
+    testRuntime project(path: ':qa:vagrant', configuration: 'runtime')
+  }
+
+  tasks.named('destructiveDistroTest') {
+    testClassesDirs += project.files(configurations.testClasses.singleFile)
+  }
+
+  // TODO: remove this property lookup once CI is switched to use an explicit task for the sample tests
+  boolean allBoxes = project.properties.get('vagrant.boxes', '') == 'all'
+  if (allBoxes || ['centos-7', 'ubuntu-1604'].contains(platformProject.name)) {
+    tasks.register('packagingTest') {
+      dependsOn 'distroTest', 'batsTest.oss', 'batsTest.default'
+    }
+  }
+
+  vagrant {
+    hostEnv 'VAGRANT_PROJECT_DIR', platformProject.projectDir.absolutePath
+  }
+
+}
+
+configurations {
+  allPlugins
+}
+
+List<String> plugins = []
+for (Project subproj : project.rootProject.subprojects) {
+  if (subproj.parent.path == ':plugins' || subproj.path.equals(':example-plugins:custom-settings')) {
+    // add plugin as a dep
+    dependencies {
+      allPlugins project(path: "${subproj.path}", configuration: 'zip')
+    }
+    plugins.add(subproj.name)
+  }
+}
+plugins = plugins.toSorted()
+
+copyPackagingArchives {
+  from configurations.allPlugins
+  doLast {
+    // TODO: this was copied from the old way bats tests get the plugins list. we should pass
+    // this in differently when converting to java tests
+    File expectedPlugins = file('build/plugins/expected')
+    expectedPlugins.parentFile.mkdirs()
+    expectedPlugins.setText(plugins.join('\n'), 'UTF-8')
+  }
+}
+

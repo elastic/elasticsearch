@@ -285,7 +285,11 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
        if (bulkExc != null) {
            return new Failure(index, type, id, bulkExc, RestStatus.fromCode(status));
        } else if (searchExc != null) {
-           return new SearchFailure(searchExc, index, shardId, nodeId);
+           if (status == null) {
+               return new SearchFailure(searchExc, index, shardId, nodeId);
+           } else {
+               return new SearchFailure(searchExc, index, shardId, nodeId, RestStatus.fromCode(status));
+           }
        } else {
            throw new ElasticsearchParseException("failed to parse failures array. At least one of {reason,cause} must be present");
        }

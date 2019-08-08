@@ -249,8 +249,8 @@ the `xpack.security.authc.token.enabled` setting is `true`.
 NOTE: {kib} also needs to be configured to allow PKI certificate authentication.
 
 A PKI realm with `delegation.enabled` still works unchanged for clients
-connecting directly to {es}. Directly authenticated users and users that are PKI
-authenticated by delegation to {kib} indistinctly follow the same
+connecting directly to {es}. Directly authenticated users, and users that are PKI
+authenticated by delegation to {kib} both follow the same
 {stack-ov}/mapping-roles.html[role mapping rules] or
 {stack-ov}/realm-chains.html#authorization_realms[authorization realms
 configurations]. If you use the <<security-role-mapping-apis,role mapping APIs>>,

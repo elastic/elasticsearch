@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -41,15 +42,14 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class MockDiskUsagesIT extends ESIntegTestCase {
@@ -143,7 +143,6 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/45338")
     public void testAutomaticReleaseOfIndexBlock() throws Exception {
         List<String> nodes = internalCluster().startNodes(3);
 
@@ -185,9 +184,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
 
         final List<String> realNodeNames = new ArrayList<>();
         ClusterStateResponse resp = client().admin().cluster().prepareState().get();
-        Iterator<RoutingNode> iter = resp.getState().getRoutingNodes().iterator();
-        while (iter.hasNext()) {
-            RoutingNode node = iter.next();
+        for (RoutingNode node : resp.getState().getRoutingNodes()) {
             realNodeNames.add(node.nodeId());
             logger.info("--> node {} has {} shards",
                 node.nodeId(), resp.getState().getRoutingNodes().node(node.nodeId()).numberOfOwningShards());
@@ -203,10 +200,10 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         cis.setN3Usage(realNodeNames.get(2), new DiskUsage(nodes.get(2), "n3", "_na_", 100, 3));
 
         // Wait until index "test" is blocked
-        assertBusy(() -> {
-            assertBlocked(client().prepareIndex().setIndex("test").setType("doc").setId("1").setSource("foo", "bar"),
-                IndexMetaData.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
-        });
+        assertBusy(() -> assertBlocked(client().prepareIndex().setIndex("test").setType("doc").setId("1").setSource("foo", "bar"),
+            IndexMetaData.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK));
+
+        assertFalse(client().admin().cluster().prepareHealth("test").setWaitForEvents(Priority.LANGUID).get().isTimedOut());
 
         // Cannot add further documents
         assertBlocked(client().prepareIndex().setIndex("test").setType("doc").setId("2").setSource("foo", "bar"),

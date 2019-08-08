@@ -143,6 +143,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/45338")
     public void testAutomaticReleaseOfIndexBlock() throws Exception {
         List<String> nodes = internalCluster().startNodes(3);
 

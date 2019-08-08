@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.fielddata;
 
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.common.geo.Extent;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeometryTreeReader;
@@ -85,6 +86,11 @@ public abstract class MultiGeoValues {
         }
 
         @Override
+        public BoundingBox boundingBox() {
+            return new BoundingBox(geoPoint);
+        }
+
+        @Override
         public double lat() {
             return geoPoint.lat();
         }
@@ -117,6 +123,11 @@ public abstract class MultiGeoValues {
         }
 
         @Override
+        public BoundingBox boundingBox() {
+            return new BoundingBox(extent);
+        }
+
+        @Override
         public double lat() {
             throw new UnsupportedOperationException("centroid of GeoShape is not defined");
         }
@@ -144,5 +155,56 @@ public abstract class MultiGeoValues {
     public interface GeoValue {
         double lat();
         double lon();
+        BoundingBox boundingBox();
+    }
+
+    public static class BoundingBox {
+        public final double top;
+        public final double bottom;
+        public final double negLeft;
+        public final double negRight;
+        public final double posLeft;
+        public final double posRight;
+
+        BoundingBox(Extent extent) {
+            this.top = GeoEncodingUtils.decodeLatitude(extent.top);
+            this.bottom = GeoEncodingUtils.decodeLatitude(extent.bottom);
+            if (extent.negLeft == Integer.MAX_VALUE) {
+                this.negLeft = Double.POSITIVE_INFINITY;
+            } else {
+                this.negLeft = GeoEncodingUtils.decodeLongitude(extent.negLeft);
+            }
+            if (extent.negRight == Integer.MIN_VALUE) {
+                this.negRight = Double.NEGATIVE_INFINITY;
+            } else {
+                this.negRight = GeoEncodingUtils.decodeLongitude(extent.negRight);
+            }
+            if (extent.posLeft == Integer.MAX_VALUE) {
+                this.posLeft = Double.POSITIVE_INFINITY;
+            } else {
+                this.posLeft = GeoEncodingUtils.decodeLongitude(extent.posLeft);
+            }
+            if (extent.posRight == Integer.MIN_VALUE) {
+                this.posRight = Double.NEGATIVE_INFINITY;
+            } else {
+                this.posRight = GeoEncodingUtils.decodeLongitude(extent.posRight);
+            }
+        }
+
+        BoundingBox(GeoPoint point) {
+            this.top = point.lat();
+            this.bottom = point.lat();
+            if (point.lon() < 0) {
+                this.negLeft = point.lon();
+                this.negRight = point.lon();
+                this.posLeft = Double.POSITIVE_INFINITY;
+                this.posRight = Double.NEGATIVE_INFINITY;
+            } else {
+                this.negLeft = Double.POSITIVE_INFINITY;
+                this.negRight = Double.NEGATIVE_INFINITY;
+                this.posLeft = point.lon();
+                this.posRight = point.lon();
+            }
+        }
     }
 }

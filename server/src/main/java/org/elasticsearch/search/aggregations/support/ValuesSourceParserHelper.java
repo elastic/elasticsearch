@@ -51,10 +51,16 @@ public final class ValuesSourceParserHelper {
         declareFields(objectParser, scriptable, formattable, false, ValueType.STRING);
     }
 
-    public static <T> void declareGeoFields(
+    public static <T> void declareGeoPointFields(
             AbstractObjectParser<? extends ValuesSourceAggregationBuilder<ValuesSource.GeoPoint, ?>, T> objectParser,
             boolean scriptable, boolean formattable) {
         declareFields(objectParser, scriptable, formattable, false, ValueType.GEOPOINT);
+    }
+
+    public static <T> void declareGeoFields(
+        AbstractObjectParser<? extends ValuesSourceAggregationBuilder<ValuesSource.Geo, ?>, T> objectParser,
+        boolean scriptable, boolean formattable) {
+        declareFields(objectParser, scriptable, formattable, false, ValueType.GEO);
     }
 
     private static <VS extends ValuesSource, T> void declareFields(

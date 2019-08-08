@@ -41,7 +41,7 @@ final class GeoBoundsAggregator extends MetricsAggregator {
 
     static final ParseField WRAP_LONGITUDE_FIELD = new ParseField("wrap_longitude");
 
-    private final ValuesSource.GeoPoint valuesSource;
+    private final ValuesSource.Geo valuesSource;
     private final boolean wrapLongitude;
     DoubleArray tops;
     DoubleArray bottoms;
@@ -51,7 +51,7 @@ final class GeoBoundsAggregator extends MetricsAggregator {
     DoubleArray negRights;
 
     GeoBoundsAggregator(String name, SearchContext aggregationContext, Aggregator parent,
-            ValuesSource.GeoPoint valuesSource, boolean wrapLongitude, List<PipelineAggregator> pipelineAggregators,
+            ValuesSource.Geo valuesSource, boolean wrapLongitude, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) throws IOException {
         super(name, aggregationContext, parent, pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
@@ -105,31 +105,13 @@ final class GeoBoundsAggregator extends MetricsAggregator {
 
                     for (int i = 0; i < valuesCount; ++i) {
                         MultiGeoValues.GeoValue value = values.nextValue();
-
-                        double top = tops.get(bucket);
-                        if (value.lat() > top) {
-                            top = value.lat();
-                        }
-                        double bottom = bottoms.get(bucket);
-                        if (value.lat() < bottom) {
-                            bottom = value.lat();
-                        }
-                        double posLeft = posLefts.get(bucket);
-                        if (value.lon() >= 0 && value.lon() < posLeft) {
-                            posLeft = value.lon();
-                        }
-                        double posRight = posRights.get(bucket);
-                        if (value.lon() >= 0 && value.lon() > posRight) {
-                            posRight = value.lon();
-                        }
-                        double negLeft = negLefts.get(bucket);
-                        if (value.lon() < 0 && value.lon() < negLeft) {
-                            negLeft = value.lon();
-                        }
-                        double negRight = negRights.get(bucket);
-                        if (value.lon() < 0 && value.lon() > negRight) {
-                            negRight = value.lon();
-                        }
+                        MultiGeoValues.BoundingBox bounds = value.boundingBox();
+                        double top = Math.max(tops.get(bucket), bounds.top);
+                        double bottom = Math.min(bottoms.get(bucket), bounds.bottom);
+                        double posLeft = Math.min(posLefts.get(bucket), bounds.posLeft);
+                        double posRight = Math.max(posRights.get(bucket), bounds.posRight);
+                        double negLeft = Math.min(negLefts.get(bucket), bounds.negLeft);
+                        double negRight = Math.max(negRights.get(bucket), bounds.negRight);
                         tops.set(bucket, top);
                         bottoms.set(bucket, bottom);
                         posLefts.set(bucket, posLeft);

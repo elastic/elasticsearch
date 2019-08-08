@@ -61,7 +61,7 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
 
     public static ObjectParser<GeoGridAggregationBuilder, Void> createParser(String name, PrecisionParser precisionParser) {
         ObjectParser<GeoGridAggregationBuilder, Void> parser = new ObjectParser<>(name);
-        ValuesSourceParserHelper.declareGeoFields(parser, false, false);
+        ValuesSourceParserHelper.declareGeoPointFields(parser, false, false);
         parser.declareField((p, builder, context) -> builder.precision(precisionParser.parse(p)), FIELD_PRECISION,
             org.elasticsearch.common.xcontent.ObjectParser.ValueType.INT);
         parser.declareInt(GeoGridAggregationBuilder::size, FIELD_SIZE);

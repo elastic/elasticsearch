@@ -51,6 +51,9 @@ test {
      * other if we allow them to set the number of available processors as it's set-once in Netty.
      */
     systemProperty 'es.set.netty.runtime.available.processors', 'false'
+
+    // Disable direct buffer pooling as it is disabled by default in Elasticsearch
+    systemProperty 'io.netty.allocator.numDirectArenas', '0'
 }
 
 integTestRunner {
@@ -59,6 +62,9 @@ integTestRunner {
      * other if we allow them to set the number of available processors as it's set-once in Netty.
      */
     systemProperty 'es.set.netty.runtime.available.processors', 'false'
+
+    // Disable direct buffer pooling as it is disabled by default in Elasticsearch
+    systemProperty 'io.netty.allocator.numDirectArenas', '0'
 }
 
 thirdPartyAudit {

@@ -387,7 +387,7 @@ GET _search <3>
 --------------------------
 // CONSOLE
 
-<1> The `name` field uses the `standard` analyzer, and so support full text queries.
+<1> The `name` field uses the `standard` analyzer, and so support full-text queries.
 <2> The `name.sort` field is an `icu_collation_keyword` field that will preserve the name as
     a single token doc values, and applies the German ``phonebook'' order.
 <3> An example query which searches the `name` field and sorts on the `name.sort` field.

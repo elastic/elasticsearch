@@ -1,5 +1,5 @@
 [[java-rest-high-query-builders]]
-=== Building Queries
+=== Building queries
 
 This page lists all the available search queries with their corresponding `QueryBuilder` class name and helper method name in the
 `QueryBuilders` utility class.
@@ -8,14 +8,14 @@ This page lists all the available search queries with their corresponding `Query
 :parentjoin-ref:   {parent-join-client-javadoc}/org/elasticsearch/join/query
 :percolate-ref:    {percolator-client-javadoc}/org/elasticsearch/percolator
 
-==== Match All Query
+==== Match all query
 [options="header"]
 |======
 | Search Query                                                        | QueryBuilder Class | Method in QueryBuilders
 | {ref}/query-dsl-match-all-query.html[Match All]                     | {query-ref}/MatchAllQueryBuilder.html[MatchAllQueryBuilder]                         | {query-ref}/QueryBuilders.html#matchAllQuery--[QueryBuilders.matchAllQuery()]
 |======
 
-==== Full Text Queries
+==== Full-text queries
 [options="header"]
 |======
 | Search Query                                                        | QueryBuilder Class | Method in QueryBuilders

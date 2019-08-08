@@ -63,7 +63,7 @@ the <<analysis-standard-analyzer,`standard` analyzer>>.
 == Search time analysis
 
 This same analysis process is applied to the query string at search time in
-<<full-text-queries,full text queries>> like the
+<<full-text-queries,full-text queries>> like the
 <<query-dsl-match-query,`match` query>>
 to convert the text in the query string into terms of the same form as those
 that are stored in the inverted index.
@@ -92,7 +92,7 @@ which means that this query would match our example document.
 === Specifying a search time analyzer
 
 Usually the same analyzer should be used both at
-index time and at search time, and <<full-text-queries,full text queries>>
+index time and at search time, and <<full-text-queries,full-text queries>>
 like the  <<query-dsl-match-query,`match` query>> will use the mapping to look
 up the analyzer to use for each field.
 

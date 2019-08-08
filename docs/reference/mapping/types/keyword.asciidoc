@@ -106,7 +106,7 @@ The following parameters are accepted by `keyword` fields:
 
 `split_queries_on_whitespace`::
 
-    Whether <<full-text-queries,full text queries>> should split the input on whitespace
+    Whether <<full-text-queries,full-text queries>> should split the input on whitespace
     when building a query for this field.
     Accepts `true` or `false` (default).
 

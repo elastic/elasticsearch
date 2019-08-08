@@ -110,7 +110,7 @@ or Ruby.
 [[search-data]]
 === Searching your data
 
-The {es} REST APIs support structured queries, full text queries, and complex
+The {es} REST APIs support structured queries, full-text queries, and complex
 queries that combine the two. Structured queries are
 similar to the types of queries you can construct in SQL. For example, you
 could search the `gender` and `age` fields in your `employee` index and sort the

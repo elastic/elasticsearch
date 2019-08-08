@@ -11,12 +11,12 @@ Analysis is the process of converting <<glossary-text,full text>> to
 terms `foo` and `bar`. These terms are what is actually stored in
 the index.
 +
-A full text query (not a <<glossary-term,term>> query) for `FoO:bAR` will
+A full-text query (not a <<glossary-term,term>> query) for `FoO:bAR` will
 also be analyzed to the terms `foo`,`bar` and will thus match the
 terms stored in the index.
 +
 It is this process of analysis (both at index time and at search time)
-that allows Elasticsearch to perform full text queries.
+that allows Elasticsearch to perform full-text queries.
 +
 Also see <<glossary-text,text>> and <<glossary-term,term>>.
 
@@ -223,7 +223,7 @@ paragraph. By default, text will be <<glossary-analysis,analyzed>> into
 <<glossary-term,terms>>, which is what is actually stored in the index.
 +
 Text <<glossary-field,fields>> need to be analyzed at index time in order to
-be searchable as full text, and keywords in full text queries must be
+be searchable as full text, and keywords in full-text queries must be
 analyzed at search time to produce (and search for) the same terms
 that were generated at index time.
 +

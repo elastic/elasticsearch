@@ -20,6 +20,7 @@ package org.elasticsearch.repositories;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -48,12 +49,12 @@ public final class RepositoryCleanupResult implements Writeable, ToXContentObjec
     private long blobs;
 
     private RepositoryCleanupResult() {
-        this(0L, 0L);
+        this(DeleteResult.ZERO);
     }
 
-    public RepositoryCleanupResult(long blobs, long bytes) {
-        this.blobs = blobs;
-        this.bytes = bytes;
+    public RepositoryCleanupResult(DeleteResult result) {
+        this.blobs = result.blobsDeleted();
+        this.bytes = result.bytesDeleted();
     }
 
     public RepositoryCleanupResult(StreamInput in) throws IOException {

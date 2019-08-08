@@ -344,7 +344,7 @@ public class MockRepository extends FsRepository {
                     deleteByteCount += blobs.get(blob).length();
                 }
                 blobStore().blobContainer(path().parent()).deleteBlob(path().toArray()[path().toArray().length - 1]);
-                return deleteResult.add(new DeleteResult(deleteBlobCount, deleteByteCount));
+                return deleteResult.add(deleteBlobCount, deleteByteCount);
             }
 
             @Override

@@ -467,18 +467,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final List<String> staleRootBlobs = staleRootBlobs(repositoryData, rootBlobs.keySet());
             if (survivingIndexIds.equals(foundIndices.keySet()) && staleRootBlobs.isEmpty()) {
                 // Nothing to clean up we return
-                return new RepositoryCleanupResult(0L, 0L);
+                return new RepositoryCleanupResult(DeleteResult.ZERO);
             }
             // write new index-N blob to ensure concurrent operations will fail
             writeIndexGen(repositoryData, repositoryStateId);
             final DeleteResult deleteIndicesResult = cleanupStaleIndices(foundIndices, survivingIndexIds);
             List<String> cleaned = cleanupStaleRootFiles(staleRootBlobs);
-            long deletedRootBytes = 0L;
-            for (String name : cleaned) {
-                deletedRootBytes += rootBlobs.get(name).length();
-            }
             return new RepositoryCleanupResult(
-                deleteIndicesResult.blobsDeleted() + cleaned.size(), deletedRootBytes + deleteIndicesResult.bytesDeleted());
+                deleteIndicesResult.add(cleaned.size(), cleaned.stream().mapToLong(name -> rootBlobs.get(name).length()).sum()));
         });
     }
 

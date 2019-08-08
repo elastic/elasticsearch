@@ -316,7 +316,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                     bytesDeleted.addAndGet(b.getSize());
                 });
                 deleteBlobsIgnoringIfNotExists(blobsToDelete);
-                deleteResult = deleteResult.add(new DeleteResult(blobsDeleted.get(), bytesDeleted.get()));
+                deleteResult = deleteResult.add(blobsDeleted.get(), bytesDeleted.get());
                 page = page.getNextPage();
             } while (page != null);
             return deleteResult;

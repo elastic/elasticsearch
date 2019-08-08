@@ -19,6 +19,9 @@
 
 package org.elasticsearch.common.blobstore;
 
+/**
+ * The result of deleting multiple blobs from a {@link BlobStore}.
+ */
 public final class DeleteResult {
 
     public static final DeleteResult ZERO = new DeleteResult(0, 0);
@@ -41,5 +44,9 @@ public final class DeleteResult {
 
     public DeleteResult add(DeleteResult other) {
         return new DeleteResult(blobsDeleted + other.blobsDeleted(), bytesDeleted + other.bytesDeleted());
+    }
+
+    public DeleteResult add(long blobs, long bytes) {
+        return new DeleteResult(blobsDeleted + blobs, bytesDeleted + bytes);
     }
 }

@@ -1085,7 +1085,6 @@ buildRestTests.setups['reviews'] = '''
             {"index": {"_id": "2"}}
             {"product": "widget-foo", "rating": 5}
 '''
-
 buildRestTests.setups['remote_cluster'] = buildRestTests.setups['host'] + '''
   - do:
       cluster.put_settings:
@@ -1146,6 +1145,53 @@ buildRestTests.setups['kibana_sample_data_ecommerce'] = '''
             settings:
               number_of_shards: 1
               number_of_replicas: 0
+'''
+buildRestTests.setups['simple_kibana_continuous_pivot'] = buildRestTests.setups['kibana_sample_data_ecommerce'] + '''
+  - do:
+      raw:
+        method: PUT
+        path: _data_frame/transforms/simple-kibana-ecomm-pivot
+        body:  >
+          {
+            "source": {
+              "index": "kibana_sample_data_ecommerce",
+              "query": {
+                "term": {
+                  "geoip.continent_name": {
+                    "value": "Asia"
+                  }
+                }
+              }
+            },
+            "pivot": {
+              "group_by": {
+                "customer_id": {
+                  "terms": {
+                    "field": "customer_id"
+                  }
+                }
+              },
+              "aggregations": {
+                "max_price": {
+                  "max": {
+                    "field": "taxful_total_price"
+                  }
+                }
+              }
+            },
+            "description": "Maximum priced ecommerce data",
+            "dest": {
+              "index": "kibana_sample_data_ecommerce_transform",
+              "pipeline": "add_timestamp_pipeline"
+            },
+            "frequency": "5m",
+            "sync": {
+              "time": {
+                "field": "order_date",
+                "delay": "60s"
+              }
+            }
+          }
 '''
 buildRestTests.setups['setup_logdata'] = '''
   - do:

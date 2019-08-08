@@ -107,7 +107,7 @@ document does not meet this limit, it is excluded from the search results.
 +
 --
 (Optional, string) Indicates how scores for matching child documents affect the
-root parent document's <<query-filter-context,relevance score>>. Valid values
+root parent document's <<relevance-scores,relevance score>>. Valid values
 are:
 
 `none` (Default)::

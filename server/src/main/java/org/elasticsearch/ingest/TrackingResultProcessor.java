@@ -80,8 +80,8 @@ public final class TrackingResultProcessor implements Processor {
                 handler.accept(ingestDocument, null);
                 return;
             }
-            if (conditionalProcessor.getProcessor() instanceof PipelineProcessor) {
-                processor = conditionalProcessor.getProcessor();
+            if (conditionalProcessor.getInnerProcessor() instanceof PipelineProcessor) {
+                processor = conditionalProcessor.getInnerProcessor();
             } else {
                 processor = actualProcessor;
             }
@@ -98,8 +98,13 @@ public final class TrackingResultProcessor implements Processor {
                 }
                 handler.accept(null, e);
             } else {
-                processorResultList.add(new SimulateProcessorResult(processor.getTag(), new IngestDocument(ingestDocument)));
-                handler.accept(result, null);
+                if (result != null) {
+                    processorResultList.add(new SimulateProcessorResult(processor.getTag(), new IngestDocument(ingestDocument)));
+                    handler.accept(result, null);
+                } else {
+                    processorResultList.add(new SimulateProcessorResult(processor.getTag()));
+                    handler.accept(null, null);
+                }
             }
         });
     }

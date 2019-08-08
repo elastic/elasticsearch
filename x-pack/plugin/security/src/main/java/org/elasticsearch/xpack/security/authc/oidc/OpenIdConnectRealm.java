@@ -277,25 +277,31 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
             // This should never happen as it's already validated in the settings
             throw new SettingsException("Invalid URI: " + OP_AUTHORIZATION_ENDPOINT.getKey(), e);
         }
+        String responseType = require(config, RP_RESPONSE_TYPE);
+        String tokenEndpointString = config.getSetting(OP_TOKEN_ENDPOINT);
+        if (responseType.equals("code") && tokenEndpointString.isEmpty()) {
+            throw new SettingsException("The configuration setting [" + OP_TOKEN_ENDPOINT.getConcreteSettingForNamespace(name()).getKey()
+                + "] is required when [" + RP_RESPONSE_TYPE.getConcreteSettingForNamespace(name()).getKey() + "] is set to \"code\"");
+        }
         URI tokenEndpoint;
         try {
-            tokenEndpoint = new URI(require(config, OP_TOKEN_ENDPOINT));
+            tokenEndpoint = tokenEndpointString.isEmpty() ? null : new URI(tokenEndpointString);
         } catch (URISyntaxException e) {
             // This should never happen as it's already validated in the settings
             throw new SettingsException("Invalid URL: " + OP_TOKEN_ENDPOINT.getKey(), e);
         }
         URI userinfoEndpoint;
         try {
-            userinfoEndpoint = (config.getSetting(OP_USERINFO_ENDPOINT, () -> null) == null) ? null :
-                new URI(config.getSetting(OP_USERINFO_ENDPOINT, () -> null));
+            userinfoEndpoint = (config.getSetting(OP_USERINFO_ENDPOINT).isEmpty()) ? null :
+                new URI(config.getSetting(OP_USERINFO_ENDPOINT));
         } catch (URISyntaxException e) {
             // This should never happen as it's already validated in the settings
             throw new SettingsException("Invalid URI: " + OP_USERINFO_ENDPOINT.getKey(), e);
         }
         URI endsessionEndpoint;
         try {
-            endsessionEndpoint = (config.getSetting(OP_ENDSESSION_ENDPOINT, () -> null) == null) ? null :
-                new URI(config.getSetting(OP_ENDSESSION_ENDPOINT, () -> null));
+            endsessionEndpoint = (config.getSetting(OP_ENDSESSION_ENDPOINT).isEmpty()) ? null :
+                new URI(config.getSetting(OP_ENDSESSION_ENDPOINT));
         } catch (URISyntaxException e) {
             // This should never happen as it's already validated in the settings
             throw new SettingsException("Invalid URI: " + OP_ENDSESSION_ENDPOINT.getKey(), e);

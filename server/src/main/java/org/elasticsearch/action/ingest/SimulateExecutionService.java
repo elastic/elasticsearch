@@ -56,7 +56,7 @@ class SimulateExecutionService {
         } else {
             pipeline.execute(ingestDocument, (result, e) -> {
                 if (e == null) {
-                    handler.accept(new SimulateDocumentBaseResult(ingestDocument), null);
+                    handler.accept(new SimulateDocumentBaseResult(result), null);
                 } else {
                     handler.accept(new SimulateDocumentBaseResult(e), null);
                 }

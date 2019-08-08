@@ -294,7 +294,8 @@ public class IngestServiceTests extends ESTestCase {
 
         assertThat(ingestService.getProcessorsInPipeline(id, ConditionalProcessor.class).size(), equalTo(0));
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ingestService.getProcessorsInPipeline("fakeID", Processor.class));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> ingestService.getProcessorsInPipeline("fakeID", Processor.class));
         assertThat("pipeline with id [fakeID] does not exist", equalTo(e.getMessage()));
     }
 

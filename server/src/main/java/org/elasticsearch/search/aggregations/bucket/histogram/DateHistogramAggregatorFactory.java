@@ -93,8 +93,9 @@ public final class DateHistogramAggregatorFactory
                 valuesSource, config.format(), context, parent, pipelineAggregators, metaData);
     }
 
-    private Aggregator createRangeAggregator(ValuesSource.Range valuesSource, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-                                        Map<String, Object> metaData) throws IOException {
+    private Aggregator createRangeAggregator(ValuesSource.Range valuesSource, Aggregator parent,
+                                             List<PipelineAggregator> pipelineAggregators,
+                                             Map<String, Object> metaData) throws IOException {
         return new DateRangeHistogramAggregator(name, factories, rounding, shardRounding, offset, order, keyed, minDocCount, extendedBounds,
             valuesSource, config.format(), context, parent, pipelineAggregators, metaData);
     }

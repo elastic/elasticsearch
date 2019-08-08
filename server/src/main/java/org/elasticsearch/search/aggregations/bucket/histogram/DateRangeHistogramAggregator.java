@@ -73,7 +73,8 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
                                  long offset, BucketOrder order, boolean keyed,
                                  long minDocCount, @Nullable ExtendedBounds extendedBounds, @Nullable ValuesSource.Range valuesSource,
                                  DocValueFormat formatter, SearchContext aggregationContext,
-                                 Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+                                 Aggregator parent, List<PipelineAggregator> pipelineAggregators,
+                                 Map<String, Object> metaData) throws IOException {
 
         super(name, factories, aggregationContext, parent, pipelineAggregators, metaData);
         this.rounding = rounding;
@@ -125,9 +126,10 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
                             // The encoding should ensure that this assert is always true.
                             assert from >= previousFrom : "Start of range not >= previous start";
                             final Long to = (Long) range.getTo();
-                            final long startKey = shardRounding.round(from);
-                            final long endKey = shardRounding.round(to);
-                            for (long  key = startKey > previousKey ? startKey : previousKey; key <= endKey; key = shardRounding.nextRoundingValue(key)) {
+                            final long startKey = offsetAwareRounding(shardRounding, from, offset);
+                            final long endKey = offsetAwareRounding(shardRounding, to, offset);
+                            for (long  key = startKey > previousKey ? startKey : previousKey; key <= endKey;
+                                 key = shardRounding.nextRoundingValue(key)) {
                                 if (key == previousKey) {
                                     continue;
                                 }
@@ -149,6 +151,10 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
                 }
             }
         };
+    }
+
+    private long offsetAwareRounding(Rounding rounding, long value, long offset) {
+        return rounding.round(value - offset) + offset;
     }
 
     @Override

@@ -91,10 +91,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
             updateRetentionPolicy();
             safeCommit = this.safeCommit;
         }
-        computeSafeCommitInfo(safeCommit);
-    }
 
-    private void computeSafeCommitInfo(IndexCommit safeCommit) throws IOException {
         assert Thread.holdsLock(this) == false : "should not block concurrent acquire or relesase";
         safeCommitInfo = new SafeCommitInfo(Long.parseLong(
             safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)), getDocCountOfCommit(safeCommit));

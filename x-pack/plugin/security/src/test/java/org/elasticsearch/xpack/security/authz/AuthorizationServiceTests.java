@@ -364,7 +364,7 @@ public class AuthorizationServiceTests extends ESTestCase {
 
                         @Override
                         public Predicate<TransportRequest> predicate() {
-                            return r -> r == request;
+                            return r -> false;
                         }
                     });
                 return builder;

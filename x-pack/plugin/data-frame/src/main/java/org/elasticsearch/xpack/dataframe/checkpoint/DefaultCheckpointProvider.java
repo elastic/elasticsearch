@@ -261,7 +261,7 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
                     listener.onResponse(checkpointingInfoBuilder.build());
                 },
                 e -> {
-                    logger.error((Supplier<?>) () -> new ParameterizedMessage(
+                    logger.debug((Supplier<?>) () -> new ParameterizedMessage(
                             "Failed to retrieve source checkpoint for data frame [{}]", transformConfig.getId()), e);
                     listener.onFailure(new CheckpointException("Failure during source checkpoint info retrieval", e));
                 }
@@ -274,7 +274,7 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
                     getIndexCheckpoints(checkpointsByIndexListener);
                 },
                 e -> {
-                    logger.error((Supplier<?>) () -> new ParameterizedMessage(
+                    logger.debug((Supplier<?>) () -> new ParameterizedMessage(
                             "Failed to retrieve next checkpoint [{}] for data frame [{}]", lastCheckpointNumber + 1,
                             transformConfig.getId()), e);
                     listener.onFailure(new CheckpointException("Failure during next checkpoint info retrieval", e));
@@ -289,7 +289,7 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
                         nextCheckpointListener);
             },
             e -> {
-                logger.error((Supplier<?>) () -> new ParameterizedMessage(
+                logger.debug((Supplier<?>) () -> new ParameterizedMessage(
                         "Failed to retrieve last checkpoint [{}] for data frame [{}]", lastCheckpointNumber,
                         transformConfig.getId()), e);
                 listener.onFailure(new CheckpointException("Failure during last checkpoint info retrieval", e));

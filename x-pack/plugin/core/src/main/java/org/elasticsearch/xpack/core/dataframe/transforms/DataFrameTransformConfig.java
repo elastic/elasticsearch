@@ -47,12 +47,11 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
     // types of transforms
     public static final ParseField PIVOT_TRANSFORM = new ParseField("pivot");
 
-    public static final ParseField DESCRIPTION = new ParseField("description");
     public static final ParseField VERSION = new ParseField("version");
     public static final ParseField CREATE_TIME = new ParseField("create_time");
     private static final ConstructingObjectParser<DataFrameTransformConfig, String> STRICT_PARSER = createParser(false);
     private static final ConstructingObjectParser<DataFrameTransformConfig, String> LENIENT_PARSER = createParser(true);
-    private static final int MAX_DESCRIPTION_LENGTH = 1_000;
+    static final int MAX_DESCRIPTION_LENGTH = 1_000;
 
     private final String id;
     private final SourceConfig source;
@@ -131,7 +130,7 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
 
         parser.declareObject(optionalConstructorArg(), (p, c) -> p.mapStrings(), HEADERS);
         parser.declareObject(optionalConstructorArg(), (p, c) -> PivotConfig.fromXContent(p, lenient), PIVOT_TRANSFORM);
-        parser.declareString(optionalConstructorArg(), DESCRIPTION);
+        parser.declareString(optionalConstructorArg(), DataFrameField.DESCRIPTION);
         parser.declareField(optionalConstructorArg(),
             p -> TimeUtils.parseTimeFieldToInstant(p, CREATE_TIME.getPreferredName()), CREATE_TIME, ObjectParser.ValueType.VALUE);
         parser.declareString(optionalConstructorArg(), VERSION);
@@ -330,7 +329,7 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
             builder.field(HEADERS.getPreferredName(), headers);
         }
         if (description != null) {
-            builder.field(DESCRIPTION.getPreferredName(), description);
+            builder.field(DataFrameField.DESCRIPTION.getPreferredName(), description);
         }
         if (transformVersion != null) {
             builder.field(VERSION.getPreferredName(), transformVersion);
@@ -380,5 +379,114 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
             boolean lenient) {
 
         return lenient ? LENIENT_PARSER.apply(parser, optionalTransformId) : STRICT_PARSER.apply(parser, optionalTransformId);
+    }
+
+    public static class Builder {
+        private String id;
+        private SourceConfig source;
+        private DestConfig dest;
+        private TimeValue frequency;
+        private SyncConfig syncConfig;
+        private String description;
+        private Map<String, String> headers;
+        private Version transformVersion;
+        private Instant createTime;
+        private PivotConfig pivotConfig;
+
+        public Builder() { }
+
+        public Builder(DataFrameTransformConfig config) {
+            this.id = config.id;
+            this.source = config.source;
+            this.dest = config.dest;
+            this.frequency = config.frequency;
+            this.syncConfig = config.syncConfig;
+            this.description = config.description;
+            this.transformVersion = config.transformVersion;
+            this.createTime = config.createTime;
+            this.pivotConfig = config.pivotConfig;
+        }
+
+        public Builder setId(String id) {
+            this.id = id;
+            return this;
+        }
+
+        public Builder setSource(SourceConfig source) {
+            this.source = source;
+            return this;
+        }
+
+        public Builder setDest(DestConfig dest) {
+            this.dest = dest;
+            return this;
+        }
+
+        public Builder setFrequency(TimeValue frequency) {
+            this.frequency = frequency;
+            return this;
+        }
+
+        public Builder setSyncConfig(SyncConfig syncConfig) {
+            this.syncConfig = syncConfig;
+            return this;
+        }
+
+        public Builder setDescription(String description) {
+            this.description = description;
+            return this;
+        }
+
+        public Builder setHeaders(Map<String, String> headers) {
+            this.headers = headers;
+            return this;
+        }
+
+        public Builder setPivotConfig(PivotConfig pivotConfig) {
+            this.pivotConfig = pivotConfig;
+            return this;
+        }
+
+        public DataFrameTransformConfig build() {
+            return new DataFrameTransformConfig(id,
+                source,
+                dest,
+                frequency,
+                syncConfig,
+                headers,
+                pivotConfig,
+                description,
+                createTime,
+                transformVersion == null ? null : transformVersion.toString());
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (this == other) {
+                return true;
+            }
+
+            if (other == null || getClass() != other.getClass()) {
+                return false;
+            }
+
+            final DataFrameTransformConfig.Builder that = (DataFrameTransformConfig.Builder) other;
+
+            return Objects.equals(this.id, that.id)
+                && Objects.equals(this.source, that.source)
+                && Objects.equals(this.dest, that.dest)
+                && Objects.equals(this.frequency, that.frequency)
+                && Objects.equals(this.syncConfig, that.syncConfig)
+                && Objects.equals(this.headers, that.headers)
+                && Objects.equals(this.pivotConfig, that.pivotConfig)
+                && Objects.equals(this.description, that.description)
+                && Objects.equals(this.createTime, that.createTime)
+                && Objects.equals(this.transformVersion, that.transformVersion);
+        }
+
+        @Override
+        public int hashCode(){
+            return Objects.hash(id, source, dest, frequency, syncConfig, headers, pivotConfig, description, createTime, transformVersion);
+        }
     }
 }

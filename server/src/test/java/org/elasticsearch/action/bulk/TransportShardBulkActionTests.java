@@ -305,7 +305,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         final CountDownLatch latch = new CountDownLatch(1);
         TransportShardBulkAction.executeBulkItemRequest(
-            context, null, threadPool::relativeTimeInMillis,
+            context, null, threadPool::absoluteTimeInMillis,
             errorOnWait == false ? new ThrowingMappingUpdatePerformer(err) : new NoopMappingUpdatePerformer(),
             errorOnWait ? listener -> listener.onFailure(err) : listener -> listener.onResponse(null),
             new LatchedActionListener<>(new ActionListener<Void>() {
@@ -765,7 +765,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         Exception err = new VersionConflictEngineException(shardId, "id",
             "I'm conflicted <(;_;)>");
-        Engine.IndexResult conflictedResult = new Engine.IndexResult(err, 0, 0);
+        Engine.IndexResult conflictedResult = new Engine.IndexResult(err, 0);
         Engine.IndexResult mappingUpdate =
             new Engine.IndexResult(new Mapping(null, null, new MetadataFieldMapper[0], Collections.emptyMap()));
         Translog.Location resultLocation = new Translog.Location(42, 42, 42);

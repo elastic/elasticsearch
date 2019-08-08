@@ -463,31 +463,6 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(datafeedUpdate.getScrollSize(), equalTo(updatedDatafeed.getScrollSize()));
     }
 
-    public void testUpdateDatafeed_UpdatingJobIdIsDeprecated() throws Exception {
-        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
-
-        String jobId = randomValidJobId();
-        Job job = buildJob(jobId);
-        execute(new PutJobRequest(job), machineLearningClient::putJob, machineLearningClient::putJobAsync);
-
-        String anotherJobId = randomValidJobId();
-        Job anotherJob = buildJob(anotherJobId);
-        execute(new PutJobRequest(anotherJob), machineLearningClient::putJob, machineLearningClient::putJobAsync);
-
-        String datafeedId = "datafeed-" + jobId;
-        DatafeedConfig datafeedConfig = DatafeedConfig.builder(datafeedId, jobId).setIndices("some_data_index").build();
-        execute(new PutDatafeedRequest(datafeedConfig), machineLearningClient::putDatafeed, machineLearningClient::putDatafeedAsync);
-
-        DatafeedUpdate datafeedUpdateWithChangedJobId = DatafeedUpdate.builder(datafeedId).setJobId(anotherJobId).build();
-        WarningFailureException exception = expectThrows(
-            WarningFailureException.class,
-            () -> execute(
-                new UpdateDatafeedRequest(datafeedUpdateWithChangedJobId),
-                machineLearningClient::updateDatafeed,
-                machineLearningClient::updateDatafeedAsync));
-        assertThat(exception.getResponse().getWarnings(), contains("The ability to update a datafeed's job_id is deprecated."));
-    }
-
     public void testGetDatafeed() throws Exception {
         String jobId1 = "test-get-datafeed-job-1";
         String jobId2 = "test-get-datafeed-job-2";

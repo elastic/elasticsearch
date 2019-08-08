@@ -6,6 +6,7 @@
 See also {stack-ov}/ml-dataframes.html[{dataframe-transforms-cap}].
 
 * <<put-data-frame-transform>> 
+* <<update-data-frame-transform>>
 * <<delete-data-frame-transform>>
 * <<get-data-frame-transform>>
 * <<get-data-frame-transform-stats>>
@@ -15,6 +16,8 @@ See also {stack-ov}/ml-dataframes.html[{dataframe-transforms-cap}].
 
 //CREATE
 include::put-transform.asciidoc[]
+//UPDATE
+include::update-transform.asciidoc[]
 //DELETE
 include::delete-transform.asciidoc[]
 //GET

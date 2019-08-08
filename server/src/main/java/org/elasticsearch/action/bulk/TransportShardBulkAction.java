@@ -117,7 +117,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     protected void shardOperationOnPrimary(BulkShardRequest request, IndexShard primary,
             ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener) {
         ClusterStateObserver observer = new ClusterStateObserver(clusterService, request.timeout(), logger, threadPool.getThreadContext());
-        performOnPrimary(request, primary, updateHelper, threadPool::relativeTimeInMillis,
+        performOnPrimary(request, primary, updateHelper, threadPool::absoluteTimeInMillis,
             (update, shardId, type, mappingListener) -> {
                 assert update != null;
                 assert shardId != null;
@@ -214,7 +214,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 // we may fail translating a update to index or delete operation
                 // we use index result to communicate failure while translating update request
                 final Engine.Result result =
-                    new Engine.IndexResult(failure, updateRequest.version(), SequenceNumbers.UNASSIGNED_SEQ_NO);
+                    new Engine.IndexResult(failure, updateRequest.version());
                 context.setRequestToExecute(updateRequest);
                 context.markOperationAsExecuted(result);
                 context.markAsCompleted(context.getExecutionResult());

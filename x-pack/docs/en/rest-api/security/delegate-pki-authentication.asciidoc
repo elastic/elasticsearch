@@ -16,48 +16,57 @@ token.
 [[security-api-dellegate-pki-authentication-prereqs]]
 ==== {api-prereq-title}
 
-To call this API, the (proxy) user must have the `delegate_pki` or the `all`
-cluster privileges. The `kibana_system` built-in role already grants this
-privilege.
+* To call this API, the (proxy) user must have the `delegate_pki` or the `all`
+cluster privilege. The `kibana_system` built-in role already grants this
+privilege. See {stack-ov}/security-privileges.html[Security privileges].
 
 [[security-api-delegate-pki-authentication-desc]]
 ==== {api-description-title}
 
-Implements the exchange of an _X509Certificate_ chain into an {es} access
-token. The certificate chain is validated according to RFC 5280, by
+This API implements the exchange of an _X509Certificate_ chain for an {es}
+access token. The certificate chain is validated, according to RFC 5280, by
 sequentially considering the trust configuration of every installed PKI realm
 that has `delegation.enabled` set to `true` (default is `false`). A
 successfully trusted client certificate is also subject to the validation of
 the subject distinguished name according to that respective's realm
 `username_pattern`.
 
-This API is called by *smart* and *trusted* proxies, such as {kib},
-that terminate the user's TLS session, and still wish to authenticate the user
-by a PKI realm, as if the user connected directly to {es}. For more details,
-see <<pki-realm-for-proxied-clients, Configuring authentication delegation for
-PKI realms>>.
+This API is called by *smart* and *trusted* proxies, such as {kib}, which
+terminate the user's TLS session but still want to authenticate the user
+by using a PKI realm--as if the user connected directly to {es}. For more
+details, see <<pki-realm-for-proxied-clients>>.
 
 IMPORTANT: The association between the subject public key in the target
 certificate and the corresponding private key is *not* validated. This is part
-of the TLS authentication process and it is delegated to the proxy calling this
-API. The proxy is *trusted* to have performed the TLS authentication, and this
-API translates that authentication into an {es} access token.
+of the TLS authentication process and it is delegated to the proxy that calls
+this API. The proxy is *trusted* to have performed the TLS authentication and
+this API translates that authentication into an {es} access token.
 
 [[security-api-delegate-pki-authentication-request-body]]
 ==== {api-request-body-title}
 
-The body of the POST request has a single parameter, which contains the
-_X509Certificate_ chain. The certificate chain is represented as an array where
-the first element is the target certificate contains the subject distinguished
-name that is requesting access. This may be followed by additional
-certificates, with each subsequent certificate being the one used to certify
-the previous one. The response contains an access token associated to the
-subject distinguished name of the client's certificate.
-
 `x509_certificate_chain`::
-(Required, list of strings) The chain is represented as an ordered string
-array. Each string in the array is a base64-encoded (Section 4 of RFC4648 - not
-base64url-encoded) DER PKIX certificate value.
+(Required, list of strings) The _X509Certificate_ chain, which is represented as
+an ordered string array. Each string in the array is a base64-encoded
+(Section 4 of RFC4648 - not base64url-encoded) DER PKIX certificate value.
++
+The first element is the target certificate contains the subject distinguished
+name that is requesting access. This may be followed by additional certificates;
+each subsequent certificate is used to certify the previous one.
+
+
+[[security-api-delegate-pki-authentication-response-body]]
+==== {api-response-body-title}
+
+`access_token`::
+(string) An access token associated to the subject distinguished name of the
+client's certificate.
+
+`expires_in`::
+(time units) The amount of time (in seconds) that the token expires in.
+
+`type`::
+(string) The type of token.
 
 [[security-api-delegate-pki-authentication-example]]
 ==== {api-examples-title}

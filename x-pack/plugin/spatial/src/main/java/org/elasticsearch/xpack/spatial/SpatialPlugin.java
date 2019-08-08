@@ -11,14 +11,19 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper;
+import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
-public class SpatialPlugin extends Plugin implements MapperPlugin {
+import static java.util.Collections.singletonList;
+
+public class SpatialPlugin extends Plugin implements MapperPlugin, SearchPlugin {
 
     public SpatialPlugin(Settings settings) {
     }
@@ -34,5 +39,10 @@ public class SpatialPlugin extends Plugin implements MapperPlugin {
         Map<String, Mapper.TypeParser> mappers = new LinkedHashMap<>();
         mappers.put(ShapeFieldMapper.CONTENT_TYPE, new ShapeFieldMapper.TypeParser());
         return Collections.unmodifiableMap(mappers);
+    }
+
+    @Override
+    public List<QuerySpec<?>> getQueries() {
+        return singletonList(new QuerySpec<>(ShapeQueryBuilder.NAME, ShapeQueryBuilder::new, ShapeQueryBuilder::fromXContent));
     }
 }

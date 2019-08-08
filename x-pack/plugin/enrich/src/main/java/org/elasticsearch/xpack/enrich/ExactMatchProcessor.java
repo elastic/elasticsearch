@@ -32,6 +32,7 @@ final class ExactMatchProcessor extends AbstractProcessor {
     private final String policyName;
     private final String enrichKey;
     private final boolean ignoreMissing;
+    private final boolean overrideEnabled;
     private final List<EnrichSpecification> specifications;
 
     ExactMatchProcessor(String tag,
@@ -39,6 +40,7 @@ final class ExactMatchProcessor extends AbstractProcessor {
                         String policyName,
                         String enrichKey,
                         boolean ignoreMissing,
+                        boolean overrideEnabled,
                         List<EnrichSpecification> specifications) {
         this(
             tag,
@@ -46,6 +48,7 @@ final class ExactMatchProcessor extends AbstractProcessor {
             policyName,
             enrichKey,
             ignoreMissing,
+            overrideEnabled,
             specifications
         );
     }
@@ -55,12 +58,14 @@ final class ExactMatchProcessor extends AbstractProcessor {
                         String policyName,
                         String enrichKey,
                         boolean ignoreMissing,
+                        boolean overrideEnabled,
                         List<EnrichSpecification> specifications) {
         super(tag);
         this.searchRunner = searchRunner;
         this.policyName = policyName;
         this.enrichKey = enrichKey;
         this.ignoreMissing = ignoreMissing;
+        this.overrideEnabled = overrideEnabled;
         this.specifications = specifications;
     }
 
@@ -111,7 +116,9 @@ final class ExactMatchProcessor extends AbstractProcessor {
                 assert enrichDocument != null : "enrich document for id [" + enrichKey + "] was empty despite non-zero search hits length";
                 for (EnrichSpecification specification : specifications) {
                     Object enrichFieldValue = enrichDocument.get(specification.sourceField);
-                    ingestDocument.setFieldValue(specification.targetField, enrichFieldValue);
+                    if (overrideEnabled || ingestDocument.hasField(specification.targetField) == false) {
+                        ingestDocument.setFieldValue(specification.targetField, enrichFieldValue);
+                    }
                 }
                 handler.accept(ingestDocument, null);
             });
@@ -140,6 +147,10 @@ final class ExactMatchProcessor extends AbstractProcessor {
 
     boolean isIgnoreMissing() {
         return ignoreMissing;
+    }
+
+    boolean isOverrideEnabled() {
+        return overrideEnabled;
     }
 
     List<EnrichSpecification> getSpecifications() {

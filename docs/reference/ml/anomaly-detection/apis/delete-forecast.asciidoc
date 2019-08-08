@@ -58,10 +58,9 @@ For more information, see
   error. The default value is `true`.
 
 `timeout`::
-  (Optional, time units) Specifies the period of time to wait for the completion
-  of the delete operation. When this period of time elapses, the API fails and
-  returns an error. The default value is `30s`. For more information about time
-  units, see <<time-units>>.
+  (Optional, <<time-units, time units>>) Specifies the period of time to wait 
+  for the completion of the delete operation. When this period of time elapses, 
+  the API fails and returns an error. The default value is `30s`.
 
 [[ml-delete-forecast-example]]
 ==== {api-examples-title}

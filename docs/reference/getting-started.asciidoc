@@ -247,10 +247,10 @@ And the response:
 [source,txt]
 --------------------------------------------------
 ip        heap.percent ram.percent cpu load_1m load_5m load_15m node.role master name
-127.0.0.1           10           5   5    4.46                        dim      *      PB2SGZY
+127.0.0.1           10           5   5    4.46                  dim       *      PB2SGZY
 --------------------------------------------------
 // TESTRESPONSE[s/10           5   5    4.46/\\d+ \\d+ \\d+ (\\d+\\.\\d+)? (\\d+\\.\\d+)? (\\d+\.\\d+)?/]
-// TESTRESPONSE[s/[*]/[*]/ s/PB2SGZY/.+/ non_json]
+// TESTRESPONSE[s/dim/.+/ s/[*]/[*]/ s/PB2SGZY/.+/ non_json]
 
 Here, we can see our one node named "PB2SGZY", which is the single node that is currently in our cluster.
 

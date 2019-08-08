@@ -105,28 +105,23 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
         this(processorTag, null, failure);
     }
 
+    public SimulateProcessorResult(String processorTag) {
+        this(processorTag, null, null);
+    }
+
     /**
      * Read from a stream.
      */
     SimulateProcessorResult(StreamInput in) throws IOException {
         this.processorTag = in.readString();
-        if (in.readBoolean()) {
-            this.ingestDocument = new WriteableIngestDocument(in);
-        } else {
-            this.ingestDocument = null;
-        }
+        this.ingestDocument = in.readOptionalWriteable(WriteableIngestDocument::new);
         this.failure = in.readException();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(processorTag);
-        if (ingestDocument == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            ingestDocument.writeTo(out);
-        }
+        out.writeOptionalWriteable(ingestDocument);
         out.writeException(failure);
     }
 
@@ -147,6 +142,11 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        if (processorTag == null && failure == null && ingestDocument == null) {
+            builder.nullValue();
+            return builder;
+        }
+
         builder.startObject();
 
         if (processorTag != null) {

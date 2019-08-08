@@ -88,6 +88,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
         final IndexCommit safeCommit;
         synchronized (this) {
             final int keptPosition = indexOfKeptCommits(commits, globalCheckpointSupplier.getAsLong());
+            this.safeCommitInfo = SafeCommitInfo.EMPTY;
             this.lastCommit = commits.get(commits.size() - 1);
             this.safeCommit = commits.get(keptPosition);
             for (int i = 0; i < keptPosition; i++) {
@@ -98,13 +99,15 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
             updateRetentionPolicy();
             safeCommit = this.safeCommit;
         }
-        final SafeCommitInfo safeCommitInfo = new SafeCommitInfo(Long.parseLong(
+        // compute this without holding the mutex to avoid blocking a concurrent acquire or release
+        safeCommitInfo = new SafeCommitInfo(Long.parseLong(
             safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)), getDocCountOfCommit(safeCommit));
-        synchronized (this) {
-            if (this.safeCommit == safeCommit) {
-                this.safeCommitInfo = safeCommitInfo;
-            }
-        }
+
+        // It's not clear whether this can be called concurrently, but we assert that it isn't. It's not disastrous if safeCommitInfo refers
+        // to an older safeCommit, it just means that we might retain a bit more history. TODO clarify whether this is concurrent or not.
+        final IndexCommit newSafeCommit = this.safeCommit;
+        assert safeCommit == newSafeCommit
+            : "onCommit called concurrently? " + safeCommit.getGeneration() + " vs " + newSafeCommit.getGeneration();
     }
 
     private void deleteCommit(IndexCommit commit) throws IOException {

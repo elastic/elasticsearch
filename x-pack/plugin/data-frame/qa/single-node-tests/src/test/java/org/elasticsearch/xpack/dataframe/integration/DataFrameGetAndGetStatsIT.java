@@ -22,6 +22,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.oneOf;
 
 public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
 
@@ -114,7 +115,7 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
 
         transformsStats = (List<Map<String, Object>>)XContentMapValues.extractValue("transforms", stats);
         assertEquals(1, transformsStats.size());
-        assertEquals("stopped", XContentMapValues.extractValue("task_state", transformsStats.get(0)));
+        assertEquals("stopped", XContentMapValues.extractValue("state", transformsStats.get(0)));
         assertNull(XContentMapValues.extractValue("checkpointing.next.position", transformsStats.get(0)));
         assertEquals(1, XContentMapValues.extractValue("checkpointing.last.checkpoint", transformsStats.get(0)));
 
@@ -125,7 +126,7 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
 
         transformsStats = (List<Map<String, Object>>)XContentMapValues.extractValue("transforms", stats);
         assertEquals(1, transformsStats.size());
-        assertEquals("started", XContentMapValues.extractValue("task_state", transformsStats.get(0)));
+        assertThat(XContentMapValues.extractValue("state", transformsStats.get(0)), oneOf("started", "indexing"));
         assertEquals(1, XContentMapValues.extractValue("checkpointing.last.checkpoint", transformsStats.get(0)));
 
 

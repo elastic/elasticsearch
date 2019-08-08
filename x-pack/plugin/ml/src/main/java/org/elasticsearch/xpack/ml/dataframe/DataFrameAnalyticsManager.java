@@ -63,7 +63,7 @@ public class DataFrameAnalyticsManager {
     public void execute(DataFrameAnalyticsTask task, DataFrameAnalyticsState currentState) {
         ActionListener<DataFrameAnalyticsConfig> reindexingStateListener = ActionListener.wrap(
             config -> reindexDataframeAndStartAnalysis(task, config),
-            task::markAsFailed
+            error -> task.updateState(DataFrameAnalyticsState.FAILED, error.getMessage())
         );
 
         // With config in hand, determine action to take
@@ -129,7 +129,7 @@ public class DataFrameAnalyticsManager {
                 task.setReindexingTaskId(null);
                 startAnalytics(task, config, false);
             },
-            task::markAsFailed
+            error -> task.updateState(DataFrameAnalyticsState.FAILED, error.getMessage())
         );
 
         // Refresh to ensure copied index is fully searchable
@@ -140,7 +140,7 @@ public class DataFrameAnalyticsManager {
                     RefreshAction.INSTANCE,
                     new RefreshRequest(config.getDest().getIndex()),
                     refreshListener),
-            task::markAsFailed
+            error -> task.updateState(DataFrameAnalyticsState.FAILED, error.getMessage())
         );
 
         // Reindex
@@ -196,15 +196,15 @@ public class DataFrameAnalyticsManager {
                     updatedTask -> processManager.runJob(task, config, dataExtractorFactory,
                         error -> {
                             if (error != null) {
-                                task.markAsFailed(error);
+                                task.updateState(DataFrameAnalyticsState.FAILED, error.getMessage());
                             } else {
                                 task.markAsCompleted();
                             }
                         }),
-                    task::markAsFailed
+                    error -> task.updateState(DataFrameAnalyticsState.FAILED, error.getMessage())
                 ));
             },
-            task::markAsFailed
+            error -> task.updateState(DataFrameAnalyticsState.FAILED, error.getMessage())
         );
 
         // TODO This could fail with errors. In that case we get stuck with the copied index.

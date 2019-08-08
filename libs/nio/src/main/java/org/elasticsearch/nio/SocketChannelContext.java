@@ -20,12 +20,14 @@
 package org.elasticsearch.nio;
 
 import org.elasticsearch.common.concurrent.CompletableContext;
+import org.elasticsearch.core.internal.net.NetUtils;
 import org.elasticsearch.nio.utils.ByteBufferUtils;
 import org.elasticsearch.nio.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.net.SocketOption;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SocketChannel;
@@ -34,6 +36,7 @@ import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
 import java.util.LinkedList;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -326,6 +329,27 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
             // we ensure that it is properly set before any bind attempt.
             socket.setReuseAddress(socketConfig.tcpReuseAddress());
             socket.setKeepAlive(socketConfig.tcpKeepAlive());
+            if (socketConfig.tcpKeepAlive()) {
+                final Set<SocketOption<?>> supportedOptions = socket.supportedOptions();
+                if (socketConfig.tcpKeepIdle() >= 0) {
+                    final SocketOption<Integer> keepIdleOption = NetUtils.getTcpKeepIdleSocketOptionOrNull();
+                    if (keepIdleOption != null && supportedOptions.contains(keepIdleOption)) {
+                        socket.setOption(keepIdleOption, socketConfig.tcpKeepIdle());
+                    }
+                }
+                if (socketConfig.tcpKeepInterval() >= 0) {
+                    final SocketOption<Integer> keepIntervalOption = NetUtils.getTcpKeepIntervalSocketOptionOrNull();
+                    if (keepIntervalOption != null && supportedOptions.contains(keepIntervalOption)) {
+                        socket.setOption(keepIntervalOption, socketConfig.tcpKeepInterval());
+                    }
+                }
+                if (socketConfig.tcpKeepCount() >= 0) {
+                    final SocketOption<Integer> keepCountOption = NetUtils.getTcpKeepCountSocketOptionOrNull();
+                    if (keepCountOption != null && supportedOptions.contains(keepCountOption)) {
+                        socket.setOption(keepCountOption, socketConfig.tcpKeepCount());
+                    }
+                }
+            }
             socket.setTcpNoDelay(socketConfig.tcpNoDelay());
             int tcpSendBufferSize = socketConfig.tcpSendBufferSize();
             if (tcpSendBufferSize > 0) {

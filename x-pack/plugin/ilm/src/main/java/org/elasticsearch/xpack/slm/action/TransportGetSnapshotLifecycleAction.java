@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -22,14 +23,17 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyItem;
 import org.elasticsearch.xpack.core.slm.action.GetSnapshotLifecycleAction;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -62,10 +66,27 @@ public class TransportGetSnapshotLifecycleAction extends
         if (snapMeta == null) {
             listener.onResponse(new GetSnapshotLifecycleAction.Response(Collections.emptyList()));
         } else {
+            final Map<String, SnapshotLifecyclePolicyItem.SnapshotInProgress> inProgress;
+            SnapshotsInProgress sip = state.custom(SnapshotsInProgress.TYPE);
+            if (sip == null) {
+                inProgress = Collections.emptyMap();
+            } else {
+                inProgress = new HashMap<>();
+                for (SnapshotsInProgress.Entry entry : sip.entries()) {
+                    Map<String, Object> meta = entry.userMetadata();
+                    if (meta == null ||
+                        meta.get(SnapshotLifecyclePolicy.POLICY_ID_METADATA_FIELD) == null ||
+                        (meta.get(SnapshotLifecyclePolicy.POLICY_ID_METADATA_FIELD) instanceof String == false)) {
+                        continue;
+                    }
+
+                    String policyId = (String) meta.get(SnapshotLifecyclePolicy.POLICY_ID_METADATA_FIELD);
+                    inProgress.put(policyId, SnapshotLifecyclePolicyItem.SnapshotInProgress.fromEntry(entry));
+                }
+            }
+
             final Set<String> ids = new HashSet<>(Arrays.asList(request.getLifecycleIds()));
-            List<SnapshotLifecyclePolicyItem> lifecycles = snapMeta.getSnapshotConfigurations()
-                .values()
-                .stream()
+            List<SnapshotLifecyclePolicyItem> lifecycles = snapMeta.getSnapshotConfigurations().values().stream()
                 .filter(meta -> {
                     if (ids.isEmpty()) {
                         return true;
@@ -73,7 +94,7 @@ public class TransportGetSnapshotLifecycleAction extends
                         return ids.contains(meta.getPolicy().getId());
                     }
                 })
-                .map(SnapshotLifecyclePolicyItem::new)
+                .map(policyMeta -> new SnapshotLifecyclePolicyItem(policyMeta, inProgress.get(policyMeta.getPolicy().getId())))
                 .collect(Collectors.toList());
             listener.onResponse(new GetSnapshotLifecycleAction.Response(lifecycles));
         }

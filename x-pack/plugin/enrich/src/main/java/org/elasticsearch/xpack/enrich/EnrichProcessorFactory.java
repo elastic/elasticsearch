@@ -39,34 +39,25 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
         boolean overrideEnabled = ConfigurationUtils.readBooleanProperty(TYPE, tag, config, "override", true);
 
         final List<EnrichSpecification> specifications;
-        final List<?> specificationConfig = ConfigurationUtils.readList(TYPE, tag, config, "enrich_values");
-        if (specificationConfig.isEmpty()) {
-            throw new IllegalArgumentException("provided enrich_values is empty");
-        } else if (specificationConfig.get(0) instanceof String) {
-            specifications = specificationConfig.stream()
-                .map(value -> {
-                    // Throw a nice error instead of class cast exception:
-                    if ((value instanceof String) == false) {
-                        throw new IllegalArgumentException("unsupported enrich values type [" + value.getClass()  + "]");
-                    }
-                    return (String) value;
-                })
-                .map(value -> new EnrichSpecification(value, value))
-                .collect(Collectors.toList());
-        } else if (specificationConfig.get(0) instanceof Map) {
+        final List<Map<?, ?>> setFromConfig = ConfigurationUtils.readOptionalList(TYPE, tag, config, "set_from");
+        if (setFromConfig != null) {
+            if (setFromConfig.isEmpty()) {
+                throw new IllegalArgumentException("provided set_from is empty");
+            }
+
             // TODO: Add templating support in enrich_values source and target options
-            specifications = specificationConfig.stream()
-                .map(value -> {
-                    // Throw a nice error instead of class cast exception:
-                    if ((value instanceof Map) == false) {
-                        throw new IllegalArgumentException("unsupported enrich values type [" + value.getClass()  + "]");
-                    }
-                    return (Map) value;
-                })
+            specifications = setFromConfig.stream()
                 .map(entry -> new EnrichSpecification((String) entry.get("source"), (String) entry.get("target")))
                 .collect(Collectors.toList());
         } else {
-            throw new IllegalArgumentException("unsupported enrich values type [" + specificationConfig.get(0).getClass()  + "]");
+            final List<String> targetsConfig = ConfigurationUtils.readList(TYPE, tag, config, "targets");
+            if (targetsConfig.isEmpty()) {
+                throw new IllegalArgumentException("provided targets is empty");
+            }
+
+            specifications = targetsConfig.stream()
+                .map(value -> new EnrichSpecification(value, value))
+                .collect(Collectors.toList());
         }
 
         for (EnrichSpecification specification : specifications) {

@@ -96,8 +96,9 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
         safeCommitInfo = new SafeCommitInfo(Long.parseLong(
             safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)), getDocCountOfCommit(safeCommit));
 
-        // It's not clear whether this can be called concurrently, but we assert that it isn't. It's not disastrous if safeCommitInfo refers
-        // to an older safeCommit, it just means that we might retain a bit more history. TODO clarify whether this is concurrent or not.
+        // This is protected from concurrent calls by a lock on the IndexWriter, but this assertion makes sure that we notice if that ceases
+        // to be true in future. It is not disastrous if safeCommitInfo refers to an older safeCommit, it just means that we might retain a
+        // bit more history and do a few more ops-based recoveries than we would otherwise.
         final IndexCommit newSafeCommit = this.safeCommit;
         assert safeCommit == newSafeCommit
             : "onCommit called concurrently? " + safeCommit.getGeneration() + " vs " + newSafeCommit.getGeneration();

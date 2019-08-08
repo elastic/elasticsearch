@@ -23,13 +23,20 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.fielddata.MultiGeoValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+
+import java.io.IOException;
+
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
 
 public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
 
@@ -257,6 +264,180 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
             assertTrue(values.advanceExact(0));
             assertEquals(1, values.docValueCount());
             assertEquals(1, values.nextValue());
+        }
+    }
+
+    public void testGeoPoint() throws IOException {
+        IndexService indexService = createIndex("index", Settings.EMPTY, "type",
+            "geo_point", "type=geo_point");
+        client().prepareIndex("index", "type", "1")
+            .setSource("geo_point", "-10.0,10.0")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
+            QueryShardContext context = indexService.newQueryShardContext(0, searcher.getIndexReader(), () -> 42L, null);
+
+            ValuesSourceConfig<ValuesSource.GeoPoint> config = ValuesSourceConfig.resolve(
+                context, null, "geo_point", null, null, null, null);
+            ValuesSource.GeoPoint valuesSource = config.toValuesSource(context);
+            LeafReaderContext ctx = searcher.getIndexReader().leaves().get(0);
+            MultiGeoValues values = valuesSource.geoValues(ctx);
+            assertTrue(values.advanceExact(0));
+            assertEquals(1, values.docValueCount());
+            MultiGeoValues.GeoValue value = values.nextValue();
+            assertThat(value.lat(), closeTo(-10, GeoUtils.TOLERANCE));
+            assertThat(value.lon(), closeTo(10, GeoUtils.TOLERANCE));
+        }
+    }
+
+    public void testEmptyGeoPoint() throws IOException {
+        IndexService indexService = createIndex("index", Settings.EMPTY, "type",
+            "geo_point", "type=geo_point");
+        client().prepareIndex("index", "type", "1")
+            .setSource()
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
+            QueryShardContext context = indexService.newQueryShardContext(0, searcher.getIndexReader(), () -> 42L, null);
+
+            ValuesSourceConfig<ValuesSource.GeoPoint> config = ValuesSourceConfig.resolve(
+                context, null, "geo_point", null, null, null, null);
+            ValuesSource.GeoPoint valuesSource = config.toValuesSource(context);
+            LeafReaderContext ctx = searcher.getIndexReader().leaves().get(0);
+            MultiGeoValues values = valuesSource.geoValues(ctx);
+            assertFalse(values.advanceExact(0));
+
+            config = ValuesSourceConfig.resolve(
+                context, null, "geo_point", null, "0,0", null, null);
+            valuesSource = config.toValuesSource(context);
+            ctx = searcher.getIndexReader().leaves().get(0);
+            values = valuesSource.geoValues(ctx);
+            assertTrue(values.advanceExact(0));
+            assertEquals(1, values.docValueCount());
+            MultiGeoValues.GeoValue value = values.nextValue();
+            assertThat(value.lat(), closeTo(0, GeoUtils.TOLERANCE));
+            assertThat(value.lon(), closeTo(0, GeoUtils.TOLERANCE));
+        }
+    }
+
+    public void testUnmappedGeoPoint() throws IOException {
+        IndexService indexService = createIndex("index", Settings.EMPTY, "type");
+        client().prepareIndex("index", "type", "1")
+            .setSource()
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
+            QueryShardContext context = indexService.newQueryShardContext(0, searcher.getIndexReader(), () -> 42L, null);
+
+            ValuesSourceConfig<ValuesSource.GeoPoint> config = ValuesSourceConfig.resolve(
+                context, ValueType.GEOPOINT, "geo_point", null, null, null, null);
+            ValuesSource.GeoPoint valuesSource = config.toValuesSource(context);
+            assertNull(valuesSource);
+
+            config = ValuesSourceConfig.resolve(
+                context, ValueType.GEOPOINT, "geo_point", null, "0,0", null, null);
+            valuesSource = config.toValuesSource(context);
+            LeafReaderContext ctx = searcher.getIndexReader().leaves().get(0);
+            MultiGeoValues values = valuesSource.geoValues(ctx);
+            assertTrue(values.advanceExact(0));
+            assertEquals(1, values.docValueCount());
+            MultiGeoValues.GeoValue value = values.nextValue();
+            assertThat(value.lat(), closeTo(0, GeoUtils.TOLERANCE));
+            assertThat(value.lon(), closeTo(0, GeoUtils.TOLERANCE));
+        }
+    }
+
+    public void testGeoShape() throws IOException {
+        IndexService indexService = createIndex("index", Settings.EMPTY, "type",
+            "geo_shape", "type=geo_shape");
+        client().prepareIndex("index", "type", "1")
+            .setSource("geo_shape", "POINT (-10 10)")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
+            QueryShardContext context = indexService.newQueryShardContext(0, searcher.getIndexReader(), () -> 42L, null);
+
+            ValuesSourceConfig<ValuesSource.GeoShape> config = ValuesSourceConfig.resolve(
+                context, null, "geo_shape", null, null, null, null);
+            ValuesSource.GeoShape valuesSource = config.toValuesSource(context);
+            LeafReaderContext ctx = searcher.getIndexReader().leaves().get(0);
+            MultiGeoValues values = valuesSource.geoValues(ctx);
+            assertTrue(values.advanceExact(0));
+            assertEquals(1, values.docValueCount());
+            // TODO (talevy): assert value once BoundingBox is defined
+//            MultiGeoValues.GeoValue value = values.nextValue();
+//            assertThat(value.minX(), closeTo(-10, GeoUtils.TOLERANCE));
+//            assertThat(value.minY(), closeTo(10, GeoUtils.TOLERANCE));
+        }
+    }
+
+    public void testEmptyGeoShape() throws IOException {
+        IndexService indexService = createIndex("index", Settings.EMPTY, "type",
+            "geo_shape", "type=geo_shape");
+        client().prepareIndex("index", "type", "1")
+            .setSource()
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
+            QueryShardContext context = indexService.newQueryShardContext(0, searcher.getIndexReader(), () -> 42L, null);
+
+            ValuesSourceConfig<ValuesSource.GeoShape> config = ValuesSourceConfig.resolve(
+                context, null, "geo_shape", null, null, null, null);
+            ValuesSource.GeoShape valuesSource = config.toValuesSource(context);
+            LeafReaderContext ctx = searcher.getIndexReader().leaves().get(0);
+            MultiGeoValues values = valuesSource.geoValues(ctx);
+            assertFalse(values.advanceExact(0));
+
+            config = ValuesSourceConfig.resolve(
+                context, null, "geo_shape", null, "POINT (0 0)", null, null);
+            valuesSource = config.toValuesSource(context);
+            ctx = searcher.getIndexReader().leaves().get(0);
+            values = valuesSource.geoValues(ctx);
+            assertTrue(values.advanceExact(0));
+            assertEquals(1, values.docValueCount());
+            // TODO (talevy): assert value once BoundingBox is defined
+//            MultiGeoValues.GeoValue value = values.nextValue();
+//            assertThat(value.minX(), closeTo(-10, GeoUtils.TOLERANCE));
+//            assertThat(value.minY(), closeTo(10, GeoUtils.TOLERANCE));
+
+            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+                () -> ValuesSourceConfig.resolve(context, ValueType.GEO, "geo_shapes", null, "invalid",
+                    null, null).toValuesSource(context));
+            assertThat(exception.getMessage(), equalTo("Unknown geometry type: invalid"));
+        }
+    }
+
+    public void testUnmappedGeoShape() throws IOException {
+        IndexService indexService = createIndex("index", Settings.EMPTY, "type");
+        client().prepareIndex("index", "type", "1")
+            .setSource()
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
+            QueryShardContext context = indexService.newQueryShardContext(0, searcher.getIndexReader(), () -> 42L, null);
+
+            ValuesSourceConfig<ValuesSource.GeoShape> config = ValuesSourceConfig.resolve(
+                context, ValueType.GEOSHAPE, "geo_shape", null, null, null, null);
+            ValuesSource.GeoShape valuesSource = config.toValuesSource(context);
+            assertNull(valuesSource);
+
+            config = ValuesSourceConfig.resolve(
+                context, ValueType.GEOSHAPE, "geo_shape", null, "POINT (0 0)", null, null);
+            valuesSource = config.toValuesSource(context);
+            LeafReaderContext ctx = searcher.getIndexReader().leaves().get(0);
+            MultiGeoValues values = valuesSource.geoValues(ctx);
+            assertTrue(values.advanceExact(0));
+            assertEquals(1, values.docValueCount());
+            // TODO (talevy): assert value once BoundingBox is defined
+//            MultiGeoValues.GeoValue value = values.nextValue();
+//            assertThat(value.minX(), closeTo(-10, GeoUtils.TOLERANCE));
+//            assertThat(value.minY(), closeTo(10, GeoUtils.TOLERANCE));
         }
     }
 

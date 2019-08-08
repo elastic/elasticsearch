@@ -24,7 +24,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexGeoFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
+import org.elasticsearch.index.fielddata.IndexGeoShapeFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
@@ -48,7 +50,9 @@ public enum ValueType implements Writeable {
     // TODO: what is the difference between "number" and "numeric"?
     NUMERIC((byte) 7, "numeric", "numeric", ValuesSourceType.NUMERIC, IndexNumericFieldData.class, DocValueFormat.RAW),
     GEOPOINT((byte) 8, "geo_point", "geo_point", ValuesSourceType.GEOPOINT, IndexGeoPointFieldData.class, DocValueFormat.GEOHASH),
-    BOOLEAN((byte) 9, "boolean", "boolean", ValuesSourceType.NUMERIC, IndexNumericFieldData.class, DocValueFormat.BOOLEAN);
+    BOOLEAN((byte) 9, "boolean", "boolean", ValuesSourceType.NUMERIC, IndexNumericFieldData.class, DocValueFormat.BOOLEAN),
+    GEOSHAPE((byte) 10, "geo_shape", "geo_shape", ValuesSourceType.GEOSHAPE, IndexGeoShapeFieldData.class, DocValueFormat.RAW),
+    GEO((byte) 11, "geo", "geo", ValuesSourceType.GEO, IndexGeoFieldData.class, DocValueFormat.RAW);
 
     final String description;
     final ValuesSourceType valuesSourceType;

@@ -58,7 +58,7 @@ public class Extent implements Writeable {
      * @param y the y-coordinate of the point
      * @return the extent of the point
      */
-    static Extent fromPoint(int x, int y) {
+    public static Extent fromPoint(int x, int y) {
         return new Extent(y, y,
             x < 0 ? x : Integer.MAX_VALUE,
             x < 0 ? x : Integer.MIN_VALUE,

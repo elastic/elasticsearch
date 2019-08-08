@@ -486,13 +486,15 @@ public abstract class ValuesSource {
         }
     }
 
-    public interface Geo {
-        MultiGeoValues geoValues(LeafReaderContext context);
-    }
+    public abstract static class Geo extends ValuesSource {
+        public abstract MultiGeoValues geoValues(LeafReaderContext context);
 
-    public abstract static class GeoPoint extends ValuesSource implements Geo {
+        @Override
+        public DocValueBits docsWithValue(LeafReaderContext context) throws IOException {
+            return org.elasticsearch.index.fielddata.FieldData.docsWithValue(geoValues(context));
+        }
 
-        public static final GeoPoint EMPTY = new GeoPoint() {
+        public static final Geo EMPTY = new Geo() {
 
             @Override
             public MultiGeoValues geoValues(LeafReaderContext context) {
@@ -505,12 +507,24 @@ public abstract class ValuesSource {
             }
 
         };
+    }
 
-        @Override
-        public DocValueBits docsWithValue(LeafReaderContext context) throws IOException {
-            final MultiGeoValues geoPoints = geoValues(context);
-            return org.elasticsearch.index.fielddata.FieldData.docsWithValue(geoPoints);
-        }
+    public abstract static class GeoPoint extends Geo {
+
+        public static final GeoPoint EMPTY = new GeoPoint() {
+
+            @Override
+            public MultiGeoValues geoValues(LeafReaderContext context) {
+                return Geo.EMPTY.geoValues(context);
+            }
+
+            @Override
+            public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
+                return Geo.EMPTY.bytesValues(context);
+            }
+
+        };
+
 
         public static class Fielddata extends GeoPoint {
 
@@ -531,27 +545,21 @@ public abstract class ValuesSource {
         }
     }
 
-    public abstract static class GeoShape extends ValuesSource implements Geo {
+    public abstract static class GeoShape extends Geo {
 
         public static final GeoShape EMPTY = new GeoShape() {
 
             @Override
             public MultiGeoValues geoValues(LeafReaderContext context) {
-                return org.elasticsearch.index.fielddata.FieldData.emptyMultiGeoValues();
+                return Geo.EMPTY.geoValues(context);
             }
 
             @Override
             public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
-                return org.elasticsearch.index.fielddata.FieldData.emptySortedBinary();
+                return Geo.EMPTY.bytesValues(context);
             }
 
         };
-
-        @Override
-        public DocValueBits docsWithValue(LeafReaderContext context) throws IOException {
-            final MultiGeoValues geoShapes = geoValues(context);
-            return org.elasticsearch.index.fielddata.FieldData.docsWithValue(geoShapes);
-        }
 
         public static class Fielddata extends GeoShape {
 
@@ -571,5 +579,4 @@ public abstract class ValuesSource {
             }
         }
     }
-
 }

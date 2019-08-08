@@ -1,10 +1,43 @@
 [[cluster-stats]]
 === Cluster Stats
 
-The Cluster Stats API allows to retrieve statistics from a cluster wide perspective.
-The API returns basic index metrics (shard numbers, store size, memory usage) and
-information about the current nodes that form the cluster (number, roles, os, jvm
-versions, memory usage, cpu and installed plugins).
+Returns cluster statistics.
+
+
+[[cluster-stats-api-request]]
+==== {api-request-title}
+
+`GET /_cluster/stats` +
+
+`GET /_cluster/stats/nodes/{node_id}`
+
+
+[[cluster-stats-api-desc]]
+==== {api-description-title}
+
+The Cluster Stats API allows to retrieve statistics from a cluster wide 
+perspective. The API returns basic index metrics (shard numbers, store size, 
+memory usage) and information about the current nodes that form the cluster 
+(number, roles, os, jvm versions, memory usage, cpu and installed plugins).
+
+
+[[cluster-stats-api-path-params]]
+==== {api-path-parms-title}
+
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=node-id]
+
+
+[[cluster-stats-api-query-params]]
+==== {api-query-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=flat-settings]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+
+
+[[cluster-stats-api-example]]
+==== {api-examples-title}
 
 [source,js]
 --------------------------------------------------
@@ -13,7 +46,8 @@ GET /_cluster/stats?human&pretty
 // CONSOLE
 // TEST[setup:twitter]
 
-Will return, for example:
+The API returns the following response:
+
 ["source","js",subs="attributes,callouts"]
 --------------------------------------------------
 {

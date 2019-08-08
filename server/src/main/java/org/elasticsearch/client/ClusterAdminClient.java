@@ -725,7 +725,7 @@ public interface ClusterAdminClient extends ElasticsearchClient {
     /**
      * Get a script from the cluster state
      */
-    GetStoredScriptsRequestBuilder prepareGetStoredScripts();
+    GetStoredScriptsRequestBuilder prepareGetStoredScripts(String... name);
 
     /**
      * Get all scripts from the cluster state

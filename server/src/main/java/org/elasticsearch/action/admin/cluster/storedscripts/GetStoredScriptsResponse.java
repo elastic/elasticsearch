@@ -34,7 +34,15 @@ public class GetStoredScriptsResponse extends ActionResponse implements ToXConte
 
     private Map<String, StoredScriptSource> storedScripts;
 
-    GetStoredScriptsResponse() {
+    GetStoredScriptsResponse(StreamInput in) throws IOException {
+        super(in);
+
+        int size = in.readVInt();
+        storedScripts = new HashMap<>(size);
+        for (int i = 0 ; i < size ; i++) {
+            String id = in.readString();
+            storedScripts.put(id, new StoredScriptSource(in));
+        }
     }
 
     GetStoredScriptsResponse(Map<String, StoredScriptSource> storedScripts) {
@@ -48,35 +56,22 @@ public class GetStoredScriptsResponse extends ActionResponse implements ToXConte
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        for (Map.Entry<String, StoredScriptSource> storedScript : getStoredScripts().entrySet()) {
 
-            builder.startObject(storedScript.getKey());
-
-            builder.startObject();
-            storedScript.getValue().toXContent(builder, params);
-            builder.endObject();
-
-            builder.endObject();
+        Map<String, StoredScriptSource> storedScripts = getStoredScripts();
+        if (storedScripts != null) {
+            for (Map.Entry<String, StoredScriptSource> storedScript : storedScripts.entrySet()) {
+                builder.startObject(storedScript.getKey());
+                builder.field(StoredScriptSource.SCRIPT_PARSE_FIELD.getPreferredName());
+                storedScript.getValue().toXContent(builder, params);
+                builder.endObject();
+            }
         }
         builder.endObject();
         return builder;
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-
-        int size = in.readVInt();
-        storedScripts = new HashMap<>(size);
-        for (int i = 0 ; i < size ; i++) {
-            String id = in.readString();
-            storedScripts.put(id, new StoredScriptSource(in));
-        }
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeVInt(storedScripts.size());
         for (Map.Entry<String, StoredScriptSource> storedScript : storedScripts.entrySet()) {
             out.writeString(storedScript.getKey());

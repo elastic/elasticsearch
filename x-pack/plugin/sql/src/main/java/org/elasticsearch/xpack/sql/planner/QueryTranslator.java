@@ -123,6 +123,10 @@ import static org.elasticsearch.xpack.sql.expression.Foldables.valueOf;
 import static org.elasticsearch.xpack.sql.type.DataType.DATE;
 
 final class QueryTranslator {
+
+    public static final String DATE_FORMAT = "strict_date_time";
+    public static final String TIME_FORMAT = "strict_hour_minute_second_millis";
+
     private QueryTranslator(){}
 
     private static final List<ExpressionTranslator<?>> QUERY_TRANSLATORS = Arrays.asList(
@@ -662,24 +666,24 @@ final class QueryTranslator {
             String name = nameOf(bc.left());
             Object value = valueOf(bc.right());
             String format = dateFormat(bc.left());
+            boolean isDateLiteralComparison = false;
 
             // for a date constant comparison, we need to use a format for the date, to make sure that the format is the same
             // no matter the timezone provided by the user
-            if ((bc instanceof LessThan || bc instanceof LessThanOrEqual || bc instanceof GreaterThan || bc instanceof GreaterThanOrEqual)
-                    && (value instanceof ZonedDateTime || value instanceof OffsetTime)
-                    && format == null) {
+            if ((value instanceof ZonedDateTime || value instanceof OffsetTime) && format == null) {
                 DateFormatter formatter;
                 if (value instanceof ZonedDateTime) {
-                    formatter = DateFormatter.forPattern("strict_date_time");
+                    formatter = DateFormatter.forPattern(DATE_FORMAT);
                     // RangeQueryBuilder accepts an Object as its parameter, but it will call .toString() on the ZonedDateTime instance
                     // which can have a slightly different format depending on the ZoneId used to create the ZonedDateTime
                     // Since RangeQueryBuilder can handle date as String as well, we'll format it as String and provide the format as well.
                     value = formatter.format((ZonedDateTime) value);
                 } else {
-                    formatter = DateFormatter.forPattern("strict_hour_minute_second_millis"); 
+                    formatter = DateFormatter.forPattern(TIME_FORMAT); 
                     value = formatter.format((OffsetTime) value);
                 }
                 format = formatter.pattern();
+                isDateLiteralComparison = true;
             }
 
             // Possible geo optimization
@@ -718,10 +722,16 @@ final class QueryTranslator {
                     // (which is important for strings)
                     name = ((FieldAttribute) bc.left()).exactAttribute().name();
                 }
-                Query query = new TermQuery(source, name, value);
+                Query query;
+                if (isDateLiteralComparison == true) {
+                    // dates equality uses a range query because it's the one that has a "format" parameter
+                    query = new RangeQuery(source, name, value, true, value, true, format);
+                } else {
+                    query = new TermQuery(source, name, value);
+                }
                 if (bc instanceof NotEquals) {
                     query = new NotQuery(source, query);
-            }
+                }
                 return query;
             }
 

@@ -36,7 +36,7 @@ public abstract class CustomDateFormatTestCase extends BaseRestSqlTestCase {
     private static String[] customFormats = new String[] {"HH:mm yyyy-MM-dd", "HH:mm:ss yyyy-dd-MM", "HH:mm:ss VV", "HH:mm:ss VV z",
             "yyyy-MM-dd'T'HH:mm:ss'T'VV'T'z"};
     private static String[] nowFunctions = new String[] {"NOW()", "CURRENT_DATE()", "CURRENT_TIME()", "CURRENT_TIMESTAMP()"};
-    private static String[] operators = new String[] {" < ", " > ", " <= ", " >= "};
+    private static String[] operators = new String[] {" < ", " > ", " <= ", " >= ", " = ", " != "};
     
     public void testCustomDateFormatsWithNowFunctions() throws IOException {
         createIndex();
@@ -63,6 +63,7 @@ public abstract class CustomDateFormatTestCase extends BaseRestSqlTestCase {
         String expectedJsonSnippet = "{\"columns\":[{\"name\":\"c\",\"type\":\"long\"}],\"rows\":[[";
         try (InputStream content = response.getEntity().getContent()) {
             String actualJson = new BytesArray(content.readAllBytes()).utf8ToString();
+            // we just need to get a response that's not a date parsing error
             assertTrue(actualJson.startsWith(expectedJsonSnippet));
         }
     }

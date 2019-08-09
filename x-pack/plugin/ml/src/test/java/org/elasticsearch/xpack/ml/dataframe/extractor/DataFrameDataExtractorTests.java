@@ -71,8 +71,8 @@ public class DataFrameDataExtractorTests extends ESTestCase {
         indices = Arrays.asList("index-1", "index-2");
         query = QueryBuilders.matchAllQuery();
         extractedFields = new ExtractedFields(Arrays.asList(
-            ExtractedField.newField("field_1", ExtractedField.ExtractionMethod.DOC_VALUE),
-            ExtractedField.newField("field_2", ExtractedField.ExtractionMethod.DOC_VALUE)));
+            ExtractedField.newField("field_1", Collections.singleton("keyword"), ExtractedField.ExtractionMethod.DOC_VALUE),
+            ExtractedField.newField("field_2", Collections.singleton("keyword"), ExtractedField.ExtractionMethod.DOC_VALUE)));
         scrollSize = 1000;
         headers = Collections.emptyMap();
 
@@ -288,8 +288,8 @@ public class DataFrameDataExtractorTests extends ESTestCase {
 
     public void testIncludeSourceIsFalseAndAtLeastOneSourceField() throws IOException {
         extractedFields = new ExtractedFields(Arrays.asList(
-            ExtractedField.newField("field_1", ExtractedField.ExtractionMethod.DOC_VALUE),
-            ExtractedField.newField("field_2", ExtractedField.ExtractionMethod.SOURCE)));
+            ExtractedField.newField("field_1", Collections.singleton("keyword"), ExtractedField.ExtractionMethod.DOC_VALUE),
+            ExtractedField.newField("field_2", Collections.singleton("text"), ExtractedField.ExtractionMethod.SOURCE)));
 
         TestExtractor dataExtractor = createExtractor(false);
 

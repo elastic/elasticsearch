@@ -244,8 +244,9 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
     }
 
     public void testWriteLargeBlob() throws Exception {
+        final boolean useTimeout = rarely();
+        final TimeValue readTimeout = useTimeout ? TimeValue.timeValueMillis(randomIntBetween(100, 500)) : null;
         final ByteSizeValue bufferSize = new ByteSizeValue(5, ByteSizeUnit.MB);
-        final TimeValue readTimeout = TimeValue.timeValueMillis(randomIntBetween(100, 500)); // not sure CI likes the low values
         final BlobContainer blobContainer = createBlobContainer(null, readTimeout, true, bufferSize);
 
         final int parts = randomIntBetween(1, 2);
@@ -305,8 +306,8 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
                 }
             }
 
-            // sends an error back or let the request times out
-            if (frequently()) {
+            // sends an error back or let the request time out
+            if (useTimeout == false) {
                 exchange.sendResponseHeaders(randomFrom(HttpStatus.SC_INTERNAL_SERVER_ERROR, HttpStatus.SC_BAD_GATEWAY,
                                                         HttpStatus.SC_SERVICE_UNAVAILABLE, HttpStatus.SC_GATEWAY_TIMEOUT), -1);
                 exchange.close();
@@ -326,7 +327,7 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
      * Ideally it should be wrapped into a BufferedInputStream but it seems that the AWS SDK is calling InputStream{@link #reset()}
      * before calling InputStream{@link #mark(int)}, which is not permitted by the {@link #reset()} method contract.
      **/
-    private class ZeroInputStream extends InputStream {
+    private static class ZeroInputStream extends InputStream {
 
         private final AtomicBoolean closed = new AtomicBoolean(false);
         private final long length;

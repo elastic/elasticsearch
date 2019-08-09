@@ -21,7 +21,6 @@ public class TestClustersRegistry {
     }
 
     public void maybeStartCluster(ElasticsearchCluster cluster) {
-        // we only start the cluster before the actions, so we'll not start it if the task is up-to-date
         if (runningClusters.contains(cluster)) {
             return;
         }
@@ -31,14 +30,6 @@ public class TestClustersRegistry {
 
     public void stopCluster(ElasticsearchCluster cluster, boolean taskFailed) {
         if (taskFailed) {
-            int currentClaims  = claimsInventory.getOrDefault(cluster, 0) - 1;
-            claimsInventory.put(cluster, currentClaims);
-
-            if (currentClaims <= 0 && runningClusters.contains(cluster)) {
-                cluster.stop(false);
-                runningClusters.remove(cluster);
-            }
-        } else {
             // If the task fails, and other tasks use this cluster, the other task will likely never be
             // executed at all, so we will never be called again to un-claim and terminate it.
             if (allowClusterToSurvive) {
@@ -57,6 +48,14 @@ public class TestClustersRegistry {
                     }
                 }
             } else {
+                cluster.stop(false);
+                runningClusters.remove(cluster);
+            }
+        } else {
+            int currentClaims  = claimsInventory.getOrDefault(cluster, 0) - 1;
+            claimsInventory.put(cluster, currentClaims);
+
+            if (currentClaims <= 0 && runningClusters.contains(cluster)) {
                 cluster.stop(false);
                 runningClusters.remove(cluster);
             }

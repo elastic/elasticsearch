@@ -126,6 +126,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                     if (task instanceof TestClustersAware == false) {
                         return;
                     }
+                    // we only start the cluster before the actions, so we'll not start it if the task is up-to-date
                     ((TestClustersAware) task).getClusters().forEach(registry::maybeStartCluster);
                 }
                 @Override
@@ -145,7 +146,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                     // always unclaim the cluster, even if _this_ task is up-to-date, as others might not have been
                     // and caused the cluster to start.
                     ((TestClustersAware) task).getClusters()
-                        .forEach(cluster -> registry.stopCluster(cluster, state.getFailure() == null));
+                        .forEach(cluster -> registry.stopCluster(cluster, state.getFailure() != null));
                 }
                 @Override
                 public void beforeExecute(Task task) {}

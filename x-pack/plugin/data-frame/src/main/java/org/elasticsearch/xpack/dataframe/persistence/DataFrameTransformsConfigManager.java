@@ -79,7 +79,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  *
  * Nevertheless cleanup would be good, eventually we need to move old documents into new indexes after major upgrades.
  *
- * TODO: Provide a method that moves old docs into the current index and delete all old indexes
+ * TODO: Provide a method that moves old docs into the current index and delete old indexes and templates
  */
 public class DataFrameTransformsConfigManager {
 

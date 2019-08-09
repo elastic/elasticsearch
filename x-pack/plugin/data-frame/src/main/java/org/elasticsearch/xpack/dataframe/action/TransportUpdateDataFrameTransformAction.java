@@ -136,7 +136,7 @@ public class TransportUpdateDataFrameTransformAction extends TransportMasterNode
     private void handlePrivsResponse(String username,
                                      Request request,
                                      DataFrameTransformConfig config,
-                                     DataFrameTransformsConfigManager.SeqNoPrimaryTermPair seqNoPrimaryTermPair,
+                                     DataFrameTransformsConfigManager.SeqNoPrimaryTermAndIndex seqNoPrimaryTermPair,
                                      ClusterState clusterState,
                                      HasPrivilegesResponse privilegesResponse,
                                      ActionListener<Response> listener) {
@@ -159,7 +159,7 @@ public class TransportUpdateDataFrameTransformAction extends TransportMasterNode
     private void validateAndUpdateDataFrame(Request request,
                                             ClusterState clusterState,
                                             DataFrameTransformConfig config,
-                                            DataFrameTransformsConfigManager.SeqNoPrimaryTermPair seqNoPrimaryTermPair,
+                                            DataFrameTransformsConfigManager.SeqNoPrimaryTermAndIndex seqNoPrimaryTermPair,
                                             ActionListener<Response> listener) {
         try {
             SourceDestValidator.validate(config, clusterState, indexNameExpressionResolver, request.isDeferValidation());
@@ -184,7 +184,7 @@ public class TransportUpdateDataFrameTransformAction extends TransportMasterNode
     }
     private void updateDataFrame(Request request,
                                  DataFrameTransformConfig config,
-                                 DataFrameTransformsConfigManager.SeqNoPrimaryTermPair seqNoPrimaryTermPair,
+                                 DataFrameTransformsConfigManager.SeqNoPrimaryTermAndIndex seqNoPrimaryTermPair,
                                  ClusterState clusterState,
                                  ActionListener<Response> listener) {
 

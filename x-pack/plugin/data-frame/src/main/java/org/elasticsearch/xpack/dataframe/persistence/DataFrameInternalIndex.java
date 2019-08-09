@@ -31,11 +31,21 @@ import static org.elasticsearch.xpack.core.dataframe.DataFrameField.TRANSFORM_ID
 
 public final class DataFrameInternalIndex {
 
+    /* Changelog of internal index versions
+     *
+     * Please note down the changes, increase the version if you are 1st in this release cycle
+     *
+     * version 1 (7.2): initial
+     * version 2 (7.4): cleanup
+     *
+     */
+
     // constants for the index
-    public static final String INDEX_TEMPLATE_VERSION = "1";
-    public static final String INDEX_TEMPLATE_PATTERN = ".data-frame-internal-";
-    public static final String INDEX_TEMPLATE_NAME = INDEX_TEMPLATE_PATTERN + INDEX_TEMPLATE_VERSION;
-    public static final String INDEX_NAME = INDEX_TEMPLATE_NAME;
+    public static final String INDEX_VERSION = "1";
+    public static final String INDEX_PATTERN = ".data-frame-internal-";
+    public static final String LATEST_INDEX_VERSIONED_NAME = INDEX_PATTERN + INDEX_VERSION;
+    public static final String LATEST_INDEX_NAME = LATEST_INDEX_VERSIONED_NAME;
+    public static final String INDEX_NAME_PATTERN = INDEX_PATTERN + "*";
 
     public static final String AUDIT_TEMPLATE_VERSION = "1";
     public static final String AUDIT_INDEX_PREFIX = ".data-frame-notifications-";
@@ -57,8 +67,8 @@ public final class DataFrameInternalIndex {
     public static final String KEYWORD = "keyword";
 
     public static IndexTemplateMetaData getIndexTemplateMetaData() throws IOException {
-        IndexTemplateMetaData dataFrameTemplate = IndexTemplateMetaData.builder(INDEX_TEMPLATE_NAME)
-                .patterns(Collections.singletonList(INDEX_TEMPLATE_NAME))
+        IndexTemplateMetaData dataFrameTemplate = IndexTemplateMetaData.builder(LATEST_INDEX_VERSIONED_NAME)
+                .patterns(Collections.singletonList(LATEST_INDEX_VERSIONED_NAME))
                 .version(Version.CURRENT.id)
                 .settings(Settings.builder()
                         // the configurations are expected to be small

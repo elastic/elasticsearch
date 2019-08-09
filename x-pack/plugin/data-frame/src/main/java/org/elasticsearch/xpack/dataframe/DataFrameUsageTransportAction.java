@@ -114,7 +114,7 @@ public class DataFrameUsageTransportAction extends XPackUsageFeatureTransportAct
             }
         );
 
-        SearchRequest totalTransformCount = client.prepareSearch(DataFrameInternalIndex.INDEX_NAME)
+        SearchRequest totalTransformCount = client.prepareSearch(DataFrameInternalIndex.LATEST_INDEX_NAME)
             .setTrackTotalHits(true)
             .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.boolQuery()
                 .filter(QueryBuilders.termQuery(DataFrameField.INDEX_DOC_TYPE.getPreferredName(), DataFrameTransformConfig.NAME))))

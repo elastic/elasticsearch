@@ -167,7 +167,10 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
     public void testDescriptionForBWCState() {
         final DiscoveryNode localNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metaData(MetaData.builder().version(42L).build()) // check that we use metadata version in case of term 0
+            .metaData(MetaData.builder()
+                .version(42L) // check that we use metadata version in case of BWC term 0
+                .coordinationMetaData(CoordinationMetaData.builder().term(Coordinator.ZEN1_BWC_TERM).build())
+                .build())
             .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId())).build();
 
         assertThat(new ClusterFormationState(Settings.EMPTY, clusterState, emptyList(), emptyList(), 15L, electionStrategy)

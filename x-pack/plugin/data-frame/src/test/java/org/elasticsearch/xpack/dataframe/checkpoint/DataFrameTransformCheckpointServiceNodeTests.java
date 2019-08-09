@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfi
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformProgress;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformProgressTests;
 import org.elasticsearch.xpack.dataframe.DataFrameSingleNodeTestCase;
+import org.elasticsearch.xpack.dataframe.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 import org.junit.After;
 import org.junit.Before;
@@ -72,8 +73,8 @@ public class DataFrameTransformCheckpointServiceNodeTests extends DataFrameSingl
 
     private class MockClientForCheckpointing extends NoOpClient {
 
-        private ShardStats[] shardStats;
-        private String[] indices;
+        private volatile ShardStats[] shardStats;
+        private volatile String[] indices;
 
         MockClientForCheckpointing(String testName) {
             super(testName);
@@ -97,6 +98,7 @@ public class DataFrameTransformCheckpointServiceNodeTests extends DataFrameSingl
 
             if (request instanceof GetIndexRequest) {
                 // for this test we only need the indices
+                assert(indices != null);
                 final GetIndexResponse indexResponse = new GetIndexResponse(indices, null, null, null, null);
 
                 listener.onResponse((Response) indexResponse);
@@ -123,7 +125,10 @@ public class DataFrameTransformCheckpointServiceNodeTests extends DataFrameSingl
 
         // use a mock for the checkpoint service
         mockClientForCheckpointing = new MockClientForCheckpointing(getTestName());
-        transformsCheckpointService = new DataFrameTransformsCheckpointService(mockClientForCheckpointing, transformsConfigManager);
+        DataFrameAuditor mockAuditor = mock(DataFrameAuditor.class);
+        transformsCheckpointService = new DataFrameTransformsCheckpointService(mockClientForCheckpointing,
+                                                                               transformsConfigManager,
+                                                                               mockAuditor);
     }
 
     @After
@@ -173,7 +178,6 @@ public class DataFrameTransformCheckpointServiceNodeTests extends DataFrameSingl
                 DataFrameTransformCheckpoint.EMPTY, null, null);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/45238")
     public void testGetCheckpointStats() throws InterruptedException {
         String transformId = randomAlphaOfLengthBetween(3, 10);
         long timestamp = 1000;

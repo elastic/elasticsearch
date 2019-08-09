@@ -61,8 +61,8 @@ number is based on Lucene documents and may include documents from
                 
 `docs.deleted`::
 (Default) Number of deleted documents in the segment, such as `0`. This number
-is based on Lucene documents. {es} reclaims the disk space of Lucene documents a
-segment is merged.
+is based on Lucene documents. {es} reclaims the disk space of deleted Lucene
+documents when a segment is merged.
 
 `size`::
 (Default) Disk space used by the segment, such as `50kb`.

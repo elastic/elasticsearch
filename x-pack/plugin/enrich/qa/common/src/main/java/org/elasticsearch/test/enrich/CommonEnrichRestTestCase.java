@@ -54,7 +54,7 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
         // Create pipeline
         Request putPipelineRequest = new Request("PUT", "/_ingest/pipeline/my_pipeline");
         putPipelineRequest.setJsonEntity("{\"processors\":[" +
-            "{\"enrich\":{\"policy_name\":\"my_policy\",\"enrich_key\":\"host\",\"enrich_values\":[" +
+            "{\"enrich\":{\"policy_name\":\"my_policy\",\"enrich_key\":\"host\",\"set_from\":[" +
             "{\"source\":\"globalRank\",\"target\":\"global_rank\"}," +
             "{\"source\":\"tldRank\",\"target\":\"tld_rank\"}" +
             "]}}" +

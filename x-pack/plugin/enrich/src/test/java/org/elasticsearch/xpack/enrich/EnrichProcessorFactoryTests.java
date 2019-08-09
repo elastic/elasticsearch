@@ -57,7 +57,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
             entry.put("target", tuple.v2());
             valuesConfig.add(entry);
         }
-        config.put("enrich_values", valuesConfig);
+        config.put("set_from", valuesConfig);
 
         ExactMatchProcessor result = (ExactMatchProcessor) factory.create(Collections.emptyMap(), "_tag", config);
         assertThat(result, notNullValue());
@@ -103,7 +103,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
             entry.put("target", tuple.v2());
             valuesConfig.add(entry);
         }
-        config.put("enrich_values", valuesConfig);
+        config.put("set_from", valuesConfig);
 
         Exception e = expectThrows(IllegalArgumentException.class, () -> factory.create(Collections.emptyMap(), "_tag", config));
         assertThat(e.getMessage(), equalTo("policy [majestic] does not exists"));
@@ -136,7 +136,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
             entry.put("target", tuple.v2());
             valuesConfig.add(entry);
         }
-        config.put("enrich_values", valuesConfig);
+        config.put("set_from", valuesConfig);
 
         Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(Collections.emptyMap(), "_tag", config));
         assertThat(e.getMessage(), equalTo("[policy_name] required property is missing"));
@@ -170,7 +170,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
             entry.put("target", tuple.v2());
             valuesConfig.add(entry);
         }
-        config.put("enrich_values", valuesConfig);
+        config.put("set_from", valuesConfig);
 
         Exception e = expectThrows(IllegalArgumentException.class, () -> factory.create(Collections.emptyMap(), "_tag", config));
         assertThat(e.getMessage(), equalTo("unsupported policy type [unsupported]"));
@@ -191,10 +191,55 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
         entry.put("source", "rank");
         entry.put("target", "rank");
         List<Map<String, Object>> valuesConfig = Collections.singletonList(entry);
-        config.put("enrich_values", valuesConfig);
+        config.put("set_from", valuesConfig);
 
         Exception e = expectThrows(IllegalArgumentException.class, () -> factory.create(Collections.emptyMap(), "_tag", config));
         assertThat(e.getMessage(), equalTo("source field [rank] does not exist in policy [majestic]"));
+    }
+
+    public void testCompactEnrichValuesFormat() throws Exception {
+        List<String> enrichValues = Arrays.asList("globalRank", "tldRank", "tld");
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null,
+            Collections.singletonList("source_index"), "host", enrichValues);
+        EnrichProcessorFactory factory = new EnrichProcessorFactory(null);
+        factory.policies = Collections.singletonMap("majestic", policy);
+
+        Map<String, Object> config = new HashMap<>();
+        config.put("policy_name", "majestic");
+        config.put("targets", enrichValues);
+
+        ExactMatchProcessor result = (ExactMatchProcessor) factory.create(Collections.emptyMap(), "_tag", config);
+        assertThat(result, notNullValue());
+        assertThat(result.getPolicyName(), equalTo("majestic"));
+        assertThat(result.getEnrichKey(), equalTo("host"));
+        assertThat(result.getSpecifications().size(), equalTo(enrichValues.size()));
+        for (int i = 0; i < enrichValues.size(); i++) {
+            EnrichSpecification actual = result.getSpecifications().get(i);
+            String expected = enrichValues.get(i);
+            assertThat(actual.sourceField, equalTo(expected));
+            assertThat(actual.targetField, equalTo(expected));
+        }
+    }
+
+    public void testNoEnrichValues() throws Exception {
+        List<String> enrichValues = Arrays.asList("globalRank", "tldRank", "tld");
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null,
+            Collections.singletonList("source_index"), "host", enrichValues);
+        EnrichProcessorFactory factory = new EnrichProcessorFactory(null);
+        factory.policies = Collections.singletonMap("majestic", policy);
+
+        Map<String, Object> config1 = new HashMap<>();
+        config1.put("policy_name", "majestic");
+        config1.put("set_from", Collections.emptyList());
+
+        Exception e = expectThrows(IllegalArgumentException.class, () -> factory.create(Collections.emptyMap(), "_tag", config1));
+        assertThat(e.getMessage(), equalTo("provided set_from is empty"));
+
+        Map<String, Object> config2 = new HashMap<>();
+        config2.put("policy_name", "majestic");
+        config2.put("targets", Collections.emptyList());
+        e = expectThrows(IllegalArgumentException.class, () -> factory.create(Collections.emptyMap(), "_tag", config2));
+        assertThat(e.getMessage(), equalTo("provided targets is empty"));
     }
 
 }

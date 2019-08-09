@@ -41,7 +41,7 @@ public class EnrichPolicyUpdateTests extends ESSingleNodeTestCase {
         assertAcked(client().execute(PutEnrichPolicyAction.INSTANCE, putPolicyRequest).actionGet());
         assertThat(enrichProcessorFactory.policies.get("my_policy"), equalTo(instance1));
 
-        String pipelineConfig = "{\"processors\":[{\"enrich\": {\"policy_name\": \"my_policy\", \"enrich_values\": []}}]}";
+        String pipelineConfig = "{\"processors\":[{\"enrich\": {\"policy_name\": \"my_policy\", \"targets\": [\"field1\"]}}]}";
         PutPipelineRequest putPipelineRequest = new PutPipelineRequest("1", new BytesArray(pipelineConfig), XContentType.JSON);
         assertAcked(client().admin().cluster().putPipeline(putPipelineRequest).actionGet());
         Pipeline pipelineInstance1 = ingestService.getPipeline("1");

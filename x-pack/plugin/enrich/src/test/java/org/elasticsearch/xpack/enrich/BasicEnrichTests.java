@@ -57,7 +57,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
 
         String pipelineName = "my-pipeline";
         String pipelineBody = "{\"processors\": [{\"enrich\": {\"policy_name\":\"" + policyName +
-            "\", \"enrich_values\": [{\"source\": \"" + DECORATE_FIELDS[0] + "\", \"target\": \"" + DECORATE_FIELDS[0] + "\"}," +
+            "\", \"set_from\": [{\"source\": \"" + DECORATE_FIELDS[0] + "\", \"target\": \"" + DECORATE_FIELDS[0] + "\"}," +
             "{\"source\": \"" + DECORATE_FIELDS[1] + "\", \"target\": \"" + DECORATE_FIELDS[1] + "\"}," +
             "{\"source\": \"" + DECORATE_FIELDS[2] + "\", \"target\": \"" + DECORATE_FIELDS[2] + "\"}" +
             "]}}]}";
@@ -104,7 +104,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
 
             String pipelineName = "pipeline" + i;
             String pipelineBody = "{\"processors\": [{\"enrich\": {\"policy_name\":\"" + policyName +
-                "\", \"enrich_values\": [{\"source\": \"value\", \"target\": \"value\"}" +
+                "\", \"set_from\": [{\"source\": \"value\", \"target\": \"value\"}" +
                 "]}}]}";
             PutPipelineRequest putPipelineRequest = new PutPipelineRequest(pipelineName, new BytesArray(pipelineBody), XContentType.JSON);
             client().admin().cluster().putPipeline(putPipelineRequest).actionGet();

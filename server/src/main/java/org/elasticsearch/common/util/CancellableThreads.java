@@ -206,4 +206,12 @@ public class CancellableThreads {
          */
         void onCancel(String reason, @Nullable Exception beforeCancelException);
     }
+
+    /**
+     * Returns {@code true} if the current thread is being executed using {@link CancellableThreads} or was interrupted.
+     */
+    public synchronized boolean isCurrentThreadCancellable() {
+        final Thread currentThread = Thread.currentThread();
+        return currentThread.isInterrupted() || threads.contains(currentThread);
+    }
 }

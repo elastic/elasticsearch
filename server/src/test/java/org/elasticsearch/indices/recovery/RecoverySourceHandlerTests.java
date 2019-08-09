@@ -500,30 +500,6 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         assertFalse(phase2Called.get());
     }
 
-    public void testCancellationsDoesNotLeakPrimaryPermits() throws Exception {
-        final CancellableThreads cancellableThreads = new CancellableThreads();
-        final IndexShard shard = mock(IndexShard.class);
-        final AtomicBoolean freed = new AtomicBoolean(true);
-        when(shard.isRelocatedPrimary()).thenReturn(false);
-        doAnswer(invocation -> {
-            freed.set(false);
-            ((ActionListener<Releasable>)invocation.getArguments()[0]).onResponse(() -> freed.set(true));
-            return null;
-        }).when(shard).acquirePrimaryOperationPermit(any(), anyString(), anyObject());
-
-        Thread cancelingThread = new Thread(() -> cancellableThreads.cancel("test"));
-        cancelingThread.start();
-        try {
-            RecoverySourceHandler.runUnderPrimaryPermit(() -> {}, "test", shard, cancellableThreads, logger);
-        } catch (CancellableThreads.ExecutionCancelledException e) {
-            // expected.
-        }
-        cancelingThread.join();
-        // we have to use assert busy as we may be interrupted while acquiring the permit, if so we want to check
-        // that the permit is released.
-        assertBusy(() -> assertTrue(freed.get()));
-    }
-
     public void testSendFileChunksConcurrently() throws Exception {
         final IndexShard shard = mock(IndexShard.class);
         when(shard.state()).thenReturn(IndexShardState.STARTED);

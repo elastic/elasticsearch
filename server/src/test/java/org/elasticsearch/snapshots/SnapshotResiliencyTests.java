@@ -57,6 +57,7 @@ import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresAction;
 import org.elasticsearch.action.admin.indices.shards.TransportIndicesShardStoresAction;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
@@ -269,31 +270,29 @@ public class SnapshotResiliencyTests extends ESTestCase {
             final Runnable afterIndexing = () -> masterNode.client.admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
                 .setWaitForCompletion(true).execute(createSnapshotResponseListener);
             final AtomicInteger countdown = new AtomicInteger(documents);
-            for (int i = 0; i < documents; ++i) {
-                masterNode.client.bulk(
-                    new BulkRequest().add(new IndexRequest(index).source(Collections.singletonMap("foo", "bar" + i)))
-                        .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE),
-                    assertNoFailureListener(
-                        bulkResponse -> {
-                            assertFalse("Failures in bulk response: " + bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
-                            if (countdown.decrementAndGet() == 0) {
-                                afterIndexing.run();
-                            }
-                        }));
-            }
             if (documents == 0) {
                 afterIndexing.run();
+            } else {
+                final BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+                for (int i = 0; i < documents; ++i) {
+                    bulkRequest.add(new IndexRequest(index).source(Collections.singletonMap("foo", "bar" + i)));
+                }
+                final StepListener<BulkResponse> bulkResponseStepListener = new StepListener<>();
+                masterNode.client.bulk(bulkRequest, bulkResponseStepListener);
+                bulkResponseStepListener.whenComplete(bulkResponse -> {
+                    assertFalse("Failures in bulk response: " + bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
+                    if (countdown.addAndGet(-bulkResponse.getItems().length) == 0) {
+                        afterIndexing.run();
+                    }
+                }, SnapshotResiliencyTests::rethrowAssertion);
             }
         }, SnapshotResiliencyTests::rethrowAssertion);
 
         final StepListener<AcknowledgedResponse> deleteIndexListener = new StepListener<>();
 
-        final AtomicBoolean createdSnapshot = new AtomicBoolean();
         createSnapshotResponseListener.whenComplete(
-            createSnapshotResponse -> {
-                createdSnapshot.set(true);
-                masterNode.client.admin().indices().delete(new DeleteIndexRequest(index), deleteIndexListener);
-            }, SnapshotResiliencyTests::rethrowAssertion);
+            createSnapshotResponse -> masterNode.client.admin().indices().delete(new DeleteIndexRequest(index), deleteIndexListener),
+            SnapshotResiliencyTests::rethrowAssertion);
 
         final StepListener<RestoreSnapshotResponse> restoreSnapshotResponseListener = new StepListener<>();
         deleteIndexListener.whenComplete(ignored -> masterNode.client.admin().cluster().restoreSnapshot(
@@ -301,9 +300,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             SnapshotResiliencyTests::rethrowAssertion);
 
         final StepListener<SearchResponse> searchResponseListener = new StepListener<>();
-        final AtomicBoolean snapshotRestored = new AtomicBoolean();
         restoreSnapshotResponseListener.whenComplete(restoreSnapshotResponse -> {
-                snapshotRestored.set(true);
                 assertEquals(shards, restoreSnapshotResponse.getRestoreInfo().totalShards());
                 masterNode.client.search(
                     new SearchRequest(index).source(new SearchSourceBuilder().size(0).trackTotalHits(true)), searchResponseListener);
@@ -316,8 +313,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
         }, SnapshotResiliencyTests::rethrowAssertion);
 
         runUntil(documentCountVerified::get, TimeUnit.MINUTES.toMillis(5L));
-        assertTrue(createdSnapshot.get());
-        assertTrue(snapshotRestored.get());
+        assertNotNull(createSnapshotResponseListener.result());
+        assertNotNull(restoreSnapshotResponseListener.result());
         assertTrue(documentCountVerified.get());
         SnapshotsInProgress finalSnapshotsInProgress = masterNode.clusterService.state().custom(SnapshotsInProgress.TYPE);
         assertFalse(finalSnapshotsInProgress.entries().stream().anyMatch(entry -> entry.state().completed() == false));

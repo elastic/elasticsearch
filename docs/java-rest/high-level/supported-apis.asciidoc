@@ -592,3 +592,14 @@ include::dataframe/delete_data_frame.asciidoc[]
 include::dataframe/preview_data_frame.asciidoc[]
 include::dataframe/start_data_frame.asciidoc[]
 include::dataframe/stop_data_frame.asciidoc[]
+
+== Enrich APIs
+
+:upid: {mainid}-enrich
+:doc-tests-file: {doc-tests}/EnrichDocumentationIT.java
+
+The Java High Level REST Client supports the following Enrich APIs:
+
+* <<{upid}-enrich-put-policy>>
+
+include::enrich/put_policy.asciidoc[]

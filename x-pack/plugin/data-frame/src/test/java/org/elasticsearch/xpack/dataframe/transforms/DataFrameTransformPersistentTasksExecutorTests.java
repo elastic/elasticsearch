@@ -98,9 +98,10 @@ public class DataFrameTransformPersistentTasksExecutorTests extends ESTestCase {
 
         ClusterState cs = csBuilder.build();
         Client client = mock(Client.class);
+        DataFrameAuditor mockAuditor = mock(DataFrameAuditor.class);
         DataFrameTransformsConfigManager transformsConfigManager = new DataFrameTransformsConfigManager(client, xContentRegistry());
         DataFrameTransformsCheckpointService dataFrameTransformsCheckpointService = new DataFrameTransformsCheckpointService(client,
-            transformsConfigManager);
+            transformsConfigManager, mockAuditor);
         ClusterSettings cSettings = new ClusterSettings(Settings.EMPTY,
             Collections.singleton(DataFrameTransformTask.NUM_FAILURE_RETRIES_SETTING));
         ClusterService clusterService = mock(ClusterService.class);

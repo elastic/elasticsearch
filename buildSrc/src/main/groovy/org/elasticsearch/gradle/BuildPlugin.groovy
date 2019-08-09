@@ -67,6 +67,7 @@ import org.gradle.api.publish.maven.plugins.MavenPublishPlugin
 import org.gradle.api.publish.maven.tasks.GenerateMavenPom
 import org.gradle.api.tasks.SourceSet
 import org.gradle.api.tasks.SourceSetContainer
+import org.gradle.api.tasks.TaskProvider
 import org.gradle.api.tasks.bundling.Jar
 import org.gradle.api.tasks.compile.GroovyCompile
 import org.gradle.api.tasks.compile.JavaCompile
@@ -82,9 +83,13 @@ import org.gradle.process.ExecSpec
 import org.gradle.util.GradleVersion
 
 import java.nio.charset.StandardCharsets
+import java.nio.file.Files
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
 import java.util.regex.Matcher
+
+import static org.elasticsearch.gradle.tool.Boilerplate.maybeConfigure
+import static org.elasticsearch.gradle.tool.Boilerplate.findByName
 
 /**
  * Encapsulates build configuration for elasticsearch projects.
@@ -127,7 +132,7 @@ class BuildPlugin implements Plugin<Project> {
         // apply global test task failure listener
         project.rootProject.pluginManager.apply(TestFailureReportingPlugin)
 
-        project.getTasks().create("buildResources", ExportElasticsearchBuildResourcesTask)
+        project.getTasks().register("buildResources", ExportElasticsearchBuildResourcesTask)
 
         setupSeed(project)
         configureRepositories(project)
@@ -154,7 +159,7 @@ class BuildPlugin implements Plugin<Project> {
                 ExtraPropertiesExtension ext = project.extensions.getByType(ExtraPropertiesExtension)
                 // Common config when running with a FIPS-140 runtime JVM
                 if (ext.has('inFipsJvm') && ext.get('inFipsJvm')) {
-                    project.tasks.withType(Test) { Test task ->
+                    project.tasks.withType(Test).configureEach { Test task ->
                         task.systemProperty 'javax.net.ssl.trustStorePassword', 'password'
                         task.systemProperty 'javax.net.ssl.keyStorePassword', 'password'
                     }
@@ -532,12 +537,14 @@ class BuildPlugin implements Plugin<Project> {
         // https://github.com/gradle/gradle/issues/5696#issuecomment-396965185
         // dummy task to depend on the real pom generation
         project.plugins.withType(MavenPublishPlugin).whenPluginAdded {
-            Task generatePomTask = project.tasks.create("generatePom")
-            Task assemble = project.tasks.findByName('assemble')
-            if (assemble) {
-                assemble.dependsOn(generatePomTask)
+            TaskProvider generatePomTask = project.tasks.register("generatePom") { Task task ->
+                task.dependsOn 'generatePomFileForNebulaPublication'
             }
-            project.tasks.withType(GenerateMavenPom.class) { GenerateMavenPom pomTask ->
+            TaskProvider assemble = findByName(project.tasks, 'assemble')
+            if (assemble) {
+                assemble.configure({ Task t -> t.dependsOn(generatePomTask) } as Action<Task>)
+            }
+            project.tasks.withType(GenerateMavenPom).configureEach({ GenerateMavenPom pomTask ->
                 // The GenerateMavenPom task is aggressive about setting the destination, instead of fighting it,
                 // just make a copy.
                 ExtraPropertiesExtension ext = pomTask.extensions.getByType(ExtraPropertiesExtension)
@@ -553,8 +560,7 @@ class BuildPlugin implements Plugin<Project> {
                         }
                     }
                 }
-            }
-            generatePomTask.dependsOn = ['generatePomFileForNebulaPublication']
+            } as Action<GenerateMavenPom>)
             PublishingExtension publishing = project.extensions.getByType(PublishingExtension)
             publishing.publications.all { MavenPublication publication -> // we only deal with maven
                 // add exclusions to the pom directly, for each of the transitive deps of this project's deps
@@ -566,7 +572,7 @@ class BuildPlugin implements Plugin<Project> {
                     ShadowExtension shadow = project.extensions.getByType(ShadowExtension)
                     shadow.component(publication)
                 }
-                generatePomTask.dependsOn = ['generatePomFileForShadowPublication']
+                generatePomTask.configure({ Task t -> t.dependsOn = ['generatePomFileForShadowPublication'] } as Action<Task>)
             }
         }
     }
@@ -603,7 +609,7 @@ class BuildPlugin implements Plugin<Project> {
         project.afterEvaluate {
             File compilerJavaHome = ext.get('compilerJavaHome') as File
 
-            project.tasks.withType(JavaCompile) { JavaCompile compileTask ->
+            project.tasks.withType(JavaCompile).configureEach({ JavaCompile compileTask ->
                 final JavaVersion targetCompatibilityVersion = JavaVersion.toVersion(compileTask.targetCompatibility)
                 // we only fork if the Gradle JDK is not the same as the compiler JDK
                 if (compilerJavaHome.canonicalPath == Jvm.current().javaHome.canonicalPath) {
@@ -631,9 +637,9 @@ class BuildPlugin implements Plugin<Project> {
 
                 // TODO: use native Gradle support for --release when available (cf. https://github.com/gradle/gradle/issues/2510)
                 compileTask.options.compilerArgs << '--release' << targetCompatibilityVersion.majorVersion
-            }
+            } as Action<JavaCompile>)
             // also apply release flag to groovy, which is used in build-tools
-            project.tasks.withType(GroovyCompile) { GroovyCompile compileTask ->
+            project.tasks.withType(GroovyCompile).configureEach({ GroovyCompile compileTask ->
                 // we only fork if the Gradle JDK is not the same as the compiler JDK
                 if (compilerJavaHome.canonicalPath == Jvm.current().javaHome.canonicalPath) {
                     compileTask.options.fork = false
@@ -642,19 +648,23 @@ class BuildPlugin implements Plugin<Project> {
                     compileTask.options.forkOptions.javaHome = compilerJavaHome
                     compileTask.options.compilerArgs << '--release' << JavaVersion.toVersion(compileTask.targetCompatibility).majorVersion
                 }
-            }
+            } as Action<GroovyCompile>)
         }
     }
 
     static void configureJavadoc(Project project) {
         // remove compiled classes from the Javadoc classpath: http://mail.openjdk.java.net/pipermail/javadoc-dev/2018-January/000400.html
         final List<File> classes = new ArrayList<>()
-        project.tasks.withType(JavaCompile) { JavaCompile javaCompile ->
+        project.tasks.withType(JavaCompile).configureEach { JavaCompile javaCompile ->
             classes.add(javaCompile.destinationDir)
         }
-        project.tasks.withType(Javadoc) { Javadoc javadoc ->
+        project.tasks.withType(Javadoc).configureEach { Javadoc javadoc ->
             File compilerJavaHome = project.extensions.getByType(ExtraPropertiesExtension).get('compilerJavaHome') as File
-            javadoc.executable = new File(compilerJavaHome, 'bin/javadoc')
+            // only explicitly set javadoc executable if compiler JDK is different from Gradle
+            // this ensures better cacheability as setting ths input to an absolute path breaks portability
+            if (Files.isSameFile(compilerJavaHome.toPath(), Jvm.current().getJavaHome().toPath()) == false) {
+                javadoc.executable = new File(compilerJavaHome, 'bin/javadoc')
+            }
             javadoc.classpath = javadoc.getClasspath().filter { f ->
                 return classes.contains(f) == false
             }
@@ -669,21 +679,27 @@ class BuildPlugin implements Plugin<Project> {
 
     /** Adds a javadocJar task to generate a jar containing javadocs. */
     static void configureJavadocJar(Project project) {
-        Jar javadocJarTask = project.tasks.create('javadocJar', Jar)
-        javadocJarTask.classifier = 'javadoc'
-        javadocJarTask.group = 'build'
-        javadocJarTask.description = 'Assembles a jar containing javadocs.'
-        javadocJarTask.from(project.tasks.getByName(JavaPlugin.JAVADOC_TASK_NAME))
-        project.tasks.getByName(BasePlugin.ASSEMBLE_TASK_NAME).dependsOn(javadocJarTask)
+        TaskProvider<Jar> javadocJarTask = project.tasks.register('javadocJar', Jar, { Jar jar ->
+            jar.archiveClassifier.set('javadoc')
+            jar.group = 'build'
+            jar.description = 'Assembles a jar containing javadocs.'
+            jar.from(project.tasks.named(JavaPlugin.JAVADOC_TASK_NAME))
+        } as Action<Jar>)
+        maybeConfigure(project.tasks, BasePlugin.ASSEMBLE_TASK_NAME) { Task t ->
+            t.dependsOn(javadocJarTask)
+        }
     }
 
     static void configureSourcesJar(Project project) {
-        Jar sourcesJarTask = project.tasks.create('sourcesJar', Jar)
-        sourcesJarTask.classifier = 'sources'
-        sourcesJarTask.group = 'build'
-        sourcesJarTask.description = 'Assembles a jar containing source files.'
-        sourcesJarTask.from(project.extensions.getByType(SourceSetContainer).getByName(SourceSet.MAIN_SOURCE_SET_NAME).allSource)
-        project.tasks.getByName(BasePlugin.ASSEMBLE_TASK_NAME).dependsOn(sourcesJarTask)
+        TaskProvider<Jar> sourcesJarTask = project.tasks.register('sourcesJar', Jar, { Jar jar ->
+            jar.archiveClassifier.set('sources')
+            jar.group = 'build'
+            jar.description = 'Assembles a jar containing source files.'
+            jar.from(project.extensions.getByType(SourceSetContainer).getByName(SourceSet.MAIN_SOURCE_SET_NAME).allSource)
+        } as Action<Jar>)
+        maybeConfigure(project.tasks, BasePlugin.ASSEMBLE_TASK_NAME) { Task t ->
+            t.dependsOn(sourcesJarTask)
+        }
     }
 
     /** Adds additional manifest info to jars */
@@ -691,7 +707,7 @@ class BuildPlugin implements Plugin<Project> {
         ExtraPropertiesExtension ext = project.extensions.getByType(ExtraPropertiesExtension)
         ext.set('licenseFile',  null)
         ext.set('noticeFile', null)
-        project.tasks.withType(Jar) { Jar jarTask ->
+        project.tasks.withType(Jar).configureEach { Jar jarTask ->
             // we put all our distributable files under distributions
             jarTask.destinationDir = new File(project.buildDir, 'distributions')
             project.plugins.withType(ShadowPlugin).whenPluginAdded {
@@ -716,9 +732,10 @@ class BuildPlugin implements Plugin<Project> {
                         'Build-Date': ext.get('buildDate'),
                         'Build-Java-Version': compilerJavaVersion)
             }
-
-            // add license/notice files
-            project.afterEvaluate {
+        }
+        // add license/notice files
+        project.afterEvaluate {
+            project.tasks.withType(Jar).configureEach { Jar jarTask ->
                 if (ext.has('licenseFile') == false || ext.get('licenseFile') == null || ext.has('noticeFile') == false || ext.get('noticeFile') == null) {
                     throw new GradleException("Must specify license and notice file for project ${project.path}")
                 }
@@ -756,7 +773,9 @@ class BuildPlugin implements Plugin<Project> {
                 shadowJar.configurations = [project.configurations.getByName('bundle')]
             }
             // Make sure we assemble the shadow jar
-            project.tasks.getByName(BasePlugin.ASSEMBLE_TASK_NAME).dependsOn project.tasks.getByName('shadowJar')
+            project.tasks.named(BasePlugin.ASSEMBLE_TASK_NAME).configure { Task task ->
+               task.dependsOn 'shadowJar'
+            }
         }
     }
 
@@ -764,7 +783,7 @@ class BuildPlugin implements Plugin<Project> {
         ExtraPropertiesExtension ext = project.extensions.getByType(ExtraPropertiesExtension)
 
         // Default test task should run only unit tests
-        project.tasks.withType(Test).matching { Test task -> task.name == 'test' }.all { Test task ->
+        maybeConfigure(project.tasks, 'test', Test) { Test task ->
             task.include '**/*Tests.class'
         }
 
@@ -772,7 +791,7 @@ class BuildPlugin implements Plugin<Project> {
         if (project.path != ':build-tools') {
             File heapdumpDir = new File(project.buildDir, 'heapdump')
 
-            project.tasks.withType(Test) { Test test ->
+            project.tasks.withType(Test).configureEach { Test test ->
                 File testOutputDir = new File(test.reports.junitXml.getDestination(), "output")
 
                 ErrorReportingTestListener listener = new ErrorReportingTestListener(test.testLogging, testOutputDir)
@@ -881,30 +900,37 @@ class BuildPlugin implements Plugin<Project> {
     }
 
     private static configurePrecommit(Project project) {
-        Task precommit = PrecommitTasks.create(project, true)
-        project.tasks.getByName(LifecycleBasePlugin.CHECK_TASK_NAME).dependsOn(precommit)
-        project.tasks.getByName(JavaPlugin.TEST_TASK_NAME).mustRunAfter(precommit)
+        TaskProvider precommit = PrecommitTasks.create(project, true)
+        project.tasks.named(LifecycleBasePlugin.CHECK_TASK_NAME).configure { it.dependsOn(precommit) }
+        project.tasks.named(JavaPlugin.TEST_TASK_NAME).configure { it.mustRunAfter(precommit) }
         // only require dependency licenses for non-elasticsearch deps
-        (project.tasks.getByName('dependencyLicenses') as DependencyLicensesTask).dependencies = project.configurations.getByName(JavaPlugin.RUNTIME_CONFIGURATION_NAME).fileCollection { Dependency dependency ->
-            dependency.group.startsWith('org.elasticsearch') == false
-        } - project.configurations.getByName(JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME)
-        project.plugins.withType(ShadowPlugin).whenPluginAdded {
-            (project.tasks.getByName('dependencyLicenses') as DependencyLicensesTask).dependencies += project.configurations.getByName('bundle').fileCollection { Dependency dependency ->
+        project.tasks.withType(DependencyLicensesTask).named('dependencyLicenses').configure {
+            it.dependencies = project.configurations.getByName(JavaPlugin.RUNTIME_CONFIGURATION_NAME).fileCollection { Dependency dependency ->
                 dependency.group.startsWith('org.elasticsearch') == false
+            } - project.configurations.getByName(JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME)
+        }
+        project.plugins.withType(ShadowPlugin).whenPluginAdded {
+            project.tasks.withType(DependencyLicensesTask).named('dependencyLicenses').configure {
+                it.dependencies += project.configurations.getByName('bundle').fileCollection { Dependency dependency ->
+                    dependency.group.startsWith('org.elasticsearch') == false
+                }
             }
         }
     }
 
     private static configureDependenciesInfo(Project project) {
-        DependenciesInfoTask deps = project.tasks.create("dependenciesInfo", DependenciesInfoTask)
-        deps.runtimeConfiguration = project.configurations.getByName(JavaPlugin.RUNTIME_CONFIGURATION_NAME)
+        TaskProvider<DependenciesInfoTask> deps = project.tasks.register("dependenciesInfo", DependenciesInfoTask, { DependenciesInfoTask task ->
+            task.runtimeConfiguration = project.configurations.getByName(JavaPlugin.RUNTIME_CONFIGURATION_NAME)
+            task.compileOnlyConfiguration = project.configurations.getByName(JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME)
+            task.getConventionMapping().map('mappings') {
+                (project.tasks.getByName('dependencyLicenses') as DependencyLicensesTask).mappings
+            }
+        } as Action<DependenciesInfoTask>)
         project.plugins.withType(ShadowPlugin).whenPluginAdded {
-            deps.runtimeConfiguration = project.configurations.create('infoDeps')
-            deps.runtimeConfiguration.extendsFrom(project.configurations.getByName(JavaPlugin.RUNTIME_CONFIGURATION_NAME), project.configurations.getByName('bundle'))
-        }
-        deps.compileOnlyConfiguration = project.configurations.getByName(JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME)
-        project.afterEvaluate {
-            deps.mappings = (project.tasks.getByName('dependencyLicenses') as DependencyLicensesTask).mappings
+            deps.configure { task ->
+                task.runtimeConfiguration = project.configurations.create('infoDeps')
+                task.runtimeConfiguration.extendsFrom(project.configurations.getByName(JavaPlugin.RUNTIME_CONFIGURATION_NAME), project.configurations.getByName('bundle'))
+            }
         }
     }
 

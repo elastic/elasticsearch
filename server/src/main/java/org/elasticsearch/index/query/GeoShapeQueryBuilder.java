@@ -237,7 +237,7 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
         return builder;
     }
 
-    private static class ParsedGeoShapeQueryParams extends ParsedShapeQueryParams {
+    private static class ParsedGeoShapeQueryParams extends ParsedGeometryQueryParams {
         SpatialStrategy strategy;
 
         @Override

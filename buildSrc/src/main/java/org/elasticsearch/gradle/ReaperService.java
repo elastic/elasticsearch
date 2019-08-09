@@ -63,15 +63,21 @@ public class ReaperService {
         ensureReaperStarted();
 
         try {
-            Files.writeString(inputDir.resolve(serviceId + ".cmd"), String.join(" ", command));
+            Files.writeString(getCmdFile(serviceId), String.join(" ", command));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
     }
 
+    private Path getCmdFile(String serviceId) {
+        return inputDir.resolve(
+            serviceId.replaceAll("[^a-zA-Z0-9]","-") + ".cmd"
+        );
+    }
+
     public void unregister(String serviceId) {
         try {
-            Files.deleteIfExists(inputDir.resolve(serviceId + ".cmd"));
+            Files.deleteIfExists(getCmdFile(serviceId));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

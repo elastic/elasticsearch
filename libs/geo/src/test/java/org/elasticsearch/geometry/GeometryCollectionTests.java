@@ -35,8 +35,6 @@ public class GeometryCollectionTests extends BaseGeometryTestCase<GeometryCollec
         return GeometryTestUtils.randomGeometryCollection(hasAlt);
     }
 
-
-
     public void testBasicSerialization() throws IOException, ParseException {
         WellKnownText wkt = new WellKnownText(true, new GeographyValidator(true));
         assertEquals("geometrycollection (point (20.0 10.0),point EMPTY)",

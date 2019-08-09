@@ -116,7 +116,7 @@ public class GeometryTestUtils {
         return alts;
     }
 
-    public static LinearRing linearRing(double[] lats, double[] lons, boolean generateAlts) {
+    public static LinearRing linearRing(double[] lons, double[] lats,boolean generateAlts) {
         if (generateAlts) {
             return new LinearRing(lons, lats, randomAltRing(lats.length));
         }

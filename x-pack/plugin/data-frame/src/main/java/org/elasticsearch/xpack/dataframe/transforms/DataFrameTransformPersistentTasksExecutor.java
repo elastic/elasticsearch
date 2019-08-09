@@ -207,7 +207,7 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
                 if (lastCheckpoint == 0) {
                     logger.trace("[{}] No last checkpoint found, looking for next checkpoint", transformId);
                     transformsConfigManager.getTransformCheckpoint(transformId, lastCheckpoint + 1, getTransformNextCheckpointListener);
-                                    } else {
+                } else {
                     logger.trace ("[{}] Restore last checkpoint: [{}]", transformId, lastCheckpoint);
                     transformsConfigManager.getTransformCheckpoint(transformId, lastCheckpoint, getTransformLastCheckpointListener);
                 }

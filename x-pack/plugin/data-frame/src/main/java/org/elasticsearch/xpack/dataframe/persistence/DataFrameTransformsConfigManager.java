@@ -61,6 +61,26 @@ import java.util.Set;
 import static org.elasticsearch.xpack.core.ClientHelper.DATA_FRAME_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
+/**
+ * Place of all interactions with the internal transforms index. For configuration and mappings see @link{DataFrameInternalIndex}
+ *
+ * Versioned Index:
+ *
+ * We wrap several indexes under 1 pattern: ".data-frame-internal-1", ".data-frame-internal-2", ".data-frame-internal-n" while
+ * n is the _current_ version of the index.
+ *
+ * - all gets/reads and dbq as well are searches on all indexes, while last-one-wins, so the result with the highest version is uses
+ * - all puts and updates go into the _current_ version of the index, in case of updates this can leave dups behind
+ *
+ * Duplicate handling / old version cleanup
+ *
+ * As we always write to the new index, updates of older documents leave a dup in the previous versioned index behind. However,
+ * documents are tiny, so the impact is rather small.
+ *
+ * Nevertheless cleanup would be good, eventually we need to move old documents into new indexes after major upgrades.
+ *
+ * TODO: Provide a method that moves old docs into the current index and delete all old indexes
+ */
 public class DataFrameTransformsConfigManager {
 
     private static final Logger logger = LogManager.getLogger(DataFrameTransformsConfigManager.class);
@@ -117,19 +137,26 @@ public class DataFrameTransformsConfigManager {
      * but is an index operation that will fail with a version conflict
      * if the current document seqNo and primaryTerm is not the same as the provided version.
      * @param transformConfig the @link{DataFrameTransformConfig}
-     * @param seqNoPrimaryTermPair an object containing the believed seqNo and primaryTerm for the doc.
+     * @param seqNoPrimaryTermAndIndex an object containing the believed seqNo, primaryTerm and index for the doc.
      *                             Used for optimistic concurrency control
      * @param listener listener to call after request
      */
     public void updateTransformConfiguration(DataFrameTransformConfig transformConfig,
-                                             SeqNoPrimaryTermAndIndex seqNoPrimaryTermPair,
+                                             SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex,
                                              ActionListener<Boolean> listener) {
-        putTransformConfiguration(transformConfig, DocWriteRequest.OpType.INDEX, seqNoPrimaryTermPair, listener);
+        if (seqNoPrimaryTermAndIndex.getIndex().equals(DataFrameInternalIndex.LATEST_INDEX_NAME)) {
+            // update the config in the same, current index using optimistic concurrency control
+            putTransformConfiguration(transformConfig, DocWriteRequest.OpType.INDEX, seqNoPrimaryTermAndIndex, listener);
+        } else {
+            // create the config in the current version of the index assuming there is no existing one
+            // this leaves a dup behind in the old index, see dup handling on the top
+            putTransformConfiguration(transformConfig, DocWriteRequest.OpType.CREATE, null, listener);
+        }
     }
 
     private void putTransformConfiguration(DataFrameTransformConfig transformConfig,
                                            DocWriteRequest.OpType optType,
-                                           SeqNoPrimaryTermAndIndex seqNoPrimaryTermPair,
+                                           SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex,
                                            ActionListener<Boolean> listener) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = transformConfig.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
@@ -139,8 +166,8 @@ public class DataFrameTransformsConfigManager {
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .id(DataFrameTransformConfig.documentId(transformConfig.getId()))
                 .source(source);
-            if (seqNoPrimaryTermPair != null) {
-                indexRequest.setIfSeqNo(seqNoPrimaryTermPair.seqNo).setIfPrimaryTerm(seqNoPrimaryTermPair.primaryTerm);
+            if (seqNoPrimaryTermAndIndex != null) {
+                indexRequest.setIfSeqNo(seqNoPrimaryTermAndIndex.seqNo).setIfPrimaryTerm(seqNoPrimaryTermAndIndex.primaryTerm);
             }
             executeAsyncWithOrigin(client, DATA_FRAME_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(r -> {
                 listener.onResponse(true);

@@ -33,7 +33,7 @@ public final class DataFrameInternalIndex {
 
     /* Changelog of internal index versions
      *
-     * Please note down the changes, increase the version if you are 1st in this release cycle
+     * Please list changes, increase the version if you are 1st in this release cycle
      *
      * version 1 (7.2): initial
      * version 2 (7.4): cleanup

@@ -61,13 +61,15 @@ public class GeometryTestUtils {
     }
 
     public static Line randomLine(boolean hasAlts) {
-        int size = ESTestCase.randomIntBetween(2, 10);
+        // we use nextPolygon because it guarantees no duplicate points
+        org.apache.lucene.geo.Polygon lucenePolygon = GeoTestUtil.nextPolygon();
+        int size = lucenePolygon.numPoints() - 1;
         double[] lats = new double[size];
         double[] lons = new double[size];
         double[] alts = hasAlts ? new double[size] : null;
         for (int i = 0; i < size; i++) {
-            lats[i] = randomLat();
-            lons[i] = randomLon();
+            lats[i] = lucenePolygon.getPolyLat(i);
+            lons[i] = lucenePolygon.getPolyLon(i);
             if (hasAlts) {
                 alts[i] = randomAlt();
             }
@@ -96,11 +98,12 @@ public class GeometryTestUtils {
             org.apache.lucene.geo.Polygon[] luceneHoles = lucenePolygon.getHoles();
             List<LinearRing> holes = new ArrayList<>();
             for (int i = 0; i < lucenePolygon.numHoles(); i++) {
-                holes.add(linearRing(luceneHoles[i], hasAlt));
+                org.apache.lucene.geo.Polygon poly = luceneHoles[i];
+                holes.add(linearRing(poly.getPolyLons(), poly.getPolyLats(), hasAlt));
             }
-            return new Polygon(linearRing(lucenePolygon, hasAlt), holes);
+            return new Polygon(linearRing(lucenePolygon.getPolyLons(), lucenePolygon.getPolyLats(), hasAlt), holes);
         }
-        return new Polygon(linearRing(lucenePolygon, hasAlt));
+        return new Polygon(linearRing(lucenePolygon.getPolyLons(), lucenePolygon.getPolyLats(), hasAlt));
     }
 
 
@@ -113,12 +116,11 @@ public class GeometryTestUtils {
         return alts;
     }
 
-    private static LinearRing linearRing(org.apache.lucene.geo.Polygon polygon, boolean generateAlts) {
+    public static LinearRing linearRing(double[] lats, double[] lons, boolean generateAlts) {
         if (generateAlts) {
-            return new LinearRing(polygon.getPolyLons(), polygon.getPolyLats(), randomAltRing(polygon.numPoints()));
-        } else {
-            return new LinearRing(polygon.getPolyLons(), polygon.getPolyLats());
+            return new LinearRing(lons, lats, randomAltRing(lats.length));
         }
+        return new LinearRing(lons, lats);
     }
 
     public static Rectangle randomRectangle() {
@@ -170,7 +172,7 @@ public class GeometryTestUtils {
         return randomGeometry(0, hasAlt);
     }
 
-    private static Geometry randomGeometry(int level, boolean hasAlt) {
+    protected static Geometry randomGeometry(int level, boolean hasAlt) {
         @SuppressWarnings("unchecked") Function<Boolean, Geometry> geometry = ESTestCase.randomFrom(
             GeometryTestUtils::randomCircle,
             GeometryTestUtils::randomLine,

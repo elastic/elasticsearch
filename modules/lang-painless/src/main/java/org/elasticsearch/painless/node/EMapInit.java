@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -50,6 +51,17 @@ public final class EMapInit extends AExpression {
 
         this.keys = keys;
         this.values = values;
+    }
+
+    @Override
+    void storeSettings(CompilerSettings settings) {
+        for (AExpression key : keys) {
+            key.storeSettings(settings);
+        }
+
+        for (AExpression value : values) {
+            value.storeSettings(settings);
+        }
     }
 
     @Override

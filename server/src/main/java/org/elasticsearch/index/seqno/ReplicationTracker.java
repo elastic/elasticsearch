@@ -37,6 +37,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.SafeCommitInfo;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ReplicationGroup;
@@ -57,6 +58,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
@@ -211,6 +213,17 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     private boolean hasAllPeerRecoveryRetentionLeases;
 
     /**
+     * Supplies information about the current safe commit which may be used to expire peer-recovery retention leases.
+     */
+    private final Supplier<SafeCommitInfo> safeCommitInfoSupplier;
+
+    /**
+     * Threshold for expiring peer-recovery retention leases and falling back to file-based recovery. See
+     * {@link IndexSettings#FILE_BASED_RECOVERY_THRESHOLD_SETTING}.
+     */
+    private final double fileBasedRecoveryThreshold;
+
+    /**
      * Get all retention leases tracked on this shard.
      *
      * @return the retention leases
@@ -237,6 +250,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         final long retentionLeaseMillis = indexSettings.getRetentionLeaseMillis();
         final Set<String> leaseIdsForCurrentPeers
             = routingTable.assignedShards().stream().map(ReplicationTracker::getPeerRecoveryRetentionLeaseId).collect(Collectors.toSet());
+        final boolean allShardsStarted = routingTable.allShardsStarted();
+        final long minimumReasonableRetainedSeqNo = allShardsStarted ? 0L : getMinimumReasonableRetainedSeqNo();
         final Map<Boolean, List<RetentionLease>> partitionByExpiration = retentionLeases
                 .leases()
                 .stream()
@@ -245,7 +260,12 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                         if (leaseIdsForCurrentPeers.contains(lease.id())) {
                             return false;
                         }
-                        if (routingTable.allShardsStarted()) {
+                        if (allShardsStarted) {
+                            logger.trace("expiring unused [{}]", lease);
+                            return true;
+                        }
+                        if (lease.retainingSequenceNumber() < minimumReasonableRetainedSeqNo) {
+                            logger.trace("expiring unreasonable [{}] retaining history before [{}]", lease, minimumReasonableRetainedSeqNo);
                             return true;
                         }
                     }
@@ -262,6 +282,17 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         logger.debug("expiring retention leases [{}] from current retention leases [{}]", expiredLeases, retentionLeases);
         retentionLeases = new RetentionLeases(operationPrimaryTerm, retentionLeases.version() + 1, nonExpiredLeases);
         return Tuple.tuple(true, retentionLeases);
+    }
+
+    private long getMinimumReasonableRetainedSeqNo() {
+        final SafeCommitInfo safeCommitInfo = safeCommitInfoSupplier.get();
+        return safeCommitInfo.localCheckpoint + 1 - Math.round(Math.ceil(safeCommitInfo.docCount * fileBasedRecoveryThreshold));
+        // NB safeCommitInfo.docCount is a very low-level count of the docs in the index, and in particular if this shard contains nested
+        // docs then safeCommitInfo.docCount counts every child doc separately from the parent doc. However every part of a nested document
+        // has the same seqno, so we may be overestimating the cost of a file-based recovery when compared to an ops-based recovery and
+        // therefore preferring ops-based recoveries inappropriately in this case. Correctly accounting for nested docs seems difficult to
+        // do cheaply, and the circumstances in which this matters should be relatively rare, so we use this naive calculation regardless.
+        // TODO improve this measure for when nested docs are in use
     }
 
     /**
@@ -839,7 +870,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             final long globalCheckpoint,
             final LongConsumer onGlobalCheckpointUpdated,
             final LongSupplier currentTimeMillisSupplier,
-            final BiConsumer<RetentionLeases, ActionListener<ReplicationResponse>> onSyncRetentionLeases) {
+            final BiConsumer<RetentionLeases, ActionListener<ReplicationResponse>> onSyncRetentionLeases,
+            final Supplier<SafeCommitInfo> safeCommitInfoSupplier) {
         super(shardId, indexSettings);
         assert globalCheckpoint >= SequenceNumbers.UNASSIGNED_SEQ_NO : "illegal initial global checkpoint: " + globalCheckpoint;
         this.shardAllocationId = allocationId;
@@ -856,6 +888,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         this.routingTable = null;
         this.replicationGroup = null;
         this.hasAllPeerRecoveryRetentionLeases = indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_4_0);
+        this.fileBasedRecoveryThreshold = IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING.get(indexSettings.getSettings());
+        this.safeCommitInfoSupplier = safeCommitInfoSupplier;
         assert Version.V_EMPTY.equals(indexSettings.getIndexVersionCreated()) == false;
         assert invariant();
     }

@@ -64,9 +64,9 @@ POST _search
 `<field>`::
 +
 --
-(Required, array of rule objects) Field you wish to search.
+(Required, rule object) Field you wish to search.
 
-The value of this parameter is an array of rule objects used to match documents
+The value of this parameter is a rule object used to match documents
 based on matching terms, order, and proximity.
 
 Valid rules include:

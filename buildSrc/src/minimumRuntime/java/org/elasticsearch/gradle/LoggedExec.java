@@ -28,7 +28,7 @@ import java.util.function.Function;
 public class LoggedExec extends Exec {
 
     private Consumer<Logger> outputLogger;
-    
+
     public LoggedExec() {
 
         if (getLogger().isInfoEnabled() == false) {

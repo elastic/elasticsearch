@@ -123,7 +123,7 @@ public class TestClustersPlugin implements Plugin<Project> {
     private void createUseClusterTaskExtension(Project project, NamedDomainObjectContainer<ElasticsearchCluster> container) {
         // register an extension for all current and future tasks, so that any task can declare that it wants to use a
         // specific cluster.
-        project.getTasks().all((Task task) ->
+        project.getTasks().configureEach((Task task) ->
             task.getExtensions().findByType(ExtraPropertiesExtension.class)
                 .set(
                     "useCluster",

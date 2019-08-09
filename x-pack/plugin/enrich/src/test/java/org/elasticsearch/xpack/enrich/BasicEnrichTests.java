@@ -53,7 +53,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
 
         String pipelineName = "my-pipeline";
         String pipelineBody = "{\"processors\": [{\"enrich\": {\"policy_name\":\"" + policyName +
-            "\", \"enrich_values\": [{\"source\": \"" + DECORATE_FIELDS[0] + "\", \"target\": \"" + DECORATE_FIELDS[0] + "\"}," +
+            "\", \"set_from\": [{\"source\": \"" + DECORATE_FIELDS[0] + "\", \"target\": \"" + DECORATE_FIELDS[0] + "\"}," +
             "{\"source\": \"" + DECORATE_FIELDS[1] + "\", \"target\": \"" + DECORATE_FIELDS[1] + "\"}," +
             "{\"source\": \"" + DECORATE_FIELDS[2] + "\", \"target\": \"" + DECORATE_FIELDS[2] + "\"}" +
             "]}}]}";
@@ -79,6 +79,49 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
                 String field = DECORATE_FIELDS[j];
                 assertThat(source.get(field), equalTo(keys.get(i) + j));
             }
+        }
+    }
+
+    public void testMultiplePolicies() {
+        int numPolicies = 8;
+        for (int i = 0; i < numPolicies; i++) {
+            String policyName = "policy" + i;
+
+            IndexRequest indexRequest = new IndexRequest("source-" + i);
+            indexRequest.source("key", "key", "value", "val" + i);
+            client().index(indexRequest).actionGet();
+            client().admin().indices().refresh(new RefreshRequest("source-" + i)).actionGet();
+
+            EnrichPolicy enrichPolicy =
+                new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, List.of("source-" + i), "key", List.of("value"));
+            PutEnrichPolicyAction.Request request = new PutEnrichPolicyAction.Request(policyName, enrichPolicy);
+            client().execute(PutEnrichPolicyAction.INSTANCE, request).actionGet();
+            client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(policyName)).actionGet();
+
+            String pipelineName = "pipeline" + i;
+            String pipelineBody = "{\"processors\": [{\"enrich\": {\"policy_name\":\"" + policyName +
+                "\", \"set_from\": [{\"source\": \"value\", \"target\": \"value\"}" +
+                "]}}]}";
+            PutPipelineRequest putPipelineRequest = new PutPipelineRequest(pipelineName, new BytesArray(pipelineBody), XContentType.JSON);
+            client().admin().cluster().putPipeline(putPipelineRequest).actionGet();
+        }
+
+        BulkRequest bulkRequest = new BulkRequest("my-index");
+        for (int i = 0; i < numPolicies; i++) {
+            IndexRequest indexRequest = new IndexRequest();
+            indexRequest.id(Integer.toString(i));
+            indexRequest.setPipeline("pipeline" + i);
+            indexRequest.source(Map.of("key", "key"));
+            bulkRequest.add(indexRequest);
+        }
+        BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
+        assertThat("Expected no failure, but " + bulkResponse.buildFailureMessage(), bulkResponse.hasFailures(), is(false));
+
+        for (int i = 0; i < numPolicies; i++) {
+            GetResponse getResponse = client().get(new GetRequest("my-index", Integer.toString(i))).actionGet();
+            Map<String, Object> source = getResponse.getSourceAsMap();
+            assertThat(source.size(), equalTo(2));
+            assertThat(source.get("value"), equalTo("val" + i));
         }
     }
 

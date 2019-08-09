@@ -1,5 +1,9 @@
 ---
 setup:
+  - skip:
+      version: " - 7.99.99" #TODO change this after backport
+      reason:  "not backported yet"
+
   - do:
         indices.create:
           index: test

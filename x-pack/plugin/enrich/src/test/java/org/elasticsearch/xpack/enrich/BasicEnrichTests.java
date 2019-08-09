@@ -100,7 +100,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
 
             String pipelineName = "pipeline" + i;
             String pipelineBody = "{\"processors\": [{\"enrich\": {\"policy_name\":\"" + policyName +
-                "\", \"enrich_values\": [{\"source\": \"value\", \"target\": \"value\"}" +
+                "\", \"set_from\": [{\"source\": \"value\", \"target\": \"value\"}" +
                 "]}}]}";
             PutPipelineRequest putPipelineRequest = new PutPipelineRequest(pipelineName, new BytesArray(pipelineBody), XContentType.JSON);
             client().admin().cluster().putPipeline(putPipelineRequest).actionGet();

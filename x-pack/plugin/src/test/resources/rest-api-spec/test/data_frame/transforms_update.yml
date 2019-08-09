@@ -1,0 +1,307 @@
+setup:
+  - do:
+      indices.create:
+        index: airline-data
+        body:
+          mappings:
+            properties:
+              time:
+                type: date
+              airline:
+                type: keyword
+              responsetime:
+                type: float
+              event_rate:
+                type: integer
+
+  - do:
+      data_frame.put_data_frame_transform:
+        transform_id: "updating-airline-transform"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-data-by-airline" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            },
+            "description": "yaml test transform on airline-data",
+            "frequency": "60s",
+            "sync": {
+              "time": {
+                "field": "time",
+                "delay": "90m"
+              }
+            }
+          }
+---
+"Test update transform with missing transform":
+  - do:
+      catch: /Transform with id \[missing-transform\] could not be found/
+      data_frame.update_data_frame_transform:
+        transform_id: "missing-transform"
+        body: >
+          {
+            "description": "new description"
+          }
+---
+"Test update transform with frequency too low":
+  - do:
+      catch: /minimum permitted \[frequency\] is \[1s\]/
+      data_frame.update_data_frame_transform:
+        transform_id: "updating-airline-transform"
+        body: >
+          {
+            "frequency": "999ms"
+          }
+---
+"Test update transform with frequency too high":
+  - do:
+      catch: /highest permitted \[frequency\] is \[1h\]/
+      data_frame.update_data_frame_transform:
+        transform_id: "updating-airline-transform"
+        body: >
+          {
+            "frequency": "3600001ms"
+          }
+---
+"Test put transform with invalid source index":
+  - do:
+      catch: /Source index \[missing-index\] does not exist/
+      data_frame.update_data_frame_transform:
+        transform_id: "updating-airline-transform"
+        body: >
+          {
+            "source": { "index": "missing-index" }
+          }
+  - do:
+      data_frame.update_data_frame_transform:
+        transform_id: "updating-airline-transform"
+        defer_validation: true
+        body: >
+          {
+            "source": { "index": "missing-index" }
+          }
+  - match: { id: "updating-airline-transform" }
+  - match: { source.index.0: "missing-index" }
+---
+"Test update transform when it is batch":
+  - do:
+      data_frame.put_data_frame_transform:
+        transform_id: "batch-airline-transform"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-data-by-airline" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+  - do:
+      data_frame.update_data_frame_transform:
+        transform_id: "batch-airline-transform"
+        body: >
+          {
+            "description": "time to update"
+          }
+  - match: { description: "time to update" }
+
+  - do:
+      catch: /Cannot change the current sync configuration of transform \[batch-airline-transform\] from \[null\] to \[time\]/
+      data_frame.update_data_frame_transform:
+        transform_id: "batch-airline-transform"
+        body: >
+          {
+            "sync": {
+              "time": {
+                "field": "time",
+                "delay": "90m"
+              }
+            }
+          }
+---
+"Test basic transform crud":
+  - do:
+      indices.create:
+        index: other-airline-data
+        body:
+          mappings:
+            properties:
+              time:
+                type: date
+              airline:
+                type: keyword
+              responsetime:
+                type: float
+              event_rate:
+                type: integer
+  - do:
+      data_frame.get_data_frame_transform:
+        transform_id: "updating-airline-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "updating-airline-transform" }
+  - match: { transforms.0.source.index.0: "airline-data" }
+  - match: { transforms.0.dest.index: "airline-data-by-airline" }
+  - is_true: transforms.0.source.query.match_all
+  - is_true: transforms.0.create_time
+  - is_true: transforms.0.version
+  - match: { transforms.0.pivot.group_by.airline.terms.field: "airline" }
+  - match: { transforms.0.pivot.aggregations.avg_response.avg.field: "responsetime" }
+  - match: { transforms.0.description: "yaml test transform on airline-data" }
+  - match: { transforms.0.sync.time.field: "time" }
+  - match: { transforms.0.sync.time.delay: "90m" }
+  - match: { transforms.0.frequency: "60s" }
+
+  - do:
+      data_frame.update_data_frame_transform:
+        transform_id: "updating-airline-transform"
+        body: >
+          {
+            "source": { "index": "other-airline-data" },
+            "dest": { "index": "new-destination" },
+            "description": "updated description",
+            "sync": {
+              "time": { "field": "time", "delay": "120m"}
+            },
+            "frequency": "5s"
+          }
+  - match: { id: "updating-airline-transform" }
+  - match: { source.index.0: "other-airline-data" }
+  - match: { dest.index: "new-destination" }
+  - is_true: source.query.match_all
+  - is_true: create_time
+  - is_true: version
+  - match: { pivot.group_by.airline.terms.field: "airline" }
+  - match: { pivot.aggregations.avg_response.avg.field: "responsetime" }
+  - match: { description: "updated description" }
+  - match: { sync.time.field: "time" }
+  - match: { sync.time.delay: "120m" }
+  - match: { frequency: "5s" }
+
+  - do:
+      data_frame.get_data_frame_transform:
+        transform_id: "updating-airline-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "updating-airline-transform" }
+  - match: { transforms.0.source.index.0: "other-airline-data" }
+  - match: { transforms.0.dest.index: "new-destination" }
+  - is_true: transforms.0.source.query.match_all
+  - is_true: transforms.0.create_time
+  - is_true: transforms.0.version
+  - match: { transforms.0.pivot.group_by.airline.terms.field: "airline" }
+  - match: { transforms.0.pivot.aggregations.avg_response.avg.field: "responsetime" }
+  - match: { transforms.0.description: "updated description" }
+  - match: { transforms.0.sync.time.field: "time" }
+  - match: { transforms.0.sync.time.delay: "120m" }
+  - match: { transforms.0.frequency: "5s" }
+
+---
+"Test transform where dest is included in source":
+  - do:
+      catch: /Destination index \[airline-data-by-airline\] is included in source expression \[airline-data/
+      data_frame.update_data_frame_transform:
+        transform_id: "updating-airline-transform"
+        body: >
+          {
+            "source": {
+              "index": ["airline-data*"]
+            },
+            "dest": { "index": "airline-data-by-airline" }
+          }
+
+  - do:
+      data_frame.update_data_frame_transform:
+        transform_id: "updating-airline-transform"
+        defer_validation: true
+        body: >
+          {
+            "source": {
+              "index": ["airline-data*"]
+            },
+            "dest": { "index": "airline-data-by-airline" }
+          }
+---
+"Test alias scenarios":
+  - do:
+      indices.create:
+        index: created-destination-index
+  - do:
+      indices.create:
+        index: second-created-destination-index
+  - do:
+      indices.put_alias:
+        index: airline-data
+        name: source-index
+  - do:
+      indices.put_alias:
+        index: created-destination-index
+        name: dest-index
+  - do:
+      data_frame.update_data_frame_transform:
+        transform_id: "updating-airline-transform"
+        body: >
+          {
+            "source": {
+              "index": "source-index"
+            },
+            "dest": { "index": "dest-index" }
+          }
+  - match: { id: "updating-airline-transform" }
+
+  - do:
+      indices.put_alias:
+        index: created-destination-index
+        name: source2-index
+
+  - do:
+      catch: /Destination index \[created-destination-index\] is included in source expression \[created-destination-index\]/
+      data_frame.update_data_frame_transform:
+        transform_id: "updating-airline-transform"
+        body: >
+          {
+            "source": {
+              "index": "source2-index"
+            },
+            "dest": { "index": "dest-index" }
+          }
+
+  - do:
+      indices.delete_alias:
+        index: created-destination-index
+        name: source2-index
+
+  - do:
+      indices.put_alias:
+        index: second-created-destination-index
+        name: dest2-index
+  - do:
+      indices.put_alias:
+        index: created-destination-index
+        name: dest2-index
+  - do:
+      catch: /Destination index \[dest2-index\] should refer to a single index/
+      data_frame.update_data_frame_transform:
+        transform_id: "updating-airline-transform"
+        body: >
+          {
+            "dest": { "index": "dest2-index" }
+          }
+---
+"Test invalid destination index name":
+  - do:
+      catch: /dest\.index \[DeStInAtIoN\] must be lowercase/
+      data_frame.update_data_frame_transform:
+        transform_id: "updating-airline-transform"
+        body: >
+          {
+            "dest": { "index": "DeStInAtIoN" }
+          }
+  - do:
+      catch: /Invalid index name \[destination#dest\], must not contain \'#\'/
+      data_frame.update_data_frame_transform:
+        transform_id: "updating-airline-transform"
+        body: >
+          {
+            "dest": { "index": "destination#dest" }
+          }

@@ -36,6 +36,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * Cleans up a repository
  */
 public class RestCleanupRepositoryAction extends BaseRestHandler {
+
     public RestCleanupRepositoryAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(POST, "/_snapshot/{repository}/_cleanup", this);

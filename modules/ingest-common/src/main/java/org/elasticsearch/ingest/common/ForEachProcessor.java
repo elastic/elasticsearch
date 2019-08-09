@@ -31,6 +31,7 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
 
+import org.elasticsearch.ingest.WrappingProcessor;
 import org.elasticsearch.script.ScriptService;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
@@ -46,7 +47,7 @@ import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
  *
  * Note that this processor is experimental.
  */
-public final class ForEachProcessor extends AbstractProcessor {
+public final class ForEachProcessor extends AbstractProcessor implements WrappingProcessor {
 
     public static final String TYPE = "foreach";
 
@@ -117,7 +118,7 @@ public final class ForEachProcessor extends AbstractProcessor {
         return field;
     }
 
-    Processor getProcessor() {
+    public Processor getInnerProcessor() {
         return processor;
     }
 

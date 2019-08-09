@@ -2007,6 +2007,11 @@ public class InternalEngine extends Engine {
         }
     }
 
+    @Override
+    public SafeCommitInfo getSafeCommitInfo() {
+        return combinedDeletionPolicy.getSafeCommitInfo();
+    }
+
     private boolean failOnTragicEvent(AlreadyClosedException ex) {
         final boolean engineFailed;
         // if we are already closed due to some tragic exception

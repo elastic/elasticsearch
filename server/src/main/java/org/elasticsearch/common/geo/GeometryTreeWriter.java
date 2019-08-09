@@ -53,6 +53,10 @@ public class GeometryTreeWriter implements Writeable {
         geometry.visit(builder);
     }
 
+    public Extent extent() {
+        return new Extent(builder.top, builder.bottom, builder.negLeft, builder.negRight, builder.posLeft, builder.posRight);
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         // only write a geometry extent for the tree if the tree

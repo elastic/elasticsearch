@@ -20,6 +20,7 @@ public class LifecycleSettings {
 
     public static final String SLM_HISTORY_INDEX_ENABLED = "slm.history_index_enabled";
     public static final String SLM_RETENTION_SCHEDULE = "slm.retention_schedule";
+    public static final String SLM_RETENTION_DURATION = "slm.retention_duration";
 
 
     public static final Setting<TimeValue> LIFECYCLE_POLL_INTERVAL_SETTING = Setting.timeSetting(LIFECYCLE_POLL_INTERVAL,
@@ -42,4 +43,6 @@ public class LifecycleSettings {
                 SLM_RETENTION_SCHEDULE + "]", e);
         }
     }, Setting.Property.Dynamic, Setting.Property.NodeScope);
+    public static final Setting<TimeValue> SLM_RETENTION_DURATION_SETTING = Setting.timeSetting(SLM_RETENTION_DURATION,
+        TimeValue.timeValueHours(1), TimeValue.timeValueMillis(500), Setting.Property.Dynamic, Setting.Property.NodeScope);
 }

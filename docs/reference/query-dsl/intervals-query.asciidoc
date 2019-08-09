@@ -192,8 +192,8 @@ produce a match in a document for the overall source to match.
 +
 --
 (Optional, integer) Maximum number of positions between the matching terms.
-Terms further apart than this are not considered matches. Defaults to
-`-1`.
+Intervals produced by the rules further apart than this are not considered
+matches. Defaults to `-1`.
 
 If unspecified or set to `-1`, there is no width restriction on the match. If
 set to `0`, the terms must appear next to each other.

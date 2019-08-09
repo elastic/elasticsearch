@@ -38,6 +38,19 @@ import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToJava
  * Tracks user defined methods and variables across compilation phases.
  */
 public final class Locals {
+    private int syntheticCounter = 0;
+
+    /**
+     * Returns a unique identifier for generating the name of a synthetic method.
+     */
+    public String getNextSyntheticName() {
+        Locals locals = this;
+        while (locals.getParent() != null) {
+            locals = locals.getParent();
+        }
+
+        return "lambda$" + locals.syntheticCounter++;
+    }
 
     /**
      * Constructs a local method key used to lookup local methods from a painless class.

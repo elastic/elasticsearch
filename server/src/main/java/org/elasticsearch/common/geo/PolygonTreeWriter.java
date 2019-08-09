@@ -19,9 +19,9 @@
 package org.elasticsearch.common.geo;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.geo.geometry.Polygon;
-import org.elasticsearch.geo.geometry.Rectangle;
-import org.elasticsearch.geo.geometry.ShapeType;
+import org.elasticsearch.geometry.Polygon;
+import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.geometry.ShapeType;
 
 import java.io.IOException;
 import java.util.List;

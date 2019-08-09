@@ -20,7 +20,7 @@ package org.elasticsearch.common.geo;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
-import org.elasticsearch.geo.geometry.ShapeType;
+import org.elasticsearch.geometry.ShapeType;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;

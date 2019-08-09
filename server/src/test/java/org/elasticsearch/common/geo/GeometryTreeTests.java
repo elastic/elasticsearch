@@ -20,13 +20,13 @@ package org.elasticsearch.common.geo;
 
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.geo.geometry.Geometry;
-import org.elasticsearch.geo.geometry.Line;
-import org.elasticsearch.geo.geometry.LinearRing;
-import org.elasticsearch.geo.geometry.MultiPoint;
-import org.elasticsearch.geo.geometry.Point;
-import org.elasticsearch.geo.geometry.Polygon;
-import org.elasticsearch.geo.geometry.Rectangle;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.Line;
+import org.elasticsearch.geometry.LinearRing;
+import org.elasticsearch.geometry.MultiPoint;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.Polygon;
+import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -52,7 +52,7 @@ public class GeometryTreeTests extends ESTestCase {
             double[] x = new double[]{minX, maxX, maxX, minX, minX};
             double[] y = new double[]{minY, minY, maxY, maxY, minY};
             Geometry rectangle = randomBoolean() ?
-                new Polygon(new LinearRing(y, x), Collections.emptyList()) : new Rectangle(minY, maxY, minX, maxX);
+                new Polygon(new LinearRing(x, y), Collections.emptyList()) : new Rectangle(minX, maxX, maxY, minY);
             GeometryTreeWriter writer = new GeometryTreeWriter(rectangle);
 
             BytesStreamOutput output = new BytesStreamOutput();
@@ -119,8 +119,8 @@ public class GeometryTreeTests extends ESTestCase {
 
     // adapted from org.apache.lucene.geo.TestPolygon2D#testMultiPolygon
     public void testPolygonWithHole() throws Exception {
-        Polygon polyWithHole = new Polygon(new LinearRing(new double[] { -50, -50, 50, 50, -50 }, new double[] { -50, 50, 50, -50, -50 }),
-            Collections.singletonList(new LinearRing(new double[] { -10, -10, 10, 10, -10 }, new double[] { -10, 10, 10, -10, -10 })));
+        Polygon polyWithHole = new Polygon(new LinearRing(new double[] { -50, 50, 50, -50, -50 }, new double[] { -50, -50, 50, 50, -50 }),
+            Collections.singletonList(new LinearRing(new double[] { -10, 10, 10, -10, -10 }, new double[] { -10, -10, 10, 10, -10 })));
 
         GeometryTreeWriter writer = new GeometryTreeWriter(polyWithHole);
         BytesStreamOutput output = new BytesStreamOutput();
@@ -143,7 +143,7 @@ public class GeometryTreeTests extends ESTestCase {
         double[] hx = {21, 21, 29, 29, 21};
         double[] hy = {1, 20, 20, 1, 1};
 
-        Polygon polyWithHole = new Polygon(new LinearRing(py, px),  Collections.singletonList(new LinearRing(hy, hx)));
+        Polygon polyWithHole = new Polygon(new LinearRing(px, py),  Collections.singletonList(new LinearRing(hx, hy)));
         // test cell crossing poly
         GeometryTreeWriter writer = new GeometryTreeWriter(polyWithHole);
         BytesStreamOutput output = new BytesStreamOutput();

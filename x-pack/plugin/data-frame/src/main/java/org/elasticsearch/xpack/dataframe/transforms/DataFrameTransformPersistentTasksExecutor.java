@@ -145,11 +145,20 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
         // <5> load next checkpoint
         ActionListener<DataFrameTransformCheckpoint> getTransformNextCheckpointListener = ActionListener.wrap(
                 nextCheckpoint -> {
-                    indexerBuilder.setNextCheckpoint(nextCheckpoint);
+
+                    if (nextCheckpoint.isEmpty()) {
+                        // extra safety: reset position and progress if next checkpoint is empty
+                        // prevents a failure if for some reason the next checkpoint has been deleted
+                        indexerBuilder.setInitialPosition(null);
+                        indexerBuilder.setProgress(null);
+                    } else {
+                        logger.trace("[{}] Loaded next checkpoint [{}] found, starting the task", transformId,
+                                nextCheckpoint.getCheckpoint());
+                        indexerBuilder.setNextCheckpoint(nextCheckpoint);
+                    }
 
                     final long lastCheckpoint = stateHolder.get().getCheckpoint();
 
-                    logger.trace("[{}] No next checkpoint found, starting the task", transformId);
                     startTask(buildTask, indexerBuilder, lastCheckpoint, startTaskListener);
                 },
                 error -> {
@@ -165,14 +174,10 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
                 lastCheckpoint -> {
                     indexerBuilder.setLastCheckpoint(lastCheckpoint);
 
-                    final long nextCheckpoint = stateHolder.get().getInProgressCheckpoint();
-
-                    if (nextCheckpoint > 0) {
-                        transformsConfigManager.getTransformCheckpoint(transformId, nextCheckpoint, getTransformNextCheckpointListener);
-                    } else {
-                        logger.trace("[{}] No next checkpoint found, starting the task", transformId);
-                        startTask(buildTask, indexerBuilder, lastCheckpoint.getCheckpoint(), startTaskListener);
-                    }
+                    logger.trace("[{}] Loaded last checkpoint [{}], looking for next checkpoint", transformId,
+                            lastCheckpoint.getCheckpoint());
+                    transformsConfigManager.getTransformCheckpoint(transformId, lastCheckpoint.getCheckpoint() + 1,
+                            getTransformNextCheckpointListener);
                 },
                 error -> {
                     String msg = DataFrameMessages.getMessage(DataFrameMessages.FAILED_TO_LOAD_TRANSFORM_CHECKPOINT, transformId);
@@ -200,8 +205,8 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
                 final long lastCheckpoint = stateHolder.get().getCheckpoint();
 
                 if (lastCheckpoint == 0) {
-                    logger.trace("[{}] No checkpoint found, starting the task", transformId);
-                    startTask(buildTask, indexerBuilder, lastCheckpoint, startTaskListener);
+                    logger.trace("[{}] No last checkpoint found, looking for next checkpoint", transformId);
+                    transformsConfigManager.getTransformCheckpoint(transformId, lastCheckpoint + 1, getTransformNextCheckpointListener);
                 } else {
                     logger.trace ("[{}] Restore last checkpoint: [{}]", transformId, lastCheckpoint);
                     transformsConfigManager.getTransformCheckpoint(transformId, lastCheckpoint, getTransformLastCheckpointListener);

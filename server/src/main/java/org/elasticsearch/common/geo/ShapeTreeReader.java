@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.common.geo;
 
-import org.elasticsearch.geo.geometry.Geometry;
+import org.elasticsearch.geometry.Geometry;
 
 import java.io.IOException;
 

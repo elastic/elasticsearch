@@ -19,7 +19,7 @@
 package org.elasticsearch.common.geo;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.geo.geometry.ShapeType;
+import org.elasticsearch.geometry.ShapeType;
 
 /**
  * Shape writer for use in doc-values

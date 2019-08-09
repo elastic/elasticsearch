@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.bucket.geogrid;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -34,12 +33,10 @@ import java.util.Map;
  */
 public class GeoHashGridAggregator extends GeoGridAggregator<InternalGeoHashGrid> {
 
-    GeoHashGridAggregator(String name, AggregatorFactories factories,
-                          ValuesSource.GeoPoint valuesSource, int precision, GeoPointLongEncoder longEncoder,
-                          SearchContext aggregationContext, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-                          Map<String, Object> metaData, int requiredSize, int shardSize) throws IOException {
-        super(name, factories, valuesSource, precision, longEncoder, requiredSize, shardSize, aggregationContext, parent,
-            pipelineAggregators, metaData);
+    GeoHashGridAggregator(String name, AggregatorFactories factories, CellIdSource valuesSource,
+                          int requiredSize, int shardSize, SearchContext aggregationContext, Aggregator parent,
+                          List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+        super(name, factories, valuesSource, requiredSize, shardSize, aggregationContext, parent, pipelineAggregators, metaData);
     }
 
     @Override

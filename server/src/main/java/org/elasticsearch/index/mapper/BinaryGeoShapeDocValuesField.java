@@ -22,8 +22,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.geo.GeometryTreeWriter;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.geo.geometry.Geometry;
-import org.elasticsearch.geo.geometry.GeometryCollection;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.GeometryCollection;
 
 import java.io.IOException;
 import java.util.ArrayList;

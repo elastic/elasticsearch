@@ -22,9 +22,9 @@ import org.elasticsearch.common.geo.Extent;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeometryTreeReader;
 import org.elasticsearch.common.geo.GeometryTreeWriter;
-import org.elasticsearch.geo.geometry.Geometry;
-import org.elasticsearch.geo.utils.GeographyValidator;
-import org.elasticsearch.geo.utils.WellKnownText;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.utils.GeographyValidator;
+import org.elasticsearch.geometry.utils.WellKnownText;
 
 import java.io.IOException;
 import java.text.ParseException;

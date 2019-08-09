@@ -28,7 +28,7 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.geo.geometry.Geometry;
+import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.AbstractLatLonShapeDVIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;

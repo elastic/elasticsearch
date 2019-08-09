@@ -73,8 +73,8 @@ public class DataFrameTransformCheckpointServiceNodeTests extends DataFrameSingl
 
     private class MockClientForCheckpointing extends NoOpClient {
 
-        private ShardStats[] shardStats;
-        private String[] indices;
+        private volatile ShardStats[] shardStats;
+        private volatile String[] indices;
 
         MockClientForCheckpointing(String testName) {
             super(testName);
@@ -98,6 +98,7 @@ public class DataFrameTransformCheckpointServiceNodeTests extends DataFrameSingl
 
             if (request instanceof GetIndexRequest) {
                 // for this test we only need the indices
+                assert(indices != null);
                 final GetIndexResponse indexResponse = new GetIndexResponse(indices, null, null, null, null);
 
                 listener.onResponse((Response) indexResponse);
@@ -177,7 +178,6 @@ public class DataFrameTransformCheckpointServiceNodeTests extends DataFrameSingl
                 DataFrameTransformCheckpoint.EMPTY, null, null);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/45238")
     public void testGetCheckpointStats() throws InterruptedException {
         String transformId = randomAlphaOfLengthBetween(3, 10);
         long timestamp = 1000;

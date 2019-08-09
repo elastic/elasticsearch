@@ -26,7 +26,31 @@ backup may fail, reporting corruption and/or missing files, or may appear to
 have succeeded having silently lost some of its data. The only reliable way to
 back up a cluster is by using the snapshot and restore functionality.
 
+<<<<<<< HEAD
 // end::snapshot-intro[]
+=======
+// tag::restore-intro[]
+You can restore snapshots into a running cluster via the
+<<restore-snapshot,restore API>>. When you restore an index, you can alter the
+name of the restored index as well as some of its settings. There is a great
+deal of flexibility in how the snapshot and restore functionality can be used.
+// end::restore-intro[]
+
+You can automate your snapshot backup and restore process by using
+<<getting-started-snapshot-lifecycle-management, snapshot lifecycle management>>.
+
+// tag::backup-warning[]
+WARNING: You cannot back up an Elasticsearch cluster by simply taking a copy of
+the data directories of all of its nodes. Elasticsearch may be making changes to
+the contents of its data directories while it is running; copying its data
+directories cannot be expected to capture a consistent picture of their contents.
+If you try to restore a cluster from such a backup, it may fail and report
+corruption and/or missing files. Alternatively, it may appear to have succeeded
+though it silently lost some of its data. The only reliable way to back up a
+cluster is by using the snapshot and restore functionality.
+
+// end::backup-warning[]
+>>>>>>> 7b21ee75a3d... [DOCS] Added cross-link to snapshot lifecycle management. Closes #44588. (#45408)
 
 [float]
 === Version compatibility

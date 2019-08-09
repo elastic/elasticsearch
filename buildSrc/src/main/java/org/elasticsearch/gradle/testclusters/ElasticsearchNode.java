@@ -216,6 +216,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     public void plugin(URI plugin) {
         requireNonNull(plugin, "Plugin name can't be null");
         checkFrozen();
+        if (plugins.contains(plugin)) {
+            throw new TestClustersException("Plugin already configured for installation " + plugin);
+        }
         this.plugins.add(plugin);
     }
 

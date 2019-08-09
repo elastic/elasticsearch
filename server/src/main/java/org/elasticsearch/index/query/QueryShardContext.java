@@ -58,9 +58,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -89,7 +87,7 @@ public class QueryShardContext extends QueryRewriteContext {
     private final SetOnce<Boolean> frozen = new SetOnce<>();
     private final Index fullyQualifiedIndex;
 
-    private final Map<String, Query> namedQueries = new HashMap<>();
+    private boolean matchNamedQueries = false;
     private boolean allowUnmappedFields;
     private boolean mapUnmappedFieldAsString;
     private NestedScope nestedScope;
@@ -136,7 +134,7 @@ public class QueryShardContext extends QueryRewriteContext {
     private void reset() {
         allowUnmappedFields = indexSettings.isDefaultAllowUnmappedFields();
         this.lookup = null;
-        this.namedQueries.clear();
+        this.matchNamedQueries = false;
         this.nestedScope = new NestedScope();
     }
 
@@ -176,15 +174,12 @@ public class QueryShardContext extends QueryRewriteContext {
         return (IFD) indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName());
     }
 
-    public void addNamedQuery(String name, Query query) {
-        if (query != null) {
-            namedQueries.put(name, query);
-        }
+    public void setMatchNamedQueries(boolean matchNamedQueries) {
+        this.matchNamedQueries = matchNamedQueries;
     }
 
-    public Map<String, Query> copyNamedQueries() {
-        // This might be a good use case for CopyOnWriteHashMap
-        return Map.copyOf(namedQueries);
+    public boolean matchNamedQueries() {
+        return this.matchNamedQueries;
     }
 
     /**
@@ -287,7 +282,7 @@ public class QueryShardContext extends QueryRewriteContext {
         reset();
         try {
             QueryBuilder rewriteQuery = Rewriteable.rewrite(queryBuilder, this, true);
-            return new ParsedQuery(filterOrQuery.apply(rewriteQuery), copyNamedQueries());
+            return new ParsedQuery(filterOrQuery.apply(rewriteQuery), matchNamedQueries);
         } catch(QueryShardException | ParsingException e ) {
             throw e;
         } catch(Exception e) {

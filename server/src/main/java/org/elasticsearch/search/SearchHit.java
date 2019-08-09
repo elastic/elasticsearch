@@ -53,7 +53,6 @@ import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -101,7 +100,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
 
     private SearchSortValues sortValues = SearchSortValues.EMPTY;
 
-    private String[] matchedQueries = Strings.EMPTY_ARRAY;
+    private List<String> matchedQueries = new ArrayList<>();
 
     private Explanation explanation;
 
@@ -189,9 +188,9 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
 
         size = in.readVInt();
         if (size > 0) {
-            matchedQueries = new String[size];
+            matchedQueries = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
-                matchedQueries[i] = in.readString();
+                matchedQueries.add(in.readString());
             }
         }
         // we call the setter here because that also sets the local index parameter
@@ -243,10 +242,10 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         }
         sortValues.writeTo(out);
 
-        if (matchedQueries.length == 0) {
+        if (matchedQueries.size() == 0) {
             out.writeVInt(0);
         } else {
-            out.writeVInt(matchedQueries.length);
+            out.writeVInt(matchedQueries.size());
             for (String matchedFilter : matchedQueries) {
                 out.writeString(matchedFilter);
             }
@@ -511,14 +510,14 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         return clusterAlias;
     }
 
-    public void matchedQueries(String[] matchedQueries) {
-        this.matchedQueries = matchedQueries;
+    public void addMatchedQuery(String queryName) {
+        this.matchedQueries.add(queryName);
     }
 
     /**
      * The set of query and filter names the query matched with. Mainly makes sense for compound filters and queries.
      */
-    public String[] getMatchedQueries() {
+    public List<String> getMatchedQueries() {
         return this.matchedQueries;
     }
 
@@ -638,7 +637,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             builder.endObject();
         }
         sortValues.toXContent(builder, params);
-        if (matchedQueries.length > 0) {
+        if (matchedQueries.size() > 0) {
             builder.startArray(Fields.MATCHED_QUERIES);
             for (String matchedFilter : matchedQueries) {
                 builder.value(matchedFilter);
@@ -752,7 +751,9 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         searchHit.setInnerHits(get(Fields.INNER_HITS, values, null));
         List<String> matchedQueries = get(Fields.MATCHED_QUERIES, values, null);
         if (matchedQueries != null) {
-            searchHit.matchedQueries(matchedQueries.toArray(new String[0]));
+            for (String queryName : matchedQueries) {
+                searchHit.addMatchedQuery(queryName);
+            }
         }
         return searchHit;
     }
@@ -903,7 +904,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
                 && Objects.equals(source, other.source)
                 && Objects.equals(fields, other.fields)
                 && Objects.equals(getHighlightFields(), other.getHighlightFields())
-                && Arrays.equals(matchedQueries, other.matchedQueries)
+                && Objects.equals(matchedQueries, other.matchedQueries)
                 && Objects.equals(explanation, other.explanation)
                 && Objects.equals(shard, other.shard)
                 && Objects.equals(innerHits, other.innerHits)
@@ -914,7 +915,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     @Override
     public int hashCode() {
         return Objects.hash(id, type, nestedIdentity, version, seqNo, primaryTerm, source, fields, getHighlightFields(),
-            Arrays.hashCode(matchedQueries), explanation, shard, innerHits, index, clusterAlias);
+            matchedQueries, explanation, shard, innerHits, index, clusterAlias);
     }
 
     /**

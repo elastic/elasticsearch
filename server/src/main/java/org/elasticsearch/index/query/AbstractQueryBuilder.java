@@ -106,7 +106,12 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
                 }
             }
             if (queryName != null) {
-                context.addNamedQuery(queryName, query);
+                context.setMatchNamedQueries(true);
+                if (query instanceof SpanQuery) {
+                    query = new NamedSpanQuery(queryName, (SpanQuery)query);
+                } else {
+                    query = new NamedQuery(queryName, query);
+                }
             }
         }
         return query;

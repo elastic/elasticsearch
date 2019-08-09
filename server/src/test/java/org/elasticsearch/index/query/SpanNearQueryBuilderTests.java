@@ -54,6 +54,7 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
         assertThat(query, either(instanceOf(SpanNearQuery.class))
             .or(instanceOf(SpanTermQuery.class))
             .or(instanceOf(SpanBoostQuery.class))
+            .or(instanceOf(NamedSpanQuery.class))
             .or(instanceOf(SpanMatchNoDocsQuery.class))
             .or(instanceOf(MatchAllQueryBuilder.class)));
         if (query instanceof SpanNearQuery) {

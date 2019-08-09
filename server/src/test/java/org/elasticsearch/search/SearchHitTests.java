@@ -110,11 +110,9 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         }
         if (randomBoolean()) {
             int size = randomIntBetween(0, 5);
-            String[] matchedQueries = new String[size];
             for (int i = 0; i < size; i++) {
-                matchedQueries[i] = randomAlphaOfLength(5);
+                hit.addMatchedQuery(randomAlphaOfLength(5));
             }
-            hit.matchedQueries(matchedQueries);
         }
         if (randomBoolean()) {
             hit.explanation(createExplanation(randomIntBetween(0, 5)));

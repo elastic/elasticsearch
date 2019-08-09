@@ -1174,29 +1174,29 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
             termQuery("c_field", "1"), ScoreMode.Max).queryName("test"))
                 .get();
         assertHitCount(searchResponse, 1L);
-        assertThat(searchResponse.getHits().getAt(0).getMatchedQueries().length, equalTo(1));
-        assertThat(searchResponse.getHits().getAt(0).getMatchedQueries()[0], equalTo("test"));
+        assertThat(searchResponse.getHits().getAt(0).getMatchedQueries().size(), equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).getMatchedQueries().get(0), equalTo("test"));
 
         searchResponse = client().prepareSearch("test").setQuery(hasParentQuery("parent",
             termQuery("p_field", "1"), true).queryName("test"))
                 .get();
         assertHitCount(searchResponse, 1L);
-        assertThat(searchResponse.getHits().getAt(0).getMatchedQueries().length, equalTo(1));
-        assertThat(searchResponse.getHits().getAt(0).getMatchedQueries()[0], equalTo("test"));
+        assertThat(searchResponse.getHits().getAt(0).getMatchedQueries().size(), equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).getMatchedQueries().get(0), equalTo("test"));
 
         searchResponse = client().prepareSearch("test").setQuery(constantScoreQuery(hasChildQuery("child",
             termQuery("c_field", "1"), ScoreMode.None).queryName("test")))
                 .get();
         assertHitCount(searchResponse, 1L);
-        assertThat(searchResponse.getHits().getAt(0).getMatchedQueries().length, equalTo(1));
-        assertThat(searchResponse.getHits().getAt(0).getMatchedQueries()[0], equalTo("test"));
+        assertThat(searchResponse.getHits().getAt(0).getMatchedQueries().size(), equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).getMatchedQueries().get(0), equalTo("test"));
 
         searchResponse = client().prepareSearch("test").setQuery(constantScoreQuery(hasParentQuery("parent",
             termQuery("p_field", "1"), false).queryName("test")))
                 .get();
         assertHitCount(searchResponse, 1L);
-        assertThat(searchResponse.getHits().getAt(0).getMatchedQueries().length, equalTo(1));
-        assertThat(searchResponse.getHits().getAt(0).getMatchedQueries()[0], equalTo("test"));
+        assertThat(searchResponse.getHits().getAt(0).getMatchedQueries().size(), equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).getMatchedQueries().get(0), equalTo("test"));
     }
 
     public void testParentChildQueriesNoParentType() throws Exception {

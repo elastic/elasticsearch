@@ -154,6 +154,9 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
                 } else if (subQuery instanceof BoostQuery) {
                     BoostQuery boostQuery = (BoostQuery) subQuery;
                     subQuery = boostQuery.getQuery();
+                } else if (subQuery instanceof NamedQuery) {
+                    NamedQuery namedQuery = (NamedQuery) subQuery;
+                    subQuery = namedQuery.getQuery();
                 } else {
                     break;
                 }

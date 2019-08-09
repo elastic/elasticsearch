@@ -93,6 +93,12 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
         if (query instanceof SpanMultiTermQueryWrapper) {
             SpanMultiTermQueryWrapper wrapper = (SpanMultiTermQueryWrapper) query;
             Query innerQuery = queryBuilder.innerQuery().toQuery(context.getQueryShardContext());
+            if (queryBuilder.innerQuery().queryName() != null) {
+                assertThat(innerQuery, instanceOf(NamedQuery.class));
+                NamedQuery namedQuery = (NamedQuery) innerQuery;
+                assertThat(queryBuilder.innerQuery().queryName(), equalTo(namedQuery.getName()));
+                innerQuery = namedQuery.getQuery();
+            }
             if (queryBuilder.innerQuery().boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
                 assertThat(innerQuery, instanceOf(BoostQuery.class));
                 BoostQuery boostQuery = (BoostQuery) innerQuery;

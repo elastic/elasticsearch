@@ -20,7 +20,6 @@
 package org.elasticsearch.test;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -49,6 +48,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.NamedQuery;
+import org.elasticsearch.index.query.NamedSpanQuery;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -440,11 +441,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                     + ", secondQuery: " + controlQuery, controlQuery.hashCode(), equalTo(firstQuery.hashCode()));
 
             QB secondQuery = copyQuery(firstQuery);
-            // query _name never should affect the result of toQuery, we randomly set it to make sure
-            if (randomBoolean()) {
-                secondQuery.queryName(secondQuery.queryName() == null ? randomAlphaOfLengthBetween(1, 30) : secondQuery.queryName()
-                        + randomAlphaOfLengthBetween(1, 10));
-            }
             searchContext = getSearchContext(context);
             Query secondLuceneQuery = rewriteQuery(secondQuery, context).toQuery(context);
             assertNotNull("toQuery should not return null", secondLuceneQuery);
@@ -498,10 +494,21 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      */
     private void assertLuceneQuery(QB queryBuilder, Query query, SearchContext context) throws IOException {
         if (queryBuilder.queryName() != null) {
-            Query namedQuery = context.getQueryShardContext().copyNamedQueries().get(queryBuilder.queryName());
-            assertThat(namedQuery, equalTo(query));
+            assertTrue(context.getQueryShardContext().matchNamedQueries());
         }
         if (query != null) {
+            if (queryBuilder.queryName() != null) {
+                assertThat(query, either(instanceOf(NamedQuery.class)).or(instanceOf(NamedSpanQuery.class)));
+                if (query instanceof NamedQuery) {
+                    NamedQuery namedQuery = (NamedQuery) query;
+                    assertThat(namedQuery.getName(), equalTo(queryBuilder.queryName()));
+                    query = namedQuery.getQuery();
+                } else {
+                    NamedSpanQuery namedQuery = (NamedSpanQuery) query;
+                    assertThat(namedQuery.getName(), equalTo(queryBuilder.queryName()));
+                    query = namedQuery.getQuery();
+                }
+            }
             if (queryBuilder.boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
                 assertThat(query, either(instanceOf(BoostQuery.class)).or(instanceOf(SpanBoostQuery.class)));
                 if (query instanceof SpanBoostQuery) {

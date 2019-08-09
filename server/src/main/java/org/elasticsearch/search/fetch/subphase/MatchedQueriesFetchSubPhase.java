@@ -18,82 +18,37 @@
  */
 package org.elasticsearch.search.fetch.subphase;
 
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.ReaderUtil;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Matches;
+import org.apache.lucene.search.NamedMatches;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.util.Bits;
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.internal.SearchContext.Lifetime;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
 public final class MatchedQueriesFetchSubPhase implements FetchSubPhase {
 
     @Override
-    public void hitsExecute(SearchContext context, SearchHit[] hits) {
-        if (hits.length == 0 ||
-            // in case the request has only suggest, parsed query is null
-            context.parsedQuery() == null) {
+    public void hitExecute(SearchContext context, HitContext hitContext) throws IOException {
+
+        if (context.parsedQuery() == null || context.parsedQuery().matchNamedQueries() == false) {
             return;
         }
-        hits = hits.clone(); // don't modify the incoming hits
-        Arrays.sort(hits, (a, b) -> Integer.compare(a.docId(), b.docId()));
-        @SuppressWarnings("unchecked")
-        List<String>[] matchedQueries = new List[hits.length];
-        for (int i = 0; i < matchedQueries.length; ++i) {
-            matchedQueries[i] = new ArrayList<>();
+
+        // Post-filters?
+
+        Query q = context.parsedQuery().query();
+        IndexSearcher searcher = new IndexSearcher(hitContext.reader());
+        Weight w = searcher.createWeight(searcher.rewrite(q), ScoreMode.COMPLETE_NO_SCORES, 1);
+        Matches m = w.matches(hitContext.readerContext(), hitContext.docId());
+
+        for (NamedMatches nm : NamedMatches.findNamedMatches(m)) {
+            hitContext.hit().addMatchedQuery(nm.getName());
         }
 
-        Map<String, Query> namedQueries = new HashMap<>(context.parsedQuery().namedFilters());
-        if (context.parsedPostFilter() != null) {
-            namedQueries.putAll(context.parsedPostFilter().namedFilters());
-        }
-
-        try {
-            for (Map.Entry<String, Query> entry : namedQueries.entrySet()) {
-                String name = entry.getKey();
-                Query query = entry.getValue();
-                int readerIndex = -1;
-                int docBase = -1;
-                Weight weight = context.searcher().createWeight(context.searcher().rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
-                Bits matchingDocs = null;
-                final IndexReader indexReader = context.searcher().getIndexReader();
-                for (int i = 0; i < hits.length; ++i) {
-                    SearchHit hit = hits[i];
-                    int hitReaderIndex = ReaderUtil.subIndex(hit.docId(), indexReader.leaves());
-                    if (readerIndex != hitReaderIndex) {
-                        readerIndex = hitReaderIndex;
-                        LeafReaderContext ctx = indexReader.leaves().get(readerIndex);
-                        docBase = ctx.docBase;
-                        // scorers can be costly to create, so reuse them across docs of the same segment
-                        ScorerSupplier scorerSupplier = weight.scorerSupplier(ctx);
-                        matchingDocs = Lucene.asSequentialAccessBits(ctx.reader().maxDoc(), scorerSupplier);
-                    }
-                    if (matchingDocs.get(hit.docId() - docBase)) {
-                        matchedQueries[i].add(name);
-                    }
-                }
-            }
-            for (int i = 0; i < hits.length; ++i) {
-                hits[i].matchedQueries(matchedQueries[i].toArray(new String[matchedQueries[i].size()]));
-            }
-        } catch (IOException e) {
-            throw ExceptionsHelper.convertToElastic(e);
-        } finally {
-            context.clearReleasables(Lifetime.COLLECTION);
-        }
     }
+
 }

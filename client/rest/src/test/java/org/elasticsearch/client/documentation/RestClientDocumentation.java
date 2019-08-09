@@ -36,6 +36,7 @@ import org.apache.http.nio.entity.NStringEntity;
 import org.apache.http.ssl.SSLContextBuilder;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.client.Cancellable;
 import org.elasticsearch.client.HttpAsyncResponseConsumerFactory;
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.NodeSelector;
@@ -206,7 +207,7 @@ public class RestClientDocumentation {
             Request request = new Request(
                 "GET",  // <1>
                 "/");   // <2>
-            restClient.performRequestAsync(request, new ResponseListener() {
+            Cancellable cancellable = restClient.performRequestAsync(request, new ResponseListener() {
                 @Override
                 public void onSuccess(Response response) {
                     // <3>
@@ -270,6 +271,26 @@ public class RestClientDocumentation {
             }
             latch.await();
             //end::rest-client-async-example
+        }
+        {
+            //tag::rest-client-async-cancel
+            Request request = new Request("GET", "/posts/_search");
+            Cancellable cancellable = restClient.performRequestAsync(
+                request,
+                new ResponseListener() {
+                    @Override
+                    public void onSuccess(Response response) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception exception) {
+                        // <2>
+                    }
+                }
+            );
+            cancellable.cancel();
+            //end::rest-client-async-cancel
         }
         {
             //tag::rest-client-response2

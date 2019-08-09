@@ -35,7 +35,7 @@ dependencies {
   compile project(':libs:elasticsearch-core')
 }
 
-forbiddenApisMain {
+forbiddenApisTest {
   replaceSignatureFiles 'jdk-signatures'
 }
 

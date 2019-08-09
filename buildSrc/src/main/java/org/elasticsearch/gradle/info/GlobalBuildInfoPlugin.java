@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -44,6 +45,8 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
 
         File compilerJavaHome = findCompilerJavaHome();
         File runtimeJavaHome = findRuntimeJavaHome(compilerJavaHome);
+
+        Object gitRevisionResolver = createGitRevisionResolver(project);
 
         final List<JavaHome> javaVersions = new ArrayList<>();
         for (int version = 8; version <= Integer.parseInt(minimumCompilerVersion.getMajorVersion()); version++) {
@@ -92,7 +95,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             ext.set("minimumCompilerVersion", minimumCompilerVersion);
             ext.set("minimumRuntimeVersion", minimumRuntimeVersion);
             ext.set("gradleJavaVersion", Jvm.current().getJavaVersion());
-            ext.set("gitRevision", gitRevision(project));
+            ext.set("gitRevision", gitRevisionResolver);
             ext.set("buildDate", ZonedDateTime.now(ZoneOffset.UTC));
         });
     }
@@ -203,21 +206,35 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         return _defaultParallel;
     }
 
-    private String gitRevision(final Project project) {
-        final ByteArrayOutputStream stdout = new ByteArrayOutputStream();
-        final ByteArrayOutputStream stderr = new ByteArrayOutputStream();
-        final ExecResult result = project.exec(spec -> {
-            spec.setExecutable("git");
-            spec.setArgs(Arrays.asList("rev-parse", "HEAD"));
-            spec.setStandardOutput(stdout);
-            spec.setErrorOutput(stderr);
-            spec.setIgnoreExitValue(true);
-        });
+    private Object createGitRevisionResolver(final Project project) {
+        return new Object() {
+            private final AtomicReference<String> gitRevision = new AtomicReference<>();
 
-        if (result.getExitValue() != 0) {
-            return "unknown";
-        }
-        return stdout.toString(UTF_8).trim();
+            @Override
+            public String toString() {
+                if (gitRevision.get() == null) {
+                    final ByteArrayOutputStream stdout = new ByteArrayOutputStream();
+                    final ByteArrayOutputStream stderr = new ByteArrayOutputStream();
+                    final ExecResult result = project.exec(spec -> {
+                        spec.setExecutable("git");
+                        spec.setArgs(Arrays.asList("rev-parse", "HEAD"));
+                        spec.setStandardOutput(stdout);
+                        spec.setErrorOutput(stderr);
+                        spec.setIgnoreExitValue(true);
+                    });
+
+                    final String revision;
+                    if (result.getExitValue() != 0) {
+                        revision = "unknown";
+                    } else {
+                        revision = stdout.toString(UTF_8).trim();
+                    }
+                    this.gitRevision.compareAndSet(null, revision);
+                }
+                return gitRevision.get();
+            }
+        };
+
     }
 
 }

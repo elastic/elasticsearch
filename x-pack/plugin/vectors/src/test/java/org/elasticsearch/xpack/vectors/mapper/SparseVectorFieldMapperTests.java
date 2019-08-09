@@ -82,9 +82,16 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
         // assert that after decoding the indexed values are equal to expected
         int[] expectedDims = {2, 50, 65535}; //the same as indexed but sorted
         float[] expectedValues = {-34567.11f, 1800f, 0.5f}; //the same as indexed but sorted by their dimensions
+        double dotProduct = 0.0f;
+        for (float value: expectedValues) {
+            dotProduct += value * value;
+        }
+        float expectedMagnitude = (float) Math.sqrt(dotProduct);
 
-        // assert that after decoding the indexed dims and values are equal to expected
-        BytesRef vectorBR = ((BinaryDocValuesField) fields[0]).binaryValue();
+        // assert that after decoded magnitude, dims and values are equal to expected
+        BytesRef vectorBR = fields[0].binaryValue();
+        float decodedMagnitude = VectorEncoderDecoder.decodeVectorMagnitude(vectorBR);
+        assertEquals(expectedMagnitude, decodedMagnitude, 0.001f);
         int[] decodedDims = VectorEncoderDecoder.decodeSparseVectorDims(vectorBR);
         assertArrayEquals(
             "Decoded sparse vector dimensions are not equal to the indexed ones.",

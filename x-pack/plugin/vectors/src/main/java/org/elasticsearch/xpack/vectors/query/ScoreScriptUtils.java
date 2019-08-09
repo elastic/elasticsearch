@@ -113,14 +113,7 @@ public class ScoreScriptUtils {
                 throw new IllegalArgumentException("Can't calculate cosineSimilarity! The number of dimensions of the query vector [" +
                     queryVector.size() + "] is different from the documents' vectors [" + docVector.length + "].");
             }
-
-            // calculate docVector magnitude
-            double dotProduct = 0f;
-            for (int dim = 0; dim < docVector.length; dim++) {
-                dotProduct += (double) docVector[dim] * docVector[dim];
-            }
-            final double docVectorMagnitude = Math.sqrt(dotProduct);
-
+            float docVectorMagnitude = VectorEncoderDecoder.decodeVectorMagnitude(value);
             double docQueryDotProduct = intDotProduct(queryVector, docVector);
             return docQueryDotProduct / (docVectorMagnitude * queryVectorMagnitude);
         }
@@ -304,14 +297,7 @@ public class ScoreScriptUtils {
             BytesRef value = dvs.getEncodedValue();
             int[] docDims = VectorEncoderDecoder.decodeSparseVectorDims(value);
             float[] docValues = VectorEncoderDecoder.decodeSparseVector(value);
-
-            // calculate docVector magnitude
-            double dotProduct = 0;
-            for (float docValue : docValues) {
-                dotProduct += (double) docValue * docValue;
-            }
-            final double docVectorMagnitude = Math.sqrt(dotProduct);
-
+            float docVectorMagnitude = VectorEncoderDecoder.decodeVectorMagnitude(value);
             double docQueryDotProduct = intDotProductSparse(queryValues, queryDims, docValues, docDims);
             return docQueryDotProduct / (docVectorMagnitude * queryVectorMagnitude);
         }

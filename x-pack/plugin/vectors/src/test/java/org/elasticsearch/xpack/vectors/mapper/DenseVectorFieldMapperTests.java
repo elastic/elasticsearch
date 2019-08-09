@@ -69,6 +69,11 @@ public class DenseVectorFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
 
         float[] validVector = {-12.1f, 100.7f, -4};
+        double dotProduct = 0.0f;
+        for (float value: validVector) {
+            dotProduct += value * value;
+        }
+        float expectedMagnitude = (float) Math.sqrt(dotProduct);
         ParsedDocument doc1 = mapper.parse(new SourceToParse("test-index", "_doc", "1", BytesReference
             .bytes(XContentFactory.jsonBuilder()
                 .startObject()
@@ -81,6 +86,8 @@ public class DenseVectorFieldMapperTests extends ESSingleNodeTestCase {
         // assert that after decoding the indexed value is equal to expected
         BytesRef vectorBR = fields[0].binaryValue();
         float[] decodedValues = VectorEncoderDecoder.decodeDenseVector(vectorBR);
+        float decodedMagnitude = VectorEncoderDecoder.decodeVectorMagnitude(vectorBR);
+        assertEquals(expectedMagnitude, decodedMagnitude, 0.001f);
         assertArrayEquals(
             "Decoded dense vector values is not equal to the indexed one.",
             validVector,

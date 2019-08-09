@@ -107,7 +107,7 @@ for (Project subproj : project.rootProject.subprojects) {
   if (subproj.parent.path == ':plugins' || subproj.path.equals(':example-plugins:custom-settings')) {
     // add plugin as a dep
     dependencies {
-      packaging_plugins project(path: "${subproj.path}", configuration: 'zip')
+      packagingPlugins project(path: "${subproj.path}", configuration: 'zip')
     }
     pluginNames.add(subproj.name)
   }
@@ -115,7 +115,6 @@ for (Project subproj : project.rootProject.subprojects) {
 pluginNames = pluginNames.toSorted()
 
 copyPlugins {
-  inputs.property("plugins", pluginNames)
   doLast {
     // TODO: this was copied from the old way bats tests get the plugins list. we should pass
     // this in differently when converting to java tests

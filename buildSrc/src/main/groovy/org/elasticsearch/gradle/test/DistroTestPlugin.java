@@ -68,8 +68,8 @@ public class DistroTestPlugin implements Plugin<Project> {
 
     // all distributions used by distro tests. this is temporary until tests are per distribution
     private static final String PACKAGING_CONFIGURATION = "packaging";
-    private static final String UPGRADE_CONFIGURATION = "packaging_upgrade";
-    private static final String PLUGINS_CONFIGURATION = "packaging_plugins";
+    private static final String UPGRADE_CONFIGURATION = "packagingUpgrade";
+    private static final String PLUGINS_CONFIGURATION = "packagingPlugins";
     private static final String COPY_PACKAGING_TASK = "copyPackagingArchives";
     private static final String COPY_UPGRADE_TASK = "copyUpgradeArchives";
     private static final String COPY_PLUGINS_TASK = "copyPlugins";
@@ -94,6 +94,9 @@ public class DistroTestPlugin implements Plugin<Project> {
         
         configureVM(project);
 
+        this.archivesDir = project.getParent().getLayout().getBuildDirectory().dir("packaging/archives");
+        this.upgradeDir = project.getParent().getLayout().getBuildDirectory().dir("packaging/upgrade");
+        this.pluginsDir = project.getParent().getLayout().getBuildDirectory().dir("packaging/plugins");
         if (upgradeVersion == null) {
             // just read this once, since it is the same for all projects. this is safe because gradle configuration is single threaded
             upgradeVersion = getUpgradeVersion(project);
@@ -108,7 +111,7 @@ public class DistroTestPlugin implements Plugin<Project> {
         configureBatsTest(project, "oss", null, null, copyPackagingArchives, systemJdk, gradleJdk);
         configureBatsTest(project, "plugins", pluginsDir.get(), null, copyPackagingArchives, copyPlugins, systemJdk, gradleJdk);
         configureBatsTest(project, "upgrade", null, upgradeDir.get(), copyPackagingArchives, copyUpgradeArchives, systemJdk, gradleJdk);
-        configureBatsTest(project, "default", null, null,copyPackagingArchives, systemJdk, gradleJdk);
+        configureBatsTest(project, "default", null, null, copyPackagingArchives, systemJdk, gradleJdk);
     }
 
     private static Jdk createJdk(NamedDomainObjectContainer<Jdk> jdksContainer, String name, String version, String platform) {
@@ -172,12 +175,11 @@ public class DistroTestPlugin implements Plugin<Project> {
     }
 
     private void configureCopyPackagingTask(Project project) {
-        this.archivesDir = project.getParent().getLayout().getBuildDirectory().dir("packaging/archives");
-        // temporary, until we have tasks per distribution
+        // temporarily on the parent, until we have tasks per distribution
         this.copyPackagingArchives = Boilerplate.maybeRegister(project.getParent().getTasks(), COPY_PACKAGING_TASK, Copy.class,
             t -> {
                 t.into(archivesDir);
-                t.from(project.getConfigurations().getByName(PACKAGING_CONFIGURATION));
+                t.from(project.getParent().getConfigurations().getByName(PACKAGING_CONFIGURATION));
 
                 Path archivesPath = archivesDir.get().getAsFile().toPath();
                 TaskInputs inputs = t.getInputs();
@@ -193,12 +195,11 @@ public class DistroTestPlugin implements Plugin<Project> {
     }
 
     private void configureCopyUpgradeTask(Project project) {
-        this.upgradeDir = project.getParent().getLayout().getBuildDirectory().dir("packaging/upgrade");
         // temporary, until we have tasks per distribution
         this.copyUpgradeArchives = Boilerplate.maybeRegister(project.getParent().getTasks(), COPY_UPGRADE_TASK, Copy.class,
             t -> {
                 t.into(upgradeDir);
-                t.from(project.getConfigurations().getByName(UPGRADE_CONFIGURATION));
+                t.from(project.getParent().getConfigurations().getByName(UPGRADE_CONFIGURATION));
 
                 Path upgradePath = upgradeDir.get().getAsFile().toPath();
 
@@ -229,7 +230,7 @@ public class DistroTestPlugin implements Plugin<Project> {
 
     private void configureCopyPluginsTask(Project project) {
         Configuration pluginsConfiguration = project.getParent().getConfigurations().maybeCreate(PLUGINS_CONFIGURATION);
-        this.pluginsDir = project.getParent().getLayout().getBuildDirectory().dir("packaging/plugins");
+
         // temporary, until we have tasks per distribution
         this.copyPlugins = Boilerplate.maybeRegister(project.getParent().getTasks(), COPY_PLUGINS_TASK, Copy.class,
             t -> {
@@ -326,12 +327,12 @@ public class DistroTestPlugin implements Plugin<Project> {
         }
 
         // temporary until distro tests have one test per distro
-        Configuration packagingConfig = project.getConfigurations().create(PACKAGING_CONFIGURATION);
+        Configuration packagingConfig = project.getParent().getConfigurations().create(PACKAGING_CONFIGURATION);
         List<Configuration> distroConfigs = currentDistros.stream().map(ElasticsearchDistribution::getConfiguration)
             .collect(Collectors.toList());
         packagingConfig.setExtendsFrom(distroConfigs);
 
-        Configuration packagingUpgradeConfig = project.getConfigurations().create(UPGRADE_CONFIGURATION);
+        Configuration packagingUpgradeConfig = project.getParent().getConfigurations().create(UPGRADE_CONFIGURATION);
         List<Configuration> distroUpgradeConfigs = upgradeDistros.stream().map(ElasticsearchDistribution::getConfiguration)
             .collect(Collectors.toList());
         packagingUpgradeConfig.setExtendsFrom(distroUpgradeConfigs);

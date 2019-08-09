@@ -124,7 +124,7 @@ public final class SSource extends AStatement {
     @Override
     public void extractVariables(Set<String> variables) {
         for (SFunction function : functions) {
-            function.extractVariables();
+            function.extractVariables(null);
         }
 
         for (AStatement statement : statements) {

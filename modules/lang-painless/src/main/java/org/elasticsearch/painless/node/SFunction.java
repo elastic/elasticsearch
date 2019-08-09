@@ -86,15 +86,13 @@ public final class SFunction extends AStatement {
         this.settings = settings;
     }
 
-    void extractVariables() {
-        // no need to store variables here, but must run for lambdas
-        extractVariables(new HashSet<>());
-    }
-
     @Override
     void extractVariables(Set<String> variables) {
         for (AStatement statement : statements) {
-            statement.extractVariables(variables);
+            // we reset the list for function scope
+            // note this is not stored for this node
+            // but still required for lambdas
+            statement.extractVariables(new HashSet<>());
         }
     }
 

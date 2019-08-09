@@ -207,16 +207,17 @@ public class RestClientDocumentation {
             Request request = new Request(
                 "GET",  // <1>
                 "/");   // <2>
-            Cancellable cancellable = restClient.performRequestAsync(request, new ResponseListener() {
-                @Override
-                public void onSuccess(Response response) {
-                    // <3>
-                }
+            Cancellable cancellable = restClient.performRequestAsync(request,
+                new ResponseListener() {
+                    @Override
+                    public void onSuccess(Response response) {
+                        // <3>
+                    }
 
-                @Override
-                public void onFailure(Exception exception) {
-                    // <4>
-                }
+                    @Override
+                    public void onFailure(Exception exception) {
+                        // <4>
+                    }
             });
             //end::rest-client-async
         }

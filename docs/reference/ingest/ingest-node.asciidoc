@@ -907,24 +907,7 @@ PUT _ingest/pipeline/user_lookup
       "enrich" : {
         "policy_name": "users-policy",
         "enrich_key" : "email",
-        "enrich_values": [
-            {
-                "source": "address",
-                "target": "address"
-            },
-            {
-                "source": "city",
-                "target": "city"
-            },
-            {
-                "source": "zip",
-                "target": "zip"
-            },
-            {
-                "source": "state",
-                "target": "state"
-            }
-        ]
+        "targets": ["address", "city", "zip", "state"]
       }
     }
   ]

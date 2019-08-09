@@ -32,7 +32,7 @@ public enum ValuesSourceType implements Writeable {
     BYTES,
     GEOPOINT,
     GEOSHAPE,
-    GEO;
+    GEO; // GEO is an abstract value-type that represents either GEOPOINT or GEOSHAPE in aggregations
 
     public static ValuesSourceType fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));

@@ -290,6 +290,9 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         } else if (vs instanceof ValuesSource.GeoShape) {
             return (VS) MissingValues.replaceMissing((ValuesSource.GeoShape) vs, MultiGeoValues.GeoShapeValue.missing(missing.toString()));
         } else if (vs instanceof ValuesSource.Geo) {
+            // when missing value is present on aggregations that support both shapes and points, geo_point will be
+            // assumed first to preserve backwards compatibility with existing behavior. If a value is not a valid geo_point
+            // then it is parsed as a geo_shape
             try {
                 final MultiGeoValues.GeoPointValue missing = new
                     MultiGeoValues.GeoPointValue(new GeoPoint(missing().toString()));

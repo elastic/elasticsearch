@@ -486,6 +486,9 @@ public abstract class ValuesSource {
         }
     }
 
+    /**
+     * This class represents abstract geo fields that can either be geo_point or geo_shape
+     */
     public abstract static class Geo extends ValuesSource {
         public abstract MultiGeoValues geoValues(LeafReaderContext context);
 

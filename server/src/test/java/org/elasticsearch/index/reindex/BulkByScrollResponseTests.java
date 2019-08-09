@@ -20,6 +20,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
@@ -45,7 +46,7 @@ public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkBySc
 
     private boolean includeUpdated;
     private boolean includeCreated;
-    private boolean testExceptions = true;
+    private boolean testExceptions = randomBoolean();
 
     public void testRountTrip() throws IOException {
         BulkByScrollResponse response = new BulkByScrollResponse(timeValueMillis(randomNonNegativeLong()),
@@ -78,10 +79,8 @@ public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkBySc
             shardId = randomInt();
             nodeId = usually() ? randomAlphaOfLength(5) : null;
         }
-//        ElasticsearchException exception = randomFrom(new ResourceNotFoundException("bar"), new ElasticsearchException("foo"),
-//            new NoNodeAvailableException("baz"));
-        ElasticsearchException exception = randomFrom( new NoNodeAvailableException("baz"));
-
+        ElasticsearchException exception = randomFrom(new ResourceNotFoundException("bar"), new ElasticsearchException("foo"),
+            new NoNodeAvailableException("baz"));
         return singletonList(new ScrollableHitSource.SearchFailure(exception, index, shardId, nodeId));
     }
 
@@ -133,6 +132,7 @@ public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkBySc
             assertEquals(expectedFailure.getShardId(), actualFailure.getShardId());
             assertEquals(expectedFailure.getNodeId(), actualFailure.getNodeId());
             assertEquals(expectedFailure.getStatus(), actualFailure.getStatus());
+            assertThat(actualFailure.getReason().getMessage(), containsString(expectedFailure.getReason().getMessage()));
         }
     }
 

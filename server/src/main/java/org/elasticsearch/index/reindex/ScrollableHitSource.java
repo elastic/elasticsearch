@@ -424,7 +424,6 @@ public abstract class ScrollableHitSource {
             return this.status;
         }
 
-
         public Throwable getReason() {
             return reason;
         }

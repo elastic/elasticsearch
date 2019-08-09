@@ -1080,7 +1080,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                                     "enabled=true"))),
                     MapperService.MergeReason.MAPPING_UPDATE);
         }
-        assertWarnings(FieldNamesFieldMapper.TypeParser.ENABLED_DEPRECATION_MESSAGE);
+        assertWarnings(FieldNamesFieldMapper.TypeParser.ENABLED_DEPRECATION_MESSAGE.replace("{}",  context.index().getName()));
     }
 
     public void testFromJson() throws IOException {

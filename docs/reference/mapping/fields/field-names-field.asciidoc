@@ -34,4 +34,4 @@ PUT tweets
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[warning:Using the `enabled` setting for `_field_names` fields is no longer necessary. Please remove it from your mappings as and templates since it will be removed in the next major version.]
+// TEST[warning:Index [tweets] uses the `enabled` setting for `_field_names`, which is no longer necessary. If possible, remove it from your mappings and templates. The setting will be removed in a future major version.

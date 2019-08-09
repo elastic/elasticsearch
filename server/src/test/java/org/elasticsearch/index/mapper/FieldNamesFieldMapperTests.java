@@ -114,7 +114,7 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
             XContentType.JSON));
 
         assertFieldNames(set("field"), doc);
-        assertWarnings(FieldNamesFieldMapper.TypeParser.ENABLED_DEPRECATION_MESSAGE);
+        assertWarnings(FieldNamesFieldMapper.TypeParser.ENABLED_DEPRECATION_MESSAGE.replace("{}", "test"));
     }
 
     public void testDisabled() throws Exception {
@@ -134,6 +134,6 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
             XContentType.JSON));
 
         assertNull(doc.rootDoc().get("_field_names"));
-        assertWarnings(FieldNamesFieldMapper.TypeParser.ENABLED_DEPRECATION_MESSAGE);
+        assertWarnings(FieldNamesFieldMapper.TypeParser.ENABLED_DEPRECATION_MESSAGE.replace("{}", "test"));
     }
 }

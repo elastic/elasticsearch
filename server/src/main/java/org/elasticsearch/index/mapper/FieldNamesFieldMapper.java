@@ -24,7 +24,6 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -97,8 +96,8 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
 
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
 
-        public static final String ENABLED_DEPRECATION_MESSAGE = "Using the `enabled` setting for `_field_names` fields is no "
-                + "longer necessary. Please remove it from your mappings as and templates since it will be removed in the next "
+        public static final String ENABLED_DEPRECATION_MESSAGE = "Index [{}] uses the `enabled` setting for `_field_names`, which is no "
+                + "longer necessary. If possible, remove it from your mappings and templates. The setting will be removed in a future "
                 + "major version.";
 
         @Override
@@ -111,12 +110,9 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
                 String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("enabled")) {
-                    // issue deprecation note if index is V7
-                    Version indexVersionCreated = parserContext.indexVersionCreated();
-                    if (indexVersionCreated.onOrAfter(Version.V_7_0_0)) {
-                        deprecationLogger.deprecatedAndMaybeLog("field_names_enabled_parameter", ENABLED_DEPRECATION_MESSAGE);
-                        builder.enabled(XContentMapValues.nodeBooleanValue(fieldNode, name + ".enabled"));
-                    }
+                    String indexName = parserContext.mapperService().index().getName();
+                    deprecationLogger.deprecatedAndMaybeLog("field_names_enabled_parameter", ENABLED_DEPRECATION_MESSAGE, indexName);
+                    builder.enabled(XContentMapValues.nodeBooleanValue(fieldNode, name + ".enabled"));
                     iterator.remove();
                 }
             }

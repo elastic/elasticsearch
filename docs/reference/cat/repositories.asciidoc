@@ -1,5 +1,8 @@
 [[cat-repositories]]
-=== cat repositories
+=== cat repositories API
+++++
+<titleabbrev>cat repositories</titleabbrev>
+++++
 
 The `repositories` command shows the snapshot repositories registered in the
 cluster. For example:

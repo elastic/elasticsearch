@@ -1,5 +1,8 @@
 [[cat-snapshots]]
-=== cat snapshots
+=== cat snapshots API
+++++
+<titleabbrev>cat snapshots</titleabbrev>
+++++
 
 The `snapshots` command shows all snapshots that belong to a specific repository
 or multiple repositories.

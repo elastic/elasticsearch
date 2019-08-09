@@ -1,5 +1,8 @@
 [[cat-templates]]
-=== cat templates
+=== cat templates API
+++++
+<titleabbrev>cat templates</titleabbrev>
+++++
 
 The `templates` command provides information about existing templates.
 

@@ -1,5 +1,8 @@
 [[cat-segments]]
-=== cat segments
+=== cat segments API
+++++
+<titleabbrev>cat segments</titleabbrev>
+++++
 
 The `segments` command provides low level information about the segments
 in the shards of an index. It provides information similar to the

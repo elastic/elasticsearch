@@ -1,5 +1,8 @@
 [[cat-pending-tasks]]
-=== cat pending tasks
+=== cat pending tasks API
+++++
+<titleabbrev>cat pending tasks</titleabbrev>
+++++
 
 Returns cluster-level changes that have not yet been executed, similar to the
 <<cluster-pending, pending cluster tasks>> API.

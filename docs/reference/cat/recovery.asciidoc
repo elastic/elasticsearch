@@ -1,5 +1,8 @@
 [[cat-recovery]]
-=== cat recovery
+=== cat recovery API
+++++
+<titleabbrev>cat recovery</titleabbrev>
+++++
 
 The `recovery` command is a view of index shard recoveries, both on-going and previously
 completed. It is a more compact view of the JSON <<indices-recovery,recovery>> API.

@@ -41,6 +41,7 @@ import static org.elasticsearch.client.RequestConverters.createEntity;
 import static org.elasticsearch.client.dataframe.DeleteDataFrameTransformRequest.FORCE;
 import static org.elasticsearch.client.dataframe.GetDataFrameTransformRequest.ALLOW_NO_MATCH;
 import static org.elasticsearch.client.dataframe.PutDataFrameTransformRequest.DEFER_VALIDATION;
+import static org.elasticsearch.client.dataframe.StopDataFrameTransformRequest.WAIT_FOR_CHECKPOINT;
 
 final class DataFrameRequestConverters {
 
@@ -134,6 +135,9 @@ final class DataFrameRequestConverters {
         }
         if (stopRequest.getAllowNoMatch() != null) {
             request.addParameter(ALLOW_NO_MATCH, stopRequest.getAllowNoMatch().toString());
+        }
+        if (stopRequest.getWaitForCheckpoint() != null) {
+            request.addParameter(WAIT_FOR_CHECKPOINT, stopRequest.getWaitForCheckpoint().toString());
         }
         request.addParameters(params.asMap());
         return request;

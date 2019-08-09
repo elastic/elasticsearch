@@ -81,7 +81,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
     public void cleanUpTransforms() throws Exception {
         for (String transformId : transformsToClean) {
             highLevelClient().dataFrame().stopDataFrameTransform(
-                    new StopDataFrameTransformRequest(transformId, Boolean.TRUE, TimeValue.timeValueSeconds(20)), RequestOptions.DEFAULT);
+                    new StopDataFrameTransformRequest(transformId, true, TimeValue.timeValueSeconds(20), false), RequestOptions.DEFAULT);
         }
 
         for (String transformId : transformsToClean) {

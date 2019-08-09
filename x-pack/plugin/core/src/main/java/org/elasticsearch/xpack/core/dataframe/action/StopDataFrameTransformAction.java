@@ -46,11 +46,17 @@ public class StopDataFrameTransformAction extends ActionType<StopDataFrameTransf
     public static class Request extends BaseTasksRequest<Request> {
         private final String id;
         private final boolean waitForCompletion;
+        private final boolean waitForCheckpoint;
         private final boolean force;
         private final boolean allowNoMatch;
         private Set<String> expandedIds;
 
-        public Request(String id, boolean waitForCompletion, boolean force, @Nullable TimeValue timeout, boolean allowNoMatch) {
+        public Request(String id,
+                       boolean waitForCompletion,
+                       boolean force,
+                       @Nullable TimeValue timeout,
+                       boolean allowNoMatch,
+                       boolean waitForCheckpoint) {
             this.id = ExceptionsHelper.requireNonNull(id, DataFrameField.ID.getPreferredName());
             this.waitForCompletion = waitForCompletion;
             this.force = force;
@@ -58,6 +64,7 @@ public class StopDataFrameTransformAction extends ActionType<StopDataFrameTransf
             // use the timeout value already present in BaseTasksRequest
             this.setTimeout(timeout == null ? DEFAULT_TIMEOUT : timeout);
             this.allowNoMatch = allowNoMatch;
+            this.waitForCheckpoint = waitForCheckpoint;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -72,6 +79,11 @@ public class StopDataFrameTransformAction extends ActionType<StopDataFrameTransf
                 this.allowNoMatch = in.readBoolean();
             } else {
                 this.allowNoMatch = true;
+            }
+            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+                this.waitForCheckpoint = in.readBoolean();
+            } else {
+                this.waitForCheckpoint = true;
             }
         }
 
@@ -99,6 +111,10 @@ public class StopDataFrameTransformAction extends ActionType<StopDataFrameTransf
             return allowNoMatch;
         }
 
+        public boolean isWaitForCheckpoint() {
+            return waitForCheckpoint;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
@@ -113,6 +129,9 @@ public class StopDataFrameTransformAction extends ActionType<StopDataFrameTransf
             if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
                 out.writeBoolean(allowNoMatch);
             }
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                out.writeBoolean(waitForCheckpoint);
+            }
         }
 
         @Override
@@ -123,7 +142,7 @@ public class StopDataFrameTransformAction extends ActionType<StopDataFrameTransf
         @Override
         public int hashCode() {
             // the base class does not implement hashCode, therefore we need to hash timeout ourselves
-            return Objects.hash(id, waitForCompletion, force, expandedIds, this.getTimeout(), allowNoMatch);
+            return Objects.hash(id, waitForCompletion, force, expandedIds, this.getTimeout(), allowNoMatch, waitForCheckpoint);
         }
 
         @Override
@@ -146,7 +165,8 @@ public class StopDataFrameTransformAction extends ActionType<StopDataFrameTransf
                     Objects.equals(waitForCompletion, other.waitForCompletion) &&
                     Objects.equals(force, other.force) &&
                     Objects.equals(expandedIds, other.expandedIds) &&
-                    allowNoMatch == other.allowNoMatch;
+                    allowNoMatch == other.allowNoMatch &&
+                    waitForCheckpoint == other.waitForCheckpoint;
         }
 
         @Override
@@ -157,7 +177,6 @@ public class StopDataFrameTransformAction extends ActionType<StopDataFrameTransf
                     return expandedIds.contains(id);
                 }
             }
-
             return false;
         }
     }

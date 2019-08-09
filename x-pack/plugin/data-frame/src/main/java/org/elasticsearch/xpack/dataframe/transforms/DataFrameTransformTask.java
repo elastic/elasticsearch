@@ -86,6 +86,8 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
     private final DataFrameAuditor auditor;
     private final DataFrameIndexerPosition initialPosition;
     private final IndexerState initialIndexerState;
+    // TODO should be obviated in 8.x with DataFrameTransformTaskState::STOPPING
+    private volatile boolean shouldStopAtCheckpoint = false;
 
     private final SetOnce<ClientDataFrameIndexer> indexer = new SetOnce<>();
 
@@ -149,23 +151,24 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
     }
 
     public DataFrameTransformState getState() {
-        if (getIndexer() == null) {
-            return new DataFrameTransformState(
-                taskState.get(),
+        return getIndexer() == null ?
+            new DataFrameTransformState(taskState.get(),
                 initialIndexerState,
                 initialPosition,
                 currentCheckpoint.get(),
                 stateReason.get(),
-                null);
-        } else {
-           return new DataFrameTransformState(
+                null,
+                null, //Node attributes
+                shouldStopAtCheckpoint) :
+           new DataFrameTransformState(
                taskState.get(),
                indexer.get().getState(),
                indexer.get().getPosition(),
                currentCheckpoint.get(),
                stateReason.get(),
-               getIndexer().getProgress());
-        }
+               getIndexer().getProgress(),
+               null, //Node attributes
+               shouldStopAtCheckpoint);
     }
 
     public DataFrameIndexerTransformStats getStats() {
@@ -237,6 +240,10 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 getTransformId()));
             return;
         }
+        if (shouldStopAtCheckpoint) {
+            listener.onFailure(new ElasticsearchException("Cannot start task for data frame transform [{}], " +
+                "because it is stopping at the next checkpoint.", transform.getId()));
+        }
         final IndexerState newState = getIndexer().start();
         if (Arrays.stream(RUNNING_STATES).noneMatch(newState::equals)) {
             listener.onFailure(new ElasticsearchException("Cannot start task for data frame transform [{}], because state was [{}]",
@@ -280,6 +287,34 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         ));
     }
 
+    /**
+     * This sets the flag for the task to stop at the next checkpoint.
+     *
+     * If first persists the flag to cluster state, and then mutates the local variable.
+     *
+     * It only persists to cluster state if the value is different than what is currently held in memory.
+     * @param shouldStopAtCheckpoint whether or not we should stop at the next checkpoint or not
+     * @param shouldStopAtCheckpointListener the listener to return to when we have persisted the updated value to cluster state.
+     */
+    public void setShouldStopAtCheckpoint(boolean shouldStopAtCheckpoint, ActionListener<Void> shouldStopAtCheckpointListener) {
+        DataFrameTransformState state = getState();
+        if (state.shouldStopAtCheckpoint() != shouldStopAtCheckpoint && state.getTaskState() != DataFrameTransformTaskState.FAILED) {
+            state.setShouldStopAtCheckoint(shouldStopAtCheckpoint);
+            persistStateToClusterState(state, ActionListener.wrap(
+                r -> {
+                    this.shouldStopAtCheckpoint = shouldStopAtCheckpoint;
+                    if (shouldStopAtCheckpoint) {
+                        stateReason.set("Transform is stopping at next checkpoint.");
+                    }
+                    shouldStopAtCheckpointListener.onResponse(null);
+                },
+                shouldStopAtCheckpointListener::onFailure
+            ));
+        } else {
+            shouldStopAtCheckpointListener.onResponse(null);
+        }
+    }
+
     public synchronized void stop() {
         if (getIndexer() == null) {
             // If there is no indexer the task has not been triggered
@@ -288,15 +323,19 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             return;
         }
 
-        if (getIndexer().getState() == IndexerState.STOPPED) {
+        if (getIndexer().getState() == IndexerState.STOPPED || getIndexer().getState() == IndexerState.STOPPING) {
             return;
         }
-
-        IndexerState state = getIndexer().stop();
-        stateReason.set(null);
-        if (state == IndexerState.STOPPED) {
-            getIndexer().onStop();
-            getIndexer().doSaveState(state, getIndexer().getPosition(), () -> {});
+        // shouldStopAtCheckpoint only comes into play when onFinish is called, if the indexerState is STARTED, that is a good
+        // indication that the indexer is not running and has previously finished a checkpoint, or has yet to even start one.
+        // Either way, this means that we won't get to have onFinish called down stream. We should just stop the indexer
+        if (this.shouldStopAtCheckpoint == false || getIndexer().getState() == IndexerState.STARTED) {
+            stateReason.set(null);
+            IndexerState state = getIndexer().stop();
+            if (state == IndexerState.STOPPED) {
+                getIndexer().onStop();
+                getIndexer().doSaveState(state, getIndexer().getPosition(), () -> {});
+            }
         }
     }
 
@@ -313,6 +352,18 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         }
 
         logger.debug("Data frame indexer [{}] schedule has triggered, state: [{}]", event.getJobName(), getIndexer().getState());
+        // If we are failed, don't trigger
+        if (taskState.get() == DataFrameTransformTaskState.FAILED) {
+            logger.debug("Schedule was triggered for transform [{}] but task is failed. Ignoring trigger.", getTransformId());
+            return;
+        }
+        // If we are stopped or stopping, don't trigger
+        if (getIndexer().getState() == IndexerState.STOPPING || getIndexer().getState() == IndexerState.STOPPED) {
+            logger.debug("Schedule was triggered for transform [{}] but indexer is [{}]. Ignoring trigger.",
+                getTransformId(),
+                getIndexer().getState());
+            return;
+        }
 
         // if it runs for the 1st time we just do it, if not we check for changes
         if (currentCheckpoint.get() == 0 ) {
@@ -379,6 +430,10 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             currentCheckpoint.get(),
             reason,
             getIndexer() == null ? null : getIndexer().getProgress());
+        // The idea of stopping at the next checkpoint is no longer valid. Since a failed task could potentially START again,
+        // we should set this flag to false.
+        // The end user should see that the task is in a failed state, and attempt to stop it again but with force=true
+        newState.setShouldStopAtCheckoint(false);
         // Even though the indexer information is persisted to an index, we still need DataFrameTransformTaskState in the clusterstate
         // This keeps track of STARTED, FAILED, STOPPED
         // This is because a FAILED state can occur because we cannot read the config from the internal index, which would imply that
@@ -387,12 +442,14 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             r -> {
                 taskState.set(DataFrameTransformTaskState.FAILED);
                 stateReason.set(reason);
+                shouldStopAtCheckpoint = false;
                 listener.onResponse(null);
             },
             e -> {
                 logger.error("Failed to set task state as failed to cluster state", e);
                 taskState.set(DataFrameTransformTaskState.FAILED);
                 stateReason.set(reason);
+                shouldStopAtCheckpoint = false;
                 listener.onFailure(e);
             }
         ));
@@ -824,6 +881,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 nextCheckpoint = null;
                 // Reset our failure count as we have finished and may start again with a new checkpoint
                 failureCount.set(0);
+                transformTask.stateReason.set(null);
 
                 // TODO: progress hack to get around bucket_selector filtering out buckets
                 // With bucket_selector we could have read all the buckets and completed the transform
@@ -841,6 +899,11 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 logger.debug(
                     "Finished indexing for data frame transform [" + transformTask.getTransformId() + "] checkpoint [" + checkpoint + "]");
                 auditBulkFailures = true;
+                // TODO should be obviated in 8.x with DataFrameTransformTaskState::STOPPING
+                if (transformTask.shouldStopAtCheckpoint) {
+                    stop();
+                    transformTask.shouldStopAtCheckpoint = false;
+                }
                 listener.onResponse(null);
             } catch (Exception e) {
                 listener.onFailure(e);

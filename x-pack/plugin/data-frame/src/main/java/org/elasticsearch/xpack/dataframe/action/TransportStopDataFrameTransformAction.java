@@ -131,8 +131,9 @@ public class TransportStopDataFrameTransformAction extends
     }
 
     @Override
-    protected void taskOperation(StopDataFrameTransformAction.Request request, DataFrameTransformTask transformTask,
-            ActionListener<StopDataFrameTransformAction.Response> listener) {
+    protected void taskOperation(StopDataFrameTransformAction.Request request,
+                                 DataFrameTransformTask transformTask,
+                                 ActionListener<StopDataFrameTransformAction.Response> listener) {
 
         Set<String> ids = request.getExpandedIds();
         if (ids == null) {
@@ -153,8 +154,15 @@ public class TransportStopDataFrameTransformAction extends
                 return;
             }
 
-            transformTask.stop();
-            listener.onResponse(new StopDataFrameTransformAction.Response(Boolean.TRUE));
+            // To cover strange state race conditions, we adjust the variable first (which writes to cluster state if it is different)
+            // then we stop the transform
+            transformTask.setShouldStopAtCheckpoint(request.isWaitForCheckpoint(), ActionListener.wrap(
+                r -> {
+                    transformTask.stop();
+                    listener.onResponse(new StopDataFrameTransformAction.Response(Boolean.TRUE));
+                },
+                listener::onFailure
+            ));
         } else {
             listener.onFailure(new RuntimeException("ID of data frame indexer task [" + transformTask.getTransformId()
                     + "] does not match request's ID [" + request.getId() + "]"));

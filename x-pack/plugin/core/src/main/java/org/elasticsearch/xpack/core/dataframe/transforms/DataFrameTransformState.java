@@ -43,6 +43,9 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
     @Nullable
     private NodeAttributes node;
 
+    // TODO: 8.x this needs to be deprecated and we move towards a STOPPING TASK_STATE
+    private boolean shouldStopAtCheckpoint;
+
     public static final ParseField TASK_STATE = new ParseField("task_state");
     public static final ParseField INDEXER_STATE = new ParseField("indexer_state");
 
@@ -53,6 +56,7 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
     public static final ParseField REASON = new ParseField("reason");
     public static final ParseField PROGRESS = new ParseField("progress");
     public static final ParseField NODE = new ParseField("node");
+
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<DataFrameTransformState, Void> PARSER = new ConstructingObjectParser<>(NAME,
@@ -93,7 +97,8 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
                                    long checkpoint,
                                    @Nullable String reason,
                                    @Nullable DataFrameTransformProgress progress,
-                                   @Nullable NodeAttributes node) {
+                                   @Nullable NodeAttributes node,
+                                   boolean shouldStopAtCheckpoint) {
         this.taskState = taskState;
         this.indexerState = indexerState;
         this.position = position;
@@ -101,6 +106,17 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
         this.reason = reason;
         this.progress = progress;
         this.node = node;
+        this.shouldStopAtCheckpoint = shouldStopAtCheckpoint;
+    }
+
+    public DataFrameTransformState(DataFrameTransformTaskState taskState,
+                                   IndexerState indexerState,
+                                   @Nullable DataFrameIndexerPosition position,
+                                   long checkpoint,
+                                   @Nullable String reason,
+                                   @Nullable DataFrameTransformProgress progress,
+                                   @Nullable NodeAttributes node) {
+        this(taskState, indexerState, position, checkpoint, reason, progress, node, false);
     }
 
     public DataFrameTransformState(DataFrameTransformTaskState taskState,
@@ -128,6 +144,9 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
             node = in.readOptionalWriteable(NodeAttributes::new);
         } else {
             node = null;
+        }
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            shouldStopAtCheckpoint = in.readBoolean();
         }
     }
 
@@ -162,6 +181,14 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
     public DataFrameTransformState setNode(NodeAttributes node) {
         this.node = node;
         return this;
+    }
+
+    public boolean shouldStopAtCheckpoint() {
+        return shouldStopAtCheckpoint;
+    }
+
+    public void setShouldStopAtCheckoint(boolean shouldStopAtCheckpoint) {
+        this.shouldStopAtCheckpoint = shouldStopAtCheckpoint;
     }
 
     public static DataFrameTransformState fromXContent(XContentParser parser) {
@@ -213,6 +240,9 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
         out.writeOptionalWriteable(progress);
         if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
             out.writeOptionalWriteable(node);
+        }
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeBoolean(shouldStopAtCheckpoint);
         }
     }
 

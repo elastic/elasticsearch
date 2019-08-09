@@ -85,7 +85,7 @@ public class TransportDeleteDataFrameTransformAction extends TransportMasterNode
                 executeAsyncWithOrigin(client,
                     DATA_FRAME_ORIGIN,
                     StopDataFrameTransformAction.INSTANCE,
-                    new StopDataFrameTransformAction.Request(request.getId(), true, true, null, true),
+                    new StopDataFrameTransformAction.Request(request.getId(), true, true, null, true, false),
                     ActionListener.wrap(
                         r -> stopTransformActionListener.onResponse(null),
                         stopTransformActionListener::onFailure));

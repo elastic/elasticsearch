@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.util.Locale;
 
 public enum DataFrameTransformTaskState implements Writeable {
+    // TODO 8.x add a `STOPPING` state and BWC handling in ::fromString
     STOPPED, STARTED, FAILED;
 
     public static DataFrameTransformTaskState fromString(String name) {

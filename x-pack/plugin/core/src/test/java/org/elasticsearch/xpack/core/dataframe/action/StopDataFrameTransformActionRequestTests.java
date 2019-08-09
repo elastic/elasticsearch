@@ -24,7 +24,12 @@ public class StopDataFrameTransformActionRequestTests extends AbstractWireSerial
     @Override
     protected Request createTestInstance() {
         TimeValue timeout = randomBoolean() ? TimeValue.timeValueMinutes(randomIntBetween(1, 10)) : null;
-        Request request = new Request(randomAlphaOfLengthBetween(1, 10), randomBoolean(), randomBoolean(), timeout, randomBoolean());
+        Request request = new Request(randomAlphaOfLengthBetween(1, 10),
+            randomBoolean(),
+            randomBoolean(),
+            timeout,
+            randomBoolean(),
+            randomBoolean());
         if (randomBoolean()) {
             request.setExpandedIds(new HashSet<>(Arrays.asList(generateRandomStringArray(5, 6, false))));
         }
@@ -41,9 +46,10 @@ public class StopDataFrameTransformActionRequestTests extends AbstractWireSerial
         boolean waitForCompletion = randomBoolean();
         boolean force = randomBoolean();
         boolean allowNoMatch = randomBoolean();
+        boolean waitForCheckpoint = randomBoolean();
 
-        Request r1 = new Request(id, waitForCompletion, force, TimeValue.timeValueSeconds(10), allowNoMatch);
-        Request r2 = new Request(id, waitForCompletion, force, TimeValue.timeValueSeconds(20), allowNoMatch);
+        Request r1 = new Request(id, waitForCompletion, force, TimeValue.timeValueSeconds(10), allowNoMatch, waitForCheckpoint);
+        Request r2 = new Request(id, waitForCompletion, force, TimeValue.timeValueSeconds(20), allowNoMatch, waitForCheckpoint);
 
         assertNotEquals(r1,r2);
         assertNotEquals(r1.hashCode(),r2.hashCode());
@@ -56,11 +62,11 @@ public class StopDataFrameTransformActionRequestTests extends AbstractWireSerial
                 DataFrameField.PERSISTENT_TASK_DESCRIPTION_PREFIX + dataFrameId,
                 TaskId.EMPTY_TASK_ID, Collections.emptyMap());
 
-        Request request = new Request("unrelated", false, false, null, false);
+        Request request = new Request("unrelated", false, false, null, false, false);
         request.setExpandedIds(Set.of("foo", "bar"));
         assertFalse(request.match(dataFrameTask));
 
-        Request matchingRequest = new Request(dataFrameId, false, false, null, false);
+        Request matchingRequest = new Request(dataFrameId, false, false, null, false, false);
         matchingRequest.setExpandedIds(Set.of(dataFrameId));
         assertTrue(matchingRequest.match(dataFrameTask));
 

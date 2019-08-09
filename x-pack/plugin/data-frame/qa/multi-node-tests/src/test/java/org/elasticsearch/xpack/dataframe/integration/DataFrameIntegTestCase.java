@@ -86,8 +86,17 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
     }
 
     protected StopDataFrameTransformResponse stopDataFrameTransform(String id) throws IOException {
+        return stopDataFrameTransform(id, true, null, false);
+    }
+
+    protected StopDataFrameTransformResponse stopDataFrameTransform(String id,
+                                                                    boolean waitForCompletion,
+                                                                    TimeValue timeout,
+                                                                    boolean waitForCheckpoint) throws IOException {
         RestHighLevelClient restClient = new TestRestHighLevelClient();
-        return restClient.dataFrame().stopDataFrameTransform(new StopDataFrameTransformRequest(id, true, null), RequestOptions.DEFAULT);
+        return restClient.dataFrame()
+            .stopDataFrameTransform(new StopDataFrameTransformRequest(id, waitForCompletion, timeout, waitForCheckpoint),
+                RequestOptions.DEFAULT);
     }
 
     protected StartDataFrameTransformResponse startDataFrameTransform(String id, RequestOptions options) throws IOException {
@@ -298,7 +307,7 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
                 .append("\"}");
             bulk.add(new IndexRequest().source(sourceBuilder.toString(), XContentType.JSON));
 
-            if (i % 50 == 0) {
+            if (i % 100 == 0) {
                 BulkResponse response = restClient.bulk(bulk, RequestOptions.DEFAULT);
                 assertThat(response.buildFailureMessage(), response.hasFailures(), is(false));
                 bulk = new BulkRequest(indexName);

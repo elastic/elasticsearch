@@ -147,7 +147,7 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
     public void cleanUpTransforms() throws Exception {
         for (String transformId : transformsToClean) {
             highLevelClient().dataFrame().stopDataFrameTransform(
-                    new StopDataFrameTransformRequest(transformId, Boolean.TRUE, null), RequestOptions.DEFAULT);
+                    new StopDataFrameTransformRequest(transformId, true, null, false), RequestOptions.DEFAULT);
         }
 
         for (String transformId : transformsToClean) {
@@ -310,7 +310,7 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         assertThat(taskState, oneOf(DataFrameTransformStats.State.STARTED, DataFrameTransformStats.State.INDEXING,
             DataFrameTransformStats.State.STOPPING, DataFrameTransformStats.State.STOPPED));
 
-        StopDataFrameTransformRequest stopRequest = new StopDataFrameTransformRequest(id, Boolean.TRUE, null);
+        StopDataFrameTransformRequest stopRequest = new StopDataFrameTransformRequest(id, true, null, false);
         StopDataFrameTransformResponse stopResponse =
                 execute(stopRequest, client::stopDataFrameTransform, client::stopDataFrameTransformAsync);
         assertTrue(stopResponse.isAcknowledged());

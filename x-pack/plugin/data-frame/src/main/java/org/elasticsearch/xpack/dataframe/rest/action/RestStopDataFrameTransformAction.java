@@ -32,13 +32,15 @@ public class RestStopDataFrameTransformAction extends BaseRestHandler {
         boolean waitForCompletion = restRequest.paramAsBoolean(DataFrameField.WAIT_FOR_COMPLETION.getPreferredName(), false);
         boolean force = restRequest.paramAsBoolean(DataFrameField.FORCE.getPreferredName(), false);
         boolean allowNoMatch = restRequest.paramAsBoolean(DataFrameField.ALLOW_NO_MATCH.getPreferredName(), false);
+        boolean waitForCheckpoint = restRequest.paramAsBoolean(DataFrameField.WAIT_FOR_CHECKPOINT.getPreferredName(), true);
 
 
         StopDataFrameTransformAction.Request request = new StopDataFrameTransformAction.Request(id,
             waitForCompletion,
             force,
             timeout,
-            allowNoMatch);
+            allowNoMatch,
+            waitForCheckpoint);
 
         return channel -> client.execute(StopDataFrameTransformAction.INSTANCE, request,
                 new RestToXContentListener<>(channel));

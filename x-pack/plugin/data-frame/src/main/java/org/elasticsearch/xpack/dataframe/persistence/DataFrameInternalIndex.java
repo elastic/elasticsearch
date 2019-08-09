@@ -270,8 +270,6 @@ public final class DataFrameInternalIndex {
             .endObject();
     }
 
-
-
     /**
      * Inserts "_meta" containing useful information like the version into the mapping
      * template.

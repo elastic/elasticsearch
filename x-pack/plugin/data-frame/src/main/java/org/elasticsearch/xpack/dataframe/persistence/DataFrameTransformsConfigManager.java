@@ -214,7 +214,7 @@ public class DataFrameTransformsConfigManager {
                     resultListener.onResponse(DataFrameTransformCheckpoint.EMPTY);
                     return;
                 }
-                BytesReference source =searchResponse.getHits().getHits()[0].getSourceRef();
+                BytesReference source = searchResponse.getHits().getHits()[0].getSourceRef();
                 parseCheckpointsLenientlyFromSource(source, transformId, resultListener);
             }, resultListener::onFailure));
     }
@@ -243,7 +243,7 @@ public class DataFrameTransformsConfigManager {
                             DataFrameMessages.getMessage(DataFrameMessages.REST_DATA_FRAME_UNKNOWN_TRANSFORM, transformId)));
                         return;
                     }
-                    BytesReference source =searchResponse.getHits().getHits()[0].getSourceRef();
+                    BytesReference source = searchResponse.getHits().getHits()[0].getSourceRef();
                     parseTransformLenientlyFromSource(source, transformId, resultListener);
                 }, resultListener::onFailure));
     }
@@ -413,7 +413,7 @@ public class DataFrameTransformsConfigManager {
                         DataFrameMessages.getMessage(DataFrameMessages.DATA_FRAME_UNKNOWN_TRANSFORM_STATS, transformId)));
                     return;
                 }
-                BytesReference source =searchResponse.getHits().getHits()[0].getSourceRef();
+                BytesReference source = searchResponse.getHits().getHits()[0].getSourceRef();
                 try (InputStream stream = source.streamInput();
                     XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                         .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)) {

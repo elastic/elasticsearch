@@ -34,9 +34,10 @@ public class BatsTestTask extends DefaultTask {
 
     private Directory testsDir;
     private Directory utilsDir;
-    private Directory archivesDir;
+    private Directory distributionsDir;
     private Directory pluginsDir;
     private Directory upgradeDir;
+
     private String packageName;
 
     @InputDirectory
@@ -58,12 +59,12 @@ public class BatsTestTask extends DefaultTask {
     }
 
     @InputDirectory
-    public Directory getArchivesDir() {
-        return archivesDir;
+    public Directory getDistributionsDir() {
+        return distributionsDir;
     }
 
-    public void setArchivesDir(Directory archivesDir) {
-        this.archivesDir = archivesDir;
+    public void setDistributionsDir(Directory distributionsDir) {
+        this.distributionsDir = distributionsDir;
     }
 
     @InputDirectory
@@ -104,7 +105,7 @@ public class BatsTestTask extends DefaultTask {
             .filter(f -> f.getName().endsWith(".bats"))
             .sorted().collect(Collectors.toList()));
         getProject().exec(spec -> {
-            spec.setWorkingDir(archivesDir.getAsFile());
+            spec.setWorkingDir(distributionsDir.getAsFile());
             spec.environment(System.getenv());
             spec.environment("BATS_TESTS", testsDir.getAsFile().toString());
             spec.environment("BATS_UTILS", utilsDir.getAsFile().toString());

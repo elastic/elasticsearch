@@ -30,7 +30,6 @@ import org.elasticsearch.gradle.Jdk;
 import org.elasticsearch.gradle.JdkDownloadPlugin;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
-import org.elasticsearch.gradle.tool.Boilerplate;
 import org.elasticsearch.gradle.vagrant.BatsProgressLogger;
 import org.elasticsearch.gradle.vagrant.VagrantBasePlugin;
 import org.elasticsearch.gradle.vagrant.VagrantExtension;
@@ -41,7 +40,6 @@ import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.file.Directory;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.api.plugins.JavaBasePlugin;
-import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.TaskInputs;
@@ -54,7 +52,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Random;
 import java.util.stream.Collectors;
 
@@ -67,51 +68,61 @@ public class DistroTestPlugin implements Plugin<Project> {
     private static final String GRADLE_JDK_VERSION = "12.0.1+12@69cfe15208a647278a19ef0990eea691";
 
     // all distributions used by distro tests. this is temporary until tests are per distribution
-    private static final String PACKAGING_CONFIGURATION = "packaging";
-    private static final String UPGRADE_CONFIGURATION = "packagingUpgrade";
+    private static final String DISTRIBUTIONS_CONFIGURATION = "distributions";
+    private static final String UPGRADE_CONFIGURATION = "upgradeDistributions";
     private static final String PLUGINS_CONFIGURATION = "packagingPlugins";
-    private static final String COPY_PACKAGING_TASK = "copyPackagingArchives";
-    private static final String COPY_UPGRADE_TASK = "copyUpgradeArchives";
+    private static final String COPY_DISTRIBUTIONS_TASK = "copyDistributions";
+    private static final String COPY_UPGRADE_TASK = "copyUpgradePackages";
     private static final String COPY_PLUGINS_TASK = "copyPlugins";
     private static final String IN_VM_SYSPROP = "tests.inVM";
 
-    private static Version upgradeVersion;
-    private Provider<Directory> archivesDir;
-    private Provider<Directory> upgradeDir;
-    private Provider<Directory> pluginsDir;
-    private TaskProvider<Copy> copyPackagingArchives;
-    private TaskProvider<Copy> copyUpgradeArchives;
-    private TaskProvider<Copy> copyPlugins;
-    private Jdk systemJdk;
-    private Jdk gradleJdk;
-
     @Override
     public void apply(Project project) {
-        project.getPluginManager().apply(JdkDownloadPlugin.class);
         project.getPluginManager().apply(DistributionDownloadPlugin.class);
-        project.getPluginManager().apply(VagrantBasePlugin.class);
-        project.getPluginManager().apply(JavaPlugin.class);
-        
-        configureVM(project);
+        project.getPluginManager().apply(BuildPlugin.class);
 
-        this.archivesDir = project.getParent().getLayout().getBuildDirectory().dir("packaging/archives");
-        this.upgradeDir = project.getParent().getLayout().getBuildDirectory().dir("packaging/upgrade");
-        this.pluginsDir = project.getParent().getLayout().getBuildDirectory().dir("packaging/plugins");
-        if (upgradeVersion == null) {
-            // just read this once, since it is the same for all projects. this is safe because gradle configuration is single threaded
-            upgradeVersion = getUpgradeVersion(project);
-        }
+        // TODO: it would be useful to also have the SYSTEM_JAVA_HOME setup in the root project, so that running from GCP only needs
+        // a java for gradle to run, and the tests are self sufficient and consistent with the java they use
 
-        // setup tasks to run inside VM
-        configureDistributions(project);
-        configureCopyPackagingTask(project);
-        configureCopyUpgradeTask(project);
-        configureCopyPluginsTask(project);
-        configureDistroTest(project);
-        configureBatsTest(project, "oss", null, null, copyPackagingArchives, systemJdk, gradleJdk);
-        configureBatsTest(project, "plugins", pluginsDir.get(), null, copyPackagingArchives, copyPlugins, systemJdk, gradleJdk);
-        configureBatsTest(project, "upgrade", null, upgradeDir.get(), copyPackagingArchives, copyUpgradeArchives, systemJdk, gradleJdk);
-        configureBatsTest(project, "default", null, null, copyPackagingArchives, systemJdk, gradleJdk);
+        Version upgradeVersion = getUpgradeVersion(project);
+        Provider<Directory> distributionsDir = project.getLayout().getBuildDirectory().dir("packaging/distributions");
+        Provider<Directory> upgradeDir = project.getLayout().getBuildDirectory().dir("packaging/upgrade");
+        Provider<Directory> pluginsDir = project.getLayout().getBuildDirectory().dir("packaging/plugins");
+
+        configureDistributions(project, upgradeVersion);
+        TaskProvider<Copy> copyDistributionsTask = configureCopyDistributionsTask(project, distributionsDir);
+        TaskProvider<Copy> copyUpgradeTask = configureCopyUpgradeTask(project, upgradeVersion, upgradeDir);
+        TaskProvider<Copy> copyPluginsTask = configureCopyPluginsTask(project, pluginsDir);
+
+        Map<String, TaskProvider<?>> distroTests = new HashMap<>();
+        Map<String, TaskProvider<?>> batsTests = new HashMap<>();
+        distroTests.put("distribution", configureDistroTest(project, distributionsDir, copyDistributionsTask));
+        batsTests.put("bats oss", configureBatsTest(project, "oss", distributionsDir, copyDistributionsTask));
+        batsTests.put("bats default", configureBatsTest(project, "default", distributionsDir, copyDistributionsTask));
+        configureBatsTest(project, "plugins",distributionsDir, copyDistributionsTask, copyPluginsTask).configure(t ->
+            t.setPluginsDir(pluginsDir.get())
+        );
+        configureBatsTest(project, "upgrade", distributionsDir, copyDistributionsTask, copyUpgradeTask).configure(t ->
+            t.setUpgradeDir(upgradeDir.get()));
+
+        project.subprojects(vmProject -> {
+            vmProject.getPluginManager().apply(VagrantBasePlugin.class);
+            vmProject.getPluginManager().apply(JdkDownloadPlugin.class);
+            List<Object> vmDependencies = new ArrayList<>(configureVM(vmProject));
+            // a hack to ensure the parent task has already been run. this will not be necessary once tests are per distribution
+            // which will eliminate the copy distributions task altogether
+            vmDependencies.add(copyDistributionsTask);
+            vmDependencies.add(project.getConfigurations().getByName("testRuntimeClasspath"));
+
+            distroTests.forEach((desc, task) -> configureVMWrapperTask(vmProject, desc, task.getName(), vmDependencies));
+            VagrantExtension vagrant = vmProject.getExtensions().getByType(VagrantExtension.class);
+            batsTests.forEach((desc, task) -> {
+                configureVMWrapperTask(vmProject, desc, task.getName(), vmDependencies).configure(t -> {
+                    t.setProgressHandler(new BatsProgressLogger(project.getLogger()));
+                    t.onlyIf(spec -> vagrant.isWindowsVM() == false); // bats doesn't run on windows
+                });
+            });
+        });
     }
 
     private static Jdk createJdk(NamedDomainObjectContainer<Jdk> jdksContainer, String name, String version, String platform) {
@@ -143,15 +154,15 @@ public class DistroTestPlugin implements Plugin<Project> {
         return indexCompatVersions.get(new Random(seed).nextInt(indexCompatVersions.size()));
     }
 
-    private void configureVM(Project project) {
+    private static List<Object> configureVM(Project project) {
         String box = project.getName();
 
         // setup jdks used by the distro tests, and by gradle executing
         
         NamedDomainObjectContainer<Jdk> jdksContainer = JdkDownloadPlugin.getContainer(project);
         String platform = box.contains("windows") ? "windows" : "linux";
-        this.systemJdk = createJdk(jdksContainer, "system", SYSTEM_JDK_VERSION, platform);
-        this.gradleJdk = createJdk(jdksContainer, "gradle", GRADLE_JDK_VERSION, platform);
+        Jdk systemJdk = createJdk(jdksContainer, "system", SYSTEM_JDK_VERSION, platform);
+        Jdk gradleJdk = createJdk(jdksContainer, "gradle", GRADLE_JDK_VERSION, platform);
 
         // setup VM used by these tests
         VagrantExtension vagrant = project.getExtensions().getByType(VagrantExtension.class);
@@ -159,6 +170,8 @@ public class DistroTestPlugin implements Plugin<Project> {
         vagrant.vmEnv("SYSTEM_JAVA_HOME", convertPath(project, vagrant, systemJdk, "", ""));
         vagrant.vmEnv("PATH", convertPath(project, vagrant, gradleJdk, "/bin:$PATH", "\\bin;$Env:PATH"));
         vagrant.setIsWindowsVM(box.contains("windows"));
+
+        return Arrays.asList(systemJdk, gradleJdk);
     }
 
     private static Object convertPath(Project project, VagrantExtension vagrant, Jdk jdk,
@@ -174,12 +187,13 @@ public class DistroTestPlugin implements Plugin<Project> {
         };
     }
 
-    private void configureCopyPackagingTask(Project project) {
-        // temporarily on the parent, until we have tasks per distribution
-        this.copyPackagingArchives = Boilerplate.maybeRegister(project.getParent().getTasks(), COPY_PACKAGING_TASK, Copy.class,
+    private static TaskProvider<Copy> configureCopyDistributionsTask(Project project, Provider<Directory> archivesDir) {
+
+        // temporary, until we have tasks per distribution
+        return project.getTasks().register(COPY_DISTRIBUTIONS_TASK, Copy.class,
             t -> {
                 t.into(archivesDir);
-                t.from(project.getParent().getConfigurations().getByName(PACKAGING_CONFIGURATION));
+                t.from(project.getParent().getConfigurations().getByName(DISTRIBUTIONS_CONFIGURATION));
 
                 Path archivesPath = archivesDir.get().getAsFile().toPath();
                 TaskInputs inputs = t.getInputs();
@@ -194,9 +208,10 @@ public class DistroTestPlugin implements Plugin<Project> {
         });
     }
 
-    private void configureCopyUpgradeTask(Project project) {
+    private static TaskProvider<Copy> configureCopyUpgradeTask(Project project, Version upgradeVersion,
+                                                               Provider<Directory> upgradeDir) {
         // temporary, until we have tasks per distribution
-        this.copyUpgradeArchives = Boilerplate.maybeRegister(project.getParent().getTasks(), COPY_UPGRADE_TASK, Copy.class,
+        return project.getTasks().register(COPY_UPGRADE_TASK, Copy.class,
             t -> {
                 t.into(upgradeDir);
                 t.from(project.getParent().getConfigurations().getByName(UPGRADE_CONFIGURATION));
@@ -228,77 +243,61 @@ public class DistroTestPlugin implements Plugin<Project> {
             });
     }
 
-    private void configureCopyPluginsTask(Project project) {
-        Configuration pluginsConfiguration = project.getParent().getConfigurations().maybeCreate(PLUGINS_CONFIGURATION);
+    private static TaskProvider<Copy> configureCopyPluginsTask(Project project, Provider<Directory> pluginsDir) {
+        Configuration pluginsConfiguration = project.getConfigurations().create(PLUGINS_CONFIGURATION);
 
         // temporary, until we have tasks per distribution
-        this.copyPlugins = Boilerplate.maybeRegister(project.getParent().getTasks(), COPY_PLUGINS_TASK, Copy.class,
+        return project.getTasks().register(COPY_PLUGINS_TASK, Copy.class,
             t -> {
                 t.into(pluginsDir);
                 t.from(pluginsConfiguration);
             });
     }
 
-    private void configureDistroTest(Project project) {
-        BuildPlugin.configureCompile(project);
-        BuildPlugin.configureRepositories(project);
-        BuildPlugin.configureTestTasks(project);
-        BuildPlugin.configureInputNormalization(project);
-
-        TaskProvider<Test> destructiveTest = project.getTasks().register("destructiveDistroTest", Test.class,
-            t -> {
-                t.setMaxParallelForks(1);
-                t.setWorkingDir(archivesDir.get());
-                if (System.getProperty(IN_VM_SYSPROP) == null) {
-                    t.dependsOn(copyPackagingArchives, systemJdk, gradleJdk);
-                }
-            });
-
-        // setup outer task to run
-        project.getTasks().register("distroTest", GradleDistroTestTask.class,
+    private static TaskProvider<GradleDistroTestTask> configureVMWrapperTask(Project project, String type, String destructiveTaskPath,
+                                                                             List<Object> dependsOn) {
+        int taskNameStart = destructiveTaskPath.lastIndexOf(':') + "destructive".length() + 1;
+        String taskname = destructiveTaskPath.substring(taskNameStart);
+        taskname = taskname.substring(0, 1).toLowerCase(Locale.ROOT) + taskname.substring(1);
+        return project.getTasks().register(taskname, GradleDistroTestTask.class,
             t -> {
                 t.setGroup(JavaBasePlugin.VERIFICATION_GROUP);
-                t.setDescription("Runs distribution tests within vagrant");
-                t.setTaskName(project.getPath() + ":" + destructiveTest.getName());
+                t.setDescription("Runs " + type + " tests within vagrant");
+                t.setTaskName(destructiveTaskPath);
                 t.extraArg("-D'" + IN_VM_SYSPROP + "'");
-                t.dependsOn(copyPackagingArchives, systemJdk, gradleJdk);
+                t.dependsOn(dependsOn);
             });
     }
 
-    private void configureBatsTest(Project project, String type, Directory pluginsDir, Directory upgradeDir, Object... deps) {
-
-        // destructive task to run inside
-        TaskProvider<BatsTestTask> destructiveTest = project.getTasks().register("destructiveBatsTest." + type, BatsTestTask.class,
+    private static TaskProvider<?> configureDistroTest(Project project, Provider<Directory> distributionsDir,
+                                                       TaskProvider<Copy> copyPackagingArchives) {
+        // TODO: don't ruin with security manager...
+        return project.getTasks().register("destructiveDistroTest", Test.class,
             t -> {
-                // this is hacky for shared source, but bats are a temporary thing we are removing, so it is not worth
-                // the overhead of a real project dependency
-                Directory batsDir = project.getParent().getLayout().getProjectDirectory().dir("bats");
+                t.setMaxParallelForks(1);
+                t.setWorkingDir(distributionsDir.get());
+                if (System.getProperty(IN_VM_SYSPROP) == null) {
+                    t.dependsOn(copyPackagingArchives);
+                }
+            });
+    }
+
+    private static TaskProvider<BatsTestTask> configureBatsTest(Project project, String type, Provider<Directory> distributionsDir,
+                                                                TaskProvider<Copy> copyPackagingArchives, Object... deps) {
+        return project.getTasks().register("destructiveBatsTest." + type, BatsTestTask.class,
+            t -> {
+                Directory batsDir = project.getLayout().getProjectDirectory().dir("bats");
                 t.setTestsDir(batsDir.dir(type));
                 t.setUtilsDir(batsDir.dir("utils"));
-                t.setArchivesDir(archivesDir.get());
-                t.setPluginsDir(pluginsDir);
-                t.setUpgradeDir(upgradeDir);
+                t.setDistributionsDir(distributionsDir.get());
                 t.setPackageName("elasticsearch" + (type.equals("oss") ? "-oss" : ""));
                 if (System.getProperty(IN_VM_SYSPROP) == null) {
                     t.dependsOn(deps);
                 }
             });
-
-        VagrantExtension vagrant = project.getExtensions().getByType(VagrantExtension.class);
-        // setup outer task to run
-        project.getTasks().register("batsTest." + type, GradleDistroTestTask.class,
-            t -> {
-                t.setGroup(JavaBasePlugin.VERIFICATION_GROUP);
-                t.setDescription("Runs bats tests within vagrant");
-                t.setTaskName(project.getPath() + ":" + destructiveTest.getName());
-                t.setProgressHandler(new BatsProgressLogger(project.getLogger()));
-                t.extraArg("-D'" + IN_VM_SYSPROP + "'");
-                t.dependsOn(deps);
-                t.onlyIf(spec -> vagrant.isWindowsVM() == false); // bats doesn't run on windows
-            });
     }
     
-    private void configureDistributions(Project project) {
+    private void configureDistributions(Project project, Version upgradeVersion) {
         NamedDomainObjectContainer<ElasticsearchDistribution> distributions = DistributionDownloadPlugin.getContainer(project);
         List<ElasticsearchDistribution> currentDistros = new ArrayList<>();
         List<ElasticsearchDistribution> upgradeDistros = new ArrayList<>();
@@ -327,7 +326,7 @@ public class DistroTestPlugin implements Plugin<Project> {
         }
 
         // temporary until distro tests have one test per distro
-        Configuration packagingConfig = project.getParent().getConfigurations().maybeCreate(PACKAGING_CONFIGURATION);
+        Configuration packagingConfig = project.getParent().getConfigurations().maybeCreate(DISTRIBUTIONS_CONFIGURATION);
         List<Configuration> distroConfigs = currentDistros.stream().map(ElasticsearchDistribution::getConfiguration)
             .collect(Collectors.toList());
         packagingConfig.setExtendsFrom(distroConfigs);

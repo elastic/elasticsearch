@@ -56,7 +56,7 @@ public class TransportGetDataFrameTransformsAction extends AbstractTransportGetR
 
     @Override
     protected String[] getIndices() {
-        return new String[]{DataFrameInternalIndex.LATEST_INDEX_NAME};
+        return new String[]{DataFrameInternalIndex.INDEX_NAME_PATTERN};
     }
 
     @Override

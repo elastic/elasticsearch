@@ -257,9 +257,7 @@ public final class DataFrameInternalIndex {
             .endObject()
             .startObject(DataFrameField.CREATE_TIME.getPreferredName())
                 .field(TYPE, DATE)
-            .endObject()
-
-            ;
+            .endObject();
     }
 
     private static XContentBuilder addDataFrameCheckpointMappings(XContentBuilder builder) throws IOException {

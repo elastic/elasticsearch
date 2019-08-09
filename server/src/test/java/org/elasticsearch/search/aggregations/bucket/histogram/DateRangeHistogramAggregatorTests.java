@@ -387,6 +387,63 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
         );
     }
 
+
+    public void testMinDocCount() throws Exception {
+        RangeFieldMapper.Range range1 = new RangeFieldMapper.Range(RangeType.DATE, asLong("2019-08-01T12:14:36"),
+            asLong("2019-08-01T15:07:22"), true, true);
+        RangeFieldMapper.Range range2 = new RangeFieldMapper.Range(RangeType.DATE, asLong("2019-08-02T12:14:36"),
+            asLong("2019-08-02T15:07:22"), true, true);
+        RangeFieldMapper.Range range3 = new RangeFieldMapper.Range(RangeType.DATE, asLong("2019-08-02T12:14:36"),
+            asLong("2019-08-02T15:07:22"), true, true);
+        RangeFieldMapper.Range range4 = new RangeFieldMapper.Range(RangeType.DATE, asLong("2019-08-02T12:14:36"),
+            asLong("2019-08-03T15:07:22"), true, true);
+
+        // Guard case, make sure the agg buckets as expected without min doc count
+        testCase(
+            new MatchAllDocsQuery(),
+            builder -> builder.calendarInterval(DateHistogramInterval.DAY),
+            writer -> {
+                writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range1)))));
+                writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range2)))));
+                writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range3)))));
+                writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range4)))));
+            },
+            histo -> {
+                assertEquals(3, histo.getBuckets().size());
+
+                assertEquals(asZDT("2019-08-01T00:00:00"), histo.getBuckets().get(0).getKey());
+                assertEquals(1, histo.getBuckets().get(0).getDocCount());
+
+                assertEquals(asZDT("2019-08-02T00:00:00"), histo.getBuckets().get(1).getKey());
+                assertEquals(3, histo.getBuckets().get(1).getDocCount());
+
+                assertEquals(asZDT("2019-08-03T00:00:00"), histo.getBuckets().get(2).getKey());
+                assertEquals(1, histo.getBuckets().get(2).getDocCount());
+
+                assertTrue(AggregationInspectionHelper.hasValue(histo));
+            }
+        );
+
+        testCase(
+            new MatchAllDocsQuery(),
+            builder -> builder.calendarInterval(DateHistogramInterval.DAY).minDocCount(2),
+            writer -> {
+                writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range1)))));
+                writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range2)))));
+                writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range3)))));
+                writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range4)))));
+            },
+            histo -> {
+                assertEquals(1, histo.getBuckets().size());
+
+                assertEquals(asZDT("2019-08-02T00:00:00"), histo.getBuckets().get(0).getKey());
+                assertEquals(3, histo.getBuckets().get(0).getDocCount());
+
+                assertTrue(AggregationInspectionHelper.hasValue(histo));
+            }
+        );
+    }
+
     private void testCase(Query query,
                           Consumer<DateHistogramAggregationBuilder> configure,
                           CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
@@ -411,16 +468,13 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
         IndexReader indexReader = DirectoryReader.open(directory);
         IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
-        DateRangeHistogramAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher,
-            fieldType);
-        aggregator.preCollection();
-        indexSearcher.search(query, aggregator);
-        aggregator.postCollection();
-        verify.accept((InternalDateHistogram) aggregator.buildAggregation(0L));
+        InternalDateHistogram histogram = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldType);
+        verify.accept(histogram);
 
         indexReader.close();
         directory.close();
     }
+
     private static long asLong(String dateTime) {
         return DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(dateTime)).toInstant().toEpochMilli();
     }

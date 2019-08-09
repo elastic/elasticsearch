@@ -16,6 +16,8 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -84,4 +86,10 @@ public class TransportGetDataFrameTransformsAction extends AbstractTransportGetR
     protected QueryBuilder additionalQuery() {
         return QueryBuilders.termQuery(INDEX_DOC_TYPE.getPreferredName(), DataFrameTransformConfig.NAME);
     }
+
+    @Override
+    protected SearchSourceBuilder customSearchOptions(SearchSourceBuilder searchSourceBuilder) {
+        return searchSourceBuilder.sort("_index", SortOrder.DESC);
+    }
+
 }

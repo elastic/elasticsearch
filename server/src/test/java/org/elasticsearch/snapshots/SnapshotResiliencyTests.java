@@ -188,7 +188,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -269,7 +268,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
         createIndexResponseStepListener.whenComplete(createIndexResponse -> {
             final Runnable afterIndexing = () -> masterNode.client.admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
                 .setWaitForCompletion(true).execute(createSnapshotResponseListener);
-            final AtomicInteger countdown = new AtomicInteger(documents);
             if (documents == 0) {
                 afterIndexing.run();
             } else {
@@ -281,9 +279,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 masterNode.client.bulk(bulkRequest, bulkResponseStepListener);
                 bulkResponseStepListener.whenComplete(bulkResponse -> {
                     assertFalse("Failures in bulk response: " + bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
-                    if (countdown.addAndGet(-bulkResponse.getItems().length) == 0) {
-                        afterIndexing.run();
-                    }
+                    assertEquals(documents, bulkResponse.getItems().length);
+                    afterIndexing.run();
                 }, SnapshotResiliencyTests::rethrowAssertion);
             }
         }, SnapshotResiliencyTests::rethrowAssertion);

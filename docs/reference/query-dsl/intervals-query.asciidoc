@@ -123,9 +123,10 @@ unstemmed ones.
 ==== `prefix` rule parameters
 
 The `prefix` rule matches terms that start with a specified set of characters.
-This prefix can expand to match at most 128 terms. If the prefix matches more than
-128 terms, {es} returns an error. You can use the
-<<index-prefixes,`index-prefixes`>> option to avoid this limit.
+This prefix can expand to match at most 128 terms. If the prefix matches more
+than 128 terms, {es} returns an error. You can use the
+<<index-prefixes,`index-prefixes`>> option in the field mapping to avoid this
+limit.
 
 `prefix`::
 (Required, string) Beginning characters of terms you wish to find in the

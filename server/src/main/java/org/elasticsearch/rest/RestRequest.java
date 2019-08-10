@@ -97,6 +97,27 @@ public class RestRequest implements ToXContent.Params {
             restRequest.getHttpRequest(), restRequest.getHttpChannel());
     }
 
+    public static RestRequest maybeSafeCopy(RestRequest request) {
+        if (request.httpRequest.isPooled() == false) {
+            return request;
+        }
+        final HttpRequest copiedHttpRequest = request.httpRequest.releaseAndCopy();
+        assert copiedHttpRequest != request.httpRequest : "Should not copy rest request if http request does not need safe copying";
+        final Map<String, String> remainingParams;
+        if (request.params.size() == request.consumedParams.size()) {
+            remainingParams = Collections.emptyMap();
+        } else {
+            remainingParams = new HashMap<>();
+            for (Map.Entry<String, String> paramEntry : request.params.entrySet()) {
+                if (request.consumedParams.contains(paramEntry.getKey()) == false) {
+                    remainingParams.put(paramEntry.getKey(), paramEntry.getValue());
+                }
+            }
+        }
+        return new RestRequest(
+            request.xContentRegistry, remainingParams, request.rawPath(), request.headers, copiedHttpRequest, request.httpChannel);
+    }
+
     /**
      * Creates a new REST request. This method will throw {@link BadParameterException} if the path cannot be
      * decoded

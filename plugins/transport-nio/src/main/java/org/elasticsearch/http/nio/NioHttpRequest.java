@@ -19,6 +19,8 @@
 
 package org.elasticsearch.http.nio;
 
+import io.netty.buffer.Unpooled;
+import io.netty.buffer.UnpooledHeapByteBuf;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.DefaultHttpHeaders;
 import io.netty.handler.codec.http.FullHttpRequest;
@@ -121,6 +123,22 @@ public class NioHttpRequest implements HttpRequest {
         if (released.compareAndSet(false, true)) {
             request.release();
         }
+    }
+
+    @Override
+    public HttpRequest releaseAndCopy() {
+        try {
+            return new NioHttpRequest(
+                new DefaultFullHttpRequest(request.protocolVersion(), request.method(), request.uri(),
+                    Unpooled.copiedBuffer(request.content()), request.headers(), request.trailingHeaders()), sequence);
+        } finally {
+            release();
+        }
+    }
+
+    @Override
+    public boolean isPooled() {
+        return request.content() instanceof UnpooledHeapByteBuf == false;
     }
 
     @Override

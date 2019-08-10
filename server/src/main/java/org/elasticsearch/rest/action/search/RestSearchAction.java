@@ -307,4 +307,9 @@ public class RestSearchAction extends BaseRestHandler {
     protected Set<String> responseParams() {
         return RESPONSE_PARAMS;
     }
+
+    @Override
+    public boolean allowsUnsafeRequest() {
+        return true;
+    }
 }

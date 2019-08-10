@@ -47,4 +47,8 @@ public interface RestHandler {
     default boolean supportsContentStream() {
         return false;
     }
+
+    default boolean allowsUnsafeRequest() {
+        return false;
+    }
 }

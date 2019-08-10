@@ -11,7 +11,7 @@ end::cat-h[]
 
 tag::flat-settings[]
 `flat_settings`::
-(Optional, boolean) If `true`, returns settings in flat format. Defaults to 
+(Optional, boolean) If `true`, returns settings in flat format. Defaults to
 `false`.
 end::flat-settings[]
 
@@ -69,6 +69,19 @@ tag::cat-v[]
 (Optional, boolean) If `true`, the response includes column headings. Defaults
 to `false`.
 end::cat-v[]
+
+tag::doc-version[]
+`version`::
+(Optional, integer) Explicit version number for concurrency control.
+The specified version must match the current version of the document for the
+request to succeed.
+end::doc-version[]
+
+tag::doc-version-type[]
+`version_type`::
+(Optional, enum) Specific version type: `internal`, `external`,
+`external_gte`, `force`.
+end::doc-version-type[]
 
 tag::timeoutparms[]
 

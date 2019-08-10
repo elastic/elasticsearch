@@ -37,21 +37,38 @@ POST request.
 [[docs--api-query-params]]
 ==== {api-query-parms-title}
 
-`if_seq_no`:: (Optional, integer) Only update the document if it has this
+`if_seq_no`::
+(Optional, integer) Only update the document if it has this
 sequence number. See <<optimistic-concurrency-control-index>>.
 
-`if_primary_term`:: (Optional, integer) Only update the document if it has
+`if_primary_term`::
+(Optional, integer) Only update the document if it has
 this primary term. See <<optimistic-concurrency-control-index>>.
 
-`op_type`:: (Optional, string) Set to `create` to only index the document
+`op_type`::
+(Optional, enum) Set to `create` to only index the document
 if it does not already exist (_put if absent_). If a document with the specified
-`_id` already exists, the indexing operation will fail. (Same as using the
-`<index>/_create` endpoint.)
+`_id` already exists, the indexing operation will fail. Same as using the
+`<index>/_create` endpoint. Valid values: `index`, `create`. Default: `index`.
 
-`routing`:: (Optional, string) Index to the specified primary shard. See
+include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-pipeline]
+
+`refresh`::
+(Optional, enum) If `true` then refresh the affected shards to make this
+operation visible to search, if `wait_for` then wait for a refresh to make this operation visible to search, if `false` do nothing with refreshes. Valid values: `true`, `false`, `wait_for`. Default: `false`.
+
+`routing`::
+(Optional, string) Index to the specified primary shard. See
 <<index-routing>>.
 
-`wait_for_active_shards`:: (Optional, string) Wait for the document to be
+include::{docdir}/rest-api/common-parms.asciidoc[tag=timeout]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-version]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-version-type]
+
+`wait_for_active_shards`::
+(Optional, string) Wait for the document to be
 added to the specified number of shards before returning. Set to `all`
 or any positive integer up to the total number of shards in the index (`number_of_replicas+1`). See <<index-wait-for-active-shards>>.
 
@@ -65,38 +82,49 @@ data.
 [[docs-index-api-response-body]]
 ==== {api-response-body-title}
 
-`_shards`:: Provides information about the replication process of the index
-operation.
+`_shards`::
+Provides information about the replication process of the index operation.
 
-`_shards.total`:: Indicates how many shard copies (primary and replica shards) the index operation should be executed on.
+`_shards.total`::
+Indicates how many shard copies (primary and replica shards) the index operation
+should be executed on.
 
-`_shards.successful`:: Indicates the number of shard copies the index operation
-succeeded on. When the index operation is successful, `successful` is at least 1.
+`_shards.successful`::
+Indicates the number of shard copies the index operation succeeded on.
+When the index operation is successful, `successful` is at least 1.
 +
 NOTE: Replica shards might not all be started when an indexing operation
 returns successfully--by default, only the primary is required. Set
 `wait_for_active_shards` to change this default behavior. See
 <<index-wait-for-active-shards>>.
 
-`_shards.failed`:: An array that contains replication-related errors in the case an index operation failed on a replica shard. 0 indicates there were no failures.
+`_shards.failed`::
+An array that contains replication-related errors in the case an index operation
+failed on a replica shard. 0 indicates there were no failures.
 
-`_index`:: The name of the index the document was added to.
+`_index`::
+The name of the index the document was added to.
 
-`_type`:: The document type. {es} indices now support a single document type,
-`_doc`.
+`_type`::
+The document type. {es} indices now support a single document type, `_doc`.
 
-`_id`:: The unique identifier for the added document.
+`_id`::
+The unique identifier for the added document.
 
-`_version`:: The document version. Incremented each time the document is updated.
+`_version`::
+The document version. Incremented each time the document is updated.
 
-`_seq_no`:: The sequence number assigned to the document for the indexing
-operation. Sequence numbers are used to ensure an older version of a document
+`_seq_no`::
+The sequence number assigned to the document for the indexing operation.
+Sequence numbers are used to ensure an older version of a document
 doesn’t overwrite a newer version. See <<optimistic-concurrency-control-index>>.
 
-`_primary_term`:: The primary term assigned to the document for the indexing
-operation. See <<optimistic-concurrency-control-index>>.
+`_primary_term`::
+The primary term assigned to the document for the indexing operation.
+See <<optimistic-concurrency-control-index>>.
 
-`result`:: The result of the indexing operation, `created` or `updated`.
+`result`::
+The result of the indexing operation, `created` or `updated`.
 
 [[docs-index-api-example]]
 ==== {api-examples-title}

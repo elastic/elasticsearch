@@ -37,13 +37,9 @@ be performed on (default: random).
 (Optional, boolean) Set to `false` to disable real time GET
 (default: `true`). See <<realtime>>.
 
-`refresh`::
-(Optional, boolean) Whether or not to refresh the shard that
-contains the document before performing the operation (default: `true`).
+include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-refresh]
 
-`routing`::
-(Optional) Retrieve the explicit routing, if specified.
-See <<index-routing>>.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-routing]
 
 `stored_fields`::
 (Optional, boolean) Set to `true` to retrieve the document fields stored in the
@@ -60,16 +56,9 @@ you want to retrieve.
 `_source_includes`::
 (Optional, list) Specify the source fields you want to retrieve.
 
+include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-version]
 
-`version`::
-(Optional, integer) Explicit version number for concurrency control.
-The specified version must match the current version of the document for the
-request to succeed.
-
-`version_type`::
-(Optional, string) Specific version type: `internal`, `external`,
-`external_gte`, `force`.
-
+include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-version-type]
 
 [[docs-get-api-response-body]]
 ==== {api-response-body-title}

@@ -215,16 +215,15 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
         RestChannel responseChannel = channel;
         try {
-            final boolean copiesRequest = handler.allowsUnsafeRequest() == false;
-            final int contentMemoryUsed = copiesRequest ? 2 * contentLength : contentLength;
             if (handler.canTripCircuitBreaker()) {
-                inFlightRequestsBreaker(circuitBreakerService).addEstimateBytesAndMaybeBreak(contentMemoryUsed, "<http_request>");
+                inFlightRequestsBreaker(circuitBreakerService).addEstimateBytesAndMaybeBreak(contentLength, "<http_request>");
             } else {
-                inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(contentMemoryUsed);
+                inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(contentLength);
             }
             // iff we could reserve bytes for the request we need to send the response also over this channel
-            responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentMemoryUsed);
-            if (copiesRequest) {
+            responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength);
+            if (handler.allowsUnsafeRequest() == false) {
+                // TODO: Count requests double in the circuit breaker if they need copying?
                 request = RestRequest.maybeSafeCopy(request);
             }
             handler.handleRequest(request, responseChannel, client);

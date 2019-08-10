@@ -20,22 +20,20 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
-import java.util.ArrayList;
 
-public class InboundThing {
+public class InboundDecoder {
 
-    private final TcpChannel tcpChannel;
-    private final TcpTransport tcpTransport;
-    private int messageLength = -1;
-    private MessageHeader currentHeader;
-    private final ArrayList<ReleasableBytesReference> content = new ArrayList<>();
+    private final InboundAggregator aggregator;
+    private TransportDecompressor decompressor;
+    private int networkMessageSize = -1;
 
-    public InboundThing(TcpChannel tcpChannel, TcpTransport tcpTransport) {
-        this.tcpChannel = tcpChannel;
-        this.tcpTransport = tcpTransport;
+    public InboundDecoder(InboundAggregator aggregator) {
+        this.aggregator = aggregator;
     }
 
     public int handle(ReleasableBytesReference releasable) throws IOException {
@@ -45,15 +43,16 @@ public class InboundThing {
                 releasable.close();
                 return 0;
             } else if (expectedLength == 0) {
-                tcpTransport.inboundMessage(tcpChannel, releasable.getReference().slice(0, 6));
+                aggregator.pingReceived(releasable.getReference().slice(0, 6));
                 releasable.close();
                 return 6;
             } else {
+                networkMessageSize = expectedLength;
                 if (releasable.getReference().length() < TcpHeader.HEADER_SIZE) {
                     releasable.close();
-                    return 0;
+                    return 6;
                 } else {
-                    messageLength = expectedLength;
+
                 }
             }
         }
@@ -61,18 +60,29 @@ public class InboundThing {
         return releasable.getReference().length();
     }
 
-    private boolean isOnHeader() {
-        return messageLength == -1;
+    private Header parseHeader(BytesReference bytesReference) throws IOException {
+        try (StreamInput streamInput = bytesReference.streamInput()) {
+            long requestId = streamInput.readLong();
+            byte status = streamInput.readByte();
+            Version remoteVersion = Version.fromId(streamInput.readInt());
+            return new Header(requestId, status, remoteVersion);
+        }
     }
 
-    private static class MessageHeader {
+    private boolean isOnHeader() {
+        return networkMessageSize == -1;
+    }
+
+    public static class Header {
 
         private final Version version;
         private final long requestId;
+        private final byte status;
 
-        private MessageHeader(Version version, long requestId) {
+        private Header(long requestId, byte status, Version version) {
             this.version = version;
             this.requestId = requestId;
+            this.status = status;
         }
     }
 }

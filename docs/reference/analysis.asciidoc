@@ -32,6 +32,7 @@ to the inverted index:
 ------
 
 [float]
+[[specify-index-time-analyzer]]
 === Specifying an index time analyzer
 
 Each <<text,`text`>> field in a mapping can specify its own

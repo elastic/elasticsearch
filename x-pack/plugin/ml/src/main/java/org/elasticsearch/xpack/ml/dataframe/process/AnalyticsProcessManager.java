@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.dataframe.process;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.client.Client;
@@ -17,7 +16,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
-import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.TransportStartDataFrameAnalyticsAction.DataFrameAnalyticsTask;
@@ -28,6 +26,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
@@ -114,7 +113,7 @@ public class AnalyticsProcessManager {
                 finishHandler.accept(null);
             } else {
                 LOGGER.error("[{}] Marking task failed; {}", config.getId(), processContext.getFailureReason());
-                updateTaskState(task, DataFrameAnalyticsState.FAILED, processContext.getFailureReason());
+                task.updateState(DataFrameAnalyticsState.FAILED, processContext.getFailureReason());
             }
         }
     }
@@ -176,14 +175,6 @@ public class AnalyticsProcessManager {
         };
     }
 
-    private void updateTaskState(DataFrameAnalyticsTask task, DataFrameAnalyticsState state, @Nullable String reason) {
-        DataFrameAnalyticsTaskState newTaskState = new DataFrameAnalyticsTaskState(state, task.getAllocationId(), reason);
-        task.updatePersistentTaskState(newTaskState, ActionListener.wrap(
-            updatedTask -> LOGGER.info("[{}] Successfully update task state to [{}]", task.getParams().getId(), state),
-            e -> LOGGER.error(new ParameterizedMessage("[{}] Could not update task state to [{}]", task.getParams().getId(), state), e)
-        ));
-    }
-
     @Nullable
     public Integer getProgressPercent(long allocationId) {
         ProcessContext processContext = processContextByAllocation.get(allocationId);
@@ -203,7 +194,7 @@ public class AnalyticsProcessManager {
         try {
             processContext.process.close();
             LOGGER.info("[{}] Closed process", configId);
-        } catch (IOException e) {
+        } catch (Exception e) {
             String errorMsg = new ParameterizedMessage("[{}] Error closing data frame analyzer process [{}]"
                 , configId, e.getMessage()).getFormattedMessage();
             processContext.setFailureReason(errorMsg);
@@ -293,8 +284,9 @@ public class AnalyticsProcessManager {
 
         private AnalyticsProcessConfig createProcessConfig(DataFrameAnalyticsConfig config, DataFrameDataExtractor dataExtractor) {
             DataFrameDataExtractor.DataSummary dataSummary = dataExtractor.collectDataSummary();
+            Set<String> categoricalFields = dataExtractor.getCategoricalFields();
             AnalyticsProcessConfig processConfig = new AnalyticsProcessConfig(dataSummary.rows, dataSummary.cols,
-                config.getModelMemoryLimit(), 1, config.getDest().getResultsField(), config.getAnalysis());
+                config.getModelMemoryLimit(), 1, config.getDest().getResultsField(), categoricalFields, config.getAnalysis());
             return processConfig;
         }
     }

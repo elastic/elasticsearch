@@ -29,35 +29,86 @@ single document type, `_doc`.
 [[docs-get-api-query-params]]
 ==== {api-query-parms-title}
 
-`realtime`:: Set to `false` to disable real time GET. See <<realtime>>.
+`preference`::
+(Optional, string) Specify the node or shard the operation should
+be performed on (default: random).
 
-`stored_fields`:: Set to `true` to retrieve the document fields stored in
-the index rather than the document `_source`.
+`realtime`::
+(Optional, boolean) Set to `false` to disable real time GET
+(default: `true`). See <<realtime>>.
 
-`_source`:: Set to `false` to disable source retrieval.
+`refresh`::
+(Optional, boolean) Whether or not to refresh the shard that
+contains the document before performing the operation (default: `true`).
 
-`_source_includes`:: Specify the source fields you want to retrieve.
+`routing`::
+(Optional) Retrieve the explicit routing, if specified.
+See <<index-routing>>.
 
-`_source_excludes`:: Specify the source fields you want to exclude.
+`stored_fields`::
+(Optional, boolean) Set to `true` to retrieve the document fields stored in the
+index rather than the document `_source` (default: `false`).
+
+`_source`::
+(Optional, list) Set to `false` to disable source retrieval (default: `true`).
+ You can also specify a comma-separated list of the fields
+you want to retrieve.
+
+`_source_excludes`::
+(Optional, list) Specify the source fields you want to exclude.
+
+`_source_includes`::
+(Optional, list) Specify the source fields you want to retrieve.
+
+
+`version`::
+(Optional, integer) Explicit version number for concurrency control.
+The specified version must match the current version of the document for the
+request to succeed.
+
+`version_type`::
+(Optional, string) Specific version type: `internal`, `external`,
+`external_gte`, `force`.
+
 
 [[docs-get-api-response-body]]
 ==== {api-response-body-title}
 
-`_index`:: The name of the index the document belongs to.
-`_type`:: The document type. {es} indices now support a single document type,
-`_doc`.
-`_id`:: The unique identifier for the document.
-`_version`:: The document version. Incremented each time the document is updated.
-`_seq_no`:: The sequence number assigned to the document for the indexing
+`_index`::
+The name of the index the document belongs to.
+
+`_type`::
+The document type. {es} indices now support a single document type, `_doc`.
+
+
+`_id`::
+The unique identifier for the document.
+
+`_version`::
+The document version. Incremented each time the document is updated.
+
+`_seq_no`::
+The sequence number assigned to the document for the indexing
 operation. Sequence numbers are used to ensure an older version of a document
 doesn’t overwrite a newer version. See <<optimistic-concurrency-control-index>>.
-`_primary_term`:: The primary term assigned to the document for the indexing
-operation. See <<optimistic-concurrency-control-index>>.
-`found`:: Indicates whether the document exists: `true` or `false`.
-'_source':: If `found` is `true`, contains the document data formatted in JSON.
+
+`_primary_term`::
+The primary term assigned to the document for the indexing operation.
+See <<optimistic-concurrency-control-index>>.
+
+`found`::
+Indicates whether the document exists: `true` or `false`.
+
+`_routing`::
+The explicit routing, if set.
+
+'_source'::
+If `found` is `true`, contains the document data formatted in JSON.
 Excluded if the `_source` parameter is set to `false` or the `stored_fields`
 paramter is set to `true`.
-'_fields':: If the `stored_fields` parameter is set to `true` and `found` is
+
+'_fields'::
+If the `stored_fields` parameter is set to `true` and `found` is
 `true`, contains the document fields stored in the index.
 
 [[docs-get-api-example]]

@@ -1,9 +1,69 @@
 [[docs-get]]
 === Get API
+++++
+<titleabbrev>Get</titleabbrev>
+++++
 
-The get API allows to get a JSON document from the index based on
-its id. The following example gets a JSON document from an index called
-twitter with id valued 0:
+Retrieves the specified JSON document from an index.
+
+[[docs-get-api-request]]
+==== {api-request-title}
+
+`GET <index>/_doc/<_id>`
+
+`HEAD <index>/_doc/<_id>`
+
+[[docs-get-api-path-params]]
+==== {api-path-parms-title}
+
+`<index>`::
+(Required, string) Name of the index that contains the document.
+
+`_doc`::
+(Required, string) Document type. {es} indices now support a
+single document type, `_doc`.
+
+`<_id>`::
+(Required, string) Unique identifier of the document.
+
+[[docs-get-api-query-params]]
+==== {api-query-parms-title}
+
+`realtime`:: Set to `false` to disable real time GET. See <<realtime>>.
+
+`stored_fields`:: Set to `true` to retrieve the document fields stored in
+the index rather than the document `_source`.
+
+`_source`:: Set to `false` to disable source retrieval.
+
+`_source_includes`:: Specify the source fields you want to retrieve.
+
+`_source_excludes`:: Specify the source fields you want to exclude.
+
+[[docs-get-api-response-body]]
+==== {api-response-body-title}
+
+`_index`:: The name of the index the document belongs to.
+`_type`:: The document type. {es} indices now support a single document type,
+`_doc`.
+`_id`:: The unique identifier for the document.
+`_version`:: The document version. Incremented each time the document is updated.
+`_seq_no`:: The sequence number assigned to the document for the indexing
+operation. Sequence numbers are used to ensure an older version of a document
+doesn’t overwrite a newer version. See <<optimistic-concurrency-control-index>>.
+`_primary_term`:: The primary term assigned to the document for the indexing
+operation. See <<optimistic-concurrency-control-index>>.
+`found`:: Indicates whether the document exists: `true` or `false`.
+'_source':: If `found` is `true`, contains the document data formatted in JSON.
+Excluded if the `_source` parameter is set to `false` or the `stored_fields`
+paramter is set to `true`.
+'_fields':: If the `stored_fields` parameter is set to `true` and `found` is
+`true`, contains the document fields stored in the index.
+
+[[docs-get-api-example]]
+==== {api-examples-title}
+
+Retrieve the JSON document with the `_id` 0 from the `twitter` index:
 
 [source,js]
 --------------------------------------------------
@@ -12,7 +72,7 @@ GET twitter/_doc/0
 // CONSOLE
 // TEST[setup:twitter]
 
-The result of the above get operation is:
+The API returns the following result:
 
 [source,js]
 --------------------------------------------------
@@ -34,13 +94,7 @@ The result of the above get operation is:
 --------------------------------------------------
 // TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 
-The above result includes the `_index`, `_id`, and `_version`
-of the document we wish to retrieve, including the actual `_source`
-of the document if it could be found (as indicated by the `found`
-field in the response).
-
-The API also allows to check for the existence of a document using
-`HEAD`, for example:
+Check to see if a document with the `_id` 0 exists:
 
 [source,js]
 --------------------------------------------------

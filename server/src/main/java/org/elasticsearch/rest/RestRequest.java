@@ -64,8 +64,9 @@ public class RestRequest implements ToXContent.Params {
     private final String rawPath;
     private final Set<String> consumedParams = new HashSet<>();
     private final SetOnce<XContentType> xContentType = new SetOnce<>();
-    private final HttpRequest httpRequest;
     private final HttpChannel httpChannel;
+
+    private HttpRequest httpRequest;
 
     private boolean contentConsumed = false;
 
@@ -98,24 +99,8 @@ public class RestRequest implements ToXContent.Params {
     }
 
     public static RestRequest maybeSafeCopy(RestRequest request) {
-        if (request.httpRequest.isPooled() == false) {
-            return request;
-        }
-        final HttpRequest copiedHttpRequest = request.httpRequest.releaseAndCopy();
-        assert copiedHttpRequest != request.httpRequest : "Should not copy rest request if http request does not need safe copying";
-        final Map<String, String> remainingParams;
-        if (request.params.size() == request.consumedParams.size()) {
-            remainingParams = Collections.emptyMap();
-        } else {
-            remainingParams = new HashMap<>();
-            for (Map.Entry<String, String> paramEntry : request.params.entrySet()) {
-                if (request.consumedParams.contains(paramEntry.getKey()) == false) {
-                    remainingParams.put(paramEntry.getKey(), paramEntry.getValue());
-                }
-            }
-        }
-        return new RestRequest(
-            request.xContentRegistry, remainingParams, request.rawPath(), request.headers, copiedHttpRequest, request.httpChannel);
+        request.httpRequest = request.httpRequest.releaseAndCopy();
+        return request;
     }
 
     /**

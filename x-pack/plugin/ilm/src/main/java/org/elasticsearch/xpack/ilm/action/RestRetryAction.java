@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.ilm.action;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -19,8 +18,7 @@ import org.elasticsearch.xpack.core.ilm.action.RetryAction;
 
 public class RestRetryAction extends BaseRestHandler {
 
-    public RestRetryAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestRetryAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.POST, "/{index}/_ilm/retry", this);
     }
 

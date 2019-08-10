@@ -1,9 +1,54 @@
 [[docs-delete]]
 === Delete API
+++++
+<titleabbrev>Delete</titleabbrev>
+++++
 
-The delete API allows to delete a JSON document from a specific
-index based on its id. The following example deletes the JSON document
-from an index called `twitter` with ID `1`:
+Removes a JSON document from the specified index.
+
+[[docs-delete-api-request]]
+==== {api-request-title}
+
+`DELETE /<index>/_doc/<_id>`
+
+[[docs-delete-api-path-params]]
+==== {api-path-parms-title}
+
+`<index>`::
+(Required, string) Name of the target index.
+
+`_doc`::
+(Required, string) Document type. {es} indices now support a
+single document type, `_doc`.
+
+`<_id>`::
+(Required, string) Unique identifier for the document.
+
+[[docs-delete-api-query-params]]
+==== {api-query-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag-doc-seq-no]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag-doc-primary-term]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag-doc-pipeline]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag-doc-refresh]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag-doc-routing]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag-timeout]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag-doc-version]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag-doc-version-type]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag-doc-wait-for-active-shards]
+
+[[docs-delete-api-example]]
+==== {api-examples-title}
+
+Delete the JSON document `1` from the `twitter` index:
 
 [source,js]
 --------------------------------------------------
@@ -40,10 +85,10 @@ The result of the above delete operation is:
 ==== Optimistic concurrency control
 
 Delete operations can be made conditional and only be performed if the last
-modification to the document was assigned the sequence number and primary 
+modification to the document was assigned the sequence number and primary
 term specified by the `if_seq_no` and `if_primary_term` parameters. If a
 mismatch is detected, the operation will result in a `VersionConflictException`
-and a status code of 409. See <<optimistic-concurrency-control>> for more details. 
+and a status code of 409. See <<optimistic-concurrency-control>> for more details.
 
 [float]
 [[delete-versioning]]

@@ -1,18 +1,61 @@
 [[docs-update]]
 === Update API
+++++
+<titleabbrev>Update</titleabbrev>
+++++
 
-The update API allows to update a document based on a script provided.
-The operation gets the document (collocated with the shard) from the
-index, runs the script (with optional script language and parameters),
-and indexes back the result (also allows to delete, or ignore the
-operation).
+Updates a document using the specified script.
 
-Note, this operation still means full reindex of the document, it just
-removes some network roundtrips and reduces chances of version conflicts
-between the get and the index. The `_source` field needs to be enabled
-for this feature to work.
+[[update-api-desc]]
+==== {api-description-title}
 
-For example, let's index a simple doc:
+Enables you script document updates. This operation:
+
+. Gets the document (collocated with the shard) from the index.
+. Runs the specified script.
+. Indexes the result.
+
+The script can update, delete, or skip modifying the document.
+
+The document must still be reindexed, but using `update` removes some network
+roundtrips and reduces chances of version conflicts between the GET and the
+index operation.
+
+The `_source` field must be enabled to use `update`.
+
+[[docs-update-api-query-params]]
+==== {api-query-parms-title}
+
+`lang`::
+(Optional, string) The script language. Default: `painless`.
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-refresh]
+
+`retry_on_conflict`::
+(Optional, integer) Specify how many times should the operation be retried when
+ a conflict occurs. Default: 0.
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-routing]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-source]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-source-excludes]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-source-includes]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-seq-no]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-primary-term]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-wait-for-active-shards]
+
+
+[[update-api-example]]
+==== {api-examples-title}
+
+First, let's index a simple doc:
 
 [source,js]
 --------------------------------------------------
@@ -23,9 +66,6 @@ PUT test/_doc/1
 }
 --------------------------------------------------
 // CONSOLE
-
-[float]
-==== Scripted updates
 
 Now, we can execute a script that would increment the counter:
 

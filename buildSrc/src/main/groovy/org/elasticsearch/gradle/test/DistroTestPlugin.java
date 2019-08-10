@@ -214,7 +214,7 @@ public class DistroTestPlugin implements Plugin<Project> {
         return project.getTasks().register(COPY_UPGRADE_TASK, Copy.class,
             t -> {
                 t.into(upgradeDir);
-                t.from(project.getParent().getConfigurations().getByName(UPGRADE_CONFIGURATION));
+                t.from(project.getConfigurations().getByName(UPGRADE_CONFIGURATION));
 
                 Path upgradePath = upgradeDir.get().getAsFile().toPath();
 

@@ -137,7 +137,7 @@ The API returns the following result:
 
 [float]
 [[index-creation]]
-==== Automatic Index Creation
+==== Automatic index creation
 
 The index operation automatically creates an index if it does not already
 exist, and applies any <<indices-templates,index templates>> that are
@@ -191,7 +191,7 @@ patterns are matched in the order in which they are given.
 
 [float]
 [[operation-type]]
-==== Operation Type
+==== Operation type
 
 The index operation also accepts an `op_type` that can be used to force
 a `create` operation, allowing for "put-if-absent" behavior. When
@@ -225,7 +225,7 @@ PUT twitter/_create/1
 // CONSOLE
 
 [float]
-==== Automatic ID Generation
+==== Automatic _id generation
 
 The index operation can be executed without specifying the id. In such a
 case, an id will be generated automatically. In addition, the `op_type`
@@ -315,7 +315,7 @@ if needed, the update is distributed to applicable replicas.
 
 [float]
 [[index-wait-for-active-shards]]
-==== Active Shards
+==== Active shards
 
 To improve the resiliency of writes to the system, indexing operations
 can be configured to wait for a certain number of active shard copies
@@ -380,7 +380,7 @@ Control when the changes made by this request are visible to search. See
 
 [float]
 [[index-noop]]
-==== Noop Updates
+==== Noop updates
 
 When updating a document using the index API a new version of the document is
 always created even if the document hasn't changed. If this isn't acceptable

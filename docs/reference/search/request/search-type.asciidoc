@@ -54,6 +54,8 @@ shards*.
 --------------------------------------------------
 GET twitter/_search?search_type=query_then_fetch
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
 NOTE: This is the default setting, if you do not specify a `search_type`
       in your request.
@@ -71,4 +73,5 @@ scoring.
 --------------------------------------------------
 GET twitter/_search?search_type=dfs_query_then_fetch
 --------------------------------------------------
-
+// CONSOLE
+// TEST[setup:twitter]

@@ -24,8 +24,8 @@ import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.filter.RegexFilter;
 import org.elasticsearch.common.regex.Regex;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.regex.Pattern;
 
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -42,7 +42,12 @@ public class MockLogAppender extends AbstractAppender {
 
     public MockLogAppender() throws IllegalAccessException {
         super("mock", RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), null);
-        expectations = new ArrayList<>();
+        /*
+         * We use a copy-on-write array list since log messages could be appended while we are setting up expectations. When that occurs,
+         * we would run into a concurrent modification exception from the iteration over the expectations in #append, concurrent with a
+         * modification from #addExpectation.
+         */
+        expectations = new CopyOnWriteArrayList<>();
     }
 
     public void addExpectation(LoggingExpectation expectation) {
@@ -112,7 +117,7 @@ public class MockLogAppender extends AbstractAppender {
 
         @Override
         public void assertMatched() {
-            assertThat("expected to see " + name + " but did not", saw, equalTo(false));
+            assertThat("expected not to see " + name + " but did", saw, equalTo(false));
         }
     }
 
@@ -154,7 +159,7 @@ public class MockLogAppender extends AbstractAppender {
 
     }
 
-    public static class PatternSeenEventExcpectation implements LoggingExpectation {
+    public static class PatternSeenEventExpectation implements LoggingExpectation {
 
         protected final String name;
         protected final String logger;
@@ -162,7 +167,7 @@ public class MockLogAppender extends AbstractAppender {
         protected final String pattern;
         volatile boolean saw;
 
-        public PatternSeenEventExcpectation(String name, String logger, Level level, String pattern) {
+        public PatternSeenEventExpectation(String name, String logger, Level level, String pattern) {
             this.name = name;
             this.logger = logger;
             this.level = level;

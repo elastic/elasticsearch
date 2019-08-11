@@ -1,13 +1,13 @@
 [role="xpack"]
 [[auditing-settings]]
-=== Auditing Security Settings
+=== Auditing security settings
 ++++
-<titleabbrev>Auditing Settings</titleabbrev>
+<titleabbrev>Auditing settings</titleabbrev>
 ++++
 
 All of these settings can be added to the `elasticsearch.yml` configuration
 file. For more information, see
-{xpack-ref}/auditing.html[Auditing Security Events].
+{stack-ov}/auditing.html[Auditing Security Events].
 
 [[general-audit-settings]]
 ==== General Auditing Settings

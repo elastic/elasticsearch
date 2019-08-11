@@ -1,0 +1,37 @@
+# whitelist for tests
+
+# TODO: remove this when the transition from Joda to Java datetimes is completed
+class org.elasticsearch.script.JodaCompatibleZonedDateTime {
+  (Instant, ZoneId)
+}
+
+class org.elasticsearch.painless.BindingsTests$BindingsTestScript {
+}
+
+class org.elasticsearch.painless.FeatureTestObject @no_import {
+  int z
+  ()
+  (int,int)
+  int getX()
+  int getY()
+  Integer getI()
+  void setX(int)
+  void setY(int)
+  void setI(Integer)
+  boolean overloadedStatic()
+  boolean overloadedStatic(boolean)
+  int staticNumberTest(Number)
+  Double mixedAdd(int, Byte, char, Float)
+  Object twoFunctionsOfX(Function,Function)
+  void listInput(List)
+  int org.elasticsearch.painless.FeatureTestAugmentationObject getTotal()
+  int org.elasticsearch.painless.FeatureTestAugmentationObject addToTotal(int)
+}
+
+static_import {
+  int staticAddIntsTest(int, int) from_class org.elasticsearch.painless.StaticTestObject
+  float staticAddFloatsTest(float, float) from_class org.elasticsearch.painless.FeatureTestObject
+  int addWithState(int, int, int, double) bound_to org.elasticsearch.painless.BindingsTests$BindingTestClass
+  int addThisWithState(BindingsTests.BindingsTestScript, int, int, int, double) bound_to org.elasticsearch.painless.BindingsTests$ThisBindingTestClass
+  int addEmptyThisWithState(BindingsTests.BindingsTestScript, int) bound_to org.elasticsearch.painless.BindingsTests$EmptyThisBindingTestClass
+}

@@ -1,0 +1,78 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ml-update-snapshot]]
+=== Update model snapshots API
+++++
+<titleabbrev>Update model snapshots</titleabbrev>
+++++
+
+Updates certain properties of a snapshot.
+
+[[ml-update-snapshot-request]]
+==== {api-request-title}
+
+`POST _ml/anomaly_detectors/<job_id>/model_snapshots/<snapshot_id>/_update`
+
+[[ml-update-snapshot-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `manage_ml` or
+`manage` cluster privileges to use this API. See
+{stack-ov}/security-privileges.html[Security privileges].
+
+
+[[ml-update-snapshot-path-parms]]
+==== {api-path-parms-title}
+
+`<job_id>`::
+  (Required, string) Identifier for the {anomaly-job}.
+
+`<snapshot_id>`::
+  (Required, string) Identifier for the model snapshot.
+
+[[ml-update-snapshot-request-body]]
+==== {api-request-body-title}
+
+The following properties can be updated after the model snapshot is created:
+
+`description`::
+  (Optional, string) A description of the model snapshot. For example,
+  "Before black friday".
+
+`retain`::
+  (Optional, boolean) If true, this snapshot will not be deleted during
+  automatic cleanup of snapshots older than `model_snapshot_retention_days`.
+  Note that this snapshot will still be deleted when the {anomaly-job} is
+  deleted. The default value is false.
+
+[[ml-update-snapshot-example]]
+==== {api-examples-title}
+
+The following example updates the snapshot identified as `1491852978`:
+
+[source,js]
+--------------------------------------------------
+POST
+_ml/anomaly_detectors/it_ops_new_logs/model_snapshots/1491852978/_update
+{
+  "description": "Snapshot 1",
+  "retain": true
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[skip:todo]
+
+When the snapshot is updated, you receive the following results:
+[source,js]
+----
+{
+  "acknowledged": true,
+  "model": {
+    "job_id": "it_ops_new_logs",
+    "timestamp": 1491852978000,
+    "description": "Snapshot 1",
+...
+    "retain": true
+  }
+}
+----

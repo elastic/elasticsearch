@@ -12,7 +12,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
-import static java.util.Collections.unmodifiableMap;
 
 public class WatcherParams extends ToXContent.DelegatingMapParams {
 
@@ -99,7 +98,7 @@ public class WatcherParams extends ToXContent.DelegatingMapParams {
         }
 
         public WatcherParams build() {
-            return new WatcherParams(unmodifiableMap(new HashMap<>(params)), delegate);
+            return new WatcherParams(Map.copyOf(params), delegate);
         }
     }
 }

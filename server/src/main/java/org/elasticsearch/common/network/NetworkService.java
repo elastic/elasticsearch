@@ -22,7 +22,6 @@ package org.elasticsearch.common.network;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -32,7 +31,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 public final class NetworkService {
@@ -52,15 +50,18 @@ public final class NetworkService {
         Setting.boolSetting("network.tcp.no_delay", true, Property.NodeScope);
     public static final Setting<Boolean> TCP_KEEP_ALIVE =
         Setting.boolSetting("network.tcp.keep_alive", true, Property.NodeScope);
+    public static final Setting<Integer> TCP_KEEP_IDLE =
+        Setting.intSetting("network.tcp.keep_idle", -1, -1, Property.NodeScope);
+    public static final Setting<Integer> TCP_KEEP_INTERVAL =
+        Setting.intSetting("network.tcp.keep_interval", -1, -1, Property.NodeScope);
+    public static final Setting<Integer> TCP_KEEP_COUNT =
+        Setting.intSetting("network.tcp.keep_count", -1, -1, Property.NodeScope);
     public static final Setting<Boolean> TCP_REUSE_ADDRESS =
         Setting.boolSetting("network.tcp.reuse_address", NetworkUtils.defaultReuseAddress(), Property.NodeScope);
     public static final Setting<ByteSizeValue> TCP_SEND_BUFFER_SIZE =
         Setting.byteSizeSetting("network.tcp.send_buffer_size", new ByteSizeValue(-1), Property.NodeScope);
     public static final Setting<ByteSizeValue> TCP_RECEIVE_BUFFER_SIZE =
         Setting.byteSizeSetting("network.tcp.receive_buffer_size", new ByteSizeValue(-1), Property.NodeScope);
-    // TODO: Deprecate in 7.0
-    public static final Setting<TimeValue> TCP_CONNECT_TIMEOUT =
-        Setting.timeSetting("network.tcp.connect_timeout", new TimeValue(30, TimeUnit.SECONDS), Property.NodeScope);
 
     /**
      * A custom name resolver can support custom lookup keys (my_net_key:ipv4) and also change

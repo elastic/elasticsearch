@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.apache.lucene.document.LatLonDocValuesField;
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
@@ -88,6 +89,13 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
             for (int pointId = 0; pointId < numPoints; pointId++) {
                 double lat = (180d * randomDouble()) - 90d;
                 double lng = (360d * randomDouble()) - 180d;
+
+                // Precision-adjust longitude/latitude to avoid wrong bucket placement
+                // Internally, lat/lng get converted to 32 bit integers, loosing some precision.
+                // This does not affect geohashing because geohash uses the same algorithm,
+                // but it does affect other bucketing algos, thus we need to do the same steps here.
+                lng = GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(lng));
+                lat = GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(lat));
 
                 points.add(new LatLonDocValuesField(FIELD_NAME, lat, lng));
                 String hash = hashAsString(lng, lat, precision);

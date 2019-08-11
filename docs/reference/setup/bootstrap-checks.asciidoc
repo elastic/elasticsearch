@@ -252,6 +252,6 @@ This bootstrap check ensures that discovery is not running with the default
 configuration. It can be satisfied by setting at least one of the following
 properties:
 
-- `discovery.zen.ping.unicast.hosts`
-- `discovery.zen.hosts_provider`
+- `discovery.seed_hosts`
+- `discovery.seed_providers`
 - `cluster.initial_master_nodes`

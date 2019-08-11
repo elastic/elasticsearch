@@ -46,7 +46,7 @@ public class SumBucketPipelineAggregationBuilder extends BucketMetricsPipelineAg
     }
 
     @Override
-    protected PipelineAggregator createInternal(Map<String, Object> metaData) throws IOException {
+    protected PipelineAggregator createInternal(Map<String, Object> metaData) {
         return new SumBucketPipelineAggregator(name, bucketsPaths, gapPolicy(), formatter(), metaData);
     }
 
@@ -62,16 +62,6 @@ public class SumBucketPipelineAggregationBuilder extends BucketMetricsPipelineAg
             return new SumBucketPipelineAggregationBuilder(pipelineAggregatorName, bucketsPath);
         }
     };
-
-    @Override
-    protected int innerHashCode() {
-        return 0;
-    }
-
-    @Override
-    protected boolean innerEquals(BucketMetricsPipelineAggregationBuilder<SumBucketPipelineAggregationBuilder> other) {
-        return true;
-    }
 
     @Override
     public String getWriteableName() {

@@ -57,7 +57,7 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
             this.keyed = keyed;
             key = in.readOptionalString();
             docCount = in.readVLong();
-            aggregations = InternalAggregations.readAggregations(in);
+            aggregations = new InternalAggregations(in);
         }
 
         @Override
@@ -251,12 +251,16 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(buckets, keyed);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), buckets, keyed);
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+
         InternalFilters that = (InternalFilters) obj;
         return Objects.equals(buckets, that.buckets)
                 && Objects.equals(keyed, that.keyed);

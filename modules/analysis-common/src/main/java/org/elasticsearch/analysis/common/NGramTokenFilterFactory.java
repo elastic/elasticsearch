@@ -27,7 +27,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
-import org.elasticsearch.Version;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 
 
@@ -47,15 +46,10 @@ public class NGramTokenFilterFactory extends AbstractTokenFilterFactory {
         this.maxGram = settings.getAsInt("max_gram", 2);
         int ngramDiff = maxGram - minGram;
         if (ngramDiff > maxAllowedNgramDiff) {
-            if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
-                throw new IllegalArgumentException(
-                    "The difference between max_gram and min_gram in NGram Tokenizer must be less than or equal to: ["
-                        + maxAllowedNgramDiff + "] but was [" + ngramDiff + "]. This limit can be set by changing the ["
-                        + IndexSettings.MAX_NGRAM_DIFF_SETTING.getKey() + "] index level setting.");
-            } else {
-                deprecationLogger.deprecated("Deprecated big difference between max_gram and min_gram in NGram Tokenizer,"
-                    + "expected difference must be less than or equal to: [" + maxAllowedNgramDiff + "]");
-            }
+            throw new IllegalArgumentException(
+                "The difference between max_gram and min_gram in NGram Tokenizer must be less than or equal to: ["
+                    + maxAllowedNgramDiff + "] but was [" + ngramDiff + "]. This limit can be set by changing the ["
+                    + IndexSettings.MAX_NGRAM_DIFF_SETTING.getKey() + "] index level setting.");
         }
     }
 
@@ -67,13 +61,6 @@ public class NGramTokenFilterFactory extends AbstractTokenFilterFactory {
 
     @Override
     public TokenFilterFactory getSynonymFilter() {
-        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
-            throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
-        }
-        else {
-            DEPRECATION_LOGGER.deprecatedAndMaybeLog("synonym_tokenfilters", "Token filter [" + name()
-                + "] will not be usable to parse synonyms after v7.0");
-            return this;
-        }
+        throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
     }
 }

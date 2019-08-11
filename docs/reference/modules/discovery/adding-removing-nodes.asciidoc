@@ -35,30 +35,36 @@ four of the nodes at once: to do so would leave only three nodes remaining,
 which is less than half of the voting configuration, which means the cluster
 cannot take any further actions.
 
+More precisely, if you shut down half or more of the master-eligible nodes all
+at the same time then the cluster will normally become unavailable. If this
+happens then you can bring the cluster back online by starting the removed
+nodes again.
+
 As long as there are at least three master-eligible nodes in the cluster, as a
 general rule it is best to remove nodes one-at-a-time, allowing enough time for
 the cluster to <<modules-discovery-quorums,automatically adjust>> the voting
 configuration and adapt the fault tolerance level to the new set of nodes.
 
 If there are only two master-eligible nodes remaining then neither node can be
-safely removed since both are required to reliably make progress. You must first
-inform Elasticsearch that one of the nodes should not be part of the voting
-configuration, and that the voting power should instead be given to other nodes.
-You can then take the excluded node offline without preventing the other node
-from making progress. A node which is added to a voting configuration exclusion
-list still works normally, but Elasticsearch tries to remove it from the voting
-configuration so its vote is no longer required.  Importantly, Elasticsearch
-will never automatically move a node on the voting exclusions list back into the
-voting configuration. Once an excluded node has been successfully
+safely removed since both are required to reliably make progress. To remove one
+of these nodes you must first inform {es} that it should not be part of the
+voting configuration, and that the voting power should instead be given to the
+other node. You can then take the excluded node offline without preventing the
+other node from making progress. A node which is added to a voting
+configuration exclusion list still works normally, but {es} tries to remove it
+from the voting configuration so its vote is no longer required. Importantly,
+{es} will never automatically move a node on the voting exclusions list back
+into the voting configuration. Once an excluded node has been successfully
 auto-reconfigured out of the voting configuration, it is safe to shut it down
 without affecting the cluster's master-level availability. A node can be added
-to the voting configuration exclusion list using the <<voting-config-exclusions>> API. For example:
+to the voting configuration exclusion list using the
+<<voting-config-exclusions>> API. For example:
 
 [source,js]
 --------------------------------------------------
-# Add node to voting configuration exclusions list and wait for the system to
-# auto-reconfigure the node out of the voting configuration up to the default
-# timeout of 30 seconds
+# Add node to voting configuration exclusions list and wait for the system
+# to auto-reconfigure the node out of the voting configuration up to the
+# default timeout of 30 seconds
 POST /_cluster/voting_config_exclusions/node_name
 
 # Add node to voting configuration exclusions list and wait for

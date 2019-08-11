@@ -11,15 +11,16 @@ import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.Objects;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
@@ -28,20 +29,29 @@ public class IndexAction implements Action {
 
     public static final String TYPE = "index";
 
-    @Nullable final String docType;
+    @Nullable @Deprecated final String docType;
     @Nullable final String index;
     @Nullable final String docId;
     @Nullable final String executionTimeField;
     @Nullable final TimeValue timeout;
-    @Nullable final DateTimeZone dynamicNameTimeZone;
+    @Nullable final ZoneId dynamicNameTimeZone;
     @Nullable final RefreshPolicy refreshPolicy;
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(IndexAction.class));
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in a watcher index action is deprecated.";
 
+    public IndexAction(@Nullable String index, @Nullable String docId,
+                       @Nullable String executionTimeField,
+                       @Nullable TimeValue timeout, @Nullable ZoneId dynamicNameTimeZone, @Nullable RefreshPolicy refreshPolicy) {
+        this(index, null, docId, executionTimeField, timeout, dynamicNameTimeZone, refreshPolicy);
+    }
+    /**
+     * Document types are deprecated, use constructor without docType
+     */
+    @Deprecated
     public IndexAction(@Nullable String index, @Nullable String docType, @Nullable String docId,
                        @Nullable String executionTimeField,
-                       @Nullable TimeValue timeout, @Nullable DateTimeZone dynamicNameTimeZone, @Nullable RefreshPolicy refreshPolicy) {
+                       @Nullable TimeValue timeout, @Nullable ZoneId dynamicNameTimeZone, @Nullable RefreshPolicy refreshPolicy) {
         this.index = index;
         this.docType = docType;
         this.docId = docId;
@@ -72,7 +82,7 @@ public class IndexAction implements Action {
         return executionTimeField;
     }
 
-    public DateTimeZone getDynamicNameTimeZone() {
+    public ZoneId getDynamicNameTimeZone() {
         return dynamicNameTimeZone;
     }
 
@@ -132,7 +142,7 @@ public class IndexAction implements Action {
         String docId = null;
         String executionTimeField = null;
         TimeValue timeout = null;
-        DateTimeZone dynamicNameTimeZone = null;
+        ZoneId dynamicNameTimeZone = null;
         RefreshPolicy refreshPolicy = null;
 
         String currentFieldName = null;
@@ -167,7 +177,7 @@ public class IndexAction implements Action {
                     timeout = WatcherDateTimeUtils.parseTimeValue(parser, Field.TIMEOUT_HUMAN.toString());
                 } else if (Field.DYNAMIC_NAME_TIMEZONE.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (token == XContentParser.Token.VALUE_STRING) {
-                        dynamicNameTimeZone = DateTimeZone.forID(parser.text());
+                        dynamicNameTimeZone = DateUtils.of(parser.text());
                     } else {
                         throw new ElasticsearchParseException("could not parse [{}] action for watch [{}]. failed to parse [{}]. must be " +
                                                               "a string value (e.g. 'UTC' or '+01:00').", TYPE, watchId, currentFieldName);
@@ -187,8 +197,16 @@ public class IndexAction implements Action {
         return new IndexAction(index, docType, docId, executionTimeField, timeout, dynamicNameTimeZone, refreshPolicy);
     }
 
+    /**
+     * Document types are deprecated, use {@link #builder(java.lang.String)}
+     */
+    @Deprecated
     public static Builder builder(String index, String docType) {
         return new Builder(index, docType);
+    }
+
+    public static Builder builder(String index) {
+        return new Builder(index);
     }
 
     public static class Result extends Action.Result {
@@ -274,12 +292,21 @@ public class IndexAction implements Action {
         String docId;
         String executionTimeField;
         TimeValue timeout;
-        DateTimeZone dynamicNameTimeZone;
+        ZoneId dynamicNameTimeZone;
         RefreshPolicy refreshPolicy;
 
+        /**
+         * Document types are deprecated and should not be used. Use: {@link Builder#Builder(java.lang.String)}
+         */
+        @Deprecated
         private Builder(String index, String docType) {
             this.index = index;
             this.docType = docType;
+        }
+
+        private Builder(String index) {
+            this.index = index;
+            this.docType = null;
         }
 
         public Builder setDocId(String docId) {
@@ -297,7 +324,7 @@ public class IndexAction implements Action {
             return this;
         }
 
-        public Builder setDynamicNameTimeZone(DateTimeZone dynamicNameTimeZone) {
+        public Builder setDynamicNameTimeZone(ZoneId dynamicNameTimeZone) {
             this.dynamicNameTimeZone = dynamicNameTimeZone;
             return this;
         }

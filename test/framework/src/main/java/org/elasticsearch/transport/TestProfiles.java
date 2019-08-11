@@ -21,7 +21,7 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.common.settings.Settings;
 
-final class TestProfiles {
+public final class TestProfiles {
 
     private TestProfiles() {}
 
@@ -29,7 +29,7 @@ final class TestProfiles {
      * A pre-built light connection profile that shares a single connection across all
      * types.
      */
-    static final ConnectionProfile LIGHT_PROFILE;
+    public static final ConnectionProfile LIGHT_PROFILE;
 
     static {
         ConnectionProfile source = ConnectionProfile.buildDefaultConnectionProfile(Settings.EMPTY);

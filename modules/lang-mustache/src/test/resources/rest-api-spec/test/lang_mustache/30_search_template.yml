@@ -4,13 +4,11 @@
   - do:
       index:
         index:  test
-        type:   testtype
         id:     1
         body:   { "text": "value1" }
   - do:
       index:
         index:  test
-        type:   testtype
         id:     2
         body:   { "text": "value2" }
   - do:
@@ -57,28 +55,24 @@
   - do:
       index:
         index:  test
-        type:   type
         id:     1
         body:   { "theField": "foo" }
 
   - do:
       index:
         index:  test
-        type:   type
         id:     2
         body:   { "theField": "foo 2" }
 
   - do:
       index:
         index:  test
-        type:   type
         id:     3
         body:   { "theField": "foo 3" }
 
   - do:
       index:
         index:  test
-        type:   type
         id:     4
         body:   { "theField": "foo 4" }
 
@@ -87,7 +81,6 @@
   - do:
       index:
         index:  otherindex
-        type:   type
         id:     5
         body:   { "otherField": "foo" }
   - do:
@@ -135,16 +128,12 @@
 
 ---
 "Test with new response format":
-  - skip:
-      version: " - 6.99.99"
-      reason: hits.total is returned as an object in 7.0.0
-
   - do:
       index:
         index:  test
-        type:   type
         id:     1
         body:   {}
+        refresh: true
 
   - do:
       put_script:
@@ -157,6 +146,5 @@
       search_template:
         body: { "id": "template_1", "params": {} }
 
-  - match: { hits.total.value: 0 }
+  - match: { hits.total.value: 1 }
   - match: { hits.total.relation: eq }
-

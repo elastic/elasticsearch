@@ -22,7 +22,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
@@ -39,12 +38,14 @@ import org.hamcrest.Matchers;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -300,7 +301,9 @@ public class DateRangeIT extends ESIntegTestCase {
     public void testSingleValueFieldWithDateMath() throws Exception {
         ZoneId timezone = randomZone();
         int timeZoneOffset = timezone.getRules().getOffset(date(2, 15).toInstant()).getTotalSeconds();
-        String suffix = timezone.equals(ZoneOffset.UTC) ? "Z" : timezone.getId();
+        //there is a daylight saving time change on 11th March so suffix will be different
+        String feb15Suffix = timeZoneOffset == 0 ? "Z" : date(2,15, timezone).format(DateTimeFormatter.ofPattern("xxx", Locale.ROOT));
+        String mar15Suffix = timeZoneOffset == 0 ? "Z" : date(3,15, timezone).format(DateTimeFormatter.ofPattern("xxx", Locale.ROOT));
         long expectedFirstBucketCount = timeZoneOffset < 0 ? 3L : 2L;
 
         SearchResponse response = client().prepareSearch("idx")
@@ -322,29 +325,29 @@ public class DateRangeIT extends ESIntegTestCase {
 
         Range.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
-        assertThat((String) bucket.getKey(), equalTo("*-2012-02-15T00:00:00.000" + suffix));
+        assertThat((String) bucket.getKey(), equalTo("*-2012-02-15T00:00:00.000" + feb15Suffix));
         assertThat(((ZonedDateTime) bucket.getFrom()), nullValue());
         assertThat(((ZonedDateTime) bucket.getTo()), equalTo(date(2, 15, timezone).withZoneSameInstant(ZoneOffset.UTC)));
         assertThat(bucket.getFromAsString(), nullValue());
-        assertThat(bucket.getToAsString(), equalTo("2012-02-15T00:00:00.000" + suffix));
+        assertThat(bucket.getToAsString(), equalTo("2012-02-15T00:00:00.000" + feb15Suffix));
         assertThat(bucket.getDocCount(), equalTo(expectedFirstBucketCount));
 
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
-        assertThat((String) bucket.getKey(), equalTo("2012-02-15T00:00:00.000" + suffix +
-                "-2012-03-15T00:00:00.000" + suffix));
+        assertThat((String) bucket.getKey(), equalTo("2012-02-15T00:00:00.000" + feb15Suffix +
+                "-2012-03-15T00:00:00.000" + mar15Suffix));
         assertThat(((ZonedDateTime) bucket.getFrom()), equalTo(date(2, 15, timezone).withZoneSameInstant(ZoneOffset.UTC)));
         assertThat(((ZonedDateTime) bucket.getTo()), equalTo(date(3, 15, timezone).withZoneSameInstant(ZoneOffset.UTC)));
-        assertThat(bucket.getFromAsString(), equalTo("2012-02-15T00:00:00.000" + suffix));
-        assertThat(bucket.getToAsString(), equalTo("2012-03-15T00:00:00.000" + suffix));
+        assertThat(bucket.getFromAsString(), equalTo("2012-02-15T00:00:00.000" + feb15Suffix));
+        assertThat(bucket.getToAsString(), equalTo("2012-03-15T00:00:00.000" + mar15Suffix));
         assertThat(bucket.getDocCount(), equalTo(2L));
 
         bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
-        assertThat((String) bucket.getKey(), equalTo("2012-03-15T00:00:00.000" + suffix + "-*"));
+        assertThat((String) bucket.getKey(), equalTo("2012-03-15T00:00:00.000" + mar15Suffix + "-*"));
         assertThat(((ZonedDateTime) bucket.getFrom()), equalTo(date(3, 15, timezone).withZoneSameInstant(ZoneOffset.UTC)));
         assertThat(((ZonedDateTime) bucket.getTo()), nullValue());
-        assertThat(bucket.getFromAsString(), equalTo("2012-03-15T00:00:00.000" + suffix));
+        assertThat(bucket.getFromAsString(), equalTo("2012-03-15T00:00:00.000" + mar15Suffix));
         assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(numDocs - 2L - expectedFirstBucketCount));
     }
@@ -996,39 +999,24 @@ public class DateRangeIT extends ESIntegTestCase {
                 .addAggregation(dateRange("date_range").field("date").addRange(1000, 3000).addRange(3000, 4000)).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
         List<Bucket> buckets = checkBuckets(searchResponse.getAggregations().get("date_range"), "date_range", 2);
-        if (JavaVersion.current().getVersion().get(0) == 8) {
-            assertBucket(buckets.get(0), 2L, "1000.0-3000.0", 1000000L, 3000000L);
-            assertBucket(buckets.get(1), 1L, "3000.0-4000.0", 3000000L, 4000000L);
-        } else {
-            assertBucket(buckets.get(0), 2L, "1000-3000", 1000000L, 3000000L);
-            assertBucket(buckets.get(1), 1L, "3000-4000", 3000000L, 4000000L);
-        }
+        assertBucket(buckets.get(0), 2L, "1000-3000", 1000000L, 3000000L);
+        assertBucket(buckets.get(1), 1L, "3000-4000", 3000000L, 4000000L);
 
         // using no format should also work when and to/from are string values
         searchResponse = client().prepareSearch(indexName).setSize(0)
                 .addAggregation(dateRange("date_range").field("date").addRange("1000", "3000").addRange("3000", "4000")).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
         buckets = checkBuckets(searchResponse.getAggregations().get("date_range"), "date_range", 2);
-        if (JavaVersion.current().getVersion().get(0) == 8) {
-            assertBucket(buckets.get(0), 2L, "1000.0-3000.0", 1000000L, 3000000L);
-            assertBucket(buckets.get(1), 1L, "3000.0-4000.0", 3000000L, 4000000L);
-        } else {
-            assertBucket(buckets.get(0), 2L, "1000-3000", 1000000L, 3000000L);
-            assertBucket(buckets.get(1), 1L, "3000-4000", 3000000L, 4000000L);
-        }
+        assertBucket(buckets.get(0), 2L, "1000-3000", 1000000L, 3000000L);
+        assertBucket(buckets.get(1), 1L, "3000-4000", 3000000L, 4000000L);
 
         // also e-notation should work, fractional parts should be truncated
         searchResponse = client().prepareSearch(indexName).setSize(0)
                 .addAggregation(dateRange("date_range").field("date").addRange(1.0e3, 3000.8123).addRange(3000.8123, 4.0e3)).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
         buckets = checkBuckets(searchResponse.getAggregations().get("date_range"), "date_range", 2);
-        if (JavaVersion.current().getVersion().get(0) == 8) {
-            assertBucket(buckets.get(0), 2L, "1000.0-3000.0", 1000000L, 3000000L);
-            assertBucket(buckets.get(1), 1L, "3000.0-4000.0", 3000000L, 4000000L);
-        } else {
-            assertBucket(buckets.get(0), 2L, "1000-3000", 1000000L, 3000000L);
-            assertBucket(buckets.get(1), 1L, "3000-4000", 3000000L, 4000000L);
-        }
+        assertBucket(buckets.get(0), 2L, "1000-3000", 1000000L, 3000000L);
+        assertBucket(buckets.get(1), 1L, "3000-4000", 3000000L, 4000000L);
 
         // using different format should work when to/from is compatible with
         // format in aggregation

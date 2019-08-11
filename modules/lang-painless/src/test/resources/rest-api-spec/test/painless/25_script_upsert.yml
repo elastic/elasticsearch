@@ -4,7 +4,6 @@
   - do:
       update:
           index:    test_1
-          type:     test
           id:       1
           body:
             script:
@@ -16,7 +15,6 @@
   - do:
       get:
           index:  test_1
-          type:   test
           id:     1
 
   - match:  { _source.foo: baz }
@@ -25,7 +23,6 @@
   - do:
       update:
           index:    test_1
-          type:     test
           id:       1
           body:
             script:
@@ -37,7 +34,6 @@
   - do:
       get:
           index:  test_1
-          type:   test
           id:     1
 
   - match:  { _source.foo: xxx }
@@ -45,7 +41,6 @@
   - do:
       update:
           index:    test_1
-          type:     test
           id:       2
           body:
             script:
@@ -58,7 +53,6 @@
   - do:
       get:
           index:  test_1
-          type:   test
           id:     2
 
   - match:  { _source.foo: xxx }
@@ -66,7 +60,6 @@
   - do:
       update:
           index:    test_1
-          type:     test
           id:       3
           body:
             script:
@@ -78,9 +71,25 @@
   - do:
       get:
           index:  test_1
-          type:   test
           id:     3
 
   - match:  { _source.has_now: true }
 
+  - do:
+      update:
+        index: test_1
+        id: 4
+        body:
+          script:
+            # assume _now is an absolute clock if it's in the range [now - 1m, now]; this tolerance might need adjustment after CI cycles
+            source: "long now = System.currentTimeMillis();ctx._source.within_one_minute = ctx._now <= now && ctx._now >= now - 1000 * 60 * 1"
+            lang: "painless"
+          upsert: { within_one_minute: false }
+          scripted_upsert: true
 
+  - do:
+      get:
+        index: test_1
+        id: 4
+
+  - match: { _source.within_one_minute: true }

@@ -35,6 +35,7 @@ import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalAdjusters;
 import java.time.temporal.TemporalQueries;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 
 /**
@@ -46,11 +47,11 @@ import java.util.function.LongSupplier;
  */
 public class JavaDateMathParser implements DateMathParser {
 
-    private final DateTimeFormatter formatter;
+    private final JavaDateFormatter formatter;
     private final DateTimeFormatter roundUpFormatter;
     private final String format;
 
-    JavaDateMathParser(String format, DateTimeFormatter formatter, DateTimeFormatter roundUpFormatter) {
+    JavaDateMathParser(String format, JavaDateFormatter formatter, DateTimeFormatter roundUpFormatter) {
         this.format = format;
         Objects.requireNonNull(formatter);
         this.formatter = formatter;
@@ -58,7 +59,7 @@ public class JavaDateMathParser implements DateMathParser {
     }
 
     @Override
-    public Instant parse(String text, LongSupplier now, boolean roundUp, ZoneId timeZone) {
+    public Instant parse(String text, LongSupplier now, boolean roundUpProperty, ZoneId timeZone) {
         Instant time;
         String mathString;
         if (text.startsWith("now")) {
@@ -72,16 +73,16 @@ public class JavaDateMathParser implements DateMathParser {
         } else {
             int index = text.indexOf("||");
             if (index == -1) {
-                return parseDateTime(text, timeZone, roundUp);
+                return parseDateTime(text, timeZone, roundUpProperty);
             }
             time = parseDateTime(text.substring(0, index), timeZone, false);
             mathString = text.substring(index + 2);
         }
 
-        return parseMath(mathString, time, roundUp, timeZone);
+        return parseMath(mathString, time, roundUpProperty, timeZone);
     }
 
-    private Instant parseMath(final String mathString, final Instant time, final boolean roundUp,
+    private Instant parseMath(final String mathString, final Instant time, final boolean roundUpProperty,
                            ZoneId timeZone) throws ElasticsearchParseException {
         if (timeZone == null) {
             timeZone = ZoneOffset.UTC;
@@ -132,78 +133,79 @@ public class JavaDateMathParser implements DateMathParser {
                 case 'y':
                     if (round) {
                         dateTime = dateTime.withDayOfYear(1).with(LocalTime.MIN);
+                        if (roundUpProperty) {
+                            dateTime = dateTime.plusYears(1);
+                        }
                     } else {
                         dateTime = dateTime.plusYears(sign * num);
-                    }
-                    if (roundUp) {
-                        dateTime = dateTime.plusYears(1);
                     }
                     break;
                 case 'M':
                     if (round) {
                         dateTime = dateTime.withDayOfMonth(1).with(LocalTime.MIN);
+                        if (roundUpProperty) {
+                            dateTime = dateTime.plusMonths(1);
+                        }
                     } else {
                         dateTime = dateTime.plusMonths(sign * num);
-                    }
-                    if (roundUp) {
-                        dateTime = dateTime.plusMonths(1);
                     }
                     break;
                 case 'w':
                     if (round) {
                         dateTime = dateTime.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).with(LocalTime.MIN);
+                        if (roundUpProperty) {
+                            dateTime = dateTime.plusWeeks(1);
+                        }
                     } else {
                         dateTime = dateTime.plusWeeks(sign * num);
-                    }
-                    if (roundUp) {
-                        dateTime = dateTime.plusWeeks(1);
                     }
                     break;
                 case 'd':
                     if (round) {
                         dateTime = dateTime.with(LocalTime.MIN);
+                        if (roundUpProperty) {
+                            dateTime = dateTime.plusDays(1);
+                        }
                     } else {
                         dateTime = dateTime.plusDays(sign * num);
-                    }
-                    if (roundUp) {
-                        dateTime = dateTime.plusDays(1);
                     }
                     break;
                 case 'h':
                 case 'H':
                     if (round) {
                         dateTime = dateTime.withMinute(0).withSecond(0).withNano(0);
+                        if (roundUpProperty) {
+                            dateTime = dateTime.plusHours(1);
+                        }
                     } else {
                         dateTime = dateTime.plusHours(sign * num);
-                    }
-                    if (roundUp) {
-                        dateTime = dateTime.plusHours(1);
                     }
                     break;
                 case 'm':
                     if (round) {
                         dateTime = dateTime.withSecond(0).withNano(0);
+                        if (roundUpProperty) {
+                            dateTime = dateTime.plusMinutes(1);
+                        }
                     } else {
                         dateTime = dateTime.plusMinutes(sign * num);
-                    }
-                    if (roundUp) {
-                        dateTime = dateTime.plusMinutes(1);
                     }
                     break;
                 case 's':
                     if (round) {
                         dateTime = dateTime.withNano(0);
+                        if (roundUpProperty) {
+                            dateTime = dateTime.plusSeconds(1);
+                        }
                     } else {
                         dateTime = dateTime.plusSeconds(sign * num);
-                    }
-                    if (roundUp) {
-                        dateTime = dateTime.plusSeconds(1);
                     }
                     break;
                 default:
                     throw new ElasticsearchParseException("unit [{}] not supported for date math [{}]", unit, mathString);
             }
-            if (roundUp) {
+            if (round && roundUpProperty) {
+                // subtract 1 millisecond to get the largest inclusive value
                 dateTime = dateTime.minus(1, ChronoField.MILLI_OF_SECOND.getBaseUnit());
             }
         }
@@ -215,20 +217,20 @@ public class JavaDateMathParser implements DateMathParser {
             throw new ElasticsearchParseException("cannot parse empty date");
         }
 
-        DateTimeFormatter formatter = roundUpIfNoTime ? this.roundUpFormatter : this.formatter;
+        Function<String,TemporalAccessor> formatter = roundUpIfNoTime ? this.roundUpFormatter::parse : this.formatter::parse;
         try {
             if (timeZone == null) {
-                return DateFormatters.toZonedDateTime(formatter.parse(value)).toInstant();
+                return DateFormatters.from(formatter.apply(value)).toInstant();
             } else {
-                TemporalAccessor accessor = formatter.parse(value);
+                TemporalAccessor accessor = formatter.apply(value);
                 ZoneId zoneId = TemporalQueries.zone().queryFrom(accessor);
                 if (zoneId != null) {
                     timeZone = zoneId;
                 }
 
-                return DateFormatters.toZonedDateTime(accessor).withZoneSameLocal(timeZone).toInstant();
+                return DateFormatters.from(accessor).withZoneSameLocal(timeZone).toInstant();
             }
-        } catch (DateTimeParseException e) {
+        } catch (IllegalArgumentException | DateTimeParseException e) {
             throw new ElasticsearchParseException("failed to parse date field [{}] with format [{}]: [{}]",
                 e, value, format, e.getMessage());
         }

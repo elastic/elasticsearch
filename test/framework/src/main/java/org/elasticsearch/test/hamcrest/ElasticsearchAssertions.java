@@ -28,7 +28,6 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
@@ -89,7 +88,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -280,10 +278,6 @@ public class ElasticsearchAssertions {
         assertSearchHit(searchResponse, 4, matcher);
     }
 
-    public static void assertFifthHit(SearchResponse searchResponse, Matcher<SearchHit> matcher) {
-        assertSearchHit(searchResponse, 5, matcher);
-    }
-
     public static void assertSearchHit(SearchResponse searchResponse, int number, Matcher<SearchHit> matcher) {
         assertThat(number, greaterThan(0));
         assertThat("SearchHit number must be greater than 0", number, greaterThan(0));
@@ -456,20 +450,7 @@ public class ElasticsearchAssertions {
         assertThat(templateNames, hasItem(name));
     }
 
-    /**
-     * Assert that aliases are missing
-     */
-    public static void assertAliasesMissing(AliasesExistResponse aliasesExistResponse) {
-        assertFalse("Aliases shouldn't exist", aliasesExistResponse.exists());
-    }
-
-    /**
-     * Assert that aliases exist
-     */
-    public static void assertAliasesExist(AliasesExistResponse aliasesExistResponse) {
-        assertTrue("Aliases should exist", aliasesExistResponse.exists());
-    }
-
+    /*
     /*
      * matchers
      */
@@ -655,14 +636,6 @@ public class ElasticsearchAssertions {
      */
     public static void assertFileNotExists(Path file) {
         assertThat("file/dir [" + file + "] should not exist.", Files.exists(file), is(false));
-    }
-
-    /**
-     * Check if a directory exists
-     */
-    public static void assertDirectoryExists(Path dir) {
-        assertFileExists(dir);
-        assertThat("file [" + dir + "] should be a directory.", Files.isDirectory(dir), is(true));
     }
 
     /**

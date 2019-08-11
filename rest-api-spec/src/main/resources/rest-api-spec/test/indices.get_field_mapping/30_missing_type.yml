@@ -3,6 +3,7 @@
 
   - do:
         indices.create:
+          include_type_name: true
           index: test_index
           body:
               mappings:
@@ -19,4 +20,3 @@
         index: test_index
         type: not_test_type
         fields: text
-  

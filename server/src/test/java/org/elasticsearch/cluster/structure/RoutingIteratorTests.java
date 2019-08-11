@@ -43,13 +43,10 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 
 import static java.util.Collections.singletonMap;
-import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -250,22 +247,15 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING
             .getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTable).build();
 
-        Map<String, String> node1Attributes = new HashMap<>();
-        node1Attributes.put("rack_id", "rack_1");
-        node1Attributes.put("zone", "zone1");
-        Map<String, String> node2Attributes = new HashMap<>();
-        node2Attributes.put("rack_id", "rack_2");
-        node2Attributes.put("zone", "zone2");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
-                .add(newNode("node1", unmodifiableMap(node1Attributes)))
-                .add(newNode("node2", unmodifiableMap(node2Attributes)))
+                .add(newNode("node1", Map.of("rack_id", "rack_1", "zone", "zone1")))
+                .add(newNode("node2", Map.of("rack_id", "rack_2", "zone", "zone2")))
                 .localNodeId("node1")
         ).build();
         clusterState = strategy.reroute(clusterState, "reroute");
 
-        clusterState = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
-
-        clusterState = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
         // after all are started, check routing iteration
         ShardIterator shardIterator = clusterState.routingTable().index("test").shard(0)
@@ -312,7 +302,7 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
 
         clusterState = strategy.reroute(clusterState, "reroute");
 
-        clusterState = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
         ShardsIterator shardsIterator = clusterState.routingTable().index("test")
             .shard(0).onlyNodeSelectorActiveInitializingShardsIt("disk:ebs",clusterState.nodes());
@@ -390,9 +380,8 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
         ).build();
         clusterState = strategy.reroute(clusterState, "reroute");
 
-        clusterState = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
-
-        clusterState = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
         OperationRouting operationRouting = new OperationRouting(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
             ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));

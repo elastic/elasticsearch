@@ -29,9 +29,13 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.io.IOException;
 
 public class TransportPutStoredScriptAction extends TransportMasterNodeAction<PutStoredScriptRequest, AcknowledgedResponse> {
 
@@ -42,7 +46,7 @@ public class TransportPutStoredScriptAction extends TransportMasterNodeAction<Pu
                                           ThreadPool threadPool, ActionFilters actionFilters,
                                           IndexNameExpressionResolver indexNameExpressionResolver, ScriptService scriptService) {
         super(PutStoredScriptAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, PutStoredScriptRequest::new);
+                PutStoredScriptRequest::new, indexNameExpressionResolver);
         this.scriptService = scriptService;
     }
 
@@ -52,12 +56,12 @@ public class TransportPutStoredScriptAction extends TransportMasterNodeAction<Pu
     }
 
     @Override
-    protected AcknowledgedResponse newResponse() {
-        return new AcknowledgedResponse();
+    protected AcknowledgedResponse read(StreamInput in) throws IOException {
+        return new AcknowledgedResponse(in);
     }
 
     @Override
-    protected void masterOperation(PutStoredScriptRequest request, ClusterState state,
+    protected void masterOperation(Task task, PutStoredScriptRequest request, ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) throws Exception {
         scriptService.putStoredScript(clusterService, request, listener);
     }

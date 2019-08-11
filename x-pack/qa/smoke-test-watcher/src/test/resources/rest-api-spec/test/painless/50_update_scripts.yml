@@ -3,7 +3,8 @@
 ---
 "Test transform scripts are updated on execution":
   - skip:
-      features: warnings
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/43975"
 
   - do:
       cluster.health:
@@ -21,7 +22,7 @@
           }
 
   - do:
-      xpack.watcher.put_watch:
+      watcher.put_watch:
         id: "my_watch"
         body:  >
           {
@@ -50,7 +51,7 @@
   - match: { _id: "my_watch" }
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         id: "my_watch"
 
   - match: { "watch_record.watch_id": "my_watch" }
@@ -69,7 +70,7 @@
           }
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         id: "my_watch"
 
   - match: { "watch_record.watch_id": "my_watch" }
@@ -97,7 +98,7 @@
           }
 
   - do:
-      xpack.watcher.put_watch:
+      watcher.put_watch:
         id: "my_watch"
         body:  >
           {
@@ -126,7 +127,7 @@
   - match: { _id: "my_watch" }
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         id: "my_watch"
 
   - match: { "watch_record.watch_id": "my_watch" }
@@ -144,7 +145,7 @@
           }
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         id: "my_watch"
 
   - match: { "watch_record.watch_id": "my_watch" }

@@ -308,7 +308,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         client().performRequest(createJobRequest);
 
         String datafeedId = jobId + "-datafeed";
-        new DatafeedBuilder(datafeedId, jobId, "nested-data", "response").build();
+        new DatafeedBuilder(datafeedId, jobId, "nested-data").build();
         openJob(client(), jobId);
 
         startDatafeedAndWaitUntilStopped(datafeedId);
@@ -318,6 +318,71 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         String jobStatsResponseAsString = EntityUtils.toString(jobStatsResponse.getEntity());
         assertThat(jobStatsResponseAsString, containsString("\"input_record_count\":2"));
         assertThat(jobStatsResponseAsString, containsString("\"processed_record_count\":2"));
+        assertThat(jobStatsResponseAsString, containsString("\"missing_field_count\":0"));
+    }
+
+    public void testLookbackWithGeo() throws Exception {
+        String jobId = "test-lookback-only-with-geo";
+        Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
+        createJobRequest.setJsonEntity("{\n"
+            + "  \"description\": \"lat_long with geo_point\",\n"
+            + "  \"analysis_config\": {\n"
+            + "    \"bucket_span\": \"15m\",\n"
+            + "    \"detectors\": [\n"
+            + "      {\n"
+            + "        \"function\": \"lat_long\",\n"
+            + "        \"field_name\": \"location\"\n"
+            + "      }\n"
+            + "    ]\n"
+            + "  },"
+            + "  \"data_description\": {\"time_field\": \"time\"}\n"
+            + "}");
+        client().performRequest(createJobRequest);
+        String datafeedId = jobId + "-datafeed";
+        new DatafeedBuilder(datafeedId, jobId, "geo-data").build();
+
+        StringBuilder bulk = new StringBuilder();
+
+        Request createGeoData = new Request("PUT", "/geo-data");
+        createGeoData.setJsonEntity("{"
+            + "  \"mappings\": {"
+            + "    \"properties\": {"
+            + "      \"time\": { \"type\":\"date\"},"
+            + "      \"location\": { \"type\":\"geo_point\"}"
+            + "    }"
+            + "  }"
+            + "}");
+        client().performRequest(createGeoData);
+
+        bulk.append("{\"index\": {\"_index\": \"geo-data\", \"_id\": 1}}\n");
+        bulk.append("{\"time\":\"2016-06-01T00:00:00Z\",\"location\":{\"lat\":38.897676,\"lon\":-77.03653}}\n");
+        bulk.append("{\"index\": {\"_index\": \"geo-data\", \"_id\": 2}}\n");
+        bulk.append("{\"time\":\"2016-06-01T00:05:00Z\",\"location\":{\"lat\":38.897676,\"lon\":-77.03653}}\n");
+        bulk.append("{\"index\": {\"_index\": \"geo-data\", \"_id\": 3}}\n");
+        bulk.append("{\"time\":\"2016-06-01T00:10:00Z\",\"location\":{\"lat\":38.897676,\"lon\":-77.03653}}\n");
+        bulk.append("{\"index\": {\"_index\": \"geo-data\", \"_id\": 4}}\n");
+        bulk.append("{\"time\":\"2016-06-01T00:15:00Z\",\"location\":{\"lat\":38.897676,\"lon\":-77.03653}}\n");
+        bulk.append("{\"index\": {\"_index\": \"geo-data\", \"_id\": 5}}\n");
+        bulk.append("{\"time\":\"2016-06-01T00:20:00Z\",\"location\":{\"lat\":38.897676,\"lon\":-77.03653}}\n");
+        bulk.append("{\"index\": {\"_index\": \"geo-data\", \"_id\": 6}}\n");
+        bulk.append("{\"time\":\"2016-06-01T00:25:00Z\",\"location\":{\"lat\":38.897676,\"lon\":-77.03653}}\n");
+        bulk.append("{\"index\": {\"_index\": \"geo-data\", \"_id\": 7}}\n");
+        bulk.append("{\"time\":\"2016-06-01T00:30:00Z\",\"location\":{\"lat\":38.897676,\"lon\":-77.03653}}\n");
+        bulk.append("{\"index\": {\"_index\": \"geo-data\", \"_id\": 8}}\n");
+        bulk.append("{\"time\":\"2016-06-01T00:40:00Z\",\"location\":{\"lat\":90.0,\"lon\":-77.03653}}\n");
+        bulk.append("{\"index\": {\"_index\": \"geo-data\", \"_id\": 9}}\n");
+        bulk.append("{\"time\":\"2016-06-01T00:41:00Z\",\"location\":{\"lat\":38.897676,\"lon\":-77.03653}}\n");
+        bulkIndex(bulk.toString());
+
+        openJob(client(), jobId);
+
+        startDatafeedAndWaitUntilStopped(datafeedId);
+        waitUntilJobIsClosed(jobId);
+        Response jobStatsResponse = client().performRequest(
+            new Request("GET", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats"));
+        String jobStatsResponseAsString = EntityUtils.toString(jobStatsResponse.getEntity());
+        assertThat(jobStatsResponseAsString, containsString("\"input_record_count\":9"));
+        assertThat(jobStatsResponseAsString, containsString("\"processed_record_count\":9"));
         assertThat(jobStatsResponseAsString, containsString("\"missing_field_count\":0"));
     }
 
@@ -351,7 +416,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         // create a datafeed they DON'T have permission to search the index the datafeed is
         // configured to read
         ResponseException e = expectThrows(ResponseException.class, () ->
-                new DatafeedBuilder(datafeedId, jobId, "airline-data-aggs", "response")
+                new DatafeedBuilder(datafeedId, jobId, "airline-data-aggs")
                         .setAuthHeader(BASIC_AUTH_VALUE_ML_ADMIN)
                         .build());
 
@@ -391,7 +456,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
             + "    \"groups\" : {\n"
             + "      \"date_histogram\": {\n"
             + "        \"field\": \"time stamp\",\n"
-            + "        \"interval\": \"2m\",\n"
+            + "        \"fixed_interval\": \"2m\",\n"
             + "        \"delay\": \"7d\"\n"
             + "      },\n"
             + "      \"terms\": {\n"
@@ -412,14 +477,14 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         client().performRequest(createRollupRequest);
 
         String datafeedId = "datafeed-" + jobId;
-        String aggregations = "{\"buckets\":{\"date_histogram\":{\"field\":\"time stamp\",\"interval\":3600000},"
+        String aggregations = "{\"buckets\":{\"date_histogram\":{\"field\":\"time stamp\",\"fixed_interval\":\"3600000ms\"},"
             + "\"aggregations\":{"
             + "\"time stamp\":{\"max\":{\"field\":\"time stamp\"}},"
             + "\"responsetime\":{\"avg\":{\"field\":\"responsetime\"}}}}}";
 
 
         ResponseException e = expectThrows(ResponseException.class, () ->
-            new DatafeedBuilder(datafeedId, jobId, "airline-data-aggs-rollup", "doc")
+            new DatafeedBuilder(datafeedId, jobId, "airline-data-aggs-rollup")
                 .setAggregations(aggregations)
                 .setAuthHeader(BASIC_AUTH_VALUE_ML_ADMIN_WITH_SOME_DATA_ACCESS) //want to search, but no admin access
                 .build());
@@ -449,7 +514,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         client().performRequest(createJobRequest);
 
         String datafeedId = "datafeed-" + jobId;
-        new DatafeedBuilder(datafeedId, jobId, "airline-data-aggs", "response").build();
+        new DatafeedBuilder(datafeedId, jobId, "airline-data-aggs").build();
 
         // This should be disallowed, because ml_admin is trying to preview a datafeed created by
         // by another user (x_pack_rest_user in this case) that will reveal the content of an index they
@@ -490,7 +555,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
                 + "\"time stamp\":{\"max\":{\"field\":\"time stamp\"}},"
                 + "\"airline\":{\"terms\":{\"field\":\"airline\",\"size\":10},"
                 + "  \"aggregations\":{\"responsetime\":{\"avg\":{\"field\":\"responsetime\"}}}}}}}";
-        new DatafeedBuilder(datafeedId, jobId, "airline-data-aggs", "response").setAggregations(aggregations).build();
+        new DatafeedBuilder(datafeedId, jobId, "airline-data-aggs").setAggregations(aggregations).build();
         openJob(client(), jobId);
 
         startDatafeedAndWaitUntilStopped(datafeedId);
@@ -524,12 +589,12 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         client().performRequest(createJobRequest);
 
         String datafeedId = "datafeed-" + jobId;
-        String aggregations = "{\"time stamp\":{\"date_histogram\":{\"field\":\"time stamp\",\"interval\":\"1h\"},"
+        String aggregations = "{\"time stamp\":{\"date_histogram\":{\"field\":\"time stamp\",\"calendar_interval\":\"1h\"},"
                 + "\"aggregations\":{"
                 + "\"time stamp\":{\"max\":{\"field\":\"time stamp\"}},"
                 + "\"airline\":{\"terms\":{\"field\":\"airline\",\"size\":10},"
                 + "  \"aggregations\":{\"responsetime\":{\"avg\":{\"field\":\"responsetime\"}}}}}}}";
-        new DatafeedBuilder(datafeedId, jobId, "airline-data-aggs", "response").setAggregations(aggregations).build();
+        new DatafeedBuilder(datafeedId, jobId, "airline-data-aggs").setAggregations(aggregations).build();
         openJob(client(), jobId);
 
         startDatafeedAndWaitUntilStopped(datafeedId);
@@ -564,11 +629,11 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         String datafeedId = "datafeed-" + jobId;
         String aggregations =
                  "{\"hostname\": {\"terms\" : {\"field\": \"host.keyword\", \"size\":10},"
-                    + "\"aggs\": {\"buckets\": {\"date_histogram\":{\"field\":\"timestamp\",\"interval\":\"60s\"},"
+                    + "\"aggs\": {\"buckets\": {\"date_histogram\":{\"field\":\"timestamp\",\"fixed_interval\":\"60s\"},"
                         + "\"aggs\": {\"timestamp\":{\"max\":{\"field\":\"timestamp\"}},"
                             + "\"bytes-delta\":{\"derivative\":{\"buckets_path\":\"avg_bytes_out\"}},"
                             + "\"avg_bytes_out\":{\"avg\":{\"field\":\"network_bytes_out\"}} }}}}}";
-        new DatafeedBuilder(datafeedId, jobId, "network-data", "doc")
+        new DatafeedBuilder(datafeedId, jobId, "network-data")
                 .setAggregations(aggregations)
                 .setChunkingTimespan("300s")
                 .build();
@@ -610,11 +675,11 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         String datafeedId = "datafeed-" + jobId;
         String aggregations =
                 "{\"hostname\": {\"terms\" : {\"field\": \"host.keyword\", \"size\":10},"
-                        + "\"aggs\": {\"buckets\": {\"date_histogram\":{\"field\":\"timestamp\",\"interval\":\"5s\"},"
+                        + "\"aggs\": {\"buckets\": {\"date_histogram\":{\"field\":\"timestamp\",\"fixed_interval\":\"5s\"},"
                         + "\"aggs\": {\"timestamp\":{\"max\":{\"field\":\"timestamp\"}},"
                         + "\"bytes-delta\":{\"derivative\":{\"buckets_path\":\"avg_bytes_out\"}},"
                         + "\"avg_bytes_out\":{\"avg\":{\"field\":\"network_bytes_out\"}} }}}}}";
-        new DatafeedBuilder(datafeedId, jobId, "network-data", "doc")
+        new DatafeedBuilder(datafeedId, jobId, "network-data")
                 .setAggregations(aggregations)
                 .setChunkingTimespan("300s")
                 .build();
@@ -652,13 +717,13 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         String datafeedId = "datafeed-" + jobId;
         String aggregations =
                 "{\"hostname\": {\"terms\" : {\"field\": \"host.keyword\", \"size\":10},"
-                        + "\"aggs\": {\"buckets\": {\"date_histogram\":{\"field\":\"timestamp\",\"interval\":\"5s\"},"
+                        + "\"aggs\": {\"buckets\": {\"date_histogram\":{\"field\":\"timestamp\",\"fixed_interval\":\"5s\"},"
                         + "\"aggs\": {\"timestamp\":{\"max\":{\"field\":\"timestamp\"}},"
                         + "\"bytes-delta\":{\"derivative\":{\"buckets_path\":\"avg_bytes_out\"}},"
                         + "\"avg_bytes_out\":{\"avg\":{\"field\":\"network_bytes_out\"}} }}}}}";
 
         // At the time we create the datafeed the user can access the network-data index that we have access to
-        new DatafeedBuilder(datafeedId, jobId, "network-data", "doc")
+        new DatafeedBuilder(datafeedId, jobId, "network-data")
                 .setAggregations(aggregations)
                 .setChunkingTimespan("300s")
                 .setAuthHeader(BASIC_AUTH_VALUE_ML_ADMIN_WITH_SOME_DATA_ACCESS)
@@ -706,13 +771,13 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         client().performRequest(createJobRequest);
 
         String datafeedId = "datafeed-" + jobId;
-        String aggregations = "{\"buckets\":{\"date_histogram\":{\"field\":\"time stamp\",\"interval\":\"15m\"},"
+        String aggregations = "{\"buckets\":{\"date_histogram\":{\"field\":\"time stamp\",\"fixed_interval\":\"15m\"},"
                 + "\"aggregations\":{"
                     + "\"time stamp\":{\"max\":{\"field\":\"time stamp\"}},"
                     + "\"airlines\":{\"terms\":{\"field\":\"airline.keyword\",\"size\":10}},"
                     + "\"percentile95_airlines_count\":{\"percentiles_bucket\":" +
                         "{\"buckets_path\":\"airlines._count\", \"percents\": [95]}}}}}";
-        new DatafeedBuilder(datafeedId, jobId, "airline-data", "response").setAggregations(aggregations).build();
+        new DatafeedBuilder(datafeedId, jobId, "airline-data").setAggregations(aggregations).build();
 
         openJob(client(), jobId);
 
@@ -759,7 +824,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
             + "    \"groups\" : {\n"
             + "      \"date_histogram\": {\n"
             + "        \"field\": \"time stamp\",\n"
-            + "        \"interval\": \"2m\",\n"
+            + "        \"fixed_interval\": \"2m\",\n"
             + "        \"delay\": \"7d\"\n"
             + "      },\n"
             + "      \"terms\": {\n"
@@ -797,11 +862,11 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         client().performRequest(refreshRollupIndex);
 
         String datafeedId = "datafeed-" + jobId;
-        String aggregations = "{\"buckets\":{\"date_histogram\":{\"field\":\"time stamp\",\"interval\":3600000},"
+        String aggregations = "{\"buckets\":{\"date_histogram\":{\"field\":\"time stamp\",\"fixed_interval\":\"3600000ms\"},"
             + "\"aggregations\":{"
             + "\"time stamp\":{\"max\":{\"field\":\"time stamp\"}},"
             + "\"responsetime\":{\"avg\":{\"field\":\"responsetime\"}}}}}";
-        new DatafeedBuilder(datafeedId, jobId, "airline-data-aggs-rollup", "response").setAggregations(aggregations).build();
+        new DatafeedBuilder(datafeedId, jobId, "airline-data-aggs-rollup").setAggregations(aggregations).build();
         openJob(client(), jobId);
 
         startDatafeedAndWaitUntilStopped(datafeedId);
@@ -844,7 +909,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
             + "    \"groups\" : {\n"
             + "      \"date_histogram\": {\n"
             + "        \"field\": \"time stamp\",\n"
-            + "        \"interval\": \"2m\",\n"
+            + "        \"fixed_interval\": \"2m\",\n"
             + "        \"delay\": \"7d\"\n"
             + "      },\n"
             + "      \"terms\": {\n"
@@ -865,14 +930,14 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         client().performRequest(createRollupRequest);
 
         String datafeedId = "datafeed-" + jobId;
-        String aggregations = "{\"buckets\":{\"date_histogram\":{\"field\":\"time stamp\",\"interval\":3600000},"
+        String aggregations = "{\"buckets\":{\"date_histogram\":{\"field\":\"time stamp\",\"fixed_interval\":\"3600000ms\"},"
             + "\"aggregations\":{"
             + "\"time stamp\":{\"max\":{\"field\":\"time stamp\"}},"
             + "\"responsetime\":{\"avg\":{\"field\":\"responsetime\"}}}}}";
 
 
         // At the time we create the datafeed the user can access the network-data index that we have access to
-        new DatafeedBuilder(datafeedId, jobId, "airline-data-aggs-rollup", "doc")
+        new DatafeedBuilder(datafeedId, jobId, "airline-data-aggs-rollup")
             .setAggregations(aggregations)
             .setChunkingTimespan("300s")
             .setAuthHeader(BASIC_AUTH_VALUE_ML_ADMIN_WITH_SOME_DATA_ACCESS)
@@ -914,12 +979,12 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         client().performRequest(createJobRequest);
 
         String datafeedId = "datafeed-" + jobId;
-        String aggregations = "{\"time stamp\":{\"date_histogram\":{\"field\":\"time stamp\",\"interval\":\"1h\"},"
+        String aggregations = "{\"time stamp\":{\"date_histogram\":{\"field\":\"time stamp\",\"calendar_interval\":\"1h\"},"
             + "\"aggregations\":{"
             + "\"time stamp\":{\"max\":{\"field\":\"time stamp\"}},"
             + "\"airlineFilter\":{\"filter\":{\"term\": {\"airline\":\"AAA\"}},"
             + "  \"aggregations\":{\"responsetime\":{\"avg\":{\"field\":\"responsetime\"}}}}}}}";
-        new DatafeedBuilder(datafeedId, jobId, "airline-data-aggs", "response").setAggregations(aggregations).build();
+        new DatafeedBuilder(datafeedId, jobId, "airline-data-aggs").setAggregations(aggregations).build();
         openJob(client(), jobId);
 
         startDatafeedAndWaitUntilStopped(datafeedId);
@@ -936,7 +1001,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         String jobId = "job-realtime-1";
         createJob(jobId, "airline");
         String datafeedId = jobId + "-datafeed";
-        new DatafeedBuilder(datafeedId, jobId, "airline-data", "response").build();
+        new DatafeedBuilder(datafeedId, jobId, "airline-data").build();
         openJob(client(), jobId);
 
         Request startRequest = new Request("POST", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_start");
@@ -994,7 +1059,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         String jobId = "job-realtime-2";
         createJob(jobId, "airline");
         String datafeedId = jobId + "-datafeed";
-        new DatafeedBuilder(datafeedId, jobId, "airline-data", "response").build();
+        new DatafeedBuilder(datafeedId, jobId, "airline-data").build();
         openJob(client(), jobId);
 
         Request startRequest = new Request("POST", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_start");
@@ -1059,7 +1124,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         public void execute() throws Exception {
             createJob(jobId, airlineVariant);
             String datafeedId = "datafeed-" + jobId;
-            new DatafeedBuilder(datafeedId, jobId, dataIndex, "response")
+            new DatafeedBuilder(datafeedId, jobId, dataIndex)
                     .setScriptedFields(addScriptedFields ?
                             "{\"airline\":{\"script\":{\"lang\":\"painless\",\"inline\":\"doc['airline'].value\"}}}" : null)
                     .build();
@@ -1106,7 +1171,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
-        });
+        }, 60, TimeUnit.SECONDS);
     }
 
     private void waitUntilJobIsClosed(String jobId) throws Exception {
@@ -1159,18 +1224,16 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         String datafeedId;
         String jobId;
         String index;
-        String type;
         boolean source;
         String scriptedFields;
         String aggregations;
         String authHeader = BASIC_AUTH_VALUE_SUPER_USER;
         String chunkingTimespan;
 
-        DatafeedBuilder(String datafeedId, String jobId, String index, String type) {
+        DatafeedBuilder(String datafeedId, String jobId, String index) {
             this.datafeedId = datafeedId;
             this.jobId = jobId;
             this.index = index;
-            this.type = type;
         }
 
         DatafeedBuilder setSource(boolean enableSource) {

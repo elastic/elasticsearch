@@ -31,11 +31,13 @@ public class ShowColumns extends Command {
 
     private final String index;
     private final LikePattern pattern;
+    private final boolean includeFrozen;
 
-    public ShowColumns(Source source, String index, LikePattern pattern) {
+    public ShowColumns(Source source, String index, LikePattern pattern, boolean includeFrozen) {
         super(source);
         this.index = index;
         this.pattern = pattern;
+        this.includeFrozen = includeFrozen;
     }
 
     public String index() {
@@ -48,7 +50,7 @@ public class ShowColumns extends Command {
 
     @Override
     protected NodeInfo<ShowColumns> info() {
-        return NodeInfo.create(this, ShowColumns::new, index, pattern);
+        return NodeInfo.create(this, ShowColumns::new, index, pattern, includeFrozen);
     }
 
     @Override
@@ -62,7 +64,9 @@ public class ShowColumns extends Command {
     public void execute(SqlSession session, ActionListener<SchemaRowSet> listener) {
         String idx = index != null ? index : (pattern != null ? pattern.asIndexNameWildcard() : "*");
         String regex = pattern != null ? pattern.asJavaRegex() : null;
-        session.indexResolver().resolveAsMergedMapping(idx, regex, ActionListener.wrap(
+
+        boolean withFrozen = includeFrozen || session.configuration().includeFrozen();
+        session.indexResolver().resolveAsMergedMapping(idx, regex, withFrozen, ActionListener.wrap(
                 indexResult -> {
                     List<List<?>> rows = emptyList();
                     if (indexResult.isValid()) {
@@ -81,7 +85,7 @@ public class ShowColumns extends Command {
             String name = e.getKey();
             if (dt != null) {
                 // show only fields that exist in ES
-                rows.add(asList(prefix != null ? prefix + "." + name : name, dt.sqlName(), dt.esType));
+                rows.add(asList(prefix != null ? prefix + "." + name : name, dt.sqlName(), dt.typeName));
                 if (field.getProperties().isEmpty() == false) {
                     String newPrefix = prefix != null ? prefix + "." + name : name;
                     fillInRows(field.getProperties(), newPrefix, rows);
@@ -92,7 +96,7 @@ public class ShowColumns extends Command {
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, pattern);
+        return Objects.hash(index, pattern, includeFrozen);
     }
 
     @Override
@@ -107,6 +111,7 @@ public class ShowColumns extends Command {
 
         ShowColumns other = (ShowColumns) obj;
         return Objects.equals(index, other.index)
-                && Objects.equals(pattern, other.pattern);
+                && Objects.equals(pattern, other.pattern)
+                && includeFrozen == other.includeFrozen;
     }
 }

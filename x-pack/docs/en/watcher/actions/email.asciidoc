@@ -117,11 +117,11 @@ killed by firewalls or load balancers in-between.
                     specify the `url` attribute to configure the host and path to
                     the service endpoint. See <<webhook-action-attributes>> for
                     the full list of HTTP request attributes. Required.
-|======
+|=====
 
 .`data` attachment type attributes
 [options="header"]
-|=====
+|======
 | Name        | Description
 | `format`    | Attaches the watch data, equivalent to specifying `attach_data`
                 in the watch configuration. Possible values are `json` or `yaml`.
@@ -131,7 +131,7 @@ killed by firewalls or load balancers in-between.
 
 .`reporting` attachment type attributes
 [options="header"]
-|=====
+|======
 | Name            | Description
 | `url`           | The URL to trigger the dashboard creation
 | `inline`        | Configures as an attachment to sent with disposition `inline`. This
@@ -202,17 +202,15 @@ For more information, see
                                                             to specify either the text or the html body or both (using
                                                             the fields below)
 
-| `body.text`           | yes       | -                   | The plain text body of the email. The body can be static text
-                                                            or contain Mustache <<templates, templates>>. The email `body`
-                                                            must contain at least one `text` or `html` field.
+| `body.text`           | no       | -                   | The plain text body of the email. The body can be static text
+                                                            or contain Mustache <<templates, templates>>.
 
-| `body.html`           | yes       | -                   | The html body of the email. The body can be static text or
+| `body.html`           | no       | -                   | The html body of the email. The body can be static text or
                                                             contain Mustache <<templates, templates>>. This body will be
                                                             sanitized to remove dangerous content such as scripts. This
                                                             behavior can be disabled by setting
                                                             `xpack.notification.email.html.sanitization.enabled: false` in
-                                                            `elasticsearch.yaml`. The email `body` must contain at least
-                                                            one `text` or `html` field.
+                                                            `elasticsearch.yaml`.
 
 | `priority`            | no        | -                   | The priority of this email. Valid values are: `lowest`, `low`,
                                                             `normal`, `high` and `highest`. The priority can contain a
@@ -325,7 +323,7 @@ In order to store the account SMTP password, use the keystore command
 
 [source,yaml]
 --------------------------------------------------
-bin/elasticsearch-keystore xpack.notification.email.account.gmail_account.smtp.secure_password
+bin/elasticsearch-keystore add xpack.notification.email.account.gmail_account.smtp.secure_password
 --------------------------------------------------
 
 If you get an authentication error that indicates that you need to continue the
@@ -363,7 +361,7 @@ In order to store the account SMTP password, use the keystore command
 
 [source,yaml]
 --------------------------------------------------
-bin/elasticsearch-keystore xpack.notification.email.account.outlook_account.smtp.secure_password
+bin/elasticsearch-keystore add xpack.notification.email.account.outlook_account.smtp.secure_password
 --------------------------------------------------
 
 
@@ -400,7 +398,7 @@ In order to store the account SMTP password, use the keystore command
 
 [source,yaml]
 --------------------------------------------------
-bin/elasticsearch-keystore xpack.notification.email.account.ses_account.smtp.secure_password
+bin/elasticsearch-keystore add xpack.notification.email.account.ses_account.smtp.secure_password
 --------------------------------------------------
 
 NOTE:   You need to use your Amazon SES SMTP credentials to send email through
@@ -443,7 +441,7 @@ In order to store the account SMTP password, use the keystore command
 
 [source,yaml]
 --------------------------------------------------
-bin/elasticsearch-keystore xpack.notification.email.account.exchange_account.smtp.secure_password
+bin/elasticsearch-keystore add xpack.notification.email.account.exchange_account.smtp.secure_password
 --------------------------------------------------
 
 [float]

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -37,6 +36,13 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
+
+/**
+ * Response object for {@link RolloverRequest} API
+ *
+ * Note: there is a new class with the same name for the Java HLRC that uses a typeless format.
+ * Any changes done to this class should also go to that client class.
+ */
 public final class RolloverResponse extends ShardsAcknowledgedResponse implements ToXContentObject {
 
     private static final ParseField NEW_INDEX = new ParseField("new_index");
@@ -59,13 +65,27 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse implement
         declareAcknowledgedAndShardsAcknowledgedFields(PARSER);
     }
 
-    private String oldIndex;
-    private String newIndex;
-    private Map<String, Boolean> conditionStatus;
-    private boolean dryRun;
-    private boolean rolledOver;
+    private final String oldIndex;
+    private final String newIndex;
+    private final Map<String, Boolean> conditionStatus;
+    private final boolean dryRun;
+    private final boolean rolledOver;
+    // Needs to be duplicated, because shardsAcknowledged gets (de)serailized as last field whereas
+    // in other subclasses of ShardsAcknowledgedResponse this field (de)serailized as first field.
+    private final boolean shardsAcknowledged;
 
-    RolloverResponse() {
+    RolloverResponse(StreamInput in) throws IOException {
+        super(in, false);
+        oldIndex = in.readString();
+        newIndex = in.readString();
+        int conditionSize = in.readVInt();
+        conditionStatus = new HashMap<>(conditionSize);
+        for (int i = 0; i < conditionSize; i++) {
+            conditionStatus.put(in.readString(), in.readBoolean());
+        }
+        dryRun = in.readBoolean();
+        rolledOver = in.readBoolean();
+        shardsAcknowledged = in.readBoolean();
     }
 
     public RolloverResponse(String oldIndex, String newIndex, Map<String, Boolean> conditionResults,
@@ -76,6 +96,7 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse implement
         this.dryRun = dryRun;
         this.rolledOver = rolledOver;
         this.conditionStatus = conditionResults;
+        this.shardsAcknowledged = shardsAcknowledged;
     }
 
     /**
@@ -114,61 +135,23 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse implement
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
-            super.readFrom(in);
-            oldIndex = in.readString();
-            newIndex = in.readString();
-            int conditionSize = in.readVInt();
-            conditionStatus = new HashMap<>(conditionSize);
-            for (int i = 0; i < conditionSize; i++) {
-                conditionStatus.put(in.readString(), in.readBoolean());
-            }
-            dryRun = in.readBoolean();
-            rolledOver = in.readBoolean();
-            readShardsAcknowledged(in);
-        } else {
-            oldIndex = in.readString();
-            newIndex = in.readString();
-            int conditionSize = in.readVInt();
-            conditionStatus = new HashMap<>(conditionSize);
-            for (int i = 0; i < conditionSize; i++) {
-                conditionStatus.put(in.readString(), in.readBoolean());
-            }
-            dryRun = in.readBoolean();
-            rolledOver = in.readBoolean();
-            acknowledged = in.readBoolean();
-            readShardsAcknowledged(in);
-        }
+    public boolean isShardsAcknowledged() {
+        return shardsAcknowledged;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
-            super.writeTo(out);
-            out.writeString(oldIndex);
-            out.writeString(newIndex);
-            out.writeVInt(conditionStatus.size());
-            for (Map.Entry<String, Boolean> entry : conditionStatus.entrySet()) {
-                out.writeString(entry.getKey());
-                out.writeBoolean(entry.getValue());
-            }
-            out.writeBoolean(dryRun);
-            out.writeBoolean(rolledOver);
-            writeShardsAcknowledged(out);
-        } else {
-            out.writeString(oldIndex);
-            out.writeString(newIndex);
-            out.writeVInt(conditionStatus.size());
-            for (Map.Entry<String, Boolean> entry : conditionStatus.entrySet()) {
-                out.writeString(entry.getKey());
-                out.writeBoolean(entry.getValue());
-            }
-            out.writeBoolean(dryRun);
-            out.writeBoolean(rolledOver);
-            out.writeBoolean(acknowledged);
-            writeShardsAcknowledged(out);
+        super.writeTo(out);
+        out.writeString(oldIndex);
+        out.writeString(newIndex);
+        out.writeVInt(conditionStatus.size());
+        for (Map.Entry<String, Boolean> entry : conditionStatus.entrySet()) {
+            out.writeString(entry.getKey());
+            out.writeBoolean(entry.getValue());
         }
+        out.writeBoolean(dryRun);
+        out.writeBoolean(rolledOver);
+        out.writeBoolean(shardsAcknowledged);
     }
 
     @Override

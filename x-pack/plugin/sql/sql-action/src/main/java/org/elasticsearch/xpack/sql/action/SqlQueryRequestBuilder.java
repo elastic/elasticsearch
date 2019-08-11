@@ -25,14 +25,16 @@ public class SqlQueryRequestBuilder extends ActionRequestBuilder<SqlQueryRequest
 
     public SqlQueryRequestBuilder(ElasticsearchClient client, SqlQueryAction action) {
         this(client, action, "", Collections.emptyList(), null, Protocol.TIME_ZONE, Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT,
-            Protocol.PAGE_TIMEOUT, "", new RequestInfo(Mode.PLAIN));
+            Protocol.PAGE_TIMEOUT, false, "", new RequestInfo(Mode.PLAIN), Protocol.FIELD_MULTI_VALUE_LENIENCY, 
+            Protocol.INDEX_INCLUDE_FROZEN);
     }
 
     public SqlQueryRequestBuilder(ElasticsearchClient client, SqlQueryAction action, String query, List<SqlTypedParamValue> params,
             QueryBuilder filter, ZoneId zoneId, int fetchSize, TimeValue requestTimeout,
-                                  TimeValue pageTimeout, String nextPageInfo, RequestInfo requestInfo) {
-        super(client, action, new SqlQueryRequest(query, params, filter, zoneId, fetchSize, requestTimeout, pageTimeout, nextPageInfo,
-                requestInfo));
+            TimeValue pageTimeout, boolean columnar, String nextPageInfo, RequestInfo requestInfo,
+            boolean multiValueFieldLeniency, boolean indexIncludeFrozen) {
+        super(client, action, new SqlQueryRequest(query, params, filter, zoneId, fetchSize, requestTimeout, pageTimeout, columnar,
+                nextPageInfo, requestInfo, multiValueFieldLeniency, indexIncludeFrozen));
     }
 
     public SqlQueryRequestBuilder query(String query) {
@@ -74,9 +76,19 @@ public class SqlQueryRequestBuilder extends ActionRequestBuilder<SqlQueryRequest
         request.pageTimeout(timeout);
         return this;
     }
+    
+    public SqlQueryRequestBuilder columnar(boolean columnar) {
+        request.columnar(columnar);
+        return this;
+    }
 
     public SqlQueryRequestBuilder fetchSize(int fetchSize) {
         request.fetchSize(fetchSize);
+        return this;
+    }
+
+    public SqlQueryRequestBuilder multiValueFieldLeniency(boolean lenient) {
+        request.fieldMultiValueLeniency(lenient);
         return this;
     }
 }

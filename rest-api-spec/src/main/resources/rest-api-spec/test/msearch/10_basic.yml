@@ -4,28 +4,24 @@ setup:
   - do:
       index:
           index:  index_1
-          type:   test
           id:     1
           body:   { foo: bar }
 
   - do:
       index:
           index:  index_1
-          type:   test
           id:     2
           body:   { foo: baz }
 
   - do:
       index:
           index:  index_1
-          type:   test
           id:     3
           body:   { foo: foo }
 
   - do:
       index:
           index:  index_2
-          type:   test
           id:     1
           body:   { foo: foo }
 
@@ -98,9 +94,6 @@ setup:
 
 ---
 "Search with new response format":
-  - skip:
-      version: " - 6.99.99"
-      reason: hits.total is returned as an object in 7.0.0
 
   - do:
       msearch:
@@ -154,6 +147,3 @@ setup:
           - index: index_1
           - query:
               match: {foo: foo}
-
-
-

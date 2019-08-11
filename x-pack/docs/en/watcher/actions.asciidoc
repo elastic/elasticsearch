@@ -16,8 +16,8 @@ serve as a model for a templated email body.
 
 {watcher} supports the following types of actions:
 <<actions-email, email>>, <<actions-webhook, webhook>>, <<actions-index, index>>,
-<<actions-logging, logging>>, <<actions-hipchat, hipchat>>, <<actions-slack,
-Slack>>, and <<actions-pagerduty, pagerduty>>.
+<<actions-logging, logging>>, <<actions-slack, Slack>>,
+and <<actions-pagerduty, pagerduty>>.
 
 [float]
 [[actions-ack-throttle]]
@@ -192,6 +192,49 @@ of a watch during its execution:
 image::images/action-throttling.jpg[align="center"]
 
 
+[[action-foreach]]
+=== Running an action for each element in an array
+
+You can use the `foreach` field in an action to trigger the configured action
+for every element within that array.
+
+In order to protect from long running watches, after one hundred runs with an
+foreach loop the execution is gracefully stopped.
+
+[source,js]
+--------------------------------------------------
+PUT _watcher/watch/log_event_watch
+{
+  "trigger" : {
+    "schedule" : { "interval" : "5m" }
+  },
+  "input" : {
+    "search" : {
+      "request" : {
+        "indices" : "log-events",
+        "body" : {
+          "query" : { "match" : { "status" : "error" } }
+        }
+      }
+    }
+  },
+  "condition" : {
+    "compare" : { "ctx.payload.hits.total" : { "gt" : 0 } }
+  },
+  "actions" : {
+    "log_hits" : {
+      "foreach" : "ctx.payload.hits.hits", <1>
+      "logging" : {
+        "text" : "Found id {{ctx.payload._id}} with field {{ctx.payload._source.my_field}}"
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+<1> The logging statement will be executed for each of the returned search hits.
+
 [[action-conditions]]
 === Adding conditions to actions
 
@@ -259,28 +302,18 @@ PUT _watcher/watch/log_event_watch
 <1> A `condition` that only applies to the `notify_pager` action, which
     restricts its execution to when the condition succeeds (at least 5 hits in this case).
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/actions/email.asciidoc
 include::actions/email.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/actions/webhook.asciidoc
 include::actions/webhook.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/actions/index.asciidoc
 include::actions/index.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/actions/logging.asciidoc
 include::actions/logging.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/actions/hipchat.asciidoc
-include::actions/hipchat.asciidoc[]
-
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/actions/slack.asciidoc
 include::actions/slack.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/actions/pagerduty.asciidoc
 include::actions/pagerduty.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/actions/jira.asciidoc
 include::actions/jira.asciidoc[]
 
 [float]
@@ -292,7 +325,7 @@ that even despite the exact same version, an OpenJDK distribution contains
 different parts under different Linux distributions.
 
 This can lead to issues with any action or input that uses TLS, like the `jira`,
-`pagerduty`, `slack`, `hipchat` or `webhook` one, because of missing CA certs.
+`pagerduty`, `slack`, or `webhook` one, because of missing CA certs.
 If you encounter TLS errors, when writing watches that connect to TLS endpoints,
 you should try to upgrade to the latest available OpenJDK distribution for your
 platform and if that does not help, try to upgrade to Oracle JDK.

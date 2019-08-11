@@ -92,10 +92,10 @@ for (Version version : bwcVersions.indexCompatible) {
   }
 }
 
-unitTest.enabled = false // no unit tests for rolling upgrades, only the rest integration test
+test.enabled = false // no unit tests for rolling upgrades, only the rest integration test
 
 // basic integ tests includes testing bwc against the most recent version
-task integTest {
+task bwcTestSnapshots {
   if (project.bwc_tests_enabled) {
     for (final def version : bwcVersions.unreleasedIndexCompatible) {
       dependsOn "v${version}#bwcTest"
@@ -103,5 +103,17 @@ task integTest {
   }
 }
 
-check.dependsOn(integTest)
+check.dependsOn(bwcTestSnapshots)
 
+configurations {
+  testArtifacts.extendsFrom testRuntime
+}
+
+task testJar(type: Jar) {
+  appendix 'test'
+  from sourceSets.test.output
+}
+
+artifacts {
+  testArtifacts testJar
+}

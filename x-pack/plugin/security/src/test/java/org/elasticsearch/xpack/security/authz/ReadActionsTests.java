@@ -317,22 +317,6 @@ public class ReadActionsTests extends SecurityIntegTestCase {
         }
     }
 
-    public void testIndicesExists() {
-        createIndicesWithRandomAliases("test1", "test2", "test3");
-
-        assertEquals(true, client().admin().indices().prepareExists("*").get().isExists());
-
-        assertEquals(true, client().admin().indices().prepareExists("_all").get().isExists());
-
-        assertEquals(true, client().admin().indices().prepareExists("test1", "test2").get().isExists());
-
-        assertEquals(true, client().admin().indices().prepareExists("test*").get().isExists());
-
-        assertEquals(false, client().admin().indices().prepareExists("does_not_exist").get().isExists());
-
-        assertEquals(false, client().admin().indices().prepareExists("does_not_exist*").get().isExists());
-    }
-
     public void testGet() {
         createIndicesWithRandomAliases("test1", "index1");
 
@@ -374,23 +358,23 @@ public class ReadActionsTests extends SecurityIntegTestCase {
 
     public void testTermVectors() {
         createIndicesWithRandomAliases("test1", "index1");
-        client().prepareTermVectors("test1", "type", "id").get();
+        client().prepareTermVectors("test1", "id").get();
 
-        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareTermVectors("index1", "type", "id")::get, TermVectorsAction.NAME);
+        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareTermVectors("index1", "id")::get, TermVectorsAction.NAME);
 
-        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareTermVectors("missing", "type", "id")::get, TermVectorsAction.NAME);
+        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareTermVectors("missing", "id")::get, TermVectorsAction.NAME);
 
-        expectThrows(IndexNotFoundException.class, () -> client().prepareTermVectors("test5", "type", "id").get());
+        expectThrows(IndexNotFoundException.class, () -> client().prepareTermVectors("test5", "id").get());
     }
 
     public void testMultiTermVectors() {
         createIndicesWithRandomAliases("test1", "test2", "test3", "index1");
         MultiTermVectorsResponse response = client().prepareMultiTermVectors()
-                .add("test1", "type", "id")
-                .add("index1", "type", "id")
-                .add("test3", "type", "id")
-                .add("missing", "type", "id")
-                .add("test5", "type", "id").get();
+                .add("test1", "id")
+                .add("index1", "id")
+                .add("test3", "id")
+                .add("missing", "id")
+                .add("test5", "id").get();
         assertEquals(5, response.getResponses().length);
         assertFalse(response.getResponses()[0].isFailed());
         assertEquals("test1", response.getResponses()[0].getResponse().getIndex());

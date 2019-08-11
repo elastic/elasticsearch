@@ -3,6 +3,13 @@
 
 import org.elasticsearch.gradle.test.RestIntegTestTask
 
+apply plugin: 'elasticsearch.build'
+test.enabled = false
+
+dependencies {
+  compile project(':test:framework')
+}
+
 subprojects {
   // HACK: please fix this
   // we want to add the rest api specs for xpack to qa tests, but we

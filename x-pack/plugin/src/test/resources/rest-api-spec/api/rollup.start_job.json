@@ -1,0 +1,17 @@
+{
+  "rollup.start_job": {
+    "documentation": "",
+    "stability" : "experimental",
+    "methods": [ "POST" ],
+    "url": {
+      "paths": [ "/_rollup/job/{id}/_start" ],
+      "parts": {
+        "id": {
+          "type": "string",
+          "required": true,
+          "description": "The ID of the job to start"
+        }
+      }
+    }
+  }
+}

@@ -21,7 +21,6 @@ package org.elasticsearch.cluster.service;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.elasticsearch.common.Priority;
@@ -273,7 +272,7 @@ public class TaskBatcherTests extends TaskExecutorTests {
 
                 @Override
                 public void onFailure(String source, Exception e) {
-                    fail(ExceptionsHelper.detailedMessage(e));
+                    throw new AssertionError(e);
                 }
             });
             usedKeys.add(key);
@@ -304,7 +303,7 @@ public class TaskBatcherTests extends TaskExecutorTests {
 
                 @Override
                 public void onFailure(String source, Exception e) {
-                    fail(ExceptionsHelper.detailedMessage(e));
+                    throw new AssertionError(e);
                 }
             };
 

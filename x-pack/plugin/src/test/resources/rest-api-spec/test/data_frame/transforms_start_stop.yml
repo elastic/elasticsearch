@@ -1,0 +1,324 @@
+setup:
+  - do:
+      indices.create:
+        index: airline-data
+        body:
+          mappings:
+            properties:
+              time:
+                type: date
+              airline:
+                type: keyword
+              responsetime:
+                type: float
+              event_rate:
+                type: integer
+  - do:
+      data_frame.put_data_frame_transform:
+        transform_id: "airline-transform-start-stop"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-data-by-airline-start-stop" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+
+---
+teardown:
+  - do:
+      data_frame.stop_data_frame_transform:
+        transform_id: "airline-transform-start-stop"
+        timeout: "10m"
+        wait_for_completion: true
+  - do:
+      data_frame.delete_data_frame_transform:
+        transform_id: "airline-transform-start-stop"
+
+---
+"Test start transform":
+  - do:
+      data_frame.start_data_frame_transform:
+        transform_id: "airline-transform-start-stop"
+  - match: { acknowledged: true }
+
+---
+"Test start missing transform":
+  - do:
+      catch: missing
+      data_frame.start_data_frame_transform:
+        transform_id: "missing-transform"
+
+---
+"Test start already started transform":
+  - do:
+      data_frame.start_data_frame_transform:
+        transform_id: "airline-transform-start-stop"
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /Unable to start data frame transform \[airline-transform-start-stop\] as it is in state \[STARTED\]/
+      data_frame.start_data_frame_transform:
+        transform_id: "airline-transform-start-stop"
+
+---
+"Verify start transform creates destination index with appropriate mapping":
+  - do:
+      data_frame.start_data_frame_transform:
+        transform_id: "airline-transform-start-stop"
+  - match: { acknowledged: true }
+  - do:
+      indices.get_mapping:
+        index: airline-data-by-airline-start-stop
+  - match: { airline-data-by-airline-start-stop.mappings.properties.airline.type: keyword }
+  - match: { airline-data-by-airline-start-stop.mappings.properties.avg_response.type: double }
+
+---
+"Verify start transform reuses destination index":
+  - do:
+      indices.create:
+        index: airline-data-by-airline-start-stop
+  - do:
+      data_frame.start_data_frame_transform:
+        transform_id: "airline-transform-start-stop"
+  - match: { acknowledged: true }
+  - do:
+      indices.get_mapping:
+        index: airline-data-by-airline-start-stop
+  - match: { airline-data-by-airline-start-stop.mappings: {} }
+---
+"Test start/stop/start transform":
+  - do:
+      data_frame.start_data_frame_transform:
+        transform_id: "airline-transform-start-stop"
+  - match: { acknowledged: true }
+
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "airline-transform-start-stop"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "airline-transform-start-stop" }
+  - match: { transforms.0.state: "/started|indexing/" }
+
+  - do:
+      data_frame.stop_data_frame_transform:
+        transform_id: "airline-transform-start-stop"
+        wait_for_completion: true
+  - match: { acknowledged: true }
+
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "airline-transform-start-stop"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "airline-transform-start-stop" }
+  - match: { transforms.0.state: "stopped" }
+
+  - do:
+      data_frame.start_data_frame_transform:
+        transform_id: "airline-transform-start-stop"
+  - match: { acknowledged: true }
+
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "airline-transform-start-stop"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "airline-transform-start-stop" }
+  - match: { transforms.0.state: "/started|indexing/" }
+---
+"Test start/stop/start continuous transform":
+  - do:
+      data_frame.put_data_frame_transform:
+        transform_id: "airline-transform-start-stop-continuous"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-data-by-airline-start-stop-cont" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            },
+            "sync": {
+              "time": {
+                "field": "time",
+                "delay": "90m"
+              }
+            }
+          }
+
+  - do:
+      data_frame.start_data_frame_transform:
+        transform_id: "airline-transform-start-stop-continuous"
+  - match: { acknowledged: true }
+
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "airline-transform-start-stop-continuous"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "airline-transform-start-stop-continuous" }
+  - match: { transforms.0.state: "/started|indexing/" }
+
+  - do:
+      data_frame.stop_data_frame_transform:
+        transform_id: "airline-transform-start-stop-continuous"
+        wait_for_completion: true
+  - match: { acknowledged: true }
+
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "airline-transform-start-stop-continuous"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "airline-transform-start-stop-continuous" }
+  - match: { transforms.0.state: "stopped" }
+
+  - do:
+      data_frame.start_data_frame_transform:
+        transform_id: "airline-transform-start-stop-continuous"
+  - match: { acknowledged: true }
+
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "airline-transform-start-stop-continuous"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "airline-transform-start-stop-continuous" }
+  - match: { transforms.0.state: "/started|indexing/" }
+
+  - do:
+      data_frame.stop_data_frame_transform:
+        transform_id: "airline-transform-start-stop-continuous"
+        wait_for_completion: true
+  - match: { acknowledged: true }
+
+  - do:
+      data_frame.delete_data_frame_transform:
+        transform_id: "airline-transform-start-stop-continuous"
+---
+"Test stop missing transform":
+  - do:
+      catch: missing
+      data_frame.stop_data_frame_transform:
+        transform_id: "missing-transform"
+
+---
+"Test stop missing transform by expression":
+  - do:
+      data_frame.stop_data_frame_transform:
+        allow_no_match: true
+        transform_id: "missing-transform*"
+
+  - do:
+      catch: missing
+      data_frame.stop_data_frame_transform:
+        allow_no_match: false
+        transform_id: "missing-transform*"
+
+---
+"Test stop already stopped transform":
+  - do:
+      data_frame.stop_data_frame_transform:
+        transform_id: "airline-transform-start-stop"
+  - match: { acknowledged: true }
+
+---
+"Test start/stop only starts/stops specified transform":
+  - do:
+      data_frame.put_data_frame_transform:
+        transform_id: "airline-transform-start-later"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-data-start-later" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+  - do:
+      data_frame.start_data_frame_transform:
+        transform_id: "airline-transform-start-stop"
+  - match: { acknowledged: true }
+
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "airline-transform-start-stop"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "airline-transform-start-stop" }
+  - match: { transforms.0.state: "/started|indexing/" }
+
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "airline-transform-start-later"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "airline-transform-start-later" }
+  - match: { transforms.0.state: "stopped" }
+
+  - do:
+      data_frame.start_data_frame_transform:
+        transform_id: "airline-transform-start-later"
+  - match: { acknowledged: true }
+
+  - do:
+      data_frame.stop_data_frame_transform:
+        transform_id: "airline-transform-start-stop"
+        wait_for_completion: true
+  - match: { acknowledged: true }
+
+
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "airline-transform-start-later"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "airline-transform-start-later" }
+  - match: { transforms.0.state: "/started|indexing/" }
+
+  - do:
+      data_frame.stop_data_frame_transform:
+        transform_id: "airline-transform-start-later"
+        wait_for_completion: true
+  - match: { acknowledged: true }
+
+  - do:
+      data_frame.delete_data_frame_transform:
+        transform_id: "airline-transform-start-later"
+
+---
+"Test stop all":
+  - do:
+      data_frame.put_data_frame_transform:
+        transform_id: "airline-transform-stop-all"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-data-start-later" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+  - do:
+      data_frame.start_data_frame_transform:
+        transform_id: "airline-transform-stop-all"
+  - match: { acknowledged: true }
+
+  - do:
+      data_frame.start_data_frame_transform:
+        transform_id: "airline-transform-start-stop"
+  - match: { acknowledged: true }
+
+  - do:
+      data_frame.stop_data_frame_transform:
+        transform_id: "_all"
+        wait_for_completion: true
+  - match: { acknowledged: true }
+
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "*"
+  - match: { count: 2 }
+  - match: { transforms.0.state: "stopped" }
+  - match: { transforms.1.state: "stopped" }
+
+  - do:
+      data_frame.delete_data_frame_transform:
+        transform_id: "airline-transform-stop-all"

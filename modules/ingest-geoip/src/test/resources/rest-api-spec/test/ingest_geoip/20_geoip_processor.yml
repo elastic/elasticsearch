@@ -19,7 +19,6 @@
   - do:
       index:
         index: test
-        type: test
         id: 1
         pipeline: "my_pipeline"
         body: {field1: "128.101.101.101"}
@@ -27,7 +26,6 @@
   - do:
       get:
         index: test
-        type: test
         id: 1
   - match: { _source.field1: "128.101.101.101" }
   - length: { _source.geoip: 6 }
@@ -65,7 +63,6 @@
   - do:
       index:
         index: test
-        type: test
         id: 1
         pipeline: "my_pipeline"
         body: {field1: "128.101.101.101"}
@@ -73,7 +70,6 @@
   - do:
       get:
         index: test
-        type: test
         id: 1
   - match: { _source.field1: "128.101.101.101" }
   - length: { _source.geoip: 9 }
@@ -110,7 +106,6 @@
   - do:
       index:
         index: test
-        type: test
         id: 1
         pipeline: "my_pipeline"
         body: {field1: "128.101.101.101"}
@@ -118,7 +113,6 @@
   - do:
       get:
         index: test
-        type: test
         id: 1
   - match: { _source.field1: "128.101.101.101" }
   - length: { _source.geoip: 2 }
@@ -133,14 +127,12 @@
         body:  >
           {
             "mappings" : {
-              "test" : {
                 "properties" : {
                   "geoip.location" : {
                     "type": "geo_point"
                   }
                 }
               }
-            }
           }
   - match: { acknowledged: true }
 
@@ -163,7 +155,6 @@
   - do:
       index:
         index: test
-        type: test
         id: 1
         pipeline: "my_pipeline"
         body: { field1: "80.231.5.0" }
@@ -171,7 +162,6 @@
   - do:
       get:
         index: test
-        type: test
         id: 1
   - match: { _source.field1: "80.231.5.0" }
   - is_false: _source.geoip
@@ -179,7 +169,6 @@
   - do:
       index:
         index: test
-        type: test
         id: 2
         pipeline: "my_pipeline"
         body: { field1: "128.101.101.101" }
@@ -187,7 +176,6 @@
   - do:
       get:
         index: test
-        type: test
         id: 2
   - match: { _source.field1: "128.101.101.101" }
   - length: { _source.geoip: 6 }
@@ -221,7 +209,6 @@
   - do:
       index:
         index: test
-        type: test
         id: 1
         pipeline: "my_pipeline"
         body: {field1: "82.171.64.0"}
@@ -229,7 +216,6 @@
   - do:
       get:
         index: test
-        type: test
         id: 1
   - match: { _source.field1: "82.171.64.0" }
   - length: { _source.geoip: 3 }

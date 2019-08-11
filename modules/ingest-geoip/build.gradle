@@ -27,7 +27,7 @@ dependencies {
   compile ('com.maxmind.geoip2:geoip2:2.9.0')
   // geoip2 dependencies:
   compile("com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}")
-  compile("com.fasterxml.jackson.core:jackson-databind:${versions.jackson}")
+  compile("com.fasterxml.jackson.core:jackson-databind:2.8.11.3")
   compile('com.maxmind.db:maxmind-db:1.2.2')
 
   testCompile 'org.elasticsearch:geolite2-databases:20180911'
@@ -40,9 +40,6 @@ task copyDefaultGeoIp2DatabaseFiles(type: Copy) {
 }
 
 project.bundlePlugin.dependsOn(copyDefaultGeoIp2DatabaseFiles)
-
-compileJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked,-serial"
-compileTestJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
 
 bundlePlugin {
   from("${project.buildDir}/ingest-geoip") {

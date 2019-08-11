@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
@@ -36,16 +37,23 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.analysis.ReloadableCustomAnalyzer;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -68,6 +76,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
@@ -100,7 +109,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     public static final Setting<Long> INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING =
         Setting.longSetting("index.mapping.total_fields.limit", 1000L, 0, Property.Dynamic, Property.IndexScope);
     public static final Setting<Long> INDEX_MAPPING_DEPTH_LIMIT_SETTING =
-            Setting.longSetting("index.mapping.depth.limit", 20L, 1, Property.Dynamic, Property.IndexScope);
+        Setting.longSetting("index.mapping.depth.limit", 20L, 1, Property.Dynamic, Property.IndexScope);
+    public static final Setting<Long> INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING =
+        Setting.longSetting("index.mapping.field_name_length.limit", Long.MAX_VALUE, 1L, Property.Dynamic, Property.IndexScope);
     public static final boolean INDEX_MAPPER_DYNAMIC_DEFAULT = true;
     @Deprecated
     public static final Setting<Boolean> INDEX_MAPPER_DYNAMIC_SETTING =
@@ -144,8 +155,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         super(indexSettings);
         this.indexAnalyzers = indexAnalyzers;
         this.fieldTypes = new FieldTypeLookup();
-        this.documentParser = new DocumentMapperParser(indexSettings, this, indexAnalyzers, xContentRegistry, similarityService,
-                mapperRegistry, queryShardContextSupplier);
+        this.documentParser = new DocumentMapperParser(indexSettings, this, xContentRegistry, similarityService, mapperRegistry,
+                queryShardContextSupplier);
         this.indexAnalyzer = new MapperAnalyzerWrapper(indexAnalyzers.getDefaultIndexAnalyzer(), p -> p.indexAnalyzer());
         this.searchAnalyzer = new MapperAnalyzerWrapper(indexAnalyzers.getDefaultSearchAnalyzer(), p -> p.searchAnalyzer());
         this.searchQuoteAnalyzer = new MapperAnalyzerWrapper(indexAnalyzers.getDefaultSearchQuoteAnalyzer(), p -> p.searchQuoteAnalyzer());
@@ -255,9 +266,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             final IndexMetaData currentIndexMetaData,
             final IndexMetaData newIndexMetaData,
             final Map<String, DocumentMapper> updatedEntries) {
-        if (Assertions.ENABLED
-                && currentIndexMetaData != null
-                && currentIndexMetaData.getCreationVersion().onOrAfter(Version.V_6_5_0)) {
+        if (Assertions.ENABLED && currentIndexMetaData != null) {
             if (currentIndexMetaData.getMappingVersion() == newIndexMetaData.getMappingVersion()) {
                 // if the mapping version is unchanged, then there should not be any updates and all mappings should be the same
                 assert updatedEntries.isEmpty() : updatedEntries;
@@ -470,12 +479,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             Collections.addAll(fieldMappers, metadataMappers);
             MapperUtils.collect(newMapper.mapping().root(), objectMappers, fieldMappers, fieldAliasMappers);
 
-            MapperMergeValidator.validateMapperStructure(newMapper.type(), objectMappers, fieldMappers,
-                fieldAliasMappers, fullPathObjectMappers, fieldTypes);
+            MapperMergeValidator.validateNewMappers(objectMappers, fieldMappers, fieldAliasMappers, fieldTypes);
             checkPartitionedIndexConstraints(newMapper);
 
             // update lookup data-structures
-            // this will in particular make sure that the merged fields are compatible with other types
             fieldTypes = fieldTypes.copyAndAddAll(newMapper.type(), fieldMappers, fieldAliasMappers);
 
             for (ObjectMapper objectMapper : objectMappers) {
@@ -504,6 +511,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 // Also, don't take metadata mappers into account for the field limit check
                 checkTotalFieldsLimit(objectMappers.size() + fieldMappers.size() - metadataMappers.length
                     + fieldAliasMappers.size() );
+                checkFieldNameSoftLimit(objectMappers, fieldMappers, fieldAliasMappers);
             }
 
             results.put(newMapper.type(), newMapper);
@@ -624,6 +632,24 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
     }
 
+    private void checkFieldNameSoftLimit(Collection<ObjectMapper> objectMappers,
+                                         Collection<FieldMapper> fieldMappers,
+                                         Collection<FieldAliasMapper> fieldAliasMappers) {
+        final long maxFieldNameLength = indexSettings.getValue(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING);
+
+        Stream.of(objectMappers.stream(), fieldMappers.stream(), fieldAliasMappers.stream())
+            .reduce(Stream::concat)
+            .orElseGet(Stream::empty)
+            .forEach(mapper -> {
+                String name = mapper.simpleName();
+                if (name.length() > maxFieldNameLength) {
+                    throw new IllegalArgumentException("Field name [" + name + "] in index [" + index().getName() +
+                        "] is too long. The limit is set to [" + maxFieldNameLength + "] characters but was ["
+                        + name.length() + "] characters");
+                }
+            });
+    }
+
     private void checkPartitionedIndexConstraints(DocumentMapper newMapper) {
         if (indexSettings.getIndexMetaData().isRoutingPartitionedIndex()) {
             if (!newMapper.routingFieldMapper().required()) {
@@ -663,6 +689,20 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             return defaultMapper;
         }
         return null;
+    }
+
+    /**
+     * Returns {@code true} if the given {@code mappingSource} includes a type
+     * as a top-level object.
+     */
+    public static boolean isMappingSourceTyped(String type, Map<String, Object> mapping) {
+        return mapping.size() == 1 && mapping.keySet().iterator().next().equals(type);
+    }
+
+
+    public static boolean isMappingSourceTyped(String type, CompressedXContent mappingSource) {
+        Map<String, Object> root = XContentHelper.convertToMap(mappingSource.compressedReference(), true, XContentType.JSON).v2();
+        return isMappingSourceTyped(type, root);
     }
 
     /**
@@ -708,10 +748,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * Returns all the fields that match the given pattern. If the pattern is prefixed with a type
      * then the fields will be returned with a type prefix.
      */
-    public Collection<String> simpleMatchToFullName(String pattern) {
+    public Set<String> simpleMatchToFullName(String pattern) {
         if (Regex.isSimpleMatchPattern(pattern) == false) {
             // no wildcards
-            return Collections.singletonList(pattern);
+            return Collections.singleton(pattern);
         }
         return fieldTypes.simpleMatchToFullName(pattern);
     }
@@ -737,7 +777,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
         MappedFieldType fieldType = unmappedFieldTypes.get(type);
         if (fieldType == null) {
-            final Mapper.TypeParser.ParserContext parserContext = documentMapperParser().parserContext(type);
+            final Mapper.TypeParser.ParserContext parserContext = documentMapperParser().parserContext();
             Mapper.TypeParser typeParser = parserContext.typeParser(type);
             if (typeParser == null) {
                 throw new IllegalArgumentException("No mapper found for type [" + type + "]");
@@ -806,5 +846,25 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             }
             return defaultAnalyzer;
         }
+    }
+
+    public synchronized List<String> reloadSearchAnalyzers(AnalysisRegistry registry) throws IOException {
+        logger.info("reloading search analyzers");
+        // refresh indexAnalyzers and search analyzers
+        final Map<String, TokenizerFactory> tokenizerFactories = registry.buildTokenizerFactories(indexSettings);
+        final Map<String, CharFilterFactory> charFilterFactories = registry.buildCharFilterFactories(indexSettings);
+        final Map<String, TokenFilterFactory> tokenFilterFactories = registry.buildTokenFilterFactories(indexSettings);
+        final Map<String, Settings> settings = indexSettings.getSettings().getGroups("index.analysis.analyzer");
+        final List<String> reloadedAnalyzers = new ArrayList<>();
+        for (NamedAnalyzer namedAnalyzer : indexAnalyzers.getAnalyzers().values()) {
+            if (namedAnalyzer.analyzer() instanceof ReloadableCustomAnalyzer) {
+                ReloadableCustomAnalyzer analyzer = (ReloadableCustomAnalyzer) namedAnalyzer.analyzer();
+                String analyzerName = namedAnalyzer.name();
+                Settings analyzerSettings = settings.get(analyzerName);
+                analyzer.reload(analyzerName, analyzerSettings, tokenizerFactories, charFilterFactories, tokenFilterFactories);
+                reloadedAnalyzers.add(analyzerName);
+            }
+        }
+        return reloadedAnalyzers;
     }
 }

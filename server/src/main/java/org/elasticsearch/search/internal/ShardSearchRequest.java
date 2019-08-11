@@ -49,8 +49,6 @@ public interface ShardSearchRequest {
 
     ShardId shardId();
 
-    String[] types();
-
     SearchSourceBuilder source();
 
     AliasFilter getAliasFilter();
@@ -82,17 +80,6 @@ public interface ShardSearchRequest {
      * Returns the preference of the original {@link SearchRequest#preference()}.
      */
     String preference();
-
-    /**
-     * Sets if this shard search needs to be profiled or not
-     * @param profile True if the shard should be profiled
-     */
-    void setProfile(boolean profile);
-
-    /**
-     * Returns true if this shard search is being profiled or not
-     */
-    boolean isProfile();
 
     /**
      * Returns the cache key for this shard search request, based on its content

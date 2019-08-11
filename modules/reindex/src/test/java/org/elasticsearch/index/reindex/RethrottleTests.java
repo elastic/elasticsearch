@@ -20,13 +20,13 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,6 +37,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -48,7 +49,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  * too but this is the only place that tests running against multiple nodes so it is the only integration tests that checks for
  * serialization.
  */
-@TestLogging("org.elasticsearch.index.reindex:TRACE,org.elasticsearch.action.bulk:TRACE,org.elasticsearch.search.SearchService:TRACE")
 public class RethrottleTests extends ReindexTestCase {
 
     public void testReindex() throws Exception {
@@ -191,13 +191,15 @@ public class RethrottleTests extends ReindexTestCase {
                 assertThat(rethrottleResponse.getTasks(), hasSize(1));
                 response.set(rethrottleResponse);
             } catch (ElasticsearchException e) {
-                if (e.getCause() instanceof IllegalArgumentException) {
-                    // We want to retry in this case so we throw an assertion error
-                    logger.info("caught unprepared task, retrying until prepared");
-                    throw new AssertionError("Rethrottle request for task [" + taskToRethrottle.getId() + "] failed", e);
-                } else {
+                Throwable unwrapped = ExceptionsHelper.unwrap(e, IllegalArgumentException.class);
+                if (unwrapped == null) {
                     throw e;
                 }
+                // We want to retry in this case so we throw an assertion error
+                assertThat(unwrapped.getMessage(), equalTo("task [" + taskToRethrottle.getId()
+                    + "] has not yet been initialized to the point where it knows how to rethrottle itself"));
+                logger.info("caught unprepared task, retrying until prepared");
+                throw new AssertionError("Rethrottle request for task [" + taskToRethrottle.getId() + "] failed", e);
             }
         });
 

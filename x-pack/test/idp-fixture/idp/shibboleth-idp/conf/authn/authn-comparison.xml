@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:util="http://www.springframework.org/schema/util"
+       xmlns:p="http://www.springframework.org/schema/p"
+       xmlns:c="http://www.springframework.org/schema/c"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+                           http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd
+                           http://www.springframework.org/schema/util http://www.springframework.org/schema/util/spring-util.xsd"
+                           
+       default-init-method="initialize"
+       default-destroy-method="destroy">
+
+    <!--
+    These beans can be used in the AuthnComparisonRules map below instead of the defaults to
+    support more advanced matching rules. The top example shows how to configure a matching rule,
+    in this case a rule that the two listed classes are "better" than the password class.
+    
+    To use these beans, configure the matchingRules map as desired, and then reference the bean id in the
+    desired value-ref slot in the AuthnComparisonRules map.
+    -->
+    
+    <bean id="shibboleth.BetterClassRefMatchFactory" parent="shibboleth.InexactMatchFactory">
+        <!--
+        <property name="matchingRules">
+            <map>
+                <entry key="urn:oasis:names:tc:SAML:2.0:ac:classes:Password">
+                    <list>
+                        <value>urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport</value>
+                        <value>urn:oasis:names:tc:SAML:2.0:ac:classes:TimeSyncToken</value>
+                    </list>
+                </entry>
+            </map>
+        </property>
+        -->
+    </bean>
+
+    <bean id="shibboleth.MinimumClassRefMatchFactory" parent="shibboleth.InexactMatchFactory" />
+
+    <bean id="shibboleth.MaximumClassRefMatchFactory" parent="shibboleth.InexactMatchFactory" />
+
+    <!-- DeclRefs are rarely used in SAML, so you likely won't bother with these. -->
+    <bean id="shibboleth.BetterDeclRefMatchFactory" parent="shibboleth.InexactMatchFactory" />
+    <bean id="shibboleth.MinimumDeclRefMatchFactory" parent="shibboleth.InexactMatchFactory" />
+    <bean id="shibboleth.MaximumDeclRefMatchFactory" parent="shibboleth.InexactMatchFactory" />
+    
+    
+    <!-- Registry of matching rules. -->
+    
+    <util:map id="shibboleth.AuthnComparisonRules">
+    
+        <!-- Exact matching, should be left alone to avoid tricking the IdP into behaving incorrectly. -->
+        <entry key-ref="shibboleth.SAMLAuthnMethodExact" value-ref="shibboleth.ExactMatchFactory"/>
+        <entry key-ref="shibboleth.SAMLACClassRefExact" value-ref="shibboleth.ExactMatchFactory"/>
+        <entry key-ref="shibboleth.SAMLACDeclRefExact" value-ref="shibboleth.ExactMatchFactory"/>
+
+        <!-- Minimum matching, leave to allow degeneration into exact, or replace with custom rules. -->
+        <entry key-ref="shibboleth.SAMLACClassRefMinimum" value-ref="shibboleth.ExactMatchFactory"/>
+        <entry key-ref="shibboleth.SAMLACDeclRefMinimum" value-ref="shibboleth.ExactMatchFactory"/>
+
+        <!-- Maximum matching, leave to allow degeneration into exact, or replace with custom rules. -->
+        <entry key-ref="shibboleth.SAMLACClassRefMaximum" value-ref="shibboleth.ExactMatchFactory"/>
+        <entry key-ref="shibboleth.SAMLACDeclRefMaximum" value-ref="shibboleth.ExactMatchFactory"/>
+
+        <!-- Better matching, refers to empty ruleset that has to be populated to work. -->
+        <entry key-ref="shibboleth.SAMLACClassRefBetter" value-ref="shibboleth.BetterClassRefMatchFactory"/>
+        <entry key-ref="shibboleth.SAMLACDeclRefBetter" value-ref="shibboleth.BetterDeclRefMatchFactory"/>
+        
+    </util:map>
+    
+    <!-- List of context classes or declarations to ignore if an SP requests them. -->
+
+    <util:list id="shibboleth.IgnoredContexts">
+        <value>urn:oasis:names:tc:SAML:2.0:ac:classes:unspecified</value>
+    </util:list>
+    
+</beans>

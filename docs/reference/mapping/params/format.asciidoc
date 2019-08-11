@@ -33,7 +33,7 @@ down to the nearest day.
 ==== Custom date formats
 
 Completely customizable date formats are supported.  The syntax for these is explained
-http://www.joda.org/joda-time/apidocs/org/joda/time/format/DateTimeFormat.html[in the Joda docs].
+https://docs.oracle.com/javase/8/docs/api/java/time/format/DateTimeFormatter.html[DateTimeFormatter docs].
 
 [[built-in-date-formats]]
 ==== Built In Formats
@@ -69,7 +69,6 @@ The following tables lists all the defaults ISO formats supported:
 
     A generic ISO datetime parser where the date is mandatory and the time is
     optional.
-    http://www.joda.org/joda-time/apidocs/org/joda/time/format/ISODateTimeFormat.html#dateOptionalTimeParser--[Full details here].
 
 `basic_date`::
 

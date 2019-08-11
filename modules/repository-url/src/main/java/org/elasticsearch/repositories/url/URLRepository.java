@@ -33,6 +33,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
@@ -74,16 +75,14 @@ public class URLRepository extends BlobStoreRepository {
 
     private final Environment environment;
 
-    private final BlobPath basePath;
-
     private final URL url;
 
     /**
      * Constructs a read-only URL-based repository
      */
     public URLRepository(RepositoryMetaData metadata, Environment environment,
-                         NamedXContentRegistry namedXContentRegistry) {
-        super(metadata, environment.settings(), namedXContentRegistry);
+                         NamedXContentRegistry namedXContentRegistry, ThreadPool threadPool) {
+        super(metadata, environment.settings(), namedXContentRegistry, threadPool, BlobPath.cleanPath());
 
         if (URL_SETTING.exists(metadata.settings()) == false && REPOSITORIES_URL_SETTING.exists(environment.settings()) ==  false) {
             throw new RepositoryException(metadata.name(), "missing url");
@@ -91,7 +90,6 @@ public class URLRepository extends BlobStoreRepository {
         this.environment = environment;
         supportedProtocols = SUPPORTED_PROTOCOLS_SETTING.get(environment.settings());
         urlWhiteList = ALLOWED_URLS_SETTING.get(environment.settings()).toArray(new URIPattern[]{});
-        basePath = BlobPath.cleanPath();
         url = URL_SETTING.exists(metadata.settings())
             ? URL_SETTING.get(metadata.settings()) : REPOSITORIES_URL_SETTING.get(environment.settings());
     }
@@ -112,11 +110,6 @@ public class URLRepository extends BlobStoreRepository {
     @Override
     protected BlobStore getBlobStore() {
         return super.getBlobStore();
-    }
-
-    @Override
-    protected BlobPath basePath() {
-        return basePath;
     }
 
     /**

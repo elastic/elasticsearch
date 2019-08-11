@@ -37,8 +37,8 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
     public void testRewriteMissingField() throws Exception {
         IndexService indexService = createIndex("test");
         IndexReader reader = new MultiReader();
-        QueryRewriteContext context = new QueryShardContext(0, indexService.getIndexSettings(), null, null, indexService.mapperService(),
-                null, null, xContentRegistry(), writableRegistry(), null, reader, null, null);
+        QueryRewriteContext context = new QueryShardContext(0, indexService.getIndexSettings(), null, null, null,
+                indexService.mapperService(), null, null, xContentRegistry(), writableRegistry(), null, reader, null, null);
         RangeQueryBuilder range = new RangeQueryBuilder("foo");
         assertEquals(Relation.DISJOINT, range.getRelation(context));
     }
@@ -54,8 +54,8 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
             .endObject().endObject());
         indexService.mapperService().merge("type",
                 new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
-        QueryRewriteContext context = new QueryShardContext(0, indexService.getIndexSettings(), null, null, indexService.mapperService(),
-                null, null, xContentRegistry(), writableRegistry(), null, null, null, null);
+        QueryRewriteContext context = new QueryShardContext(0, indexService.getIndexSettings(), null, null, null,
+                indexService.mapperService(), null, null, xContentRegistry(), writableRegistry(), null, null, null, null);
         RangeQueryBuilder range = new RangeQueryBuilder("foo");
         // can't make assumptions on a missing reader, so it must return INTERSECT
         assertEquals(Relation.INTERSECTS, range.getRelation(context));
@@ -73,8 +73,8 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
         indexService.mapperService().merge("type",
                 new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
         IndexReader reader = new MultiReader();
-        QueryRewriteContext context = new QueryShardContext(0, indexService.getIndexSettings(), null, null, indexService.mapperService(),
-                null, null, xContentRegistry(), writableRegistry(), null, reader, null, null);
+        QueryRewriteContext context = new QueryShardContext(0, indexService.getIndexSettings(), null, null, null,
+                indexService.mapperService(), null, null, xContentRegistry(), writableRegistry(), null, reader, null, null);
         RangeQueryBuilder range = new RangeQueryBuilder("foo");
         // no values -> DISJOINT
         assertEquals(Relation.DISJOINT, range.getRelation(context));

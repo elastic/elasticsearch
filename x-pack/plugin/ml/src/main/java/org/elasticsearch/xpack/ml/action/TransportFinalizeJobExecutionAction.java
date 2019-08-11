@@ -19,15 +19,17 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
-import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.utils.VoidChainTaskExecutor;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.Date;
 import java.util.Map;
@@ -45,7 +47,7 @@ public class TransportFinalizeJobExecutionAction extends TransportMasterNodeActi
                                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                                Client client) {
         super(FinalizeJobExecutionAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, FinalizeJobExecutionAction.Request::new);
+                FinalizeJobExecutionAction.Request::new, indexNameExpressionResolver);
         this.client = client;
     }
 
@@ -55,12 +57,12 @@ public class TransportFinalizeJobExecutionAction extends TransportMasterNodeActi
     }
 
     @Override
-    protected AcknowledgedResponse newResponse() {
-        return new AcknowledgedResponse();
+    protected AcknowledgedResponse read(StreamInput in) throws IOException {
+        return new AcknowledgedResponse(in);
     }
 
     @Override
-    protected void masterOperation(FinalizeJobExecutionAction.Request request, ClusterState state,
+    protected void masterOperation(Task task, FinalizeJobExecutionAction.Request request, ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) {
         String jobIdString = String.join(",", request.getJobIds());
         logger.debug("finalizing jobs [{}]", jobIdString);
@@ -71,8 +73,7 @@ public class TransportFinalizeJobExecutionAction extends TransportMasterNodeActi
         Map<String, Object> update = Collections.singletonMap(Job.FINISHED_TIME.getPreferredName(), new Date());
 
         for (String jobId: request.getJobIds()) {
-            UpdateRequest updateRequest = new UpdateRequest(AnomalyDetectorsIndex.configIndexName(),
-                    ElasticsearchMappings.DOC_TYPE, Job.documentId(jobId));
+            UpdateRequest updateRequest = new UpdateRequest(AnomalyDetectorsIndex.configIndexName(), Job.documentId(jobId));
             updateRequest.retryOnConflict(3);
             updateRequest.doc(update);
             updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);

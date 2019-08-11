@@ -25,7 +25,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
-import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction.Response.DatafeedStats;
@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
-import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -89,7 +88,8 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         ensureStableClusterOnAllNodes(2);
         run("lose-dedicated-master-node-job", () -> {
             logger.info("Stopping dedicated master node");
-            internalCluster().stopRandomNode(settings -> settings.getAsBoolean("node.master", false));
+            Settings masterDataPathSettings = internalCluster().dataPathSettings(internalCluster().getMasterName());
+            internalCluster().stopCurrentMasterNode();
             assertBusy(() -> {
                 ClusterState state = client(mlAndDataNode).admin().cluster().prepareState()
                         .setLocal(true).get().getState();
@@ -97,6 +97,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
             });
             logger.info("Restarting dedicated master node");
             internalCluster().startNode(Settings.builder()
+                    .put(masterDataPathSettings)
                     .put("node.master", true)
                     .put("node.data", false)
                     .put("node.ml", false)
@@ -115,6 +116,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/43670")
     public void testCloseUnassignedJobAndDatafeed() throws Exception {
         internalCluster().ensureAtMostNumDataNodes(0);
         logger.info("Starting dedicated master node...");
@@ -145,7 +147,9 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         waitForDatafeed(jobId, numDocs1);
 
         // stop the only ML node
+        ensureGreen(); // replicas must be assigned, otherwise we could lose a whole index
         internalCluster().stopRandomNonMasterNode();
+        ensureStableCluster(1);
 
         // Job state is opened but the job is not assigned to a node (because we just killed the only ML node)
         GetJobsStatsAction.Request jobStatsRequest = new GetJobsStatsAction.Request(jobId);
@@ -157,22 +161,15 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
                 client().execute(GetDatafeedsStatsAction.INSTANCE, datafeedStatsRequest).actionGet();
         assertEquals(DatafeedState.STARTED, datafeedStatsResponse.getResponse().results().get(0).getDatafeedState());
 
-        // Can't normal stop an unassigned datafeed
+        // An unassigned datafeed can be stopped either normally or by force
         StopDatafeedAction.Request stopDatafeedRequest = new StopDatafeedAction.Request(datafeedId);
-        ElasticsearchStatusException statusException = expectThrows(ElasticsearchStatusException.class,
-                () -> client().execute(StopDatafeedAction.INSTANCE, stopDatafeedRequest).actionGet());
-        assertEquals("Cannot stop datafeed [" + datafeedId +
-                        "] because the datafeed does not have an assigned node. Use force stop to stop the datafeed",
-                statusException.getMessage());
-
-        // Can only force stop an unassigned datafeed
-        stopDatafeedRequest.setForce(true);
+        stopDatafeedRequest.setForce(randomBoolean());
         StopDatafeedAction.Response stopDatafeedResponse = client().execute(StopDatafeedAction.INSTANCE, stopDatafeedRequest).actionGet();
         assertTrue(stopDatafeedResponse.isStopped());
 
         // Can't normal stop an unassigned job
         CloseJobAction.Request closeJobRequest = new CloseJobAction.Request(jobId);
-        statusException = expectThrows(ElasticsearchStatusException.class,
+        ElasticsearchStatusException statusException = expectThrows(ElasticsearchStatusException.class,
                 () -> client().execute(CloseJobAction.INSTANCE, closeJobRequest).actionGet());
         assertEquals("Cannot close job [" + jobId +
                         "] because the job does not have an assigned node. Use force close to close the job",
@@ -184,7 +181,6 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         assertTrue(closeJobResponse.isClosed());
     }
 
-    @TestLogging("org.elasticsearch.xpack.ml.action:TRACE,org.elasticsearch.xpack.ml.process:TRACE")
     public void testJobRelocationIsMemoryAware() throws Exception {
 
         internalCluster().ensureAtLeastNumDataNodes(1);
@@ -205,7 +201,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
         // Wait for the cluster to be green - this means the indices have been replicated.
 
-        ensureGreen(".ml-config", ".ml-anomalies-shared", ".ml-notifications");
+        ensureGreen();
 
         // Open a big job.  This should go on a different node to the 4 small ones.
 

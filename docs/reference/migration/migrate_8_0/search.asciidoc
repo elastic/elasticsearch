@@ -1,0 +1,27 @@
+[float]
+[[breaking_80_search_changes]]
+=== Search Changes
+
+[float]
+==== Removal of types
+
+The `/{index}/{type}/_search`, `/{index}/{type}/_msearch`, `/{index}/{type}/_search/template` and `/{index}/{type}/_msearch/template` REST endpoints have been removed in favour of `/{index}/_search`, `/{index}/_msearch`, `/{index}/_search/template` and `/{index}/_msearch/template`, since indexes no longer contain types, these typed endpoints are obsolete..
+
+The `/{index}/{type}/_termvectors`, `/{index}/{type}/{id}/_termvectors` and `/{index}/{type}/_mtermvectors` REST endpoints have been removed in favour of `/{index}/_termvectors`, `/{index}/{id}/_termvectors` and `/{index}/_mtermvectors`, since indexes no longer contain types, these typed endpoints are obsolete..
+
+[float]
+==== Removal of queries
+
+The `common` query was deprecated in 7.x and  has been removed in 8.0.
+The same functionality can be achieved by the `match` query if the total number of hits is not tracked.
+
+[float]
+===== Removal of query parameters
+
+The `cutoff_frequency` parameter was deprecated in 7.x and has been removed in 8.0 from `match` and `multi_match` queries.
+The same functionality can be achieved without any configuration provided that the total number of hits is not tracked.
+
+[float]
+===== Removal of sort parameters
+
+The `nested_filter` and `nested_path` options, deprecated in 6.x, have been removed in favor of the `nested` context.

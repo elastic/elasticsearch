@@ -46,7 +46,7 @@ public final class SecurityHttpExceptionHandler implements BiConsumer<HttpChanne
             if (logger.isTraceEnabled()) {
                 logger.trace(new ParameterizedMessage("connection {} closed during ssl handshake", channel), e);
             } else {
-                logger.warn("connection {} closed during ssl handshake", channel);
+                logger.debug("connection {} closed during ssl handshake", channel);
             }
             CloseableChannel.closeChannel(channel);
         } else if (isReceivedCertificateUnknownException(e)) {

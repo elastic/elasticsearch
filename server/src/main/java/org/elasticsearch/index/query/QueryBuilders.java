@@ -24,6 +24,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
+import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
@@ -59,16 +60,6 @@ public final class QueryBuilders {
      */
     public static MatchQueryBuilder matchQuery(String name, Object text) {
         return new MatchQueryBuilder(name, text);
-    }
-
-    /**
-     * Creates a common query for the provided field name and text.
-     *
-     * @param fieldName The field name.
-     * @param text The query text (to be analyzed).
-     */
-    public static CommonTermsQueryBuilder commonTermsQuery(String fieldName, Object text) {
-        return new CommonTermsQueryBuilder(fieldName, text);
     }
 
     /**
@@ -115,18 +106,6 @@ public final class QueryBuilders {
      */
     public static IdsQueryBuilder idsQuery() {
         return new IdsQueryBuilder();
-    }
-
-    /**
-     * Constructs a query that will match only specific ids within types.
-     *
-     * @param types The mapping/doc type
-     *
-     * @deprecated Types are in the process of being removed, use {@link #idsQuery()} instead.
-     */
-    @Deprecated
-    public static IdsQueryBuilder idsQuery(String... types) {
-        return new IdsQueryBuilder().types(types);
     }
 
     /**
@@ -426,7 +405,7 @@ public final class QueryBuilders {
      *
      * @param function The function builder used to custom score
      */
-    public static FunctionScoreQueryBuilder functionScoreQuery(ScoreFunctionBuilder function) {
+    public static FunctionScoreQueryBuilder functionScoreQuery(ScoreFunctionBuilder<?> function) {
         return new FunctionScoreQueryBuilder(function);
     }
 
@@ -436,7 +415,7 @@ public final class QueryBuilders {
      * @param queryBuilder The query to custom score
      * @param function     The function builder used to custom score
      */
-    public static FunctionScoreQueryBuilder functionScoreQuery(QueryBuilder queryBuilder, ScoreFunctionBuilder function) {
+    public static FunctionScoreQueryBuilder functionScoreQuery(QueryBuilder queryBuilder, ScoreFunctionBuilder<?> function) {
         return (new FunctionScoreQueryBuilder(queryBuilder, function));
     }
 
@@ -587,15 +566,6 @@ public final class QueryBuilders {
     }
 
     /**
-     * A filter based on doc/mapping type.
-     * @deprecated Types are going away, prefer filtering on a field.
-     */
-    @Deprecated
-    public static TypeQueryBuilder typeQuery(String type) {
-        return new TypeQueryBuilder(type);
-    }
-
-    /**
      * A terms query that can extract the terms from another doc in an index.
      */
     public static TermsQueryBuilder termsLookupQuery(String name, TermsLookup termsLookup) {
@@ -645,6 +615,14 @@ public final class QueryBuilders {
      * @param name  The shape field name
      * @param shape Shape to use in the filter
      */
+    public static GeoShapeQueryBuilder geoShapeQuery(String name, Geometry shape) throws IOException {
+        return new GeoShapeQueryBuilder(name, shape);
+    }
+
+    /**
+     * @deprecated use {@link #geoShapeQuery(String, Geometry)} instead
+     */
+    @Deprecated
     public static GeoShapeQueryBuilder geoShapeQuery(String name, ShapeBuilder shape) throws IOException {
         return new GeoShapeQueryBuilder(name, shape);
     }
@@ -654,19 +632,21 @@ public final class QueryBuilders {
     }
 
     /**
-     * @deprecated Types are in the process of being removed, use {@link #geoShapeQuery(String, String)} instead.
-     */
-    @Deprecated
-    public static GeoShapeQueryBuilder geoShapeQuery(String name, String indexedShapeId, String indexedShapeType) {
-        return new GeoShapeQueryBuilder(name, indexedShapeId, indexedShapeType);
-    }
-
-    /**
      * A filter to filter indexed shapes intersecting with shapes
      *
      * @param name  The shape field name
      * @param shape Shape to use in the filter
      */
+    public static GeoShapeQueryBuilder geoIntersectionQuery(String name, Geometry shape) throws IOException {
+        GeoShapeQueryBuilder builder = geoShapeQuery(name, shape);
+        builder.relation(ShapeRelation.INTERSECTS);
+        return builder;
+    }
+
+    /**
+     * @deprecated use {@link #geoIntersectionQuery(String, Geometry)} instead
+     */
+    @Deprecated
     public static GeoShapeQueryBuilder geoIntersectionQuery(String name, ShapeBuilder shape) throws IOException {
         GeoShapeQueryBuilder builder = geoShapeQuery(name, shape);
         builder.relation(ShapeRelation.INTERSECTS);
@@ -680,21 +660,21 @@ public final class QueryBuilders {
     }
 
     /**
-     * @deprecated Types are in the process of being removed, use {@link #geoIntersectionQuery(String, String)} instead.
-     */
-    @Deprecated
-    public static GeoShapeQueryBuilder geoIntersectionQuery(String name, String indexedShapeId, String indexedShapeType) {
-        GeoShapeQueryBuilder builder = geoShapeQuery(name, indexedShapeId, indexedShapeType);
-        builder.relation(ShapeRelation.INTERSECTS);
-        return builder;
-    }
-
-    /**
      * A filter to filter indexed shapes that are contained by a shape
      *
      * @param name  The shape field name
      * @param shape Shape to use in the filter
      */
+    public static GeoShapeQueryBuilder geoWithinQuery(String name, Geometry shape) throws IOException {
+        GeoShapeQueryBuilder builder = geoShapeQuery(name, shape);
+        builder.relation(ShapeRelation.WITHIN);
+        return builder;
+    }
+
+    /**
+     * @deprecated use {@link #geoWithinQuery(String, Geometry)} instead
+     */
+    @Deprecated
     public static GeoShapeQueryBuilder geoWithinQuery(String name, ShapeBuilder shape) throws IOException {
         GeoShapeQueryBuilder builder = geoShapeQuery(name, shape);
         builder.relation(ShapeRelation.WITHIN);
@@ -708,21 +688,21 @@ public final class QueryBuilders {
     }
 
     /**
-     * @deprecated Types are in the process of being removed, use {@link #geoWithinQuery(String, String)} instead.
-     */
-    @Deprecated
-    public static GeoShapeQueryBuilder geoWithinQuery(String name, String indexedShapeId, String indexedShapeType) {
-        GeoShapeQueryBuilder builder = geoShapeQuery(name, indexedShapeId, indexedShapeType);
-        builder.relation(ShapeRelation.WITHIN);
-        return builder;
-    }
-
-    /**
      * A filter to filter indexed shapes that are not intersection with the query shape
      *
      * @param name  The shape field name
      * @param shape Shape to use in the filter
      */
+    public static GeoShapeQueryBuilder geoDisjointQuery(String name, Geometry shape) throws IOException {
+        GeoShapeQueryBuilder builder = geoShapeQuery(name, shape);
+        builder.relation(ShapeRelation.DISJOINT);
+        return builder;
+    }
+
+    /**
+     * @deprecated use {@link #geoDisjointQuery(String, Geometry)} instead
+     */
+    @Deprecated
     public static GeoShapeQueryBuilder geoDisjointQuery(String name, ShapeBuilder shape) throws IOException {
         GeoShapeQueryBuilder builder = geoShapeQuery(name, shape);
         builder.relation(ShapeRelation.DISJOINT);
@@ -731,16 +711,6 @@ public final class QueryBuilders {
 
     public static GeoShapeQueryBuilder geoDisjointQuery(String name, String indexedShapeId) {
         GeoShapeQueryBuilder builder = geoShapeQuery(name, indexedShapeId);
-        builder.relation(ShapeRelation.DISJOINT);
-        return builder;
-    }
-
-    /**
-     * @deprecated Types are in the process of being removed, use {@link #geoDisjointQuery(String, String)} instead.
-     */
-    @Deprecated
-    public static GeoShapeQueryBuilder geoDisjointQuery(String name, String indexedShapeId, String indexedShapeType) {
-        GeoShapeQueryBuilder builder = geoShapeQuery(name, indexedShapeId, indexedShapeType);
         builder.relation(ShapeRelation.DISJOINT);
         return builder;
     }

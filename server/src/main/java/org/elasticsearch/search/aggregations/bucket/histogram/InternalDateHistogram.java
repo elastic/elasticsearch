@@ -77,7 +77,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
             this.keyed = keyed;
             key = in.readLong();
             docCount = in.readVLong();
-            aggregations = InternalAggregations.readAggregations(in);
+            aggregations = new InternalAggregations(in);
         }
 
         @Override
@@ -186,7 +186,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
 
         EmptyBucketInfo(StreamInput in) throws IOException {
             rounding = Rounding.read(in);
-            subAggregations = InternalAggregations.readAggregations(in);
+            subAggregations = new InternalAggregations(in);
             bounds = in.readOptionalWriteable(ExtendedBounds::new);
         }
 
@@ -241,7 +241,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
      */
     public InternalDateHistogram(StreamInput in) throws IOException {
         super(in);
-        order = InternalOrder.Streams.readHistogramOrder(in, false);
+        order = InternalOrder.Streams.readHistogramOrder(in);
         minDocCount = in.readVLong();
         if (minDocCount == 0) {
             emptyBucketInfo = new EmptyBucketInfo(in);
@@ -256,7 +256,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        InternalOrder.Streams.writeHistogramOrder(order, out, false);
+        InternalOrder.Streams.writeHistogramOrder(order, out);
         out.writeVLong(minDocCount);
         if (minDocCount == 0) {
             emptyBucketInfo.writeTo(out);
@@ -512,7 +512,11 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+
         InternalDateHistogram that = (InternalDateHistogram) obj;
         return Objects.equals(buckets, that.buckets)
                 && Objects.equals(order, that.order)
@@ -524,7 +528,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(buckets, order, format, keyed, minDocCount, offset, emptyBucketInfo);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), buckets, order, format, keyed, minDocCount, offset, emptyBucketInfo);
     }
 }

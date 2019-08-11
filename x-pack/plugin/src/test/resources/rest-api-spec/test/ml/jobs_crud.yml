@@ -236,24 +236,6 @@
                 "time_format":"yyyy-MM-dd HH:mm:ssX"
             }
           }
-  - do:
-      catch: param
-      ml.put_job:
-        job_id: jobs-crud-id-already-taken
-        body:  >
-          {
-            "job_id":"jobs-crud-id-already-taken",
-            "description":"Analysis of response time by airline",
-            "analysis_config" : {
-                "bucket_span": "1h",
-                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
-            },
-            "data_description" : {
-                "field_delimiter":",",
-                "time_field":"time",
-                "time_format":"yyyy-MM-dd HH:mm:ssX"
-            }
-          }
 
 ---
 "Test update job":
@@ -1039,6 +1021,45 @@
                 "detectors" :[{"function":"mean","field_name":"time"}]
             },
             "data_description" : {}
+          }
+
+---
+"Test put job with duplicate detector configurations":
+
+  - do:
+      catch: /illegal_argument_exception.*Duplicate detectors are not allowed/
+      ml.put_job:
+        job_id: jobs-crud-duplicate-detectors
+        body:  >
+          {
+            "analysis_config": {
+                "bucket_span": "1h",
+                "detectors": [
+                    {"function":"max", "field_name":"responsetime"},
+                    {"function":"max", "field_name":"responsetime"}
+                ]
+            },
+            "data_description": {
+                "time_field": "@timestamp"
+            }
+          }
+
+  - do:
+      catch: /illegal_argument_exception.*Duplicate detectors are not allowed/
+      ml.put_job:
+        job_id: jobs-crud-duplicate-detectors-with-explicit-indices
+        body:  >
+          {
+            "analysis_config": {
+                "bucket_span": "1h",
+                "detectors": [
+                    {"function":"max", "field_name":"responsetime", "detector_index": 0},
+                    {"function":"max", "field_name":"responsetime", "detector_index": 1}
+                ]
+            },
+            "data_description": {
+                "time_field": "@timestamp"
+            }
           }
 
 ---

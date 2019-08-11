@@ -29,10 +29,13 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -48,8 +51,8 @@ import java.util.stream.StreamSupport;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableSet;
-import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING;
-import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING;
+import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
+import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 
 public class ClusterBootstrapService {
 
@@ -75,15 +78,28 @@ public class ClusterBootstrapService {
     public ClusterBootstrapService(Settings settings, TransportService transportService,
                                    Supplier<Iterable<DiscoveryNode>> discoveredNodesSupplier, BooleanSupplier isBootstrappedSupplier,
                                    Consumer<VotingConfiguration> votingConfigurationConsumer) {
-
-        final List<String> initialMasterNodes = INITIAL_MASTER_NODES_SETTING.get(settings);
-        bootstrapRequirements = unmodifiableSet(new LinkedHashSet<>(initialMasterNodes));
-        if (bootstrapRequirements.size() != initialMasterNodes.size()) {
-            throw new IllegalArgumentException(
-                "setting [" + INITIAL_MASTER_NODES_SETTING.getKey() + "] contains duplicates: " + initialMasterNodes);
+        if (DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE.equals(DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings))) {
+            if (INITIAL_MASTER_NODES_SETTING.exists(settings)) {
+                throw new IllegalArgumentException("setting [" + INITIAL_MASTER_NODES_SETTING.getKey() +
+                    "] is not allowed when [" + DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey() + "] is set to [" +
+                    DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE + "]");
+            }
+            if (DiscoveryNode.isMasterNode(settings) == false) {
+                throw new IllegalArgumentException("node with [" + DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey() + "] set to [" +
+                    DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE +  "] must be master-eligible");
+            }
+            bootstrapRequirements = Collections.singleton(Node.NODE_NAME_SETTING.get(settings));
+            unconfiguredBootstrapTimeout = null;
+        } else {
+            final List<String> initialMasterNodes = INITIAL_MASTER_NODES_SETTING.get(settings);
+            bootstrapRequirements = unmodifiableSet(new LinkedHashSet<>(initialMasterNodes));
+            if (bootstrapRequirements.size() != initialMasterNodes.size()) {
+                throw new IllegalArgumentException(
+                    "setting [" + INITIAL_MASTER_NODES_SETTING.getKey() + "] contains duplicates: " + initialMasterNodes);
+            }
+            unconfiguredBootstrapTimeout = discoveryIsConfigured(settings) ? null : UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING.get(settings);
         }
 
-        unconfiguredBootstrapTimeout = discoveryIsConfigured(settings) ? null : UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING.get(settings);
         this.transportService = transportService;
         this.discoveredNodesSupplier = discoveredNodesSupplier;
         this.isBootstrappedSupplier = isBootstrappedSupplier;
@@ -91,14 +107,14 @@ public class ClusterBootstrapService {
     }
 
     public static boolean discoveryIsConfigured(Settings settings) {
-        return Stream.of(DISCOVERY_HOSTS_PROVIDER_SETTING, DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING, INITIAL_MASTER_NODES_SETTING)
-            .anyMatch(s -> s.exists(settings));
+        return Stream.of(DISCOVERY_SEED_PROVIDERS_SETTING, DISCOVERY_SEED_HOSTS_SETTING,
+            INITIAL_MASTER_NODES_SETTING).anyMatch(s -> s.exists(settings));
     }
 
     void onFoundPeersUpdated() {
         final Set<DiscoveryNode> nodes = getDiscoveredNodes();
         if (bootstrappingPermitted.get() && transportService.getLocalNode().isMasterNode() && bootstrapRequirements.isEmpty() == false
-            && isBootstrappedSupplier.getAsBoolean() == false && nodes.stream().noneMatch(Coordinator::isZen1Node)) {
+            && isBootstrappedSupplier.getAsBoolean() == false) {
 
             final Tuple<Set<DiscoveryNode>,List<String>> requirementMatchingResult;
             try {
@@ -143,13 +159,8 @@ public class ClusterBootstrapService {
             @Override
             public void run() {
                 final Set<DiscoveryNode> discoveredNodes = getDiscoveredNodes();
-                final List<DiscoveryNode> zen1Nodes = discoveredNodes.stream().filter(Coordinator::isZen1Node).collect(Collectors.toList());
-                if (zen1Nodes.isEmpty()) {
-                    logger.debug("performing best-effort cluster bootstrapping with {}", discoveredNodes);
-                    startBootstrap(discoveredNodes, emptyList());
-                } else {
-                    logger.info("avoiding best-effort cluster bootstrapping due to discovery of pre-7.0 nodes {}", zen1Nodes);
-                }
+                logger.debug("performing best-effort cluster bootstrapping with {}", discoveredNodes);
+                startBootstrap(discoveredNodes, emptyList());
             }
 
             @Override
@@ -166,7 +177,6 @@ public class ClusterBootstrapService {
 
     private void startBootstrap(Set<DiscoveryNode> discoveryNodes, List<String> unsatisfiedRequirements) {
         assert discoveryNodes.stream().allMatch(DiscoveryNode::isMasterNode) : discoveryNodes;
-        assert discoveryNodes.stream().noneMatch(Coordinator::isZen1Node) : discoveryNodes;
         assert unsatisfiedRequirements.size() < discoveryNodes.size() : discoveryNodes + " smaller than " + unsatisfiedRequirements;
         if (bootstrappingPermitted.compareAndSet(true, false)) {
             doBootstrap(new VotingConfiguration(Stream.concat(discoveryNodes.stream().map(DiscoveryNode::getId),

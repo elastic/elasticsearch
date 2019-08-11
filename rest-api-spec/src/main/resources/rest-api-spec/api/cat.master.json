@@ -1,9 +1,9 @@
 {
   "cat.master": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cat-master.html",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/cat-master.html",
+    "stability": "stable",
     "methods": ["GET"],
     "url": {
-      "path": "/_cat/master",
       "paths": ["/_cat/master"],
       "parts": {
       },

@@ -18,10 +18,8 @@
  */
 package org.elasticsearch.search.aggregations.support;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
@@ -146,11 +144,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
         }
         format = in.readOptionalString();
         missing = in.readGenericValue();
-        if (in.getVersion().before(Version.V_7_0_0)) {
-            timeZone = DateUtils.dateTimeZoneToZoneId(in.readOptionalTimeZone());
-        } else {
-            timeZone = in.readOptionalZoneId();
-        }
+        timeZone = in.readOptionalZoneId();
     }
 
     @Override
@@ -171,11 +165,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
         }
         out.writeOptionalString(format);
         out.writeGenericValue(missing);
-        if (out.getVersion().before(Version.V_7_0_0)) {
-            out.writeOptionalTimeZone(DateUtils.zoneIdToDateTimeZone(timeZone));
-        } else {
-            out.writeOptionalZoneId(timeZone);
-        }
+        out.writeOptionalZoneId(timeZone);
         innerWriteTo(out);
     }
 
@@ -309,10 +299,10 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     }
 
     @Override
-    protected final ValuesSourceAggregatorFactory<VS, ?> doBuild(SearchContext context, AggregatorFactory<?> parent,
+    protected final ValuesSourceAggregatorFactory<VS> doBuild(SearchContext context, AggregatorFactory parent,
             AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         ValuesSourceConfig<VS> config = resolveConfig(context);
-        ValuesSourceAggregatorFactory<VS, ?> factory = innerBuild(context, config, parent, subFactoriesBuilder);
+        ValuesSourceAggregatorFactory<VS> factory = innerBuild(context, config, parent, subFactoriesBuilder);
         return factory;
     }
 
@@ -322,8 +312,8 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
                 valueType, field, script, missing, timeZone, format);
     }
 
-    protected abstract ValuesSourceAggregatorFactory<VS, ?> innerBuild(SearchContext context, ValuesSourceConfig<VS> config,
-            AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder) throws IOException;
+    protected abstract ValuesSourceAggregatorFactory<VS> innerBuild(SearchContext context, ValuesSourceConfig<VS> config,
+            AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder) throws IOException;
 
     @Override
     public final XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
@@ -354,34 +344,24 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     protected abstract XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException;
 
     @Override
-    protected final int doHashCode() {
-        return Objects.hash(field, format, missing, script, targetValueType, timeZone, valueType, valuesSourceType,
-                innerHashCode());
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), field, format, missing, script,
+            targetValueType, timeZone, valueType, valuesSourceType);
     }
-
-    protected abstract int innerHashCode();
 
     @Override
-    protected final boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         ValuesSourceAggregationBuilder<?, ?> other = (ValuesSourceAggregationBuilder<?, ?>) obj;
-        if (!Objects.equals(field, other.field))
-            return false;
-        if (!Objects.equals(format, other.format))
-            return false;
-        if (!Objects.equals(missing, other.missing))
-            return false;
-        if (!Objects.equals(script, other.script))
-            return false;
-        if (!Objects.equals(targetValueType, other.targetValueType))
-            return false;
-        if (!Objects.equals(timeZone, other.timeZone))
-            return false;
-        if (!Objects.equals(valueType, other.valueType))
-            return false;
-        if (!Objects.equals(valuesSourceType, other.valuesSourceType))
-            return false;
-        return innerEquals(obj);
+        return Objects.equals(valuesSourceType, other.valuesSourceType)
+            && Objects.equals(field, other.field)
+            && Objects.equals(format, other.format)
+            && Objects.equals(missing, other.missing)
+            && Objects.equals(script, other.script)
+            && Objects.equals(targetValueType, other.targetValueType)
+            && Objects.equals(timeZone, other.timeZone)
+            && Objects.equals(valueType, other.valueType);
     }
-
-    protected abstract boolean innerEquals(Object obj);
 }

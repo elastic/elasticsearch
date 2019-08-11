@@ -25,8 +25,6 @@ import org.junit.After;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -56,21 +54,21 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
         long firstEventStartTime = 1514937600000L;
         long firstEventEndTime = firstEventStartTime + 2 * 60 * 60 * 1000;
         events.add(new ScheduledEvent.Builder().description("1st event (2hr)")
-                .startTime(ZonedDateTime.ofInstant(Instant.ofEpochMilli(firstEventStartTime), ZoneOffset.UTC))
-                .endTime(ZonedDateTime.ofInstant(Instant.ofEpochMilli(firstEventEndTime), ZoneOffset.UTC))
+                .startTime(Instant.ofEpochMilli(firstEventStartTime))
+                .endTime(Instant.ofEpochMilli(firstEventEndTime))
                 .calendarId(calendarId).build());
         // add 10 min event smaller than the bucket
         long secondEventStartTime = 1515067200000L;
         long secondEventEndTime = secondEventStartTime + 10 * 60 * 1000;
         events.add(new ScheduledEvent.Builder().description("2nd event with period smaller than bucketspan")
-                .startTime(ZonedDateTime.ofInstant(Instant.ofEpochMilli(secondEventStartTime), ZoneOffset.UTC))
-                .endTime(ZonedDateTime.ofInstant(Instant.ofEpochMilli(secondEventEndTime), ZoneOffset.UTC))
+                .startTime(Instant.ofEpochMilli(secondEventStartTime))
+                .endTime(Instant.ofEpochMilli(secondEventEndTime))
                 .calendarId(calendarId).build());
         long thirdEventStartTime = 1515088800000L;
         long thirdEventEndTime = thirdEventStartTime + 3 * 60 * 60 * 1000;
         events.add(new ScheduledEvent.Builder().description("3rd event 3hr")
-                .startTime(ZonedDateTime.ofInstant(Instant.ofEpochMilli(thirdEventStartTime), ZoneOffset.UTC))
-                .endTime(ZonedDateTime.ofInstant(Instant.ofEpochMilli(thirdEventEndTime), ZoneOffset.UTC))
+                .startTime(Instant.ofEpochMilli(thirdEventStartTime))
+                .endTime(Instant.ofEpochMilli(thirdEventEndTime))
                 .calendarId(calendarId).build());
 
         postScheduledEvents(calendarId, events);
@@ -168,8 +166,8 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
         long firstEventStartTime = startTime + bucketSpan.millis() * bucketCount;
         long firstEventEndTime = firstEventStartTime + bucketSpan.millis() * 2;
         events.add(new ScheduledEvent.Builder().description("1st event 2hr")
-                .startTime(ZonedDateTime.ofInstant(Instant.ofEpochMilli(firstEventStartTime), ZoneOffset.UTC))
-                .endTime(ZonedDateTime.ofInstant(Instant.ofEpochMilli(firstEventEndTime), ZoneOffset.UTC))
+                .startTime(Instant.ofEpochMilli(firstEventStartTime))
+                .endTime((Instant.ofEpochMilli(firstEventEndTime)))
                 .calendarId(calendarId).build());
         postScheduledEvents(calendarId, events);
 
@@ -217,8 +215,8 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
         long eventStartTime = startTime + (bucketCount + 1) * bucketSpan.millis();
         long eventEndTime = eventStartTime + (long)(1.5 * bucketSpan.millis());
         events.add(new ScheduledEvent.Builder().description("Some Event")
-                .startTime(ZonedDateTime.ofInstant(Instant.ofEpochMilli(eventStartTime), ZoneOffset.UTC))
-                .endTime(ZonedDateTime.ofInstant(Instant.ofEpochMilli(eventEndTime), ZoneOffset.UTC))
+                .startTime((Instant.ofEpochMilli(eventStartTime)))
+                .endTime((Instant.ofEpochMilli(eventEndTime)))
                 .calendarId(calendarId).build());
 
         postScheduledEvents(calendarId, events);
@@ -287,8 +285,8 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
         long eventStartTime = startTime + (bucketCount + 1) * bucketSpan.millis();
         long eventEndTime = eventStartTime + (long)(1.5 * bucketSpan.millis());
         events.add(new ScheduledEvent.Builder().description("Some Event")
-                .startTime(ZonedDateTime.ofInstant(Instant.ofEpochMilli(eventStartTime), ZoneOffset.UTC))
-                .endTime(ZonedDateTime.ofInstant(Instant.ofEpochMilli(eventEndTime), ZoneOffset.UTC))
+                .startTime((Instant.ofEpochMilli(eventStartTime)))
+                .endTime((Instant.ofEpochMilli(eventEndTime)))
                 .calendarId(calendarId).build());
 
         postScheduledEvents(calendarId, events);

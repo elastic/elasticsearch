@@ -22,7 +22,6 @@ package org.elasticsearch.action.admin.indices.get;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -43,7 +42,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -61,7 +59,7 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
     private ImmutableOpenMap<String, Settings> defaultSettings = ImmutableOpenMap.of();
     private String[] indices;
 
-    GetIndexResponse(String[] indices,
+    public GetIndexResponse(String[] indices,
                      ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings,
                      ImmutableOpenMap<String, List<AliasMetaData>> aliases,
                      ImmutableOpenMap<String, Settings> settings,
@@ -83,7 +81,50 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
         }
     }
 
-    GetIndexResponse() {
+    GetIndexResponse(StreamInput in) throws IOException {
+        super(in);
+        this.indices = in.readStringArray();
+
+        int mappingsSize = in.readVInt();
+        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> mappingsMapBuilder = ImmutableOpenMap.builder();
+        for (int i = 0; i < mappingsSize; i++) {
+            String key = in.readString();
+            int valueSize = in.readVInt();
+            ImmutableOpenMap.Builder<String, MappingMetaData> mappingEntryBuilder = ImmutableOpenMap.builder();
+            for (int j = 0; j < valueSize; j++) {
+                mappingEntryBuilder.put(in.readString(), new MappingMetaData(in));
+            }
+            mappingsMapBuilder.put(key, mappingEntryBuilder.build());
+        }
+        mappings = mappingsMapBuilder.build();
+
+        int aliasesSize = in.readVInt();
+        ImmutableOpenMap.Builder<String, List<AliasMetaData>> aliasesMapBuilder = ImmutableOpenMap.builder();
+        for (int i = 0; i < aliasesSize; i++) {
+            String key = in.readString();
+            int valueSize = in.readVInt();
+            List<AliasMetaData> aliasEntryBuilder = new ArrayList<>(valueSize);
+            for (int j = 0; j < valueSize; j++) {
+                aliasEntryBuilder.add(new AliasMetaData(in));
+            }
+            aliasesMapBuilder.put(key, Collections.unmodifiableList(aliasEntryBuilder));
+        }
+        aliases = aliasesMapBuilder.build();
+
+        int settingsSize = in.readVInt();
+        ImmutableOpenMap.Builder<String, Settings> settingsMapBuilder = ImmutableOpenMap.builder();
+        for (int i = 0; i < settingsSize; i++) {
+            String key = in.readString();
+            settingsMapBuilder.put(key, Settings.readSettingsFromStream(in));
+        }
+        settings = settingsMapBuilder.build();
+
+        ImmutableOpenMap.Builder<String, Settings> defaultSettingsMapBuilder = ImmutableOpenMap.builder();
+        int defaultSettingsSize = in.readVInt();
+        for (int i = 0; i < defaultSettingsSize; i++) {
+            defaultSettingsMapBuilder.put(in.readString(), Settings.readSettingsFromStream(in));
+        }
+        defaultSettings = defaultSettingsMapBuilder.build();
     }
 
     public String[] indices() {
@@ -155,57 +196,7 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        this.indices = in.readStringArray();
-
-        int mappingsSize = in.readVInt();
-        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> mappingsMapBuilder = ImmutableOpenMap.builder();
-        for (int i = 0; i < mappingsSize; i++) {
-            String key = in.readString();
-            int valueSize = in.readVInt();
-            ImmutableOpenMap.Builder<String, MappingMetaData> mappingEntryBuilder = ImmutableOpenMap.builder();
-            for (int j = 0; j < valueSize; j++) {
-                mappingEntryBuilder.put(in.readString(), new MappingMetaData(in));
-            }
-            mappingsMapBuilder.put(key, mappingEntryBuilder.build());
-        }
-        mappings = mappingsMapBuilder.build();
-
-        int aliasesSize = in.readVInt();
-        ImmutableOpenMap.Builder<String, List<AliasMetaData>> aliasesMapBuilder = ImmutableOpenMap.builder();
-        for (int i = 0; i < aliasesSize; i++) {
-            String key = in.readString();
-            int valueSize = in.readVInt();
-            List<AliasMetaData> aliasEntryBuilder = new ArrayList<>(valueSize);
-            for (int j = 0; j < valueSize; j++) {
-                aliasEntryBuilder.add(new AliasMetaData(in));
-            }
-            aliasesMapBuilder.put(key, Collections.unmodifiableList(aliasEntryBuilder));
-        }
-        aliases = aliasesMapBuilder.build();
-
-        int settingsSize = in.readVInt();
-        ImmutableOpenMap.Builder<String, Settings> settingsMapBuilder = ImmutableOpenMap.builder();
-        for (int i = 0; i < settingsSize; i++) {
-            String key = in.readString();
-            settingsMapBuilder.put(key, Settings.readSettingsFromStream(in));
-        }
-        settings = settingsMapBuilder.build();
-
-        ImmutableOpenMap.Builder<String, Settings> defaultSettingsMapBuilder = ImmutableOpenMap.builder();
-        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
-            int defaultSettingsSize = in.readVInt();
-            for (int i = 0; i < defaultSettingsSize ; i++) {
-                defaultSettingsMapBuilder.put(in.readString(), Settings.readSettingsFromStream(in));
-            }
-        }
-        defaultSettings = defaultSettingsMapBuilder.build();
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeStringArray(indices);
         out.writeVInt(mappings.size());
         for (ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetaData>> indexEntry : mappings) {
@@ -229,12 +220,10 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
             out.writeString(indexEntry.key);
             Settings.writeSettingsToStream(indexEntry.value, out);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
-            out.writeVInt(defaultSettings.size());
-            for (ObjectObjectCursor<String, Settings> indexEntry : defaultSettings) {
-                out.writeString(indexEntry.key);
-                Settings.writeSettingsToStream(indexEntry.value, out);
-            }
+        out.writeVInt(defaultSettings.size());
+        for (ObjectObjectCursor<String, Settings> indexEntry : defaultSettings) {
+            out.writeString(indexEntry.key);
+            Settings.writeSettingsToStream(indexEntry.value, out);
         }
     }
 
@@ -315,9 +304,16 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
 
     private static ImmutableOpenMap<String, MappingMetaData> parseMappings(XContentParser parser) throws IOException {
         ImmutableOpenMap.Builder<String, MappingMetaData> indexMappings = ImmutableOpenMap.builder();
-        Map<String, Object> map = parser.map();
-        if (map.isEmpty() == false) {
-            indexMappings.put(MapperService.SINGLE_MAPPING_NAME, new MappingMetaData(MapperService.SINGLE_MAPPING_NAME, map));
+        // We start at START_OBJECT since parseIndexEntry ensures that
+        while (parser.nextToken() != Token.END_OBJECT) {
+            ensureExpectedToken(Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
+            parser.nextToken();
+            if (parser.currentToken() == Token.START_OBJECT) {
+                String mappingType = parser.currentName();
+                indexMappings.put(mappingType, new MappingMetaData(mappingType, parser.map()));
+            } else if (parser.currentToken() == Token.START_ARRAY) {
+                parser.skipChildren();
+            }
         }
         return indexMappings.build();
     }

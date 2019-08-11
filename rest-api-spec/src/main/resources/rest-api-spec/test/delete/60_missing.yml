@@ -1,9 +1,7 @@
 ---
 "Missing document with catch":
 
- - skip:
-      version: " - 6.99.99"
-      reason: types are required in requests before 7.0.0
+
 
  - do:
       catch:      missing
@@ -14,9 +12,7 @@
 ---
 "Missing document with ignore":
 
- - skip:
-      version: " - 6.99.99"
-      reason: types are required in requests before 7.0.0
+
 
  - do:
       delete:

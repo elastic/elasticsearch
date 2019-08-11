@@ -23,8 +23,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -108,10 +106,26 @@ public class GraphExploreRequest implements IndicesRequest.Replaceable, ToXConte
         return this;
     }
 
+    /**
+     * The document types to execute the explore against. Defaults to be executed against
+     * all types.
+     *
+     * @deprecated Types are in the process of being removed. Instead of using a type, prefer to
+     * filter on a field on the document.
+     */
+    @Deprecated
     public String[] types() {
         return this.types;
     }
 
+    /**
+     * The document types to execute the explore request against. Defaults to be executed against
+     * all types.
+     *
+     * @deprecated Types are in the process of being removed. Instead of using a type, prefer to
+     * filter on a field on the document.
+     */
+    @Deprecated
     public GraphExploreRequest types(String... types) {
         this.types = types;
         return this;
@@ -297,17 +311,6 @@ public class GraphExploreRequest implements IndicesRequest.Replaceable, ToXConte
         public float getBoost() {
             return boost;
         }
-
-        void readFrom(StreamInput in) throws IOException {
-            this.term = in.readString();
-            this.boost = in.readFloat();
-        }
-
-        void writeTo(StreamOutput out) throws IOException {
-            out.writeString(term);
-            out.writeFloat(boost);
-        }
-
     }
 
     @Override

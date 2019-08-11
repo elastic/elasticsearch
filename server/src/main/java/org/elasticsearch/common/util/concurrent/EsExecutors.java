@@ -47,11 +47,14 @@ import java.util.stream.Collectors;
 public class EsExecutors {
 
     /**
-     * Settings key to manually set the number of available processors.
-     * This is used to adjust thread pools sizes etc. per node.
+     * Setting to manually set the number of available processors. This setting is used to adjust thread pool sizes per node.
      */
-    public static final Setting<Integer> PROCESSORS_SETTING =
-        Setting.intSetting("processors", Runtime.getRuntime().availableProcessors(), 1, Property.NodeScope);
+    public static final Setting<Integer> PROCESSORS_SETTING = Setting.intSetting(
+        "processors",
+        Runtime.getRuntime().availableProcessors(),
+        1,
+        Runtime.getRuntime().availableProcessors(),
+        Property.NodeScope);
 
     /**
      * Returns the number of available processors. Defaults to
@@ -118,9 +121,13 @@ public class EsExecutors {
      * Checks if the runnable arose from asynchronous submission of a task to an executor. If an uncaught exception was thrown
      * during the execution of this task, we need to inspect this runnable and see if it is an error that should be propagated
      * to the uncaught exception handler.
+     *
+     * @param runnable the runnable to inspect, should be a RunnableFuture
+     * @return non fatal exception or null if no exception.
      */
-    public static void rethrowErrors(Runnable runnable) {
+    public static Throwable rethrowErrors(Runnable runnable) {
         if (runnable instanceof RunnableFuture) {
+            assert ((RunnableFuture) runnable).isDone();
             try {
                 ((RunnableFuture) runnable).get();
             } catch (final Exception e) {
@@ -143,8 +150,13 @@ public class EsExecutors {
                     // restore the interrupt status
                     Thread.currentThread().interrupt();
                 }
+                if (e instanceof ExecutionException) {
+                    return e.getCause();
+                }
             }
         }
+
+        return null;
     }
 
     private static final class DirectExecutorService extends AbstractExecutorService {

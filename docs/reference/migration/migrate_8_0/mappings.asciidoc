@@ -1,0 +1,25 @@
+[float]
+[[breaking_80_mappings_changes]]
+=== Mapping changes
+
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+//tag::notable-breaking-changes[]
+
+// end::notable-breaking-changes[]
+
+[float]
+==== Limiting the number of completion contexts
+
+The number of completion contexts within a single completion field
+has been limited to 10.
+
+[float]
+==== Defining multi-fields within multi-fields
+
+Previously, it was possible to define a multi-field within a multi-field.
+Defining chained multi-fields was deprecated in 7.3 and is now no longer
+supported. To migrate the mappings, all instances of `fields` that occur within
+a `fields` block should be removed, either by flattening the chained `fields`
+blocks into a single level, or by switching to `copy_to` if appropriate.

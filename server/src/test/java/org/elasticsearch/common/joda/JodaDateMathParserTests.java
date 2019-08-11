@@ -20,7 +20,6 @@
 package org.elasticsearch.common.joda;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.test.ESTestCase;
@@ -152,8 +151,13 @@ public class JodaDateMathParserTests extends ESTestCase {
 
         assertDateMathEquals("now", "2014-11-18T14:27:32", now, false, null);
         assertDateMathEquals("now+M", "2014-12-18T14:27:32", now, false, null);
+        assertDateMathEquals("now+M", "2014-12-18T14:27:32", now, true, null);
         assertDateMathEquals("now-2d", "2014-11-16T14:27:32", now, false, null);
+        assertDateMathEquals("now-2d", "2014-11-16T14:27:32", now, true, null);
         assertDateMathEquals("now/m", "2014-11-18T14:27", now, false, null);
+        assertDateMathEquals("now/m", "2014-11-18T14:27:59.999Z", now, true, null);
+        assertDateMathEquals("now/M", "2014-11-01T00:00:00", now, false, null);
+        assertDateMathEquals("now/M", "2014-11-30T23:59:59.999Z", now, true, null);
 
         // timezone does not affect now
         assertDateMathEquals("now/m", "2014-11-18T14:27", now, false, DateTimeZone.forID("+02:00"));
@@ -278,7 +282,7 @@ public class JodaDateMathParserTests extends ESTestCase {
             parser.parse(date, () -> 0);
             fail("Date: " + date + "\n" + msg);
         } catch (ElasticsearchParseException e) {
-            assertThat(ExceptionsHelper.detailedMessage(e).contains(exc), equalTo(true));
+            assertThat(e.getMessage().contains(exc), equalTo(true));
         }
     }
 

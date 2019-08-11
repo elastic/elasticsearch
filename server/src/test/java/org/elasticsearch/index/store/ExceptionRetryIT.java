@@ -58,7 +58,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2,
-    supportsDedicatedMasters = false, numClientNodes = 1, transportClientRatio = 0.0)
+    supportsDedicatedMasters = false, numClientNodes = 1)
 public class ExceptionRetryIT extends ESIntegTestCase {
 
     @Override

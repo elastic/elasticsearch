@@ -1,0 +1,325 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+  - do:
+      security.put_role:
+        name: "cat_some_indices_role"
+        body:  >
+            {
+              "cluster": [ "monitor" ],
+              "indices": [
+                { "names": ["this*", "index_to_monitor"], "privileges": ["monitor"] }
+              ]
+            }
+
+  - do:
+      security.put_user:
+        username: "cat_user"
+        body:  >
+          {
+            "password" : "cat_password",
+            "roles" : [ "cat_some_indices_role" ],
+            "full_name" : "Meow"
+          }
+
+  - do:
+      indices.create:
+        index: index1
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      indices.create:
+        index: index2
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      indices.create:
+        index: index3
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      indices.close:
+        index:  index3
+
+---
+teardown:
+  - do:
+      security.delete_user:
+        username: "cat_user"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "cat_some_indices_role"
+        ignore: 404
+
+  - do:
+      indices.delete:
+        index: "index1,index2"
+        ignore: 404
+
+---
+"Test empty request while no-authorized index":
+
+  - do:
+      headers: { Authorization: "Basic Y2F0X3VzZXI6Y2F0X3Bhc3N3b3Jk" } # cat_user
+      cat.indices: {}
+
+  - match:
+      $body: |
+               /^$/
+
+---
+"Test empty request while single authorized index":
+
+  - do:
+      indices.create:
+        index: index_to_monitor
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      headers: { Authorization: "Basic Y2F0X3VzZXI6Y2F0X3Bhc3N3b3Jk" } # cat_user
+      cat.indices: {}
+
+  - match:
+      $body: |
+               /^(green  \s+
+                  open   \s+
+                  index_to_monitor \s+
+                  ([a-zA-Z0-9=/_+]|[\\\-]){22} \s+
+                  1      \s+
+                  0      \s+
+                  0      \s+
+                  0      \s+
+                  (\d+|\d+[.]\d+)(kb|b) \s+
+                  (\d+|\d+[.]\d+)(kb|b) \s*
+                )
+                $/
+
+---
+"Test empty request while single authorized closed index":
+
+  - do:
+      indices.create:
+        index: index_to_monitor
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 1
+
+  - do:
+      index:
+        index:  index_to_monitor
+        id:     0
+        body:   { foo: bar }
+
+  - do:
+      index:
+        index:  index_to_monitor
+        id:     1
+        body:   { foo: bar }
+
+  - do:
+      index:
+        index:  index_to_monitor
+        id:     2
+        body:   { foo: bar }
+
+  - do:
+      indices.close:
+        index:  index_to_monitor
+
+  - do:
+      headers: { Authorization: "Basic Y2F0X3VzZXI6Y2F0X3Bhc3N3b3Jk" } # cat_user
+      cat.indices: {}
+
+  - match:
+      $body: |
+        /^(yellow  \s+
+           close   \s+
+           index_to_monitor \s+
+           ([a-zA-Z0-9=/_+]|[\\\-]){22} \s+
+           1      \s+
+           1      \s+
+                  \s+
+                  \s+
+                  \s+
+                  \s*
+         )
+         $/
+
+---
+"Test explicit request while multiple authorized indices":
+
+  - do:
+      indices.create:
+        index: index_to_monitor
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      indices.create:
+        index: this_index
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      headers: { Authorization: "Basic Y2F0X3VzZXI6Y2F0X3Bhc3N3b3Jk" } # cat_user
+      cat.indices:
+        index: "this_index,index_to_monitor"
+        v: false
+        h: i
+
+  - match:
+      $body: |
+               /^(this_index \s*\n index_to_monitor \n?)
+                |(index_to_monitor \s*\n this_index \n?)$/
+
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic Y2F0X3VzZXI6Y2F0X3Bhc3N3b3Jk" } # cat_user
+      cat.indices:
+        index: "index1,index_to_monitor"
+
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic Y2F0X3VzZXI6Y2F0X3Bhc3N3b3Jk" } # cat_user
+      cat.indices:
+        index: "this_*,index2"
+
+---
+"Test explicit request while multiple opened/closed authorized indices":
+
+  - do:
+      indices.create:
+        index: index_to_monitor
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      indices.create:
+        index: this_index
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      indices.create:
+        index: this_index_is_closed
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      headers: { Authorization: "Basic Y2F0X3VzZXI6Y2F0X3Bhc3N3b3Jk" } # cat_user
+      cat.indices:
+        index: "this_index,index_to_monitor,this_index_is_closed"
+        v: false
+        h: i
+
+  - match:
+      $body: |
+        /^(this_index \s*\n index_to_monitor \s*\n this_index_is_closed \n?)
+          |(this_index \s*\n this_index_is_closed \s*\n index_to_monitor \n?)
+          |(this_index_is_closed \s*\n this_index \s*\n index_to_monitor \n?)
+          |(this_index_is_closed \s*\n index_to_monitor \s*\n this_index \n?)
+          |(index_to_monitor \s*\n this_index \s*\n this_index_is_closed \n?)
+          |(index_to_monitor \s*\n this_index_is_closed \s*\n this_index \n?)$/
+
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic Y2F0X3VzZXI6Y2F0X3Bhc3N3b3Jk" } # cat_user
+      cat.indices:
+        index: "index1,index_to_monitor"
+
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic Y2F0X3VzZXI6Y2F0X3Bhc3N3b3Jk" } # cat_user
+      cat.indices:
+        index: "this_*,index2"
+
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic Y2F0X3VzZXI6Y2F0X3Bhc3N3b3Jk" } # cat_user
+      cat.indices:
+        index: "this_index_is_closed,index2"
+
+---
+"Test wildcard request with multiple authorized indices":
+
+  - do:
+      indices.create:
+        index: index_to_monitor
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      indices.create:
+        index: this_index
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      indices.create:
+        index: this_index_as_well
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      indices.create:
+        index: not_this_one_though
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      headers: { Authorization: "Basic Y2F0X3VzZXI6Y2F0X3Bhc3N3b3Jk" } # cat_user
+      cat.indices:
+        index: "t*,i*"
+        v: false
+        h: i
+
+ # no order with wildcards
+  - match:
+      $body: |
+               /^(this_index \s*\n this_index_as_well \s*\n index_to_monitor \n?)
+                 |(this_index \s*\n index_to_monitor \s*\n this_index_as_well \n?)
+                 |(this_index_as_well \s*\n this_index \s*\n index_to_monitor \n?)
+                 |(this_index_as_well \s*\n index_to_monitor \s*\n this_index \n?)
+                 |(index_to_monitor \s*\n this_index \s*\n this_index_as_well \n?)
+                 |(index_to_monitor \s*\n this_index_as_well \s*\n this_index \n?)$/
+
+

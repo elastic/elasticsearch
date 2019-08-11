@@ -23,26 +23,18 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.UTF8StreamWriter;
 import org.elasticsearch.common.io.stream.BytesStream;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.Set;
 
 import static org.elasticsearch.rest.action.cat.RestTable.buildHelpWidths;
 import static org.elasticsearch.rest.action.cat.RestTable.pad;
 
 public abstract class AbstractCatAction extends BaseRestHandler {
-
-    public AbstractCatAction(Settings settings) {
-        super(settings);
-    }
 
     protected abstract RestChannelConsumer doCatRequest(RestRequest request, NodeClient client);
 
@@ -76,8 +68,7 @@ public abstract class AbstractCatAction extends BaseRestHandler {
         }
     }
 
-    static Set<String> RESPONSE_PARAMS =
-            Collections.unmodifiableSet(new HashSet<>(Arrays.asList("format", "h", "v", "ts", "pri", "bytes", "size", "time", "s")));
+    static Set<String> RESPONSE_PARAMS = Set.of("format", "h", "v", "ts", "pri", "bytes", "size", "time", "s");
 
     @Override
     protected Set<String> responseParams() {

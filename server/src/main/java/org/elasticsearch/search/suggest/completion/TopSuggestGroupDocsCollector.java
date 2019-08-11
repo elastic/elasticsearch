@@ -60,7 +60,9 @@ class TopSuggestGroupDocsCollector extends TopSuggestDocsCollector {
         int globalDoc = docID + docBase;
         boolean isNewDoc = docContexts.containsKey(globalDoc) == false;
         List<CharSequence> contexts = docContexts.computeIfAbsent(globalDoc, k -> new ArrayList<>());
-        contexts.add(context);
+        if (context != null) {
+            contexts.add(context);
+        }
         if (isNewDoc) {
             super.collect(docID, key, context, score);
         }

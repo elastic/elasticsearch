@@ -42,10 +42,10 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.regex.Matcher;
@@ -110,7 +110,30 @@ public class PkiRealm extends Realm implements CachingRealm {
 
     @Override
     public X509AuthenticationToken token(ThreadContext context) {
-        return token(context.getTransient(PKI_CERT_HEADER_NAME), principalPattern, logger);
+        Object pkiHeaderValue = context.getTransient(PKI_CERT_HEADER_NAME);
+        if (pkiHeaderValue == null) {
+            return null;
+        }
+        assert pkiHeaderValue instanceof X509Certificate[];
+        X509Certificate[] certificates = (X509Certificate[]) pkiHeaderValue;
+        if (certificates.length == 0) {
+            return null;
+        }
+        X509AuthenticationToken token = new X509AuthenticationToken(certificates);
+        // the following block of code maintains BWC:
+        // When constructing the token object we only return it if the Subject DN of the certificate can be parsed by at least one PKI
+        // realm. We then consider the parsed Subject DN as the "principal" even though it is potentially incorrect because when several
+        // realms are installed the one that first parses the principal might not be the one that finally authenticates (does trusted chain
+        // validation). In this case the principal should be set by the realm that completes the authentication. But in the common case,
+        // where a single PKI realm is configured, there is no risk of eagerly parsing the principal before authentication and it also
+        // maintains BWC.
+        String parsedPrincipal = getPrincipalFromSubjectDN(principalPattern, token, logger);
+        if (parsedPrincipal == null) {
+            return null;
+        }
+        token.setPrincipal(parsedPrincipal);
+        // end BWC code block
+        return token;
     }
 
     @Override
@@ -122,25 +145,41 @@ public class PkiRealm extends Realm implements CachingRealm {
             User user = cache.get(fingerprint);
             if (user != null) {
                 if (delegatedRealms.hasDelegation()) {
-                    delegatedRealms.resolve(token.principal(), listener);
+                    delegatedRealms.resolve(user.principal(), listener);
                 } else {
                     listener.onResponse(AuthenticationResult.success(user));
                 }
             } else if (isCertificateChainTrusted(trustManager, token, logger) == false) {
                 listener.onResponse(AuthenticationResult.unsuccessful("Certificate for " + token.dn() + " is not trusted", null));
             } else {
-                final ActionListener<AuthenticationResult> cachingListener = ActionListener.wrap(result -> {
-                    if (result.isAuthenticated()) {
-                        try (ReleasableLock ignored = readLock.acquire()) {
-                            cache.put(fingerprint, result.getUser());
-                        }
-                    }
-                    listener.onResponse(result);
-                }, listener::onFailure);
-                if (delegatedRealms.hasDelegation()) {
-                    delegatedRealms.resolve(token.principal(), cachingListener);
+                // parse the principal again after validating the cert chain, and do not rely on the token.principal one, because that could
+                // be set by a different realm that failed trusted chain validation. We SHOULD NOT parse the principal BEFORE this step, but
+                // we do it for BWC purposes. Changing this is a breaking change.
+                final String principal = getPrincipalFromSubjectDN(principalPattern, token, logger);
+                if (principal == null) {
+                    logger.debug((Supplier<?>) () -> new ParameterizedMessage(
+                            "the extracted principal after cert chain validation, from DN [{}], using pattern [{}] is null", token.dn(),
+                            principalPattern.toString()));
+                    listener.onResponse(AuthenticationResult.unsuccessful("Could not parse principal from Subject DN " + token.dn(), null));
                 } else {
-                    this.buildUser(token, cachingListener);
+                    final ActionListener<AuthenticationResult> cachingListener = ActionListener.wrap(result -> {
+                        if (result.isAuthenticated()) {
+                            try (ReleasableLock ignored = readLock.acquire()) {
+                                cache.put(fingerprint, result.getUser());
+                            }
+                        }
+                        listener.onResponse(result);
+                    }, listener::onFailure);
+                    if (false == principal.equals(token.principal())) {
+                        logger.debug((Supplier<?>) () -> new ParameterizedMessage(
+                                "the extracted principal before [{}] and after [{}] cert chain validation, for DN [{}], are different",
+                                token.principal(), principal, token.dn()));
+                    }
+                    if (delegatedRealms.hasDelegation()) {
+                        delegatedRealms.resolve(principal, cachingListener);
+                    } else {
+                        buildUser(token, principal, cachingListener);
+                    }
                 }
             }
         } catch (CertificateEncodingException e) {
@@ -148,13 +187,11 @@ public class PkiRealm extends Realm implements CachingRealm {
         }
     }
 
-    private void buildUser(X509AuthenticationToken token, ActionListener<AuthenticationResult> listener) {
-        final Map<String, Object> metadata = Collections.singletonMap("pki_dn", token.dn());
-        final UserRoleMapper.UserData userData = new UserRoleMapper.UserData(token.principal(),
-                token.dn(), Collections.emptySet(), metadata, this.config);
+    private void buildUser(X509AuthenticationToken token, String principal, ActionListener<AuthenticationResult> listener) {
+        final Map<String, Object> metadata = Map.of("pki_dn", token.dn());
+        final UserRoleMapper.UserData userData = new UserRoleMapper.UserData(principal, token.dn(), Set.of(), metadata, config);
         roleMapper.resolveRoles(userData, ActionListener.wrap(roles -> {
-            final User computedUser =
-                    new User(token.principal(), roles.toArray(new String[roles.size()]), null, null, metadata, true);
+            final User computedUser = new User(principal, roles.toArray(new String[roles.size()]), null, null, metadata, true);
             listener.onResponse(AuthenticationResult.success(computedUser));
         }, listener::onFailure));
     }
@@ -164,47 +201,33 @@ public class PkiRealm extends Realm implements CachingRealm {
         listener.onResponse(null);
     }
 
-    static X509AuthenticationToken token(Object pkiHeaderValue, Pattern principalPattern, Logger logger) {
-        if (pkiHeaderValue == null) {
-            return null;
-        }
-
-        assert pkiHeaderValue instanceof X509Certificate[];
-        X509Certificate[] certificates = (X509Certificate[]) pkiHeaderValue;
-        if (certificates.length == 0) {
-            return null;
-        }
-
-        String dn = certificates[0].getSubjectX500Principal().toString();
+    static String getPrincipalFromSubjectDN(Pattern principalPattern, X509AuthenticationToken token, Logger logger) {
+        String dn = token.credentials()[0].getSubjectX500Principal().toString();
         Matcher matcher = principalPattern.matcher(dn);
-        if (!matcher.find()) {
-            if (logger.isDebugEnabled()) {
-                logger.debug("certificate authentication succeeded for [{}] but could not extract principal from DN", dn);
-            }
+        if (false == matcher.find()) {
+            logger.debug((Supplier<?>) () -> new ParameterizedMessage("could not extract principal from DN [{}] using pattern [{}]", dn,
+                    principalPattern.toString()));
             return null;
         }
-
         String principal = matcher.group(1);
         if (Strings.isNullOrEmpty(principal)) {
-            if (logger.isDebugEnabled()) {
-                logger.debug("certificate authentication succeeded for [{}] but extracted principal was empty", dn);
-            }
+            logger.debug((Supplier<?>) () -> new ParameterizedMessage("the extracted principal from DN [{}] using pattern [{}] is empty",
+                    dn, principalPattern.toString()));
             return null;
         }
-        return new X509AuthenticationToken(certificates, principal, dn);
+        return principal;
     }
 
-    static boolean isCertificateChainTrusted(X509TrustManager trustManager, X509AuthenticationToken token, Logger logger) {
+    private static boolean isCertificateChainTrusted(X509TrustManager trustManager, X509AuthenticationToken token, Logger logger) {
         if (trustManager != null) {
             try {
                 trustManager.checkClientTrusted(token.credentials(), AUTH_TYPE);
                 return true;
             } catch (CertificateException e) {
                 if (logger.isTraceEnabled()) {
-                    logger.trace((Supplier<?>)
-                            () -> new ParameterizedMessage("failed certificate validation for principal [{}]", token.principal()), e);
+                    logger.trace("failed certificate validation for Subject DN [" + token.dn() + "]", e);
                 } else if (logger.isDebugEnabled()) {
-                    logger.debug("failed certificate validation for principal [{}]", token.principal());
+                    logger.debug("failed certificate validation for Subject DN [{}]", token.dn());
                 }
             }
             return false;
@@ -214,7 +237,7 @@ public class PkiRealm extends Realm implements CachingRealm {
         return true;
     }
 
-    X509TrustManager trustManagers(RealmConfig realmConfig) {
+    private X509TrustManager trustManagers(RealmConfig realmConfig) {
         final List<String> certificateAuthorities = realmConfig.hasSetting(PkiRealmSettings.CAPATH_SETTING) ?
                 realmConfig.getSetting(PkiRealmSettings.CAPATH_SETTING) : null;
         String truststorePath = realmConfig.getSetting(PkiRealmSettings.TRUST_STORE_PATH).orElse(null);

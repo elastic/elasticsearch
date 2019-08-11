@@ -22,7 +22,6 @@ package org.elasticsearch.cluster.coordination;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.Counter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -304,21 +303,6 @@ public class DeterministicTaskQueue {
             }
 
             @Override
-            public Counter estimatedTimeInMillisCounter() {
-                return new Counter() {
-                    @Override
-                    public long addAndGet(long delta) {
-                        throw new UnsupportedOperationException();
-                    }
-
-                    @Override
-                    public long get() {
-                        return currentTimeMillis;
-                    }
-                };
-            }
-
-            @Override
             public ThreadPoolInfo info() {
                 throw new UnsupportedOperationException();
             }
@@ -344,7 +328,7 @@ public class DeterministicTaskQueue {
             }
 
             @Override
-            public ScheduledFuture<?> schedule(TimeValue delay, String executor, Runnable command) {
+            public ScheduledCancellable schedule(Runnable command, TimeValue delay, String executor) {
                 final int NOT_STARTED = 0;
                 final int STARTED = 1;
                 final int CANCELLED = 2;
@@ -364,7 +348,7 @@ public class DeterministicTaskQueue {
                     }
                 }));
 
-                return new ScheduledFuture<Object>() {
+                return new ScheduledCancellable() {
                     @Override
                     public long getDelay(TimeUnit unit) {
                         throw new UnsupportedOperationException();
@@ -376,8 +360,7 @@ public class DeterministicTaskQueue {
                     }
 
                     @Override
-                    public boolean cancel(boolean mayInterruptIfRunning) {
-                        assert mayInterruptIfRunning == false;
+                    public boolean cancel() {
                         return taskState.compareAndSet(NOT_STARTED, CANCELLED);
                     }
 
@@ -386,20 +369,6 @@ public class DeterministicTaskQueue {
                         return taskState.get() == CANCELLED;
                     }
 
-                    @Override
-                    public boolean isDone() {
-                        throw new UnsupportedOperationException();
-                    }
-
-                    @Override
-                    public Object get() {
-                        throw new UnsupportedOperationException();
-                    }
-
-                    @Override
-                    public Object get(long timeout, TimeUnit unit) {
-                        throw new UnsupportedOperationException();
-                    }
                 };
             }
 

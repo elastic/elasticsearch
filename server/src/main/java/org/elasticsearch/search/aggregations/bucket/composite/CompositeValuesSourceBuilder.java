@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -66,21 +65,9 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         if (in.readBoolean()) {
             this.valueType = ValueType.readFromStream(in);
         }
-        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
-            this.missingBucket = in.readBoolean();
-        } else {
-            this.missingBucket = false;
-        }
-        if (in.getVersion().before(Version.V_7_0_0)) {
-            // skip missing value for BWC
-            in.readGenericValue();
-        }
+        this.missingBucket = in.readBoolean();
         this.order = SortOrder.readFromStream(in);
-        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
-            this.format = in.readOptionalString();
-        } else {
-            this.format = null;
-        }
+        this.format = in.readOptionalString();
     }
 
     @Override
@@ -97,17 +84,9 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         if (hasValueType) {
             valueType.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
-            out.writeBoolean(missingBucket);
-        }
-        if (out.getVersion().before(Version.V_7_0_0)) {
-            // write missing value for BWC
-            out.writeGenericValue(null);
-        }
+        out.writeBoolean(missingBucket);
         order.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
-            out.writeOptionalString(format);
-        }
+        out.writeOptionalString(format);
         innerWriteTo(out);
     }
 
@@ -138,11 +117,9 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
     }
 
     @Override
-    public final int hashCode() {
-        return Objects.hash(field, missingBucket, script, valueType, order, format, innerHashCode());
+    public int hashCode() {
+        return Objects.hash(field, missingBucket, script, valueType, order, format);
     }
-
-    protected abstract int innerHashCode();
 
     @Override
     public boolean equals(Object o) {
@@ -156,11 +133,8 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
             Objects.equals(valueType, that.valueType()) &&
             Objects.equals(missingBucket, that.missingBucket()) &&
             Objects.equals(order, that.order()) &&
-            Objects.equals(format, that.format()) &&
-            innerEquals(that);
+            Objects.equals(format, that.format());
     }
-
-    protected abstract boolean innerEquals(AB builder);
 
     public String name() {
         return name;

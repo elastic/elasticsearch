@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.action.shard;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -31,7 +32,7 @@ import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardEntry
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.RoutingService;
+import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
@@ -43,7 +44,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -75,7 +75,6 @@ import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.elasticsearch.test.VersionUtils.randomCompatibleVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
-import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
@@ -92,8 +91,8 @@ public class ShardStateActionTests extends ESTestCase {
 
     private static class TestShardStateAction extends ShardStateAction {
         TestShardStateAction(ClusterService clusterService, TransportService transportService,
-                             AllocationService allocationService, RoutingService routingService) {
-            super(clusterService, transportService, allocationService, routingService, THREAD_POOL);
+                             AllocationService allocationService, RerouteService rerouteService) {
+            super(clusterService, transportService, allocationService, rerouteService, THREAD_POOL);
         }
 
         private Runnable onBeforeWaitForNewMasterAndRetry;
@@ -110,7 +109,7 @@ public class ShardStateActionTests extends ESTestCase {
 
         @Override
         protected void waitForNewMasterAndRetry(String actionName, ClusterStateObserver observer, TransportRequest request,
-                                                Listener listener, Predicate<ClusterState> changePredicate) {
+                                                ActionListener<Void> listener, Predicate<ClusterState> changePredicate) {
             onBeforeWaitForNewMasterAndRetry.run();
             super.waitForNewMasterAndRetry(actionName, observer, request, listener, changePredicate);
             onAfterWaitForNewMasterAndRetry.run();
@@ -197,9 +196,9 @@ public class ShardStateActionTests extends ESTestCase {
         });
 
         ShardRouting failedShard = getRandomShardRouting(index);
-        shardStateAction.localShardFailed(failedShard, "test", getSimulatedFailure(), new ShardStateAction.Listener() {
+        shardStateAction.localShardFailed(failedShard, "test", getSimulatedFailure(), new ActionListener<Void>() {
             @Override
-            public void onSuccess() {
+            public void onResponse(Void aVoid) {
                 success.set(true);
                 latch.countDown();
             }
@@ -246,9 +245,9 @@ public class ShardStateActionTests extends ESTestCase {
         setUpMasterRetryVerification(numberOfRetries, retries, latch, retryLoop);
 
         ShardRouting failedShard = getRandomShardRouting(index);
-        shardStateAction.localShardFailed(failedShard, "test", getSimulatedFailure(), new ShardStateAction.Listener() {
+        shardStateAction.localShardFailed(failedShard, "test", getSimulatedFailure(), new ActionListener<Void>() {
             @Override
-            public void onSuccess() {
+            public void onResponse(Void aVoid) {
                 success.set(true);
                 latch.countDown();
             }
@@ -343,9 +342,9 @@ public class ShardStateActionTests extends ESTestCase {
         long primaryTerm = randomLongBetween(1, Long.MAX_VALUE);
         for (int i = 0; i < numListeners; i++) {
             shardStateAction.remoteShardFailed(failedShard.shardId(), failedShard.allocationId().getId(),
-                primaryTerm, markAsStale, "test", getSimulatedFailure(), new ShardStateAction.Listener() {
+                primaryTerm, markAsStale, "test", getSimulatedFailure(), new ActionListener<Void>() {
                     @Override
-                    public void onSuccess() {
+                    public void onResponse(Void aVoid) {
                         latch.countDown();
                     }
                     @Override
@@ -394,9 +393,9 @@ public class ShardStateActionTests extends ESTestCase {
                     ShardRouting failedShard = randomFrom(failedShards);
                     shardStateAction.remoteShardFailed(failedShard.shardId(), failedShard.allocationId().getId(),
                         randomLongBetween(1, Long.MAX_VALUE), randomBoolean(), "test", getSimulatedFailure(),
-                        new ShardStateAction.Listener() {
+                        new ActionListener<Void>() {
                             @Override
-                            public void onSuccess() {
+                            public void onResponse(Void aVoid) {
                                 notifiedResponses.incrementAndGet();
                             }
                             @Override
@@ -479,30 +478,6 @@ public class ShardStateActionTests extends ESTestCase {
         return new CorruptIndexException("simulated", (String) null);
     }
 
-    public void testShardEntryBWCSerialize() throws Exception {
-        final Version bwcVersion = randomValueOtherThanMany(
-            version -> version.onOrAfter(Version.V_6_3_0), () -> VersionUtils.randomVersion(random()));
-        final ShardId shardId = new ShardId(randomRealisticUnicodeOfLengthBetween(10, 100), UUID.randomUUID().toString(), between(0, 1000));
-        final String allocationId = randomRealisticUnicodeOfCodepointLengthBetween(10, 100);
-        final String reason = randomRealisticUnicodeOfCodepointLengthBetween(10, 100);
-        try (StreamInput in = serialize(new StartedShardEntry(shardId, allocationId, 0L, reason), bwcVersion).streamInput()) {
-            in.setVersion(bwcVersion);
-            final FailedShardEntry failedShardEntry = new FailedShardEntry(in);
-            assertThat(failedShardEntry.shardId, equalTo(shardId));
-            assertThat(failedShardEntry.allocationId, equalTo(allocationId));
-            assertThat(failedShardEntry.message, equalTo(reason));
-            assertThat(failedShardEntry.failure, nullValue());
-            assertThat(failedShardEntry.markAsStale, equalTo(true));
-        }
-        try (StreamInput in = serialize(new FailedShardEntry(shardId, allocationId, 0L, reason, null, false), bwcVersion).streamInput()) {
-            in.setVersion(bwcVersion);
-            final StartedShardEntry startedShardEntry = new StartedShardEntry(in);
-            assertThat(startedShardEntry.shardId, equalTo(shardId));
-            assertThat(startedShardEntry.allocationId, equalTo(allocationId));
-            assertThat(startedShardEntry.message, equalTo(reason));
-        }
-    }
-
     public void testFailedShardEntrySerialization() throws Exception {
         final ShardId shardId = new ShardId(randomRealisticUnicodeOfLengthBetween(10, 100), UUID.randomUUID().toString(), between(0, 1000));
         final String allocationId = randomRealisticUnicodeOfCodepointLengthBetween(10, 100);
@@ -544,11 +519,7 @@ public class ShardStateActionTests extends ESTestCase {
             final StartedShardEntry deserialized = new StartedShardEntry(in);
             assertThat(deserialized.shardId, equalTo(shardId));
             assertThat(deserialized.allocationId, equalTo(allocationId));
-            if (version.onOrAfter(Version.V_7_0_0)) {  // TODO update version to 6.7.0 after backport
-                assertThat(deserialized.primaryTerm, equalTo(primaryTerm));
-            } else {
-                assertThat(deserialized.primaryTerm, equalTo(0L));
-            }
+            assertThat(deserialized.primaryTerm, equalTo(primaryTerm));
             assertThat(deserialized.message, equalTo(message));
         }
     }
@@ -561,70 +532,13 @@ public class ShardStateActionTests extends ESTestCase {
         }
     }
 
-    public void testCompositeListener() throws Exception {
-        AtomicInteger successCount = new AtomicInteger();
-        AtomicInteger failureCount = new AtomicInteger();
-        Exception failure = randomBoolean() ? getSimulatedFailure() : null;
-        ShardStateAction.CompositeListener compositeListener = new ShardStateAction.CompositeListener(new ShardStateAction.Listener() {
-            @Override
-            public void onSuccess() {
-                successCount.incrementAndGet();
-            }
-            @Override
-            public void onFailure(Exception e) {
-                assertThat(e, sameInstance(failure));
-                failureCount.incrementAndGet();
-            }
-        });
-        int iterationsPerThread = scaledRandomIntBetween(100, 1000);
-        Thread[] threads = new Thread[between(1, 4)];
-        Phaser barrier = new Phaser(threads.length + 1);
-        for (int i = 0; i < threads.length; i++) {
-            threads[i] = new Thread(() -> {
-                barrier.arriveAndAwaitAdvance();
-                for (int n = 0; n < iterationsPerThread; n++) {
-                    compositeListener.addListener(new ShardStateAction.Listener() {
-                        @Override
-                        public void onSuccess() {
-                            successCount.incrementAndGet();
-                        }
-                        @Override
-                        public void onFailure(Exception e) {
-                            assertThat(e, sameInstance(failure));
-                            failureCount.incrementAndGet();
-                        }
-                    });
-                }
-            });
-            threads[i].start();
-        }
-        barrier.arriveAndAwaitAdvance();
-        if (failure != null) {
-            compositeListener.onFailure(failure);
-        } else {
-            compositeListener.onSuccess();
-        }
-        for (Thread t : threads) {
-            t.join();
-        }
-        assertBusy(() -> {
-            if (failure != null) {
-                assertThat(successCount.get(), equalTo(0));
-                assertThat(failureCount.get(), equalTo(threads.length*iterationsPerThread + 1));
-            } else {
-                assertThat(successCount.get(), equalTo(threads.length*iterationsPerThread + 1));
-                assertThat(failureCount.get(), equalTo(0));
-            }
-        });
-    }
-
-    private static class TestListener implements ShardStateAction.Listener {
+    private static class TestListener implements ActionListener<Void> {
 
         private final SetOnce<Exception> failure = new SetOnce<>();
         private final CountDownLatch latch = new CountDownLatch(1);
 
         @Override
-        public void onSuccess() {
+        public void onResponse(Void aVoid) {
             try {
                 failure.set(null);
             } finally {

@@ -36,12 +36,13 @@ final class LicenseRequestConverters {
     static Request putLicense(PutLicenseRequest putLicenseRequest) {
         String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_license").build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
-        RequestConverters.Params parameters = new RequestConverters.Params(request);
+        RequestConverters.Params parameters = new RequestConverters.Params();
         parameters.withTimeout(putLicenseRequest.timeout());
         parameters.withMasterTimeout(putLicenseRequest.masterNodeTimeout());
         if (putLicenseRequest.isAcknowledge()) {
             parameters.putParam("acknowledge", "true");
         }
+        request.addParameters(parameters.asMap());
         request.setJsonEntity(putLicenseRequest.getLicenseDefinition());
         return request;
     }
@@ -49,17 +50,19 @@ final class LicenseRequestConverters {
     static Request getLicense(GetLicenseRequest getLicenseRequest) {
         String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_license").build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
-        RequestConverters.Params parameters = new RequestConverters.Params(request);
+        RequestConverters.Params parameters = new RequestConverters.Params();
         parameters.withLocal(getLicenseRequest.isLocal());
+        request.addParameters(parameters.asMap());
         return request;
     }
 
     static Request deleteLicense(DeleteLicenseRequest deleteLicenseRequest) {
         String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_license").build();
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
-        RequestConverters.Params parameters = new RequestConverters.Params(request);
+        RequestConverters.Params parameters = new RequestConverters.Params();
         parameters.withTimeout(deleteLicenseRequest.timeout());
         parameters.withMasterTimeout(deleteLicenseRequest.masterNodeTimeout());
+        request.addParameters(parameters.asMap());
         return request;
     }
 
@@ -67,11 +70,12 @@ final class LicenseRequestConverters {
         final String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_license", "start_trial").build();
         final Request request = new Request(HttpPost.METHOD_NAME, endpoint);
 
-        RequestConverters.Params parameters = new RequestConverters.Params(request);
+        RequestConverters.Params parameters = new RequestConverters.Params();
         parameters.putParam("acknowledge", Boolean.toString(startTrialRequest.isAcknowledge()));
         if (startTrialRequest.getLicenseType() != null) {
             parameters.putParam("type", startTrialRequest.getLicenseType());
         }
+        request.addParameters(parameters.asMap());
         return request;
     }
 
@@ -80,12 +84,13 @@ final class LicenseRequestConverters {
             .addPathPartAsIs("_license", "start_basic")
             .build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        RequestConverters.Params parameters = new RequestConverters.Params(request);
+        RequestConverters.Params parameters = new RequestConverters.Params();
         parameters.withTimeout(startBasicRequest.timeout());
         parameters.withMasterTimeout(startBasicRequest.masterNodeTimeout());
         if (startBasicRequest.isAcknowledge()) {
             parameters.putParam("acknowledge", "true");
         }
+        request.addParameters(parameters.asMap());
         return request;
     }
 

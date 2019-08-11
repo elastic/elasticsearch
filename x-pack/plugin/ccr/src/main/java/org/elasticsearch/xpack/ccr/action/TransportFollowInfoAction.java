@@ -18,13 +18,14 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction;
-import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction.Response.FollowParameters;
 import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction.Response.FollowerInfo;
 import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction.Response.Status;
+import org.elasticsearch.xpack.core.ccr.action.FollowParameters;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -48,17 +49,12 @@ public class TransportFollowInfoAction extends TransportMasterNodeReadAction<Fol
     }
 
     @Override
-    protected FollowInfoAction.Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     protected FollowInfoAction.Response read(StreamInput in) throws IOException {
         return new FollowInfoAction.Response(in);
     }
 
     @Override
-    protected void masterOperation(FollowInfoAction.Request request,
+    protected void masterOperation(Task task, FollowInfoAction.Request request,
                                    ClusterState state,
                                    ActionListener<FollowInfoAction.Response> listener) throws Exception {
 
@@ -97,18 +93,17 @@ public class TransportFollowInfoAction extends TransportMasterNodeReadAction<Fol
                 String leaderIndex = ccrCustomData.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY);
                 if (result.isPresent()) {
                     ShardFollowTask params = result.get();
-                    FollowParameters followParameters = new FollowParameters(
-                        params.getMaxReadRequestOperationCount(),
-                        params.getMaxReadRequestSize(),
-                        params.getMaxOutstandingReadRequests(),
-                        params.getMaxWriteRequestOperationCount(),
-                        params.getMaxWriteRequestSize(),
-                        params.getMaxOutstandingWriteRequests(),
-                        params.getMaxWriteBufferCount(),
-                        params.getMaxWriteBufferSize(),
-                        params.getMaxRetryDelay(),
-                        params.getReadPollTimeout()
-                    );
+                    FollowParameters followParameters = new FollowParameters();
+                    followParameters.setMaxOutstandingReadRequests(params.getMaxOutstandingReadRequests());
+                    followParameters.setMaxOutstandingWriteRequests(params.getMaxOutstandingWriteRequests());
+                    followParameters.setMaxReadRequestOperationCount(params.getMaxReadRequestOperationCount());
+                    followParameters.setMaxWriteRequestOperationCount(params.getMaxWriteRequestOperationCount());
+                    followParameters.setMaxReadRequestSize(params.getMaxReadRequestSize());
+                    followParameters.setMaxWriteRequestSize(params.getMaxWriteRequestSize());
+                    followParameters.setMaxWriteBufferCount(params.getMaxWriteBufferCount());
+                    followParameters.setMaxWriteBufferSize(params.getMaxWriteBufferSize());
+                    followParameters.setMaxRetryDelay(params.getMaxRetryDelay());
+                    followParameters.setReadPollTimeout(params.getReadPollTimeout());
                     followerInfos.add(new FollowerInfo(followerIndex, remoteCluster, leaderIndex, Status.ACTIVE, followParameters));
                 } else {
                     followerInfos.add(new FollowerInfo(followerIndex, remoteCluster, leaderIndex, Status.PAUSED, null));

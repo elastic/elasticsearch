@@ -1,0 +1,20 @@
+[float]
+[[breaking_80_rollup_changes]]
+=== Rollup changes
+
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+//tag::notable-breaking-changes[]
+
+// end::notable-breaking-changes[]
+
+[float]
+==== StartRollupJob endpoint returns success if job already started
+
+Previously, attempting to start an already-started rollup job would
+result in a `500 InternalServerError: Cannot start task for Rollup Job
+[job] because state was [STARTED]` exception.
+
+Now, attempting to start a job that is already started will just
+return a successful `200 OK: started` response.

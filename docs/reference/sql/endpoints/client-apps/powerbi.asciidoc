@@ -3,13 +3,13 @@
 [[sql-client-apps-powerbi]]
 === Microsoft Power BI Desktop
 
-experimental[]
-
 [quote, https://powerbi.microsoft.com/en-us/what-is-power-bi/]
 ____
 https://powerbi.microsoft.com/en-us/desktop/[Power BI] is a business analytics solution that lets you visualize your data and share
 insights across your organization, or embed them in your app or website.
 ____
+
+IMPORTANT: Elastic does not endorse, promote or provide support for this application; for native Elasticsearch integration in this product, please reach out to its vendor.
 
 ==== Prerequisites
 

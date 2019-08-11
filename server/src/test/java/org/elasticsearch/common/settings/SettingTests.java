@@ -964,4 +964,13 @@ public class SettingTests extends ESTestCase {
         assertEquals("", value);
     }
 
+    public void testNonSecureSettingInKeystore() {
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("foo", "bar");
+        final Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
+        Setting<String> setting = Setting.simpleString("foo", Property.NodeScope);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> setting.get(settings));
+        assertThat(e.getMessage(), containsString("must be stored inside elasticsearch.yml"));
+    }
+
 }

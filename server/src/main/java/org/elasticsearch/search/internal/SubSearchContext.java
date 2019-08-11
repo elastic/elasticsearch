@@ -19,7 +19,6 @@
 package org.elasticsearch.search.internal;
 
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.Counter;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
@@ -354,7 +353,7 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    public Counter timeEstimateCounter() {
+    public long getRelativeTimeInMillis() {
         throw new UnsupportedOperationException("Not supported");
     }
 

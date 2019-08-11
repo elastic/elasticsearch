@@ -47,7 +47,7 @@ public class NeedsScoreTests extends ESSingleNodeTestCase {
         PainlessScriptEngine service = new PainlessScriptEngine(Settings.EMPTY, contexts);
 
         QueryShardContext shardContext = index.newQueryShardContext(0, null, () -> 0, null);
-        SearchLookup lookup = new SearchLookup(index.mapperService(), shardContext::getForField, null);
+        SearchLookup lookup = new SearchLookup(index.mapperService(), shardContext::getForField);
 
         NumberSortScript.Factory factory = service.compile(null, "1.2", NumberSortScript.CONTEXT, Collections.emptyMap());
         NumberSortScript.LeafFactory ss = factory.newFactory(Collections.emptyMap(), lookup);

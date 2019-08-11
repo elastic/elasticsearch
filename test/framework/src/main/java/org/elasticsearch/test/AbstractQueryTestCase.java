@@ -20,6 +20,7 @@
 package org.elasticsearch.test;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
+
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -58,6 +59,7 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
@@ -163,7 +165,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * parse exception. Some specific objects do not cause any exception as they can hold arbitrary content; they can be
      * declared by overriding {@link #getObjectsHoldingArbitraryContent()}.
      */
-    public final void testUnknownObjectException() throws IOException {
+    public void testUnknownObjectException() throws IOException {
         Set<String> candidates = new HashSet<>();
         // Adds the valid query to the list of queries to modify and test
         candidates.add(createTestQueryBuilder().toString());
@@ -426,13 +428,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
              * we first rewrite the query with a private context, then reset the context and then build the actual lucene query*/
             QueryBuilder rewritten = rewriteQuery(firstQuery, new QueryShardContext(context));
             Query firstLuceneQuery = rewritten.toQuery(context);
-            if (isCacheable(firstQuery)) {
-                assertTrue("query was marked as not cacheable in the context but this test indicates it should be cacheable: "
-                        + firstQuery.toString(), context.isCacheable());
-            } else {
-                assertFalse("query was marked as cacheable in the context but this test indicates it should not be cacheable: "
-                        + firstQuery.toString(), context.isCacheable());
-            }
             assertNotNull("toQuery should not return null", firstLuceneQuery);
             assertLuceneQuery(firstQuery, firstLuceneQuery, searchContext);
             //remove after assertLuceneQuery since the assertLuceneQuery impl might access the context as well
@@ -469,15 +464,11 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         }
     }
 
-    private QueryBuilder rewriteQuery(QB queryBuilder, QueryRewriteContext rewriteContext) throws IOException {
+    protected QueryBuilder rewriteQuery(QB queryBuilder, QueryRewriteContext rewriteContext) throws IOException {
         QueryBuilder rewritten = rewriteAndFetch(queryBuilder, rewriteContext);
         // extra safety to fail fast - serialize the rewritten version to ensure it's serializable.
         assertSerialization(rewritten);
         return rewritten;
-    }
-
-    protected boolean isCacheable(QB queryBuilder) {
-        return true;
     }
 
     /**
@@ -632,7 +623,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     /**
      * create a random value for either {@link AbstractQueryTestCase#BOOLEAN_FIELD_NAME}, {@link AbstractQueryTestCase#INT_FIELD_NAME},
      * {@link AbstractQueryTestCase#DOUBLE_FIELD_NAME}, {@link AbstractQueryTestCase#STRING_FIELD_NAME} or
-     * {@link AbstractQueryTestCase#DATE_FIELD_NAME}, or a String value by default
+     * {@link AbstractQueryTestCase#DATE_FIELD_NAME} or {@link AbstractQueryTestCase#DATE_NANOS_FIELD_NAME} or a String value by default
      */
     protected static Object getRandomValueForFieldName(String fieldName) {
         Object value;
@@ -658,6 +649,9 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 break;
             case DATE_FIELD_NAME:
                 value = new DateTime(System.currentTimeMillis(), DateTimeZone.UTC).toString();
+                break;
+            case DATE_NANOS_FIELD_NAME:
+                value = Instant.now().toString();
                 break;
             default:
                 value = randomAlphaOfLengthBetween(1, 10);
@@ -706,11 +700,10 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     protected static Fuzziness randomFuzziness(String fieldName) {
         switch (fieldName) {
             case INT_FIELD_NAME:
-                return Fuzziness.build(randomIntBetween(3, 100));
             case DOUBLE_FIELD_NAME:
-                return Fuzziness.build(1 + randomFloat() * 10);
             case DATE_FIELD_NAME:
-                return Fuzziness.build(randomTimeValue());
+            case DATE_NANOS_FIELD_NAME:
+                return Fuzziness.fromEdits(randomIntBetween(0, 2));
             default:
                 if (randomBoolean()) {
                     return Fuzziness.fromEdits(randomIntBetween(0, 2));
@@ -793,7 +786,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         return query;
     }
 
-    protected QueryBuilder rewriteAndFetch(QueryBuilder builder, QueryRewriteContext context) throws IOException {
+    protected QueryBuilder rewriteAndFetch(QueryBuilder builder, QueryRewriteContext context) {
         PlainActionFuture<QueryBuilder> future = new PlainActionFuture<>();
         Rewriteable.rewriteAndFetch(builder, context, future);
         return future.actionGet();
@@ -802,4 +795,17 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     public boolean isTextField(String fieldName) {
         return fieldName.equals(STRING_FIELD_NAME) || fieldName.equals(STRING_ALIAS_FIELD_NAME);
     }
+
+    /**
+     * Check that a query is generally cacheable. Tests for query builders that are not always cacheable
+     * should overwrite this method and make sure the different cases are always tested
+     */
+    public void testCacheability() throws IOException {
+        QB queryBuilder = createTestQueryBuilder();
+        QueryShardContext context = createShardContext();
+        QueryBuilder rewriteQuery = rewriteQuery(queryBuilder, new QueryShardContext(context));
+        assertNotNull(rewriteQuery.toQuery(context));
+        assertTrue("query should be cacheable: " + queryBuilder.toString(), context.isCacheable());
+    }
+
 }

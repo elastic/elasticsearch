@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.ZoneOffset;
@@ -61,7 +62,7 @@ public class DocValueFormatTests extends ESTestCase {
         assertEquals("###.##", ((DocValueFormat.Decimal) vf).pattern);
 
         DateFormatter formatter = DateFormatter.forPattern("epoch_second");
-        DocValueFormat.DateTime dateFormat = new DocValueFormat.DateTime(formatter, ZoneOffset.ofHours(1));
+        DocValueFormat.DateTime dateFormat = new DocValueFormat.DateTime(formatter, ZoneOffset.ofHours(1), Resolution.MILLISECONDS);
         out = new BytesStreamOutput();
         out.writeNamedWriteable(dateFormat);
         in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry);
@@ -69,6 +70,17 @@ public class DocValueFormatTests extends ESTestCase {
         assertEquals(DocValueFormat.DateTime.class, vf.getClass());
         assertEquals("epoch_second", ((DocValueFormat.DateTime) vf).formatter.pattern());
         assertEquals(ZoneOffset.ofHours(1), ((DocValueFormat.DateTime) vf).timeZone);
+        assertEquals(Resolution.MILLISECONDS, ((DocValueFormat.DateTime) vf).resolution);
+
+        DocValueFormat.DateTime nanosDateFormat = new DocValueFormat.DateTime(formatter, ZoneOffset.ofHours(1),Resolution.NANOSECONDS);
+        out = new BytesStreamOutput();
+        out.writeNamedWriteable(nanosDateFormat);
+        in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry);
+        vf = in.readNamedWriteable(DocValueFormat.class);
+        assertEquals(DocValueFormat.DateTime.class, vf.getClass());
+        assertEquals("epoch_second", ((DocValueFormat.DateTime) vf).formatter.pattern());
+        assertEquals(ZoneOffset.ofHours(1), ((DocValueFormat.DateTime) vf).timeZone);
+        assertEquals(Resolution.NANOSECONDS, ((DocValueFormat.DateTime) vf).resolution);
 
         out = new BytesStreamOutput();
         out.writeNamedWriteable(DocValueFormat.GEOHASH);

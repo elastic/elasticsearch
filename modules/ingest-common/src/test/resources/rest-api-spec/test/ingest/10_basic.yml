@@ -23,6 +23,7 @@
     - contains:  { nodes.$master.ingest.processors: { type: foreach } }
     - contains:  { nodes.$master.ingest.processors: { type: grok } }
     - contains:  { nodes.$master.ingest.processors: { type: gsub } }
+    - contains:  { nodes.$master.ingest.processors: { type: html_strip } }
     - contains:  { nodes.$master.ingest.processors: { type: join } }
     - contains:  { nodes.$master.ingest.processors: { type: json } }
     - contains:  { nodes.$master.ingest.processors: { type: kv } }

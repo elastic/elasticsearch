@@ -1,0 +1,358 @@
+setup:
+  - skip:
+      features: headers
+      version: " - 7.3.99"
+      reason: "sparse_vector functions check on empty values was added from 7.4"
+
+  - do:
+      indices.create:
+        include_type_name: false
+        index: test-index
+        body:
+          settings:
+            number_of_replicas: 0
+            # we need to have 1 shard to get request failure in test "Sparse vectors should error with dense vector functions"
+            number_of_shards: 1
+          mappings:
+            properties:
+              my_sparse_vector:
+                 type: sparse_vector
+
+
+---
+"Vectors of different dimensions and data types":
+# document vectors of different dimensions
+  - do:
+      index:
+        index: test-index
+        id: 1
+        body:
+          my_sparse_vector: {"1": 10}
+
+  - do:
+      index:
+        index: test-index
+        id: 2
+        body:
+          my_sparse_vector: {"1": 10, "10" : 10.5}
+
+  - do:
+      index:
+        index: test-index
+        id: 3
+        body:
+          my_sparse_vector: {"1": 10, "10" : 10.5, "100": 100.5}
+
+  - do:
+      indices.refresh: {}
+
+# query vector of type integer
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "cosineSimilaritySparse(params.query_vector, doc['my_sparse_vector'])"
+                params:
+                  query_vector: {"1": 10}
+
+  - match: {hits.total: 3}
+  - match: {hits.hits.0._id: "1"}
+  - match: {hits.hits.1._id: "2"}
+  - match: {hits.hits.2._id: "3"}
+
+# query vector of type double
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "cosineSimilaritySparse(params.query_vector, doc['my_sparse_vector'])"
+                params:
+                  query_vector: {"1": 10.0}
+
+  - match: {hits.total: 3}
+  - match: {hits.hits.0._id: "1"}
+  - match: {hits.hits.1._id: "2"}
+  - match: {hits.hits.2._id: "3"}
+
+---
+"Documents missing a vector field":
+- do:
+    index:
+      index: test-index
+      id: 1
+      body:
+        my_sparse_vector: {"1": 10}
+
+- do:
+    index:
+      index: test-index
+      id: 2
+      body:
+        some_other_field: "random_value"
+
+- do:
+    indices.refresh: {}
+
+# expect an error when documents miss a vector field
+- do:
+    catch: bad_request
+    headers:
+      Content-Type: application/json
+    search:
+      rest_total_hits_as_int: true
+      body:
+        query:
+          script_score:
+            query: {match_all: {} }
+            script:
+              source: "cosineSimilaritySparse(params.query_vector, doc['my_sparse_vector'])"
+              params:
+                query_vector: {"1": 10.0}
+- match: { error.root_cause.0.type: "script_exception" }
+
+# guard against missing values by checking size()
+- do:
+    headers:
+      Content-Type: application/json
+    search:
+      rest_total_hits_as_int: true
+      body:
+        query:
+          script_score:
+            query: {match_all: {} }
+            script:
+              source: "doc['my_sparse_vector'].size() == 0 ? 0 : cosineSimilaritySparse(params.query_vector, doc['my_sparse_vector'])"
+              params:
+                query_vector: {"1": 10.0}
+
+- match: {hits.total: 2}
+- match: {hits.hits.0._id: "1"}
+- match: {hits.hits.1._id: "2"}
+- match: {hits.hits.1._score: 0.0}
+
+
+---
+"Dimensions can be sorted differently":
+# All the documents' and query's vectors are the same, and should return cosineSimilarity equal to 1
+- do:
+    index:
+      index: test-index
+      id: 1
+      body:
+        my_sparse_vector: {"2": 230.0, "11" : 300.33, "12": -34.8988, "30": 15.555, "100": -200.0}
+
+- do:
+    index:
+      index: test-index
+      id: 2
+      body:
+        my_sparse_vector: {"100": -200.0, "12": -34.8988, "11" : 300.33, "113": 15.555, "2": 230.0}
+
+- do:
+    index:
+      index: test-index
+      id: 3
+      body:
+        my_sparse_vector: {"100": -200.0, "30": 15.555, "12": -34.8988, "11" : 300.33, "2": 230.0}
+
+- do:
+    indices.refresh: {}
+
+- do:
+    headers:
+      Content-Type: application/json
+    search:
+      rest_total_hits_as_int: true
+      body:
+        query:
+          script_score:
+            query: {match_all: {} }
+            script:
+              source: "cosineSimilaritySparse(params.query_vector, doc['my_sparse_vector'])"
+              params:
+                query_vector: {"100": -200.0, "11" : 300.33, "12": -34.8988, "2": 230.0, "30": 15.555}
+
+- match: {hits.total: 3}
+
+- gte: {hits.hits.0._score: 0.99}
+- lte: {hits.hits.0._score: 1.001}
+- gte: {hits.hits.1._score: 0.99}
+- lte: {hits.hits.1._score: 1.001}
+- gte: {hits.hits.2._score: 0.99}
+- lte: {hits.hits.2._score: 1.001}
+
+---
+"Sparse vectors should error with dense vector functions":
+
+- do:
+    index:
+      index: test-index
+      id: 1
+      body:
+        my_sparse_vector: {"100": -200.0, "30": 15.555}
+
+- do:
+    indices.refresh: {}
+
+- do:
+    catch: bad_request
+    headers:
+      Content-Type: application/json
+    search:
+      body:
+        query:
+          script_score:
+            query: {match_all: {} }
+            script:
+              source: "dotProduct(params.query_vector, doc['my_sparse_vector'])"
+              params:
+                query_vector: [0.5, 111]
+- match: { error.root_cause.0.type: "script_exception" }
+
+---
+"Query vector has different dimensions from documents' vectors":
+- do:
+    index:
+      index: test-index
+      id: 1
+      body:
+        my_sparse_vector: {"1": 10}
+
+- do:
+    index:
+      index: test-index
+      id: 2
+      body:
+        my_sparse_vector: {"1": 10, "10" : 10.5}
+
+- do:
+    index:
+      index: test-index
+      id: 3
+      body:
+        my_sparse_vector: {"1": 10, "10" : 10.5, "100": 100.5}
+
+- do:
+    indices.refresh: {}
+
+- do:
+    headers:
+      Content-Type: application/json
+    search:
+      rest_total_hits_as_int: true
+      body:
+        query:
+          script_score:
+            query: {match_all: {} }
+            script:
+              source: "dotProductSparse(params.query_vector, doc['my_sparse_vector'])"
+              params:
+                query_vector: {"1": 10, "5": 5}
+
+- match: {hits.total: 3}
+
+- match: {hits.hits.0._id: "1"}
+- gte: {hits.hits.0._score: 99.99}
+- lte: {hits.hits.0._score: 100.01}
+
+- match: {hits.hits.1._id: "2"}
+- gte: {hits.hits.0._score: 99.99}
+- lte: {hits.hits.0._score: 100.01}
+
+- match: {hits.hits.2._id: "3"}
+- gte: {hits.hits.0._score: 99.99}
+- lte: {hits.hits.0._score: 100.01}
+
+
+- do:
+    headers:
+      Content-Type: application/json
+    search:
+      rest_total_hits_as_int: true
+      body:
+        query:
+          script_score:
+            query: {match_all: {} }
+            script:
+              source: "cosineSimilaritySparse(params.query_vector, doc['my_sparse_vector'])"
+              params:
+                query_vector: {"1": 10, "5" : 5}
+
+- match: {hits.total: 3}
+
+- match: {hits.hits.0._id: "1"}
+- gte: {hits.hits.0._score: 0.894}
+- lte: {hits.hits.0._score: 0.895}
+
+- match: {hits.hits.1._id: "2"}
+- gte: {hits.hits.1._score: 0.61}
+- lte: {hits.hits.1._score: 0.62}
+
+- match: {hits.hits.2._id: "3"}
+- gte: {hits.hits.2._score: 0.08}
+- lte: {hits.hits.2._score: 0.09}
+
+- do:
+    headers:
+      Content-Type: application/json
+    search:
+      rest_total_hits_as_int: true
+      body:
+        query:
+          script_score:
+            query: {match_all: {} }
+            script:
+              source: "l1normSparse(params.query_vector, doc['my_sparse_vector'])"
+              params:
+                query_vector: {"1": 10, "5": 5}
+
+- match: {hits.total: 3}
+
+- match: {hits.hits.0._id: "3"}
+- match: {hits.hits.0._score: 116}
+
+- match: {hits.hits.1._id: "2"}
+- match: {hits.hits.1._score: 15.5}
+
+- match: {hits.hits.2._id: "1"}
+- match: {hits.hits.2._score: 5}
+
+- do:
+    headers:
+      Content-Type: application/json
+    search:
+      rest_total_hits_as_int: true
+      body:
+        query:
+          script_score:
+            query: {match_all: {} }
+            script:
+              source: "l2normSparse(params.query_vector, doc['my_sparse_vector'])"
+              params:
+                query_vector: {"1": 10, "5": 5}
+
+- match: {hits.total: 3}
+
+- match: {hits.hits.0._id: "3"}
+- gte: {hits.hits.0._score: 101.17}
+- lte: {hits.hits.0._score: 101.18}
+
+- match: {hits.hits.1._id: "2"}
+- gte: {hits.hits.1._score: 11.62}
+- lte: {hits.hits.1._score: 11.63}
+
+- match: {hits.hits.2._id: "1"}
+- gte: {hits.hits.2._score: 5.0}
+- lte: {hits.hits.2._score: 5.0}

@@ -3,5 +3,5 @@
 apply from: '../../build.gradle'
 
 dependencies {
-  testCompile project(':libs:x-content')
+  testCompile project(':libs:elasticsearch-x-content')
 }

@@ -75,6 +75,15 @@ public interface TokenFilterFactory {
     }
 
     /**
+     * Get the {@link AnalysisMode} this filter is allowed to be used in. The default is
+     * {@link AnalysisMode#ALL}. Instances need to override this method to define their
+     * own restrictions.
+     */
+    default AnalysisMode getAnalysisMode() {
+        return AnalysisMode.ALL;
+    }
+
+    /**
      * A TokenFilterFactory that does no filtering to its TokenStream
      */
     TokenFilterFactory IDENTITY_FILTER = new TokenFilterFactory() {

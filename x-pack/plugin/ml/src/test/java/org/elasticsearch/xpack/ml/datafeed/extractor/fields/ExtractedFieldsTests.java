@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.fields;
 
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
-import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
@@ -28,12 +27,18 @@ import static org.mockito.Mockito.when;
 public class ExtractedFieldsTests extends ESTestCase {
 
     public void testAllTypesOfFields() {
-        ExtractedField docValue1 = ExtractedField.newField("doc1", ExtractedField.ExtractionMethod.DOC_VALUE);
-        ExtractedField docValue2 = ExtractedField.newField("doc2", ExtractedField.ExtractionMethod.DOC_VALUE);
-        ExtractedField scriptField1 = ExtractedField.newField("scripted1", ExtractedField.ExtractionMethod.SCRIPT_FIELD);
-        ExtractedField scriptField2 = ExtractedField.newField("scripted2", ExtractedField.ExtractionMethod.SCRIPT_FIELD);
-        ExtractedField sourceField1 = ExtractedField.newField("src1", ExtractedField.ExtractionMethod.SOURCE);
-        ExtractedField sourceField2 = ExtractedField.newField("src2", ExtractedField.ExtractionMethod.SOURCE);
+        ExtractedField docValue1 = ExtractedField.newField("doc1", Collections.singleton("keyword"),
+            ExtractedField.ExtractionMethod.DOC_VALUE);
+        ExtractedField docValue2 = ExtractedField.newField("doc2", Collections.singleton("ip"),
+            ExtractedField.ExtractionMethod.DOC_VALUE);
+        ExtractedField scriptField1 = ExtractedField.newField("scripted1", Collections.emptySet(),
+            ExtractedField.ExtractionMethod.SCRIPT_FIELD);
+        ExtractedField scriptField2 = ExtractedField.newField("scripted2", Collections.emptySet(),
+            ExtractedField.ExtractionMethod.SCRIPT_FIELD);
+        ExtractedField sourceField1 = ExtractedField.newField("src1", Collections.singleton("text"),
+            ExtractedField.ExtractionMethod.SOURCE);
+        ExtractedField sourceField2 = ExtractedField.newField("src2", Collections.singleton("text"),
+            ExtractedField.ExtractionMethod.SOURCE);
         ExtractedFields extractedFields = new ExtractedFields(Arrays.asList(
                 docValue1, docValue2, scriptField1, scriptField2, sourceField1, sourceField2));
 
@@ -63,7 +68,7 @@ public class ExtractedFieldsTests extends ESTestCase {
         assertThat(extractedFields.getDocValueFields().get(0).getName(), equalTo("time"));
         assertThat(extractedFields.getDocValueFields().get(0).getDocValueFormat(), equalTo("epoch_millis"));
         assertThat(extractedFields.getDocValueFields().get(1).getName(), equalTo("value"));
-        assertThat(extractedFields.getDocValueFields().get(1).getDocValueFormat(), equalTo(DocValueFieldsContext.USE_DEFAULT_FORMAT));
+        assertThat(extractedFields.getDocValueFields().get(1).getDocValueFormat(), equalTo(null));
         assertThat(extractedFields.getSourceFields(), equalTo(new String[] {"airline"}));
         assertThat(extractedFields.getAllFields().size(), equalTo(4));
     }

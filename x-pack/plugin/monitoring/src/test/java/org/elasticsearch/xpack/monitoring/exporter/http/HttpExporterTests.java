@@ -545,7 +545,7 @@ public class HttpExporterTests extends ESTestCase {
         if (timeout != null) {
             for (final HttpResource resource : resources) {
                 if (resource instanceof PublishableHttpResource) {
-                    assertEquals(timeout.getStringRep(), ((PublishableHttpResource) resource).getParameters().get("master_timeout"));
+                    assertEquals(timeout.getStringRep(), ((PublishableHttpResource) resource).getDefaultParameters().get("master_timeout"));
                 }
             }
         }

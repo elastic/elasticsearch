@@ -89,7 +89,6 @@ setup:
   - do:
       get:
         index: .ml-anomalies-post-data-job
-        type: doc
         id: post-data-job_data_counts
 
   - match: { _source.processed_record_count: 2 }

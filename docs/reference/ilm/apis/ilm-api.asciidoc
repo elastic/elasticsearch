@@ -19,6 +19,7 @@ about Index Lifecycle Management.
 
 * <<ilm-move-to-step,Move index to step>>
 * <<ilm-retry-policy,Retry policy on indices>>
+* <<ilm-remove-policy,Remove policy from index>>
 
 [float]
 [[ilm-api-management-endpoint]]

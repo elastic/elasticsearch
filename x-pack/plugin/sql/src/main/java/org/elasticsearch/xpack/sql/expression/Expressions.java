@@ -6,22 +6,16 @@
 package org.elasticsearch.xpack.sql.expression;
 
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.expression.Expression.TypeResolution;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.DataTypes;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Locale;
-import java.util.StringJoiner;
 import java.util.function.Predicate;
 
-import static java.lang.String.format;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.xpack.sql.type.DataType.BOOLEAN;
 
 public final class Expressions {
 
@@ -36,7 +30,7 @@ public final class Expressions {
     private Expressions() {}
 
     public static NamedExpression wrapAsNamed(Expression exp) {
-        return exp instanceof NamedExpression ? (NamedExpression) exp : new Alias(exp.source(), exp.nodeName(), exp);
+        return exp instanceof NamedExpression ? (NamedExpression) exp : new Alias(exp.source(), exp.sourceText(), exp);
     }
 
     public static List<Attribute> asAttributes(List<? extends NamedExpression> named) {
@@ -153,56 +147,5 @@ public final class Expressions {
             pipes.add(pipe(e));
         }
         return pipes;
-    }
-
-    public static TypeResolution typeMustBeBoolean(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return typeMustBe(e, dt -> dt == BOOLEAN, operationName, paramOrd, "boolean");
-    }
-
-    public static TypeResolution typeMustBeInteger(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return typeMustBe(e, DataType::isInteger, operationName, paramOrd, "integer");
-    }
-
-    public static TypeResolution typeMustBeNumeric(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return typeMustBe(e, DataType::isNumeric, operationName, paramOrd, "numeric");
-    }
-
-    public static TypeResolution typeMustBeString(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return typeMustBe(e, DataType::isString, operationName, paramOrd, "string");
-    }
-
-    public static TypeResolution typeMustBeDate(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return typeMustBe(e, DataType::isDateBased, operationName, paramOrd, "date", "datetime");
-    }
-
-    public static TypeResolution typeMustBeNumericOrDate(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return typeMustBe(e, dt -> dt.isNumeric() || dt.isDateBased(), operationName, paramOrd, "date", "datetime", "numeric");
-    }
-
-    public static TypeResolution typeMustBe(Expression e,
-                                            Predicate<DataType> predicate,
-                                            String operationName,
-                                            ParamOrdinal paramOrd,
-                                            String... acceptedTypes) {
-        return predicate.test(e.dataType()) || DataTypes.isNull(e.dataType())?
-            TypeResolution.TYPE_RESOLVED :
-            new TypeResolution(format(Locale.ROOT, "[%s]%s argument must be [%s], found value [%s] type [%s]",
-                operationName,
-                paramOrd == null || paramOrd == ParamOrdinal.DEFAULT ? "" : " " + paramOrd.name().toLowerCase(Locale.ROOT),
-                acceptedTypesForErrorMsg(acceptedTypes),
-                Expressions.name(e),
-                e.dataType().esType));
-    }
-
-    private static String acceptedTypesForErrorMsg(String... acceptedTypes) {
-        StringJoiner sj = new StringJoiner(", ");
-        for (int i = 0; i < acceptedTypes.length - 1; i++) {
-            sj.add(acceptedTypes[i]);
-        }
-        if (acceptedTypes.length > 1) {
-            return sj.toString() + " or " + acceptedTypes[acceptedTypes.length - 1];
-        } else {
-            return acceptedTypes[0];
-        }
     }
 }

@@ -13,12 +13,14 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.xpack.core.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
+import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
 import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
+import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
@@ -33,7 +35,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class HistoryTemplateTimeMappingsTests extends AbstractWatcherIntegrationTestCase {
 
     public void testTimeFields() throws Exception {
-        PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_id").setSource(watchBuilder()
+        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client(), "_id").setSource(watchBuilder()
                 .trigger(schedule(interval("5s")))
                 .input(simpleInput())
                 .condition(InternalAlwaysCondition.INSTANCE)
@@ -52,7 +54,7 @@ public class HistoryTemplateTimeMappingsTests extends AbstractWatcherIntegration
                 if (!metadatas.key.startsWith(HistoryStoreField.INDEX_PREFIX)) {
                     continue;
                 }
-                MappingMetaData metadata = metadatas.value.get("doc");
+                MappingMetaData metadata = metadatas.value.get(SINGLE_MAPPING_NAME);
                 assertThat(metadata, notNullValue());
                 try {
                     Map<String, Object> source = metadata.getSourceAsMap();

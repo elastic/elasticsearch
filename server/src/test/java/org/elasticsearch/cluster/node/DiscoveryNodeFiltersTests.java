@@ -235,6 +235,26 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
         assertThat(filters.match(node), equalTo(true));
     }
 
+    public void testHostNameFilteringMatchingAnd() {
+        Settings settings = shuffleSettings(Settings.builder()
+            .put("xxx._host", "A")
+            .build());
+        DiscoveryNodeFilters filters = buildFromSettings(AND, "xxx.", settings);
+
+        DiscoveryNode node = new DiscoveryNode("", "", "", "A", "192.1.1.54", localAddress, emptyMap(), emptySet(), null);
+        assertThat(filters.match(node), equalTo(true));
+    }
+
+    public void testHostAddressFilteringMatchingAnd() {
+        Settings settings = shuffleSettings(Settings.builder()
+            .put("xxx._host", "192.1.1.54")
+            .build());
+        DiscoveryNodeFilters filters = buildFromSettings(AND, "xxx.", settings);
+
+        DiscoveryNode node = new DiscoveryNode("", "", "", "A", "192.1.1.54", localAddress, emptyMap(), emptySet(), null);
+        assertThat(filters.match(node), equalTo(true));
+    }
+
     public void testIpPublishFilteringNotMatchingOr() {
         Settings settings = shuffleSettings(Settings.builder()
                 .put("xxx.tag", "A")

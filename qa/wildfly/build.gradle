@@ -1,6 +1,7 @@
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.VersionProperties
 import org.apache.tools.ant.taskdefs.condition.Os
+import org.elasticsearch.gradle.testclusters.DefaultTestClustersTask
 
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
@@ -26,6 +27,7 @@ import java.util.stream.Stream
  */
 
 apply plugin: 'war'
+apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.rest-test'
 
@@ -37,7 +39,11 @@ int managementPort
 repositories {
     // the Wildfly distribution is not available via a repository, so we fake an Ivy repository on top of the download site
     ivy {
-        url "http://download.jboss.org"
+        name "wildfly"
+        url "https://download.jboss.org"
+        metadataSources {
+            artifact()
+        }
         patternLayout {
             artifact 'wildfly/[revision]/[module]-[revision].[ext]'
         }
@@ -66,9 +72,9 @@ dependencies {
     compile "com.fasterxml.jackson.module:jackson-module-jaxb-annotations:${versions.jackson}"
     compile "org.apache.logging.log4j:log4j-api:${versions.log4j}"
     compile "org.apache.logging.log4j:log4j-core:${versions.log4j}"
-    compile project(path: ':client:transport', configuration: 'runtime')
+    compile project(':client:rest-high-level')
     wildfly "org.jboss:wildfly:${wildflyVersion}@zip"
-    testCompile "org.elasticsearch.test:framework:${VersionProperties.elasticsearch}"
+    testCompile project(':test:framework')
 }
 
 task unzipWildfly(type: Sync) {
@@ -82,15 +88,15 @@ task deploy(type: Copy) {
     into "${wildflyInstall}/standalone/deployments"
 }
 
-task writeElasticsearchProperties {
+task writeElasticsearchProperties(type: DefaultTestClustersTask) {
     onlyIf { !Os.isFamily(Os.FAMILY_WINDOWS) }
-    dependsOn 'integTestCluster#wait', deploy
+    useCluster testClusters.integTest
+    dependsOn deploy
     doLast {
         final File elasticsearchProperties = file("${wildflyInstall}/standalone/configuration/elasticsearch.properties")
         elasticsearchProperties.write(
                 [
-                        "transport.uri=${-> integTest.getNodes().get(0).transportUri()}",
-                        "cluster.name=${-> integTest.getNodes().get(0).clusterName}"
+                        "http.uri=${-> testClusters.integTest.getAllHttpSocketURI().get(0)}"
                 ].join("\n"))
     }
 }
@@ -163,7 +169,7 @@ task startWildfly {
     }
 }
 
-task configureTransportClient(type: LoggedExec) {
+task configureClient(type: LoggedExec) {
     dependsOn startWildfly
     // we skip these tests on Windows so we do not need to worry about compatibility here
     commandLine "${wildflyInstall}/bin/jboss-cli.sh",
@@ -178,7 +184,7 @@ task stopWildfly(type: LoggedExec) {
 }
 
 if (!Os.isFamily(Os.FAMILY_WINDOWS)) {
-    integTestRunner.dependsOn(configureTransportClient)
+    integTestRunner.dependsOn(configureClient)
     final TaskExecutionAdapter logDumpListener = new TaskExecutionAdapter() {
         @Override
         void afterExecute(final Task task, final TaskState state) {
@@ -207,11 +213,12 @@ if (!Os.isFamily(Os.FAMILY_WINDOWS)) {
     integTestRunner.finalizedBy(stopWildfly)
 } else {
     integTest.enabled = false
+    testingConventions.enabled = false
 }
 
 check.dependsOn(integTest)
 
-unitTest.enabled = false
+test.enabled = false
 
 dependencyLicenses.enabled = false
 dependenciesInfo.enabled = false

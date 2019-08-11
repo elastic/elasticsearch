@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
@@ -31,7 +32,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.EOFException;
 import java.io.IOException;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -73,8 +73,10 @@ final class TransportHandshaker {
             final Version minCompatVersion = version.minimumCompatibilityVersion();
             handshakeRequestSender.sendRequest(node, channel, requestId, minCompatVersion);
 
-            threadPool.schedule(timeout, ThreadPool.Names.GENERIC,
-                () -> handler.handleLocalException(new ConnectTransportException(node, "handshake_timeout[" + timeout + "]")));
+            threadPool.schedule(
+                () -> handler.handleLocalException(new ConnectTransportException(node, "handshake_timeout[" + timeout + "]")),
+                timeout,
+                ThreadPool.Names.GENERIC);
             success = true;
         } catch (Exception e) {
             handler.handleLocalException(new ConnectTransportException(node, "failure to send " + HANDSHAKE_ACTION_NAME, e));
@@ -86,7 +88,7 @@ final class TransportHandshaker {
         }
     }
 
-    void handleHandshake(Version version, Set<String> features, TcpChannel channel, long requestId, StreamInput stream) throws IOException {
+    void handleHandshake(Version version, TcpChannel channel, long requestId, StreamInput stream) throws IOException {
         // Must read the handshake request to exhaust the stream
         HandshakeRequest handshakeRequest = new HandshakeRequest(stream);
         final int nextByte = stream.read();
@@ -95,7 +97,7 @@ final class TransportHandshaker {
                 + TransportHandshaker.HANDSHAKE_ACTION_NAME + "], available [" + stream.available() + "]; resetting");
         }
         HandshakeResponse response = new HandshakeResponse(this.version);
-        handshakeResponseSender.sendResponse(version, features, channel, response, requestId);
+        handshakeResponseSender.sendResponse(version, channel, response, requestId);
     }
 
     TransportResponseHandler<HandshakeResponse> removeHandlerForHandshake(long requestId) {
@@ -186,11 +188,6 @@ final class TransportHandshaker {
         }
 
         @Override
-        public void readFrom(StreamInput in) {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
-
-        @Override
         public void writeTo(StreamOutput streamOutput) throws IOException {
             super.writeTo(streamOutput);
             assert version != null;
@@ -211,18 +208,12 @@ final class TransportHandshaker {
         }
 
         private HandshakeResponse(StreamInput in) throws IOException {
-            super.readFrom(in);
+            super(in);
             responseVersion = Version.readVersion(in);
         }
 
         @Override
-        public void readFrom(StreamInput in) {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             assert responseVersion != null;
             Version.writeVersion(responseVersion, out);
         }
@@ -241,7 +232,8 @@ final class TransportHandshaker {
     @FunctionalInterface
     interface HandshakeResponseSender {
 
-        void sendResponse(Version version, Set<String> features, TcpChannel channel, TransportResponse response, long requestId)
-            throws IOException;
+        void sendResponse(Version version, TcpChannel channel, TransportResponse response, long requestId) throws IOException;
+
     }
+
 }

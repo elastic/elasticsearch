@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -29,13 +28,13 @@ import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.session.Cursors;
 import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
-import org.elasticsearch.xpack.sql.stats.QueryMetric;
 import org.elasticsearch.xpack.sql.type.Schema;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.xpack.sql.plugin.Transports.clusterName;
 import static org.elasticsearch.xpack.sql.plugin.Transports.username;
 
@@ -49,7 +48,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
     public TransportSqlQueryAction(Settings settings, ClusterService clusterService, TransportService transportService,
                                    ThreadPool threadPool, ActionFilters actionFilters, PlanExecutor planExecutor,
                                    SqlLicenseChecker sqlLicenseChecker) {
-        super(SqlQueryAction.NAME, transportService, actionFilters, (Writeable.Reader<SqlQueryRequest>) SqlQueryRequest::new);
+        super(SqlQueryAction.NAME, transportService, actionFilters, SqlQueryRequest::new);
 
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?
                 new SecurityContext(settings, threadPool.getThreadContext()) : null;
@@ -72,27 +71,16 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
         // The configuration is always created however when dealing with the next page, only the timeouts are relevant
         // the rest having default values (since the query is already created)
         Configuration cfg = new Configuration(request.zoneId(), request.fetchSize(), request.requestTimeout(), request.pageTimeout(),
-                request.filter(), request.mode(), username, clusterName);
-
-        // mode() shouldn't be null
-        QueryMetric metric = QueryMetric.from(request.mode(), request.clientId());
-        planExecutor.metrics().total(metric);
+                request.filter(), request.mode(), request.clientId(), username, clusterName, request.fieldMultiValueLeniency(), 
+                request.indexIncludeFrozen());
 
         if (Strings.hasText(request.cursor()) == false) {
             planExecutor.sql(cfg, request.query(), request.params(),
-                    ActionListener.wrap(rowSet -> listener.onResponse(createResponse(request, rowSet)),
-                            e -> {
-                                planExecutor.metrics().failed(metric);
-                                listener.onFailure(e);
-                            }));
+                    wrap(rowSet -> listener.onResponse(createResponse(request, rowSet)), listener::onFailure));
         } else {
-            planExecutor.metrics().paging(metric);
             planExecutor.nextPage(cfg, Cursors.decodeFromString(request.cursor()),
-                    ActionListener.wrap(rowSet -> listener.onResponse(createResponse(request.mode(), rowSet, null)),
-                            e -> {
-                                planExecutor.metrics().failed(metric);
-                                listener.onFailure(e);
-                            }));
+                    wrap(rowSet -> listener.onResponse(createResponse(request.mode(), request.columnar(), rowSet, null)),
+                            listener::onFailure));
         }
     }
 
@@ -100,16 +88,16 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
         List<ColumnInfo> columns = new ArrayList<>(rowSet.columnCount());
         for (Schema.Entry entry : rowSet.schema()) {
             if (Mode.isDriver(request.mode())) {
-                columns.add(new ColumnInfo("", entry.name(), entry.type().esType, entry.type().displaySize));
+                columns.add(new ColumnInfo("", entry.name(), entry.type().typeName, entry.type().displaySize));
             } else {
-                columns.add(new ColumnInfo("", entry.name(), entry.type().esType));
+                columns.add(new ColumnInfo("", entry.name(), entry.type().typeName));
             }
         }
         columns = unmodifiableList(columns);
-        return createResponse(request.mode(), rowSet, columns);
+        return createResponse(request.mode(), request.columnar(), rowSet, columns);
     }
 
-    static SqlQueryResponse createResponse(Mode mode, RowSet rowSet, List<ColumnInfo> columns) {
+    static SqlQueryResponse createResponse(Mode mode, boolean columnar, RowSet rowSet, List<ColumnInfo> columns) {
         List<List<Object>> rows = new ArrayList<>();
         rowSet.forEachRow(rowView -> {
             List<Object> row = new ArrayList<>(rowView.columnCount());
@@ -120,6 +108,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
         return new SqlQueryResponse(
                 Cursors.encodeToString(Version.CURRENT, rowSet.nextPageCursor()),
                 mode,
+                columnar,
                 columns,
                 rows);
     }

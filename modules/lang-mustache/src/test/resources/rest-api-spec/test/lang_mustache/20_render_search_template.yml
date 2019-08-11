@@ -109,13 +109,11 @@
   - do:
       index:
         index:  test
-        type:   testtype
         id:     1
         body:   { "text": "value1_foo" }
   - do:
       index:
         index:  test
-        type:   testtype
         id:     2
         body:   { "text": "value2_foo value3_foo" }
   - do:

@@ -19,7 +19,7 @@ import java.util.List;
  * <p>
  * By telling the {@code MultiHttpResource} to become dirty, it effectively marks all of its sub-resources dirty as well.
  * <p>
- * Sub-resources should be the sole responsibility of the the {@code MultiHttpResource}; there should not be something using them directly
+ * Sub-resources should be the sole responsibility of the {@code MultiHttpResource}; there should not be something using them directly
  * if they are included in a {@code MultiHttpResource}.
  */
 public class MultiHttpResource extends HttpResource {

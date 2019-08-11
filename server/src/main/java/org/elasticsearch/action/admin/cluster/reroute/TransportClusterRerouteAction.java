@@ -46,9 +46,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -63,7 +66,7 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
                                          ThreadPool threadPool, AllocationService allocationService, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver) {
         super(ClusterRerouteAction.NAME, transportService, clusterService, threadPool, actionFilters,
-              indexNameExpressionResolver, ClusterRerouteRequest::new);
+              ClusterRerouteRequest::new, indexNameExpressionResolver);
         this.allocationService = allocationService;
     }
 
@@ -79,12 +82,12 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
     }
 
     @Override
-    protected ClusterRerouteResponse newResponse() {
-        return new ClusterRerouteResponse();
+    protected ClusterRerouteResponse read(StreamInput in) throws IOException {
+        return new ClusterRerouteResponse(in);
     }
 
     @Override
-    protected void masterOperation(final ClusterRerouteRequest request, final ClusterState state,
+    protected void masterOperation(Task task, final ClusterRerouteRequest request, final ClusterState state,
                                    final ActionListener<ClusterRerouteResponse> listener) {
         Map<String, List<AbstractAllocateAllocationCommand>> stalePrimaryAllocations = new HashMap<>();
         for (AllocationCommand command : request.getCommands().commands()) {
@@ -148,13 +151,13 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
     private void submitStateUpdate(final ClusterRerouteRequest request, final ActionListener<ClusterRerouteResponse> listener) {
         clusterService.submitStateUpdateTask("cluster_reroute (api)",
             new ClusterRerouteResponseAckedClusterStateUpdateTask(logger, allocationService, request,
-                ActionListener.wrap(
+                ActionListener.map(listener,
                     response -> {
                         if (request.dryRun() == false) {
                             response.getExplanations().getYesDecisionMessages().forEach(logger::info);
                         }
-                        listener.onResponse(response);
-                    }, listener::onFailure)));
+                        return response;
+                    })));
     }
 
     static class ClusterRerouteResponseAckedClusterStateUpdateTask extends AckedClusterStateUpdateTask<ClusterRerouteResponse> {

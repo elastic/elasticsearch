@@ -129,26 +129,23 @@ public class GCEFixture extends AbstractHttpFixture {
         // https://cloud.google.com/compute/docs/reference/rest/v1/instances
         handlers.insert(authPath(HttpGet.METHOD_NAME, "/compute/v1/projects/{project}/zones/{zone}/instances"),
             request -> {
-                final List items = new ArrayList();
+                final var items = new ArrayList<Map<String, Object>>();
                 int count = 0;
                 for (String address : Files.readAllLines(nodes)) {
                     count++;
-                    items.add(MapBuilder.<String, Object>newMapBuilder()
-                        .put("id", Long.toString(9309873766405L + count))
-                        .put("description", "ES node" + count)
-                        .put("name", "test" + count)
-                        .put("kind", "compute#instance")
-                        .put("machineType", "n1-standard-1")
-                        .put("networkInterfaces",
-                            Collections.singletonList(MapBuilder.<String, Object>newMapBuilder()
-                            .put("accessConfigs", Collections.emptyList())
-                            .put("name", "nic0")
-                            .put("network", "default")
-                            .put("networkIP", address)
-                            .immutableMap()))
-                        .put("status", "RUNNING")
-                        .put("zone", ZONE)
-                        .immutableMap());
+                    items.add(Map.of(
+                            "id", Long.toString(9309873766405L + count),
+                            "description", "ES node" + count,
+                            "name", "test" + count,
+                            "kind", "compute#instance",
+                            "machineType", "n1-standard-1",
+                            "networkInterfaces", List.of(Map.of(
+                                    "accessConfigs", Collections.emptyList(),
+                                    "name", "nic0",
+                                    "network", "default",
+                                    "networkIP", address)),
+                            "status", "RUNNING",
+                            "zone", ZONE));
                 }
 
                 final String json = Strings.toString(jsonBuilder()

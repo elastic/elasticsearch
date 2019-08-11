@@ -113,13 +113,13 @@ public class DiskUsageTests extends ESTestCase {
         CommonStats commonStats1 = new CommonStats();
         commonStats1.store = new StoreStats(1000);
         ShardStats[] stats  = new ShardStats[] {
-                new ShardStats(test_0, new ShardPath(false, test0Path, test0Path, test_0.shardId()), commonStats0 , null, null),
-                new ShardStats(test_1, new ShardPath(false, test1Path, test1Path, test_1.shardId()), commonStats1 , null, null)
+                new ShardStats(test_0, new ShardPath(false, test0Path, test0Path, test_0.shardId()), commonStats0 , null, null, null),
+                new ShardStats(test_1, new ShardPath(false, test1Path, test1Path, test_1.shardId()), commonStats1 , null, null, null)
         };
         ImmutableOpenMap.Builder<String, Long> shardSizes = ImmutableOpenMap.builder();
         ImmutableOpenMap.Builder<ShardRouting, String> routingToPath = ImmutableOpenMap.builder();
         ClusterState state = ClusterState.builder(new ClusterName("blarg")).version(0).build();
-        InternalClusterInfoService.buildShardLevelInfo(logger, stats, shardSizes, routingToPath, state);
+        InternalClusterInfoService.buildShardLevelInfo(logger, stats, shardSizes, routingToPath);
         assertEquals(2, shardSizes.size());
         assertTrue(shardSizes.containsKey(ClusterInfo.shardIdentifierFromRouting(test_0)));
         assertTrue(shardSizes.containsKey(ClusterInfo.shardIdentifierFromRouting(test_1)));

@@ -14,8 +14,8 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.xpack.monitoring.cleaner.AbstractIndicesCleanerTestCase;
 import org.elasticsearch.xpack.monitoring.cleaner.CleanerService;
 import org.elasticsearch.xpack.monitoring.exporter.local.LocalExporter;
-import org.joda.time.DateTime;
 
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 
@@ -43,9 +43,10 @@ public class LocalIndicesCleanerTests extends AbstractIndicesCleanerTestCase {
     }
 
     @Override
-    protected void createIndex(String name, DateTime creationDate) {
+    protected void createIndex(String name, ZonedDateTime creationDate) {
+        long creationMillis = creationDate.toInstant().toEpochMilli();
         assertAcked(prepareCreate(name)
-                .setSettings(Settings.builder().put(IndexMetaData.SETTING_CREATION_DATE, creationDate.getMillis()).build()));
+                .setSettings(Settings.builder().put(IndexMetaData.SETTING_CREATION_DATE, creationMillis).build()));
     }
 
     @Override

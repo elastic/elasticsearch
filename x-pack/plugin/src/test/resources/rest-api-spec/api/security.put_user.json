@@ -1,9 +1,9 @@
 {
   "security.put_user": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-put-user.html",
+    "stability": "stable",
     "methods": [ "PUT", "POST" ],
     "url": {
-      "path": "/_security/user/{username}",
       "paths": [
         "/_security/user/{username}"
       ],

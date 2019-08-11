@@ -200,11 +200,11 @@ public class DateDerivativeIT extends ESIntegTestCase {
         ZoneId timezone = ZoneId.of("CET");
         DateFormatter formatter = DateFormatter.forPattern("yyyy-MM-dd'T'HH:mm:ss").withZone(timezone);
         // epoch millis: 1332547200000
-        addNTimes(1, IDX_DST_START, DateFormatters.toZonedDateTime(formatter.parse("2012-03-24T01:00:00")), builders);
+        addNTimes(1, IDX_DST_START, DateFormatters.from(formatter.parse("2012-03-24T01:00:00")), builders);
         // day with dst shift, only 23h long
-        addNTimes(2, IDX_DST_START, DateFormatters.toZonedDateTime(formatter.parse("2012-03-25T01:00:00")), builders);
-        addNTimes(3, IDX_DST_START, DateFormatters.toZonedDateTime(formatter.parse("2012-03-26T01:00:00")), builders);
-        addNTimes(4, IDX_DST_START, DateFormatters.toZonedDateTime(formatter.parse("2012-03-27T01:00:00")), builders);
+        addNTimes(2, IDX_DST_START, DateFormatters.from(formatter.parse("2012-03-25T01:00:00")), builders);
+        addNTimes(3, IDX_DST_START, DateFormatters.from(formatter.parse("2012-03-26T01:00:00")), builders);
+        addNTimes(4, IDX_DST_START, DateFormatters.from(formatter.parse("2012-03-27T01:00:00")), builders);
         indexRandom(true, builders);
         ensureSearchable();
 
@@ -251,11 +251,11 @@ public class DateDerivativeIT extends ESIntegTestCase {
         List<IndexRequestBuilder> builders = new ArrayList<>();
 
         DateFormatter formatter = DateFormatter.forPattern("yyyy-MM-dd'T'HH:mm:ss").withZone(timezone);
-        addNTimes(1, IDX_DST_END, DateFormatters.toZonedDateTime(formatter.parse("2012-10-27T01:00:00")), builders);
+        addNTimes(1, IDX_DST_END, DateFormatters.from(formatter.parse("2012-10-27T01:00:00")), builders);
         // day with dst shift -1h, 25h long
-        addNTimes(2, IDX_DST_END, DateFormatters.toZonedDateTime(formatter.parse("2012-10-28T01:00:00")), builders);
-        addNTimes(3, IDX_DST_END, DateFormatters.toZonedDateTime(formatter.parse("2012-10-29T01:00:00")), builders);
-        addNTimes(4, IDX_DST_END, DateFormatters.toZonedDateTime(formatter.parse("2012-10-30T01:00:00")), builders);
+        addNTimes(2, IDX_DST_END, DateFormatters.from(formatter.parse("2012-10-28T01:00:00")), builders);
+        addNTimes(3, IDX_DST_END, DateFormatters.from(formatter.parse("2012-10-29T01:00:00")), builders);
+        addNTimes(4, IDX_DST_END, DateFormatters.from(formatter.parse("2012-10-30T01:00:00")), builders);
         indexRandom(true, builders);
         ensureSearchable();
 
@@ -304,11 +304,11 @@ public class DateDerivativeIT extends ESIntegTestCase {
         List<IndexRequestBuilder> builders = new ArrayList<>();
 
         DateFormatter formatter = DateFormatter.forPattern("yyyy-MM-dd'T'HH:mm:ss").withZone(timezone);
-        addNTimes(1, IDX_DST_KATHMANDU, DateFormatters.toZonedDateTime(formatter.parse("1985-12-31T22:30:00")), builders);
+        addNTimes(1, IDX_DST_KATHMANDU, DateFormatters.from(formatter.parse("1985-12-31T22:30:00")), builders);
         // the shift happens during the next bucket, which includes the 45min that do not start on the full hour
-        addNTimes(2, IDX_DST_KATHMANDU, DateFormatters.toZonedDateTime(formatter.parse("1985-12-31T23:30:00")), builders);
-        addNTimes(3, IDX_DST_KATHMANDU, DateFormatters.toZonedDateTime(formatter.parse("1986-01-01T01:30:00")), builders);
-        addNTimes(4, IDX_DST_KATHMANDU, DateFormatters.toZonedDateTime(formatter.parse("1986-01-01T02:30:00")), builders);
+        addNTimes(2, IDX_DST_KATHMANDU, DateFormatters.from(formatter.parse("1985-12-31T23:30:00")), builders);
+        addNTimes(3, IDX_DST_KATHMANDU, DateFormatters.from(formatter.parse("1986-01-01T01:30:00")), builders);
+        addNTimes(4, IDX_DST_KATHMANDU, DateFormatters.from(formatter.parse("1986-01-01T02:30:00")), builders);
         indexRandom(true, builders);
         ensureSearchable();
 

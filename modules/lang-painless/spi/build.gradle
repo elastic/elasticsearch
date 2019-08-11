@@ -33,8 +33,8 @@ publishing {
 }
 
 dependencies {
-  compile "org.elasticsearch:elasticsearch:${version}"
+  compile project(":server")
 }
 
 // no tests...yet?
-unitTest.enabled = false
+test.enabled = false

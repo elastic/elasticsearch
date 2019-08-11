@@ -1,0 +1,22 @@
+evaluationDependsOn(xpackModule('core'))
+
+apply plugin: 'elasticsearch.esplugin'
+
+esplugin {
+    name 'vectors'
+    description 'A plugin for working with vectors'
+    classname 'org.elasticsearch.xpack.vectors.Vectors'
+    extendedPlugins = ['x-pack-core', 'lang-painless']
+}
+archivesBaseName = 'x-pack-vectors'
+
+dependencies {
+    compileOnly project(':modules:lang-painless:spi')
+    compileOnly project(path: xpackModule('core'), configuration: 'default')
+    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+    if (isEclipse) {
+        testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
+    }
+}
+
+integTest.enabled = false

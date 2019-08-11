@@ -232,7 +232,7 @@ public class SuggestTests extends ESTestCase {
         final Suggest bwcSuggest;
 
         NamedWriteableRegistry registry = new NamedWriteableRegistry
-            (new SearchModule(Settings.EMPTY, false, emptyList()).getNamedWriteables());
+            (new SearchModule(Settings.EMPTY, emptyList()).getNamedWriteables());
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setVersion(bwcVersion);

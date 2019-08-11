@@ -24,12 +24,14 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.discovery.zen.PublishClusterStateActionTests.AssertingAckListener;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponse;
@@ -45,6 +47,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -57,6 +61,7 @@ import java.util.stream.Stream;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 
 public class PublicationTests extends ESTestCase {
@@ -67,7 +72,8 @@ public class PublicationTests extends ESTestCase {
             this.localNode = localNode;
             ClusterState initialState = CoordinationStateTests.clusterState(0L, 0L, localNode,
                 CoordinationMetaData.VotingConfiguration.EMPTY_CONFIG, CoordinationMetaData.VotingConfiguration.EMPTY_CONFIG, 0L);
-            coordinationState = new CoordinationState(settings, localNode, new InMemoryPersistedState(0L, initialState));
+            coordinationState = new CoordinationState(localNode, new InMemoryPersistedState(0L, initialState),
+                ElectionStrategy.DEFAULT_INSTANCE);
         }
 
         final DiscoveryNode localNode;
@@ -460,13 +466,13 @@ public class PublicationTests extends ESTestCase {
                 attributes.put("custom", randomBoolean() ? "match" : randomAlphaOfLengthBetween(3, 5));
             }
             final DiscoveryNode node = newNode(i, attributes,
-                new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))));
+                new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES)));
             nodesList.add(node);
         }
         return nodesList;
     }
 
-    private static DiscoveryNode newNode(int nodeId, Map<String, String> attributes, Set<DiscoveryNode.Role> roles) {
+    private static DiscoveryNode newNode(int nodeId, Map<String, String> attributes, Set<DiscoveryNodeRole> roles) {
         return new DiscoveryNode("name_" + nodeId, "node_" + nodeId, buildNewFakeTransportAddress(), attributes, roles,
             Version.CURRENT);
     }
@@ -477,5 +483,44 @@ public class PublicationTests extends ESTestCase {
                 Collections.shuffle(ts, random());
                 return ts.stream();
             });
+    }
+
+    public static class AssertingAckListener implements Discovery.AckListener {
+        private final List<Tuple<DiscoveryNode, Throwable>> errors = new CopyOnWriteArrayList<>();
+        private final Set<DiscoveryNode> successfulAcks = Collections.synchronizedSet(new HashSet<>());
+        private final CountDownLatch countDown;
+        private final CountDownLatch commitCountDown;
+
+        public AssertingAckListener(int nodeCount) {
+            countDown = new CountDownLatch(nodeCount);
+            commitCountDown = new CountDownLatch(1);
+        }
+
+        @Override
+        public void onCommit(TimeValue commitTime) {
+            commitCountDown.countDown();
+        }
+
+        @Override
+        public void onNodeAck(DiscoveryNode node, @Nullable Exception e) {
+            if (e != null) {
+                errors.add(new Tuple<>(node, e));
+            } else {
+                successfulAcks.add(node);
+            }
+            countDown.countDown();
+        }
+
+        public Set<DiscoveryNode> await(long timeout, TimeUnit unit) throws InterruptedException {
+            assertThat(awaitErrors(timeout, unit), emptyIterable());
+            assertTrue(commitCountDown.await(timeout, unit));
+            return new HashSet<>(successfulAcks);
+        }
+
+        public List<Tuple<DiscoveryNode, Throwable>> awaitErrors(long timeout, TimeUnit unit) throws InterruptedException {
+            countDown.await(timeout, unit);
+            return errors;
+        }
+
     }
 }

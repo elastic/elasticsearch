@@ -34,7 +34,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.Numeric, HistogramAggregatorFactory> {
+public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.Numeric> {
 
     private final double interval, offset;
     private final BucketOrder order;
@@ -44,7 +44,7 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
 
     public HistogramAggregatorFactory(String name, ValuesSourceConfig<Numeric> config, double interval, double offset,
             BucketOrder order, boolean keyed, long minDocCount, double minBound, double maxBound,
-            SearchContext context, AggregatorFactory<?> parent,
+            SearchContext context, AggregatorFactory parent,
             AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metaData);
         this.interval = interval;

@@ -32,6 +32,7 @@ To help simplify the problem, we have limited search to just one rollup index at
 may be able to open this up to multiple rollup jobs.
 
 [float]
+[[aggregate-stored-only]]
 === Can only aggregate what's been stored
 
 A perhaps obvious limitation, but rollups can only aggregate on data that has been stored in the rollups.  If you don't configure the

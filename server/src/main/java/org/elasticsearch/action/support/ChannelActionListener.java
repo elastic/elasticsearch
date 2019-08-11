@@ -55,6 +55,7 @@ public final class ChannelActionListener<
         try {
             channel.sendResponse(e);
         } catch (Exception e1) {
+            e1.addSuppressed(e);
             logger.warn(() -> new ParameterizedMessage(
                 "Failed to send error response for action [{}] and request [{}]", actionName, request), e1);
         }

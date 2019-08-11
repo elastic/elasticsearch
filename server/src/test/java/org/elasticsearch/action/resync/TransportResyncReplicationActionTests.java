@@ -25,6 +25,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -36,7 +37,6 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
@@ -58,6 +58,7 @@ import java.nio.charset.Charset;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.state;
@@ -97,7 +98,7 @@ public class TransportResyncReplicationActionTests extends ESTestCase {
 
             setState(clusterService,
                 ClusterState.builder(clusterService.state()).blocks(ClusterBlocks.builder()
-                    .addGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ALL)
+                    .addGlobalBlock(NoMasterBlockService.NO_MASTER_BLOCK_ALL)
                     .addIndexBlock(indexName, IndexMetaData.INDEX_WRITE_BLOCK)));
 
             try (MockNioTransport transport = new MockNioTransport(Settings.EMPTY, Version.CURRENT, threadPool,
@@ -118,13 +119,17 @@ public class TransportResyncReplicationActionTests extends ESTestCase {
                 final String allocationId = primaryShardRouting.allocationId().getId();
                 final long primaryTerm = indexMetaData.primaryTerm(shardId.id());
 
+                final AtomicInteger acquiredPermits = new AtomicInteger();
                 final IndexShard indexShard = mock(IndexShard.class);
                 when(indexShard.shardId()).thenReturn(shardId);
                 when(indexShard.routingEntry()).thenReturn(primaryShardRouting);
                 when(indexShard.getPendingPrimaryTerm()).thenReturn(primaryTerm);
+                when(indexShard.getOperationPrimaryTerm()).thenReturn(primaryTerm);
+                when(indexShard.getActiveOperationsCount()).then(i -> acquiredPermits.get());
                 doAnswer(invocation -> {
                     ActionListener<Releasable> callback = (ActionListener<Releasable>) invocation.getArguments()[0];
-                    callback.onResponse(() -> logger.trace("released"));
+                    acquiredPermits.incrementAndGet();
+                    callback.onResponse(acquiredPermits::decrementAndGet);
                     return null;
                 }).when(indexShard).acquirePrimaryOperationPermit(any(ActionListener.class), anyString(), anyObject());
                 when(indexShard.getReplicationGroup()).thenReturn(

@@ -1,0 +1,33 @@
+evaluationDependsOn(xpackModule('core'))
+
+apply plugin: 'elasticsearch.esplugin'
+esplugin {
+  name 'data-frame'
+  description 'A plugin to build data frames'
+  classname 'org.elasticsearch.xpack.dataframe.DataFrame'
+  extendedPlugins = ['x-pack-core']
+}
+
+dependencies {
+    compileOnly project(":server")
+
+    compileOnly project(path: xpackModule('core'), configuration: 'default')
+    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+    if (isEclipse) {
+      testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
+    }
+}
+
+// xpack modules are installed in real clusters as the meta plugin, so
+// installing them as individual plugins for integ tests doesn't make sense,
+// so we disable integ tests
+integTest.enabled = false
+
+// add all sub-projects of the qa sub-project
+gradle.projectsEvaluated {
+    project.subprojects
+            .find { it.path == project.path + ":qa" }
+            .subprojects
+            .findAll { it.path.startsWith(project.path + ":qa") }
+            .each { check.dependsOn it.check }
+}

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.container;
 
-import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.querydsl.query.BoolQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.MatchAll;
@@ -24,7 +23,7 @@ public class QueryContainerTests extends ESTestCase {
     private Source source = SourceTests.randomSource();
     private String path = randomAlphaOfLength(5);
     private String name = randomAlphaOfLength(5);
-    private String format = DocValueFieldsContext.USE_DEFAULT_FORMAT;
+    private String format = null;
     private boolean hasDocValues = randomBoolean();
 
     public void testRewriteToContainNestedFieldNoQuery() {

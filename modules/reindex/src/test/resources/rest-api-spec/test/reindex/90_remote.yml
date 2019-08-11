@@ -3,7 +3,6 @@
   - do:
       index:
         index:   source
-        type:    _doc
         id:      1
         body:    { "text": "test" }
         refresh: true
@@ -59,13 +58,11 @@
   - do:
       index:
         index:   source
-        type:    _doc
         id:      1
         body:    { "text": "test" }
   - do:
       index:
         index:   source
-        type:    _doc
         id:      2
         body:    { "text": "test2" }
   - do:
@@ -116,7 +113,6 @@
   - do:
       index:
         index:   source
-        type:    _doc
         id:      1
         body:    { "text": "test" }
         routing: foo
@@ -169,7 +165,6 @@
   - do:
       index:
         index:   source
-        type:    _doc
         id:      1
         body:    { "text": "test" }
         refresh: true
@@ -223,18 +218,20 @@
   - match: {indices.source.total.search.open_contexts: 0}
 
 ---
-"Reindex from remote with size":
+"Reindex from remote with max_docs":
+  - skip:
+      version: " - 7.2.99"
+      reason: "max_docs introduced in 7.3.0"
+
   - do:
       index:
         index:   source
-        type:    _doc
         id:      1
         body:    { "text": "test" }
         refresh: true
   - do:
       index:
         index:   source
-        type:    _doc
         id:      2
         body:    { "text": "test" }
         refresh: true
@@ -252,7 +249,7 @@
       reindex:
         refresh: true
         body:
-          size: 1
+          max_docs: 1
           source:
             remote:
               host: http://${host}
@@ -291,7 +288,6 @@
   - do:
       index:
         index:   source
-        type:    _doc
         id:      1
         body:    { "text": "test" }
         refresh: true
@@ -323,7 +319,6 @@
   - do:
       index:
         index:   source
-        type:    _doc
         id:      1
         body:    { "text": "test" }
         refresh: true
@@ -345,7 +340,6 @@
   - do:
       index:
         index:   source
-        type:    _doc
         id:      1
         body:    { "text": "test", "filtered": "removed" }
         refresh: true
@@ -385,7 +379,6 @@
   - do:
       get:
         index: dest
-        type: _doc
         id: 1
   - match: { _source.text: "test" }
   - is_false: _source.filtered
@@ -404,19 +397,16 @@
   - do:
       index:
         index:   source
-        type:    _doc
         id:      1
         body:    { "text": "test" }
   - do:
       index:
         index:   source
-        type:    _doc
         id:      2
         body:    { "text": "test" }
   - do:
       index:
         index:   source
-        type:    _doc
         id:      3
         body:    { "text": "test" }
   - do:

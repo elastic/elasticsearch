@@ -71,6 +71,8 @@ public class TruncateTranslogAction {
             commits = DirectoryReader.listCommits(indexDirectory);
         } catch (IndexNotFoundException infe) {
             throw new ElasticsearchException("unable to find a valid shard at [" + indexPath + "]", infe);
+        } catch (IOException e) {
+            throw new ElasticsearchException("unable to list commits at [" + indexPath + "]", e);
         }
 
         // Retrieve the generation and UUID from the existing data
@@ -166,7 +168,6 @@ public class TruncateTranslogAction {
 
     private boolean isTranslogClean(ShardPath shardPath, String translogUUID) throws IOException {
         // perform clean check of translog instead of corrupted marker file
-        boolean clean = true;
         try {
             final Path translogPath = shardPath.resolveTranslog();
             final long translogGlobalCheckpoint = Translog.readGlobalCheckpoint(translogPath, translogUUID);
@@ -180,20 +181,21 @@ public class TruncateTranslogAction {
                 new TranslogDeletionPolicy(indexSettings.getTranslogRetentionSize().getBytes(),
                     indexSettings.getTranslogRetentionAge().getMillis());
             try (Translog translog = new Translog(translogConfig, translogUUID,
-                translogDeletionPolicy, () -> translogGlobalCheckpoint, () -> primaryTerm);
+                translogDeletionPolicy, () -> translogGlobalCheckpoint, () -> primaryTerm, seqNo -> {});
                  Translog.Snapshot snapshot = translog.newSnapshot()) {
+                //noinspection StatementWithEmptyBody we are just checking that we can iterate through the whole snapshot
                 while (snapshot.next() != null) {
-                    // just iterate over snapshot
                 }
             }
+            return true;
         } catch (TranslogCorruptedException e) {
-            clean = false;
+            return false;
         }
-        return clean;
     }
 
     /** Write a checkpoint file to the given location with the given generation */
-    static void writeEmptyCheckpoint(Path filename, int translogLength, long translogGeneration, long globalCheckpoint) throws IOException {
+    private static void writeEmptyCheckpoint(Path filename, int translogLength, long translogGeneration, long globalCheckpoint)
+            throws IOException {
         Checkpoint emptyCheckpoint = Checkpoint.emptyTranslogCheckpoint(translogLength, translogGeneration,
             globalCheckpoint, translogGeneration);
         Checkpoint.write(FileChannel::open, filename, emptyCheckpoint,
@@ -232,7 +234,7 @@ public class TruncateTranslogAction {
     }
 
     /** Return a Set of all files in a given directory */
-    public static Set<Path> filesInDirectory(Path directory) throws IOException {
+    private static Set<Path> filesInDirectory(Path directory) throws IOException {
         Set<Path> files = new TreeSet<>();
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(directory)) {
             for (Path file : stream) {

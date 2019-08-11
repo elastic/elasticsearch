@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -49,20 +48,10 @@ public class RankEvalRequest extends ActionRequest implements IndicesRequest.Rep
     }
 
     RankEvalRequest(StreamInput in) throws IOException {
-        super.readFrom(in);
+        super(in);
         rankingEvaluationSpec = new RankEvalSpec(in);
-        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
-            indices = in.readStringArray();
-            indicesOptions = IndicesOptions.readIndicesOptions(in);
-        } else {
-            // readStringArray uses readVInt for size, we used readInt in 6.2
-            int indicesSize = in.readInt();
-            String[] indices = new String[indicesSize];
-            for (int i = 0; i < indicesSize; i++) {
-                indices[i] = in.readString();
-            }
-            // no indices options yet
-        }
+        indices = in.readStringArray();
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
     }
 
     RankEvalRequest() {
@@ -86,7 +75,7 @@ public class RankEvalRequest extends ActionRequest implements IndicesRequest.Rep
     }
 
     /**
-     * Set the the specification of the ranking evaluation.
+     * Set the specification of the ranking evaluation.
      */
     public void setRankEvalSpec(RankEvalSpec task) {
         this.rankingEvaluationSpec = task;
@@ -123,25 +112,11 @@ public class RankEvalRequest extends ActionRequest implements IndicesRequest.Rep
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         rankingEvaluationSpec.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
-            out.writeStringArray(indices);
-            indicesOptions.writeIndicesOptions(out);
-        } else {
-            // writeStringArray uses writeVInt for size, we used writeInt in 6.2
-            out.writeInt(indices.length);
-            for (String index : indices) {
-                out.writeString(index);
-            }
-            // no indices options yet
-        }
+        out.writeStringArray(indices);
+        indicesOptions.writeIndicesOptions(out);
     }
 
     @Override

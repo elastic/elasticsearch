@@ -26,11 +26,9 @@
 esplugin {
     description 'Netty 4 based transport implementation'
     classname 'org.elasticsearch.transport.Netty4Plugin'
-    hasClientJar = true
 }
 
-compileJava.options.compilerArgs << "-Xlint:-try"
-compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked"
+compileTestJava.options.compilerArgs << "-Xlint:-cast,-rawtypes,-unchecked"
 
 dependencies {
     // network stack
@@ -47,12 +45,15 @@ dependencyLicenses {
   mapping from: /netty-.*/, to: 'netty'
 }
 
-unitTest {
+test {
     /*
      * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
      * other if we allow them to set the number of available processors as it's set-once in Netty.
      */
     systemProperty 'es.set.netty.runtime.available.processors', 'false'
+
+    // Disable direct buffer pooling as it is disabled by default in Elasticsearch
+    systemProperty 'io.netty.allocator.numDirectArenas', '0'
 }
 
 integTestRunner {
@@ -61,6 +62,9 @@ integTestRunner {
      * other if we allow them to set the number of available processors as it's set-once in Netty.
      */
     systemProperty 'es.set.netty.runtime.available.processors', 'false'
+
+    // Disable direct buffer pooling as it is disabled by default in Elasticsearch
+    systemProperty 'io.netty.allocator.numDirectArenas', '0'
 }
 
 thirdPartyAudit {
@@ -77,11 +81,16 @@ thirdPartyAudit {
         'org.apache.commons.logging.Log',
         'org.apache.commons.logging.LogFactory',
 
+        // from Log4j (deliberate, Netty will fallback to Log4j 2)
+        'org.apache.log4j.Level',
+        'org.apache.log4j.Logger',
+
         // from io.netty.handler.ssl.OpenSslEngine (netty)
         'io.netty.internal.tcnative.Buffer',
         'io.netty.internal.tcnative.Library',
         'io.netty.internal.tcnative.SSL',
         'io.netty.internal.tcnative.SSLContext',
+        'io.netty.internal.tcnative.SSLPrivateKeyMethod',
 
         // from io.netty.handler.ssl.util.BouncyCastleSelfSignedCertGenerator (netty)
         'org.bouncycastle.cert.X509v3CertificateBuilder',
@@ -134,12 +143,13 @@ thirdPartyAudit {
         'net.jpountz.lz4.LZ4Compressor',
         'net.jpountz.lz4.LZ4Factory',
         'net.jpountz.lz4.LZ4FastDecompressor',
-        'net.jpountz.xxhash.StreamingXXHash32',
+        'net.jpountz.xxhash.XXHash32',
         'net.jpountz.xxhash.XXHashFactory',
         'io.netty.internal.tcnative.CertificateCallback',
         'io.netty.internal.tcnative.CertificateVerifier',
         'io.netty.internal.tcnative.SessionTicketKey',
         'io.netty.internal.tcnative.SniHostNameMatcher',
+        'io.netty.internal.tcnative.SSL',
         'org.eclipse.jetty.alpn.ALPN$ClientProvider',
         'org.eclipse.jetty.alpn.ALPN$ServerProvider',
         'org.eclipse.jetty.alpn.ALPN',
@@ -172,10 +182,12 @@ thirdPartyAudit {
     )
 }
 
-if (project.inFipsJvm == false) {
-    // BouncyCastleFIPS provides this class, so the exclusion is invalid when running CI in
-    // a FIPS JVM with BouncyCastleFIPS Provider
-    thirdPartyAudit.ignoreMissingClasses (
-            'org.bouncycastle.asn1.x500.X500Name'
-    )
+rootProject.globalInfo.ready {
+    if (project.inFipsJvm == false) {
+        // BouncyCastleFIPS provides this class, so the exclusion is invalid when running CI in
+        // a FIPS JVM with BouncyCastleFIPS Provider
+        thirdPartyAudit.ignoreMissingClasses(
+                'org.bouncycastle.asn1.x500.X500Name'
+        )
+    }
 }

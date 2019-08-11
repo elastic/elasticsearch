@@ -19,10 +19,13 @@
 
 package org.elasticsearch.search;
 
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.transport.TransportResponse;
+
+import java.io.IOException;
 
 /**
  * This class is a base class for all search related results. It contains the shard target it
@@ -32,15 +35,22 @@ import org.elasticsearch.transport.TransportResponse;
  * across search phases to ensure the same point in time snapshot is used for querying and
  * fetching etc.
  */
-public abstract class SearchPhaseResult extends TransportResponse implements Streamable {
+public abstract class SearchPhaseResult extends TransportResponse {
 
     private SearchShardTarget searchShardTarget;
     private int shardIndex = -1;
     protected long requestId;
 
+    protected SearchPhaseResult() {
+
+    }
+
+    protected SearchPhaseResult(StreamInput in) throws IOException {
+        super(in);
+    }
+
     /**
-     * Returns the results request ID that is used to reference the search context on the executing
-     * node
+     * Returns the results request ID that is used to reference the search context on the executing node
      */
     public long getRequestId() {
         return requestId;
@@ -79,4 +89,9 @@ public abstract class SearchPhaseResult extends TransportResponse implements Str
      * Returns the fetch result iff it's included in this response otherwise <code>null</code>
      */
     public FetchSearchResult fetchResult() { return null; }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        // TODO: this seems wrong, SearchPhaseResult should have a writeTo?
+    }
 }

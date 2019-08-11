@@ -20,11 +20,13 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.After;
@@ -35,6 +37,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -64,6 +67,32 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         internalCluster().assertConsistentHistoryBetweenTranslogAndLuceneIndex();
     }
 
+    private String skipRepoConsistencyCheckReason;
+
+    @After
+    public void assertRepoConsistency() {
+        if (skipRepoConsistencyCheckReason == null) {
+            client().admin().cluster().prepareGetRepositories().get().repositories()
+                .stream()
+                .map(RepositoryMetaData::name)
+                .forEach(name -> {
+                    final List<SnapshotInfo> snapshots = client().admin().cluster().prepareGetSnapshots(name).get().getSnapshots(name);
+                    // Delete one random snapshot to trigger repository cleanup.
+                    if (snapshots.isEmpty() == false) {
+                        client().admin().cluster().prepareDeleteSnapshot(name, randomFrom(snapshots).snapshotId().getName()).get();
+                    }
+                    BlobStoreTestUtil.assertRepoConsistency(internalCluster(), name);
+                });
+        } else {
+            logger.info("--> skipped repo consistency checks because [{}]", skipRepoConsistencyCheckReason);
+        }
+    }
+
+    protected void disableRepoConsistencyCheck(String reason) {
+        assertNotNull(reason);
+        skipRepoConsistencyCheckReason = reason;
+    }
+
     public static long getFailureCount(String repository) {
         long failureCount = 0;
         for (RepositoriesService repositoriesService :
@@ -72,6 +101,18 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             failureCount += mockRepository.getFailureCount();
         }
         return failureCount;
+    }
+
+    public static void assertFileCount(Path dir, int expectedCount) throws IOException {
+        final List<Path> found = new ArrayList<>();
+        Files.walkFileTree(dir, new SimpleFileVisitor<Path>() {
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+                found.add(file);
+                return FileVisitResult.CONTINUE;
+            }
+        });
+        assertEquals("Unexpected file count, found: [" + found + "].", expectedCount, found.size());
     }
 
     public static int numberOfFiles(Path dir) throws IOException {
@@ -107,7 +148,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         long start = System.currentTimeMillis();
         while (System.currentTimeMillis() - start < timeout.millis()) {
             List<SnapshotInfo> snapshotInfos = client().admin().cluster().prepareGetSnapshots(repository).setSnapshots(snapshotName)
-                .get().getSnapshots();
+                .get().getSnapshots(repository);
             assertThat(snapshotInfos.size(), equalTo(1));
             if (snapshotInfos.get(0).state().completed()) {
                 // Make sure that snapshot clean up operations are finished

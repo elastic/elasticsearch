@@ -6,8 +6,6 @@
 package org.elasticsearch.xpack.sql.jdbc;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.jdbc.EsType;
-import org.elasticsearch.xpack.sql.jdbc.JdbcColumnInfo;
 
 import static org.elasticsearch.xpack.sql.client.StringUtils.EMPTY;
 

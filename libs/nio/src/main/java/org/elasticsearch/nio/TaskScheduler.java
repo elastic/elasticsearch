@@ -45,7 +45,7 @@ public class TaskScheduler {
         return delayedTask;
     }
 
-    Runnable pollTask(long relativeNanos) {
+    public Runnable pollTask(long relativeNanos) {
         DelayedTask task;
         while ((task = tasks.peek()) != null) {
             if (relativeNanos - task.deadline >= 0) {

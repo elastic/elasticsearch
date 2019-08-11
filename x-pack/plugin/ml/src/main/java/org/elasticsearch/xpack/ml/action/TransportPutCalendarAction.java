@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -40,8 +39,7 @@ public class TransportPutCalendarAction extends HandledTransportAction<PutCalend
 
     @Inject
     public TransportPutCalendarAction(TransportService transportService, ActionFilters actionFilters, Client client) {
-        super(PutCalendarAction.NAME, transportService, actionFilters,
-            (Supplier<PutCalendarAction.Request>) PutCalendarAction.Request::new);
+        super(PutCalendarAction.NAME, transportService, actionFilters, PutCalendarAction.Request::new);
         this.client = client;
     }
 
@@ -49,7 +47,7 @@ public class TransportPutCalendarAction extends HandledTransportAction<PutCalend
     protected void doExecute(Task task, PutCalendarAction.Request request, ActionListener<PutCalendarAction.Response> listener) {
         Calendar calendar = request.getCalendar();
 
-        IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, calendar.documentId());
+        IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME).id(calendar.documentId());
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             indexRequest.source(calendar.toXContent(builder,
                     new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.INCLUDE_TYPE, "true"))));

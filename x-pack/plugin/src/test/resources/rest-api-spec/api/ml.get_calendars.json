@@ -1,8 +1,8 @@
 {
   "ml.get_calendars": {
+    "stability": "stable",
     "methods": [ "GET", "POST" ],
     "url": {
-      "path": "/_ml/calendars/{calendar_id}",
       "paths": [
         "/_ml/calendars",
         "/_ml/calendars/{calendar_id}"
@@ -24,6 +24,8 @@
         }
       }
     },
-    "body": null
+    "body": {
+      "description": "The from and size parameters optionally sent in the body"
+    }
   }
 }

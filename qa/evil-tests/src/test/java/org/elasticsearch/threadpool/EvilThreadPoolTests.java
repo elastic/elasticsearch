@@ -108,7 +108,12 @@ public class EvilThreadPoolTests extends ESTestCase {
         try {
             checkExecutionError(getExecuteRunner(prioritizedExecutor));
             checkExecutionError(getSubmitRunner(prioritizedExecutor));
+            // bias towards timeout
+            checkExecutionError(r -> prioritizedExecutor.execute(delayMillis(r, 10), TimeValue.ZERO, r));
+            // race whether timeout or success (but typically biased towards success)
             checkExecutionError(r -> prioritizedExecutor.execute(r, TimeValue.ZERO, r));
+            // bias towards no timeout.
+            checkExecutionError(r -> prioritizedExecutor.execute(r, TimeValue.timeValueMillis(10), r));
         } finally {
             ThreadPool.terminate(prioritizedExecutor, 10, TimeUnit.SECONDS);
         }
@@ -158,23 +163,12 @@ public class EvilThreadPoolTests extends ESTestCase {
 
     public void testExecutionExceptionOnDefaultThreadPoolTypes() throws InterruptedException {
         for (String executor : ThreadPool.THREAD_POOL_TYPES.keySet()) {
-            final boolean expectExceptionOnExecute =
-                // fixed_auto_queue_size wraps stuff into TimedRunnable, which is an AbstractRunnable
-                // TODO: this is dangerous as it will silently swallow exceptions, and possibly miss calling a response listener
-                ThreadPool.THREAD_POOL_TYPES.get(executor) != ThreadPool.ThreadPoolType.FIXED_AUTO_QUEUE_SIZE;
-            checkExecutionException(getExecuteRunner(threadPool.executor(executor)), expectExceptionOnExecute);
+            checkExecutionException(getExecuteRunner(threadPool.executor(executor)), true);
 
             // here, it's ok for the exception not to bubble up. Accessing the future will yield the exception
             checkExecutionException(getSubmitRunner(threadPool.executor(executor)), false);
 
-            final boolean expectExceptionOnSchedule =
-                // fixed_auto_queue_size wraps stuff into TimedRunnable, which is an AbstractRunnable
-                // TODO: this is dangerous as it will silently swallow exceptions, and possibly miss calling a response listener
-                ThreadPool.THREAD_POOL_TYPES.get(executor) != ThreadPool.ThreadPoolType.FIXED_AUTO_QUEUE_SIZE
-                    // scheduler just swallows the exception here
-                    // TODO: bubble these exceptions up
-                    && ThreadPool.THREAD_POOL_TYPES.get(executor) != ThreadPool.ThreadPoolType.DIRECT;
-            checkExecutionException(getScheduleRunner(executor), expectExceptionOnSchedule);
+            checkExecutionException(getScheduleRunner(executor), true);
         }
     }
 
@@ -211,22 +205,26 @@ public class EvilThreadPoolTests extends ESTestCase {
             1, 1, 1, TimeValue.timeValueSeconds(10), EsExecutors.daemonThreadFactory("test"), threadPool.getThreadContext());
         try {
             // fixed_auto_queue_size wraps stuff into TimedRunnable, which is an AbstractRunnable
-            // TODO: this is dangerous as it will silently swallow exceptions, and possibly miss calling a response listener
-            checkExecutionException(getExecuteRunner(autoQueueFixedExecutor), false);
+            checkExecutionException(getExecuteRunner(autoQueueFixedExecutor), true);
             checkExecutionException(getSubmitRunner(autoQueueFixedExecutor), false);
         } finally {
             ThreadPool.terminate(autoQueueFixedExecutor, 10, TimeUnit.SECONDS);
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37708")
     public void testExecutionExceptionOnSinglePrioritizingThreadPoolExecutor() throws InterruptedException {
         final PrioritizedEsThreadPoolExecutor prioritizedExecutor = EsExecutors.newSinglePrioritizing("test",
             EsExecutors.daemonThreadFactory("test"), threadPool.getThreadContext(), threadPool.scheduler());
         try {
             checkExecutionException(getExecuteRunner(prioritizedExecutor), true);
             checkExecutionException(getSubmitRunner(prioritizedExecutor), false);
+
+            // bias towards timeout
+            checkExecutionException(r -> prioritizedExecutor.execute(delayMillis(r, 10), TimeValue.ZERO, r), true);
+            // race whether timeout or success (but typically biased towards success)
             checkExecutionException(r -> prioritizedExecutor.execute(r, TimeValue.ZERO, r), true);
+            // bias towards no timeout.
+            checkExecutionException(r -> prioritizedExecutor.execute(r, TimeValue.timeValueMillis(10), r), true);
         } finally {
             ThreadPool.terminate(prioritizedExecutor, 10, TimeUnit.SECONDS);
         }
@@ -235,26 +233,39 @@ public class EvilThreadPoolTests extends ESTestCase {
     public void testExecutionExceptionOnScheduler() throws InterruptedException {
         final ScheduledThreadPoolExecutor scheduler = Scheduler.initScheduler(Settings.EMPTY);
         try {
-            // scheduler just swallows the exceptions
-            // TODO: bubble these exceptions up
-            checkExecutionException(getExecuteRunner(scheduler), false);
-            checkExecutionException(getSubmitRunner(scheduler), false);
-            checkExecutionException(r -> scheduler.schedule(r, randomFrom(0, 1), TimeUnit.MILLISECONDS), false);
+            checkExecutionException(getExecuteRunner(scheduler), true);
+            // while submit does return a Future, we choose to log exceptions anyway,
+            // since this is the semi-internal SafeScheduledThreadPoolExecutor that is being used,
+            // which also logs exceptions for schedule calls.
+            checkExecutionException(getSubmitRunner(scheduler), true);
+            checkExecutionException(r -> scheduler.schedule(r, randomFrom(0, 1), TimeUnit.MILLISECONDS), true);
         } finally {
             Scheduler.terminate(scheduler, 10, TimeUnit.SECONDS);
         }
     }
 
+    private Runnable delayMillis(Runnable r, int ms) {
+        return () -> {
+            try {
+                Thread.sleep(ms);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            r.run();
+        };
+    }
+
     private void checkExecutionException(Consumer<Runnable> runner, boolean expectException) throws InterruptedException {
-        logger.info("checking exception for {}", runner);
         final Runnable runnable;
         final boolean willThrow;
         if (randomBoolean()) {
+            logger.info("checking direct exception for {}", runner);
             runnable = () -> {
                 throw new IllegalStateException("future exception");
             };
             willThrow = expectException;
         } else {
+            logger.info("checking abstract runnable exception for {}", runner);
             runnable = new AbstractRunnable() {
                 @Override
                 public void onFailure(Exception e) {
@@ -275,6 +286,7 @@ public class EvilThreadPoolTests extends ESTestCase {
             o -> {
                 assertEquals(willThrow, o.isPresent());
                 if (willThrow) {
+                    if (o.get() instanceof Error) throw (Error) o.get();
                     assertThat(o.get(), instanceOf(IllegalStateException.class));
                     assertThat(o.get(), hasToString(containsString("future exception")));
                 }
@@ -313,7 +325,7 @@ public class EvilThreadPoolTests extends ESTestCase {
         return new Consumer<Runnable>() {
             @Override
             public void accept(Runnable runnable) {
-                threadPool.schedule(randomFrom(TimeValue.ZERO, TimeValue.timeValueMillis(1)), executor, runnable);
+                threadPool.schedule(runnable, randomFrom(TimeValue.ZERO, TimeValue.timeValueMillis(1)), executor);
             }
 
             @Override
@@ -324,10 +336,10 @@ public class EvilThreadPoolTests extends ESTestCase {
     }
 
     private void runExecutionTest(
-            final Consumer<Runnable> runner,
-            final Runnable runnable,
-            final boolean expectThrowable,
-            final Consumer<Optional<Throwable>> consumer) throws InterruptedException {
+        final Consumer<Runnable> runner,
+        final Runnable runnable,
+        final boolean expectThrowable,
+        final Consumer<Optional<Throwable>> consumer) throws InterruptedException {
         final AtomicReference<Throwable> throwableReference = new AtomicReference<>();
         final Thread.UncaughtExceptionHandler uncaughtExceptionHandler = Thread.getDefaultUncaughtExceptionHandler();
         final CountDownLatch uncaughtExceptionHandlerLatch = new CountDownLatch(1);
@@ -335,7 +347,7 @@ public class EvilThreadPoolTests extends ESTestCase {
         try {
             Thread.setDefaultUncaughtExceptionHandler((t, e) -> {
                 assertTrue(expectThrowable);
-                throwableReference.set(e);
+                assertTrue("Only one message allowed", throwableReference.compareAndSet(null, e));
                 uncaughtExceptionHandlerLatch.countDown();
             });
 
@@ -359,6 +371,7 @@ public class EvilThreadPoolTests extends ESTestCase {
             if (expectThrowable) {
                 uncaughtExceptionHandlerLatch.await();
             }
+
             consumer.accept(Optional.ofNullable(throwableReference.get()));
         } finally {
             Thread.setDefaultUncaughtExceptionHandler(uncaughtExceptionHandler);

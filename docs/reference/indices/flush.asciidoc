@@ -1,5 +1,5 @@
 [[indices-flush]]
-== Flush
+=== Flush
 
 The flush API allows to flush one or more indices through an API. The
 flush process of an index makes sure that any data that is currently only
@@ -18,15 +18,13 @@ POST twitter/_flush
 
 [float]
 [[flush-parameters]]
-=== Request Parameters
+==== Request Parameters
 
 The flush API accepts the following request parameters:
 
 [horizontal]
-`wait_if_ongoing`::  If set to `true` the flush operation will block until the
-flush can be executed if another flush operation is already executing.
-The default is `false` and will cause an exception to be thrown on
-the shard level if another flush operation is already running.
+`wait_if_ongoing`::  If set to `true`(the default value) the flush operation will
+block until the flush can be executed if another flush operation is already executing.
 
 `force`:: Whether a flush should be forced even if it is not necessarily needed i.e.
 if no changes will be committed to the index. This is useful if transaction log IDs
@@ -35,7 +33,7 @@ should be incremented even if no uncommitted changes are present.
 
 [float]
 [[flush-multi-index]]
-=== Multi Index
+==== Multi Index
 
 The flush API can be applied to more than one index with a single call,
 or even on `_all` the indices.
@@ -49,8 +47,8 @@ POST _flush
 // CONSOLE
 // TEST[s/^/PUT kimchy\nPUT elasticsearch\n/]
 
-[[indices-synced-flush]]
-=== Synced Flush
+[[synced-flush-api]]
+==== Synced Flush
 
 Elasticsearch tracks the indexing activity of each shard. Shards that have not
 received any indexing operations for 5 minutes are automatically marked as inactive. This presents
@@ -103,8 +101,7 @@ which returns something similar to:
                      "max_seq_no" : "-1",
                      "sync_id" : "AVvFY-071siAOuFGEO9P", <1>
                      "max_unsafe_auto_id_timestamp" : "-1",
-                     "min_retained_seq_no" : "0",
-                     "retention_leases" : "id:replica-0;retaining_seq_no:0;timestamp:1547235588;source:replica"
+                     "min_retained_seq_no" : "0"
                    },
                    "num_docs" : 0
                  }
@@ -119,11 +116,10 @@ which returns something similar to:
 // TESTRESPONSE[s/"translog_uuid" : "hnOG3xFcTDeoI_kvvvOdNA"/"translog_uuid": $body.indices.twitter.shards.0.0.commit.user_data.translog_uuid/]
 // TESTRESPONSE[s/"history_uuid" : "XP7KDJGiS1a2fHYiFL5TXQ"/"history_uuid": $body.indices.twitter.shards.0.0.commit.user_data.history_uuid/]
 // TESTRESPONSE[s/"sync_id" : "AVvFY-071siAOuFGEO9P"/"sync_id": $body.indices.twitter.shards.0.0.commit.user_data.sync_id/]
-// TESTRESPONSE[s/"retention_leases" : "id:replica-0;retaining_seq_no:0;timestamp:1547235588;source:replica"/"retention_leases": $body.indices.twitter.shards.0.0.commit.user_data.retention_leases/]
 <1> the `sync id` marker
 
 [float]
-=== Synced Flush API
+==== Synced Flush API
 
 The Synced Flush API allows an administrator to initiate a synced flush manually. This can be particularly useful for
 a planned (rolling) cluster restart where you can stop indexing and don't want to wait the default 5 minutes for

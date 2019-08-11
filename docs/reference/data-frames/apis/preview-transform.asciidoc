@@ -1,0 +1,129 @@
+[role="xpack"]
+[testenv="basic"]
+[[preview-data-frame-transform]]
+=== Preview {dataframe-transforms} API
+
+[subs="attributes"]
+++++
+<titleabbrev>Preview {dataframe-transforms}</titleabbrev>
+++++
+
+Previews a {dataframe-transform}.
+
+beta[]
+
+[[preview-data-frame-transform-request]]
+==== {api-request-title}
+
+`POST _data_frame/transforms/_preview`
+
+[[preview-data-frame-transform-prereq]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have
+`manage_data_frame_transforms` cluster privileges to use this API. The built-in
+`data_frame_transforms_admin` role has these privileges. You must also have
+`read` and `view_index_metadata` privileges on the source index for the
+{dataframe-transform}. For more information, see
+{stack-ov}/security-privileges.html[Security privileges] and
+{stack-ov}/built-in-roles.html[Built-in roles].
+
+[[preview-data-frame-transform-desc]]
+==== {api-description-title}
+
+This API generates a preview of the results that you will get when you run the
+<<put-data-frame-transform,create {dataframe-transforms} API>> with the same
+configuration. It returns a maximum of 100 results. The calculations are based
+on all the current data in the source index. 
+
+[[preview-data-frame-transform-request-body]]
+==== {api-request-body-title}
+
+`source`::
+  (Required, object) The source configuration, which has the following
+  properties:
+  
+  `index`:::
+    (Required, string or array) The _source indices_ for the
+    {dataframe-transform}. It can be a single index, an index pattern (for
+    example, `"myindex*"`), or an array of indices (for example,
+    `["index1", "index2"]`).
+
+  `query`:::
+    (Optional, object) A query clause that retrieves a subset of data from the
+    source index. See <<query-dsl>>.
+
+`pivot`::
+  (Required, object) Defines the pivot function `group by` fields and the
+  aggregation to reduce the data. See <<data-frame-transform-pivot>>.
+  
+[[preview-data-frame-transform-response]]
+==== {api-response-body-title}
+
+`preview`::
+  (array) An array of documents. In particular, they are the JSON
+  representation of the documents that would be created in the destination index
+  by the {dataframe-transform}. 
+
+==== {api-examples-title}
+
+[source,js]
+--------------------------------------------------
+POST _data_frame/transforms/_preview
+{
+  "source": {
+    "index": "kibana_sample_data_ecommerce"
+  },
+  "pivot": {
+    "group_by": {
+      "customer_id": {
+        "terms": {
+          "field": "customer_id"
+        }
+      }
+    },
+    "aggregations": {
+      "max_price": {
+        "max": {
+          "field": "taxful_total_price"
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[skip:set up sample data]
+
+The data that is returned for this example is as follows:
+[source,js]
+----
+{
+  "preview" : [
+    {
+      "max_price" : 171.0,
+      "customer_id" : "10"
+    },
+    {
+      "max_price" : 233.0,
+      "customer_id" : "11"
+    },
+    {
+      "max_price" : 200.0,
+      "customer_id" : "12"
+    }
+    ...
+  ],
+  "mappings": {
+    "properties": {
+      "max_price": {
+        "type": "double"
+      },
+      "customer_id": {
+        "type": "keyword"
+      }
+    }
+  }
+}
+----
+// NOTCONSOLE

@@ -18,21 +18,26 @@
  */
 package org.elasticsearch.gradle.precommit;
 
+import de.thetaphi.forbiddenapis.cli.CliMain;
 import org.apache.commons.io.output.NullOutputStream;
 import org.elasticsearch.gradle.JdkJarHellCheck;
+import org.elasticsearch.gradle.OS;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.file.FileTree;
+import org.gradle.api.provider.Property;
 import org.gradle.api.specs.Spec;
 import org.gradle.api.tasks.CacheableTask;
+import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.InputFiles;
+import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Optional;
-import org.gradle.api.tasks.OutputDirectory;
+import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.SkipWhenEmpty;
@@ -45,8 +50,10 @@ import java.io.IOException;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
@@ -65,6 +72,12 @@ public class ThirdPartyAuditTask extends DefaultTask {
     private static final Pattern VIOLATION_PATTERN = Pattern.compile(
         "\\s\\sin ([a-zA-Z0-9$.]+) \\(.*\\)"
     );
+    private static final int SIG_KILL_EXIT_VALUE = 137;
+    private static final List<Integer> EXPECTED_EXIT_CODES = Arrays.asList(
+        CliMain.EXIT_SUCCESS,
+        CliMain.EXIT_VIOLATION,
+        CliMain.EXIT_UNSUPPORTED_JDK
+    );
 
     private Set<String> missingClassExcludes = new TreeSet<>();
 
@@ -76,15 +89,11 @@ public class ThirdPartyAuditTask extends DefaultTask {
 
     private String javaHome;
 
-    private JavaVersion targetCompatibility;
+    private final Property<JavaVersion> targetCompatibility = getProject().getObjects().property(JavaVersion.class);
 
     @Input
-    public JavaVersion getTargetCompatibility() {
+    public Property<JavaVersion> getTargetCompatibility() {
         return targetCompatibility;
-    }
-
-    public void setTargetCompatibility(JavaVersion targetCompatibility) {
-        this.targetCompatibility = targetCompatibility;
     }
 
     @InputFiles
@@ -113,12 +122,17 @@ public class ThirdPartyAuditTask extends DefaultTask {
         this.javaHome = javaHome;
     }
 
-    @OutputDirectory
+    @Internal
     public File getJarExpandDir() {
         return new File(
             new File(getProject().getBuildDir(), "precommit/thirdPartyAudit"),
             getName()
         );
+    }
+
+    @OutputFile
+    public File getSuccessMarker() {
+        return new File(getProject().getBuildDir(), "markers/" + getName());
     }
 
     public void ignoreMissingClasses(String... classesOrPackages) {
@@ -157,8 +171,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
         return missingClassExcludes;
     }
 
-    @InputFiles
-    @PathSensitive(PathSensitivity.NAME_ONLY)
+    @Classpath
     @SkipWhenEmpty
     public Set<File> getJarsToScan() {
         // These are SelfResolvingDependency, and some of them backed by file collections, like  the Gradle API files,
@@ -241,6 +254,10 @@ public class ThirdPartyAuditTask extends DefaultTask {
         }
 
         assertNoJarHell(jdkJarHellClasses);
+
+        // Mark successful third party audit check
+        getSuccessMarker().getParentFile().mkdirs();
+        Files.write(getSuccessMarker().toPath(), new byte[]{});
     }
 
     private void logForbiddenAPIsOutput(String forbiddenApisOutput) {
@@ -276,7 +293,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
             // pther version specific implementation of said classes.
             IntStream.rangeClosed(
                 Integer.parseInt(JavaVersion.VERSION_1_9.getMajorVersion()),
-                Integer.parseInt(targetCompatibility.getMajorVersion())
+                Integer.parseInt(targetCompatibility.get().getMajorVersion())
             ).forEach(majorVersion -> getProject().copy(spec -> {
                 spec.from(getProject().zipTree(jar));
                 spec.into(jarExpandDir);
@@ -319,7 +336,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
 
     private String runForbiddenAPIsCli() throws IOException {
         ByteArrayOutputStream errorOut = new ByteArrayOutputStream();
-        getProject().javaexec(spec -> {
+        ExecResult result = getProject().javaexec(spec -> {
             if (javaHome != null) {
                 spec.setExecutable(javaHome + "/bin/java");
             }
@@ -328,6 +345,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
                 getRuntimeConfiguration(),
                 getProject().getConfigurations().getByName("compileOnly")
             );
+            spec.jvmArgs("-Xmx1g");
             spec.setMain("de.thetaphi.forbiddenapis.cli.CliMain");
             spec.args(
                 "-f", getSignatureFile().getAbsolutePath(),
@@ -340,9 +358,17 @@ public class ThirdPartyAuditTask extends DefaultTask {
             }
             spec.setIgnoreExitValue(true);
         });
+        if (OS.current().equals(OS.LINUX) && result.getExitValue() == SIG_KILL_EXIT_VALUE) {
+            throw new IllegalStateException(
+                "Third party audit was killed buy SIGKILL, could be a victim of the Linux OOM killer"
+            );
+        }
         final String forbiddenApisOutput;
         try (ByteArrayOutputStream outputStream = errorOut) {
             forbiddenApisOutput = outputStream.toString(StandardCharsets.UTF_8.name());
+        }
+        if (EXPECTED_EXIT_CODES.contains(result.getExitValue()) == false) {
+            throw new IllegalStateException("Forbidden APIs cli failed: " + forbiddenApisOutput);
         }
         return forbiddenApisOutput;
     }

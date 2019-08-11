@@ -30,6 +30,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -42,6 +44,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -58,9 +61,37 @@ public class GlobalCheckpointSyncIT extends ESIntegTestCase {
                 .collect(Collectors.toList());
     }
 
+    public void testGlobalCheckpointSyncWithAsyncDurability() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        prepareCreate(
+            "test",
+            Settings.builder()
+                .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "1s")
+                .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)
+                .put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), "1s")
+                .put("index.number_of_replicas", 1))
+            .get();
+
+        for (int j = 0; j < 10; j++) {
+            final String id = Integer.toString(j);
+            client().prepareIndex("test", "test", id).setSource("{\"foo\": " + id + "}", XContentType.JSON).get();
+        }
+
+        assertBusy(() -> {
+            SeqNoStats seqNoStats = client().admin().indices().prepareStats("test").get().getIndex("test").getShards()[0].getSeqNoStats();
+            assertThat(seqNoStats.getGlobalCheckpoint(), equalTo(seqNoStats.getMaxSeqNo()));
+        });
+    }
+
     public void testPostOperationGlobalCheckpointSync() throws Exception {
-        // set the sync interval high so it does not execute during this test
-        runGlobalCheckpointSyncTest(TimeValue.timeValueHours(24), client -> {}, client -> {});
+        // set the sync interval high so it does not execute during this test. This only allows the global checkpoint to catch up
+        // on a post-operation background sync if translog durability is set to sync. Async durability relies on a scheduled global
+        // checkpoint sync to allow the information about persisted local checkpoints to be transferred to the primary.
+        runGlobalCheckpointSyncTest(TimeValue.timeValueHours(24),
+            client ->
+                client.admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder()
+                    .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)).get(),
+            client -> {});
     }
 
     /*
@@ -188,7 +219,7 @@ public class GlobalCheckpointSyncIT extends ESIntegTestCase {
                     assertThat(seqNoStats.getGlobalCheckpoint(), equalTo(primarySeqNoStats.getGlobalCheckpoint()));
                 }
             }
-        });
+        }, 30, TimeUnit.SECONDS);
 
         for (final Thread thread : threads) {
             thread.join();

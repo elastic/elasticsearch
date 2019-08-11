@@ -1,25 +1,19 @@
 setup:
-  - skip:
-      version: " - 6.2.99"
-      reason: index_prefixes is only available as of 6.3.0
-
   - do:
       indices.create:
         index:  test
         body:
           mappings:
-            test:
-              properties:
-                text:
-                  type: text
-                  index_prefixes:
-                    min_chars: 2
-                    max_chars: 5
+            properties:
+              text:
+                type: text
+                index_prefixes:
+                  min_chars: 2
+                  max_chars: 5
 
   - do:
       index:
           index:  test
-          type:   test
           id:     1
           body:   { text: some short words with a stupendously long one }
 
@@ -29,9 +23,6 @@ setup:
 
 ---
 "search with index prefixes":
-  - skip:
-      version: " - 6.2.99"
-      reason: index_prefixes is only available as of 6.3.0
   - do:
       search:
         rest_total_hits_as_int: true
@@ -87,9 +78,6 @@ setup:
 
 ---
 "search index prefixes with span_multi":
-  - skip:
-      version: " - 6.99.99"
-      reason: span_multi throws an exception with prefix fields on < versions
 
   - do:
       search:
@@ -104,4 +92,3 @@ setup:
               ]
 
   - match: {hits.total: 1}
-

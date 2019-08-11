@@ -1,7 +1,7 @@
 [[zip-windows]]
 === Install Elasticsearch with `.zip` on Windows
 
-Elasticsearch can be installed on Windows using the `.zip` package.  This
+Elasticsearch can be installed on Windows using the Windows `.zip` archive.  This
 comes with a `elasticsearch-service.bat` command which will setup Elasticsearch to run as a
 service.
 
@@ -11,14 +11,22 @@ experience for Windows. You can continue using the `.zip` approach if you prefer
 
 include::license.asciidoc[]
 
+NOTE: On Windows the Elasticsearch {ml} feature requires the Microsoft Universal
+C Runtime library. This is built into Windows 10, Windows Server 2016 and more
+recent versions of Windows. For older versions of Windows it can be installed
+via Windows Update, or from a
+https://support.microsoft.com/en-us/help/2999226/update-for-universal-c-runtime-in-windows[separate download].
+If you cannot install the Microsoft Universal C Runtime library you can still
+use the rest of Elasticsearch if you disable the {ml} feature.
+
 The latest stable version of Elasticsearch can be found on the
 link:/downloads/elasticsearch[Download Elasticsearch] page.
 Other versions can be found on the
 link:/downloads/past-releases[Past Releases page].
 
-NOTE: Elasticsearch requires Java 8 or later. Use the
-http://www.oracle.com/technetwork/java/javase/downloads/index.html[official Oracle distribution]
-or an open-source distribution such as http://openjdk.java.net[OpenJDK].
+NOTE: Elasticsearch includes a bundled version of http://openjdk.java.net[OpenJDK]
+from the JDK maintainers (GPLv2+CE). To use your own version of Java,
+see the <<jvm-version, JVM version requirements>>
 
 [[install-windows]]
 ==== Download and install the `.zip` package
@@ -31,11 +39,11 @@ endif::[]
 
 ifeval::["{release-state}"!="unreleased"]
 
-Download the `.zip` archive for Elasticsearch v{version} from: https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.zip
+Download the `.zip` archive for Elasticsearch v{version} from: https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-windows-x86_64.zip
 
 Alternatively, you can download the following package, which contains only 
 features that are available under the Apache 2.0 license: 
-https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}.zip
+https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}-windows-x86_64.zip
 
 Unzip it with your favourite unzip tool.  This will create a folder called
 +elasticsearch-{version}+, which we will refer to as `%ES_HOME%`. In a terminal
@@ -49,10 +57,10 @@ cd c:\elasticsearch-{version}
 endif::[]
 
 ifdef::include-xpack[]
+[role="xpack"]
 [[windows-enable-indices]]
-==== Enable automatic creation of {xpack} indices
+==== Enable automatic creation of system indices
 
-{xpack} will try to automatically create a number of indices within {es}.
 include::xpack-indices.asciidoc[]
 
 endif::include-xpack[]

@@ -1,5 +1,8 @@
 [[geo-shape]]
-=== Geo-Shape datatype
+=== Geo-shape datatype
+++++
+<titleabbrev>Geo-shape</titleabbrev>
+++++
 
 The `geo_shape` datatype facilitates the indexing of and searching
 with arbitrary geo shapes such as rectangles and polygons. It should be
@@ -21,7 +24,7 @@ type.
 |=======================================================================
 |Option |Description| Default
 
-|`tree |deprecated[6.6, PrefixTrees no longer used] Name of the PrefixTree
+|`tree` |deprecated[6.6, PrefixTrees no longer used] Name of the PrefixTree
 implementation to be used: `geohash` for GeohashPrefixTree and `quadtree`
 for QuadPrefixTree. Note: This parameter is only relevant for `term` and
 `recursive` strategies.
@@ -108,6 +111,8 @@ geo-points containing any more than latitude and longitude (two dimensions) valu
 and reject the whole document.
 | `true`
 
+|`coerce` |If `true` unclosed linear rings in polygons will be automatically closed.
+| `false`
 
 |=======================================================================
 
@@ -126,6 +131,20 @@ this is the default indexing technique prefix trees can still be used by setting
 the `tree` or `strategy` parameters according to the appropriate
 <<geo-shape-mapping-options>>. Note that these parameters are now deprecated
 and will be removed in a future version.
+
+*IMPORTANT NOTES*
+
+The following features are not yet supported with the new indexing approach:
+
+* `geo_shape` query with `MultiPoint` geometry types - Elasticsearch currently prevents searching
+   geo_shape fields with a MultiPoint geometry type to avoid a brute force linear search
+   over each individual point. For now, if this is absolutely needed, this can be achieved
+   using a `bool` query with each individual point.
+
+* `CONTAINS` relation query - when using the new default vector indexing strategy, `geo_shape`
+   queries with `relation` defined as `contains` are not yet supported. If this query relation
+   is an absolute necessity, it is recommended to set `strategy` to `quadtree` and use the
+   deprecated PrefixTree strategy indexing approach.
 
 [[prefix-trees]]
 [float]
@@ -277,7 +296,7 @@ differs from many Geospatial APIs (e.g., Google Maps) that generally
 use the colloquial latitude, longitude (Y, X).
 =============================================
 
-[[point]]
+[[geo-point-type]]
 [float]
 ===== http://geojson.org/geojson-spec.html#id2[Point]
 
@@ -309,6 +328,7 @@ POST /example/_doc
 // CONSOLE
 
 [float]
+[[geo-linestring]]
 ===== http://geojson.org/geojson-spec.html#id3[LineString]
 
 A `linestring` defined by an array of two or more positions. By
@@ -343,6 +363,7 @@ The above `linestring` would draw a straight line starting at the White
 House to the US Capitol Building.
 
 [float]
+[[geo-polygon]]
 ===== http://www.geojson.org/geojson-spec.html#id4[Polygon]
 
 A polygon is defined by a list of a list of points. The first and last
@@ -459,6 +480,7 @@ POST /example/_doc
 // CONSOLE
 
 [float]
+[[geo-multipoint]]
 ===== http://www.geojson.org/geojson-spec.html#id5[MultiPoint]
 
 The following is an example of a list of geojson points:
@@ -489,6 +511,7 @@ POST /example/_doc
 // CONSOLE
 
 [float]
+[[geo-multilinestring]]
 ===== http://www.geojson.org/geojson-spec.html#id6[MultiLineString]
 
 The following is an example of a list of geojson linestrings:
@@ -521,6 +544,7 @@ POST /example/_doc
 // CONSOLE
 
 [float]
+[[geo-multipolygon]]
 ===== http://www.geojson.org/geojson-spec.html#id7[MultiPolygon]
 
 The following is an example of a list of geojson polygons (second polygon contains a hole):
@@ -553,6 +577,7 @@ POST /example/_doc
 // CONSOLE
 
 [float]
+[[geo-geometry_collection]]
 ===== http://geojson.org/geojson-spec.html#geometrycollection[Geometry Collection]
 
 The following is an example of a collection of geojson geometry objects:
@@ -595,7 +620,7 @@ POST /example/_doc
 
 Elasticsearch supports an `envelope` type, which consists of coordinates
 for upper left and lower right points of the shape to represent a
-bounding rectangle in the format [[minLon, maxLat],[maxLon, minLat]]:
+bounding rectangle in the format `[[minLon, maxLat], [maxLon, minLat]]`:
 
 [source,js]
 --------------------------------------------------

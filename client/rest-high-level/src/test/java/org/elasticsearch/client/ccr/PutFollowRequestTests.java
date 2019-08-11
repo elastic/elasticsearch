@@ -19,70 +19,24 @@
 
 package org.elasticsearch.client.ccr;
 
+import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.client.AbstractRequestTestCase;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xpack.core.ccr.action.FollowParameters;
+import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 
 import java.io.IOException;
 
-public class PutFollowRequestTests extends AbstractXContentTestCase<PutFollowRequest> {
+import static org.hamcrest.Matchers.equalTo;
 
-    private static final ConstructingObjectParser<PutFollowRequest, Void> PARSER = new ConstructingObjectParser<>("test_parser",
-        true, (args) -> new PutFollowRequest((String) args[0], (String) args[1], (String) args[2]));
-
-    static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), PutFollowRequest.REMOTE_CLUSTER_FIELD);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), PutFollowRequest.LEADER_INDEX_FIELD);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), PutFollowRequest.FOLLOWER_INDEX_FIELD);
-        PARSER.declareInt(PutFollowRequest::setMaxReadRequestOperationCount, PutFollowRequest.MAX_READ_REQUEST_OPERATION_COUNT);
-        PARSER.declareField(
-            PutFollowRequest::setMaxReadRequestSize,
-            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), PutFollowRequest.MAX_READ_REQUEST_SIZE.getPreferredName()),
-            PutFollowRequest.MAX_READ_REQUEST_SIZE,
-            ObjectParser.ValueType.STRING);
-        PARSER.declareInt(PutFollowRequest::setMaxOutstandingReadRequests, PutFollowRequest.MAX_OUTSTANDING_READ_REQUESTS);
-        PARSER.declareInt(PutFollowRequest::setMaxWriteRequestOperationCount, PutFollowRequest.MAX_WRITE_REQUEST_OPERATION_COUNT);
-        PARSER.declareField(
-            PutFollowRequest::setMaxWriteRequestSize,
-            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), PutFollowRequest.MAX_WRITE_REQUEST_SIZE.getPreferredName()),
-            PutFollowRequest.MAX_WRITE_REQUEST_SIZE,
-            ObjectParser.ValueType.STRING);
-        PARSER.declareInt(PutFollowRequest::setMaxOutstandingWriteRequests, PutFollowRequest.MAX_OUTSTANDING_WRITE_REQUESTS);
-        PARSER.declareInt(PutFollowRequest::setMaxWriteBufferCount, PutFollowRequest.MAX_WRITE_BUFFER_COUNT);
-        PARSER.declareField(
-            PutFollowRequest::setMaxWriteBufferSize,
-            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), PutFollowRequest.MAX_WRITE_BUFFER_SIZE.getPreferredName()),
-            PutFollowRequest.MAX_WRITE_BUFFER_SIZE,
-            ObjectParser.ValueType.STRING);
-        PARSER.declareField(
-            PutFollowRequest::setMaxRetryDelay,
-            (p, c) -> TimeValue.parseTimeValue(p.text(), PutFollowRequest.MAX_RETRY_DELAY_FIELD.getPreferredName()),
-            PutFollowRequest.MAX_RETRY_DELAY_FIELD,
-            ObjectParser.ValueType.STRING);
-        PARSER.declareField(
-            PutFollowRequest::setReadPollTimeout,
-            (p, c) -> TimeValue.parseTimeValue(p.text(), PutFollowRequest.READ_POLL_TIMEOUT.getPreferredName()),
-            PutFollowRequest.READ_POLL_TIMEOUT,
-            ObjectParser.ValueType.STRING);
-    }
+public class PutFollowRequestTests extends AbstractRequestTestCase<PutFollowRequest, PutFollowAction.Request> {
 
     @Override
-    protected PutFollowRequest doParseInstance(XContentParser parser) throws IOException {
-        return PARSER.apply(parser, null);
-    }
-
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
-
-    @Override
-    protected PutFollowRequest createTestInstance() {
+    protected PutFollowRequest createClientTestInstance() {
         PutFollowRequest putFollowRequest =
-            new PutFollowRequest(randomAlphaOfLength(4), randomAlphaOfLength(4), randomAlphaOfLength(4));
+            new PutFollowRequest(randomAlphaOfLength(4), randomAlphaOfLength(4), "followerIndex");
         if (randomBoolean()) {
             putFollowRequest.setMaxOutstandingReadRequests(randomIntBetween(0, Integer.MAX_VALUE));
         }
@@ -114,6 +68,32 @@ public class PutFollowRequestTests extends AbstractXContentTestCase<PutFollowReq
             putFollowRequest.setReadPollTimeout(new TimeValue(randomNonNegativeLong()));
         }
         return putFollowRequest;
+    }
+
+    @Override
+    protected PutFollowAction.Request doParseToServerInstance(XContentParser parser) throws IOException {
+        return PutFollowAction.Request.fromXContent(parser, "followerIndex", ActiveShardCount.DEFAULT);
+    }
+
+    @Override
+    protected void assertInstances(PutFollowAction.Request serverInstance, PutFollowRequest clientTestInstance) {
+        assertThat(serverInstance.getRemoteCluster(), equalTo(clientTestInstance.getRemoteCluster()));
+        assertThat(serverInstance.getLeaderIndex(), equalTo(clientTestInstance.getLeaderIndex()));
+        assertThat(serverInstance.getFollowerIndex(), equalTo(clientTestInstance.getFollowerIndex()));
+        assertFollowConfig(serverInstance.getParameters(), clientTestInstance);
+    }
+
+    static void assertFollowConfig(FollowParameters serverParameters, FollowConfig clientConfig) {
+        assertThat(serverParameters.getMaxReadRequestOperationCount(), equalTo(clientConfig.getMaxReadRequestOperationCount()));
+        assertThat(serverParameters.getMaxWriteRequestOperationCount(), equalTo(clientConfig.getMaxWriteRequestOperationCount()));
+        assertThat(serverParameters.getMaxOutstandingReadRequests(), equalTo(clientConfig.getMaxOutstandingReadRequests()));
+        assertThat(serverParameters.getMaxOutstandingWriteRequests(), equalTo(clientConfig.getMaxOutstandingWriteRequests()));
+        assertThat(serverParameters.getMaxReadRequestSize(), equalTo(clientConfig.getMaxReadRequestSize()));
+        assertThat(serverParameters.getMaxWriteRequestSize(), equalTo(clientConfig.getMaxWriteRequestSize()));
+        assertThat(serverParameters.getMaxWriteBufferCount(), equalTo(clientConfig.getMaxWriteBufferCount()));
+        assertThat(serverParameters.getMaxWriteBufferSize(), equalTo(clientConfig.getMaxWriteBufferSize()));
+        assertThat(serverParameters.getMaxRetryDelay(), equalTo(clientConfig.getMaxRetryDelay()));
+        assertThat(serverParameters.getReadPollTimeout(), equalTo(clientConfig.getReadPollTimeout()));
     }
 
 }

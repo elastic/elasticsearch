@@ -30,7 +30,6 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.client.Requests;
@@ -134,18 +133,7 @@ public class TaskResultsService {
                 // The index already exists but doesn't have our mapping
                 client.admin().indices().preparePutMapping(TASK_INDEX).setType(TASK_TYPE)
                     .setSource(taskResultIndexMapping(), XContentType.JSON)
-                    .execute(new ActionListener<AcknowledgedResponse>() {
-                                 @Override
-                                 public void onResponse(AcknowledgedResponse putMappingResponse) {
-                                     doStoreResult(taskResult, listener);
-                                 }
-
-                                 @Override
-                                 public void onFailure(Exception e) {
-                                     listener.onFailure(e);
-                                 }
-                             }
-                    );
+                    .execute(ActionListener.delegateFailure(listener, (l, r) -> doStoreResult(taskResult, listener)));
             } else {
                 doStoreResult(taskResult, listener);
             }
@@ -190,7 +178,7 @@ public class TaskResultsService {
                 } else {
                     TimeValue wait = backoff.next();
                     logger.warn(() -> new ParameterizedMessage("failed to store task result, retrying in [{}]", wait), e);
-                    threadPool.schedule(wait, ThreadPool.Names.SAME, () -> doStoreResult(backoff, index, listener));
+                    threadPool.schedule(() -> doStoreResult(backoff, index, listener), wait, ThreadPool.Names.SAME);
                 }
             }
         });

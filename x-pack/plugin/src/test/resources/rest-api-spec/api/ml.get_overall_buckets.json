@@ -1,9 +1,9 @@
 {
   "ml.get_overall_buckets": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-overall-buckets.html",
+    "stability": "stable",
     "methods": [ "GET", "POST" ],
     "url": {
-      "path": "/_ml/anomaly_detectors/{job_id}/results/overall_buckets",
       "paths": [
         "/_ml/anomaly_detectors/{job_id}/results/overall_buckets"
       ],

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -38,6 +39,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
     private String[] fieldDataFields = null;
     private String[] completionDataFields = null;
     private boolean includeSegmentFileSizes = false;
+    private boolean includeUnloadedSegments = false;
 
     /**
      * @param flags flags to set. If no flags are supplied, default flags will be set.
@@ -62,6 +64,9 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         fieldDataFields = in.readStringArray();
         completionDataFields = in.readStringArray();
         includeSegmentFileSizes = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
+            includeUnloadedSegments = in.readBoolean();
+        }
     }
 
     @Override
@@ -77,6 +82,9 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         out.writeStringArrayNullable(fieldDataFields);
         out.writeStringArrayNullable(completionDataFields);
         out.writeBoolean(includeSegmentFileSizes);
+        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
+            out.writeBoolean(includeUnloadedSegments);
+        }
     }
 
     /**
@@ -89,6 +97,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         fieldDataFields = null;
         completionDataFields = null;
         includeSegmentFileSizes = false;
+        includeUnloadedSegments = false;
         return this;
     }
 
@@ -102,6 +111,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         fieldDataFields = null;
         completionDataFields = null;
         includeSegmentFileSizes = false;
+        includeUnloadedSegments = false;
         return this;
     }
 
@@ -168,6 +178,15 @@ public class CommonStatsFlags implements Writeable, Cloneable {
     public CommonStatsFlags includeSegmentFileSizes(boolean includeSegmentFileSizes) {
         this.includeSegmentFileSizes = includeSegmentFileSizes;
         return this;
+    }
+
+    public CommonStatsFlags includeUnloadedSegments(boolean includeUnloadedSegments) {
+        this.includeUnloadedSegments = includeUnloadedSegments;
+        return this;
+    }
+
+    public boolean includeUnloadedSegments() {
+        return this.includeUnloadedSegments;
     }
 
     public boolean includeSegmentFileSizes() {

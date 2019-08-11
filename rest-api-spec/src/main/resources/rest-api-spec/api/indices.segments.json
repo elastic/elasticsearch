@@ -1,9 +1,9 @@
 {
   "indices.segments": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-segments.html",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-segments.html",
+    "stability": "stable",
     "methods": ["GET"],
     "url": {
-      "path": "/_segments",
       "paths": ["/_segments", "/{index}/_segments"],
       "parts": {
         "index": {

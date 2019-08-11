@@ -91,6 +91,7 @@ PUT index
 // CONSOLE
 
 [float]
+[[default-dynamic-string-mapping]]
 === Don't use default dynamic string mappings
 
 The default <<dynamic-mapping,dynamic string mappings>> will index string fields
@@ -133,11 +134,13 @@ Larger shards are going to be more efficient at storing data. To increase the si
 Keep in mind that large shard sizes come with drawbacks, such as long full recovery times.
 
 [float]
+[[disable-source]]
 === Disable `_source`
 
 The <<mapping-source-field,`_source`>> field stores the original JSON body of the document. If you don’t need access to it you can disable it. However, APIs that needs access to `_source` such as update and reindex won’t work.
 
 [float]
+[[best-compression]]
 === Use `best_compression`
 
 The `_source` and stored fields can easily take a non negligible amount of disk

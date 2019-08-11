@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -140,9 +139,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         }
         trackScores = in.readBoolean();
         version = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
-            seqNoAndPrimaryTerm = in.readBoolean();
-        }
+        seqNoAndPrimaryTerm = in.readBoolean();
     }
 
     @Override
@@ -179,9 +176,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         }
         out.writeBoolean(trackScores);
         out.writeBoolean(version);
-        if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
-            out.writeBoolean(seqNoAndPrimaryTerm);
-        }
+        out.writeBoolean(seqNoAndPrimaryTerm);
     }
 
     /**
@@ -237,8 +232,9 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         }
         if (name.equals(ScoreSortBuilder.NAME)) {
             sort(SortBuilders.scoreSort().order(order));
+        } else {
+            sort(SortBuilders.fieldSort(name).order(order));
         }
-        sort(SortBuilders.fieldSort(name).order(order));
         return this;
     }
 
@@ -254,8 +250,9 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         }
         if (name.equals(ScoreSortBuilder.NAME)) {
             sort(SortBuilders.scoreSort());
+        } else {
+            sort(SortBuilders.fieldSort(name));
         }
-        sort(SortBuilders.fieldSort(name));
         return this;
     }
 
@@ -575,7 +572,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     }
 
     @Override
-    protected TopHitsAggregatorFactory doBuild(SearchContext context, AggregatorFactory<?> parent, Builder subfactoriesBuilder)
+    protected TopHitsAggregatorFactory doBuild(SearchContext context, AggregatorFactory parent, Builder subfactoriesBuilder)
             throws IOException {
         long innerResultWindow = from() + size();
         int maxInnerResultWindow = context.mapperService().getIndexSettings().getMaxInnerResultWindow();
@@ -773,26 +770,31 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(explain, fetchSourceContext, docValueFields, storedFieldsContext, from, highlightBuilder,
-            scriptFields, size, sorts, trackScores, version, seqNoAndPrimaryTerm);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), explain, fetchSourceContext, docValueFields,
+            storedFieldsContext, from, highlightBuilder,
+            scriptFields, size, sorts, trackScores, version,
+            seqNoAndPrimaryTerm);
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         TopHitsAggregationBuilder other = (TopHitsAggregationBuilder) obj;
         return Objects.equals(explain, other.explain)
-                && Objects.equals(fetchSourceContext, other.fetchSourceContext)
-                && Objects.equals(docValueFields, other.docValueFields)
-                && Objects.equals(storedFieldsContext, other.storedFieldsContext)
-                && Objects.equals(from, other.from)
-                && Objects.equals(highlightBuilder, other.highlightBuilder)
-                && Objects.equals(scriptFields, other.scriptFields)
-                && Objects.equals(size, other.size)
-                && Objects.equals(sorts, other.sorts)
-                && Objects.equals(trackScores, other.trackScores)
-                && Objects.equals(version, other.version)
-                && Objects.equals(seqNoAndPrimaryTerm, other.seqNoAndPrimaryTerm);
+            && Objects.equals(fetchSourceContext, other.fetchSourceContext)
+            && Objects.equals(docValueFields, other.docValueFields)
+            && Objects.equals(storedFieldsContext, other.storedFieldsContext)
+            && Objects.equals(from, other.from)
+            && Objects.equals(highlightBuilder, other.highlightBuilder)
+            && Objects.equals(scriptFields, other.scriptFields)
+            && Objects.equals(size, other.size)
+            && Objects.equals(sorts, other.sorts)
+            && Objects.equals(trackScores, other.trackScores)
+            && Objects.equals(version, other.version)
+            && Objects.equals(seqNoAndPrimaryTerm, other.seqNoAndPrimaryTerm);
     }
 
     @Override

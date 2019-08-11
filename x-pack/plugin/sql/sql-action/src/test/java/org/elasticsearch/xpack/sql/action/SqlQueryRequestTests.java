@@ -41,21 +41,22 @@ public class SqlQueryRequestTests extends AbstractSerializingTestCase<SqlQueryRe
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         return new NamedWriteableRegistry(searchModule.getNamedWriteables());
     }
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         return new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 
     @Override
     protected SqlQueryRequest createTestInstance() {
         return new SqlQueryRequest(randomAlphaOfLength(10), randomParameters(), SqlTestUtils.randomFilterOrNull(random()),
-                randomZone(), between(1, Integer.MAX_VALUE),
-                randomTV(), randomTV(), randomAlphaOfLength(10), requestInfo
+                randomZone(), between(1, Integer.MAX_VALUE), randomTV(),
+                randomTV(), randomBoolean(), randomAlphaOfLength(10), requestInfo,
+                randomBoolean(), randomBoolean()
         );
     }
     
@@ -109,11 +110,12 @@ public class SqlQueryRequestTests extends AbstractSerializingTestCase<SqlQueryRe
                 request -> request.requestTimeout(randomValueOtherThan(request.requestTimeout(), this::randomTV)),
                 request -> request.filter(randomValueOtherThan(request.filter(),
                         () -> request.filter() == null ? randomFilter(random()) : randomFilterOrNull(random()))),
+                request -> request.columnar(randomValueOtherThan(request.columnar(), () -> randomBoolean())),
                 request -> request.cursor(randomValueOtherThan(request.cursor(), SqlQueryResponseTests::randomStringCursor))
         );
         SqlQueryRequest newRequest = new SqlQueryRequest(instance.query(), instance.params(), instance.filter(),
-                instance.zoneId(), instance.fetchSize(), instance.requestTimeout(), instance.pageTimeout(), instance.cursor(),
-                instance.requestInfo());
+                instance.zoneId(), instance.fetchSize(), instance.requestTimeout(), instance.pageTimeout(), instance.columnar(),
+                instance.cursor(), instance.requestInfo(), instance.fieldMultiValueLeniency(), instance.indexIncludeFrozen());
         mutator.accept(newRequest);
         return newRequest;
     }

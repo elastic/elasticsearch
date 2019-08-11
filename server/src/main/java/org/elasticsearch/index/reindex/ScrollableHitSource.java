@@ -21,6 +21,7 @@ package org.elasticsearch.index.reindex;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Nullable;
@@ -33,18 +34,22 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static java.util.Objects.requireNonNull;
 
 /**
- * A scrollable source of results.
+ * A scrollable source of results. Pumps data out into the passed onResponse consumer. Same data may come out several times in case
+ * of failures during searching (though not yet). Once the onResponse consumer is done, it should call AsyncResponse.isDone(time) to receive
+ * more data (only receives one response at a time).
  */
 public abstract class ScrollableHitSource {
     private final AtomicReference<String> scrollId = new AtomicReference<>();
@@ -53,33 +58,57 @@ public abstract class ScrollableHitSource {
     protected final BackoffPolicy backoffPolicy;
     protected final ThreadPool threadPool;
     protected final Runnable countSearchRetry;
+    private final Consumer<AsyncResponse> onResponse;
     protected final Consumer<Exception> fail;
 
     public ScrollableHitSource(Logger logger, BackoffPolicy backoffPolicy, ThreadPool threadPool, Runnable countSearchRetry,
-            Consumer<Exception> fail) {
+                               Consumer<AsyncResponse> onResponse, Consumer<Exception> fail) {
         this.logger = logger;
         this.backoffPolicy = backoffPolicy;
         this.threadPool = threadPool;
         this.countSearchRetry = countSearchRetry;
+        this.onResponse = onResponse;
         this.fail = fail;
     }
 
-    public final void start(Consumer<Response> onResponse) {
-        doStart(response -> {
-           setScroll(response.getScrollId());
-           logger.debug("scroll returned [{}] documents with a scroll id of [{}]", response.getHits().size(), response.getScrollId());
-           onResponse.accept(response);
-        });
+    public final void start() {
+        doStart(createRetryListener(this::doStart));
     }
-    protected abstract void doStart(Consumer<? super Response> onResponse);
 
-    public final void startNextScroll(TimeValue extraKeepAlive, Consumer<Response> onResponse) {
-        doStartNextScroll(scrollId.get(), extraKeepAlive, response -> {
-            setScroll(response.getScrollId());
-            onResponse.accept(response);
+    private RetryListener createRetryListener(Consumer<RejectAwareActionListener<Response>> retryHandler) {
+        Consumer<RejectAwareActionListener<Response>> countingRetryHandler = listener -> {
+            countSearchRetry.run();
+            retryHandler.accept(listener);
+        };
+        return new RetryListener(logger, threadPool, backoffPolicy, countingRetryHandler,
+            ActionListener.wrap(this::onResponse, fail));
+    }
+
+    // package private for tests.
+    final void startNextScroll(TimeValue extraKeepAlive) {
+        startNextScroll(extraKeepAlive, createRetryListener(listener -> startNextScroll(extraKeepAlive, listener)));
+    }
+    private void startNextScroll(TimeValue extraKeepAlive, RejectAwareActionListener<Response> searchListener) {
+        doStartNextScroll(scrollId.get(), extraKeepAlive, searchListener);
+    }
+
+    private void onResponse(Response response) {
+        logger.debug("scroll returned [{}] documents with a scroll id of [{}]", response.getHits().size(), response.getScrollId());
+        setScroll(response.getScrollId());
+        onResponse.accept(new AsyncResponse() {
+            private AtomicBoolean alreadyDone = new AtomicBoolean();
+            @Override
+            public Response response() {
+                return response;
+            }
+
+            @Override
+            public void done(TimeValue extraKeepAlive) {
+                assert alreadyDone.compareAndSet(false, true);
+                startNextScroll(extraKeepAlive);
+            }
         });
     }
-    protected abstract void doStartNextScroll(String scrollId, TimeValue extraKeepAlive, Consumer<? super Response> onResponse);
 
     public final void close(Runnable onCompletion) {
         String scrollId = this.scrollId.get();
@@ -89,6 +118,12 @@ public abstract class ScrollableHitSource {
             cleanup(onCompletion);
         }
     }
+
+    // following is the SPI to be implemented.
+    protected abstract void doStart(RejectAwareActionListener<Response> searchListener);
+
+    protected abstract void doStartNextScroll(String scrollId, TimeValue extraKeepAlive,
+                                              RejectAwareActionListener<Response> searchListener);
 
     /**
      * Called to clear a scroll id.
@@ -112,6 +147,19 @@ public abstract class ScrollableHitSource {
      */
     public final void setScroll(String scrollId) {
         this.scrollId.set(scrollId);
+    }
+
+    public interface AsyncResponse {
+        /**
+         * The response data made available.
+         */
+        Response response();
+
+        /**
+         * Called when done processing response to signal more data is needed.
+         * @param extraKeepAlive extra time to keep underlying scroll open.
+         */
+        void done(TimeValue extraKeepAlive);
     }
 
     /**
@@ -190,6 +238,17 @@ public abstract class ScrollableHitSource {
          * internal APIs.
          */
         long getVersion();
+
+        /**
+         * The sequence number of the match or {@link SequenceNumbers#UNASSIGNED_SEQ_NO} if sequence numbers weren't requested.
+         */
+        long getSeqNo();
+
+        /**
+         * The primary term of the match or {@link SequenceNumbers#UNASSIGNED_PRIMARY_TERM} if sequence numbers weren't requested.
+         */
+        long getPrimaryTerm();
+
         /**
          * The source of the hit. Returns null if the source didn't come back from the search, usually because it source wasn't stored at
          * all.
@@ -217,6 +276,8 @@ public abstract class ScrollableHitSource {
         private BytesReference source;
         private XContentType xContentType;
         private String routing;
+        private long seqNo;
+        private long primaryTerm;
 
         public BasicHit(String index, String type, String id, long version) {
             this.index = index;
@@ -246,6 +307,16 @@ public abstract class ScrollableHitSource {
         }
 
         @Override
+        public long getSeqNo() {
+            return seqNo;
+        }
+
+        @Override
+        public long getPrimaryTerm() {
+            return primaryTerm;
+        }
+
+        @Override
         public BytesReference getSource() {
             return source;
         }
@@ -269,6 +340,14 @@ public abstract class ScrollableHitSource {
         public BasicHit setRouting(String routing) {
             this.routing = routing;
             return this;
+        }
+
+        public void setSeqNo(long seqNo) {
+            this.seqNo = seqNo;
+        }
+
+        public void setPrimaryTerm(long primaryTerm) {
+            this.primaryTerm = primaryTerm;
         }
     }
 

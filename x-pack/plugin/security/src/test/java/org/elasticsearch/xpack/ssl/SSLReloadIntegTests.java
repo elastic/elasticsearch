@@ -115,6 +115,10 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
         try (SSLSocket socket = (SSLSocket) sslSocketFactory.createSocket(address.getAddress(), address.getPort())) {
             assertThat(socket.isConnected(), is(true));
             socket.startHandshake();
+            if (socket.getSession().getProtocol().equals("TLSv1.3")) {
+                // blocking read for TLSv1.3 to see if the other side closed the connection
+                socket.getInputStream().read();
+            }
             fail("handshake should not have been successful!");
         } catch (SSLException | SocketException expected) {
             logger.trace("expected exception", expected);

@@ -6,7 +6,7 @@
 <titleabbrev>Get buckets</titleabbrev>
 ++++
 
-Retrieves job results for one or more buckets.
+Retrieves {anomaly-job} results for one or more buckets.
 
 [[ml-get-bucket-request]]
 ==== {api-request-title}
@@ -36,7 +36,7 @@ bucket.
 ==== {api-path-parms-title}
 
 `<job_id>`::
-  (Required, string) Identifier for the job
+  (Required, string) Identifier for the {anomaly-job}.
 
 `<timestamp>`::
   (Optional, string) The timestamp of a single bucket result. If you do not

@@ -13,7 +13,7 @@
 
 FROM centos:7 AS builder
 
-ENV PATH /usr/share/elasticsearch/bin:$PATH
+ENV PATH /usr/share/elasticsearch/bin:\$PATH
 
 RUN groupadd -g 1000 elasticsearch && \
     adduser -u 1000 -g 1000 -d /usr/share/elasticsearch elasticsearch
@@ -41,8 +41,8 @@ ENV ELASTIC_CONTAINER true
 
 RUN for iter in {1..10}; do yum update -y && \
     yum install -y nc && \
-    yum clean all && exit_code=0 && break || exit_code=$? && echo "yum error: retry $iter in 10s" && sleep 10; done; \
-    (exit $exit_code)
+    yum clean all && exit_code=0 && break || exit_code=\$? && echo "yum error: retry \$iter in 10s" && sleep 10; done; \
+    (exit \$exit_code)
 
 RUN groupadd -g 1000 elasticsearch && \
     adduser -u 1000 -g 1000 -G 0 -d /usr/share/elasticsearch elasticsearch && \
@@ -57,7 +57,7 @@ COPY --from=builder --chown=1000:0 /usr/share/elasticsearch /usr/share/elasticse
 # REF: https://github.com/elastic/elasticsearch-docker/issues/171
 RUN ln -sf /etc/pki/ca-trust/extracted/java/cacerts /usr/share/elasticsearch/jdk/lib/security/cacerts
 
-ENV PATH /usr/share/elasticsearch/bin:$PATH
+ENV PATH /usr/share/elasticsearch/bin:\$PATH
 
 COPY --chown=1000:0 bin/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
@@ -69,13 +69,25 @@ RUN chgrp 0 /usr/local/bin/docker-entrypoint.sh && \
 
 EXPOSE 9200 9300
 
-LABEL org.label-schema.schema-version="1.0" \
-  org.label-schema.vendor="Elastic" \
-  org.label-schema.name="elasticsearch" \
-  org.label-schema.version="${version}" \
+LABEL org.label-schema.build-date="${build_date}" \
+  org.label-schema.license="${license}" \
+  org.label-schema.name="Elasticsearch" \
+  org.label-schema.schema-version="1.0" \
   org.label-schema.url="https://www.elastic.co/products/elasticsearch" \
+  org.label-schema.usage="https://www.elastic.co/guide/en/elasticsearch/reference/index.html" \
+  org.label-schema.vcs-ref="${git_revision}" \
   org.label-schema.vcs-url="https://github.com/elastic/elasticsearch" \
-  license="${license}"
+  org.label-schema.vendor="Elastic" \
+  org.label-schema.version="${version}" \
+  org.opencontainers.image.created="${build_date}" \
+  org.opencontainers.image.documentation="https://www.elastic.co/guide/en/elasticsearch/reference/index.html" \
+  org.opencontainers.image.licenses="${license}" \
+  org.opencontainers.image.revision="${git_revision}" \
+  org.opencontainers.image.source="https://github.com/elastic/elasticsearch" \
+  org.opencontainers.image.title="Elasticsearch" \
+  org.opencontainers.image.url="https://www.elastic.co/products/elasticsearch" \
+  org.opencontainers.image.vendor="Elastic" \
+  org.opencontainers.image.version="${version}"
 
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 # Dummy overridable parameter parsed by entrypoint

@@ -41,6 +41,7 @@ public class TimingStatsTests extends AbstractXContentTestCase<TimingStats> {
             randomBoolean() ? null : randomDouble(),
             randomBoolean() ? null : randomDouble(),
             randomBoolean() ? null : randomDouble(),
+            randomBoolean() ? null : randomDouble(),
             randomBoolean() ? null : randomDouble());
     }
 
@@ -60,7 +61,7 @@ public class TimingStatsTests extends AbstractXContentTestCase<TimingStats> {
     }
 
     public void testConstructor() {
-        TimingStats stats = new TimingStats(JOB_ID, 7, 8.61, 1.0, 2.0, 1.23, 7.89);
+        TimingStats stats = new TimingStats(JOB_ID, 7, 8.61, 1.0, 2.0, 1.23, 7.89, 4.56);
 
         assertThat(stats.getJobId(), equalTo(JOB_ID));
         assertThat(stats.getBucketCount(), equalTo(7L));
@@ -69,10 +70,11 @@ public class TimingStatsTests extends AbstractXContentTestCase<TimingStats> {
         assertThat(stats.getMaxBucketProcessingTimeMs(), equalTo(2.0));
         assertThat(stats.getAvgBucketProcessingTimeMs(), equalTo(1.23));
         assertThat(stats.getExponentialAvgBucketProcessingTimeMs(), equalTo(7.89));
+        assertThat(stats.getExponentialAvgBucketProcessingTimePerHourMs(), equalTo(4.56));
     }
 
     public void testConstructor_NullValues() {
-        TimingStats stats = new TimingStats(JOB_ID, 7, 8.61, null, null, null, null);
+        TimingStats stats = new TimingStats(JOB_ID, 7, 8.61, null, null, null, null, null);
 
         assertThat(stats.getJobId(), equalTo(JOB_ID));
         assertThat(stats.getBucketCount(), equalTo(7L));
@@ -81,6 +83,7 @@ public class TimingStatsTests extends AbstractXContentTestCase<TimingStats> {
         assertThat(stats.getMaxBucketProcessingTimeMs(), nullValue());
         assertThat(stats.getAvgBucketProcessingTimeMs(), nullValue());
         assertThat(stats.getExponentialAvgBucketProcessingTimeMs(), nullValue());
+        assertThat(stats.getExponentialAvgBucketProcessingTimePerHourMs(), nullValue());
     }
 
     public void testParse_OptionalFieldsAbsent() throws IOException {
@@ -96,26 +99,7 @@ public class TimingStatsTests extends AbstractXContentTestCase<TimingStats> {
             assertThat(stats.getMaxBucketProcessingTimeMs(), nullValue());
             assertThat(stats.getAvgBucketProcessingTimeMs(), nullValue());
             assertThat(stats.getExponentialAvgBucketProcessingTimeMs(), nullValue());
+            assertThat(stats.getExponentialAvgBucketProcessingTimePerHourMs(), nullValue());
         }
-    }
-
-    public void testEquals() {
-        TimingStats stats1 = new TimingStats(JOB_ID, 7, 8.61, 1.0, 2.0, 1.23, 7.89);
-        TimingStats stats2 = new TimingStats(JOB_ID, 7, 8.61, 1.0, 2.0, 1.23, 7.89);
-        TimingStats stats3 = new TimingStats(JOB_ID, 7, 8.61, 1.0, 3.0, 1.23, 7.89);
-
-        assertTrue(stats1.equals(stats1));
-        assertTrue(stats1.equals(stats2));
-        assertFalse(stats2.equals(stats3));
-    }
-
-    public void testHashCode() {
-        TimingStats stats1 = new TimingStats(JOB_ID, 7, 8.61, 1.0, 2.0, 1.23, 7.89);
-        TimingStats stats2 = new TimingStats(JOB_ID, 7, 8.61, 1.0, 2.0, 1.23, 7.89);
-        TimingStats stats3 = new TimingStats(JOB_ID, 7, 8.61, 1.0, 3.0, 1.23, 7.89);
-
-        assertEquals(stats1.hashCode(), stats1.hashCode());
-        assertEquals(stats1.hashCode(), stats2.hashCode());
-        assertNotEquals(stats2.hashCode(), stats3.hashCode());
     }
 }

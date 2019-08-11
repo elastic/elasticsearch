@@ -17,10 +17,10 @@ public class DataFrameTransformStatsTests extends AbstractSerializingTestCase<Da
 
     public static DataFrameTransformStats randomDataFrameTransformStats() {
         return new DataFrameTransformStats(randomAlphaOfLength(10),
-            randomFrom(DataFrameTransformTaskState.values()),
+            randomFrom(DataFrameTransformStats.State.values()),
             randomBoolean() ? null : randomAlphaOfLength(100),
             randomBoolean() ? null : NodeAttributeTests.randomNodeAttributes(),
-            DataFrameIndexerTransformStatsTests.randomStats(DataFrameIndexerTransformStats.DEFAULT_TRANSFORM_ID),
+            DataFrameIndexerTransformStatsTests.randomStats(),
             DataFrameTransformCheckpointingInfoTests.randomDataFrameTransformCheckpointingInfo());
     }
 

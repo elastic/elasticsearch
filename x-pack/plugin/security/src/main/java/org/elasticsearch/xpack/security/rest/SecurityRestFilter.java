@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.security.rest;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
@@ -70,7 +70,22 @@ public class SecurityRestFilter implements RestHandler {
         }
     }
 
-    RestRequest maybeWrapRestRequest(RestRequest restRequest) throws IOException {
+    @Override
+    public boolean canTripCircuitBreaker() {
+        return restHandler.canTripCircuitBreaker();
+    }
+
+    @Override
+    public boolean supportsContentStream() {
+        return restHandler.supportsContentStream();
+    }
+
+    @Override
+    public boolean allowsUnsafeRequest() {
+        return restHandler.allowsUnsafeRequest();
+    }
+
+    private RestRequest maybeWrapRestRequest(RestRequest restRequest) throws IOException {
         if (restHandler instanceof RestRequestFilter) {
             return ((RestRequestFilter)restHandler).getFilteredRequest(restRequest);
         }

@@ -21,7 +21,6 @@ package org.elasticsearch.rest.action.ingest;
 
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
@@ -48,10 +47,7 @@ public class RestPutPipelineAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         Tuple<XContentType, BytesReference> sourceTuple = restRequest.contentOrSourceParam();
-        // Copying the body of the REST request here since they're used by the ingest service after this request has been responded to
-        // and depending on the underlying request buffer implementation the bytes might become unavailable at that point
-        PutPipelineRequest request = new PutPipelineRequest(restRequest.param("id"),
-            new BytesArray(BytesReference.toBytes(sourceTuple.v2())), sourceTuple.v1());
+        PutPipelineRequest request = new PutPipelineRequest(restRequest.param("id"), sourceTuple.v2(), sourceTuple.v1());
         request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
         request.timeout(restRequest.paramAsTime("timeout", request.timeout()));
         return channel -> client.admin().cluster().putPipeline(request, new RestToXContentListener<>(channel));

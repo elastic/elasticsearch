@@ -213,7 +213,7 @@ public class AutodetectResultProcessor {
 
             // persist after deleting interim results in case the new
             // results are also interim
-            timingStatsReporter.reportBucketProcessingTime(bucket.getProcessingTimeMs());
+            timingStatsReporter.reportBucket(bucket);
             bulkResultsPersister.persistBucket(bucket).executeRequest();
 
             ++bucketCount;

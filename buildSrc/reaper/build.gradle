@@ -1,0 +1,6 @@
+jar {
+    archiveName = "${project.name}.jar"
+    manifest {
+        attributes 'Main-Class': 'org.elasticsearch.gradle.reaper.Reaper'
+    }
+}

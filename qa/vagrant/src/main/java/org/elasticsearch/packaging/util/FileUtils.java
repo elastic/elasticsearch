@@ -45,10 +45,8 @@ import java.util.StringJoiner;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.ZipException;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.core.IsNot.not;
-import static org.hamcrest.text.IsEmptyString.isEmptyOrNullString;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -228,9 +226,7 @@ public class FileUtils {
     }
 
     public static Path getPackagingArchivesDir() {
-        String fromEnv = System.getenv("PACKAGING_ARCHIVES");
-        assertThat(fromEnv, not(isEmptyOrNullString()));
-        return Paths.get(fromEnv);
+        return Paths.get(""); // tests are started in the packaging archives dir, ie the empty relative path
     }
 
     public static Path getDistributionFile(Distribution distribution) {

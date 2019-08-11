@@ -73,6 +73,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -133,6 +134,7 @@ import org.elasticsearch.index.shard.ShardUtils;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.SnapshotMatchers;
+import org.elasticsearch.index.translog.TestTranslog;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -178,10 +180,12 @@ import java.util.stream.LongStream;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.shuffle;
+import static org.elasticsearch.index.engine.Engine.Operation.Origin.LOCAL_RESET;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PEER_RECOVERY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
+import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
@@ -189,6 +193,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
@@ -197,6 +202,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
@@ -1225,8 +1231,7 @@ public class InternalEngineTests extends EngineTestCase {
                     Engine.SyncedFlushResult.SUCCESS);
                 assertEquals(3, engine.segments(false).size());
 
-                engine.forceMerge(forceMergeFlushes, 1, false,
-                    false, false);
+                engine.forceMerge(forceMergeFlushes, 1, false, false, false);
                 if (forceMergeFlushes == false) {
                     engine.refresh("make all segments visible");
                     assertEquals(4, engine.segments(false).size());
@@ -1471,7 +1476,7 @@ public class InternalEngineTests extends EngineTestCase {
             Engine.Index index = indexForDoc(doc);
             engine.delete(new Engine.Delete(index.type(), index.id(), index.uid(), primaryTerm.get()));
             //expunge deletes
-            engine.forceMerge(true, 10, true, false, false);
+            engine.forceMerge(true, -1, true, false, false);
             engine.refresh("test");
 
             assertEquals(engine.segments(true).size(), 1);
@@ -1752,8 +1757,7 @@ public class InternalEngineTests extends EngineTestCase {
                                 engine.refresh("test");
                                 indexed.countDown();
                                 try {
-                                    engine.forceMerge(randomBoolean(), 1, false, randomBoolean(),
-                                        randomBoolean());
+                                    engine.forceMerge(randomBoolean(), 1, false, randomBoolean(), randomBoolean());
                                 } catch (IOException e) {
                                     return;
                                 }
@@ -2356,7 +2360,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
-    public void testSeqNoAndCheckpoints() throws IOException {
+    public void testSeqNoAndCheckpoints() throws IOException, InterruptedException {
         final int opCount = randomIntBetween(1, 256);
         long primarySeqNo = SequenceNumbers.NO_OPS_PERFORMED;
         final String[] ids = new String[]{"1", "2", "3"};
@@ -2374,13 +2378,27 @@ public class InternalEngineTests extends EngineTestCase {
             final ShardRouting primary = TestShardRouting.newShardRouting("test",
                 shardId.id(), "node1", null, true,
                 ShardRoutingState.STARTED, allocationId);
-            final ShardRouting replica =
-                TestShardRouting.newShardRouting(shardId, "node2", false, ShardRoutingState.STARTED);
+            final ShardRouting initializingReplica =
+                TestShardRouting.newShardRouting(shardId, "node2", false, ShardRoutingState.INITIALIZING);
+
             ReplicationTracker gcpTracker = (ReplicationTracker) initialEngine.config().getGlobalCheckpointSupplier();
-            gcpTracker.updateFromMaster(1L, new HashSet<>(Arrays.asList(primary.allocationId().getId(),
-                replica.allocationId().getId())),
-                new IndexShardRoutingTable.Builder(shardId).addShard(primary).addShard(replica).build());
+            gcpTracker.updateFromMaster(1L, new HashSet<>(Collections.singletonList(primary.allocationId().getId())),
+                new IndexShardRoutingTable.Builder(shardId).addShard(primary).build());
             gcpTracker.activatePrimaryMode(primarySeqNo);
+            if (defaultSettings.isSoftDeleteEnabled()) {
+                final CountDownLatch countDownLatch = new CountDownLatch(1);
+                gcpTracker.addPeerRecoveryRetentionLease(initializingReplica.currentNodeId(),
+                    SequenceNumbers.NO_OPS_PERFORMED, ActionListener.wrap(countDownLatch::countDown));
+                countDownLatch.await();
+            }
+            gcpTracker.updateFromMaster(2L, new HashSet<>(Collections.singletonList(primary.allocationId().getId())),
+                new IndexShardRoutingTable.Builder(shardId).addShard(primary).addShard(initializingReplica).build());
+            gcpTracker.initiateTracking(initializingReplica.allocationId().getId());
+            gcpTracker.markAllocationIdAsInSync(initializingReplica.allocationId().getId(), replicaLocalCheckpoint);
+            final ShardRouting replica = initializingReplica.moveToStarted();
+            gcpTracker.updateFromMaster(3L, new HashSet<>(Arrays.asList(primary.allocationId().getId(), replica.allocationId().getId())),
+                new IndexShardRoutingTable.Builder(shardId).addShard(primary).addShard(replica).build());
+
             for (int op = 0; op < opCount; op++) {
                 final String id;
                 // mostly index, sometimes delete
@@ -3162,8 +3180,7 @@ public class InternalEngineTests extends EngineTestCase {
                     try {
                         switch (operation) {
                             case "optimize": {
-                                engine.forceMerge(true, 1, false, false,
-                                    false);
+                                engine.forceMerge(true, 1, false, false, false);
                                 break;
                             }
                             case "refresh": {
@@ -4364,7 +4381,16 @@ public class InternalEngineTests extends EngineTestCase {
                 engine.flush();
             }
             if (randomBoolean()) {
-                engine.forceMerge(randomBoolean(), between(1, 10), randomBoolean(), false, false);
+                boolean flush = randomBoolean();
+                boolean onlyExpungeDeletes = randomBoolean();
+                int maxNumSegments = randomIntBetween(-1, 10);
+                try {
+                    engine.forceMerge(flush, maxNumSegments, onlyExpungeDeletes, false, false);
+                } catch (IllegalArgumentException e) {
+                    assertThat(e.getMessage(), containsString("only_expunge_deletes and max_num_segments are mutually exclusive"));
+                    assertThat(onlyExpungeDeletes, is(true));
+                    assertThat(maxNumSegments, greaterThan(-1));
+                }
             }
         }
         if (engine.engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
@@ -5898,7 +5924,7 @@ public class InternalEngineTests extends EngineTestCase {
             .collect(Collectors.toMap(e -> e.getKey(), e -> (DeleteVersionValue) e.getValue()));
     }
 
-    public void testHandleDocumentFailureOnReplica() throws Exception {
+    public void testTreatDocumentFailureAsFatalError() throws Exception {
         AtomicReference<IOException> addDocException = new AtomicReference<>();
         IndexWriterFactory indexWriterFactory = (dir, iwc) -> new IndexWriter(dir, iwc) {
             @Override
@@ -5913,12 +5939,43 @@ public class InternalEngineTests extends EngineTestCase {
         try (Store store = createStore();
              InternalEngine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, indexWriterFactory)) {
             final ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), SOURCE, null);
+            Engine.Operation.Origin origin = randomFrom(REPLICA, LOCAL_RESET, PEER_RECOVERY);
             Engine.Index index = new Engine.Index(newUid(doc), doc, randomNonNegativeLong(), primaryTerm.get(),
-                randomNonNegativeLong(), null, REPLICA, System.nanoTime(), -1, false, UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
+                randomNonNegativeLong(), null, origin, System.nanoTime(), -1, false, UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
             addDocException.set(new IOException("simulated"));
             expectThrows(IOException.class, () -> engine.index(index));
             assertTrue(engine.isClosed.get());
             assertNotNull(engine.failedEngine.get());
+        }
+    }
+
+    /**
+     * We can trim translog on primary promotion and peer recovery based on the fact we add operations with either
+     * REPLICA or PEER_RECOVERY origin to translog although they already exist in the engine (i.e. hasProcessed() == true).
+     * If we decide not to add those already-processed operations to translog, we need to study carefully the consequence
+     * of the translog trimming in these two places.
+     */
+    public void testAlwaysRecordReplicaOrPeerRecoveryOperationsToTranslog() throws Exception {
+        List<Engine.Operation> operations = generateHistoryOnReplica(between(1, 100), randomBoolean(), randomBoolean(), randomBoolean());
+        applyOperations(engine, operations);
+        Set<Long> seqNos = operations.stream().map(Engine.Operation::seqNo).collect(Collectors.toSet());
+        try (Translog.Snapshot snapshot = getTranslog(engine).newSnapshot()) {
+            assertThat(snapshot.totalOperations(), equalTo(operations.size()));
+            assertThat(TestTranslog.drainSnapshot(snapshot, false).stream().map(Translog.Operation::seqNo).collect(Collectors.toSet()),
+                equalTo(seqNos));
+        }
+        primaryTerm.set(randomLongBetween(primaryTerm.get(), Long.MAX_VALUE));
+        engine.rollTranslogGeneration();
+        engine.trimOperationsFromTranslog(primaryTerm.get(), NO_OPS_PERFORMED); // trim everything in translog
+        try (Translog.Snapshot snapshot = getTranslog(engine).newSnapshot()) {
+            assertThat(snapshot.totalOperations(), equalTo(operations.size()));
+            assertNull(snapshot.next());
+        }
+        applyOperations(engine, operations);
+        try (Translog.Snapshot snapshot = getTranslog(engine).newSnapshot()) {
+            assertThat(snapshot.totalOperations(), equalTo(operations.size() * 2));
+            assertThat(TestTranslog.drainSnapshot(snapshot, false).stream().map(Translog.Operation::seqNo).collect(Collectors.toSet()),
+                equalTo(seqNos));
         }
     }
 }

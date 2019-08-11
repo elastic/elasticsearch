@@ -49,7 +49,6 @@ import static java.util.Collections.unmodifiableSet;
 public final class SFunction extends AStatement {
     public static final class FunctionReserved implements Reserved {
         private final Set<String> usedVariables = new HashSet<>();
-        private int maxLoopCounter = 0;
 
         @Override
         public void markUsedVariable(String name) {
@@ -65,16 +64,6 @@ public final class SFunction extends AStatement {
         public void addUsedVariables(FunctionReserved reserved) {
             usedVariables.addAll(reserved.getUsedVariables());
         }
-
-        @Override
-        public void setMaxLoopCounter(int max) {
-            maxLoopCounter = max;
-        }
-
-        @Override
-        public int getMaxLoopCounter() {
-            return maxLoopCounter;
-        }
     }
 
     final FunctionReserved reserved;
@@ -84,6 +73,8 @@ public final class SFunction extends AStatement {
     private final List<String> paramNameStrs;
     private final List<AStatement> statements;
     public final boolean synthetic;
+
+    private CompilerSettings settings;
 
     Class<?> returnType;
     List<Class<?>> typeParameters;
@@ -106,6 +97,15 @@ public final class SFunction extends AStatement {
         this.paramNameStrs = Collections.unmodifiableList(paramNames);
         this.statements = Collections.unmodifiableList(statements);
         this.synthetic = synthetic;
+    }
+
+    @Override
+    void storeSettings(CompilerSettings settings) {
+        for (AStatement statement : statements) {
+            statement.storeSettings(settings);
+        }
+
+        this.settings = settings;
     }
 
     @Override
@@ -176,13 +176,13 @@ public final class SFunction extends AStatement {
             throw createError(new IllegalArgumentException("Not all paths provide a return value for method [" + name + "]."));
         }
 
-        if (reserved.getMaxLoopCounter() > 0) {
+        if (settings.getMaxLoopCounter() > 0) {
             loop = locals.getVariable(null, Locals.LOOP);
         }
     }
 
     /** Writes the function to given ClassVisitor. */
-    void write (ClassVisitor writer, CompilerSettings settings, Globals globals) {
+    void write(ClassVisitor writer, CompilerSettings settings, Globals globals) {
         int access = Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC;
         if (synthetic) {
             access |= Opcodes.ACC_SYNTHETIC;
@@ -195,10 +195,10 @@ public final class SFunction extends AStatement {
 
     @Override
     void write(MethodWriter function, Globals globals) {
-        if (reserved.getMaxLoopCounter() > 0) {
+        if (settings.getMaxLoopCounter() > 0) {
             // if there is infinite loop protection, we do this once:
             // int #loop = settings.getMaxLoopCounter()
-            function.push(reserved.getMaxLoopCounter());
+            function.push(settings.getMaxLoopCounter());
             function.visitVarInsn(Opcodes.ISTORE, loop.getSlot());
         }
 

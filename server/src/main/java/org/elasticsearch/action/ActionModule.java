@@ -598,6 +598,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestCreateIndexAction(settings, restController));
         registerHandler.accept(new RestResizeHandler.RestShrinkIndexAction(settings, restController));
         registerHandler.accept(new RestResizeHandler.RestSplitIndexAction(settings, restController));
+        registerHandler.accept(new RestResizeHandler.RestCloneIndexAction(settings, restController));
         registerHandler.accept(new RestRolloverIndexAction(settings, restController));
         registerHandler.accept(new RestDeleteIndexAction(settings, restController));
         registerHandler.accept(new RestCloseIndexAction(settings, restController));

@@ -68,10 +68,18 @@ public interface HttpRequest {
      */
     HttpResponse createResponse(RestStatus status, BytesReference content);
 
+    boolean isPooled();
+
     /**
      * Release any resources associated with this request. Implementations should be idempotent. The behavior of {@link #content()}
      * after this method has been invoked is undefined and implementation specific.
      */
-    default void release() {
-    }
+    void release();
+
+    /**
+     * If this instances uses any pooled resources, creates a copy of this instance that does not use any pooled resources and releases
+     * any resources associated with this instance. If the instance does not use any shared resources, returns itself.
+     * @return a safe unpooled http request
+     */
+    HttpRequest releaseAndCopy();
 }

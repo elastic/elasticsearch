@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.rest.dataframe;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -21,8 +20,7 @@ import java.io.IOException;
 
 public class RestGetDataFrameAnalyticsStatsAction extends BaseRestHandler {
 
-    public RestGetDataFrameAnalyticsStatsAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestGetDataFrameAnalyticsStatsAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.GET, MachineLearning.BASE_PATH + "data_frame/analytics/_stats", this);
         controller.registerHandler(RestRequest.Method.GET, MachineLearning.BASE_PATH + "data_frame/analytics/{"
             + DataFrameAnalyticsConfig.ID.getPreferredName() + "}/_stats", this);

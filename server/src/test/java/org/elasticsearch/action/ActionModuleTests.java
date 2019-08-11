@@ -123,7 +123,7 @@ public class ActionModuleTests extends ESTestCase {
             public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
                     IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
                     IndexNameExpressionResolver indexNameExpressionResolver, Supplier<DiscoveryNodes> nodesInCluster) {
-                return singletonList(new RestMainAction(settings, restController));
+                return singletonList(new RestMainAction(restController));
             }
         };
         SettingsModule settings = new SettingsModule(Settings.EMPTY);

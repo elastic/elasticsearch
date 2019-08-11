@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.ilm.action;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -17,8 +16,7 @@ import org.elasticsearch.xpack.core.ilm.action.StopILMAction;
 
 public class RestStopAction extends BaseRestHandler {
 
-    public RestStopAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestStopAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.POST, "/_ilm/stop", this);
     }
 

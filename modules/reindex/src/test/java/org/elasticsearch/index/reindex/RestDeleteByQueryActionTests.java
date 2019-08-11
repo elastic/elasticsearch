@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
@@ -36,7 +35,7 @@ public class RestDeleteByQueryActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        action = new RestDeleteByQueryAction(Settings.EMPTY, controller());
+        action = new RestDeleteByQueryAction(controller());
     }
 
     public void testTypeInPath() throws IOException {

@@ -47,11 +47,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 public class Netty4HttpRequest implements HttpRequest {
-    private final FullHttpRequest request;
-    private final BytesReference content;
     private final HttpHeadersMap headers;
     private final int sequence;
     private final AtomicBoolean released;
+    private final FullHttpRequest request;
+    private BytesReference content;
 
     Netty4HttpRequest(FullHttpRequest request, int sequence) {
         this(request, sequence, new AtomicBoolean(false));
@@ -122,11 +122,15 @@ public class Netty4HttpRequest implements HttpRequest {
     public void release() {
         if (released.compareAndSet(false, true)) {
             request.release();
+            content = null;
         }
     }
 
     @Override
     public HttpRequest releaseAndCopy() {
+        if (isPooled() == false) {
+            return this;
+        }
         try {
             return new Netty4HttpRequest(
                 new DefaultFullHttpRequest(request.protocolVersion(), request.method(), request.uri(),

@@ -156,13 +156,11 @@ public class CopyBytesSocketChannel extends NioSocketChannel {
     }
 
     private static void setWrittenBytes(ByteBuffer[] source, int bytesWritten) {
-        int i = 0;
-        while (bytesWritten > 0) {
+        for (int i = 0; bytesWritten > 0; i++) {
             ByteBuffer buffer = source[i];
             int nBytes = Math.min(buffer.remaining(), bytesWritten);
             buffer.position(buffer.position() + nBytes);
             bytesWritten = bytesWritten - nBytes;
-            ++i;
         }
     }
 

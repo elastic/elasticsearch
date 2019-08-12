@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.datascience;
+package org.elasticsearch.xpack.datascience.action;
 
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -15,6 +15,8 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.datascience.DataScienceFeatureSetUsage;
+import org.elasticsearch.xpack.datascience.action.DataScienceInfoTransportAction;
+import org.elasticsearch.xpack.datascience.action.DataScienceUsageTransportAction;
 import org.junit.Before;
 
 import static org.hamcrest.core.Is.is;

@@ -122,6 +122,9 @@ public class CumulativeCardinalityPipelineAggregationBuilder
     }
 
     public static CumulativeCardinalityPipelineAggregationBuilder parse(String aggName, XContentParser parser) {
+        // Increment usage here since it is a good boundary between internal and external, and should correlate 1:1 with
+        // usage and not internal instantiations
+        DataSciencePlugin.cumulativeCardUsage.incrementAndGet();
         return PARSER.apply(aggName).apply(parser, null);
     }
 

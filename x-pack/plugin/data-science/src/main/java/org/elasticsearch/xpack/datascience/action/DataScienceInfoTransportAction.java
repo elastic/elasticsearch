@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.datascience;
+package org.elasticsearch.xpack.datascience.action;
 
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.common.inject.Inject;

@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.datascience;
+package org.elasticsearch.xpack.datascience;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;

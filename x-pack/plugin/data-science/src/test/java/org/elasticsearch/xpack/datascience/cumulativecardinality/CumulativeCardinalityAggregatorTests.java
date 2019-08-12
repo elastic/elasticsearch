@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.datascience.cumulativecardinality;
+package org.elasticsearch.xpack.datascience.cumulativecardinality;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -18,7 +18,7 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.time.DateFormatters;
-import org.elasticsearch.datascience.TestAggregatorFactory;
+import org.elasticsearch.xpack.datascience.TestAggregatorFactory;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -46,8 +46,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xpack.datascience.DataSciencePlugin;
-import org.elasticsearch.xpack.datascience.cumulativecardinality.CumulativeCardinalityPipelineAggregationBuilder;
-import org.elasticsearch.xpack.datascience.cumulativecardinality.InternalSimpleLongValue;
 
 import java.io.IOException;
 import java.util.Arrays;

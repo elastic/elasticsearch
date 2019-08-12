@@ -555,14 +555,14 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
             return emptyList();
         }
         return Arrays.asList(
-                new RestPutWatchAction(settings, restController),
-                new RestDeleteWatchAction(settings, restController),
-                new RestWatcherStatsAction(settings, restController),
-                new RestGetWatchAction(settings, restController),
-                new RestWatchServiceAction(settings, restController),
-                new RestAckWatchAction(settings, restController),
-                new RestActivateWatchAction(settings, restController),
-                new RestExecuteWatchAction(settings, restController));
+                new RestPutWatchAction(restController),
+                new RestDeleteWatchAction(restController),
+                new RestWatcherStatsAction(restController),
+                new RestGetWatchAction(restController),
+                new RestWatchServiceAction(restController),
+                new RestAckWatchAction(restController),
+                new RestActivateWatchAction(restController),
+                new RestExecuteWatchAction(restController));
     }
 
     @Override

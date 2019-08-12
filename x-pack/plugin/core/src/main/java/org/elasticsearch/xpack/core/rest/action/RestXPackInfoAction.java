@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.rest.action;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -21,8 +20,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 
 public class RestXPackInfoAction extends BaseRestHandler {
-    public RestXPackInfoAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestXPackInfoAction(RestController controller) {
         controller.registerHandler(HEAD, "/_xpack", this);
         controller.registerHandler(GET, "/_xpack", this);
     }

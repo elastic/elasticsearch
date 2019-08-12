@@ -1212,6 +1212,109 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         assertThat(recoveryState.getIndex().totalFileCount(), greaterThan(0));
     }
 
+    public void testUsesFileBasedRecoveryIfOperationsBasedRecoveryWouldBeUnreasonable() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+
+        String indexName = "test-index";
+        final Settings.Builder settings = Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+            .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "12h")
+            .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms");
+
+        final double reasonableOperationsBasedRecoveryProportion;
+        if (randomBoolean()) {
+            reasonableOperationsBasedRecoveryProportion = randomDoubleBetween(0.05, 0.99, true);
+            settings.put(IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING.getKey(),
+                reasonableOperationsBasedRecoveryProportion);
+        } else {
+            reasonableOperationsBasedRecoveryProportion
+                = IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING.get(Settings.EMPTY);
+        }
+        logger.info("--> performing ops-based recoveries up to [{}%] of docs", reasonableOperationsBasedRecoveryProportion * 100.0);
+
+        createIndex(indexName, settings.build());
+        indexRandom(randomBoolean(), false, randomBoolean(), IntStream.range(0, between(0, 100))
+            .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("num", n)).collect(toList()));
+        ensureGreen(indexName);
+
+        flush(indexName);
+        // wait for all history to be discarded
+        assertBusy(() -> {
+            for (ShardStats shardStats : client().admin().indices().prepareStats(indexName).get().getShards()) {
+                final long maxSeqNo = shardStats.getSeqNoStats().getMaxSeqNo();
+                assertTrue(shardStats.getRetentionLeaseStats().retentionLeases() + " should discard history up to " + maxSeqNo,
+                    shardStats.getRetentionLeaseStats().retentionLeases().leases().stream().allMatch(
+                        l -> l.retainingSequenceNumber() == maxSeqNo + 1));
+            }
+        });
+        flush(indexName); // ensure that all operations are in the safe commit
+
+        final ShardStats shardStats = client().admin().indices().prepareStats(indexName).get().getShards()[0];
+        final long docCount = shardStats.getStats().docs.getCount();
+        assertThat(shardStats.getStats().docs.getDeleted(), equalTo(0L));
+        assertThat(shardStats.getSeqNoStats().getMaxSeqNo() + 1, equalTo(docCount));
+
+        final ShardId shardId = new ShardId(resolveIndex(indexName), 0);
+        final DiscoveryNodes discoveryNodes = clusterService().state().nodes();
+        final IndexShardRoutingTable indexShardRoutingTable = clusterService().state().routingTable().shardRoutingTable(shardId);
+
+        final ShardRouting replicaShardRouting = indexShardRoutingTable.replicaShards().get(0);
+        assertTrue("should have lease for " + replicaShardRouting,
+            client().admin().indices().prepareStats(indexName).get().getShards()[0].getRetentionLeaseStats()
+                .retentionLeases().contains(ReplicationTracker.getPeerRecoveryRetentionLeaseId(replicaShardRouting)));
+        internalCluster().restartNode(discoveryNodes.get(replicaShardRouting.currentNodeId()).getName(),
+            new InternalTestCluster.RestartCallback() {
+                @Override
+                public Settings onNodeStopped(String nodeName) throws Exception {
+                    assertFalse(client().admin().cluster().prepareHealth()
+                        .setWaitForNodes(Integer.toString(discoveryNodes.getSize() - 1))
+                        .setWaitForEvents(Priority.LANGUID).get().isTimedOut());
+
+                    final int newDocCount = Math.toIntExact(Math.round(Math.ceil(
+                        (1 + Math.ceil(docCount * reasonableOperationsBasedRecoveryProportion))
+                            / (1 - reasonableOperationsBasedRecoveryProportion))));
+
+                    /*
+                     *     newDocCount >= (ceil(docCount * p) + 1) / (1-p)
+                     *
+                     * ==> 0 <= newDocCount * (1-p) - ceil(docCount * p) - 1
+                     *       =  newDocCount - (newDocCount * p + ceil(docCount * p) + 1)
+                     *       <  newDocCount - (ceil(newDocCount * p) + ceil(docCount * p))
+                     *       <= newDocCount -  ceil(newDocCount * p + docCount * p)
+                     *
+                     * ==> docCount <  newDocCount + docCount - ceil((newDocCount + docCount) * p)
+                     *              == localCheckpoint + 1    - ceil((newDocCount + docCount) * p)
+                     *              == firstReasonableSeqNo
+                     *
+                     * The replica has docCount docs, i.e. has operations with seqnos [0..docCount-1], so a seqno-based recovery will start
+                     * from docCount < firstReasonableSeqNo
+                     *
+                     * ==> it is unreasonable to recover the replica using a seqno-based recovery
+                     */
+
+                    indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), IntStream.range(0, newDocCount)
+                        .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("num", n)).collect(toList()));
+
+                    flush(indexName);
+
+                    assertBusy(() -> assertFalse("should no longer have lease for " + replicaShardRouting,
+                        client().admin().indices().prepareStats(indexName).get().getShards()[0].getRetentionLeaseStats()
+                            .retentionLeases().contains(ReplicationTracker.getPeerRecoveryRetentionLeaseId(replicaShardRouting))));
+
+                    return super.onNodeStopped(nodeName);
+                }
+            });
+
+        ensureGreen(indexName);
+
+        //noinspection OptionalGetWithoutIsPresent because it fails the test if absent
+        final RecoveryState recoveryState = client().admin().indices().prepareRecoveries(indexName).get()
+            .shardRecoveryStates().get(indexName).stream().filter(rs -> rs.getPrimary() == false).findFirst().get();
+        assertThat(recoveryState.getIndex().totalFileCount(), greaterThan(0));
+    }
+
     public void testDoesNotCopyOperationsInSafeCommit() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
 

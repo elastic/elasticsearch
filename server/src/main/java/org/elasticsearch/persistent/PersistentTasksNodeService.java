@@ -112,7 +112,12 @@ public class PersistentTasksNodeService implements ClusterStateListener {
                         AllocatedPersistentTask persistentTask = runningTasks.get(allocationId);
                         if (persistentTask == null) {
                             // New task - let's start it
-                            startTask(taskInProgress);
+                            try {
+                                startTask(taskInProgress);
+                            } catch (Exception e) {
+                                logger.error("Unable to start allocated task [{}] with id [{}] and allocation id [{}]",
+                                    taskInProgress.getTaskName(), taskInProgress.getId(), taskInProgress.getAllocationId());
+                            }
                         } else {
                             // The task is still running
                             notVisitedTasks.remove(allocationId);
@@ -170,21 +175,7 @@ public class PersistentTasksNodeService implements ClusterStateListener {
         } catch (Exception e) {
             logger.error("Fatal error registering persistent task [{}] with id [{}] and allocation id [{}], removing from persistent tasks",
                 taskInProgress.getTaskName(), taskInProgress.getId(), taskInProgress.getAllocationId());
-
-            persistentTasksService.sendCompletionRequest(taskInProgress.getId(), taskInProgress.getAllocationId(), e,
-                new ActionListener<>() {
-                    @Override
-                    public void onResponse(PersistentTask<?> persistentTask) {
-                        logger.trace("completion notification for task [{}] with id [{}] was successful", taskInProgress.getTaskName(),
-                            taskInProgress.getAllocationId());
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        logger.warn(new ParameterizedMessage("notification for task [{}] with id [{}] failed",
-                            taskInProgress.getTaskName(), taskInProgress.getAllocationId()), e);
-                    }
-            });
+            notifyMasterOfFailedTask(taskInProgress, e);
             return;
         }
 
@@ -209,6 +200,23 @@ public class PersistentTasksNodeService implements ClusterStateListener {
                 taskManager.unregister(task);
             }
         }
+    }
+
+    private <Params extends PersistentTaskParams> void notifyMasterOfFailedTask(PersistentTask<Params> taskInProgress, Exception e) {
+        persistentTasksService.sendCompletionRequest(taskInProgress.getId(), taskInProgress.getAllocationId(), e,
+            new ActionListener<>() {
+                @Override
+                public void onResponse(PersistentTask<?> persistentTask) {
+                    logger.trace("completion notification for task [{}] with id [{}] was successful", taskInProgress.getTaskName(),
+                        taskInProgress.getAllocationId());
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.warn(new ParameterizedMessage("notification for task [{}] with id [{}] failed",
+                        taskInProgress.getTaskName(), taskInProgress.getAllocationId()), e);
+                }
+            });
     }
 
     /**

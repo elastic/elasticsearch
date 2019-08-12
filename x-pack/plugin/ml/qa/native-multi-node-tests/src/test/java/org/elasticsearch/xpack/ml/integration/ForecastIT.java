@@ -211,7 +211,6 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
         assertThat(e.getMessage(), equalTo("Cannot run forecast: Forecast cannot be executed as model memory status is not OK"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/45405")
     public void testOverflowToDisk() throws Exception {
         assumeFalse("https://github.com/elastic/elasticsearch/issues/44609", Constants.WINDOWS);
         Detector.Builder detector = new Detector.Builder("mean", "value");

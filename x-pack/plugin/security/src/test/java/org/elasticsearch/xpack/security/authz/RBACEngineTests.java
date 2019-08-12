@@ -21,6 +21,8 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.license.GetLicenseAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.security.action.GetApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequestBuilder;
@@ -63,6 +65,7 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.emptyMap;
@@ -230,6 +233,34 @@ public class RBACEngineTests extends ESTestCase {
         verify(authentication, times(2)).getUser();
         verify(lookedUpBy).getType();
         verifyNoMoreInteractions(authentication, lookedUpBy, authenticatedBy);
+    }
+
+    public void testSameUserPermissionAllowsSelfApiKeyInfoRetrievalWhenAuthenticatedByApiKey() {
+        final User user = new User("joe");
+        final String apiKeyId = randomAlphaOfLengthBetween(4, 7);
+        final TransportRequest request = GetApiKeyRequest.usingApiKeyId(apiKeyId, false);
+        final Authentication authentication = mock(Authentication.class);
+        final Authentication.RealmRef authenticatedBy = mock(Authentication.RealmRef.class);
+        when(authentication.getUser()).thenReturn(user);
+        when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
+        when(authenticatedBy.getType()).thenReturn("_es_api_key");
+        when(authentication.getMetadata()).thenReturn(Map.of("_security_api_key_id", apiKeyId));
+
+        assertTrue(engine.checkSameUserPermissions(GetApiKeyAction.NAME, request, authentication));
+    }
+
+    public void testSameUserPermissionDeniesApiKeyInfoRetrievalWhenAuthenticatedByADifferentApiKey() {
+        final User user = new User("joe");
+        final String apiKeyId = randomAlphaOfLengthBetween(4, 7);
+        final TransportRequest request = GetApiKeyRequest.usingApiKeyId(apiKeyId, false);
+        final Authentication authentication = mock(Authentication.class);
+        final Authentication.RealmRef authenticatedBy = mock(Authentication.RealmRef.class);
+        when(authentication.getUser()).thenReturn(user);
+        when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
+        when(authenticatedBy.getType()).thenReturn("_es_api_key");
+        when(authentication.getMetadata()).thenReturn(Map.of("_security_api_key_id", randomAlphaOfLengthBetween(4, 7)));
+
+        assertFalse(engine.checkSameUserPermissions(GetApiKeyAction.NAME, request, authentication));
     }
 
     /**

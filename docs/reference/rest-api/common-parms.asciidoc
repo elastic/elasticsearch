@@ -72,14 +72,15 @@ end::cat-v[]
 
 tag::doc-pipeline[]
 `pipeline`::
-(Optional, string) The ID of the pipeline to use to preprocess incoming
-documents.
+(Optional, string) ID of the pipeline to use to preprocess incoming documents.
 end::doc-pipeline[]
 
 tag::doc-refresh[]
 `refresh`::
-(Optional, enum) If `true` then refresh the affected shards to make this
-operation visible to search, if `wait_for` then wait for a refresh to make this operation visible to search, if `false` do nothing with refreshes. Valid values: `true`, `false`, `wait_for`. Default: `false`.
+(Optional, enum) If `true`, {es} refreshes the affected shards to make this
+operation visible to search, if `wait_for` then wait for a refresh to make
+this operation visible to search, if `false` do nothing with refreshes.
+Valid values: `true`, `false`, `wait_for`. Default: `false`.
 end::doc-refresh[]
 
 tag::doc-seq-no[]

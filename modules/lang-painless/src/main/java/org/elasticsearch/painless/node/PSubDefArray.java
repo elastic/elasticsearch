@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -41,6 +42,11 @@ final class PSubDefArray extends AStoreable {
         super(location);
 
         this.index = Objects.requireNonNull(index);
+    }
+
+    @Override
+    void storeSettings(CompilerSettings settings) {
+        throw createError(new IllegalStateException("illegal tree structure"));
     }
 
     @Override

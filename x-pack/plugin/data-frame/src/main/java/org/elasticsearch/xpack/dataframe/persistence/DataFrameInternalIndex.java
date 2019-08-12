@@ -16,7 +16,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditMessage;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformProgress;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStoredDoc;
@@ -240,7 +239,7 @@ public final class DataFrameInternalIndex {
                     .endObject()
                 .endObject()
             .endObject()
-            .startObject(DataFrameTransformConfig.DESCRIPTION.getPreferredName())
+            .startObject(DataFrameField.DESCRIPTION.getPreferredName())
                 .field(TYPE, TEXT)
             .endObject();
     }

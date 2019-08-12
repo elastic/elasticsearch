@@ -26,7 +26,6 @@ public class DataFrameMessages {
     public static final String REST_PUT_DATA_FRAME_DEST_SINGLE_INDEX = "Destination index [{0}] should refer to a single index";
     public static final String REST_PUT_DATA_FRAME_INCONSISTENT_ID =
             "Inconsistent id; ''{0}'' specified in the body differs from ''{1}'' specified as a URL argument";
-
     public static final String DATA_FRAME_CONFIG_INVALID = "Data frame transform configuration is invalid [{0}]";
     public static final String REST_DATA_FRAME_FAILED_TO_SERIALIZE_TRANSFORM = "Failed to serialise transform [{0}]";
     public static final String DATA_FRAME_FAILED_TO_PERSIST_STATS = "Failed to persist data frame statistics for transform [{0}]";
@@ -36,6 +35,8 @@ public class DataFrameMessages {
         "Unable to stop data frame transform [{0}] as it is in a failed state with reason [{1}]." +
             " Use force stop to stop the data frame transform.";
     public static final String FAILED_TO_CREATE_DESTINATION_INDEX = "Could not create destination index [{0}] for transform [{1}]";
+    public static final String FAILED_TO_RELOAD_TRANSFORM_CONFIGURATION =
+        "Failed to reload data frame transform configuration for transform [{0}]";
     public static final String FAILED_TO_LOAD_TRANSFORM_CONFIGURATION =
             "Failed to load data frame transform configuration for transform [{0}]";
     public static final String FAILED_TO_PARSE_TRANSFORM_CONFIGURATION =
@@ -57,6 +58,8 @@ public class DataFrameMessages {
     public static final String DATA_FRAME_TRANSFORM_CONFIGURATION_INVALID =
             "Data frame transform configuration [{0}] has invalid elements";
     public static final String DATA_FRAME_UNABLE_TO_GATHER_FIELD_MAPPINGS = "Failed to gather field mappings for index [{0}]";
+    public static final String DATA_FRAME_UPDATE_CANNOT_CHANGE_SYNC_METHOD =
+        "Cannot change the current sync configuration of transform [{0}] from [{1}] to [{2}]";
     public static final String LOG_DATA_FRAME_TRANSFORM_CONFIGURATION_BAD_QUERY =
             "Failed to parse query for data frame transform";
     public static final String LOG_DATA_FRAME_TRANSFORM_CONFIGURATION_BAD_GROUP_BY =

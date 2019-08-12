@@ -1,7 +1,7 @@
 [[cat-repositories]]
 === cat repositories
 
-Returns the <<snapshots-repositories,snapshot repositories>> for a cluster.
+Returns the <<_repositories,snapshot repositories>> for a cluster.
 
 
 [[cat-repositories-api-request]]

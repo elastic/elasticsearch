@@ -70,7 +70,7 @@ recommend testing the reindex from remote process with a subset of your data to
 understand the time requirements before proceeding.
 
 [float]
-[[snapshots-repositories]]
+[[_repositories]]
 === Repositories
 
 You must register a snapshot repository before you can perform snapshot and

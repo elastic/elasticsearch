@@ -57,11 +57,6 @@ public class AzureStorageServiceMock extends AzureStorageService {
     }
 
     @Override
-    public boolean doesContainerExist(String account, String container) {
-        return true;
-    }
-
-    @Override
     public void deleteFiles(String account, String container, String path) throws URISyntaxException, StorageException {
         final Map<String, BlobMetaData> blobs = listBlobsByPrefix(account, container, path, null);
         for (String key : blobs.keySet()) {

@@ -137,12 +137,6 @@ public class AzureStorageService extends AbstractComponent {
         return prevSettings;
     }
 
-    public boolean doesContainerExist(String account, String container) throws URISyntaxException, StorageException {
-        final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client(account);
-        final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);
-        return SocketAccess.doPrivilegedException(() -> blobContainer.exists(null, null, client.v2().get()));
-    }
-
     public void deleteFiles(String account, String container, String path) throws URISyntaxException, StorageException {
         final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client(account);
         // container name must be lower case.

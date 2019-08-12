@@ -46,6 +46,8 @@ public final class TransportGetApiKeyAction extends HandledTransportAction<GetAp
             listener.onFailure(new IllegalStateException("authentication is required"));
         }
         if (request.ownedByAuthenticatedUser()) {
+            assert username == null;
+            assert realm == null;
             // restrict username and realm to current authenticated user.
             username = authentication.getUser().principal();
             realm = authentication.getAuthenticatedBy().getName();

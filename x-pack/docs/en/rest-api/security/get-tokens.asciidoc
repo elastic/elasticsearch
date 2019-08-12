@@ -48,7 +48,8 @@ The following parameters can be specified in the body of a POST request and
 pertain to creating a token:
 
 `grant_type`::
-(string) The type of grant. Supported grant types are: `password`, `_kerberos`,
+(Required, string) The type of grant.
+Supported grant types are: `password`, `_kerberos`,
 `client_credentials` and `refresh_token`.
 
 `client_credentials`:::
@@ -71,8 +72,12 @@ by an authenticated user but happens _on behalf_ of another authenticated user
 (the one whose credentials are passed as request parameters). This grant type is
 not suitable or designed for the self-service user creation of tokens.
 
+`refresh_token`:::
+This grant type implements the Refresh Token Grant of OAuth2.
+In this grant a user exchanges a previously issued refresh token for a new access token and a new refresh token.
+
 `password`::
-(string) The user's password. If you specify the `password` grant type, this 
+(string) The user's password. If you specify the `password` grant type, this
 parameter is required. This parameter is not valid with any other supported
 grant type.
 

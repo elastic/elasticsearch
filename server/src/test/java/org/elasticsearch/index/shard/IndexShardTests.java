@@ -2172,7 +2172,7 @@ public class IndexShardTests extends IndexShardTestCase {
             newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
             assertTrue(newShard.recoverFromStore());
             try (Translog.Snapshot snapshot = getTranslog(newShard).newSnapshot()) {
-                assertThat(snapshot.totalOperations(), equalTo(2));
+                assertThat(snapshot.totalOperations(), equalTo(newShard.indexSettings.isSoftDeleteEnabled() ? 0 : 2));
             }
         }
         closeShards(newShard, shard);

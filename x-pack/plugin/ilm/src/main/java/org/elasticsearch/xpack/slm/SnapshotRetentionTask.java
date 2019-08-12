@@ -45,6 +45,8 @@ import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy.POLICY_ID_METADATA_FIELD;
+
 /**
  * The {@code SnapshotRetentionTask} is invoked by the scheduled job from the
  * {@link SnapshotRetentionService}. It is responsible for retrieving the snapshots for repositories
@@ -138,7 +140,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
 
         final String policyId;
         try {
-            policyId = (String) snapshot.userMetadata().get(SnapshotLifecyclePolicy.POLICY_ID_METADATA_FIELD);
+            policyId = (String) snapshot.userMetadata().get(POLICY_ID_METADATA_FIELD);
         } catch (Exception e) {
             logger.debug("unable to retrieve policy id from snapshot metadata [" + snapshot.userMetadata() + "]", e);
             return false;
@@ -166,7 +168,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
         boolean eligible = retention.getSnapshotDeletionPredicate(
             allSnapshots.get(repository).stream()
                 .filter(info -> Optional.ofNullable(info.userMetadata())
-                    .map(meta -> meta.get(SnapshotLifecyclePolicy.POLICY_ID_METADATA_FIELD))
+                    .map(meta -> meta.get(POLICY_ID_METADATA_FIELD))
                     .map(pId -> pId.equals(policyId))
                     .orElse(false))
                 .collect(Collectors.toList()))
@@ -244,15 +246,15 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
     void deleteSnapshot(String repo, SnapshotInfo info) {
         logger.info("[{}] snapshot retention deleting snapshot [{}]", repo, info.snapshotId());
         CountDownLatch latch = new CountDownLatch(1);
-        String policyId = (String) info.userMetadata().get("policy"); // TODO: Make this less fragile
-                client.admin().cluster().prepareDeleteSnapshot(repo, info.snapshotId().getName())
+        String policyId = (String) info.userMetadata().get(POLICY_ID_METADATA_FIELD);
+        client.admin().cluster().prepareDeleteSnapshot(repo, info.snapshotId().getName())
             .execute(new LatchedActionListener<>(new ActionListener<>() {
                 @Override
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                     if (acknowledgedResponse.isAcknowledged()) {
                         logger.debug("[{}] snapshot [{}] deleted successfully", repo, info.snapshotId());
-                                historyStore.putAsync(SnapshotHistoryItem.deletionSuccessRecord(Instant.now().toEpochMilli(),
-                                    info.snapshotId().getName(), policyId, repo));
+                        historyStore.putAsync(SnapshotHistoryItem.deletionSuccessRecord(Instant.now().toEpochMilli(),
+                            info.snapshotId().getName(), policyId, repo));
                     }
                 }
 
@@ -260,24 +262,24 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                 public void onFailure(Exception e) {
                     logger.warn(new ParameterizedMessage("[{}] failed to delete snapshot [{}] for retention",
                         repo, info.snapshotId()), e);
-                            try {
-                                historyStore.putAsync(SnapshotHistoryItem.deletionFailureRecord(Instant.now().toEpochMilli(),
-                                    info.snapshotId().getName(), policyId, repo, e));
-                            } catch (IOException ex) {
-                                // This shouldn't happen unless there's an issue with serializing the original exception
-                                logger.error(new ParameterizedMessage(
-                                    "failed to record snapshot creation failure for snapshot lifecycle policy [{}]",
-                                    policyId), e);
-                            }
-                        }
-                    }, latch));
-                try {
-                    // Deletes cannot occur simultaneously, so wait for this
-                    // deletion to complete before attempting the next one
-                    latch.await();
-                } catch (InterruptedException e) {
-                    logger.error(new ParameterizedMessage("[{}] deletion of snapshot [{}] interrupted",
-                        repo, info.snapshotId()), e);
+                    try {
+                        historyStore.putAsync(SnapshotHistoryItem.deletionFailureRecord(Instant.now().toEpochMilli(),
+                            info.snapshotId().getName(), policyId, repo, e));
+                    } catch (IOException ex) {
+                        // This shouldn't happen unless there's an issue with serializing the original exception
+                        logger.error(new ParameterizedMessage(
+                            "failed to record snapshot creation failure for snapshot lifecycle policy [{}]",
+                            policyId), e);
+                    }
+                }
+            }, latch));
+        try {
+            // Deletes cannot occur simultaneously, so wait for this
+            // deletion to complete before attempting the next one
+            latch.await();
+        } catch (InterruptedException e) {
+            logger.error(new ParameterizedMessage("[{}] deletion of snapshot [{}] interrupted",
+                repo, info.snapshotId()), e);
         }
     }
 }

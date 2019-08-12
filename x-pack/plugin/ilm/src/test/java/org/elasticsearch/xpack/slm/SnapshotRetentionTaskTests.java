@@ -149,7 +149,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             CountDownLatch latch = new CountDownLatch(1);
             MockSnapshotRetentionTask retentionTask = new MockSnapshotRetentionTask(noOpClient, clusterService,
                 null,//new SnapshotLifecycleTaskTests.VerifyingHistoryStore(noOpClient, ZoneOffset.UTC,
-                // (historyItem) -> fail("actually test this")),
+                // (historyItem) -> fail("actually test this")), //TODO: fix this
                 () -> {
                     List<SnapshotInfo> snaps = new ArrayList<>(2);
                     snaps.add(eligibleSnapshot);

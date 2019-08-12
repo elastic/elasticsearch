@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
@@ -42,6 +43,11 @@ public final class EVariable extends AStoreable {
         super(location);
 
         this.name = Objects.requireNonNull(name);
+    }
+
+    @Override
+    void storeSettings(CompilerSettings settings) {
+        // do nothing
     }
 
     @Override

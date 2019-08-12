@@ -189,7 +189,7 @@ GET /_nodes/plugins
 // CONSOLE
 // TEST[setup:node]
 
-The result will look similar to:
+The API returns the following response:
 
 [source,js]
 --------------------------------------------------
@@ -257,7 +257,7 @@ GET /_nodes/ingest
 // CONSOLE
 // TEST[setup:node]
 
-The result will look similar to:
+The API returns the following response:
 
 [source,js]
 --------------------------------------------------

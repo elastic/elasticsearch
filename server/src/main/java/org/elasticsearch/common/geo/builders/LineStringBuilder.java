@@ -23,7 +23,7 @@ import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.geo.geometry.Line;
+import org.elasticsearch.geometry.Line;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
@@ -35,7 +35,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-public class LineStringBuilder extends ShapeBuilder<JtsGeometry, org.elasticsearch.geo.geometry.Geometry, LineStringBuilder> {
+public class LineStringBuilder extends ShapeBuilder<JtsGeometry, org.elasticsearch.geometry.Geometry, LineStringBuilder> {
     public static final GeoShapeType TYPE = GeoShapeType.LINESTRING;
 
     /**
@@ -121,9 +121,9 @@ public class LineStringBuilder extends ShapeBuilder<JtsGeometry, org.elasticsear
     }
 
     @Override
-    public org.elasticsearch.geo.geometry.Geometry buildGeometry() {
-        return new Line(coordinates.stream().mapToDouble(i->i.y).toArray(),
-            coordinates.stream().mapToDouble(i->i.x).toArray());
+    public org.elasticsearch.geometry.Geometry buildGeometry() {
+        return new Line(coordinates.stream().mapToDouble(i->i.x).toArray(), coordinates.stream().mapToDouble(i->i.y).toArray()
+        );
     }
 
     static ArrayList<LineString> decomposeS4J(GeometryFactory factory, Coordinate[] coordinates, ArrayList<LineString> strings) {

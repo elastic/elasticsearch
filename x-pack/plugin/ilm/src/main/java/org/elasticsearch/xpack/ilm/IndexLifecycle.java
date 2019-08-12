@@ -190,21 +190,21 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
             return emptyList();
         }
         return Arrays.asList(
-                new RestPutLifecycleAction(settings, restController),
-                new RestGetLifecycleAction(settings, restController),
-                new RestDeleteLifecycleAction(settings, restController),
-                new RestExplainLifecycleAction(settings, restController),
-                new RestRemoveIndexLifecyclePolicyAction(settings, restController),
-                new RestMoveToStepAction(settings, restController),
-                new RestRetryAction(settings, restController),
-                new RestStopAction(settings, restController),
-                new RestStartILMAction(settings, restController),
-                new RestGetStatusAction(settings, restController),
+                new RestPutLifecycleAction(restController),
+                new RestGetLifecycleAction(restController),
+                new RestDeleteLifecycleAction(restController),
+                new RestExplainLifecycleAction(restController),
+                new RestRemoveIndexLifecyclePolicyAction(restController),
+                new RestMoveToStepAction(restController),
+                new RestRetryAction(restController),
+                new RestStopAction(restController),
+                new RestStartILMAction(restController),
+                new RestGetStatusAction(restController),
                 // Snapshot lifecycle actions
-                new RestPutSnapshotLifecycleAction(settings, restController),
-                new RestDeleteSnapshotLifecycleAction(settings, restController),
-                new RestGetSnapshotLifecycleAction(settings, restController),
-                new RestExecuteSnapshotLifecycleAction(settings, restController)
+                new RestPutSnapshotLifecycleAction(restController),
+                new RestDeleteSnapshotLifecycleAction(restController),
+                new RestGetSnapshotLifecycleAction(restController),
+                new RestExecuteSnapshotLifecycleAction(restController)
             );
     }
 

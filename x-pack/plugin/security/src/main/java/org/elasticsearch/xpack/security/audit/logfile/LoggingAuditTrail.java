@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.security.audit.logfile;
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Marker;
+import org.apache.logging.log4j.MarkerManager;
 import org.apache.logging.log4j.message.StringMapMessage;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -151,6 +153,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             "indices",
             (key) -> Setting.listSetting(key, Collections.singletonList("*"), Function.identity(), Property.NodeScope, Property.Dynamic));
 
+    private static final Marker AUDIT_MARKER = MarkerManager.getMarker("AUDIT");
+
     private final Logger logger;
     private final ThreadContext threadContext;
     final EventFilterPolicyRegistry eventFilterPolicyRegistry;
@@ -225,7 +229,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withOpaqueId(threadContext)
                     .withXForwardedFor(threadContext)
                     .build();
-            logger.info(logEntry);
+            logger.info(AUDIT_MARKER, logEntry);
         }
     }
 
@@ -248,7 +252,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .withOpaqueId(threadContext)
                         .withXForwardedFor(threadContext)
                         .build();
-                logger.info(logEntry);
+                logger.info(AUDIT_MARKER, logEntry);
             }
         }
     }
@@ -270,7 +274,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .withOpaqueId(threadContext)
                         .withXForwardedFor(threadContext)
                         .build();
-                logger.info(logEntry);
+                logger.info(AUDIT_MARKER, logEntry);
             }
         }
     }
@@ -289,7 +293,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withOpaqueId(threadContext)
                     .withXForwardedFor(threadContext)
                     .build();
-            logger.info(logEntry);
+            logger.info(AUDIT_MARKER, logEntry);
         }
     }
 
@@ -311,7 +315,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .withOpaqueId(threadContext)
                         .withXForwardedFor(threadContext)
                         .build();
-                logger.info(logEntry);
+                logger.info(AUDIT_MARKER, logEntry);
             }
         }
     }
@@ -329,7 +333,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withOpaqueId(threadContext)
                     .withXForwardedFor(threadContext)
                     .build();
-            logger.info(logEntry);
+            logger.info(AUDIT_MARKER, logEntry);
         }
     }
 
@@ -350,7 +354,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .withOpaqueId(threadContext)
                         .withXForwardedFor(threadContext)
                         .build();
-                logger.info(logEntry);
+                logger.info(AUDIT_MARKER, logEntry);
             }
         }
     }
@@ -370,7 +374,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withOpaqueId(threadContext)
                     .withXForwardedFor(threadContext)
                     .build();
-            logger.info(logEntry);
+            logger.info(AUDIT_MARKER, logEntry);
         }
     }
 
@@ -393,7 +397,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .withOpaqueId(threadContext)
                         .withXForwardedFor(threadContext)
                         .build();
-                logger.info(logEntry);
+                logger.info(AUDIT_MARKER, logEntry);
             }
         }
     }
@@ -414,7 +418,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withOpaqueId(threadContext)
                     .withXForwardedFor(threadContext)
                     .build();
-            logger.info(logEntry);
+            logger.info(AUDIT_MARKER, logEntry);
         }
     }
 
@@ -440,7 +444,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .withXForwardedFor(threadContext)
                         .with(authorizationInfo.asMap())
                         .build();
-                logger.info(logEntry);
+                logger.info(AUDIT_MARKER, logEntry);
             }
         }
     }
@@ -480,7 +484,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .with(ORIGIN_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                         .with(ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(remoteAddress.address()));
                 }
-                logger.info(logEntryBuilder.build());
+                logger.info(AUDIT_MARKER, logEntryBuilder.build());
             }
         }
     }
@@ -505,7 +509,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .withOpaqueId(threadContext)
                         .withXForwardedFor(threadContext)
                         .build();
-                logger.info(logEntry);
+                logger.info(AUDIT_MARKER, logEntry);
             }
         }
     }
@@ -523,7 +527,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withOpaqueId(threadContext)
                     .withXForwardedFor(threadContext)
                     .build();
-            logger.info(logEntry);
+            logger.info(AUDIT_MARKER, logEntry);
         }
     }
 
@@ -544,7 +548,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .withOpaqueId(threadContext)
                         .withXForwardedFor(threadContext)
                         .build();
-                logger.info(logEntry);
+                logger.info(AUDIT_MARKER, logEntry);
             }
         }
     }
@@ -567,7 +571,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .withOpaqueId(threadContext)
                         .withXForwardedFor(threadContext)
                         .build();
-                logger.info(logEntry);
+                logger.info(AUDIT_MARKER, logEntry);
             }
         }
     }
@@ -586,7 +590,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withOpaqueId(threadContext)
                     .withXForwardedFor(threadContext)
                     .build();
-            logger.info(logEntry);
+            logger.info(AUDIT_MARKER, logEntry);
         }
     }
 
@@ -604,7 +608,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withOpaqueId(threadContext)
                     .withXForwardedFor(threadContext)
                     .build();
-            logger.info(logEntry);
+            logger.info(AUDIT_MARKER, logEntry);
         }
     }
 
@@ -628,7 +632,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .withOpaqueId(threadContext)
                         .withXForwardedFor(threadContext)
                         .build();
-                logger.info(logEntry);
+                logger.info(AUDIT_MARKER, logEntry);
             }
         }
     }
@@ -653,7 +657,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .withOpaqueId(threadContext)
                         .withXForwardedFor(threadContext)
                         .build();
-                logger.info(logEntry);
+                logger.info(AUDIT_MARKER, logEntry);
             }
         }
     }
@@ -675,7 +679,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withOpaqueId(threadContext)
                     .withXForwardedFor(threadContext)
                     .build();
-            logger.info(logEntry);
+            logger.info(AUDIT_MARKER, logEntry);
         }
     }
 

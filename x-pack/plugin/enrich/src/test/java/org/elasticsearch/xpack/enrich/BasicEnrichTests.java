@@ -32,6 +32,7 @@ import static org.elasticsearch.xpack.enrich.EnrichMultiNodeIT.KEY_FIELD;
 import static org.elasticsearch.xpack.enrich.EnrichMultiNodeIT.SOURCE_INDEX_NAME;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class BasicEnrichTests extends ESSingleNodeTestCase {
 
@@ -40,7 +41,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
         return List.of(LocalStateEnrich.class, ReindexPlugin.class);
     }
 
-    public void testIngestDataWithEnrichProcessor() {
+    public void qtestIngestDataWithEnrichProcessor() {
         int numDocs = 32;
         List<String> keys = createSourceIndex(numDocs);
 
@@ -53,10 +54,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
 
         String pipelineName = "my-pipeline";
         String pipelineBody = "{\"processors\": [{\"enrich\": {\"policy_name\":\"" + policyName +
-            "\", \"set_from\": [{\"source\": \"" + DECORATE_FIELDS[0] + "\", \"target\": \"" + DECORATE_FIELDS[0] + "\"}," +
-            "{\"source\": \"" + DECORATE_FIELDS[1] + "\", \"target\": \"" + DECORATE_FIELDS[1] + "\"}," +
-            "{\"source\": \"" + DECORATE_FIELDS[2] + "\", \"target\": \"" + DECORATE_FIELDS[2] + "\"}" +
-            "]}}]}";
+            "\", \"field\": \"" + KEY_FIELD + "\", \"target_field\": \"user\"}}]}";
         PutPipelineRequest putPipelineRequest = new PutPipelineRequest(pipelineName, new BytesArray(pipelineBody), XContentType.JSON);
         client().admin().cluster().putPipeline(putPipelineRequest).actionGet();
 
@@ -73,8 +71,9 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
 
         for (int i = 0; i < numDocs; i++) {
             GetResponse getResponse = client().get(new GetRequest("my-index", Integer.toString(i))).actionGet();
-            Map<String, Object> source = getResponse.getSourceAsMap();
-            assertThat(source.size(), equalTo(1 + DECORATE_FIELDS.length));
+            Map<?, ?> source = (Map<?, ?>) getResponse.getSourceAsMap().get("user");
+            assertThat(source, notNullValue());
+            assertThat(source.size(), equalTo(DECORATE_FIELDS.length));
             for (int j = 0; j < 3; j++) {
                 String field = DECORATE_FIELDS[j];
                 assertThat(source.get(field), equalTo(keys.get(i) + j));
@@ -100,8 +99,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
 
             String pipelineName = "pipeline" + i;
             String pipelineBody = "{\"processors\": [{\"enrich\": {\"policy_name\":\"" + policyName +
-                "\", \"set_from\": [{\"source\": \"value\", \"target\": \"value\"}" +
-                "]}}]}";
+                "\", \"field\": \"key\", \"target_field\": \"target\"}}]}";
             PutPipelineRequest putPipelineRequest = new PutPipelineRequest(pipelineName, new BytesArray(pipelineBody), XContentType.JSON);
             client().admin().cluster().putPipeline(putPipelineRequest).actionGet();
         }
@@ -121,7 +119,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
             GetResponse getResponse = client().get(new GetRequest("my-index", Integer.toString(i))).actionGet();
             Map<String, Object> source = getResponse.getSourceAsMap();
             assertThat(source.size(), equalTo(2));
-            assertThat(source.get("value"), equalTo("val" + i));
+            assertThat(source.get("target"), equalTo(Map.of("value", "val" + i)));
         }
     }
 

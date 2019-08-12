@@ -128,8 +128,8 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
 
         for (int i = 0; i < numDocs; i++) {
             GetResponse getResponse = client().get(new GetRequest("my-index", Integer.toString(i))).actionGet();
-            Map<String, Object> source = getResponse.getSourceAsMap();
-            assertThat(source.size(), equalTo(1 + DECORATE_FIELDS.length));
+            Map<?, ?> source = (Map<?, ?>) getResponse.getSourceAsMap().get("user");
+            assertThat(source.size(), equalTo(DECORATE_FIELDS.length));
             for (String field : DECORATE_FIELDS) {
                 assertThat(source.get(field), notNullValue());
             }
@@ -165,10 +165,7 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
 
     private static void createPipeline() {
         String pipelineBody = "{\"processors\": [{\"enrich\": {\"policy_name\":\"" + POLICY_NAME +
-            "\", \"set_from\": [{\"source\": \"" + DECORATE_FIELDS[0] + "\", \"target\": \"" + DECORATE_FIELDS[0] + "\"}," +
-            "{\"source\": \"" + DECORATE_FIELDS[1] + "\", \"target\": \"" + DECORATE_FIELDS[1] + "\"}," +
-            "{\"source\": \"" + DECORATE_FIELDS[2] + "\", \"target\": \"" + DECORATE_FIELDS[2] + "\"}" +
-            "]}}]}";
+            "\", \"field\": \"" + KEY_FIELD + "\", \"target_field\": \"user\"}}]}";
         PutPipelineRequest request = new PutPipelineRequest(PIPELINE_NAME, new BytesArray(pipelineBody), XContentType.JSON);
         client().admin().cluster().putPipeline(request).actionGet();
     }

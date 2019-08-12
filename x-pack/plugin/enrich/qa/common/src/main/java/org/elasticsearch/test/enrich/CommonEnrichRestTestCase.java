@@ -54,10 +54,7 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
         // Create pipeline
         Request putPipelineRequest = new Request("PUT", "/_ingest/pipeline/my_pipeline");
         putPipelineRequest.setJsonEntity("{\"processors\":[" +
-            "{\"enrich\":{\"policy_name\":\"my_policy\",\"enrich_key\":\"host\",\"set_from\":[" +
-            "{\"source\":\"globalRank\",\"target\":\"global_rank\"}," +
-            "{\"source\":\"tldRank\",\"target\":\"tld_rank\"}" +
-            "]}}" +
+            "{\"enrich\":{\"policy_name\":\"my_policy\",\"field\":\"host\",\"target_field\":\"entry\"}}" +
             "]}");
         assertOK(client().performRequest(putPipelineRequest));
 
@@ -70,7 +67,7 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
         // Check if document has been enriched
         Request getRequest = new Request("GET", "/my-index/_doc/1");
         Map<String, Object> response = toMap(client().performRequest(getRequest));
-        Map<?, ?> _source = (Map<?, ?>) response.get("_source");
+        Map<?, ?> _source = (Map<?, ?>) ((Map<?, ?>) response.get("_source")).get("entry");
         assertThat(_source.size(), equalTo(3));
         assertThat(_source.get("host"), equalTo("elastic.co"));
         assertThat(_source.get("global_rank"), equalTo(25));

@@ -41,11 +41,7 @@ public class TaskTransportChannel implements TransportChannel {
         this.channel = channel;
         this.task = task;
         this.taskManager = taskManager;
-        if (task.getAction().contains("search")) {
-            leak = leakTracker.track(this);
-        } else {
-            leak = null;
-        }
+        leak = leakTracker.track(this);
     }
 
     @Override

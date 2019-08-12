@@ -8,16 +8,16 @@ package org.elasticsearch.xpack.spatial.util;
 import org.apache.lucene.geo.XShapeTestUtil;
 import org.apache.lucene.geo.XYPolygon;
 import org.elasticsearch.geo.GeometryTestUtils;
-import org.elasticsearch.geo.geometry.Geometry;
-import org.elasticsearch.geo.geometry.GeometryCollection;
-import org.elasticsearch.geo.geometry.Line;
-import org.elasticsearch.geo.geometry.LinearRing;
-import org.elasticsearch.geo.geometry.MultiLine;
-import org.elasticsearch.geo.geometry.MultiPoint;
-import org.elasticsearch.geo.geometry.MultiPolygon;
-import org.elasticsearch.geo.geometry.Point;
-import org.elasticsearch.geo.geometry.Polygon;
-import org.elasticsearch.geo.geometry.Rectangle;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.GeometryCollection;
+import org.elasticsearch.geometry.Line;
+import org.elasticsearch.geometry.LinearRing;
+import org.elasticsearch.geometry.MultiLine;
+import org.elasticsearch.geometry.MultiPoint;
+import org.elasticsearch.geometry.MultiPolygon;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.Polygon;
+import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -72,16 +72,16 @@ public class ShapeTestUtils {
             List<LinearRing> holes = new ArrayList<>();
             for (int i = 0; i < lucenePolygon.numHoles(); i++) {
                 XYPolygon poly = luceneHoles[i];
-                holes.add(linearRing(poly.getPolyY(), poly.getPolyX(), hasAlt));
+                holes.add(linearRing(poly.getPolyX(), poly.getPolyY(), hasAlt));
             }
-            return new Polygon(linearRing(lucenePolygon.getPolyY(), lucenePolygon.getPolyX(), hasAlt), holes);
+            return new Polygon(linearRing(lucenePolygon.getPolyX(), lucenePolygon.getPolyY(), hasAlt), holes);
         }
-        return new Polygon(linearRing(lucenePolygon.getPolyY(), lucenePolygon.getPolyX(), hasAlt));
+        return new Polygon(linearRing(lucenePolygon.getPolyX(), lucenePolygon.getPolyY(), hasAlt));
     }
 
     public static Rectangle randomRectangle() {
         org.apache.lucene.geo.XYRectangle rectangle = XShapeTestUtil.nextBox();
-        return new Rectangle(rectangle.minY, rectangle.maxY, rectangle.minX, rectangle.maxX);
+        return new Rectangle(rectangle.minX, rectangle.maxX, rectangle.maxY, rectangle.minY);
     }
 
     public static MultiPoint randomMultiPoint(boolean hasAlt) {

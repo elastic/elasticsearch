@@ -425,7 +425,6 @@ task run(type: RunTask) {
     setupCommand 'setupTestAdmin',
             'bin/elasticsearch-users', 'useradd', 'elastic-admin', '-p', 'elastic-password', '-r', 'superuser'
     setting 'xpack.security.enabled', 'true'
-    setting 'xpack.security.audit.enabled', 'true'
     setting 'xpack.monitoring.enabled', 'true'
     setting 'xpack.sql.enabled', 'true'
     setting 'xpack.rollup.enabled', 'true'

@@ -10,6 +10,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
+import org.apache.logging.log4j.core.Filter.Result;
+import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.core.filter.MarkerFilter;
 import org.apache.logging.log4j.message.StringMapMessage;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -18,6 +21,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -37,6 +41,7 @@ import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
@@ -170,7 +175,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     }
 
     public LoggingAuditTrail(Settings settings, ClusterService clusterService, ThreadPool threadPool) {
-        this(settings, clusterService, LogManager.getLogger(), threadPool.getThreadContext());
+        this(settings, clusterService, LogManager.getLogger(LoggingAuditTrail.class), threadPool.getThreadContext());
     }
 
     LoggingAuditTrail(Settings settings, ClusterService clusterService, Logger logger, ThreadContext threadContext) {
@@ -211,6 +216,14 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             final EventFilterPolicy newPolicy = policy.orElse(new EventFilterPolicy(policyName, settings)).changeIndicesFilter(filtersList);
             this.eventFilterPolicyRegistry.set(policyName, newPolicy);
         }, (policyName, filtersList) -> EventFilterPolicy.parsePredicate(filtersList));
+        // this log filter ensures that audit events are not filtered out because of the log level
+        final LoggerContext ctx = LoggerContext.getContext(false);
+        MarkerFilter auditMarkerFilter = MarkerFilter.createFilter(AUDIT_MARKER.getName(), Result.ACCEPT, Result.NEUTRAL);
+        ctx.addFilter(auditMarkerFilter);
+        ctx.updateLoggers();
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(ignored -> {
+            LogManager.getLogger(Security.class).warn("Changing log level for [" + LoggingAuditTrail.class.getName() + "] has no effect");
+        }, List.of(Loggers.LOG_LEVEL_SETTING.getConcreteSettingForNamespace(LoggingAuditTrail.class.getName())));
     }
 
     @Override

@@ -17,7 +17,8 @@ import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.ApplicationPrivilegesRequest;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege.Category;
+import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege.Category;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
 
@@ -32,44 +33,44 @@ import java.util.Set;
 import java.util.function.Predicate;
 
 /**
- * Static utility class for working with {@link ConditionalClusterPrivilege} instances
+ * Static utility class for working with {@link ConfigurableClusterPrivilege} instances
  */
-public final class ConditionalClusterPrivileges {
+public final class ConfigurableClusterPrivileges {
 
-    public static final ConditionalClusterPrivilege[] EMPTY_ARRAY = new ConditionalClusterPrivilege[0];
+    public static final ConfigurableClusterPrivilege[] EMPTY_ARRAY = new ConfigurableClusterPrivilege[0];
 
-    public static final Writeable.Reader<ConditionalClusterPrivilege> READER =
-        in1 -> in1.readNamedWriteable(ConditionalClusterPrivilege.class);
-    public static final Writeable.Writer<ConditionalClusterPrivilege> WRITER =
+    public static final Writeable.Reader<ConfigurableClusterPrivilege> READER =
+        in1 -> in1.readNamedWriteable(ConfigurableClusterPrivilege.class);
+    public static final Writeable.Writer<ConfigurableClusterPrivilege> WRITER =
         (out1, value) -> out1.writeNamedWriteable(value);
 
-    private ConditionalClusterPrivileges() {
+    private ConfigurableClusterPrivileges() {
     }
 
     /**
-     * Utility method to read an array of {@link ConditionalClusterPrivilege} objects from a {@link StreamInput}
+     * Utility method to read an array of {@link ConfigurableClusterPrivilege} objects from a {@link StreamInput}
      */
-    public static ConditionalClusterPrivilege[] readArray(StreamInput in) throws IOException {
-        return in.readArray(READER, ConditionalClusterPrivilege[]::new);
+    public static ConfigurableClusterPrivilege[] readArray(StreamInput in) throws IOException {
+        return in.readArray(READER, ConfigurableClusterPrivilege[]::new);
     }
 
     /**
-     * Utility method to write an array of {@link ConditionalClusterPrivilege} objects to a {@link StreamOutput}
+     * Utility method to write an array of {@link ConfigurableClusterPrivilege} objects to a {@link StreamOutput}
      */
-    public static void writeArray(StreamOutput out, ConditionalClusterPrivilege[] privileges) throws IOException {
+    public static void writeArray(StreamOutput out, ConfigurableClusterPrivilege[] privileges) throws IOException {
         out.writeArray(WRITER, privileges);
     }
 
     /**
      * Writes a single object value to the {@code builder} that contains each of the provided privileges.
-     * The privileges are grouped according to their {@link ConditionalClusterPrivilege#getCategory() categories}
+     * The privileges are grouped according to their {@link ConfigurableClusterPrivilege#getCategory() categories}
      */
     public static XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params,
-                                             Collection<ConditionalClusterPrivilege> privileges) throws IOException {
+                                             Collection<ConfigurableClusterPrivilege> privileges) throws IOException {
         builder.startObject();
         for (Category category : Category.values()) {
             builder.startObject(category.field.getPreferredName());
-            for (ConditionalClusterPrivilege privilege : privileges) {
+            for (ConfigurableClusterPrivilege privilege : privileges) {
                 if (category == privilege.getCategory()) {
                     privilege.toXContent(builder, params);
                 }
@@ -83,8 +84,8 @@ public final class ConditionalClusterPrivileges {
      * Read a list of privileges from the parser. The parser should be positioned at the
      * {@link XContentParser.Token#START_OBJECT} token for the privileges value
      */
-    public static List<ConditionalClusterPrivilege> parse(XContentParser parser) throws IOException {
-        List<ConditionalClusterPrivilege> privileges = new ArrayList<>();
+    public static List<ConfigurableClusterPrivilege> parse(XContentParser parser) throws IOException {
+        List<ConfigurableClusterPrivilege> privileges = new ArrayList<>();
 
         expectedToken(parser.currentToken(), parser, XContentParser.Token.START_OBJECT);
         while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
@@ -119,15 +120,13 @@ public final class ConditionalClusterPrivileges {
     }
 
     /**
-     * The {@code ManageApplicationPrivileges} privilege is a {@link ConditionalClusterPrivilege} that grants the
+     * The {@code ManageApplicationPrivileges} privilege is a {@link ConfigurableClusterPrivilege} that grants the
      * ability to execute actions related to the management of application privileges (Get, Put, Delete) for a subset
      * of applications (identified by a wildcard-aware application-name).
      */
-    public static class ManageApplicationPrivileges implements ConditionalClusterPrivilege {
+    public static class ManageApplicationPrivileges implements ConfigurableClusterPrivilege {
 
-        private static final ClusterPrivilege PRIVILEGE = ClusterPrivilege.get(
-            Collections.singleton("cluster:admin/xpack/security/privilege/*")
-        );
+        private static final Predicate<String> ACTION_PREDICATE = Automatons.predicate("cluster:admin/xpack/security/privilege/*");
         public static final String WRITEABLE_NAME = "manage-application-privileges";
 
         private final Set<String> applicationNames;
@@ -151,16 +150,6 @@ public final class ConditionalClusterPrivileges {
         @Override
         public Category getCategory() {
             return Category.APPLICATION;
-        }
-
-        @Override
-        public ClusterPrivilege getPrivilege() {
-            return PRIVILEGE;
-        }
-
-        @Override
-        public Predicate<TransportRequest> getRequestPredicate() {
-            return this.requestPredicate;
         }
 
         public Collection<String> getApplicationNames() {
@@ -222,6 +211,11 @@ public final class ConditionalClusterPrivileges {
         @Override
         public int hashCode() {
             return applicationNames.hashCode();
+        }
+
+        @Override
+        public ClusterPermission.Builder buildPermission(final ClusterPermission.Builder builder) {
+            return builder.add(this, ACTION_PREDICATE, requestPredicate);
         }
 
         private interface Fields {

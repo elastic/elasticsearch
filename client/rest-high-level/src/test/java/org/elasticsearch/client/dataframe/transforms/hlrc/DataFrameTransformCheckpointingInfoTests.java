@@ -37,8 +37,7 @@ public class DataFrameTransformCheckpointingInfoTests extends AbstractHlrcXConte
             DataFrameTransformCheckpointStatsTests.fromHlrc(instance.getLast()),
             DataFrameTransformCheckpointStatsTests.fromHlrc(instance.getNext()),
             instance.getOperationsBehind(),
-            instance.isFoundChanges(),
-            instance.getLastChangeCheck());
+            instance.getChangesDetectedAt());
     }
 
     @Override
@@ -57,7 +56,6 @@ public class DataFrameTransformCheckpointingInfoTests extends AbstractHlrcXConte
             DataFrameTransformCheckpointStatsTests.randomDataFrameTransformCheckpointStats(),
             DataFrameTransformCheckpointStatsTests.randomDataFrameTransformCheckpointStats(),
             randomNonNegativeLong(),
-            randomBoolean(),
             randomBoolean() ? null : Instant.ofEpochMilli(randomNonNegativeLong()));
     }
 

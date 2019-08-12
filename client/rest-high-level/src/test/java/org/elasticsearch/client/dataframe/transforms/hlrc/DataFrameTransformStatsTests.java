@@ -110,7 +110,6 @@ public class DataFrameTransformStatsTests extends AbstractHlrcXContentTestCase<D
     public static DataFrameTransformCheckpointingInfo randomDataFrameTransformCheckpointingInfo() {
         return new DataFrameTransformCheckpointingInfo(randomDataFrameTransformCheckpointStats(),
             randomDataFrameTransformCheckpointStats(), randomNonNegativeLong(),
-            randomBoolean(),
             randomBoolean() ? null : Instant.ofEpochMilli(randomNonNegativeLong()));
     }
 
@@ -140,7 +139,6 @@ public class DataFrameTransformStatsTests extends AbstractHlrcXContentTestCase<D
             randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L),
             randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L),
             randomLongBetween(0L, 10000L),
-            randomBoolean() ? null : randomNonNegativeLong(),
             randomBoolean() ? null : randomDouble(),
             randomBoolean() ? null : randomDouble(),
             randomBoolean() ? null : randomDouble());

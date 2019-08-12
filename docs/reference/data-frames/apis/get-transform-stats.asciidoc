@@ -140,8 +140,7 @@ The API returns the following results:
         "search_failures" : 0,
         "exponential_avg_checkpoint_duration_ms" : 77,
         "exponential_avg_documents_indexed" : 2,
-        "exponential_avg_documents_processed" : 12,
-        "continuous_checkpoints_processed" : 99,
+        "exponential_avg_documents_processed" : 12
       },
       "checkpointing" : {
         "last" : {
@@ -163,8 +162,7 @@ The API returns the following results:
             "documents_processed": 100,
             "documents_indexed": 1
           },
-          "found_changes": true,
-          "last_change_check": 1561740629170,
+          "changes_last_detected_at": 1561740629170,
           "timestamp_millis" : 1561740629172,
           "time_upper_bound_millis" : 1561740569172
         },

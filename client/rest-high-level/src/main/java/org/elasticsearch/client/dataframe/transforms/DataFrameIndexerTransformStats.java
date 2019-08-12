@@ -35,14 +35,13 @@ public class DataFrameIndexerTransformStats extends IndexerJobStats {
     static ParseField EXPONENTIAL_AVG_CHECKPOINT_DURATION_MS = new ParseField("exponential_avg_checkpoint_duration_ms");
     static ParseField EXPONENTIAL_AVG_DOCUMENTS_INDEXED = new ParseField("exponential_avg_documents_indexed");
     static ParseField EXPONENTIAL_AVG_DOCUMENTS_PROCESSED = new ParseField("exponential_avg_documents_processed");
-    static ParseField CONTINUOUS_CHECKPOINTS_PROCESSED = new ParseField("continuous_checkpoints_processed");
 
     public static final ConstructingObjectParser<DataFrameIndexerTransformStats, Void> LENIENT_PARSER = new ConstructingObjectParser<>(
         NAME,
         true,
         args -> new DataFrameIndexerTransformStats((long) args[0], (long) args[1], (long) args[2],
             (long) args[3], (long) args[4], (long) args[5], (long) args[6], (long) args[7], (long) args[8], (long) args[9],
-            (Long) args[10], (Double) args[11], (Double) args[12], (Double) args[13]));
+            (Double) args[10], (Double) args[11], (Double) args[12]));
 
     static {
         LENIENT_PARSER.declareLong(constructorArg(), NUM_PAGES);
@@ -55,7 +54,6 @@ public class DataFrameIndexerTransformStats extends IndexerJobStats {
         LENIENT_PARSER.declareLong(constructorArg(), SEARCH_TOTAL);
         LENIENT_PARSER.declareLong(constructorArg(), INDEX_FAILURES);
         LENIENT_PARSER.declareLong(constructorArg(), SEARCH_FAILURES);
-        LENIENT_PARSER.declareLong(optionalConstructorArg(), CONTINUOUS_CHECKPOINTS_PROCESSED);
         LENIENT_PARSER.declareDouble(optionalConstructorArg(), EXPONENTIAL_AVG_CHECKPOINT_DURATION_MS);
         LENIENT_PARSER.declareDouble(optionalConstructorArg(), EXPONENTIAL_AVG_DOCUMENTS_INDEXED);
         LENIENT_PARSER.declareDouble(optionalConstructorArg(), EXPONENTIAL_AVG_DOCUMENTS_PROCESSED);
@@ -68,16 +66,14 @@ public class DataFrameIndexerTransformStats extends IndexerJobStats {
     private final double expAvgCheckpointDurationMs;
     private final double expAvgDocumentsIndexed;
     private final double expAvgDocumentsProcessed;
-    private final long continuousCheckpointsProcessed;
 
     public DataFrameIndexerTransformStats(long numPages, long numInputDocuments, long numOuputDocuments,
                                           long numInvocations, long indexTime, long searchTime,
                                           long indexTotal, long searchTotal, long indexFailures, long searchFailures,
-                                          Long continuousCheckpointsProcessed, Double expAvgCheckpointDurationMs,
-                                          Double expAvgDocumentsIndexed, Double expAvgDocumentsProcessed) {
+                                          Double expAvgCheckpointDurationMs, Double expAvgDocumentsIndexed,
+                                          Double expAvgDocumentsProcessed) {
         super(numPages, numInputDocuments, numOuputDocuments, numInvocations, indexTime, searchTime,
                 indexTotal, searchTotal, indexFailures, searchFailures);
-        this.continuousCheckpointsProcessed = continuousCheckpointsProcessed == null ? 0L : continuousCheckpointsProcessed;
         this.expAvgCheckpointDurationMs = expAvgCheckpointDurationMs == null ? 0.0 : expAvgCheckpointDurationMs;
         this.expAvgDocumentsIndexed = expAvgDocumentsIndexed == null ? 0.0 : expAvgDocumentsIndexed;
         this.expAvgDocumentsProcessed = expAvgDocumentsProcessed == null ? 0.0 : expAvgDocumentsProcessed;
@@ -93,10 +89,6 @@ public class DataFrameIndexerTransformStats extends IndexerJobStats {
 
     public double getExpAvgDocumentsProcessed() {
         return expAvgDocumentsProcessed;
-    }
-
-    public long getContinuousCheckpointsProcessed() {
-        return continuousCheckpointsProcessed;
     }
 
     @Override
@@ -121,7 +113,6 @@ public class DataFrameIndexerTransformStats extends IndexerJobStats {
             && Objects.equals(this.searchFailures, that.searchFailures)
             && Objects.equals(this.indexTotal, that.indexTotal)
             && Objects.equals(this.searchTotal, that.searchTotal)
-            && Objects.equals(this.continuousCheckpointsProcessed, that.continuousCheckpointsProcessed)
             && Objects.equals(this.expAvgCheckpointDurationMs, that.expAvgCheckpointDurationMs)
             && Objects.equals(this.expAvgDocumentsIndexed, that.expAvgDocumentsIndexed)
             && Objects.equals(this.expAvgDocumentsProcessed, that.expAvgDocumentsProcessed);
@@ -130,7 +121,7 @@ public class DataFrameIndexerTransformStats extends IndexerJobStats {
     @Override
     public int hashCode() {
         return Objects.hash(numPages, numInputDocuments, numOuputDocuments, numInvocations,
-            indexTime, searchTime, indexFailures, searchFailures, indexTotal, searchTotal, continuousCheckpointsProcessed,
+            indexTime, searchTime, indexFailures, searchFailures, indexTotal, searchTotal,
             expAvgCheckpointDurationMs, expAvgDocumentsIndexed, expAvgDocumentsProcessed);
     }
 }

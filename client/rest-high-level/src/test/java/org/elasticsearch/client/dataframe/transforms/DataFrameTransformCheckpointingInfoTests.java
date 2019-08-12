@@ -43,7 +43,6 @@ public class DataFrameTransformCheckpointingInfoTests extends ESTestCase {
             DataFrameTransformCheckpointStatsTests.randomDataFrameTransformCheckpointStats(),
             DataFrameTransformCheckpointStatsTests.randomDataFrameTransformCheckpointStats(),
             randomLongBetween(0, 10000),
-            randomBoolean(),
             randomBoolean() ? null : Instant.ofEpochMilli(randomNonNegativeLong()));
     }
 
@@ -58,9 +57,8 @@ public class DataFrameTransformCheckpointingInfoTests extends ESTestCase {
             DataFrameTransformCheckpointStatsTests.toXContent(info.getNext(), builder);
         }
         builder.field(DataFrameTransformCheckpointingInfo.OPERATIONS_BEHIND.getPreferredName(), info.getOperationsBehind());
-        builder.field(DataFrameTransformCheckpointingInfo.FOUND_CHANGES.getPreferredName(), info.isFoundChanges());
-        if (info.getLastChangeCheck() != null) {
-            builder.field(DataFrameTransformCheckpointingInfo.LAST_CHANGE_CHECK.getPreferredName(), info.getLastChangeCheck());
+        if (info.getChangesDetectedAt() != null) {
+            builder.field(DataFrameTransformCheckpointingInfo.CHANGES_LAST_DETECTED_AT.getPreferredName(), info.getChangesDetectedAt());
         }
         builder.endObject();
     }

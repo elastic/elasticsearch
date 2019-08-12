@@ -35,19 +35,16 @@ public class DataFrameTransformCheckpointingInfo implements Writeable, ToXConten
         DataFrameTransformCheckpointStats.EMPTY,
         DataFrameTransformCheckpointStats.EMPTY,
         0L,
-        false,
         null);
 
     public static final ParseField LAST_CHECKPOINT = new ParseField("last");
     public static final ParseField NEXT_CHECKPOINT = new ParseField("next");
     public static final ParseField OPERATIONS_BEHIND = new ParseField("operations_behind");
-    public static final ParseField FOUND_CHANGES = new ParseField("found_changes");
-    public static final ParseField LAST_CHANGE_CHECK = new ParseField("last_change_check");
+    public static final ParseField CHANGES_LAST_DETECTED_AT = new ParseField("changes_last_detected_at");
     private final DataFrameTransformCheckpointStats last;
     private final DataFrameTransformCheckpointStats next;
     private final long operationsBehind;
-    private boolean foundChanges = false;
-    private Instant lastChangeCheck;
+    private Instant changesLastDetectedAt;
 
     private static final ConstructingObjectParser<DataFrameTransformCheckpointingInfo, Void> LENIENT_PARSER =
             new ConstructingObjectParser<>(
@@ -55,14 +52,12 @@ public class DataFrameTransformCheckpointingInfo implements Writeable, ToXConten
                 true,
                 a -> {
                         long behind = a[2] == null ? 0L : (Long) a[2];
-                        boolean foundChanges = a[3] == null ? false : (Boolean) a[3];
-                        Instant lastChangeCheck = (Instant)a[4];
+                        Instant changesLastDetectedAt = (Instant)a[3];
                         return new DataFrameTransformCheckpointingInfo(
                             a[0] == null ? DataFrameTransformCheckpointStats.EMPTY : (DataFrameTransformCheckpointStats) a[0],
                             a[1] == null ? DataFrameTransformCheckpointStats.EMPTY : (DataFrameTransformCheckpointStats) a[1],
                             behind,
-                            foundChanges,
-                            lastChangeCheck);
+                            changesLastDetectedAt);
                 });
 
     static {
@@ -71,10 +66,9 @@ public class DataFrameTransformCheckpointingInfo implements Writeable, ToXConten
         LENIENT_PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(),
             DataFrameTransformCheckpointStats.LENIENT_PARSER::apply, NEXT_CHECKPOINT);
         LENIENT_PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), OPERATIONS_BEHIND);
-        LENIENT_PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), FOUND_CHANGES);
         LENIENT_PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
-            p -> TimeUtils.parseTimeFieldToInstant(p, LAST_CHANGE_CHECK.getPreferredName()),
-            LAST_CHANGE_CHECK,
+            p -> TimeUtils.parseTimeFieldToInstant(p, CHANGES_LAST_DETECTED_AT.getPreferredName()),
+            CHANGES_LAST_DETECTED_AT,
             ObjectParser.ValueType.VALUE);
     }
 
@@ -85,25 +79,22 @@ public class DataFrameTransformCheckpointingInfo implements Writeable, ToXConten
      * @param last stats of the last checkpoint
      * @param next stats of the next checkpoint
      * @param operationsBehind counter of operations the current checkpoint is behind source
-     * @param foundChanges boolean indicating if changes were found in the last check for changes
-     * @param lastChangeCheck the last time the source indices were checked for changes
+     * @param changesLastDetectedAt the last time the source indices were checked for changes
      */
     public DataFrameTransformCheckpointingInfo(DataFrameTransformCheckpointStats last,
                                                DataFrameTransformCheckpointStats next,
                                                long operationsBehind,
-                                               boolean foundChanges,
-                                               Instant lastChangeCheck) {
+                                               Instant changesLastDetectedAt) {
         this.last = Objects.requireNonNull(last);
         this.next = Objects.requireNonNull(next);
         this.operationsBehind = operationsBehind;
-        this.foundChanges = foundChanges;
-        this.lastChangeCheck = lastChangeCheck == null ? null : Instant.ofEpochMilli(lastChangeCheck.toEpochMilli());
+        this.changesLastDetectedAt = changesLastDetectedAt == null ? null : Instant.ofEpochMilli(changesLastDetectedAt.toEpochMilli());
     }
 
     public DataFrameTransformCheckpointingInfo(DataFrameTransformCheckpointStats last,
                                                DataFrameTransformCheckpointStats next,
                                                long operationsBehind) {
-        this(last, next, operationsBehind, false, null);
+        this(last, next, operationsBehind, null);
     }
 
     public DataFrameTransformCheckpointingInfo(StreamInput in) throws IOException {
@@ -111,8 +102,7 @@ public class DataFrameTransformCheckpointingInfo implements Writeable, ToXConten
         next = new DataFrameTransformCheckpointStats(in);
         operationsBehind = in.readLong();
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            foundChanges = in.readBoolean();
-            lastChangeCheck = in.readOptionalInstant();
+            changesLastDetectedAt = in.readOptionalInstant();
         }
     }
 
@@ -128,21 +118,12 @@ public class DataFrameTransformCheckpointingInfo implements Writeable, ToXConten
         return operationsBehind;
     }
 
-    public boolean isFoundChanges() {
-        return foundChanges;
+    public Instant getChangesDetectedAt() {
+        return changesLastDetectedAt;
     }
 
-    public DataFrameTransformCheckpointingInfo setFoundChanges(boolean foundChanges) {
-        this.foundChanges = foundChanges;
-        return this;
-    }
-
-    public Instant getLastChangeCheck() {
-        return lastChangeCheck;
-    }
-
-    public DataFrameTransformCheckpointingInfo setLastChangeCheck(Instant lastChangeCheck) {
-        this.lastChangeCheck = Instant.ofEpochMilli(Objects.requireNonNull(lastChangeCheck).toEpochMilli());
+    public DataFrameTransformCheckpointingInfo setChangesDetectedAt(Instant changesLastDetectedAt) {
+        this.changesLastDetectedAt = Instant.ofEpochMilli(Objects.requireNonNull(changesLastDetectedAt).toEpochMilli());
         return this;
     }
 
@@ -154,11 +135,10 @@ public class DataFrameTransformCheckpointingInfo implements Writeable, ToXConten
             builder.field(NEXT_CHECKPOINT.getPreferredName(), next);
         }
         builder.field(OPERATIONS_BEHIND.getPreferredName(), operationsBehind);
-        builder.field(FOUND_CHANGES.getPreferredName(), foundChanges);
-        if (lastChangeCheck != null) {
-            builder.timeField(LAST_CHANGE_CHECK.getPreferredName(),
-                LAST_CHANGE_CHECK.getPreferredName() + "_string",
-                lastChangeCheck.toEpochMilli());
+        if (changesLastDetectedAt != null) {
+            builder.timeField(CHANGES_LAST_DETECTED_AT.getPreferredName(),
+                CHANGES_LAST_DETECTED_AT.getPreferredName() + "_string",
+                changesLastDetectedAt.toEpochMilli());
         }
         builder.endObject();
         return builder;
@@ -170,8 +150,7 @@ public class DataFrameTransformCheckpointingInfo implements Writeable, ToXConten
         next.writeTo(out);
         out.writeLong(operationsBehind);
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeBoolean(foundChanges);
-            out.writeOptionalInstant(lastChangeCheck);
+            out.writeOptionalInstant(changesLastDetectedAt);
         }
     }
 
@@ -181,7 +160,7 @@ public class DataFrameTransformCheckpointingInfo implements Writeable, ToXConten
 
     @Override
     public int hashCode() {
-        return Objects.hash(last, next, operationsBehind, lastChangeCheck, foundChanges);
+        return Objects.hash(last, next, operationsBehind, changesLastDetectedAt);
     }
 
     @Override
@@ -199,8 +178,7 @@ public class DataFrameTransformCheckpointingInfo implements Writeable, ToXConten
         return Objects.equals(this.last, that.last) &&
             Objects.equals(this.next, that.next) &&
             this.operationsBehind == that.operationsBehind &&
-            this.foundChanges == that.foundChanges &&
-            Objects.equals(this.lastChangeCheck, that.lastChangeCheck);
+            Objects.equals(this.changesLastDetectedAt, that.changesLastDetectedAt);
     }
 
     @Override

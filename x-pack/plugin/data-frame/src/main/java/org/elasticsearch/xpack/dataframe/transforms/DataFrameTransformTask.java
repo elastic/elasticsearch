@@ -88,8 +88,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
     private final DataFrameAuditor auditor;
     private final DataFrameIndexerPosition initialPosition;
     private final IndexerState initialIndexerState;
-    private volatile boolean foundCheckpointChanges = false;
-    private volatile Instant lastChangeCheck;
+    private volatile Instant changesLastDetectedAt;
 
     private final SetOnce<ClientDataFrameIndexer> indexer = new SetOnce<>();
 
@@ -202,7 +201,13 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 indexer.getPosition(),
                 indexer.getProgress(),
                 ActionListener.wrap(
-                    info -> listener.onResponse(info.setFoundChanges(foundCheckpointChanges).setLastChangeCheck(lastChangeCheck)),
+                    info -> {
+                        if (changesLastDetectedAt == null) {
+                            listener.onResponse(info);
+                        } else {
+                            listener.onResponse(info.setChangesDetectedAt(changesLastDetectedAt));
+                        }
+                    },
                     listener::onFailure
                 ));
     }
@@ -325,13 +330,10 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         if (currentCheckpoint.get() == 0 ) {
             logger.debug("Trigger initial run");
             getIndexer().maybeTriggerAsyncJob(System.currentTimeMillis());
-        } else if (getIndexer().isContinuous()) {
-            foundCheckpointChanges = getIndexer().sourceHasChanged();
-            lastChangeCheck = Instant.now();
-            if (foundCheckpointChanges) {
-                logger.debug("Source has changed, triggering new indexer run");
-                getIndexer().maybeTriggerAsyncJob(System.currentTimeMillis());
-            }
+        } else if (getIndexer().isContinuous() && getIndexer().sourceHasChanged()) {
+            changesLastDetectedAt = Instant.now();
+            logger.debug("Source has changed, triggering new indexer run");
+            getIndexer().maybeTriggerAsyncJob(System.currentTimeMillis());
         }
     }
 

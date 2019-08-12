@@ -258,9 +258,6 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
             assertThat("exponential_avg_documents_processed is not 0.0",
                 transformStats.get("exponential_avg_documents_processed"),
                 equalTo(0.0));
-            assertThat("continuous_checkpoints_processed is not 0",
-                transformStats.get("continuous_checkpoints_processed"),
-                equalTo(0));
         }
 
         int numDocs = 10;
@@ -289,7 +286,7 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
 
         waitForDataFrameCheckpoint(transformId, 2L);
 
-        // We should now have exp avgs and continuous_checkpoints_processed since we have processed a continuous checkpoint
+        // We should now have exp avgs since we have processed a continuous checkpoint
         assertBusy(() -> {
             Map<String, Object> statsResponse = entityAsMap(client().performRequest(getRequest));
             List<Map<String, Object>> contStats = (List<Map<String, Object>>)XContentMapValues.extractValue("transforms", statsResponse);
@@ -305,15 +302,9 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
                 assertThat("exponential_avg_documents_processed is 0",
                     (Double)statsObj.get("exponential_avg_documents_processed"),
                     greaterThan(0.0));
-                assertThat("continuous_checkpoints_processed is 0",
-                    (Integer)statsObj.get("continuous_checkpoints_processed"),
-                    greaterThan(0));
                 Map<String, Object> checkpointing = (Map<String, Object>)transformStats.get("checkpointing");
-                assertThat("found_changes is not false",
-                    checkpointing.get("found_changes"),
-                    equalTo(false));
-                assertThat("last_change_check is null",
-                    checkpointing.get("last_change_check"),
+                assertThat("changes_last_detected_at is null",
+                    checkpointing.get("changes_last_detected_at"),
                     is(notNullValue()));
             }
         }, 120, TimeUnit.SECONDS);

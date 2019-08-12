@@ -42,7 +42,6 @@ public class DataFrameIndexerTransformStatsTests extends AbstractHlrcXContentTes
             instance.getSearchTotal(),
             instance.getIndexFailures(),
             instance.getSearchFailures(),
-            instance.getContinuousCheckpointsProcessed(),
             instance.getExpAvgCheckpointDurationMs(),
             instance.getExpAvgDocumentsIndexed(),
             instance.getExpAvgDocumentsProcessed());
@@ -65,7 +64,6 @@ public class DataFrameIndexerTransformStatsTests extends AbstractHlrcXContentTes
             randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L),
             randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L),
             randomLongBetween(0L, 10000L),
-            randomBoolean() ? null : randomNonNegativeLong(),
             randomBoolean() ? null : randomDouble(),
             randomBoolean() ? null : randomDouble(),
             randomBoolean() ? null : randomDouble());

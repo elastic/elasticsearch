@@ -417,7 +417,6 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
             0L,
             0L,
             0L,
-            0L,
             0.0,
             0.0,
             0.0);

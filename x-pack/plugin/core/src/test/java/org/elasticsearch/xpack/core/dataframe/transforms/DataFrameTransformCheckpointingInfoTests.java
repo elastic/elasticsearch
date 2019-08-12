@@ -22,7 +22,6 @@ public class DataFrameTransformCheckpointingInfoTests extends AbstractSerializin
             DataFrameTransformCheckpointStatsTests.randomDataFrameTransformCheckpointStats(),
             DataFrameTransformCheckpointStatsTests.randomDataFrameTransformCheckpointStats(),
             randomNonNegativeLong(),
-            randomBoolean(),
             randomBoolean() ? null : Instant.ofEpochMilli(randomLongBetween(1, 100000)));
     }
 
@@ -46,8 +45,7 @@ public class DataFrameTransformCheckpointingInfoTests extends AbstractSerializin
             DataFrameTransformCheckpointStats.EMPTY,
             DataFrameTransformCheckpointStats.EMPTY,
             randomNonNegativeLong(),
-            // lastChangeCheck is not serialized to past values, so when it is pulled back in, it will be null
-            false,
+            // changesLastDetectedAt is not serialized to past values, so when it is pulled back in, it will be null
             null);
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             output.setVersion(Version.V_7_4_0);

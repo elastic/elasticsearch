@@ -42,8 +42,6 @@ import org.elasticsearch.common.SuppressForbidden;
 
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
-import java.util.Arrays;
-import java.util.Objects;
 
 import static io.netty.channel.internal.ChannelUtils.MAX_BYTES_PER_GATHERING_WRITE_ATTEMPTED_LOW_THRESHOLD;
 
@@ -89,7 +87,6 @@ public class CopyBytesSocketChannel extends NioSocketChannel {
             // Ensure the pending writes are made of ByteBufs only.
             int maxBytesPerGatheringWrite = writeConfig.getMaxBytesPerGatheringWrite();
             ByteBuffer[] nioBuffers = in.nioBuffers(1024, maxBytesPerGatheringWrite);
-            assert Arrays.stream(nioBuffers).filter(Objects::nonNull).noneMatch(ByteBuffer::isDirect) : "Expected all to be heap buffers";
             int nioBufferCnt = in.nioBufferCount();
 
             if (nioBufferCnt == 0) {// We have something else beside ByteBuffers to write so fallback to normal writes.
@@ -108,6 +105,7 @@ public class CopyBytesSocketChannel extends NioSocketChannel {
                     return;
                 }
                 adjustMaxBytesPerGatheringWrite(attemptedBytes, localWrittenBytes, maxBytesPerGatheringWrite);
+                setWrittenBytes(nioBuffers, localWrittenBytes);
                 in.removeBytes(localWrittenBytes);
                 --writeSpinCount;
             }
@@ -151,11 +149,18 @@ public class CopyBytesSocketChannel extends NioSocketChannel {
     private static void copyBytes(ByteBuffer[] source, int nioBufferCnt, ByteBuffer destination) {
         for (int i = 0; i < nioBufferCnt && destination.hasRemaining(); i++) {
             ByteBuffer buffer = source[i];
+            assert buffer.hasArray() : "Buffer must have heap array";
             int nBytesToCopy = Math.min(destination.remaining(), buffer.remaining());
-            int initialLimit = buffer.limit();
-            buffer.limit(buffer.position() + nBytesToCopy);
-            destination.put(buffer);
-            buffer.limit(initialLimit);
+            destination.put(buffer.array(), buffer.arrayOffset() + buffer.position(), nBytesToCopy);
+        }
+    }
+
+    private static void setWrittenBytes(ByteBuffer[] source, int bytesWritten) {
+        for (int i = 0; bytesWritten > 0; i++) {
+            ByteBuffer buffer = source[i];
+            int nBytes = Math.min(buffer.remaining(), bytesWritten);
+            buffer.position(buffer.position() + nBytes);
+            bytesWritten = bytesWritten - nBytes;
         }
     }
 

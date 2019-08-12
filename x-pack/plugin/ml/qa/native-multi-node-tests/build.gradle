@@ -26,6 +26,7 @@ processTestResources.dependsOn(copyKeyCerts)
 
 // Disabled and tracked here https://github.com/elastic/elasticsearch/issues/45405
 integTest.enabled = false
+testingConventions.enabled = false
 
 integTest {
     dependsOn copyKeyCerts

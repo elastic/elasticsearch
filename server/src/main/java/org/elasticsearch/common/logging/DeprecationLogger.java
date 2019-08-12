@@ -261,12 +261,19 @@ public class DeprecationLogger {
     }
 
     public String getXOpaqueId(Set<ThreadContext> threadContexts) {
-        return threadContexts.stream()
-                             .filter(t -> t.isClosed() == false)
-                             .filter(t -> t.getHeader(Task.X_OPAQUE_ID) != null)
-                             .findFirst()
-                             .map(t -> t.getHeader(Task.X_OPAQUE_ID))
-                             .orElse("");
+        for (ThreadContext threadContext : threadContexts) {
+            try {
+                if (threadContext.isClosed() == false) {
+                    String header = threadContext.getHeader(Task.X_OPAQUE_ID);
+                    if (header != null) {
+                        return header;
+                    }
+                }
+            } catch (IllegalStateException e) {
+                // ignore exception as this is due to a race condition  between isClosed and getHeader
+            }
+        }
+        return "";
     }
 
     /**

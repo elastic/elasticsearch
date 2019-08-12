@@ -1,6 +1,10 @@
 ---
 setup:
+  - skip:
+      features: headers
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.create:
         index: index-source
         body:
@@ -15,6 +19,8 @@ setup:
 "Test memory usage estimation for empty data frame":
 
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       ml.estimate_memory_usage:
         body:
           data_frame_analytics_config:
@@ -34,6 +40,8 @@ setup:
   - match: { result: "created" }
 
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       ml.estimate_memory_usage:
         body:
           data_frame_analytics_config:
@@ -50,6 +58,8 @@ setup:
   - match: { result: "created" }
 
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       ml.estimate_memory_usage:
         body:
           data_frame_analytics_config:
@@ -66,6 +76,8 @@ setup:
   - match: { result: "created" }
 
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       ml.estimate_memory_usage:
         body:
           data_frame_analytics_config:

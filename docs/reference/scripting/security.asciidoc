@@ -101,7 +101,7 @@ to be `none`.
 
 [source,yaml]
 ----
-script.allowed_contexts: search, update <1>
+script.allowed_contexts: score, update <1>
 ----
-<1> This will allow only search and update scripts to be executed but not
+<1> This will allow only scoring and update scripts to be executed but not
 aggs or plugin scripts (or any other contexts).

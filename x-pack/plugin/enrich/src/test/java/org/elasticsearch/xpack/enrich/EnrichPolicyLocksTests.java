@@ -42,13 +42,13 @@ public class EnrichPolicyLocksTests extends ESTestCase {
 
         // Get exec state - should note as safe and revision 1 since nothing has happened yet
         executionState = policyLocks.captureExecutionState();
-        assertThat(executionState.arePoliciesInFlight, is(false));
+        assertThat(executionState.anyPolicyInFlight, is(false));
         assertThat(executionState.executions, is(0L));
         assertThat(policyLocks.isSameState(executionState), is(true));
 
         // Get another exec state - should still note as safe and revision 1 since nothing has happened yet
         executionState = policyLocks.captureExecutionState();
-        assertThat(executionState.arePoliciesInFlight, is(false));
+        assertThat(executionState.anyPolicyInFlight, is(false));
         assertThat(executionState.executions, is(0L));
         assertThat(policyLocks.isSameState(executionState), is(true));
 
@@ -57,7 +57,7 @@ public class EnrichPolicyLocksTests extends ESTestCase {
 
         // Get a third exec state - should have a new revision and report unsafe since execution is in progress
         executionState = policyLocks.captureExecutionState();
-        assertThat(executionState.arePoliciesInFlight, is(true));
+        assertThat(executionState.anyPolicyInFlight, is(true));
         assertThat(executionState.executions, is(1L));
 
         // Unlock the policy
@@ -66,13 +66,13 @@ public class EnrichPolicyLocksTests extends ESTestCase {
         // Get a fourth exec state - should have the same revision as third, and report no policies in flight since the previous execution
         // is complete
         executionState = policyLocks.captureExecutionState();
-        assertThat(executionState.arePoliciesInFlight, is(false));
+        assertThat(executionState.anyPolicyInFlight, is(false));
         assertThat(executionState.executions, is(1L));
 
         // Create a fifth exec state, lock and release a policy, and check if the captured exec state is the same as the current state in
         // the lock object
         executionState = policyLocks.captureExecutionState();
-        assertThat(executionState.arePoliciesInFlight, is(false));
+        assertThat(executionState.anyPolicyInFlight, is(false));
         assertThat(executionState.executions, is(1L));
         policyLocks.lockPolicy(policy);
         policyLocks.releasePolicy(policy);

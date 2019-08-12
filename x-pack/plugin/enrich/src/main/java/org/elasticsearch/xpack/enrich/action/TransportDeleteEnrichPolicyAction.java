@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.enrich.action;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -16,24 +17,31 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
+import org.elasticsearch.xpack.enrich.EnrichPolicyLocks;
 import org.elasticsearch.xpack.enrich.EnrichStore;
 
 import java.io.IOException;
 
 public class TransportDeleteEnrichPolicyAction extends TransportMasterNodeAction<DeleteEnrichPolicyAction.Request, AcknowledgedResponse> {
 
+    private final EnrichPolicyLocks enrichPolicyLocks;
+
     @Inject
     public TransportDeleteEnrichPolicyAction(TransportService transportService,
                                              ClusterService clusterService,
                                              ThreadPool threadPool,
                                              ActionFilters actionFilters,
-                                             IndexNameExpressionResolver indexNameExpressionResolver) {
+                                             IndexNameExpressionResolver indexNameExpressionResolver,
+                                             EnrichPolicyLocks enrichPolicyLocks) {
         super(DeleteEnrichPolicyAction.NAME, transportService, clusterService, threadPool, actionFilters,
             DeleteEnrichPolicyAction.Request::new, indexNameExpressionResolver);
+        this.enrichPolicyLocks = enrichPolicyLocks;
     }
 
     @Override
@@ -53,7 +61,15 @@ public class TransportDeleteEnrichPolicyAction extends TransportMasterNodeAction
     @Override
     protected void masterOperation(Task task, DeleteEnrichPolicyAction.Request request, ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) throws Exception {
+        try {
+            enrichPolicyLocks.lockPolicy(request.getName());
+        } catch (EsRejectedExecutionException e) {
+            listener.onFailure(new ElasticsearchStatusException("Could not delete policy [{}] because it is currently executing",
+                RestStatus.CONFLICT, request.getName()));
+            return;
+        }
         EnrichStore.deletePolicy(request.getName(), clusterService, e -> {
+            enrichPolicyLocks.releasePolicy(request.getName());
            if (e == null) {
                listener.onResponse(new AcknowledgedResponse(true));
            } else {

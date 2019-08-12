@@ -42,8 +42,6 @@ import org.elasticsearch.common.SuppressForbidden;
 
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
-import java.util.Arrays;
-import java.util.Objects;
 
 import static io.netty.channel.internal.ChannelUtils.MAX_BYTES_PER_GATHERING_WRITE_ATTEMPTED_LOW_THRESHOLD;
 
@@ -89,7 +87,6 @@ public class CopyBytesSocketChannel extends NioSocketChannel {
             // Ensure the pending writes are made of ByteBufs only.
             int maxBytesPerGatheringWrite = writeConfig.getMaxBytesPerGatheringWrite();
             ByteBuffer[] nioBuffers = in.nioBuffers(1024, maxBytesPerGatheringWrite);
-            assert Arrays.stream(nioBuffers).filter(Objects::nonNull).noneMatch(ByteBuffer::isDirect) : "Expected all to be heap buffers";
             int nioBufferCnt = in.nioBufferCount();
 
             if (nioBufferCnt == 0) {// We have something else beside ByteBuffers to write so fallback to normal writes.

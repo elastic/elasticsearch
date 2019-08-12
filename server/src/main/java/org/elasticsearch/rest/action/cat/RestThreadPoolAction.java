@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -51,8 +50,8 @@ import java.util.TreeMap;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestThreadPoolAction extends AbstractCatAction {
-    public RestThreadPoolAction(Settings settings, RestController controller) {
-        super(settings);
+
+    public RestThreadPoolAction(RestController controller) {
         controller.registerHandler(GET, "/_cat/thread_pool", this);
         controller.registerHandler(GET, "/_cat/thread_pool/{thread_pool_patterns}", this);
     }

@@ -208,8 +208,8 @@ final class Compiler {
      */
     Constructor<?> compile(Loader loader, MainMethodReserved reserved, String name, String source, CompilerSettings settings) {
         ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
-        SSource root = Walker.buildPainlessTree(scriptClassInfo, reserved, name, source, settings, painlessLookup,
-                null);
+        SSource root = Walker.buildPainlessTree(scriptClassInfo, reserved, name, source, settings, painlessLookup, null);
+        root.storeSettings(settings);
         root.analyze(painlessLookup);
         Map<String, Object> statics = root.write();
 
@@ -240,6 +240,7 @@ final class Compiler {
         ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
         SSource root = Walker.buildPainlessTree(scriptClassInfo, new MainMethodReserved(), name, source, settings, painlessLookup,
                 debugStream);
+        root.storeSettings(settings);
         root.analyze(painlessLookup);
         root.write();
 

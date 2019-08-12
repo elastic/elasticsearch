@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.rest.action;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -19,8 +18,7 @@ import org.elasticsearch.xpack.core.action.ReloadAnalyzersRequest;
 import java.io.IOException;
 public class RestReloadAnalyzersAction extends BaseRestHandler {
 
-    public RestReloadAnalyzersAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestReloadAnalyzersAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.GET, "/{index}/_reload_search_analyzers", this);
         controller.registerHandler(RestRequest.Method.POST, "/{index}/_reload_search_analyzers", this);
     }

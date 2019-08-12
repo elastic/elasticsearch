@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -47,7 +48,14 @@ public final class EFunctionRef extends AExpression implements ILambda {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {}
+    void storeSettings(CompilerSettings settings) {
+        // do nothing
+    }
+
+    @Override
+    void extractVariables(Set<String> variables) {
+        // do nothing
+    }
 
     @Override
     void analyze(Locals locals) {

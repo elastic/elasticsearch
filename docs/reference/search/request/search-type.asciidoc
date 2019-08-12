@@ -50,6 +50,13 @@ During the second phase, the coordinating node requests the document
 content (and highlighted snippets, if any) from *only the relevant
 shards*.
 
+[source,js]
+--------------------------------------------------
+GET twitter/_search?search_type=query_then_fetch
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
 NOTE: This is the default setting, if you do not specify a `search_type`
       in your request.
 
@@ -62,4 +69,9 @@ Same as "Query Then Fetch", except for an initial scatter phase which
 goes and computes the distributed term frequencies for more accurate
 scoring.
 
-
+[source,js]
+--------------------------------------------------
+GET twitter/_search?search_type=dfs_query_then_fetch
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]

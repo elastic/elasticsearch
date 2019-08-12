@@ -68,7 +68,7 @@ public abstract class KeyStoreAwareCommand extends EnvironmentAwareCommand {
     protected static void decryptKeyStore(KeyStoreWrapper keyStore, Terminal terminal)
         throws UserException, GeneralSecurityException, IOException {
         try (SecureString keystorePassword = keyStore.hasPassword() ?
-            new SecureString(terminal.readSecret("Enter the password for elasticsearch.keystore: ")) : new SecureString(new char[0])) {
+            readPassword(terminal, false) : new SecureString(new char[0])) {
             keyStore.decrypt(keystorePassword.getChars());
         } catch (SecurityException e) {
             if (e.getCause() instanceof AEADBadTagException) {

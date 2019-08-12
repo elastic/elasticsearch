@@ -50,11 +50,15 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
 
     private DocValueFormat format;
     private RoundingInfo[] roundingInfos;
+    private int nbBuckets;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
+        // these need to be the same for each new instance created so that {@link #testReduceRandom()}
+        // has mergeable instances to work with
         format = randomNumericDocValueFormat();
+        nbBuckets = randomNumberOfBuckets();
     }
 
     @Override
@@ -64,7 +68,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
                                                        InternalAggregations aggregations) {
 
         roundingInfos = AutoDateHistogramAggregationBuilder.buildRoundings(null, null);
-        int nbBuckets = randomNumberOfBuckets();
+
         int targetBuckets = randomIntBetween(1, nbBuckets * 2 + 1);
         List<InternalAutoDateHistogram.Bucket> buckets = new ArrayList<>(nbBuckets);
 

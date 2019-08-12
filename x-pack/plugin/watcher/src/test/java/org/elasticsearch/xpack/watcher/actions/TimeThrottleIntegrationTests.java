@@ -7,14 +7,13 @@ package org.elasticsearch.xpack.watcher.actions;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
-import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 
@@ -30,10 +29,6 @@ import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.is;
 
-@TestLogging("org.elasticsearch.xpack.watcher:DEBUG," +
-        "org.elasticsearch.xpack.watcher.WatcherLifeCycleService:DEBUG," +
-        "org.elasticsearch.xpack.watcher.trigger.ScheduleTriggerMock:TRACE," +
-        "org.elasticsearch.xpack.watcher.WatcherIndexingListener:TRACE")
 public class TimeThrottleIntegrationTests extends AbstractWatcherIntegrationTestCase {
 
     public void testTimeThrottle(){

@@ -24,7 +24,10 @@ import org.hamcrest.FeatureMatcher;
 import org.hamcrest.Matcher;
 
 import java.io.BufferedWriter;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.channels.Channels;
+import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
@@ -38,11 +41,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.StringJoiner;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.ZipException;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.core.IsNot.not;
-import static org.hamcrest.text.IsEmptyString.isEmptyOrNullString;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -125,6 +129,56 @@ public class FileUtils {
     }
 
     /**
+     * Returns the content a {@link java.nio.file.Path} file. The file can be in plain text or GZIP format.
+     * @param file The {@link java.nio.file.Path} to the file.
+     * @return The content of {@code file}.
+     */
+    public static String slurpTxtorGz(Path file) {
+        ByteArrayOutputStream fileBuffer = new ByteArrayOutputStream();
+        try (GZIPInputStream in = new GZIPInputStream(Channels.newInputStream(FileChannel.open(file)))) {
+            byte[] buffer = new byte[1024];
+            int len;
+
+            while ((len = in.read(buffer)) != -1) {
+                fileBuffer.write(buffer, 0, len);
+            }
+
+            return (new String(fileBuffer.toByteArray(), StandardCharsets.UTF_8));
+        } catch (ZipException e) {
+            if (e.toString().contains("Not in GZIP format")) {
+                return slurp(file);
+            }
+            throw new RuntimeException(e);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * Returns combined content of a text log file and rotated log files matching a pattern. Order of rotated log files is
+     * not guaranteed.
+     * @param logPath Base directory where log files reside.
+     * @param activeLogFile The currently active log file. This file needs to be plain text under {@code logPath}.
+     * @param rotatedLogFilesGlob A glob pattern to match rotated log files under {@code logPath}.
+     *                            See {@link java.nio.file.FileSystem#getPathMatcher(String)} for glob examples.
+     * @return Merges contents of {@code activeLogFile} and contents of filenames matching {@code rotatedLogFilesGlob}.
+     * File contents are separated by a newline. The order of rotated log files matched by {@code rotatedLogFilesGlob} is not guaranteed.
+     */
+    public static String slurpAllLogs(Path logPath, String activeLogFile, String rotatedLogFilesGlob) {
+        StringJoiner logFileJoiner = new StringJoiner("\n");
+        try {
+            logFileJoiner.add(new String(Files.readAllBytes(logPath.resolve(activeLogFile)), StandardCharsets.UTF_8));
+
+            for (Path rotatedLogFile : FileUtils.lsGlob(logPath, rotatedLogFilesGlob)) {
+                logFileJoiner.add(FileUtils.slurpTxtorGz(rotatedLogFile));
+            }
+            return(logFileJoiner.toString());
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
      * Gets the owner of a file in a way that should be supported by all filesystems that have a concept of file owner
      */
     public static String getFileOwner(Path path) {
@@ -172,9 +226,7 @@ public class FileUtils {
     }
 
     public static Path getPackagingArchivesDir() {
-        String fromEnv = System.getenv("PACKAGING_ARCHIVES");
-        assertThat(fromEnv, not(isEmptyOrNullString()));
-        return Paths.get(fromEnv);
+        return Paths.get(""); // tests are started in the packaging archives dir, ie the empty relative path
     }
 
     public static Path getDistributionFile(Distribution distribution) {

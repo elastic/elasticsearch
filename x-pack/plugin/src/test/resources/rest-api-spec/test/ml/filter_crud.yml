@@ -86,7 +86,13 @@ setup:
         from: 1
         size: 1
 
-  - match: { count:   1 }
+  - match: { count:   2 }
+
+  - match:
+      filters.0:
+        filter_id: "filter-foo2"
+        description: "This filter has a description"
+        items: ["123", "lmnop"]
 
 ---
 "Test get filters API with expression ID":

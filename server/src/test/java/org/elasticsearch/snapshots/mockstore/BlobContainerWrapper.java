@@ -39,11 +39,6 @@ public class BlobContainerWrapper implements BlobContainer {
     }
 
     @Override
-    public boolean blobExists(String blobName) {
-        return delegate.blobExists(blobName);
-    }
-
-    @Override
     public InputStream readBlob(String name) throws IOException {
         return delegate.readBlob(name);
     }
@@ -62,6 +57,11 @@ public class BlobContainerWrapper implements BlobContainer {
     @Override
     public void deleteBlob(String blobName) throws IOException {
         delegate.deleteBlob(blobName);
+    }
+
+    @Override
+    public void delete() throws IOException {
+        delegate.delete();
     }
 
     @Override

@@ -43,13 +43,13 @@ public final class CreateApiKeyRequest extends ActionRequest {
      * @param roleDescriptors list of {@link RoleDescriptor}s
      * @param expiration to specify expiration for the API key
      */
-    public CreateApiKeyRequest(String name, List<RoleDescriptor> roleDescriptors, @Nullable TimeValue expiration) {
+    public CreateApiKeyRequest(String name, @Nullable List<RoleDescriptor> roleDescriptors, @Nullable TimeValue expiration) {
         if (Strings.hasText(name)) {
             this.name = name;
         } else {
             throw new IllegalArgumentException("name must not be null or empty");
         }
-        this.roleDescriptors = Objects.requireNonNull(roleDescriptors, "role descriptors may not be null");
+        this.roleDescriptors = (roleDescriptors == null) ? List.of() : List.copyOf(roleDescriptors);
         this.expiration = expiration;
     }
 
@@ -57,7 +57,7 @@ public final class CreateApiKeyRequest extends ActionRequest {
         super(in);
         this.name = in.readString();
         this.expiration = in.readOptionalTimeValue();
-        this.roleDescriptors = Collections.unmodifiableList(in.readList(RoleDescriptor::new));
+        this.roleDescriptors = List.copyOf(in.readList(RoleDescriptor::new));
         this.refreshPolicy = WriteRequest.RefreshPolicy.readFrom(in);
     }
 
@@ -77,7 +77,7 @@ public final class CreateApiKeyRequest extends ActionRequest {
         return expiration;
     }
 
-    public void setExpiration(TimeValue expiration) {
+    public void setExpiration(@Nullable TimeValue expiration) {
         this.expiration = expiration;
     }
 
@@ -85,8 +85,8 @@ public final class CreateApiKeyRequest extends ActionRequest {
         return roleDescriptors;
     }
 
-    public void setRoleDescriptors(List<RoleDescriptor> roleDescriptors) {
-        this.roleDescriptors = Collections.unmodifiableList(Objects.requireNonNull(roleDescriptors, "role descriptors may not be null"));
+    public void setRoleDescriptors(@Nullable List<RoleDescriptor> roleDescriptors) {
+        this.roleDescriptors = (roleDescriptors == null) ? List.of() : List.copyOf(roleDescriptors);
     }
 
     public WriteRequest.RefreshPolicy getRefreshPolicy() {
@@ -123,10 +123,5 @@ public final class CreateApiKeyRequest extends ActionRequest {
         out.writeOptionalTimeValue(expiration);
         out.writeList(roleDescriptors);
         refreshPolicy.writeTo(out);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 }

@@ -31,12 +31,16 @@ import org.elasticsearch.client.dataframe.PreviewDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.PutDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.StartDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.StopDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.UpdateDataFrameTransformRequest;
 import org.elasticsearch.common.Strings;
 
 import java.io.IOException;
 
 import static org.elasticsearch.client.RequestConverters.REQUEST_BODY_CONTENT_TYPE;
 import static org.elasticsearch.client.RequestConverters.createEntity;
+import static org.elasticsearch.client.dataframe.DeleteDataFrameTransformRequest.FORCE;
+import static org.elasticsearch.client.dataframe.GetDataFrameTransformRequest.ALLOW_NO_MATCH;
+import static org.elasticsearch.client.dataframe.PutDataFrameTransformRequest.DEFER_VALIDATION;
 
 final class DataFrameRequestConverters {
 
@@ -49,6 +53,23 @@ final class DataFrameRequestConverters {
                 .build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
         request.setEntity(createEntity(putRequest, REQUEST_BODY_CONTENT_TYPE));
+        if (putRequest.getDeferValidation() != null) {
+            request.addParameter(DEFER_VALIDATION, Boolean.toString(putRequest.getDeferValidation()));
+        }
+        return request;
+    }
+
+    static Request updateDataFrameTransform(UpdateDataFrameTransformRequest updateDataFrameTransformRequest) throws IOException {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_data_frame", "transforms")
+            .addPathPart(updateDataFrameTransformRequest.getId())
+            .addPathPart("_update")
+            .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(updateDataFrameTransformRequest, REQUEST_BODY_CONTENT_TYPE));
+        if (updateDataFrameTransformRequest.getDeferValidation() != null) {
+            request.addParameter(DEFER_VALIDATION, Boolean.toString(updateDataFrameTransformRequest.getDeferValidation()));
+        }
         return request;
     }
 
@@ -64,15 +85,22 @@ final class DataFrameRequestConverters {
         if (getRequest.getPageParams() != null && getRequest.getPageParams().getSize() != null) {
             request.addParameter(PageParams.SIZE.getPreferredName(), getRequest.getPageParams().getSize().toString());
         }
+        if (getRequest.getAllowNoMatch() != null) {
+            request.addParameter(ALLOW_NO_MATCH, getRequest.getAllowNoMatch().toString());
+        }
         return request;
     }
 
-    static Request deleteDataFrameTransform(DeleteDataFrameTransformRequest request) {
+    static Request deleteDataFrameTransform(DeleteDataFrameTransformRequest deleteRequest) {
         String endpoint = new RequestConverters.EndpointBuilder()
                 .addPathPartAsIs("_data_frame", "transforms")
-                .addPathPart(request.getId())
+                .addPathPart(deleteRequest.getId())
                 .build();
-        return new Request(HttpDelete.METHOD_NAME, endpoint);
+        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+        if (deleteRequest.getForce() != null) {
+            request.addParameter(FORCE, Boolean.toString(deleteRequest.getForce()));
+        }
+        return request;
     }
 
     static Request startDataFrameTransform(StartDataFrameTransformRequest startRequest) {
@@ -91,21 +119,24 @@ final class DataFrameRequestConverters {
     }
 
     static Request stopDataFrameTransform(StopDataFrameTransformRequest stopRequest) {
-            String endpoint = new RequestConverters.EndpointBuilder()
-                    .addPathPartAsIs("_data_frame", "transforms")
-                    .addPathPart(stopRequest.getId())
-                    .addPathPartAsIs("_stop")
-                    .build();
-            Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-            RequestConverters.Params params = new RequestConverters.Params();
-            if (stopRequest.getWaitForCompletion() != null) {
-                params.withWaitForCompletion(stopRequest.getWaitForCompletion());
-            }
-            if (stopRequest.getTimeout() != null) {
-                params.withTimeout(stopRequest.getTimeout());
-            }
-            request.addParameters(params.asMap());
-            return request;
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_data_frame", "transforms")
+            .addPathPart(stopRequest.getId())
+            .addPathPartAsIs("_stop")
+            .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        RequestConverters.Params params = new RequestConverters.Params();
+        if (stopRequest.getWaitForCompletion() != null) {
+            params.withWaitForCompletion(stopRequest.getWaitForCompletion());
+        }
+        if (stopRequest.getTimeout() != null) {
+            params.withTimeout(stopRequest.getTimeout());
+        }
+        if (stopRequest.getAllowNoMatch() != null) {
+            request.addParameter(ALLOW_NO_MATCH, stopRequest.getAllowNoMatch().toString());
+        }
+        request.addParameters(params.asMap());
+        return request;
     }
 
     static Request previewDataFrameTransform(PreviewDataFrameTransformRequest previewRequest) throws IOException {
@@ -129,6 +160,9 @@ final class DataFrameRequestConverters {
         }
         if (statsRequest.getPageParams() != null && statsRequest.getPageParams().getSize() != null) {
             request.addParameter(PageParams.SIZE.getPreferredName(), statsRequest.getPageParams().getSize().toString());
+        }
+        if (statsRequest.getAllowNoMatch() != null) {
+            request.addParameter(ALLOW_NO_MATCH, statsRequest.getAllowNoMatch().toString());
         }
         return request;
     }

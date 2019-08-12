@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -63,11 +64,12 @@ import java.util.Set;
  */
 public final class ELambda extends AExpression implements ILambda {
 
-    private final String name;
     private final FunctionReserved reserved;
     private final List<String> paramTypeStrs;
     private final List<String> paramNameStrs;
     private final List<AStatement> statements;
+
+    private CompilerSettings settings;
 
     // desugared synthetic method (lambda body)
     private SFunction desugared;
@@ -78,15 +80,23 @@ public final class ELambda extends AExpression implements ILambda {
     // dynamic parent, deferred until link time
     private String defPointer;
 
-    public ELambda(String name, FunctionReserved reserved,
-                   Location location, List<String> paramTypes, List<String> paramNames,
+    public ELambda(FunctionReserved reserved, Location location,
+                   List<String> paramTypes, List<String> paramNames,
                    List<AStatement> statements) {
         super(location);
-        this.name = Objects.requireNonNull(name);
         this.reserved = Objects.requireNonNull(reserved);
         this.paramTypeStrs = Collections.unmodifiableList(paramTypes);
         this.paramNameStrs = Collections.unmodifiableList(paramNames);
         this.statements = Collections.unmodifiableList(statements);
+    }
+
+    @Override
+    void storeSettings(CompilerSettings settings) {
+        for (AStatement statement : statements) {
+            statement.storeSettings(settings);
+        }
+
+        this.settings = settings;
     }
 
     @Override
@@ -167,11 +177,13 @@ public final class ELambda extends AExpression implements ILambda {
         paramNames.addAll(paramNameStrs);
 
         // desugar lambda body into a synthetic method
+        String name = locals.getNextSyntheticName();
         desugared = new SFunction(reserved, location, PainlessLookupUtility.typeToCanonicalTypeName(returnType), name,
                                   paramTypes, paramNames, statements, true);
+        desugared.storeSettings(settings);
         desugared.generateSignature(locals.getPainlessLookup());
         desugared.analyze(Locals.newLambdaScope(locals.getProgramScope(), desugared.name, returnType,
-                                                desugared.parameters, captures.size(), reserved.getMaxLoopCounter()));
+                                                desugared.parameters, captures.size(), settings.getMaxLoopCounter()));
 
         // setup method reference to synthetic method
         if (expected == null) {

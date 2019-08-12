@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.indices.settings.get;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -31,6 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -63,9 +65,10 @@ public class GetSettingsActionTests extends ESTestCase {
                 new Resolver(), IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
         }
         @Override
-        protected void masterOperation(GetSettingsRequest request, ClusterState state, ActionListener<GetSettingsResponse> listener) {
+        protected void masterOperation(Task task, GetSettingsRequest request, ClusterState state,
+                                       ActionListener<GetSettingsResponse> listener) {
             ClusterState stateWithIndex = ClusterStateCreationUtils.state(indexName, 1, 1);
-            super.masterOperation(request, stateWithIndex, listener);
+            super.masterOperation(task, request, stateWithIndex, listener);
         }
     }
 
@@ -95,7 +98,7 @@ public class GetSettingsActionTests extends ESTestCase {
 
     public void testIncludeDefaults() {
         GetSettingsRequest noDefaultsRequest = new GetSettingsRequest().indices(indexName);
-        getSettingsAction.execute(null, noDefaultsRequest, ActionListener.wrap(noDefaultsResponse -> {
+        ActionTestUtils.execute(getSettingsAction, null, noDefaultsRequest, ActionListener.wrap(noDefaultsResponse -> {
             assertNull("index.refresh_interval should be null as it was never set", noDefaultsResponse.getSetting(indexName,
                 "index.refresh_interval"));
         }, exception -> {
@@ -104,7 +107,7 @@ public class GetSettingsActionTests extends ESTestCase {
 
         GetSettingsRequest defaultsRequest = new GetSettingsRequest().indices(indexName).includeDefaults(true);
 
-        getSettingsAction.execute(null, defaultsRequest, ActionListener.wrap(defaultsResponse -> {
+        ActionTestUtils.execute(getSettingsAction, null, defaultsRequest, ActionListener.wrap(defaultsResponse -> {
             assertNotNull("index.refresh_interval should be set as we are including defaults", defaultsResponse.getSetting(indexName,
                 "index.refresh_interval"));
         }, exception -> {
@@ -116,7 +119,7 @@ public class GetSettingsActionTests extends ESTestCase {
     public void testIncludeDefaultsWithFiltering() {
         GetSettingsRequest defaultsRequest = new GetSettingsRequest().indices(indexName).includeDefaults(true)
             .names("index.refresh_interval");
-        getSettingsAction.execute(null, defaultsRequest, ActionListener.wrap(defaultsResponse -> {
+        ActionTestUtils.execute(getSettingsAction, null, defaultsRequest, ActionListener.wrap(defaultsResponse -> {
             assertNotNull("index.refresh_interval should be set as we are including defaults", defaultsResponse.getSetting(indexName,
                 "index.refresh_interval"));
             assertNull("index.number_of_shards should be null as this query is filtered",

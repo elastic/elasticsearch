@@ -5,25 +5,15 @@
  */
 package org.elasticsearch.xpack.core.security.action.oidc;
 
-import org.elasticsearch.action.Action;
-import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.action.ActionType;
 
-public class OpenIdConnectPrepareAuthenticationAction extends Action<OpenIdConnectPrepareAuthenticationResponse> {
+public class OpenIdConnectPrepareAuthenticationAction extends ActionType<OpenIdConnectPrepareAuthenticationResponse> {
 
     public static final OpenIdConnectPrepareAuthenticationAction INSTANCE = new OpenIdConnectPrepareAuthenticationAction();
     public static final String NAME = "cluster:admin/xpack/security/oidc/prepare";
 
     private OpenIdConnectPrepareAuthenticationAction() {
-        super(NAME);
+        super(NAME, OpenIdConnectPrepareAuthenticationResponse::new);
     }
 
-    @Override
-    public OpenIdConnectPrepareAuthenticationResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
-    public Writeable.Reader<OpenIdConnectPrepareAuthenticationResponse> getResponseReader() {
-        return OpenIdConnectPrepareAuthenticationResponse::new;
-    }
 }

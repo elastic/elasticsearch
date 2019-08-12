@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.dataframe.transforms;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -19,18 +20,28 @@ import org.elasticsearch.common.breaker.CircuitBreaker.Durability;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.search.profile.SearchProfileShardResults;
+import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerPosition;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpoint;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.pivot.AggregationConfigTests;
 import org.elasticsearch.xpack.core.dataframe.transforms.pivot.GroupConfigTests;
 import org.elasticsearch.xpack.core.dataframe.transforms.pivot.PivotConfig;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
+import org.elasticsearch.xpack.core.indexing.IterationResult;
 import org.elasticsearch.xpack.dataframe.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.dataframe.transforms.pivot.Pivot;
 import org.junit.Before;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -43,9 +54,15 @@ import java.util.function.Function;
 
 import static org.elasticsearch.xpack.core.dataframe.transforms.DestConfigTests.randomDestConfig;
 import static org.elasticsearch.xpack.core.dataframe.transforms.SourceConfigTests.randomSourceConfig;
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.nullValue;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class DataFrameIndexerTests extends ESTestCase {
@@ -67,13 +84,13 @@ public class DataFrameIndexerTests extends ESTestCase {
                 Map<String, String> fieldMappings,
                 DataFrameAuditor auditor,
                 AtomicReference<IndexerState> initialState,
-                Map<String, Object> initialPosition,
+                DataFrameIndexerPosition initialPosition,
                 DataFrameIndexerTransformStats jobStats,
                 Function<SearchRequest, SearchResponse> searchFunction,
                 Function<BulkRequest, BulkResponse> bulkFunction,
                 Consumer<Exception> failureConsumer) {
             super(executor, auditor, transformConfig, fieldMappings, initialState, initialPosition, jobStats,
-                    /* DataFrameTransformProgress */ null);
+                    /* DataFrameTransformProgress */ null, DataFrameTransformCheckpoint.EMPTY, DataFrameTransformCheckpoint.EMPTY);
             this.searchFunction = searchFunction;
             this.bulkFunction = bulkFunction;
             this.failureConsumer = failureConsumer;
@@ -84,8 +101,8 @@ public class DataFrameIndexerTests extends ESTestCase {
         }
 
         @Override
-        protected void createCheckpoint(ActionListener<Void> listener) {
-            listener.onResponse(null);
+        protected void createCheckpoint(ActionListener<DataFrameTransformCheckpoint> listener) {
+            listener.onResponse(DataFrameTransformCheckpoint.EMPTY);
         }
 
         @Override
@@ -128,7 +145,7 @@ public class DataFrameIndexerTests extends ESTestCase {
         }
 
         @Override
-        protected void doSaveState(IndexerState state, Map<String, Object> position, Runnable next) {
+        protected void doSaveState(IndexerState state, DataFrameIndexerPosition position, Runnable next) {
             assert state == IndexerState.STARTED || state == IndexerState.INDEXING || state == IndexerState.STOPPED;
             next.run();
         }
@@ -163,6 +180,11 @@ public class DataFrameIndexerTests extends ESTestCase {
             fail("failIndexer should not be called, received error: " + message);
         }
 
+        @Override
+        protected boolean sourceHasChanged() {
+            return false;
+        }
+
     }
 
     @Before
@@ -179,6 +201,8 @@ public class DataFrameIndexerTests extends ESTestCase {
             randomSourceConfig(),
             randomDestConfig(),
             null,
+            null,
+            null,
             new PivotConfig(GroupConfigTests.randomGroupConfig(), AggregationConfigTests.randomAggregationConfig(), pageSize),
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000));
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
@@ -190,14 +214,19 @@ public class DataFrameIndexerTests extends ESTestCase {
 
         Function<BulkRequest, BulkResponse> bulkFunction = bulkRequest -> new BulkResponse(new BulkItemResponse[0], 100);
 
-        Consumer<Exception> failureConsumer = e -> fail("expected circuit breaker exception to be handled");
+        Consumer<Exception> failureConsumer = e -> {
+            final StringWriter sw = new StringWriter();
+            final PrintWriter pw = new PrintWriter(sw, true);
+            e.printStackTrace(pw);
+            fail("expected circuit breaker exception to be handled, got:" + e + " Trace: " + sw.getBuffer().toString());
+        };
 
         final ExecutorService executor = Executors.newFixedThreadPool(1);
         try {
             DataFrameAuditor auditor = new DataFrameAuditor(client, "node_1");
 
             MockedDataFrameIndexer indexer = new MockedDataFrameIndexer(executor, config, Collections.emptyMap(), auditor, state, null,
-                    new DataFrameIndexerTransformStats(config.getId()), searchFunction, bulkFunction, failureConsumer);
+                    new DataFrameIndexerTransformStats(), searchFunction, bulkFunction, failureConsumer);
             final CountDownLatch latch = indexer.newLatch(1);
             indexer.start();
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
@@ -227,4 +256,51 @@ public class DataFrameIndexerTests extends ESTestCase {
             executor.shutdownNow();
         }
     }
+
+    public void testDoProcessAggNullCheck() {
+        Integer pageSize = randomBoolean() ? null : randomIntBetween(500, 10_000);
+        DataFrameTransformConfig config = new DataFrameTransformConfig(randomAlphaOfLength(10),
+            randomSourceConfig(),
+            randomDestConfig(),
+            null,
+            null,
+            null,
+            new PivotConfig(GroupConfigTests.randomGroupConfig(), AggregationConfigTests.randomAggregationConfig(), pageSize),
+            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000));
+        SearchResponse searchResponse = new SearchResponse(new InternalSearchResponse(
+            new SearchHits(
+                new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), 0.0f),
+            // Simulate completely null aggs
+            null,
+            new Suggest(Collections.emptyList()),
+            new SearchProfileShardResults(Collections.emptyMap()), false, false, 1),
+            "", 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
+        AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
+        Function<SearchRequest, SearchResponse> searchFunction = searchRequest -> searchResponse;
+        Function<BulkRequest, BulkResponse> bulkFunction = bulkRequest -> new BulkResponse(new BulkItemResponse[0], 100);
+
+        Consumer<Exception> failureConsumer = e -> {
+            final StringWriter sw = new StringWriter();
+            final PrintWriter pw = new PrintWriter(sw, true);
+            e.printStackTrace(pw);
+            fail(e.getMessage());
+        };
+
+        final ExecutorService executor = Executors.newFixedThreadPool(1);
+        try {
+            DataFrameAuditor auditor = mock(DataFrameAuditor.class);
+
+            MockedDataFrameIndexer indexer = new MockedDataFrameIndexer(executor, config, Collections.emptyMap(), auditor, state, null,
+                new DataFrameIndexerTransformStats(), searchFunction, bulkFunction, failureConsumer);
+
+            IterationResult<DataFrameIndexerPosition> newPosition = indexer.doProcess(searchResponse);
+            assertThat(newPosition.getToIndex(), is(empty()));
+            assertThat(newPosition.getPosition(), is(nullValue()));
+            assertThat(newPosition.isDone(), is(true));
+            verify(auditor, times(1)).info(anyString(), anyString());
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
 }

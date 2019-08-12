@@ -32,12 +32,12 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource, CardinalityAggregatorFactory> {
+class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource> {
 
     private final Long precisionThreshold;
 
     CardinalityAggregatorFactory(String name, ValuesSourceConfig<ValuesSource> config, Long precisionThreshold,
-            SearchContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder,
+            SearchContext context, AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
             Map<String, Object> metaData) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metaData);
         this.precisionThreshold = precisionThreshold;

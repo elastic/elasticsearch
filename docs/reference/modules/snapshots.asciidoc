@@ -1,29 +1,39 @@
 [[modules-snapshots]]
 == Snapshot And Restore
 
+// tag::snapshot-intro[]
 A snapshot is a backup taken from a running Elasticsearch cluster. You can take
 a snapshot of individual indices or of the entire cluster and store it in a
 repository on a shared filesystem, and there are plugins that support remote
 repositories on S3, HDFS, Azure, Google Cloud Storage and more.
 
-Snapshots are taken incrementally. This means that when creating a snapshot of
-an index Elasticsearch will avoid copying any data that is already stored in
-the repository as part of an earlier snapshot of the same index. Therefore it
-can be efficient to take snapshots of your cluster quite frequently.
+Snapshots are taken incrementally. This means that when it creates a snapshot of
+an index, Elasticsearch avoids copying any data that is already stored in the
+repository as part of an earlier snapshot of the same index. Therefore it can be
+efficient to take snapshots of your cluster quite frequently.
+// end::snapshot-intro[]
 
-Snapshots can be restored into a running cluster via the restore API. When
-restoring an index it is possible to alter the name of the restored index as
-well as some of its settings, allowing a great deal of flexibility in how the
-snapshot and restore functionality can be used.
+// tag::restore-intro[]
+You can restore snapshots into a running cluster via the
+<<restore-snapshot,restore API>>. When you restore an index, you can alter the
+name of the restored index as well as some of its settings. There is a great
+deal of flexibility in how the snapshot and restore functionality can be used.
+// end::restore-intro[]
 
-WARNING: It is not possible to back up an Elasticsearch cluster simply by
-taking a copy of the data directories of all of its nodes. Elasticsearch may be
-making changes to the contents of its data directories while it is running, and
-this means that copying its data directories cannot be expected to capture a
-consistent picture of their contents. Attempts to restore a cluster from such a
-backup may fail, reporting corruption and/or missing files, or may appear to
-have succeeded having silently lost some of its data. The only reliable way to
-back up a cluster is by using the snapshot and restore functionality.
+You can automate your snapshot backup and restore process by using
+<<getting-started-snapshot-lifecycle-management, snapshot lifecycle management>>.
+
+// tag::backup-warning[]
+WARNING: You cannot back up an Elasticsearch cluster by simply taking a copy of
+the data directories of all of its nodes. Elasticsearch may be making changes to
+the contents of its data directories while it is running; copying its data
+directories cannot be expected to capture a consistent picture of their contents.
+If you try to restore a cluster from such a backup, it may fail and report
+corruption and/or missing files. Alternatively, it may appear to have succeeded
+though it silently lost some of its data. The only reliable way to back up a
+cluster is by using the snapshot and restore functionality.
+
+// end::backup-warning[]
 
 [float]
 === Version compatibility
@@ -63,6 +73,7 @@ recommend testing the reindex from remote process with a subset of your data to
 understand the time requirements before proceeding.
 
 [float]
+[[snapshots-repositories]]
 === Repositories
 
 You must register a snapshot repository before you can perform snapshot and
@@ -116,7 +127,7 @@ which returns:
 -----------------------------------
 // TESTRESPONSE
 
-To retrieve information about multiple repositories, specify a comma-delimited 
+To retrieve information about multiple repositories, specify a comma-delimited
 list of repositories. You can also use the * wildcard when
 specifying repository names. For example, the following request retrieves
 information about all of the snapshot repositories that start with `repo` or
@@ -322,6 +333,7 @@ POST /_snapshot/my_unverified_backup/_verify
 It returns a list of nodes where repository was successfully verified or an error message if verification process failed.
 
 [float]
+[[snapshots-take-snapshot]]
 === Snapshot
 
 A repository can contain multiple snapshots of the same cluster. Snapshots are identified by unique names within the
@@ -350,7 +362,7 @@ PUT /_snapshot/my_backup/snapshot_2?wait_for_completion=true
   "indices": "index_1,index_2",
   "ignore_unavailable": true,
   "include_global_state": false,
-  "_meta": {
+  "metadata": {
     "taken_by": "kimchy",
     "taken_because": "backup before upgrading"
   }
@@ -367,7 +379,7 @@ By setting `include_global_state` to false it's possible to prevent the cluster 
 the snapshot. By default, the entire snapshot will fail if one or more indices participating in the snapshot don't have
 all primary shards available. This behaviour can be changed by setting `partial` to `true`.
 
-The `_meta` field can be used to attach arbitrary metadata to the snapshot. This may be a record of who took the snapshot,
+The `metadata` field can be used to attach arbitrary metadata to the snapshot. This may be a record of who took the snapshot,
 why it was taken, or any other data that might be useful.
 
 Snapshot names can be automatically derived using <<date-math-index-names,date math expressions>>, similarly as when creating
@@ -472,6 +484,16 @@ that setting `verbose` to `false` will omit all other information about the snap
 such as status information, the number of snapshotted shards, etc.  The default
 value of the `verbose` parameter is `true`.
 
+It is also possible to retrieve snapshots from multiple repositories in one go, for example:
+[source,sh]
+-----------------------------------
+GET /_snapshot/_all
+GET /_snapshot/my_backup,my_fs_backup
+GET /_snapshot/my*/snap*
+-----------------------------------
+// CONSOLE
+// TEST[skip:no my_fs_backup]
+
 A currently running snapshot can be retrieved using the following command:
 
 [source,sh]
@@ -509,6 +531,7 @@ When a repository is unregistered, Elasticsearch only removes the reference to t
 the snapshots. The snapshots themselves are left untouched and in place.
 
 [float]
+[[restore-snapshot]]
 === Restore
 
 A snapshot can be restored using the following command:

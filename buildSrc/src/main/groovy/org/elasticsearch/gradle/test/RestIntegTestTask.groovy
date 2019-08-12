@@ -20,13 +20,14 @@ package org.elasticsearch.gradle.test
 
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
+import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin
+import org.elasticsearch.gradle.tool.ClasspathUtils
 import org.gradle.api.DefaultTask
 import org.gradle.api.Task
 import org.gradle.api.execution.TaskExecutionAdapter
 import org.gradle.api.logging.Logger
 import org.gradle.api.logging.Logging
-import org.gradle.api.specs.Specs
 import org.gradle.api.tasks.Copy
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.TaskState
@@ -37,7 +38,6 @@ import org.gradle.plugins.ide.idea.IdeaPlugin
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.util.stream.Stream
-
 /**
  * A wrapper task around setting up a cluster and running rest tests.
  */
@@ -49,8 +49,6 @@ class RestIntegTestTask extends DefaultTask {
 
     protected Test runner
 
-    protected Task clusterInit
-
     /** Info about nodes in the integ test cluster. Note this is *not* available until runtime. */
     List<NodeInfo> nodes
 
@@ -59,30 +57,20 @@ class RestIntegTestTask extends DefaultTask {
     Boolean includePackaged = false
 
     RestIntegTestTask() {
-        runner = project.tasks.create("${name}Runner", Test.class)
+        runner = project.tasks.create("${name}Runner", RestTestRunnerTask.class)
         super.dependsOn(runner)
-        clusterInit = project.tasks.create(name: "${name}Cluster#init", dependsOn: project.testClasses)
-        runner.dependsOn(clusterInit)
         boolean usesTestclusters = project.plugins.hasPlugin(TestClustersPlugin.class)
         if (usesTestclusters == false) {
             clusterConfig = project.extensions.create("${name}Cluster", ClusterConfiguration.class, project)
         } else {
             project.testClusters {
                 "$name" {
-                    distribution = 'INTEG_TEST'
-                    version = VersionProperties.elasticsearch
                     javaHome = project.file(project.ext.runtimeJavaHome)
                 }
             }
             runner.useCluster project.testClusters."$name"
         }
 
-        // disable the build cache for rest test tasks
-        // there are a number of inputs we aren't properly tracking here so we'll just not cache these for now
-        runner.getOutputs().doNotCacheIf("Caching is disabled for REST integration tests", Specs.SATISFIES_ALL)
-
-        // override/add more for rest tests
-        runner.maxParallelForks = 1
         runner.include('**/*IT.class')
         runner.systemProperty('tests.rest.load_packaged', 'false')
 
@@ -143,7 +131,6 @@ class RestIntegTestTask extends DefaultTask {
         project.gradle.projectsEvaluated {
             if (enabled == false) {
                 runner.enabled = false
-                clusterInit.enabled = false
                 return // no need to add cluster formation tasks if the task won't run!
             }
             if (usesTestclusters == false) {
@@ -192,11 +179,6 @@ class RestIntegTestTask extends DefaultTask {
                 runner.finalizedBy(((Fixture)dependency).getStopTask())
             }
         }
-    }
-
-    @Override
-    public Task mustRunAfter(Object... tasks) {
-        clusterInit.mustRunAfter(tasks)
     }
 
     public void runner(Closure configure) {
@@ -252,7 +234,8 @@ class RestIntegTestTask extends DefaultTask {
             restSpec
         }
         project.dependencies {
-            restSpec project.project(':rest-api-spec')
+            restSpec ClasspathUtils.isElasticsearchProject() ? project.project(':rest-api-spec') :
+                    "org.elasticsearch.rest-api-spec:${VersionProperties.elasticsearch}"
         }
         Task copyRestSpec = project.tasks.findByName('copyRestSpec')
         if (copyRestSpec != null) {

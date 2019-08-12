@@ -13,6 +13,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.dataframe.action.PreviewDataFrameTransformAction.Request;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfigTests;
 import org.elasticsearch.xpack.core.dataframe.transforms.DestConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.pivot.PivotConfigTests;
 
@@ -39,9 +40,15 @@ public class PreviewDataFrameTransformActionRequestTests extends AbstractSeriali
 
     @Override
     protected Request createTestInstance() {
-        DataFrameTransformConfig config = new DataFrameTransformConfig("transform-preview", randomSourceConfig(),
-                new DestConfig("unused-transform-preview-index"),
-                null, PivotConfigTests.randomPivotConfig(), null);
+        DataFrameTransformConfig config = new DataFrameTransformConfig(
+                "transform-preview",
+                randomSourceConfig(),
+                new DestConfig("unused-transform-preview-index", null),
+                null,
+                randomBoolean() ? DataFrameTransformConfigTests.randomSyncConfig() : null,
+                null,
+                PivotConfigTests.randomPivotConfig(),
+                null);
         return new Request(config);
     }
 

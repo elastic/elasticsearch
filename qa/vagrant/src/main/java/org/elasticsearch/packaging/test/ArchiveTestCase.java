@@ -20,7 +20,6 @@
 package org.elasticsearch.packaging.test;
 
 import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
-import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.Archives;
 import org.elasticsearch.packaging.util.Distribution;
@@ -31,13 +30,11 @@ import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.packaging.util.Shell.Result;
 
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.stream.Stream;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 import static org.elasticsearch.packaging.util.Archives.ARCHIVE_OWNER;
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
@@ -169,8 +166,8 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         Archives.stopElasticsearch(installation);
 
         String systemJavaHome = sh.getEnv().get("JAVA_HOME");
-        Path log = installation.logs.resolve("elasticsearch.log");
-        assertThat(new String(Files.readAllBytes(log), StandardCharsets.UTF_8), containsString(systemJavaHome));
+        assertThat(FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"),
+            containsString(systemJavaHome));
     }
 
     public void test51JavaHomeOverride() throws Exception {
@@ -222,8 +219,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
             final Shell sh = new Shell();
             // Create temporary directory with a space and link to java binary.
             // Use it as java_home
-            String nameWithSpace = RandomStrings.randomAsciiAlphanumOfLength(getRandom(), 10) + "java home";
-            String testJavaHome = FileUtils.mkdir(Paths.get("/home", ARCHIVE_OWNER, nameWithSpace)).toAbsolutePath().toString();
+            String testJavaHome = FileUtils.mkdir(Paths.get("/home", ARCHIVE_OWNER, "java home")).toAbsolutePath().toString();
             try {
                 final String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
                 final String java = systemJavaHome + "/bin/java";
@@ -243,7 +239,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
                 Result result = sh.run(pluginListCommand);
                 assertThat(result.exitCode, equalTo(0));
             } finally {
-                FileUtils.rm(Paths.get("\"" + testJavaHome + "\""));
+                FileUtils.rm(Paths.get(testJavaHome));
             }
         });
     }

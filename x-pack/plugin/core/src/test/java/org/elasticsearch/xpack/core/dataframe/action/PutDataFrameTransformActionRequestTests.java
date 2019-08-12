@@ -6,16 +6,24 @@
 
 package org.elasticsearch.xpack.core.dataframe.action;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.action.PutDataFrameTransformAction.Request;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfigTests;
+import org.elasticsearch.xpack.core.dataframe.transforms.SyncConfig;
+import org.elasticsearch.xpack.core.dataframe.transforms.TimeSyncConfig;
 import org.junit.Before;
 
-import java.io.IOException;
+import java.util.List;
 
-public class PutDataFrameTransformActionRequestTests extends AbstractSerializingDataFrameTestCase<Request> {
+import static java.util.Collections.emptyList;
+
+public class PutDataFrameTransformActionRequestTests extends AbstractWireSerializingTestCase<Request> {
     private String transformId;
 
     @Before
@@ -24,23 +32,23 @@ public class PutDataFrameTransformActionRequestTests extends AbstractSerializing
     }
 
     @Override
-    protected Request doParseInstance(XContentParser parser) throws IOException {
-        return Request.fromXContent(parser, transformId);
-    }
-
-    @Override
     protected Writeable.Reader<Request> instanceReader() {
         return Request::new;
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
+    protected Request createTestInstance() {
+        DataFrameTransformConfig config = DataFrameTransformConfigTests.randomDataFrameTransformConfigWithoutHeaders(transformId);
+        return new Request(config, randomBoolean());
     }
 
     @Override
-    protected Request createTestInstance() {
-        DataFrameTransformConfig config = DataFrameTransformConfigTests.randomDataFrameTransformConfigWithoutHeaders(transformId);
-        return new Request(config);
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
+
+        List<NamedWriteableRegistry.Entry> namedWriteables = searchModule.getNamedWriteables();
+        namedWriteables.add(new NamedWriteableRegistry.Entry(SyncConfig.class, DataFrameField.TIME_BASED_SYNC.getPreferredName(),
+            TimeSyncConfig::new));
+        return new NamedWriteableRegistry(namedWriteables);
     }
 }

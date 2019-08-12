@@ -31,6 +31,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -107,8 +108,61 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         });
     }
 
+    public void testUnmappedMissingString() throws IOException {
+        CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name", null)
+            .field("number").missing("🍌🍌🍌");
+
+        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 7)));
+            iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 8)));
+            iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 9)));
+        }, card -> {
+            assertEquals(1, card.getValue(), 0);
+            assertTrue(AggregationInspectionHelper.hasValue(card));
+        }, null);
+    }
+
+    public void testUnmappedMissingNumber() throws IOException {
+        CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name", null)
+            .field("number").missing(1234);
+
+        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 7)));
+            iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 8)));
+            iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 9)));
+        }, card -> {
+            assertEquals(1, card.getValue(), 0);
+            assertTrue(AggregationInspectionHelper.hasValue(card));
+        }, null);
+    }
+
+    public void testUnmappedMissingGeoPoint() throws IOException {
+        CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name", null)
+            .field("number").missing(new GeoPoint(42.39561, -71.13051));
+
+        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 7)));
+            iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 8)));
+            iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 9)));
+        }, card -> {
+            assertEquals(1, card.getValue(), 0);
+            assertTrue(AggregationInspectionHelper.hasValue(card));
+        }, null);
+    }
+
     private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-            Consumer<InternalCardinality> verify) throws IOException {
+                          Consumer<InternalCardinality> verify) throws IOException {
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(
+            NumberFieldMapper.NumberType.LONG);
+        fieldType.setName("number");
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder(
+            "_name", ValueType.NUMERIC).field("number");
+        testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
+    }
+
+    private void testCase(CardinalityAggregationBuilder aggregationBuilder, Query query,
+                          CheckedConsumer<RandomIndexWriter, IOException> buildIndex, Consumer<InternalCardinality> verify,
+                          MappedFieldType fieldType) throws IOException {
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
         buildIndex.accept(indexWriter);
@@ -117,11 +171,6 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         IndexReader indexReader = DirectoryReader.open(directory);
         IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
-        CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder(
-                "_name", ValueType.NUMERIC).field("number");
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(
-                NumberFieldMapper.NumberType.LONG);
-        fieldType.setName("number");
         CardinalityAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher,
             fieldType);
         aggregator.preCollection();

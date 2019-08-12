@@ -46,8 +46,15 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FutureArrays;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.script.MockScriptEngine;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptEngine;
+import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 
@@ -57,6 +64,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -65,6 +73,19 @@ import static java.util.Collections.singleton;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MaxAggregatorTests extends AggregatorTestCase {
+    private final String SCRIPT_NAME = "script_name";
+    private final long SCRIPT_VALUE = 19L;
+
+    @Override
+    protected ScriptService getMockScriptService() {
+        MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME,
+            Collections.singletonMap(SCRIPT_NAME, script -> SCRIPT_VALUE), // return 19 from script
+            Collections.emptyMap());
+        Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
+
+        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
+    }
+
     public void testNoDocs() throws IOException {
         testCase(new MatchAllDocsQuery(), iw -> {
             // Intentionally not writing any docs
@@ -124,9 +145,58 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         });
     }
 
+    public void testUnmappedField() throws IOException {
+        MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("_name").field("number");
+        testCase(aggregationBuilder, new DocValuesFieldExistsQuery("number"), iw -> {
+            iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
+            iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
+        }, max -> {
+            assertEquals(max.getValue(), Double.NEGATIVE_INFINITY, 0);
+            assertFalse(AggregationInspectionHelper.hasValue(max));
+        }, null);
+    }
+
+    public void testUnmappedWithMissingField() throws IOException {
+        MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("_name").field("number").missing(19L);
+
+        testCase(aggregationBuilder, new DocValuesFieldExistsQuery("number"), iw -> {
+            iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
+            iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
+        }, max -> {
+            assertEquals(max.getValue(), 19.0, 0);
+            assertTrue(AggregationInspectionHelper.hasValue(max));
+        }, null);
+    }
+
+    public void testScript() throws IOException {
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
+        fieldType.setName("number");
+
+        MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("_name")
+            .field("number")
+            .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, SCRIPT_NAME, Collections.emptyMap()));
+
+        testCase(aggregationBuilder, new DocValuesFieldExistsQuery("number"), iw -> {
+            iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
+            iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
+        }, max -> {
+            assertEquals(max.getValue(), SCRIPT_VALUE, 0); // Note this is the script value (19L), not the doc values above
+            assertTrue(AggregationInspectionHelper.hasValue(max));
+        }, fieldType);
+    }
+
     private void testCase(Query query,
-                            CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-                            Consumer<InternalMax> verify) throws IOException {
+                          CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
+                          Consumer<InternalMax> verify) throws IOException {
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
+        fieldType.setName("number");
+        MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("_name").field("number");
+        testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
+    }
+
+    private void testCase(MaxAggregationBuilder aggregationBuilder, Query query,
+                          CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
+                          Consumer<InternalMax> verify, MappedFieldType fieldType) throws IOException {
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
         buildIndex.accept(indexWriter);
@@ -134,10 +204,6 @@ public class MaxAggregatorTests extends AggregatorTestCase {
 
         IndexReader indexReader = DirectoryReader.open(directory);
         IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-
-        MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("_name").field("number");
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
-        fieldType.setName("number");
 
         MaxAggregator aggregator = createAggregator(query, aggregationBuilder, indexSearcher, createIndexSettings(), fieldType);
         aggregator.preCollection();
@@ -254,4 +320,5 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         });
         assertTrue(seen[0]);
     }
+
 }

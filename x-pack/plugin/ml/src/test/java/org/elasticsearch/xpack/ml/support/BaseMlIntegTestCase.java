@@ -31,8 +31,11 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
+import org.elasticsearch.xpack.core.ml.action.DeleteDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
+import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsAction;
@@ -40,6 +43,8 @@ import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -189,6 +194,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
         logger.info("[{}#{}]: Cleaning up datafeeds and jobs after test", getTestClass().getSimpleName(), getTestName());
         deleteAllDatafeeds(logger, client());
         deleteAllJobs(logger, client());
+        deleteAllDataFrameAnalytics(client());
         assertBusy(() -> {
             RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries()
                     .setActiveOnly(true)
@@ -331,10 +337,25 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
         }
     }
 
+    public static void deleteAllDataFrameAnalytics(Client client) throws Exception {
+        final QueryPage<DataFrameAnalyticsConfig> analytics =
+            client.execute(GetDataFrameAnalyticsAction.INSTANCE,
+                new GetDataFrameAnalyticsAction.Request("_all")).get().getResources();
+
+        assertBusy(() -> {
+            GetDataFrameAnalyticsStatsAction.Response statsResponse =
+                client().execute(GetDataFrameAnalyticsStatsAction.INSTANCE, new GetDataFrameAnalyticsStatsAction.Request("_all")).get();
+            assertTrue(statsResponse.getResponse().results().stream().allMatch(s -> s.getState().equals(DataFrameAnalyticsState.STOPPED)));
+        });
+        for (final DataFrameAnalyticsConfig config : analytics.results()) {
+            client.execute(DeleteDataFrameAnalyticsAction.INSTANCE, new DeleteDataFrameAnalyticsAction.Request(config.getId())).actionGet();
+        }
+    }
+
     protected String awaitJobOpenedAndAssigned(String jobId, String queryNode) throws Exception {
 
         PersistentTasksClusterService persistentTasksClusterService =
-            internalCluster().getInstance(PersistentTasksClusterService.class, internalCluster().getMasterName());
+            internalCluster().getInstance(PersistentTasksClusterService.class, internalCluster().getMasterName(queryNode));
         // Speed up rechecks to a rate that is quicker than what settings would allow.
         // The check would work eventually without doing this, but the assertBusy() below
         // would need to wait 30 seconds, which would make the test run very slowly.

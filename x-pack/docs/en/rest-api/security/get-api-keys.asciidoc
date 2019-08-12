@@ -7,39 +7,48 @@
 
 Retrieves information for one or more API keys.
 
-==== Request
+[[security-api-get-api-key-request]]
+==== {api-request-title}
 
 `GET /_security/api_key`
 
-==== Description
+[[security-api-get-api-key-prereqs]]
+==== {api-prereq-title}
 
-The information for the API keys created by <<security-api-create-api-key,create API Key>> can be retrieved
-using this API.
+* To use this API, you must have at least the `manage_api_key` cluster privilege.
 
-==== Request Body
+[[security-api-get-api-key-desc]]
+==== {api-description-title}
+
+The information for the API keys created by
+<<security-api-create-api-key,create API Key>> can be retrieved using this API.
+
+[[security-api-get-api-key-request-body]]
+==== {api-request-body-title}
 
 The following parameters can be specified in the query parameters of a GET request and
 pertain to retrieving api keys:
 
-`id` (optional)::
-(string) An API key id. This parameter cannot be used with any of `name`,
-`realm_name` or `username` are used.
+`id`::
+(Optional, string) An API key id. This parameter cannot be used with any of 
+`name`, `realm_name` or `username` are used.
 
-`name` (optional)::
-(string) An API key name. This parameter cannot be used with any of `id`,
-`realm_name` or `username` are used.
+`name`::
+(Optional, string) An API key name. This parameter cannot be used with any of
+`id`, `realm_name` or `username` are used.
 
-`realm_name` (optional)::
-(string) The name of an authentication realm. This parameter cannot be used with
+`realm_name`::
+(Optional, string) The name of an authentication realm. This parameter cannot be
+used with either `id` or `name`.
+
+`username`::
+(Optional, string) The username of a user. This parameter cannot be used with
 either `id` or `name`.
-
-`username` (optional)::
-(string) The username of a user. This parameter cannot be used with either `id`
-or `name`.
 
 NOTE: While all parameters are optional, at least one of them is required.
 
-==== Examples
+[[security-api-get-api-key-example]]
+==== {api-examples-title}
 
 If you create an API key as follows:
 

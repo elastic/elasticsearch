@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.dataframe.rest.action;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -20,8 +19,7 @@ import java.io.IOException;
 
 public class RestPutDataFrameTransformAction extends BaseRestHandler {
 
-    public RestPutDataFrameTransformAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestPutDataFrameTransformAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.PUT, DataFrameField.REST_BASE_PATH_TRANSFORMS_BY_ID, this);
     }
 
@@ -35,7 +33,8 @@ public class RestPutDataFrameTransformAction extends BaseRestHandler {
         String id = restRequest.param(DataFrameField.ID.getPreferredName());
         XContentParser parser = restRequest.contentParser();
 
-        PutDataFrameTransformAction.Request request = PutDataFrameTransformAction.Request.fromXContent(parser, id);
+        boolean deferValidation = restRequest.paramAsBoolean(DataFrameField.DEFER_VALIDATION.getPreferredName(), false);
+        PutDataFrameTransformAction.Request request = PutDataFrameTransformAction.Request.fromXContent(parser, id, deferValidation);
 
         return channel -> client.execute(PutDataFrameTransformAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

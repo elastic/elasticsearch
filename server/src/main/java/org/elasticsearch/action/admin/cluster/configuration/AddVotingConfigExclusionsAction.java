@@ -18,24 +18,13 @@
  */
 package org.elasticsearch.action.admin.cluster.configuration;
 
-import org.elasticsearch.action.Action;
-import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.action.ActionType;
 
-public class AddVotingConfigExclusionsAction extends Action<AddVotingConfigExclusionsResponse> {
+public class AddVotingConfigExclusionsAction extends ActionType<AddVotingConfigExclusionsResponse> {
     public static final AddVotingConfigExclusionsAction INSTANCE = new AddVotingConfigExclusionsAction();
     public static final String NAME = "cluster:admin/voting_config/add_exclusions";
 
     private AddVotingConfigExclusionsAction() {
-        super(NAME);
-    }
-
-    @Override
-    public AddVotingConfigExclusionsResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
-    public Reader<AddVotingConfigExclusionsResponse> getResponseReader() {
-        return AddVotingConfigExclusionsResponse::new;
+        super(NAME, AddVotingConfigExclusionsResponse::new);
     }
 }

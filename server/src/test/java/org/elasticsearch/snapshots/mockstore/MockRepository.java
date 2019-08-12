@@ -59,6 +59,7 @@ import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 public class MockRepository extends FsRepository {
     private static final Logger logger = LogManager.getLogger(MockRepository.class);
@@ -311,11 +312,6 @@ public class MockRepository extends FsRepository {
             }
 
             @Override
-            public boolean blobExists(String blobName) {
-                return super.blobExists(blobName);
-            }
-
-            @Override
             public InputStream readBlob(String name) throws IOException {
                 maybeIOExceptionOrBlock(name);
                 return super.readBlob(name);
@@ -331,6 +327,17 @@ public class MockRepository extends FsRepository {
             public void deleteBlobIgnoringIfNotExists(String blobName) throws IOException {
                 maybeIOExceptionOrBlock(blobName);
                 super.deleteBlobIgnoringIfNotExists(blobName);
+            }
+
+            @Override
+            public void delete() throws IOException {
+                for (BlobContainer child : children().values()) {
+                    child.delete();
+                }
+                for (String blob : listBlobs().values().stream().map(BlobMetaData::name).collect(Collectors.toList())) {
+                    deleteBlobIgnoringIfNotExists(blob);
+                }
+                blobStore().blobContainer(path().parent()).deleteBlob(path().toArray()[path().toArray().length - 1]);
             }
 
             @Override

@@ -16,11 +16,11 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.CombinedBitSet;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -33,9 +33,9 @@ import java.util.concurrent.ExecutionException;
  */
 public final class DocumentSubsetReader extends FilterLeafReader {
 
-    public static DocumentSubsetDirectoryReader wrap(DirectoryReader in, BitsetFilterCache bitsetFilterCache,
+    public static DocumentSubsetDirectoryReader wrap(DirectoryReader in, DocumentSubsetBitsetCache bitsetCache,
             Query roleQuery) throws IOException {
-        return new DocumentSubsetDirectoryReader(in, bitsetFilterCache, roleQuery);
+        return new DocumentSubsetDirectoryReader(in, bitsetCache, roleQuery);
     }
 
     /**
@@ -109,21 +109,21 @@ public final class DocumentSubsetReader extends FilterLeafReader {
     public static final class DocumentSubsetDirectoryReader extends FilterDirectoryReader {
 
         private final Query roleQuery;
-        private final BitsetFilterCache bitsetFilterCache;
+        private final DocumentSubsetBitsetCache bitsetCache;
 
-        DocumentSubsetDirectoryReader(final DirectoryReader in, final BitsetFilterCache bitsetFilterCache, final Query roleQuery)
-                throws IOException {
+        DocumentSubsetDirectoryReader(final DirectoryReader in, final DocumentSubsetBitsetCache bitsetCache,
+                                      final Query roleQuery) throws IOException {
             super(in, new SubReaderWrapper() {
                 @Override
                 public LeafReader wrap(LeafReader reader) {
                     try {
-                        return new DocumentSubsetReader(reader, bitsetFilterCache, roleQuery);
+                        return new DocumentSubsetReader(reader, bitsetCache, roleQuery);
                     } catch (Exception e) {
                         throw ExceptionsHelper.convertToElastic(e);
                     }
                 }
             });
-            this.bitsetFilterCache = bitsetFilterCache;
+            this.bitsetCache = bitsetCache;
             this.roleQuery = roleQuery;
 
             verifyNoOtherDocumentSubsetDirectoryReaderIsWrapped(in);
@@ -131,7 +131,7 @@ public final class DocumentSubsetReader extends FilterLeafReader {
 
         @Override
         protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
-            return new DocumentSubsetDirectoryReader(in, bitsetFilterCache, roleQuery);
+            return new DocumentSubsetDirectoryReader(in, bitsetCache, roleQuery);
         }
 
         private static void verifyNoOtherDocumentSubsetDirectoryReaderIsWrapped(DirectoryReader reader) {
@@ -155,9 +155,9 @@ public final class DocumentSubsetReader extends FilterLeafReader {
     private final BitSet roleQueryBits;
     private final int numDocs;
 
-    private DocumentSubsetReader(final LeafReader in, BitsetFilterCache bitsetFilterCache, final Query roleQuery) throws Exception {
+    private DocumentSubsetReader(final LeafReader in, DocumentSubsetBitsetCache bitsetCache, final Query roleQuery) throws Exception {
         super(in);
-        this.roleQueryBits = bitsetFilterCache.getBitSetProducer(roleQuery).getBitSet(in.getContext());
+        this.roleQueryBits = bitsetCache.getBitSet(roleQuery, in.getContext());
         this.numDocs = getNumDocs(in, roleQuery, roleQueryBits);
     }
 
@@ -172,18 +172,7 @@ public final class DocumentSubsetReader extends FilterLeafReader {
             return roleQueryBits;
         } else {
             // apply deletes when needed:
-            return new Bits() {
-
-                @Override
-                public boolean get(int index) {
-                    return roleQueryBits.get(index) && actualLiveDocs.get(index);
-                }
-
-                @Override
-                public int length() {
-                    return roleQueryBits.length();
-                }
-            };
+            return new CombinedBitSet(roleQueryBits, actualLiveDocs);
         }
     }
 
@@ -208,13 +197,4 @@ public final class DocumentSubsetReader extends FilterLeafReader {
         // Not delegated since we change the live docs
         return null;
     }
-
-    BitSet getRoleQueryBits() {
-        return roleQueryBits;
-    }
-
-    Bits getWrappedLiveDocs() {
-        return in.getLiveDocs();
-    }
-
 }

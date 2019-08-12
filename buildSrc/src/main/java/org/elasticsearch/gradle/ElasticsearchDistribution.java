@@ -20,8 +20,8 @@
 package org.elasticsearch.gradle;
 
 import org.gradle.api.Buildable;
-import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.TaskDependency;
 
@@ -29,7 +29,7 @@ import java.io.File;
 import java.util.Iterator;
 import java.util.Locale;
 
-public class ElasticsearchDistribution implements Buildable {
+public class ElasticsearchDistribution implements Buildable, Iterable<File> {
 
     public enum Platform {
         LINUX,
@@ -65,7 +65,7 @@ public class ElasticsearchDistribution implements Buildable {
     }
 
     // package private to tests can use
-    static final Platform CURRENT_PLATFORM = OS.<Platform>conditional()
+    public static final Platform CURRENT_PLATFORM = OS.<Platform>conditional()
         .onLinux(() -> Platform.LINUX)
         .onWindows(() -> Platform.WINDOWS)
         .onMac(() -> Platform.DARWIN)
@@ -107,17 +107,18 @@ public class ElasticsearchDistribution implements Buildable {
     private final Property<Flavor> flavor;
     private final Property<Boolean> bundledJdk;
 
-    ElasticsearchDistribution(String name, Project project) {
+    ElasticsearchDistribution(String name, ObjectFactory objectFactory, Configuration fileConfiguration,
+                              Configuration extractedConfiguration) {
         this.name = name;
-        this.configuration = project.getConfigurations().create("es_distro_file_" + name);
-        this.version = project.getObjects().property(Version.class);
+        this.configuration = fileConfiguration;
+        this.version = objectFactory.property(Version.class);
         this.version.convention(Version.fromString(VersionProperties.getElasticsearch()));
-        this.type = project.getObjects().property(Type.class);
+        this.type = objectFactory.property(Type.class);
         this.type.convention(Type.ARCHIVE);
-        this.platform = project.getObjects().property(Platform.class);
-        this.flavor = project.getObjects().property(Flavor.class);
-        this.bundledJdk = project.getObjects().property(Boolean.class);
-        this.extracted = new Extracted(project.getConfigurations().create("es_distro_extracted_" + name));
+        this.platform = objectFactory.property(Platform.class);
+        this.flavor = objectFactory.property(Flavor.class);
+        this.bundledJdk = objectFactory.property(Boolean.class);
+        this.extracted = new Extracted(extractedConfiguration);
     }
 
     public String getName() {
@@ -180,6 +181,16 @@ public class ElasticsearchDistribution implements Buildable {
     @Override
     public TaskDependency getBuildDependencies() {
         return configuration.getBuildDependencies();
+    }
+
+    @Override
+    public Iterator<File> iterator() {
+        return configuration.iterator();
+    }
+
+    // TODO: remove this when distro tests are per distribution
+    public Configuration getConfiguration() {
+        return configuration;
     }
 
     // internal, make this distribution's configuration unmodifiable

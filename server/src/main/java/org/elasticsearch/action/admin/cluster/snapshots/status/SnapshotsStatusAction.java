@@ -19,23 +19,18 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 
 /**
  * Snapshots status action
  */
-public class SnapshotsStatusAction extends Action<SnapshotsStatusResponse> {
+public class SnapshotsStatusAction extends ActionType<SnapshotsStatusResponse> {
 
     public static final SnapshotsStatusAction INSTANCE = new SnapshotsStatusAction();
     public static final String NAME = "cluster:admin/snapshot/status";
 
     private SnapshotsStatusAction() {
-        super(NAME);
-    }
-
-    @Override
-    public SnapshotsStatusResponse newResponse() {
-        return new SnapshotsStatusResponse();
+        super(NAME, SnapshotsStatusResponse::new);
     }
 }
 

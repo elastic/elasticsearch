@@ -77,3 +77,47 @@ setup:
       indices.stats:
         metric: [ translog ]
   - gte: { indices.test.primaries.translog.earliest_last_modified_age: 0 }
+
+---
+"Translog stats on closed indices":
+  - skip:
+      version: " - 7.2.99"
+      reason:  "closed indices have translog stats starting version 7.3.0"
+
+  - do:
+      index:
+        index: test
+        id:    1
+        body:  { "foo": "bar" }
+
+  - do:
+      index:
+        index: test
+        id:    2
+        body:  { "foo": "bar" }
+
+  - do:
+      index:
+        index: test
+        id:    3
+        body:  { "foo": "bar" }
+
+  - do:
+      indices.stats:
+        metric: [ translog ]
+  - match: { indices.test.primaries.translog.operations: 3 }
+  - match: { indices.test.primaries.translog.uncommitted_operations: 3 }
+
+  - do:
+      indices.close:
+        index: test
+        wait_for_active_shards: 1
+  - is_true: acknowledged
+
+  - do:
+      indices.stats:
+        metric: [ translog ]
+        expand_wildcards: all
+        forbid_closed_indices: false
+  - match: { indices.test.primaries.translog.operations: 3 }
+  - match: { indices.test.primaries.translog.uncommitted_operations: 0 }

@@ -12,7 +12,6 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Map;
 
 public interface XPackFeatureSet {
 
@@ -21,8 +20,6 @@ public interface XPackFeatureSet {
     boolean available();
 
     boolean enabled();
-
-    Map<String, Object> nativeCodeInfo();
 
     abstract class Usage implements ToXContentObject, NamedWriteable {
 

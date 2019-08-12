@@ -134,7 +134,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     /**
      * Enables low-level, frequent search cancellation checks. Enabling low-level checks will make long running searches to react
-     * to the cancellation request faster. It will produce more cancellation checks but benchmarking has shown these did not 
+     * to the cancellation request faster. It will produce more cancellation checks but benchmarking has shown these did not
      * noticeably slow down searches.
      */
     public static final Setting<Boolean> LOW_LEVEL_CANCELLATION_SETTING =
@@ -341,16 +341,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private <T> void runAsync(long id, Supplier<T> executable, ActionListener<T> listener) {
-        try {
-            getExecutor(id).execute(new ActionRunnable<>(listener) {
-                @Override
-                protected void doRun() {
-                    listener.onResponse(executable.get());
-                }
-            });
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
+        getExecutor(id).execute(ActionRunnable.wrap(listener, l -> l.onResponse(executable.get())));
     }
 
     private SearchPhaseResult executeQueryPhase(ShardSearchRequest request, SearchTask task) throws Exception {
@@ -420,7 +411,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             } finally {
                 cleanContext(context);
             }
-        }, ActionListener.trackLeaks(listener));
+        }, listener);
     }
 
     public void executeQueryPhase(QuerySearchRequest request, SearchTask task, ActionListener<QuerySearchResult> listener) {
@@ -447,7 +438,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             } finally {
                 cleanContext(context);
             }
-        }, ActionListener.trackLeaks(listener));
+        }, listener);
     }
 
     private boolean fetchPhaseShouldFreeContext(SearchContext context) {
@@ -493,7 +484,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             } finally {
                 cleanContext(context);
             }
-        },  ActionListener.trackLeaks(listener));
+        }, listener);
     }
 
     public void executeFetchPhase(ShardFetchRequest request, SearchTask task, ActionListener<FetchSearchResult> listener) {
@@ -524,7 +515,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             } finally {
                 cleanContext(context);
             }
-        },  ActionListener.trackLeaks(listener));
+        }, listener);
     }
 
     private SearchContext findContext(long id, TransportRequest request) throws SearchContextMissingException {
@@ -633,10 +624,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         IndexShard indexShard = indexService.getShard(request.shardId().getId());
         SearchShardTarget shardTarget = new SearchShardTarget(clusterService.localNode().getId(),
                 indexShard.shardId(), request.getClusterAlias(), OriginalIndices.NONE);
-        Engine.Searcher engineSearcher = indexShard.acquireSearcher(source);
+        Engine.Searcher searcher = indexShard.acquireSearcher(source);
 
         final DefaultSearchContext searchContext = new DefaultSearchContext(idGenerator.incrementAndGet(), request, shardTarget,
-            engineSearcher, clusterService, indexService, indexShard, bigArrays, threadPool::relativeTimeInMillis, timeout,
+            searcher, clusterService, indexService, indexShard, bigArrays, threadPool::relativeTimeInMillis, timeout,
             fetchPhase, clusterService.state().nodes().getMinNodeVersion());
         boolean success = false;
         try {
@@ -1020,7 +1011,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
 
     public void canMatch(ShardSearchRequest request, ActionListener<CanMatchResponse> listener) {
-        ActionListener.completeWith(listener, () -> new CanMatchResponse(canMatch(request)));
+        try {
+            listener.onResponse(new CanMatchResponse(canMatch(request)));
+        } catch (IOException e) {
+            listener.onFailure(e);
+        }
     }
 
     /**
@@ -1041,26 +1036,16 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * The action listener is guaranteed to be executed on the search thread-pool
      */
     private void rewriteShardRequest(ShardSearchRequest request, ActionListener<ShardSearchRequest> listener) {
-        try {
-            IndexShard shard = indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
-            Executor executor = getExecutor(shard);
-            ActionListener<Rewriteable> actionListener = ActionListener.wrap(r ->
+        IndexShard shard = indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
+        Executor executor = getExecutor(shard);
+        ActionListener<Rewriteable> actionListener = ActionListener.wrap(r ->
                 // now we need to check if there is a pending refresh and register
-                shard.awaitShardSearchActive(b ->
-                    executor.execute(new ActionRunnable<>(listener) {
-                        @Override
-                        protected void doRun() {
-                            listener.onResponse(request);
-                        }
-                    })
-                ), listener::onFailure);
-            // we also do rewrite on the coordinating node (TransportSearchService) but we also need to do it here for BWC as well as
-            // AliasFilters that might need to be rewritten. These are edge-cases but we are every efficient doing the rewrite here so it's
-            // not adding a lot of overhead
-            Rewriteable.rewriteAndFetch(request.getRewriteable(), indicesService.getRewriteContext(request::nowInMillis), actionListener);
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
+                shard.awaitShardSearchActive(b -> executor.execute(ActionRunnable.wrap(listener, l -> l.onResponse(request)))),
+            listener::onFailure);
+        // we also do rewrite on the coordinating node (TransportSearchService) but we also need to do it here for BWC as well as
+        // AliasFilters that might need to be rewritten. These are edge-cases but we are every efficient doing the rewrite here so it's not
+        // adding a lot of overhead
+        Rewriteable.rewriteAndFetch(request.getRewriteable(), indicesService.getRewriteContext(request::nowInMillis), actionListener);
     }
 
     /**
@@ -1093,7 +1078,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeBoolean(canMatch);
         }
 

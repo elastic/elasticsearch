@@ -1,5 +1,5 @@
 [[cluster-update-settings]]
-== Cluster Update Settings
+=== Cluster Update Settings
 
 Use this API to review and change cluster-wide settings. 
 
@@ -102,7 +102,7 @@ PUT /_cluster/settings
 
 
 [float]
-=== Order of Precedence
+==== Order of Precedence
 
 The order of precedence for cluster settings is:
 

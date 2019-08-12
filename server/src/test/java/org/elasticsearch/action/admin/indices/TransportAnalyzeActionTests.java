@@ -131,7 +131,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
             @Override
             public Map<String, AnalysisProvider<TokenizerFactory>> getTokenizers() {
                 return singletonMap("keyword", (indexSettings, environment, name, settings) ->
-                    () -> new MockTokenizer(MockTokenizer.KEYWORD, false));
+                    TokenizerFactory.newFactory(name, () -> new MockTokenizer(MockTokenizer.KEYWORD, false)));
             }
 
             @Override
@@ -141,7 +141,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
 
             @Override
             public List<PreConfiguredCharFilter> getPreConfiguredCharFilters() {
-                return singletonList(PreConfiguredCharFilter.singleton("append_foo", false, reader -> new AppendCharFilter(reader, "foo")));
+                return singletonList(PreConfiguredCharFilter.singleton("append", false, reader -> new AppendCharFilter(reader, "foo")));
             }
         };
         registry = new AnalysisModule(environment, singletonList(plugin)).getAnalysisRegistry();
@@ -170,24 +170,11 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         List<AnalyzeAction.AnalyzeToken> tokens = analyze.getTokens();
         assertEquals(4, tokens.size());
 
-        // Refer to a token filter by its type so we get its default configuration
-        request = new AnalyzeAction.Request();
-        request.text("the qu1ck brown fox");
-        request.tokenizer("standard");
-        request.addTokenFilter("mock");
-        analyze
-            = TransportAnalyzeAction.analyze(request, registry, null, maxTokenCount);
-        tokens = analyze.getTokens();
-        assertEquals(3, tokens.size());
-        assertEquals("qu1ck", tokens.get(0).getTerm());
-        assertEquals("brown", tokens.get(1).getTerm());
-        assertEquals("fox", tokens.get(2).getTerm());
-
         // We can refer to a pre-configured token filter by its name to get it
         request = new AnalyzeAction.Request();
         request.text("the qu1ck brown fox");
         request.tokenizer("standard");
-        request.addCharFilter("append_foo");
+        request.addCharFilter("append");        // <-- no config, so use preconfigured filter
         analyze
             = TransportAnalyzeAction.analyze(request, registry, null, maxTokenCount);
         tokens = analyze.getTokens();
@@ -197,28 +184,25 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         assertEquals("brown", tokens.get(2).getTerm());
         assertEquals("foxfoo", tokens.get(3).getTerm());
 
-        // We can refer to a token filter by its type to get its default configuration
+        // If the preconfigured filter doesn't exist, we use a global filter with no settings
         request = new AnalyzeAction.Request();
         request.text("the qu1ck brown fox");
         request.tokenizer("standard");
-        request.addCharFilter("append");
-        request.text("the qu1ck brown fox");
+        request.addTokenFilter("mock");     // <-- not preconfigured, but a global one available
         analyze
             = TransportAnalyzeAction.analyze(request, registry, null, maxTokenCount);
         tokens = analyze.getTokens();
-        assertEquals(4, tokens.size());
-        assertEquals("the", tokens.get(0).getTerm());
-        assertEquals("qu1ck", tokens.get(1).getTerm());
-        assertEquals("brown", tokens.get(2).getTerm());
-        assertEquals("foxbar", tokens.get(3).getTerm());
+        assertEquals(3, tokens.size());
+        assertEquals("qu1ck", tokens.get(0).getTerm());
+        assertEquals("brown", tokens.get(1).getTerm());
+        assertEquals("fox", tokens.get(2).getTerm());
 
-        // We can pass a new configuration
+        // We can build a new char filter to get default values
         request = new AnalyzeAction.Request();
         request.text("the qu1ck brown fox");
         request.tokenizer("standard");
         request.addTokenFilter(Map.of("type", "mock", "stopword", "brown"));
-        request.addCharFilter("append");
-        request.text("the qu1ck brown fox");
+        request.addCharFilter(Map.of("type", "append"));    // <-- basic config, uses defaults
         analyze
             = TransportAnalyzeAction.analyze(request, registry, null, maxTokenCount);
         tokens = analyze.getTokens();
@@ -226,6 +210,20 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         assertEquals("the", tokens.get(0).getTerm());
         assertEquals("qu1ck", tokens.get(1).getTerm());
         assertEquals("foxbar", tokens.get(2).getTerm());
+
+        // We can pass a new configuration
+        request = new AnalyzeAction.Request();
+        request.text("the qu1ck brown fox");
+        request.tokenizer("standard");
+        request.addTokenFilter(Map.of("type", "mock", "stopword", "brown"));
+        request.addCharFilter(Map.of("type", "append", "suffix", "baz"));
+        analyze
+            = TransportAnalyzeAction.analyze(request, registry, null, maxTokenCount);
+        tokens = analyze.getTokens();
+        assertEquals(3, tokens.size());
+        assertEquals("the", tokens.get(0).getTerm());
+        assertEquals("qu1ck", tokens.get(1).getTerm());
+        assertEquals("foxbaz", tokens.get(2).getTerm());
     }
 
     public void testFillsAttributes() throws IOException {

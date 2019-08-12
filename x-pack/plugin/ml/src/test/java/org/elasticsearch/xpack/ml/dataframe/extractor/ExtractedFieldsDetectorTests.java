@@ -258,6 +258,23 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         assertThat(extractedFieldNames, equalTo(Arrays.asList("my_field1", "your_field2")));
     }
 
+    public void testDetectedExtractedFields_NullResultsField() {
+        FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
+            .addAggregatableField(RESULTS_FIELD, "float")
+            .addAggregatableField("my_field1", "float")
+            .addAggregatableField("your_field2", "float")
+            .addAggregatableField("your_keyword", "keyword")
+            .build();
+
+        ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
+            SOURCE_INDEX, buildOutlierDetectionConfig(), null, false, 100, fieldCapabilities);
+        ExtractedFields extractedFields = extractedFieldsDetector.detect();
+
+        List<String> extractedFieldNames = extractedFields.getAllFields().stream().map(ExtractedField::getName)
+            .collect(Collectors.toList());
+        assertThat(extractedFieldNames, equalTo(Arrays.asList(RESULTS_FIELD, "my_field1", "your_field2")));
+    }
+
     public void testDetectedExtractedFields_GivenLessFieldsThanDocValuesLimit() {
         FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
             .addAggregatableField("field_1", "float")
@@ -323,7 +340,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         return new DataFrameAnalyticsConfig.Builder()
             .setId("foo")
             .setSource(new DataFrameAnalyticsSource(SOURCE_INDEX, null))
-            .setDest(new DataFrameAnalyticsDest(DEST_INDEX, null))
+            .setDest(new DataFrameAnalyticsDest(DEST_INDEX, RESULTS_FIELD))
             .setAnalyzedFields(analyzedFields)
             .setAnalysis(new OutlierDetection())
             .build();
@@ -337,7 +354,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         return new DataFrameAnalyticsConfig.Builder()
             .setId("foo")
             .setSource(new DataFrameAnalyticsSource(SOURCE_INDEX, null))
-            .setDest(new DataFrameAnalyticsDest(DEST_INDEX, null))
+            .setDest(new DataFrameAnalyticsDest(DEST_INDEX, RESULTS_FIELD))
             .setAnalyzedFields(analyzedFields)
             .setAnalysis(new Regression(dependentVariable))
             .build();

@@ -119,9 +119,11 @@ public class ExtractedFieldsDetector {
 
         Map<String, FieldCapabilities> indexToFieldCaps = fieldCapabilitiesResponse.getField(resultsField);
         if (indexToFieldCaps != null && indexToFieldCaps.isEmpty() == false) {
-            throw ExceptionsHelper.badRequestException("A field that matches the {}.{} [{}] already exists;" +
-                    " please set a different {}", DataFrameAnalyticsConfig.DEST.getPreferredName(),
-                DataFrameAnalyticsDest.RESULTS_FIELD.getPreferredName(), resultsField,
+            throw ExceptionsHelper.badRequestException(
+                "A field that matches the {}.{} [{}] already exists; please set a different {}",
+                DataFrameAnalyticsConfig.DEST.getPreferredName(),
+                DataFrameAnalyticsDest.RESULTS_FIELD.getPreferredName(),
+                resultsField,
                 DataFrameAnalyticsDest.RESULTS_FIELD.getPreferredName());
         }
     }

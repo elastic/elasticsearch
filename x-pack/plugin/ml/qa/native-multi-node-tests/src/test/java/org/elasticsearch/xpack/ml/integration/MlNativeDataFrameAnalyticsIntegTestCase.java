@@ -123,7 +123,8 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
 
     protected static DataFrameAnalyticsConfig buildRegressionAnalytics(String id, String[] sourceIndex, String destIndex,
                                                                        @Nullable String resultsField, String dependentVariable) {
-        DataFrameAnalyticsConfig.Builder configBuilder = new DataFrameAnalyticsConfig.Builder(id);
+        DataFrameAnalyticsConfig.Builder configBuilder = new DataFrameAnalyticsConfig.Builder();
+        configBuilder.setId(id);
         configBuilder.setSource(new DataFrameAnalyticsSource(sourceIndex, null));
         configBuilder.setDest(new DataFrameAnalyticsDest(destIndex, resultsField));
         configBuilder.setAnalysis(new Regression(dependentVariable));

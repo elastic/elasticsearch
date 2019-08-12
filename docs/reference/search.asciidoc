@@ -19,7 +19,7 @@ the user name:
 POST /twitter/_doc?routing=kimchy
 {
     "user" : "kimchy",
-    "postDate" : "2009-11-15T14:12:12",
+    "post_date" : "2009-11-15T14:12:12",
     "message" : "trying out Elasticsearch"
 }
 --------------------------------------------------

@@ -205,7 +205,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                         if (changesLastDetectedAt == null) {
                             listener.onResponse(info);
                         } else {
-                            listener.onResponse(info.setChangesDetectedAt(changesLastDetectedAt));
+                            listener.onResponse(info.setChangesLastDetectedAt(changesLastDetectedAt));
                         }
                     },
                     listener::onFailure

@@ -57,8 +57,8 @@ public class DataFrameTransformCheckpointingInfoTests extends ESTestCase {
             DataFrameTransformCheckpointStatsTests.toXContent(info.getNext(), builder);
         }
         builder.field(DataFrameTransformCheckpointingInfo.OPERATIONS_BEHIND.getPreferredName(), info.getOperationsBehind());
-        if (info.getChangesDetectedAt() != null) {
-            builder.field(DataFrameTransformCheckpointingInfo.CHANGES_LAST_DETECTED_AT.getPreferredName(), info.getChangesDetectedAt());
+        if (info.getChangesLastDetectedAt() != null) {
+            builder.field(DataFrameTransformCheckpointingInfo.CHANGES_LAST_DETECTED_AT.getPreferredName(), info.getChangesLastDetectedAt());
         }
         builder.endObject();
     }

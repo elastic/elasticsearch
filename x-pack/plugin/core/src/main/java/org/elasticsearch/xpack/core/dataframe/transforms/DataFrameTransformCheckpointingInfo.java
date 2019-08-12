@@ -118,11 +118,11 @@ public class DataFrameTransformCheckpointingInfo implements Writeable, ToXConten
         return operationsBehind;
     }
 
-    public Instant getChangesDetectedAt() {
+    public Instant getChangesLastDetectedAt() {
         return changesLastDetectedAt;
     }
 
-    public DataFrameTransformCheckpointingInfo setChangesDetectedAt(Instant changesLastDetectedAt) {
+    public DataFrameTransformCheckpointingInfo setChangesLastDetectedAt(Instant changesLastDetectedAt) {
         this.changesLastDetectedAt = Instant.ofEpochMilli(Objects.requireNonNull(changesLastDetectedAt).toEpochMilli());
         return this;
     }

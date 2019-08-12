@@ -90,7 +90,7 @@ public class DataFrameTransformCheckpointingInfo {
     }
 
     @Nullable
-    public Instant getChangesDetectedAt() {
+    public Instant getChangesLastDetectedAt() {
         return changesLastDetectedAt;
     }
 

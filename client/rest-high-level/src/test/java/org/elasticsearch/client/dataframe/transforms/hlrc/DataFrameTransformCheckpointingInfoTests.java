@@ -37,7 +37,7 @@ public class DataFrameTransformCheckpointingInfoTests extends AbstractHlrcXConte
             DataFrameTransformCheckpointStatsTests.fromHlrc(instance.getLast()),
             DataFrameTransformCheckpointStatsTests.fromHlrc(instance.getNext()),
             instance.getOperationsBehind(),
-            instance.getChangesDetectedAt());
+            instance.getChangesLastDetectedAt());
     }
 
     @Override

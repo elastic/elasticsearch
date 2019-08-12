@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authz.RBACEngine.RBACAuthorizationInfo;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
@@ -243,8 +244,8 @@ public class RBACEngineTests extends ESTestCase {
         final Authentication.RealmRef authenticatedBy = mock(Authentication.RealmRef.class);
         when(authentication.getUser()).thenReturn(user);
         when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
-        when(authenticatedBy.getType()).thenReturn("_es_api_key");
-        when(authentication.getMetadata()).thenReturn(Map.of("_security_api_key_id", apiKeyId));
+        when(authenticatedBy.getType()).thenReturn(ApiKeyService.API_KEY_REALM_TYPE);
+        when(authentication.getMetadata()).thenReturn(Map.of(ApiKeyService.API_KEY_ID_KEY, apiKeyId));
 
         assertTrue(engine.checkSameUserPermissions(GetApiKeyAction.NAME, request, authentication));
     }
@@ -257,10 +258,29 @@ public class RBACEngineTests extends ESTestCase {
         final Authentication.RealmRef authenticatedBy = mock(Authentication.RealmRef.class);
         when(authentication.getUser()).thenReturn(user);
         when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
-        when(authenticatedBy.getType()).thenReturn("_es_api_key");
-        when(authentication.getMetadata()).thenReturn(Map.of("_security_api_key_id", randomAlphaOfLengthBetween(4, 7)));
+        when(authenticatedBy.getType()).thenReturn(ApiKeyService.API_KEY_REALM_TYPE);
+        when(authentication.getMetadata()).thenReturn(Map.of(ApiKeyService.API_KEY_ID_KEY, randomAlphaOfLengthBetween(4, 7)));
 
         assertFalse(engine.checkSameUserPermissions(GetApiKeyAction.NAME, request, authentication));
+    }
+
+    public void testSameUserPermissionDeniesApiKeyInfoRetrievalWhenLookedupByIsPresent() {
+        final User user = new User("joe");
+        final String apiKeyId = randomAlphaOfLengthBetween(4, 7);
+        final TransportRequest request = GetApiKeyRequest.usingApiKeyId(apiKeyId, false);
+        final Authentication authentication = mock(Authentication.class);
+        final Authentication.RealmRef authenticatedBy = mock(Authentication.RealmRef.class);
+        final Authentication.RealmRef lookedupBy = mock(Authentication.RealmRef.class);
+        when(authentication.getUser()).thenReturn(user);
+        when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
+        when(authentication.getLookedUpBy()).thenReturn(lookedupBy);
+        when(authenticatedBy.getType()).thenReturn(ApiKeyService.API_KEY_REALM_TYPE);
+        when(authentication.getMetadata()).thenReturn(Map.of(ApiKeyService.API_KEY_ID_KEY, randomAlphaOfLengthBetween(4, 7)));
+
+        final AssertionError assertionError = expectThrows(AssertionError.class, () -> engine.checkSameUserPermissions(GetApiKeyAction.NAME,
+            request, authentication));
+        assertNotNull(assertionError);
+        assertThat(assertionError.getLocalizedMessage(), is("runAs not supported for api key authentication"));
     }
 
     /**

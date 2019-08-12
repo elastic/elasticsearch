@@ -64,6 +64,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.NamedClusterPrivile
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
@@ -175,9 +176,10 @@ public class RBACEngine implements AuthorizationEngine {
                 return sameUsername;
             } else if (request instanceof GetApiKeyRequest) {
                 GetApiKeyRequest getApiKeyRequest = (GetApiKeyRequest) request;
-                if (authentication.getAuthenticatedBy().getType().equals("_es_api_key")) {
+                if (authentication.getAuthenticatedBy().getType().equals(ApiKeyService.API_KEY_REALM_TYPE)) {
+                    assert authentication.getLookedUpBy() == null : "runAs not supported for api key authentication";
                     // if authenticated by API key then the request must also contain same API key id
-                    String authenticatedApiKeyId = (String) authentication.getMetadata().get("_security_api_key_id");
+                    String authenticatedApiKeyId = (String) authentication.getMetadata().get(ApiKeyService.API_KEY_ID_KEY);
                     if (Strings.hasText(getApiKeyRequest.getApiKeyId())) {
                         return getApiKeyRequest.getApiKeyId().equals(authenticatedApiKeyId);
                     }

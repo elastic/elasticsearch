@@ -107,6 +107,8 @@ public class ApiKeyService {
     private static final Logger logger = LogManager.getLogger(ApiKeyService.class);
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
     public static final String API_KEY_ID_KEY = "_security_api_key_id";
+    public static final String API_KEY_REALM_NAME = "_es_api_key";
+    public static final String API_KEY_REALM_TYPE = "_es_api_key";
     static final String API_KEY_ROLE_DESCRIPTORS_KEY = "_security_api_key_role_descriptors";
     static final String API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY = "_security_api_key_limited_by_role_descriptors";
 

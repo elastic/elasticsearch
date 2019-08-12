@@ -1,5 +1,6 @@
 package org.elasticsearch.common.time;
 
+import java.util.Calendar;
 import java.util.Locale;
 import java.util.spi.CalendarDataProvider;
 
@@ -7,7 +8,7 @@ public class IsoCalendarDataProvider extends CalendarDataProvider {
 
     @Override
     public int getFirstDayOfWeek(Locale locale) {
-        return 1;
+        return Calendar.MONDAY;
     }
 
     @Override

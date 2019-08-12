@@ -36,5 +36,6 @@ public final class IsoLocale {
       */
     public static final Locale ROOT = new Locale.Builder()
         .setLocale(Locale.ROOT)
-        .setUnicodeLocaleKeyword("fw", "mon").build();
+//        .setUnicodeLocaleKeyword("fw", "mon")
+        .build();
 }

@@ -8,9 +8,9 @@ Returns documents based on a provided query string, using a parser with a strict
 syntax.
 
 This query uses a <<query-string-syntax,syntax>> to parse and split the provided
-query string into terms based on operators, such as `AND` or `NOT`. The query
-then <<analysis,analyzes>> each term independently before returning matching
-documents.
+query string based on operators, such as `AND` or `NOT`. The query
+then <<analysis,analyzes>> each split text independently before returning
+matching documents.
 
 You can use the `query_string` query to create a complex search that includes
 wildcard characters, searches across multiple fields, and more. While versatile,
@@ -33,8 +33,8 @@ query, which is less strict.
 ==== Example request
 
 When running the following search, the `query_string` query splits `(new york
-city) OR (big apple)` into two terms: `new york city` and `big apple`. The
-`content` field's analyzer then independently converts each term into tokens
+city) OR (big apple)` into two parts: `new york city` and `big apple`. The
+`content` field's analyzer then independently converts each part into tokens
 before returning matching documents. Because the query syntax does not use
 whitespace as an operator, `new york city` is passed as-is to the analyzer.
 

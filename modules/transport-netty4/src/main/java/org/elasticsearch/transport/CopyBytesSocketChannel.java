@@ -99,10 +99,6 @@ public class CopyBytesSocketChannel extends NioSocketChannel {
                 ioBuffer.flip();
 
                 int attemptedBytes = ioBuffer.remaining();
-                if (attemptedBytes > 1) {
-                    attemptedBytes = attemptedBytes - 1;
-                    ioBuffer.limit(ioBuffer.limit() - 1);
-                }
                 final int localWrittenBytes = ch.write(ioBuffer);
                 if (localWrittenBytes <= 0) {
                     incompleteWrite(true);

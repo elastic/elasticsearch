@@ -102,12 +102,17 @@ public class CopyBytesSocketChannel extends NioSocketChannel {
                 ioBuffer.flip();
 
                 int attemptedBytes = ioBuffer.remaining();
+                if (attemptedBytes > 1) {
+                    attemptedBytes = attemptedBytes - 1;
+                    ioBuffer.limit(ioBuffer.limit() - 1);
+                }
                 final int localWrittenBytes = ch.write(ioBuffer);
                 if (localWrittenBytes <= 0) {
                     incompleteWrite(true);
                     return;
                 }
                 adjustMaxBytesPerGatheringWrite(attemptedBytes, localWrittenBytes, maxBytesPerGatheringWrite);
+                setWrittenBytes(nioBuffers, localWrittenBytes);
                 in.removeBytes(localWrittenBytes);
                 --writeSpinCount;
             }
@@ -151,11 +156,20 @@ public class CopyBytesSocketChannel extends NioSocketChannel {
     private static void copyBytes(ByteBuffer[] source, int nioBufferCnt, ByteBuffer destination) {
         for (int i = 0; i < nioBufferCnt && destination.hasRemaining(); i++) {
             ByteBuffer buffer = source[i];
+            assert buffer.hasArray() : "Buffer must have heap array";
             int nBytesToCopy = Math.min(destination.remaining(), buffer.remaining());
-            int initialLimit = buffer.limit();
-            buffer.limit(buffer.position() + nBytesToCopy);
-            destination.put(buffer);
-            buffer.limit(initialLimit);
+            destination.put(buffer.array(), buffer.arrayOffset() + buffer.position(), nBytesToCopy);
+        }
+    }
+
+    private static void setWrittenBytes(ByteBuffer[] source, int bytesWritten) {
+        int i = 0;
+        while (bytesWritten > 0) {
+            ByteBuffer buffer = source[i];
+            int nBytes = Math.min(buffer.remaining(), bytesWritten);
+            buffer.position(buffer.position() + nBytes);
+            bytesWritten = bytesWritten - nBytes;
+            ++i;
         }
     }
 

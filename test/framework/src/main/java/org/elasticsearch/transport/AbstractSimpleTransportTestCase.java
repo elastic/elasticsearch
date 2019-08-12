@@ -1723,57 +1723,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
     }
 
-    public void testSendBigRequestResponse() throws InterruptedException {
-        String payload = randomAlphaOfLength(randomIntBetween(1024 * 1024 * 20, 1024 * 1024 * 25));
-
-        class BigRequestHandler implements TransportRequestHandler<TestRequest> {
-
-            @Override
-            public void messageReceived(TestRequest request, TransportChannel channel, Task task) throws Exception {
-                assertEquals(payload, request.info);
-                channel.sendResponse(new TestResponse(payload));
-
-            }
-        }
-        serviceB.registerRequestHandler("internal:actionBig", ThreadPool.Names.SAME, TestRequest::new, new BigRequestHandler());
-        serviceA.registerRequestHandler("internal:actionBig", ThreadPool.Names.SAME, TestRequest::new, new BigRequestHandler());
-        CountDownLatch allRequestsDone = new CountDownLatch(1);
-        class BigResponseHandler implements TransportResponseHandler<TestResponse> {
-
-            @Override
-            public TestResponse read(StreamInput in) throws IOException {
-                return new TestResponse(in);
-            }
-
-            @Override
-            public void handleResponse(TestResponse response) {
-                try {
-                    assertEquals(payload, response.info);
-                } finally {
-                    allRequestsDone.countDown();
-                }
-            }
-
-            @Override
-            public void handleException(TransportException exp) {
-                try {
-                    fail();
-                } finally {
-                    allRequestsDone.countDown();
-                }
-            }
-
-            @Override
-            public String executor() {
-                return ThreadPool.Names.SAME;
-            }
-        }
-
-        serviceA.sendRequest(serviceB.getLocalNode(), "internal:actionBig", new TestRequest(payload),
-            TransportRequestOptions.EMPTY, new BigResponseHandler());
-        allRequestsDone.await(5, TimeUnit.SECONDS);
-    }
-
     public void testSendRandomRequests() throws InterruptedException {
         TransportService serviceC = buildService("TS_C", version0, Settings.EMPTY);
         DiscoveryNode nodeC = serviceC.getLocalNode();

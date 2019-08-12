@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.rest.action;
 
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -20,14 +19,12 @@ import org.elasticsearch.xpack.core.action.XPackUsageRequestBuilder;
 import org.elasticsearch.xpack.core.action.XPackUsageResponse;
 import org.elasticsearch.xpack.core.rest.XPackRestHandler;
 
-import java.io.IOException;
-
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestXPackUsageAction extends XPackRestHandler {
-    public RestXPackUsageAction(Settings settings, RestController controller) {
-        super(settings);
+
+    public RestXPackUsageAction(RestController controller) {
         controller.registerHandler(GET, URI_BASE + "/usage", this);
     }
 
@@ -37,7 +34,7 @@ public class RestXPackUsageAction extends XPackRestHandler {
     }
 
     @Override
-    public RestChannelConsumer doPrepareRequest(RestRequest request, XPackClient client) throws IOException {
+    public RestChannelConsumer doPrepareRequest(RestRequest request, XPackClient client) {
         final TimeValue masterTimeout = request.paramAsTime("master_timeout", MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT);
         return channel -> new XPackUsageRequestBuilder(client.es())
                 .setMasterNodeTimeout(masterTimeout)

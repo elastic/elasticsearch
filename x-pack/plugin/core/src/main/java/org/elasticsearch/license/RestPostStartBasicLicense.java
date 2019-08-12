@@ -8,7 +8,6 @@ package org.elasticsearch.license;
 
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
@@ -23,8 +22,7 @@ public class RestPostStartBasicLicense extends XPackRestHandler {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestPostStartBasicLicense.class));
 
-    RestPostStartBasicLicense(Settings settings, RestController controller) {
-        super(settings);
+    RestPostStartBasicLicense(RestController controller) {
         // TODO: remove deprecated endpoint in 8.0.0
         controller.registerWithDeprecatedHandler(
                 POST, "/_license/start_basic", this,

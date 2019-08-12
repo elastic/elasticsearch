@@ -69,7 +69,7 @@ tasks.register('destructivePackagingTest') {
 subprojects { Project platformProject ->
 
   // TODO: remove this property lookup once CI is switched to use an explicit task for the sample tests
-  boolean allBoxes = project.properties.get('vagrant.boxes', '') == 'all'
+  boolean allBoxes = (project.findProperty('vagrant.boxes') ?: '') == 'all'
   if (allBoxes || ['centos-7', 'ubuntu-1604'].contains(platformProject.name)) {
     tasks.register('packagingTest') {
       dependsOn 'distroTest', 'batsTest.oss', 'batsTest.default'

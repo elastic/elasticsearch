@@ -436,14 +436,15 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject().endObject()), serialize(update));
     }
 
-    public void testReuseExistingMappings() throws Exception {
+    public void testReuseExistingMappings() throws IOException, Exception {
         IndexService indexService = createIndex("test", Settings.EMPTY, "type",
                 "my_field1", "type=text,store=true",
                 "my_field2", "type=integer,store=false",
                 "my_field3", "type=long,doc_values=false",
                 "my_field4", "type=float,index=false",
                 "my_field5", "type=double,store=true",
-                "my_field6", "type=date,doc_values=false");
+                "my_field6", "type=date,doc_values=false",
+                "my_field7", "type=boolean,doc_values=false");
 
         // Even if the dynamic type of our new field is long, we already have a mapping for the same field
         // of type string so it should be mapped as a string
@@ -523,7 +524,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
 
         assertNotNull(myField7Mapper);
         assertTrue(myField7Mapper instanceof BooleanFieldMapper);
-        assertTrue(((BooleanFieldType) ((BooleanFieldMapper) myField7Mapper).fieldType()).hasDocValues());
+        assertFalse(((BooleanFieldType) ((BooleanFieldMapper) myField7Mapper).fieldType()).hasDocValues());
 
         // This can't work
         try {

@@ -133,7 +133,7 @@ public class SearchTransportService {
         final boolean fetchDocuments = request.numberOfShards() == 1;
         Writeable.Reader<SearchPhaseResult> reader = fetchDocuments ? QueryFetchSearchResult::new : QuerySearchResult::new;
 
-        final ActionListener handler = ActionListener.trackLeaks(responseWrapper.apply(connection, listener));
+        final ActionListener handler = responseWrapper.apply(connection, listener);
         transportService.sendChildRequest(connection, QUERY_ACTION_NAME, request, task,
                 new ConnectionCountingHandler<>(handler, reader, clientConnections, connection.getNode().getId()));
     }
@@ -151,24 +151,24 @@ public class SearchTransportService {
     }
 
     public void sendExecuteScrollFetch(Transport.Connection connection, final InternalScrollSearchRequest request, SearchTask task,
-                                       final ActionListener<ScrollQueryFetchSearchResult> listener) {
+                                       final SearchActionListener<ScrollQueryFetchSearchResult> listener) {
         transportService.sendChildRequest(connection, QUERY_FETCH_SCROLL_ACTION_NAME, request, task,
                 new ConnectionCountingHandler<>(listener, ScrollQueryFetchSearchResult::new, clientConnections,
                     connection.getNode().getId()));
     }
 
     public void sendExecuteFetch(Transport.Connection connection, final ShardFetchSearchRequest request, SearchTask task,
-                                 final ActionListener<FetchSearchResult> listener) {
+                                 final SearchActionListener<FetchSearchResult> listener) {
         sendExecuteFetch(connection, FETCH_ID_ACTION_NAME, request, task, listener);
     }
 
     public void sendExecuteFetchScroll(Transport.Connection connection, final ShardFetchRequest request, SearchTask task,
-                                       final ActionListener<FetchSearchResult> listener) {
+                                       final SearchActionListener<FetchSearchResult> listener) {
         sendExecuteFetch(connection, FETCH_ID_SCROLL_ACTION_NAME, request, task, listener);
     }
 
     private void sendExecuteFetch(Transport.Connection connection, String action, final ShardFetchRequest request, SearchTask task,
-                                  final ActionListener<FetchSearchResult> listener) {
+                                  final SearchActionListener<FetchSearchResult> listener) {
         transportService.sendChildRequest(connection, action, request, task,
                 new ConnectionCountingHandler<>(listener, FetchSearchResult::new, clientConnections, connection.getNode().getId()));
     }
@@ -307,8 +307,8 @@ public class SearchTransportService {
             (in) -> TransportResponse.Empty.INSTANCE);
 
         transportService.registerRequestHandler(DFS_ACTION_NAME, ThreadPool.Names.SAME, ShardSearchTransportRequest::new,
-            (request, channel, task) -> searchService.executeDfsPhase(request, (SearchTask) task, ActionListener.trackLeaks(
-                new ActionListener<>() {
+            (request, channel, task) -> {
+                searchService.executeDfsPhase(request, (SearchTask) task, new ActionListener<SearchPhaseResult>() {
                     @Override
                     public void onResponse(SearchPhaseResult searchPhaseResult) {
                         try {
@@ -326,45 +326,58 @@ public class SearchTransportService {
                             throw new UncheckedIOException(e1);
                         }
                     }
-                })));
+                });
+            });
         TransportActionProxy.registerProxyAction(transportService, DFS_ACTION_NAME, DfsSearchResult::new);
 
         transportService.registerRequestHandler(QUERY_ACTION_NAME, ThreadPool.Names.SAME, ShardSearchTransportRequest::new,
-            (request, channel, task) -> searchService.executeQueryPhase(request, (SearchTask) task, ActionListener.trackLeaks(
-                new ChannelActionListener<>(channel, QUERY_ACTION_NAME, request))));
+            (request, channel, task) -> {
+                searchService.executeQueryPhase(request, (SearchTask) task, new ChannelActionListener<>(
+                    channel, QUERY_ACTION_NAME, request));
+            });
         TransportActionProxy.registerProxyActionWithDynamicResponseType(transportService, QUERY_ACTION_NAME,
             (request) -> ((ShardSearchRequest)request).numberOfShards() == 1 ? QueryFetchSearchResult::new : QuerySearchResult::new);
 
         transportService.registerRequestHandler(QUERY_ID_ACTION_NAME, ThreadPool.Names.SAME, QuerySearchRequest::new,
-            (request, channel, task) -> searchService.executeQueryPhase(request, (SearchTask)task,
-                ActionListener.trackLeaks(new ChannelActionListener<>(channel, QUERY_ID_ACTION_NAME, request))));
+            (request, channel, task) -> {
+                searchService.executeQueryPhase(request, (SearchTask)task, new ChannelActionListener<>(channel, QUERY_ID_ACTION_NAME,
+                    request));
+            });
         TransportActionProxy.registerProxyAction(transportService, QUERY_ID_ACTION_NAME, QuerySearchResult::new);
 
         transportService.registerRequestHandler(QUERY_SCROLL_ACTION_NAME, ThreadPool.Names.SAME, InternalScrollSearchRequest::new,
-            (request, channel, task) -> searchService.executeQueryPhase(request, (SearchTask)task,
-                ActionListener.trackLeaks(new ChannelActionListener<>(channel, QUERY_SCROLL_ACTION_NAME, request))));
+            (request, channel, task) -> {
+                searchService.executeQueryPhase(request, (SearchTask)task, new ChannelActionListener<>(channel, QUERY_SCROLL_ACTION_NAME,
+                 request));
+            });
         TransportActionProxy.registerProxyAction(transportService, QUERY_SCROLL_ACTION_NAME, ScrollQuerySearchResult::new);
 
         transportService.registerRequestHandler(QUERY_FETCH_SCROLL_ACTION_NAME, ThreadPool.Names.SAME, InternalScrollSearchRequest::new,
-            (request, channel, task) -> searchService.executeFetchPhase(request, (SearchTask)task,
-                ActionListener.trackLeaks(new ChannelActionListener<>(channel, QUERY_FETCH_SCROLL_ACTION_NAME, request))));
+            (request, channel, task) -> {
+                searchService.executeFetchPhase(request, (SearchTask)task, new ChannelActionListener<>(channel,
+                    QUERY_FETCH_SCROLL_ACTION_NAME, request));
+            });
         TransportActionProxy.registerProxyAction(transportService, QUERY_FETCH_SCROLL_ACTION_NAME, ScrollQueryFetchSearchResult::new);
 
         transportService.registerRequestHandler(FETCH_ID_SCROLL_ACTION_NAME, ThreadPool.Names.SAME, ShardFetchRequest::new,
-            (request, channel, task) -> searchService.executeFetchPhase(request, (SearchTask)task,
-                ActionListener.trackLeaks(new ChannelActionListener<>(channel, FETCH_ID_SCROLL_ACTION_NAME, request))));
+            (request, channel, task) -> {
+                searchService.executeFetchPhase(request, (SearchTask)task, new ChannelActionListener<>(channel,
+                    FETCH_ID_SCROLL_ACTION_NAME, request));
+            });
         TransportActionProxy.registerProxyAction(transportService, FETCH_ID_SCROLL_ACTION_NAME, FetchSearchResult::new);
 
-        transportService.registerRequestHandler(FETCH_ID_ACTION_NAME, ThreadPool.Names.SAME, true, true,
-            ShardFetchSearchRequest::new,
-            (request, channel, task) -> searchService.executeFetchPhase(request, (SearchTask)task,
-                ActionListener.trackLeaks(new ChannelActionListener<>(channel, FETCH_ID_ACTION_NAME, request))));
+        transportService.registerRequestHandler(FETCH_ID_ACTION_NAME, ThreadPool.Names.SAME, true, true, ShardFetchSearchRequest::new,
+            (request, channel, task) -> {
+                searchService.executeFetchPhase(request, (SearchTask)task, new ChannelActionListener<>(channel, FETCH_ID_ACTION_NAME,
+                    request));
+            });
         TransportActionProxy.registerProxyAction(transportService, FETCH_ID_ACTION_NAME, FetchSearchResult::new);
 
         // this is cheap, it does not fetch during the rewrite phase, so we can let it quickly execute on a networking thread
         transportService.registerRequestHandler(QUERY_CAN_MATCH_NAME, ThreadPool.Names.SAME, ShardSearchTransportRequest::new,
-            (request, channel, task) -> searchService.canMatch(request,
-                ActionListener.trackLeaks(new ChannelActionListener<>(channel, QUERY_CAN_MATCH_NAME, request))));
+            (request, channel, task) -> {
+                searchService.canMatch(request, new ChannelActionListener<>(channel, QUERY_CAN_MATCH_NAME, request));
+            });
         TransportActionProxy.registerProxyAction(transportService, QUERY_CAN_MATCH_NAME, SearchService.CanMatchResponse::new);
     }
 

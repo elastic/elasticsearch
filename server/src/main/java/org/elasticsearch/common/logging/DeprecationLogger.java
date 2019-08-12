@@ -270,7 +270,7 @@ public class DeprecationLogger {
                     }
                 }
             } catch (IllegalStateException e) {
-                // ignore exception as this is due to a race condition  between isClosed and getHeader
+                // ignore exception as this is due to a race condition  between isClosed and getHeader. Only in test env.
             }
         }
         return "";

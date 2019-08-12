@@ -87,7 +87,7 @@ public class DataFrameTransformConfigUpdateTests extends AbstractSerializingData
             PivotConfigTests.randomPivotConfig(),
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             randomBoolean() ? null : Instant.now(),
-            randomBoolean() ? null : Version.CURRENT.toString());
+            randomBoolean() ? null : Version.V_7_2_0.toString());
         DataFrameTransformConfigUpdate update = new DataFrameTransformConfigUpdate(null, null, null, null, null);
 
         assertThat(config, equalTo(update.apply(config)));
@@ -108,6 +108,7 @@ public class DataFrameTransformConfigUpdateTests extends AbstractSerializingData
         assertThat(updatedConfig.getSyncConfig(), equalTo(syncConfig));
         assertThat(updatedConfig.getDescription(), equalTo(newDescription));
         assertThat(updatedConfig.getHeaders(), equalTo(headers));
+        assertThat(updatedConfig.getVersion(), equalTo(Version.CURRENT));
     }
 
     public void testApplyWithSyncChange() {

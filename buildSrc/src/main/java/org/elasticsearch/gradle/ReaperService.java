@@ -19,6 +19,7 @@
 
 package org.elasticsearch.gradle;
 
+import org.elasticsearch.gradle.tool.ClasspathUtils;
 import org.gradle.api.GradleException;
 import org.gradle.api.logging.Logger;
 import org.gradle.internal.jvm.Jvm;
@@ -27,11 +28,16 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class ReaperService {
 
+    private static final String REAPER_CLASS = "org/elasticsearch/gradle/reaper/Reaper.class";
+    private static final Pattern REAPER_JAR_PATH_PATTERN = Pattern.compile("file:(.*)!/" + REAPER_CLASS);
     private Logger logger;
     private Path buildDir;
     private Path inputDir;
@@ -103,13 +109,7 @@ public class ReaperService {
     private synchronized void ensureReaperStarted() {
         if (reaperProcess == null) {
             try {
-                // copy the reaper jar
-                Path jarPath = buildDir.resolve("reaper").resolve("reaper.jar");
-                Files.createDirectories(jarPath.getParent());
-                InputStream jarInput = ReaperPlugin.class.getResourceAsStream("/META-INF/reaper.jar");
-                try (OutputStream out = Files.newOutputStream(jarPath)) {
-                    jarInput.transferTo(out);
-                }
+                Path jarPath = locateReaperJar();
 
                 // ensure the input directory exists
                 Files.createDirectories(inputDir);
@@ -131,6 +131,41 @@ public class ReaperService {
             }
         } else {
             ensureReaperAlive();
+        }
+    }
+
+    private Path locateReaperJar() {
+        if (ClasspathUtils.isElasticsearchProject()) {
+            // when running inside the Elasticsearch build just pull find the jar in the runtime classpath
+            URL main = this.getClass().getClassLoader().getResource(REAPER_CLASS);
+            String mainPath = main.getFile();
+            Matcher matcher = REAPER_JAR_PATH_PATTERN.matcher(mainPath);
+
+            if (matcher.matches()) {
+                return Path.of(matcher.group(1));
+            } else {
+                throw new RuntimeException("Unable to locate " + REAPER_CLASS + " on build classpath.");
+            }
+        } else {
+            // copy the reaper jar
+            Path jarPath = buildDir.resolve("reaper").resolve("reaper.jar");
+            try {
+                Files.createDirectories(jarPath.getParent());
+            } catch (IOException e) {
+                throw new UncheckedIOException("Unable to create reaper JAR output directory " + jarPath.getParent(), e);
+            }
+
+            try (
+                OutputStream out = Files.newOutputStream(jarPath);
+                InputStream jarInput = this.getClass().getResourceAsStream("/META-INF/reaper.jar");
+            ) {
+                logger.info("Copying reaper.jar...");
+                jarInput.transferTo(out);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+
+            return jarPath;
         }
     }
 

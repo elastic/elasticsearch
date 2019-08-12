@@ -1,23 +1,21 @@
 [[cluster-update-settings]]
 === Cluster Update Settings
 
-Returns and changes cluster-wide settings. 
+Updates cluster-wide settings. 
 
 
 [[cluster-update-settings-api-request]]
 ==== {api-request-title}
 
-`GET /_cluster/settings`
+`PUT /_cluster/settings`
 
 
 [[cluster-update-settings-api-desc]]
 ==== {api-description-title}
 
-By default, this API call only returns settings that have been explicitly 
-defined, but can also <<cluster-get-settings,include the default settings>>.
-
-Updates to settings can be persistent, meaning they apply across restarts, or 
-transient, where they don't survive a full cluster restart.
+With specifications in the request body, this API call can update cluster 
+settings. Updates to settings can be persistent, meaning they apply across 
+restarts, or transient, where they don't survive a full cluster restart.
 
 You can reset persistent or transient settings by assigning a `null` value. If a 
 transient setting is reset, the first one of these values that is defined is 

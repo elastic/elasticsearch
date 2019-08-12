@@ -1,0 +1,31 @@
+--
+:api: enrich-get-policy
+:request: GetPolicyRequest
+:response: GetPolicyResponse
+--
+
+[id="{upid}-{api}"]
+=== Get Policy API
+
+[id="{upid}-{api}-request"]
+==== Request
+
+The Get Policy API allows to retrieve an enrich policy by name.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ includes the requested enrich policy.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> The actual enrich policy.
+
+include::../execution.asciidoc[]

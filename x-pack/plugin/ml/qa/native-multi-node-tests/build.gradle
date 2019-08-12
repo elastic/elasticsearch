@@ -28,7 +28,8 @@ sourceSets.test.resources.srcDir(keystoreDir)
 processTestResources.dependsOn(copyKeyCerts)
 
 // Disabled and tracked here https://github.com/elastic/elasticsearch/issues/45405
-integTests.enabled = false
+integTest.enabled = false
+testingConventions.enabled = false
 
 integTest {
     dependsOn copyKeyCerts

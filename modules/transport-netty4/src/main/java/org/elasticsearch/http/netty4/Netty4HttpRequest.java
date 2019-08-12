@@ -118,8 +118,9 @@ public class Netty4HttpRequest implements HttpRequest {
 
     @Override
     public BytesReference content() {
-        assert released.get() == false;
-        return content;
+        final BytesReference contentRef = content;
+        assert contentRef != null && released.get() == false;
+        return contentRef;
     }
 
     @Override

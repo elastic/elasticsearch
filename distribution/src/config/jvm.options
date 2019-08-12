@@ -111,7 +111,7 @@ ${error.file}
 8:-XX:+UseGCLogFileRotation
 8:-XX:NumberOfGCLogFiles=32
 8:-XX:GCLogFileSize=64m
-8-:-Djava.locale.providers=SPI,JRE
+8:-Djava.locale.providers=SPI,JRE
 
 # JDK 9+ GC logging
 9-:-Xlog:gc*,gc+age=trace,safepoint:file=${loggc}:utctime,pid,tags:filecount=32,filesize=64m

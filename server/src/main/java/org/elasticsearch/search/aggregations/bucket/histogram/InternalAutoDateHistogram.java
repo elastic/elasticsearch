@@ -503,21 +503,21 @@ public final class InternalAutoDateHistogram extends
             // Because auto-date-histo can perform multiple reductions while merging buckets, we need to pretend this is
             // not the final reduction to prevent pipeline aggs from creating their result early.  However we want
             // to reuse the multiBucketConsumer so that max_buckets breaker is correctly accounted for
-            ReduceContext fakeReduceContext = new ReduceContext(reduceContext.bigArrays(), reduceContext.scriptService(),
+            ReduceContext penultimateReduceContext = new ReduceContext(reduceContext.bigArrays(), reduceContext.scriptService(),
                 reduceContext::consumeBucketsAndMaybeBreak, false);
 
             // adding empty buckets if needed
-            reducedBucketsResult = addEmptyBuckets(reducedBucketsResult, fakeReduceContext);
+            reducedBucketsResult = addEmptyBuckets(reducedBucketsResult, penultimateReduceContext);
 
             // Adding empty buckets may have tipped us over the target so merge the buckets again if needed
             reducedBucketsResult = mergeBucketsIfNeeded(reducedBucketsResult.buckets, reducedBucketsResult.roundingIdx,
-                    reducedBucketsResult.roundingInfo, fakeReduceContext);
+                    reducedBucketsResult.roundingInfo, penultimateReduceContext);
 
             // Now finally see if we need to merge consecutive buckets together to make a coarser interval at the same rounding
-            reducedBucketsResult = maybeMergeConsecutiveBuckets(reducedBucketsResult, fakeReduceContext);
+            reducedBucketsResult = maybeMergeConsecutiveBuckets(reducedBucketsResult, penultimateReduceContext);
 
             // Perform the final reduction which will mostly be a no-op, except for pipeline aggs
-            reducedBucketsResult = performFinalReduce(reducedBucketsResult, fakeReduceContext);
+            reducedBucketsResult = performFinalReduce(reducedBucketsResult, penultimateReduceContext);
         }
 
         BucketInfo bucketInfo = new BucketInfo(this.bucketInfo.roundingInfos, reducedBucketsResult.roundingIdx,

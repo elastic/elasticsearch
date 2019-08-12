@@ -59,7 +59,7 @@ public class NioHttpRequest implements HttpRequest {
     }
 
     private NioHttpRequest(FullHttpRequest request, int sequence, AtomicBoolean released) {
-        this(request, new HttpHeadersMap(request.headers()), sequence, released, request.content() instanceof UnpooledHeapByteBuf,
+        this(request, new HttpHeadersMap(request.headers()), sequence, released, request.content() instanceof UnpooledHeapByteBuf == false,
             ByteBufUtils.toBytesReference(request.content()));
     }
 
@@ -124,10 +124,10 @@ public class NioHttpRequest implements HttpRequest {
 
     @Override
     public void release() {
-        if (released.compareAndSet(false, true)) {
+        if (pooled && released.compareAndSet(false, true)) {
             request.release();
-            content = null;
         }
+        content = null;
     }
 
     @Override

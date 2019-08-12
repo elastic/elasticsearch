@@ -59,7 +59,7 @@ public class Netty4HttpRequest implements HttpRequest {
     }
 
     private Netty4HttpRequest(FullHttpRequest request, int sequence, AtomicBoolean released) {
-        this(request, new HttpHeadersMap(request.headers()), sequence, released, request.content() instanceof UnpooledHeapByteBuf,
+        this(request, new HttpHeadersMap(request.headers()), sequence, released, request.content() instanceof UnpooledHeapByteBuf == false,
             Netty4Utils.toBytesReference(request.content()));
     }
 
@@ -124,10 +124,10 @@ public class Netty4HttpRequest implements HttpRequest {
 
     @Override
     public void release() {
-        if (released.compareAndSet(false, true)) {
+        if (pooled && released.compareAndSet(false, true)) {
             request.release();
-            content = null;
         }
+        content = null;
     }
 
     @Override

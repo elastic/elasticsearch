@@ -500,24 +500,15 @@ public final class InternalAutoDateHistogram extends
         BucketReduceResult reducedBucketsResult = reduceBuckets(aggregations, reduceContext);
 
         if (reduceContext.isFinalReduce()) {
-            // Because auto-date-histo can perform multiple reductions while merging buckets, we need to pretend this is
-            // not the final reduction to prevent pipeline aggs from creating their result early.  However we want
-            // to reuse the multiBucketConsumer so that max_buckets breaker is correctly accounted for
-            ReduceContext penultimateReduceContext = new ReduceContext(reduceContext.bigArrays(), reduceContext.scriptService(),
-                reduceContext::consumeBucketsAndMaybeBreak, false);
-
             // adding empty buckets if needed
-            reducedBucketsResult = addEmptyBuckets(reducedBucketsResult, penultimateReduceContext);
+            reducedBucketsResult = addEmptyBuckets(reducedBucketsResult, reduceContext);
 
             // Adding empty buckets may have tipped us over the target so merge the buckets again if needed
             reducedBucketsResult = mergeBucketsIfNeeded(reducedBucketsResult.buckets, reducedBucketsResult.roundingIdx,
-                    reducedBucketsResult.roundingInfo, penultimateReduceContext);
+                    reducedBucketsResult.roundingInfo, reduceContext);
 
             // Now finally see if we need to merge consecutive buckets together to make a coarser interval at the same rounding
-            reducedBucketsResult = maybeMergeConsecutiveBuckets(reducedBucketsResult, penultimateReduceContext);
-
-            // Perform the final reduction which will mostly be a no-op, except for pipeline aggs
-            reducedBucketsResult = performFinalReduce(reducedBucketsResult, penultimateReduceContext);
+            reducedBucketsResult = maybeMergeConsecutiveBuckets(reducedBucketsResult, reduceContext);
         }
 
         BucketInfo bucketInfo = new BucketInfo(this.bucketInfo.roundingInfos, reducedBucketsResult.roundingIdx,
@@ -568,28 +559,6 @@ public final class InternalAutoDateHistogram extends
             mergedBuckets.add(sameKeyedBuckets.get(0).reduce(sameKeyedBuckets, roundingInfo.rounding, reduceContext));
         }
         return new BucketReduceResult(mergedBuckets, roundingInfo, roundingIdx, mergeInterval);
-    }
-
-    /**
-     * Execute a final reduction on `reducedBuckets`.  This should be called after all the buckets have been
-     * merged into the appropriate roundings.  After the buckets are stable, this method will perform one last
-     * reduction with finalReduce: true so that Pipeline aggs can generate their output.
-     */
-    private BucketReduceResult performFinalReduce(BucketReduceResult reducedBuckets, ReduceContext reduceContext) {
-        // We need to create another reduce context, this time setting finalReduce: true. Unlike the prior
-        // reduce context, we _do not_ want to reuse the multiBucketConsumer from the reduce context.
-        // We've already generated (and accounted for) all the buckets we will return, this method just triggers
-        // a final reduction on un-reduced items like pipelines.  If we re-use the multiBucketConsumer we would
-        // over-count the buckets
-        ReduceContext finalReduceContext = new ReduceContext(reduceContext.bigArrays(), reduceContext.scriptService(), true);
-
-        List<Bucket> finalBuckets = new ArrayList<>();
-        for (int i = 0; i < reducedBuckets.buckets.size(); i++) {
-            finalBuckets.add(reducedBuckets.buckets.get(i).reduce(Collections.singletonList(reducedBuckets.buckets.get(i)),
-                reducedBuckets.roundingInfo.rounding, finalReduceContext));
-        }
-        assert reducedBuckets.buckets.size() == finalBuckets.size();
-        return new BucketReduceResult(finalBuckets, reducedBuckets.roundingInfo, reducedBuckets.roundingIdx, reducedBuckets.innerInterval);
     }
 
     @Override

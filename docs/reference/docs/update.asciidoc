@@ -6,9 +6,27 @@
 
 Updates a document using the specified script.
 
+[[docs-update-api-request]]
+==== {api-request-title}
+
+`POST /<index/_update/<_id>`
+
+[[docs-update-api-path-params]]
+==== {api-path-parms-title}
+
+`<index>`::
+(Required, string) Name of the target index. By default, the index is created
+automatically if it doesn't exist. For more information, see <<index-creation>>.
+
+`<_id>`::
+(Required, string) Unique identifier for the document to be updated.
 
 [[docs-update-api-query-params]]
 ==== {api-query-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-seq-no]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-primary-term]
 
 `lang`::
 (Optional, string) The script language. Default: `painless`.
@@ -19,27 +37,21 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-refresh]
 (Optional, integer) Specify how many times should the operation be retried when
  a conflict occurs. Default: 0.
 
- In between the get and indexing phases of the update, it is possible that
- another process might have already updated the same document.  By default, the
- update will fail with a version conflict exception.  The `retry_on_conflict`
- parameter controls how many times to retry the update before finally throwing
- an exception.
-
 include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-refresh]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-routing]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-source]
+`_source`::
+(Optional, list) Set to `false` to disable source retrieval (default: `true`).
+You can also specify a comma-separated list of the fields you want to retrieve.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-source-excludes]
+`_source_excludes`::
+(Optional, list) Specify the source fields you want to exclude.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-source-includes]
+`_source_includes`::
+(Optional, list) Specify the source fields you want to retrieve.
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
-
-include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-seq-no]
-
-include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-primary-term]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-wait-for-active-shards]
 
@@ -47,17 +59,16 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-wait-for-active-shards]
 [[update-api-desc]]
 ==== {api-description-title}
 
-Enables you script document updates. This operation:
+Enables you script document updates. The script can update, delete, or skip
+modifying the document. The update API also supports passing a partial document,
+which is merged into the existing document. To fully replace an existing
+document, use the <<docs-index_,`index` API>>.
+
+This operation:
 
 . Gets the document (collocated with the shard) from the index.
 . Runs the specified script.
 . Indexes the result.
-
-The script can update, delete, or skip modifying the document.
-
-The update API also supports passing a partial document,
-which is merged into the existing document. To fully replace an existing
-document, use the <<docs-index_,`index` API>> instead.
 
 The document must still be reindexed, but using `update` removes some network
 roundtrips and reduces chances of version conflicts between the GET and the
@@ -266,7 +277,7 @@ POST test/_update/1
 
 [[upserts]]
 [float]
-==== Upsert
+===== Upsert
 
 If the document does not already exist, the contents of the `upsert` element
 are inserted as a new document.  If the document exists, the

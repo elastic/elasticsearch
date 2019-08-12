@@ -42,9 +42,8 @@ import java.io.IOException;
 public abstract class AbstractResponseTestCase<S extends ToXContent, C> extends ESTestCase {
 
     public final void testFromXContent() throws IOException {
-        final S serverTestInstance = createServerTestInstance();
-
         final XContentType xContentType = randomFrom(XContentType.values());
+        final S serverTestInstance = createServerTestInstance(xContentType);
         final BytesReference bytes = toShuffledXContent(serverTestInstance, xContentType, getParams(), randomBoolean());
 
         final XContent xContent = XContentFactory.xContent(xContentType);
@@ -56,7 +55,7 @@ public abstract class AbstractResponseTestCase<S extends ToXContent, C> extends 
         assertInstances(serverTestInstance, clientInstance);
     }
 
-    protected abstract S createServerTestInstance();
+    protected abstract S createServerTestInstance(XContentType xContentType) throws IOException;
 
     protected abstract C doParseToClientInstance(XContentParser parser) throws IOException;
 

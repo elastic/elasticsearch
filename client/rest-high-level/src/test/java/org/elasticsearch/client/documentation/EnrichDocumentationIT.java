@@ -21,16 +21,36 @@ package org.elasticsearch.client.documentation;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.core.AcknowledgedResponse;
+import org.elasticsearch.client.enrich.EnrichPolicy;
+import org.elasticsearch.client.enrich.GetPolicyRequest;
+import org.elasticsearch.client.enrich.GetPolicyResponse;
 import org.elasticsearch.client.enrich.PutPolicyRequest;
+import org.junit.After;
 
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.client.documentation.CCRDocumentationIT.toMap;
+
 public class EnrichDocumentationIT extends ESRestHighLevelClientTestCase {
+
+    @After
+    private void deletePolicies() throws Exception {
+        // TODO: replace with HLRC api calls when ready:
+        Map<String, Object> responseMap = toMap(adminClient().performRequest(new Request("GET", "/_enrich/policy")));
+        @SuppressWarnings("unchecked")
+        List<Map<?,?>> policies = (List<Map<?,?>>) responseMap.get("policies");
+
+        for (Map<?, ?> entry: policies) {
+            client().performRequest(new Request("DELETE", "/_enrich/policy/" + entry.get("name")));
+        }
+    }
 
     public void testPutPolicy() throws Exception {
         RestHighLevelClient client = highLevelClient();
@@ -73,6 +93,53 @@ public class EnrichDocumentationIT extends ESRestHighLevelClientTestCase {
         client.enrich().putPolicyAsync(putPolicyRequest,
             RequestOptions.DEFAULT, listener); // <1>
         // end::enrich-put-policy-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
+    public void testGetPolicy() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        PutPolicyRequest putPolicyRequest = new PutPolicyRequest(
+            "users-policy", "exact_match", List.of("users"),
+            "email", List.of("address", "zip", "city", "state"));
+        client.enrich().putPolicy(putPolicyRequest, RequestOptions.DEFAULT);
+
+        // tag::enrich-get-policy-request
+        GetPolicyRequest getPolicyRequest = new GetPolicyRequest("users-policy");
+        // end::enrich-get-policy-request
+
+        // tag::enrich-get-policy-execute
+        GetPolicyResponse getPolicyResponse =
+            client.enrich().getPolicy(getPolicyRequest, RequestOptions.DEFAULT);
+        // end::enrich-get-policy-execute
+
+        // tag::enrich-get-policy-response
+        EnrichPolicy policy = getPolicyResponse.getPolicy(); // <1>
+        // end::enrich-get-policy-response
+
+        // tag::enrich-get-policy-execute-listener
+        ActionListener<GetPolicyResponse> listener = new ActionListener<>() {
+            @Override
+            public void onResponse(GetPolicyResponse response) { // <1>
+                EnrichPolicy policy = getPolicyResponse.getPolicy();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // <2>
+            }
+        };
+        // end::enrich-get-policy-execute-listener
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::enrich-get-policy-execute-async
+        client.enrich().getPolicyAsync(getPolicyRequest,
+            RequestOptions.DEFAULT, listener); // <1>
+        // end::enrich-get-policy-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }

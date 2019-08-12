@@ -18,18 +18,16 @@
  */
 package org.elasticsearch.client;
 
-import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.core.AcknowledgedResponse;
+import org.elasticsearch.client.enrich.GetPolicyRequest;
+import org.elasticsearch.client.enrich.GetPolicyResponse;
 import org.elasticsearch.client.enrich.PutPolicyRequest;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 
-import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class EnrichIT extends ESRestHighLevelClientTestCase {
 
@@ -40,19 +38,13 @@ public class EnrichIT extends ESRestHighLevelClientTestCase {
         AcknowledgedResponse putPolicyResponse = execute(putPolicyRequest, enrichClient::putPolicy, enrichClient::putPolicyAsync);
         assertThat(putPolicyResponse.isAcknowledged(), is(true));
 
-        // TODO: Replace with get policy hlrc code:
-        Request getPolicyRequest = new Request("get", "/_enrich/policy/my-policy");
-        Response getPolicyResponse = highLevelClient().getLowLevelClient().performRequest(getPolicyRequest);
-        assertThat(getPolicyResponse.getHttpResponse().getStatusLine().getStatusCode(), equalTo(200));
-        Map<String, Object> responseBody = toMap(getPolicyResponse);
-        assertThat(responseBody.get("type"), equalTo(putPolicyRequest.getType()));
-        assertThat(responseBody.get("indices"), equalTo(putPolicyRequest.getIndices()));
-        assertThat(responseBody.get("enrich_key"), equalTo(putPolicyRequest.getEnrichKey()));
-        assertThat(responseBody.get("enrich_values"), equalTo(putPolicyRequest.getEnrichValues()));
-    }
-
-    private static Map<String, Object> toMap(Response response) throws IOException {
-        return XContentHelper.convertToMap(JsonXContent.jsonXContent, EntityUtils.toString(response.getEntity()), false);
+        GetPolicyRequest getPolicyRequest = new GetPolicyRequest("my-policy");
+        GetPolicyResponse getPolicyResponse = execute(getPolicyRequest, enrichClient::getPolicy, enrichClient::getPolicyAsync);
+        assertThat(getPolicyResponse.getPolicy(), notNullValue());
+        assertThat(getPolicyResponse.getPolicy().getType(), equalTo(putPolicyRequest.getType()));
+        assertThat(getPolicyResponse.getPolicy().getIndices(), equalTo(putPolicyRequest.getIndices()));
+        assertThat(getPolicyResponse.getPolicy().getEnrichKey(), equalTo(putPolicyRequest.getEnrichKey()));
+        assertThat(getPolicyResponse.getPolicy().getEnrichValues(), equalTo(putPolicyRequest.getEnrichValues()));
     }
 
 }

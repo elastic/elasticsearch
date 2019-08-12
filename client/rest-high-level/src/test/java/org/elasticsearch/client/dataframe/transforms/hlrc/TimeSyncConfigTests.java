@@ -23,6 +23,7 @@ import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.client.dataframe.transforms.TimeSyncConfig;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 
@@ -41,7 +42,7 @@ public class TimeSyncConfigTests
     }
 
     @Override
-    protected org.elasticsearch.xpack.core.dataframe.transforms.TimeSyncConfig createServerTestInstance() {
+    protected org.elasticsearch.xpack.core.dataframe.transforms.TimeSyncConfig createServerTestInstance(XContentType xContentType) {
         return randomTimeSyncConfig();
     }
 

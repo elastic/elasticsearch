@@ -19,7 +19,6 @@
 package org.elasticsearch.client.enrich;
 
 import org.elasticsearch.client.Validatable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -34,13 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class PutPolicyRequest implements Validatable, ToXContentObject {
-
-    static final ParseField TYPE_FIELD = new ParseField("type");
-    static final ParseField QUERY_FIELD = new ParseField("query");
-    static final ParseField INDICES_FIELD = new ParseField("indices");
-    static final ParseField ENRICH_KEY_FIELD = new ParseField("enrich_key");
-    static final ParseField ENRICH_VALUES_FIELD = new ParseField("enrich_values");
+public final class PutPolicyRequest implements Validatable, ToXContentObject {
 
     private final String name;
     private final String type;
@@ -108,13 +101,13 @@ public class PutPolicyRequest implements Validatable, ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(TYPE_FIELD.getPreferredName(), type);
-        builder.field(INDICES_FIELD.getPreferredName(), indices);
+        builder.field(EnrichPolicy.TYPE_FIELD.getPreferredName(), type);
+        builder.field(EnrichPolicy.INDICES_FIELD.getPreferredName(), indices);
         if (query != null) {
-            builder.field(QUERY_FIELD.getPreferredName(), asMap(query, builder.contentType()));
+            builder.field(EnrichPolicy.QUERY_FIELD.getPreferredName(), asMap(query, builder.contentType()));
         }
-        builder.field(ENRICH_KEY_FIELD.getPreferredName(), enrichKey);
-        builder.field(ENRICH_VALUES_FIELD.getPreferredName(), enrichValues);
+        builder.field(EnrichPolicy.ENRICH_KEY_FIELD.getPreferredName(), enrichKey);
+        builder.field(EnrichPolicy.ENRICH_VALUES_FIELD.getPreferredName(), enrichValues);
         builder.endObject();
         return builder;
     }

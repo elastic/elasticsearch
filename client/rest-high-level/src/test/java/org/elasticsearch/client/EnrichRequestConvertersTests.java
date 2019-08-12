@@ -18,12 +18,15 @@
  */
 package org.elasticsearch.client;
 
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPut;
+import org.elasticsearch.client.enrich.GetPolicyRequest;
 import org.elasticsearch.client.enrich.PutPolicyRequest;
 import org.elasticsearch.client.enrich.PutPolicyRequestTests;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class EnrichRequestConvertersTests extends ESTestCase {
 
@@ -34,6 +37,16 @@ public class EnrichRequestConvertersTests extends ESTestCase {
         assertThat(result.getMethod(), equalTo(HttpPut.METHOD_NAME));
         assertThat(result.getEndpoint(), equalTo("/_enrich/policy/" + request.getName()));
         RequestConvertersTests.assertToXContentBody(request, result.getEntity());
+    }
+
+    public void testGetPolicy() throws Exception {
+        GetPolicyRequest request = new GetPolicyRequest(randomAlphaOfLength(4));
+        Request result = EnrichRequestConverters.getPolicy(request);
+
+        assertThat(result.getMethod(), equalTo(HttpGet.METHOD_NAME));
+        assertThat(result.getEndpoint(), equalTo("/_enrich/policy/" + request.getName()));
+        assertThat(result.getParameters().size(), equalTo(0));
+        assertThat(result.getEntity(), nullValue());
     }
 
 }

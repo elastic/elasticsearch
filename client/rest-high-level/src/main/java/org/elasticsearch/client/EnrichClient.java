@@ -20,6 +20,8 @@ package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.core.AcknowledgedResponse;
+import org.elasticsearch.client.enrich.GetPolicyRequest;
+import org.elasticsearch.client.enrich.GetPolicyResponse;
 import org.elasticsearch.client.enrich.PutPolicyRequest;
 
 import java.io.IOException;
@@ -79,6 +81,50 @@ public final class EnrichClient {
             EnrichRequestConverters::putPolicy,
             options,
             AcknowledgedResponse::fromXContent,
+            listener,
+            Collections.emptySet()
+        );
+    }
+
+    /**
+     * Executes the get policy api, which retrieves an enrich policy.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/enrich-processor.html#get-policy-api">
+     * the docs</a> for more.
+     *
+     * @param request the {@link PutPolicyRequest}
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public GetPolicyResponse getPolicy(GetPolicyRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            EnrichRequestConverters::getPolicy,
+            options,
+            GetPolicyResponse::new,
+            Collections.emptySet()
+        );
+    }
+
+    /**
+     * Asynchronously executes the get policy api, which retrieves an enrich policy.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/enrich-processor.html#get-policy-api">
+     * the docs</a> for more.
+     *
+     * @param request the {@link PutPolicyRequest}
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void getPolicyAsync(GetPolicyRequest request,
+                               RequestOptions options,
+                               ActionListener<GetPolicyResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            EnrichRequestConverters::getPolicy,
+            options,
+            GetPolicyResponse::new,
             listener,
             Collections.emptySet()
         );

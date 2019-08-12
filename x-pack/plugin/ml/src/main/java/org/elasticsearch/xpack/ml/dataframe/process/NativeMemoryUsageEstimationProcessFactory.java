@@ -14,7 +14,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
+import org.elasticsearch.xpack.ml.dataframe.process.results.MemoryUsageEstimationResult;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.ProcessPipes;
 import org.elasticsearch.xpack.ml.utils.NamedPipeHelper;
@@ -28,9 +28,9 @@ import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 
-public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory<AnalyticsResult> {
+public class NativeMemoryUsageEstimationProcessFactory implements AnalyticsProcessFactory<MemoryUsageEstimationResult> {
 
-    private static final Logger LOGGER = LogManager.getLogger(NativeAnalyticsProcessFactory.class);
+    private static final Logger LOGGER = LogManager.getLogger(NativeMemoryUsageEstimationProcessFactory.class);
 
     private static final NamedPipeHelper NAMED_PIPE_HELPER = new NamedPipeHelper();
 
@@ -38,7 +38,7 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory<An
     private final NativeController nativeController;
     private volatile Duration processConnectTimeout;
 
-    public NativeAnalyticsProcessFactory(Environment env, NativeController nativeController, ClusterService clusterService) {
+    public NativeMemoryUsageEstimationProcessFactory(Environment env, NativeController nativeController, ClusterService clusterService) {
         this.env = Objects.requireNonNull(env);
         this.nativeController = Objects.requireNonNull(nativeController);
         setProcessConnectTimeout(MachineLearning.PROCESS_CONNECT_TIMEOUT.get(env.settings()));
@@ -51,8 +51,11 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory<An
     }
 
     @Override
-    public NativeAnalyticsProcess createAnalyticsProcess(String jobId, AnalyticsProcessConfig analyticsProcessConfig,
-                                                   ExecutorService executorService, Consumer<String> onProcessCrash) {
+    public NativeMemoryUsageEstimationProcess createAnalyticsProcess(
+            String jobId,
+            AnalyticsProcessConfig analyticsProcessConfig,
+            ExecutorService executorService,
+            Consumer<String> onProcessCrash) {
         List<Path> filesToDelete = new ArrayList<>();
         ProcessPipes processPipes = new ProcessPipes(env, NAMED_PIPE_HELPER, AnalyticsBuilder.ANALYTICS, jobId,
                 true, false, true, true, false, false);
@@ -62,16 +65,23 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory<An
 
         createNativeProcess(jobId, analyticsProcessConfig, filesToDelete, processPipes);
 
-        NativeAnalyticsProcess analyticsProcess = new NativeAnalyticsProcess(jobId, nativeController, processPipes.getLogStream().get(),
-                processPipes.getProcessInStream().get(), processPipes.getProcessOutStream().get(), null, numberOfFields,
-                filesToDelete, onProcessCrash);
+        NativeMemoryUsageEstimationProcess process = new NativeMemoryUsageEstimationProcess(
+            jobId,
+            nativeController,
+            processPipes.getLogStream().get(),
+            processPipes.getProcessInStream().get(),
+            processPipes.getProcessOutStream().get(),
+            null,
+            numberOfFields,
+            filesToDelete,
+            onProcessCrash);
 
         try {
-            analyticsProcess.start(executorService);
-            return analyticsProcess;
+            process.start(executorService);
+            return process;
         } catch (EsRejectedExecutionException e) {
             try {
-                IOUtils.close(analyticsProcess);
+                IOUtils.close(process);
             } catch (IOException ioe) {
                 LOGGER.error("Can't close data frame analytics process", ioe);
             }
@@ -84,10 +94,12 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory<An
         AnalyticsBuilder analyticsBuilder = new AnalyticsBuilder(
             env::tmpFile, nativeController, processPipes, analyticsProcessConfig, filesToDelete);
         try {
-            analyticsBuilder.build();
+            analyticsBuilder
+                .performMemoryUsageEstimationOnly()
+                .build();
             processPipes.connectStreams(processConnectTimeout);
         } catch (IOException e) {
-            String msg = "Failed to launch data frame analytics process for job " + jobId;
+            String msg = "Failed to launch data frame analytics memory estimation process for job " + jobId;
             LOGGER.error(msg);
             throw ExceptionsHelper.serverError(msg, e);
         }

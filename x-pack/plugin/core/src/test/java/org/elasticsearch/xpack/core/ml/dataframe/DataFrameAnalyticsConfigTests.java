@@ -43,7 +43,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
@@ -227,18 +226,18 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
         DataFrameAnalyticsConfig.Builder builder = new DataFrameAnalyticsConfig.Builder();
 
         // All these are different ways of specifying a limit that is lower than the minimum
-        assertTooSmall(expectThrows(IllegalArgumentException.class,
-            () -> builder.setModelMemoryLimit(new ByteSizeValue(1048575, ByteSizeUnit.BYTES))));
-        assertTooSmall(expectThrows(IllegalArgumentException.class,
-            () -> builder.setModelMemoryLimit(new ByteSizeValue(0, ByteSizeUnit.BYTES))));
-        assertTooSmall(expectThrows(IllegalArgumentException.class,
-            () -> builder.setModelMemoryLimit(new ByteSizeValue(-1, ByteSizeUnit.BYTES))));
-        assertTooSmall(expectThrows(IllegalArgumentException.class,
-            () -> builder.setModelMemoryLimit(new ByteSizeValue(1023, ByteSizeUnit.KB))));
-        assertTooSmall(expectThrows(IllegalArgumentException.class,
-            () -> builder.setModelMemoryLimit(new ByteSizeValue(0, ByteSizeUnit.KB))));
-        assertTooSmall(expectThrows(IllegalArgumentException.class,
-            () -> builder.setModelMemoryLimit(new ByteSizeValue(0, ByteSizeUnit.MB))));
+        assertTooSmall(expectThrows(ElasticsearchStatusException.class,
+            () -> builder.setModelMemoryLimit(new ByteSizeValue(1048575, ByteSizeUnit.BYTES)).build()));
+        assertTooSmall(expectThrows(ElasticsearchStatusException.class,
+            () -> builder.setModelMemoryLimit(new ByteSizeValue(0, ByteSizeUnit.BYTES)).build()));
+        assertTooSmall(expectThrows(ElasticsearchStatusException.class,
+            () -> builder.setModelMemoryLimit(new ByteSizeValue(-1, ByteSizeUnit.BYTES)).build()));
+        assertTooSmall(expectThrows(ElasticsearchStatusException.class,
+            () -> builder.setModelMemoryLimit(new ByteSizeValue(1023, ByteSizeUnit.KB)).build()));
+        assertTooSmall(expectThrows(ElasticsearchStatusException.class,
+            () -> builder.setModelMemoryLimit(new ByteSizeValue(0, ByteSizeUnit.KB)).build()));
+        assertTooSmall(expectThrows(ElasticsearchStatusException.class,
+            () -> builder.setModelMemoryLimit(new ByteSizeValue(0, ByteSizeUnit.MB)).build()));
     }
 
     public void testNoMemoryCapping() {
@@ -306,7 +305,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
         }
     }
 
-    public void assertTooSmall(IllegalArgumentException e) {
-        assertThat(e.getMessage(), is("[model_memory_limit] must be at least [1mb]"));
+    private static void assertTooSmall(ElasticsearchStatusException e) {
+        assertThat(e.getMessage(), startsWith("model_memory_limit must be at least 1 MiB."));
     }
 }

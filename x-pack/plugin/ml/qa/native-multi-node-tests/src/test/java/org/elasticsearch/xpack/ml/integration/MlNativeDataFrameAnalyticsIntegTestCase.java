@@ -105,8 +105,9 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
     }
 
     protected static DataFrameAnalyticsConfig buildOutlierDetectionAnalytics(String id, String[] sourceIndex, String destIndex,
-                                                                           @Nullable String resultsField) {
-        DataFrameAnalyticsConfig.Builder configBuilder = new DataFrameAnalyticsConfig.Builder(id);
+                                                                             @Nullable String resultsField) {
+        DataFrameAnalyticsConfig.Builder configBuilder = new DataFrameAnalyticsConfig.Builder();
+        configBuilder.setId(id);
         configBuilder.setSource(new DataFrameAnalyticsSource(sourceIndex, null));
         configBuilder.setDest(new DataFrameAnalyticsDest(destIndex, resultsField));
         configBuilder.setAnalysis(new OutlierDetection());

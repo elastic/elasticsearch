@@ -115,11 +115,6 @@ public class FakeRestRequest extends RestRequest {
         }
 
         @Override
-        public boolean isPooled() {
-            return false;
-        }
-
-        @Override
         public void release() {
         }
 

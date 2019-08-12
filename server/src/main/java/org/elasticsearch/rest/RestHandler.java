@@ -48,7 +48,15 @@ public interface RestHandler {
         return false;
     }
 
-    default boolean allowsUnsafeRequest() {
+    /**
+     * Indicates if the RestHandler supports working with pooled buffers. If the request handler will not escape the return
+     * {@link RestRequest#content()} or any buffers extracted from it then there is no need to make a copies of any pooled buffers in the
+     * {@link RestRequest} instance before passing a request to this handler. If this instance does not support pooled/unsafe buffers
+     * {@link RestRequest#ensureSafeBuffers()} should be called on any request before passing it to {@link #handleRequest}.
+     *
+     * @return true iff the handler supports requests that make use of pooled buffers
+     */
+    default boolean allowsUnsafeBuffers() {
         return false;
     }
 }

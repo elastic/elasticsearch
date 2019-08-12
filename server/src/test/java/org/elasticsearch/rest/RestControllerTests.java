@@ -556,11 +556,6 @@ public class RestControllerTests extends ESTestCase {
             }
 
             @Override
-            public boolean isPooled() {
-                return false;
-            }
-
-            @Override
             public void release() {
             }
 

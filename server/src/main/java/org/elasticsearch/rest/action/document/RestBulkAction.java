@@ -105,7 +105,7 @@ public class RestBulkAction extends BaseRestHandler {
     }
 
     @Override
-    public boolean allowsUnsafeRequest() {
+    public boolean allowsUnsafeBuffers() {
         return true;
     }
 }

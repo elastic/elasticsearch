@@ -19,6 +19,7 @@
 
 package org.elasticsearch.http.netty4;
 
+import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.buffer.UnpooledHeapByteBuf;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
@@ -30,7 +31,6 @@ import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.cookie.Cookie;
 import io.netty.handler.codec.http.cookie.ServerCookieDecoder;
 import io.netty.handler.codec.http.cookie.ServerCookieEncoder;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.rest.RestRequest;
@@ -51,6 +51,7 @@ public class Netty4HttpRequest implements HttpRequest {
     private final int sequence;
     private final AtomicBoolean released;
     private final FullHttpRequest request;
+    private final boolean pooled;
     private BytesReference content;
 
     Netty4HttpRequest(FullHttpRequest request, int sequence) {
@@ -58,14 +59,17 @@ public class Netty4HttpRequest implements HttpRequest {
     }
 
     private Netty4HttpRequest(FullHttpRequest request, int sequence, AtomicBoolean released) {
+        this(request, new HttpHeadersMap(request.headers()), sequence, released, request.content() instanceof UnpooledHeapByteBuf,
+            Netty4Utils.toBytesReference(request.content()));
+    }
+
+    private Netty4HttpRequest(FullHttpRequest request, HttpHeadersMap headers, int sequence, AtomicBoolean released, boolean pooled,
+                              BytesReference content) {
         this.request = request;
-        headers = new HttpHeadersMap(request.headers());
         this.sequence = sequence;
-        if (request.content().isReadable()) {
-            this.content = Netty4Utils.toBytesReference(request.content());
-        } else {
-            this.content = BytesArray.EMPTY;
-        }
+        this.headers = headers;
+        this.content = content;
+        this.pooled = pooled;
         this.released = released;
     }
 
@@ -128,21 +132,19 @@ public class Netty4HttpRequest implements HttpRequest {
 
     @Override
     public HttpRequest releaseAndCopy() {
-        if (isPooled() == false) {
+        assert content != null;
+        if (pooled == false) {
             return this;
         }
         try {
+            final ByteBuf copiedContent = Unpooled.copiedBuffer(request.content());
             return new Netty4HttpRequest(
-                new DefaultFullHttpRequest(request.protocolVersion(), request.method(), request.uri(),
-                    Unpooled.copiedBuffer(request.content()), request.headers(), request.trailingHeaders()), sequence);
+                new DefaultFullHttpRequest(request.protocolVersion(), request.method(), request.uri(), copiedContent, request.headers(),
+                    request.trailingHeaders()),
+                headers, sequence, new AtomicBoolean(false), false, Netty4Utils.toBytesReference(copiedContent));
         } finally {
             release();
         }
-    }
-
-    @Override
-    public boolean isPooled() {
-        return request.content() instanceof UnpooledHeapByteBuf == false;
     }
 
     @Override

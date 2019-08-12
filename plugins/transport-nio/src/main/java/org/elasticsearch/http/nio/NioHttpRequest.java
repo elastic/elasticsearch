@@ -19,6 +19,7 @@
 
 package org.elasticsearch.http.nio;
 
+import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.buffer.UnpooledHeapByteBuf;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
@@ -30,7 +31,6 @@ import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.cookie.Cookie;
 import io.netty.handler.codec.http.cookie.ServerCookieDecoder;
 import io.netty.handler.codec.http.cookie.ServerCookieEncoder;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.rest.RestRequest;
@@ -48,24 +48,28 @@ import java.util.stream.Collectors;
 public class NioHttpRequest implements HttpRequest {
 
     private final FullHttpRequest request;
-    private final BytesReference content;
     private final HttpHeadersMap headers;
     private final int sequence;
     private final AtomicBoolean released;
+    private final boolean pooled;
+    private BytesReference content;
 
     NioHttpRequest(FullHttpRequest request, int sequence) {
         this(request, sequence, new AtomicBoolean(false));
     }
 
     private NioHttpRequest(FullHttpRequest request, int sequence, AtomicBoolean released) {
+        this(request, new HttpHeadersMap(request.headers()), sequence, released, request.content() instanceof UnpooledHeapByteBuf,
+            ByteBufUtils.toBytesReference(request.content()));
+    }
+
+    private NioHttpRequest(FullHttpRequest request, HttpHeadersMap headers, int sequence, AtomicBoolean released, boolean pooled,
+        BytesReference content) {
         this.request = request;
-        headers = new HttpHeadersMap(request.headers());
         this.sequence = sequence;
-        if (request.content().isReadable()) {
-            this.content = ByteBufUtils.toBytesReference(request.content());
-        } else {
-            this.content = BytesArray.EMPTY;
-        }
+        this.headers = headers;
+        this.content = content;
+        this.pooled = pooled;
         this.released = released;
     }
 
@@ -122,23 +126,25 @@ public class NioHttpRequest implements HttpRequest {
     public void release() {
         if (released.compareAndSet(false, true)) {
             request.release();
+            content = null;
         }
     }
 
     @Override
     public HttpRequest releaseAndCopy() {
+        assert content != null;
+        if (pooled == false) {
+            return this;
+        }
         try {
+            final ByteBuf copiedContent = Unpooled.copiedBuffer(request.content());
             return new NioHttpRequest(
-                new DefaultFullHttpRequest(request.protocolVersion(), request.method(), request.uri(),
-                    Unpooled.copiedBuffer(request.content()), request.headers(), request.trailingHeaders()), sequence);
+                new DefaultFullHttpRequest(request.protocolVersion(), request.method(), request.uri(), copiedContent, request.headers(),
+                    request.trailingHeaders()),
+                headers, sequence, new AtomicBoolean(false), false, ByteBufUtils.toBytesReference(copiedContent));
         } finally {
             release();
         }
-    }
-
-    @Override
-    public boolean isPooled() {
-        return request.content() instanceof UnpooledHeapByteBuf == false;
     }
 
     @Override

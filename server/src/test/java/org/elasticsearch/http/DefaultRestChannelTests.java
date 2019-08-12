@@ -452,11 +452,6 @@ public class DefaultRestChannelTests extends ESTestCase {
         }
 
         @Override
-        public boolean isPooled() {
-            return false;
-        }
-
-        @Override
         public void release() {
         }
 

@@ -222,9 +222,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
             }
             // iff we could reserve bytes for the request we need to send the response also over this channel
             responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength);
-            if (handler.allowsUnsafeRequest() == false) {
-                // TODO: Count requests double in the circuit breaker if they need copying?
-                request = RestRequest.maybeSafeCopy(request);
+            // TODO: Count requests double in the circuit breaker if they need copying?
+            if (handler.allowsUnsafeBuffers() == false) {
+                request.ensureSafeBuffers();
             }
             handler.handleRequest(request, responseChannel, client);
         } catch (Exception e) {

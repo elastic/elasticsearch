@@ -98,9 +98,13 @@ public class RestRequest implements ToXContent.Params {
             restRequest.getHttpRequest(), restRequest.getHttpChannel());
     }
 
-    public static RestRequest maybeSafeCopy(RestRequest request) {
-        request.httpRequest = request.httpRequest.releaseAndCopy();
-        return request;
+    /**
+     * Invoke {@link HttpRequest#releaseAndCopy()} on the http request in this instance and replace a pooled http request
+     * with an unpooled copy. This is supposed to be used before passing requests to {@link RestHandler} instances that can not safely
+     * handle http requests that use pooled buffers as determined by {@link RestHandler#allowsUnsafeBuffers()}.
+     */
+    void ensureSafeBuffers() {
+        httpRequest = httpRequest.releaseAndCopy();
     }
 
     /**

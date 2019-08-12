@@ -46,11 +46,10 @@ import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
-import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges.ManageApplicationPrivileges;
-import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.ManageApplicationPrivileges;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
+import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authz.RBACEngine.RBACAuthorizationInfo;
@@ -284,7 +283,7 @@ public class RBACEngineTests extends ESTestCase {
         Authentication authentication = mock(Authentication.class);
         when(authentication.getUser()).thenReturn(user);
         Role role = Role.builder("test2")
-            .cluster(ClusterPrivilege.MONITOR)
+            .cluster(Set.of("monitor"), Set.of())
             .add(IndexPrivilege.INDEX, "academy")
             .add(IndexPrivilege.WRITE, "initiative")
             .build();
@@ -343,7 +342,7 @@ public class RBACEngineTests extends ESTestCase {
         Authentication authentication = mock(Authentication.class);
         when(authentication.getUser()).thenReturn(user);
         Role role = Role.builder("test3")
-            .cluster(ClusterPrivilege.MONITOR)
+            .cluster(Set.of("monitor"), Set.of())
             .build();
         RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
 
@@ -729,7 +728,7 @@ public class RBACEngineTests extends ESTestCase {
         Authentication authentication = mock(Authentication.class);
         when(authentication.getUser()).thenReturn(user);
         Role role = Role.builder("test-write")
-            .cluster(ClusterPrivilege.MONITOR)
+            .cluster(Set.of("monitor"), Set.of())
             .add(IndexPrivilege.READ, "read-*")
             .add(IndexPrivilege.ALL, "all-*")
             .addApplicationPrivilege(kibanaRead, Collections.singleton("*"))

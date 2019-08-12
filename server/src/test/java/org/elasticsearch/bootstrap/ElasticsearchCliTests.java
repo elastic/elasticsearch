@@ -68,7 +68,7 @@ public class ElasticsearchCliTests extends ESElasticsearchCliTestCase {
                     "Build: %s/%s/%s/%s",
                     Build.CURRENT.flavor().displayName(),
                     Build.CURRENT.type().displayName(),
-                    Build.CURRENT.shortHash(),
+                    Build.CURRENT.hash(),
                     Build.CURRENT.date());
             assertThat(output, containsString(expectedBuildOutput));
             assertThat(output, containsString("JVM: " + JvmInfo.jvmInfo().version()));

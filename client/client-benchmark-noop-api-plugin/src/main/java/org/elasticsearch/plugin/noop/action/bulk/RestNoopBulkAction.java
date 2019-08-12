@@ -27,7 +27,6 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -45,9 +44,8 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestNoopBulkAction extends BaseRestHandler {
-    public RestNoopBulkAction(Settings settings, RestController controller) {
-        super(settings);
 
+    public RestNoopBulkAction(RestController controller) {
         controller.registerHandler(POST, "/_noop_bulk", this);
         controller.registerHandler(PUT, "/_noop_bulk", this);
         controller.registerHandler(POST, "/{index}/_noop_bulk", this);

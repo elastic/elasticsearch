@@ -7,6 +7,7 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.internal.jvm.Jvm;
+import org.gradle.process.ExecResult;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
@@ -15,12 +16,17 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private static final String GLOBAL_INFO_EXTENSION_NAME = "globalInfo";
@@ -39,6 +45,8 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
 
         File compilerJavaHome = findCompilerJavaHome();
         File runtimeJavaHome = findRuntimeJavaHome(compilerJavaHome);
+
+        Object gitRevisionResolver = createGitRevisionResolver(project);
 
         final List<JavaHome> javaVersions = new ArrayList<>();
         for (int version = 8; version <= Integer.parseInt(minimumCompilerVersion.getMajorVersion()); version++) {
@@ -72,7 +80,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
 
         project.allprojects(p -> {
             // Make sure than any task execution generates and prints build info
-            p.getTasks().all(task -> {
+            p.getTasks().configureEach(task -> {
                 if (task != generateTask && task != printTask) {
                     task.dependsOn(printTask);
                 }
@@ -87,6 +95,8 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             ext.set("minimumCompilerVersion", minimumCompilerVersion);
             ext.set("minimumRuntimeVersion", minimumRuntimeVersion);
             ext.set("gradleJavaVersion", Jvm.current().getJavaVersion());
+            ext.set("gitRevision", gitRevisionResolver);
+            ext.set("buildDate", ZonedDateTime.now(ZoneOffset.UTC));
         });
     }
 
@@ -195,4 +205,36 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
 
         return _defaultParallel;
     }
+
+    private Object createGitRevisionResolver(final Project project) {
+        return new Object() {
+            private final AtomicReference<String> gitRevision = new AtomicReference<>();
+
+            @Override
+            public String toString() {
+                if (gitRevision.get() == null) {
+                    final ByteArrayOutputStream stdout = new ByteArrayOutputStream();
+                    final ByteArrayOutputStream stderr = new ByteArrayOutputStream();
+                    final ExecResult result = project.exec(spec -> {
+                        spec.setExecutable("git");
+                        spec.setArgs(Arrays.asList("rev-parse", "HEAD"));
+                        spec.setStandardOutput(stdout);
+                        spec.setErrorOutput(stderr);
+                        spec.setIgnoreExitValue(true);
+                    });
+
+                    final String revision;
+                    if (result.getExitValue() != 0) {
+                        revision = "unknown";
+                    } else {
+                        revision = stdout.toString(UTF_8).trim();
+                    }
+                    this.gitRevision.compareAndSet(null, revision);
+                }
+                return gitRevision.get();
+            }
+        };
+
+    }
+
 }

@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetection;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -440,6 +441,31 @@ public class ElasticsearchMappings {
                         .endObject()
                         .startObject(OutlierDetection.FEATURE_INFLUENCE_THRESHOLD.getPreferredName())
                             .field(TYPE, DOUBLE)
+                        .endObject()
+                    .endObject()
+                .endObject()
+                .startObject(Regression.NAME.getPreferredName())
+                    .startObject(PROPERTIES)
+                        .startObject(Regression.DEPENDENT_VARIABLE.getPreferredName())
+                            .field(TYPE, KEYWORD)
+                        .endObject()
+                        .startObject(Regression.LAMBDA.getPreferredName())
+                            .field(TYPE, DOUBLE)
+                        .endObject()
+                        .startObject(Regression.GAMMA.getPreferredName())
+                            .field(TYPE, DOUBLE)
+                        .endObject()
+                        .startObject(Regression.ETA.getPreferredName())
+                            .field(TYPE, DOUBLE)
+                        .endObject()
+                        .startObject(Regression.MAXIMUM_NUMBER_TREES.getPreferredName())
+                            .field(TYPE, INTEGER)
+                        .endObject()
+                        .startObject(Regression.FEATURE_BAG_FRACTION.getPreferredName())
+                            .field(TYPE, DOUBLE)
+                        .endObject()
+                        .startObject(Regression.PREDICTION_FIELD_NAME.getPreferredName())
+                            .field(TYPE, KEYWORD)
                         .endObject()
                     .endObject()
                 .endObject()

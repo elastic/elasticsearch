@@ -31,7 +31,7 @@ import java.util.regex.Pattern;
 public class LoggedExec extends Exec {
 
     private Consumer<Logger> outputLogger;
-    
+
     public LoggedExec() {
 
         if (getLogger().isInfoEnabled() == false) {
@@ -125,7 +125,10 @@ public class LoggedExec extends Exec {
             });
         } catch (Exception e) {
             try {
-                NEWLINE.splitAsStream(output.toString("UTF-8")).forEach(s -> project.getLogger().error("| " + s));
+                if (output.size() != 0) {
+                    project.getLogger().error("Exec output and error:");
+                    NEWLINE.splitAsStream(output.toString("UTF-8")).forEach(s -> project.getLogger().error("| " + s));
+                }
             } catch (UnsupportedEncodingException ue) {
                 throw new GradleException("Failed to read exec output", ue);
             }

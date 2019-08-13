@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.common.http;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.sun.net.httpserver.HttpsServer;
 import org.apache.http.HttpHeaders;
+import org.apache.http.HttpHost;
 import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -16,6 +17,7 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -45,6 +47,7 @@ import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.security.AccessController;
@@ -736,6 +739,19 @@ public class HttpClientTests extends ESTestCase {
     public void testWhitelistEverythingByDefault() {
         CharacterRunAutomaton automaton = HttpClient.createAutomaton(Collections.emptyList());
         assertThat(automaton.run(randomAlphaOfLength(10)), is(true));
+    }
+
+    public void testCreateUri() throws Exception {
+        assertCreateUri("https://example.org/foo/", "/foo/");
+        assertCreateUri("https://example.org/foo", "/foo");
+        assertCreateUri("https://example.org/", "");
+        assertCreateUri("https://example.org", "");
+    }
+
+    private void assertCreateUri(String uri, String expectedPath) {
+        final HttpRequest request = HttpRequest.builder().fromUrl(uri).build();
+        final Tuple<HttpHost, URI> tuple = HttpClient.createURI(request);
+        assertThat(tuple.v2().getPath(), is(expectedPath));
     }
 
     public static ClusterService mockClusterService() {

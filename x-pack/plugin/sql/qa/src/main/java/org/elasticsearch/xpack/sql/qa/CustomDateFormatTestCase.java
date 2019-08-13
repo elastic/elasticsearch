@@ -11,7 +11,6 @@ import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -19,6 +18,7 @@ import org.elasticsearch.xpack.sql.qa.jdbc.JdbcIntegrationTestCase;
 import org.elasticsearch.xpack.sql.qa.rest.BaseRestSqlTestCase;
 import org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.format.DateTimeFormatter;
@@ -59,7 +59,13 @@ public abstract class CustomDateFormatTestCase extends BaseRestSqlTestCase {
         Response response = client().performRequest(request);
         String expectedJsonSnippet = "{\"columns\":[{\"name\":\"c\",\"type\":\"long\"}],\"rows\":[[";
         try (InputStream content = response.getEntity().getContent()) {
-            String actualJson = new BytesArray(content.readAllBytes()).utf8ToString();
+            ByteArrayOutputStream result = new ByteArrayOutputStream();
+            byte[] buffer = new byte[1024];
+            int length;
+            while ((length = content.read(buffer)) != -1) {
+                result.write(buffer, 0, length);
+            }
+            String actualJson = result.toString("UTF-8");
             // we just need to get a response that's not a date parsing error
             assertTrue(actualJson.startsWith(expectedJsonSnippet));
         }

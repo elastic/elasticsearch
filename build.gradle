@@ -524,9 +524,9 @@ allprojects {
   def checkPart2 = tasks.register('checkPart2')
   plugins.withId('lifecycle-base') {
       if (project.path.startsWith(":x-pack:")) {
-          checkPart1.configure { dependsOn 'check' }
-      } else {
           checkPart2.configure { dependsOn 'check' }
+      } else {
+          checkPart1.configure { dependsOn 'check' }
       }
   }
 }

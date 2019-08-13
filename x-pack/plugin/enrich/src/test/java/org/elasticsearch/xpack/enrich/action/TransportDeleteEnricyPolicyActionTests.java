@@ -15,7 +15,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.EnrichPolicyLocks;
-import org.elasticsearch.xpack.enrich.EnrichStoreTests;
+import org.elasticsearch.xpack.enrich.AbstractEnrichTestCase;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
-public class TransportDeleteEnricyPolicyActionTests extends EnrichStoreTests {
+public class TransportDeleteEnricyPolicyActionTests extends AbstractEnrichTestCase {
 
     public void testDeleteIsNotLocked() throws InterruptedException {
         EnrichPolicy policy = randomEnrichPolicy(XContentType.JSON);

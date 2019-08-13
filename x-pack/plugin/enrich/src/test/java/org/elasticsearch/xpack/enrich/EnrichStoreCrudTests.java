@@ -18,7 +18,7 @@ import static org.elasticsearch.xpack.enrich.EnrichPolicyTests.randomEnrichPolic
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class EnrichStoreCrudTests extends EnrichStoreTests {
+public class EnrichStoreCrudTests extends AbstractEnrichTestCase {
     public void testCrud() throws Exception {
         EnrichPolicy policy = randomEnrichPolicy(XContentType.JSON);
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);

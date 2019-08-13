@@ -114,19 +114,17 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
 
     private final SnapshotStateExecutor snapshotStateExecutor = new SnapshotStateExecutor();
     private final UpdateSnapshotStatusAction updateSnapshotStatusHandler;
+    private final Settings settings;
 
     public SnapshotShardsService(Settings settings, ClusterService clusterService, SnapshotsService snapshotsService,
                                  ThreadPool threadPool, TransportService transportService, IndicesService indicesService,
                                  ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+        this.settings = settings;
         this.indicesService = indicesService;
         this.snapshotsService = snapshotsService;
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
-        if (DiscoveryNode.isDataNode(settings)) {
-            // this is only useful on the nodes that can hold data
-            clusterService.addListener(this);
-        }
 
         // The constructor of UpdateSnapshotStatusAction will register itself to the TransportService.
         this.updateSnapshotStatusHandler =
@@ -137,15 +135,19 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
     protected void doStart() {
         assert this.updateSnapshotStatusHandler != null;
         assert transportService.getRequestHandler(UPDATE_SNAPSHOT_STATUS_ACTION_NAME) != null;
+        if (DiscoveryNode.isDataNode(settings)) {
+            // this is only useful on the nodes that can hold data
+            clusterService.addListener(this);
+        }
     }
 
     @Override
     protected void doStop() {
+        clusterService.removeListener(this);
     }
 
     @Override
     protected void doClose() {
-        clusterService.removeListener(this);
     }
 
     @Override

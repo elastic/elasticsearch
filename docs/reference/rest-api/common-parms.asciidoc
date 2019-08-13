@@ -11,7 +11,7 @@ end::cat-h[]
 
 tag::flat-settings[]
 `flat_settings`::
-(Optional, boolean) If `true`, returns settings in flat format. Defaults to 
+(Optional, boolean) If `true`, returns settings in flat format. Defaults to
 `false`.
 end::flat-settings[]
 
@@ -69,6 +69,57 @@ tag::cat-v[]
 (Optional, boolean) If `true`, the response includes column headings. Defaults
 to `false`.
 end::cat-v[]
+
+tag::doc-pipeline[]
+`pipeline`::
+(Optional, string) ID of the pipeline to use to preprocess incoming documents.
+end::doc-pipeline[]
+
+tag::doc-refresh[]
+`refresh`::
+(Optional, enum) If `true`, {es} refreshes the affected shards to make this
+operation visible to search, if `wait_for` then wait for a refresh to make
+this operation visible to search, if `false` do nothing with refreshes.
+Valid values: `true`, `false`, `wait_for`. Default: `false`.
+end::doc-refresh[]
+
+tag::doc-seq-no[]
+`if_seq_no`::
+(Optional, integer) Only perform the operation if the document has this
+sequence number. See <<optimistic-concurrency-control-index>>.
+end::doc-seq-no[]
+
+tag::doc-primary-term[]
+`if_primary_term`::
+(Optional, integer) Only perform the operation if the document has
+this primary term. See <<optimistic-concurrency-control-index>>.
+end::doc-primary-term[]
+
+tag::doc-routing[]
+`routing`::
+(Optional, string) Target the specified primary shard.
+end::doc-routing[]
+
+tag::doc-version[]
+`version`::
+(Optional, integer) Explicit version number for concurrency control.
+The specified version must match the current version of the document for the
+request to succeed.
+end::doc-version[]
+
+tag::doc-version-type[]
+`version_type`::
+(Optional, enum) Specific version type: `internal`, `external`,
+`external_gte`, `force`.
+end::doc-version-type[]
+
+tag::doc-wait-for-active-shards[]
+`wait_for_active_shards`::
+(Optional, string) The number of shard copies that must be active before
+proceeding with the operation. Set to `all` or any positive integer up
+to the total number of shards in the index (`number_of_replicas+1`).
+Default: 1, the primary shard.
+end::doc-wait-for-active-shards[]
 
 tag::timeoutparms[]
 

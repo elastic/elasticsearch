@@ -271,11 +271,11 @@ public class DistroTestPlugin implements Plugin<Project> {
 
     private static TaskProvider<?> configureDistroTest(Project project, Provider<Directory> distributionsDir,
                                                        TaskProvider<Copy> copyPackagingArchives) {
-        // TODO: don't ruin with security manager...
+        // TODO: don't run with security manager...
         return project.getTasks().register("destructiveDistroTest", Test.class,
             t -> {
                 t.setMaxParallelForks(1);
-                t.setWorkingDir(distributionsDir.get());
+                t.setWorkingDir(distributionsDir);
                 if (System.getProperty(IN_VM_SYSPROP) == null) {
                     t.dependsOn(copyPackagingArchives);
                 }
@@ -289,7 +289,7 @@ public class DistroTestPlugin implements Plugin<Project> {
                 Directory batsDir = project.getLayout().getProjectDirectory().dir("bats");
                 t.setTestsDir(batsDir.dir(type));
                 t.setUtilsDir(batsDir.dir("utils"));
-                t.setDistributionsDir(distributionsDir.get());
+                t.setDistributionsDir(distributionsDir);
                 t.setPackageName("elasticsearch" + (type.equals("oss") ? "-oss" : ""));
                 if (System.getProperty(IN_VM_SYSPROP) == null) {
                     t.dependsOn(deps);

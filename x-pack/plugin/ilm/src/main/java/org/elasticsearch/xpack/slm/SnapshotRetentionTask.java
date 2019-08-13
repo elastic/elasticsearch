@@ -68,11 +68,25 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
         assert event.getJobName().equals(SnapshotRetentionService.SLM_RETENTION_JOB_ID) :
             "expected id to be " + SnapshotRetentionService.SLM_RETENTION_JOB_ID + " but it was " + event.getJobName();
         if (running.compareAndSet(false, true)) {
+            final SnapshotLifecycleStats slmStats = new SnapshotLifecycleStats();
+
+            // Defined here so it can be re-used without having to repeat it
+            final Consumer<Exception> failureHandler = e -> {
+                try {
+                    logger.error("error during snapshot retention task", e);
+                    slmStats.retentionFailed();
+                    updateStateWithStats(slmStats);
+                } finally {
+                    running.set(false);
+                }
+            };
+
             try {
-                logger.info("starting SLM retention snapshot cleanup task");
                 final ClusterState state = clusterService.state();
                 final TimeValue maxDeletionTime = LifecycleSettings.SLM_RETENTION_DURATION_SETTING.get(state.metaData().settings());
 
+                logger.info("starting SLM retention snapshot cleanup task");
+                slmStats.retentionRun();
                 // Find all SLM policies that have retention enabled
                 final Map<String, SnapshotLifecyclePolicy> policiesWithRetention = getAllPoliciesWithRetentionEnabled(state);
 
@@ -82,30 +96,41 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                     .map(SnapshotLifecyclePolicy::getRepository)
                     .collect(Collectors.toSet());
 
+                if (repositioriesToFetch.isEmpty()) {
+                    running.set(false);
+                    return;
+                }
+
+                // Finally, asynchronously retrieve all the snapshots, deleting them serially,
+                // before updating the cluster state with the new metrics and setting 'running'
+                // back to false
                 getAllSuccessfulSnapshots(repositioriesToFetch, new ActionListener<>() {
                     @Override
                     public void onResponse(Map<String, List<SnapshotInfo>> allSnapshots) {
-                        // Find all the snapshots that are past their retention date
-                        final Map<String, List<SnapshotInfo>> snapshotsToBeDeleted = allSnapshots.entrySet().stream()
-                            .collect(Collectors.toMap(Map.Entry::getKey,
-                                e -> e.getValue().stream()
-                                    .filter(snapshot -> snapshotEligibleForDeletion(snapshot, allSnapshots, policiesWithRetention))
-                                    .collect(Collectors.toList())));
+                        try {
+                            // Find all the snapshots that are past their retention date
+                            final Map<String, List<SnapshotInfo>> snapshotsToBeDeleted = allSnapshots.entrySet().stream()
+                                .collect(Collectors.toMap(Map.Entry::getKey,
+                                    e -> e.getValue().stream()
+                                        .filter(snapshot -> snapshotEligibleForDeletion(snapshot, allSnapshots, policiesWithRetention))
+                                        .collect(Collectors.toList())));
 
-                        // Finally, delete the snapshots that need to be deleted
-                        deleteSnapshots(snapshotsToBeDeleted, maxDeletionTime);
-                        running.set(false);
+                            // Finally, delete the snapshots that need to be deleted
+                            deleteSnapshots(snapshotsToBeDeleted, maxDeletionTime, slmStats);
+
+                            updateStateWithStats(slmStats);
+                        } finally {
+                            running.set(false);
+                        }
                     }
 
                     @Override
                     public void onFailure(Exception e) {
-                        running.set(false);
+                        failureHandler.accept(e);
                     }
-                }, err -> running.set(false));
-
+                }, failureHandler);
             } catch (Exception e) {
-                running.set(false);
-                throw e;
+                failureHandler.accept(e);
             }
         } else {
             logger.trace("snapshot lifecycle retention task started, but a task is already running, skipping");
@@ -202,7 +227,18 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
             });
     }
 
-    void deleteSnapshots(Map<String, List<SnapshotInfo>> snapshotsToDelete, TimeValue maximumTime) {
+    static String getPolicyId(SnapshotInfo snapshotInfo) {
+        return Optional.ofNullable(snapshotInfo.userMetadata())
+            .filter(meta -> meta.get(SnapshotLifecyclePolicy.POLICY_ID_METADATA_FIELD) != null)
+            .filter(meta -> meta.get(SnapshotLifecyclePolicy.POLICY_ID_METADATA_FIELD) instanceof String)
+            .map(meta -> (String) meta.get(SnapshotLifecyclePolicy.POLICY_ID_METADATA_FIELD))
+            .orElseThrow(() -> new IllegalStateException("expected snapshot " + snapshotInfo +
+                " to have a policy in its metadata, but it did not"));
+    }
+
+    void deleteSnapshots(Map<String, List<SnapshotInfo>> snapshotsToDelete,
+                         TimeValue maximumTime,
+                         SnapshotLifecycleStats slmStats) {
         int count = snapshotsToDelete.values().stream().mapToInt(List::size).sum();
         if (count == 0) {
             logger.debug("no snapshots are eligible for deletion");
@@ -216,7 +252,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
             String repo = entry.getKey();
             List<SnapshotInfo> snapshots = entry.getValue();
             for (SnapshotInfo info : snapshots) {
-                deleteSnapshot(repo, info.snapshotId());
+                deleteSnapshot(getPolicyId(info), repo, info.snapshotId(), slmStats);
                 deleted++;
                 // Check whether we have exceeded the maximum time allowed to spend deleting
                 // snapshots, if we have, short-circuit the rest of the deletions
@@ -226,16 +262,21 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                     logger.info("maximum snapshot retention deletion time reached, time spent: [{}]," +
                             " maximum allowed time: [{}], deleted {} out of {} snapshots scheduled for deletion",
                         elapsedDeletionTime, maximumTime, deleted, count);
+                    slmStats.deletionTime(elapsedDeletionTime);
+                    slmStats.retentionTimedOut();
                     return;
                 }
             }
         }
+        TimeValue totalElapsedTime = TimeValue.timeValueNanos(nowNanoSupplier.getAsLong() - startTime);
+        logger.debug("total elapsed time for deletion of [{}] snapshots: {}", deleted, totalElapsedTime);
+        slmStats.deletionTime(totalElapsedTime);
     }
 
     /**
      * Delete the given snapshot from the repository in blocking manner
      */
-    void deleteSnapshot(String repo, SnapshotId snapshot) {
+    void deleteSnapshot(String slmPolicy, String repo, SnapshotId snapshot, SnapshotLifecycleStats slmStats) {
         logger.info("[{}] snapshot retention deleting snapshot [{}]", repo, snapshot);
         CountDownLatch latch = new CountDownLatch(1);
         client.admin().cluster().prepareDeleteSnapshot(repo, snapshot.getName())
@@ -244,13 +285,17 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                     if (acknowledgedResponse.isAcknowledged()) {
                         logger.debug("[{}] snapshot [{}] deleted successfully", repo, snapshot);
+                    } else {
+                        logger.warn("[{}] snapshot [{}] delete issued but the request was not acknowledged", repo, snapshot);
                     }
+                    slmStats.snapshotDeleted(slmPolicy);
                 }
 
                 @Override
                 public void onFailure(Exception e) {
                     logger.warn(new ParameterizedMessage("[{}] failed to delete snapshot [{}] for retention",
                         repo, snapshot), e);
+                    slmStats.snapshotDeleteFailure(slmPolicy);
                 }
             }, latch));
         try {
@@ -260,6 +305,11 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
         } catch (InterruptedException e) {
             logger.error(new ParameterizedMessage("[{}] deletion of snapshot [{}] interrupted",
                 repo, snapshot), e);
+            slmStats.snapshotDeleteFailure(slmPolicy);
         }
+    }
+
+    void updateStateWithStats(SnapshotLifecycleStats newStats) {
+        clusterService.submitStateUpdateTask("update_slm_stats", new UpdateSnapshotLifecycleStatsTask(newStats));
     }
 }

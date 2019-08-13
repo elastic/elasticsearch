@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
 import org.elasticsearch.xpack.slm.SnapshotLifecycleService;
+import org.elasticsearch.xpack.slm.SnapshotLifecycleStats;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -93,7 +94,8 @@ public class TransportPutSnapshotLifecycleAction extends
                         OperationMode mode = Optional.ofNullable(ilmMeta)
                             .map(IndexLifecycleMetadata::getOperationMode)
                             .orElse(OperationMode.RUNNING);
-                        lifecycleMetadata = new SnapshotLifecycleMetadata(Collections.singletonMap(id, meta), mode);
+                        lifecycleMetadata = new SnapshotLifecycleMetadata(Collections.singletonMap(id, meta),
+                            mode, new SnapshotLifecycleStats());
                         logger.info("adding new snapshot lifecycle [{}]", id);
                     } else {
                         Map<String, SnapshotLifecyclePolicyMetadata> snapLifecycles = new HashMap<>(snapMeta.getSnapshotConfigurations());
@@ -105,7 +107,8 @@ public class TransportPutSnapshotLifecycleAction extends
                             .setModifiedDate(Instant.now().toEpochMilli())
                             .build();
                         snapLifecycles.put(id, newLifecycle);
-                        lifecycleMetadata = new SnapshotLifecycleMetadata(snapLifecycles, snapMeta.getOperationMode());
+                        lifecycleMetadata = new SnapshotLifecycleMetadata(snapLifecycles,
+                            snapMeta.getOperationMode(), snapMeta.getStats());
                         if (oldLifecycle == null) {
                             logger.info("adding new snapshot lifecycle [{}]", id);
                         } else {

@@ -67,7 +67,8 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
 
         // Test with empty SLM metadata
         MetaData metaData = MetaData.builder()
-            .putCustom(SnapshotLifecycleMetadata.TYPE, new SnapshotLifecycleMetadata(Collections.emptyMap(), OperationMode.RUNNING))
+            .putCustom(SnapshotLifecycleMetadata.TYPE,
+                new SnapshotLifecycleMetadata(Collections.emptyMap(), OperationMode.RUNNING, new SnapshotLifecycleStats()))
             .build();
         state = ClusterState.builder(new ClusterName("cluster")).metaData(metaData).build();
         assertThat(SnapshotRetentionTask.getAllPoliciesWithRetentionEnabled(state), equalTo(Collections.emptyMap()));
@@ -251,7 +252,8 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             .collect(Collectors.toMap(pm -> pm.getPolicy().getId(), pm -> pm));
 
         MetaData metaData = MetaData.builder()
-            .putCustom(SnapshotLifecycleMetadata.TYPE, new SnapshotLifecycleMetadata(policyMetadataMap, OperationMode.RUNNING))
+            .putCustom(SnapshotLifecycleMetadata.TYPE,
+                new SnapshotLifecycleMetadata(policyMetadataMap, OperationMode.RUNNING, new SnapshotLifecycleStats()))
             .build();
         return ClusterState.builder(new ClusterName("cluster"))
             .metaData(metaData)
@@ -280,7 +282,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
         }
 
         @Override
-        void deleteSnapshots(Map<String, List<SnapshotInfo>> snapshotsToDelete, TimeValue maxDeleteTime) {
+        void deleteSnapshots(Map<String, List<SnapshotInfo>> snapshotsToDelete, TimeValue maxDeleteTime, SnapshotLifecycleStats slmStats) {
             this.snapshotDeleter.accept(snapshotsToDelete);
         }
     }
@@ -307,7 +309,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
         }
 
         @Override
-        void deleteSnapshot(String repo, SnapshotId snapshot) {
+        void deleteSnapshot(String policyId, String repo, SnapshotId snapshot, SnapshotLifecycleStats slmStats) {
             deleteRunner.accept(repo, snapshot);
         }
     }

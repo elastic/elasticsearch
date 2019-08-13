@@ -28,7 +28,7 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
-import org.elasticsearch.geo.utils.Geohash;
+import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 
 import java.io.IOException;

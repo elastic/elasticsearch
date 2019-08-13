@@ -20,14 +20,16 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
+import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.index.reindex.BulkByScrollTask.Status;
+import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -44,6 +46,7 @@ public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkBySc
 
     private boolean includeUpdated;
     private boolean includeCreated;
+    private boolean testExceptions = randomBoolean();
 
     public void testRountTrip() throws IOException {
         BulkByScrollResponse response = new BulkByScrollResponse(timeValueMillis(randomNonNegativeLong()),
@@ -76,7 +79,9 @@ public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkBySc
             shardId = randomInt();
             nodeId = usually() ? randomAlphaOfLength(5) : null;
         }
-        return singletonList(new ScrollableHitSource.SearchFailure(new ElasticsearchException("foo"), index, shardId, nodeId));
+        ElasticsearchException exception = randomFrom(new ResourceNotFoundException("bar"), new ElasticsearchException("foo"),
+            new NoNodeAvailableException("baz"));
+        return singletonList(new ScrollableHitSource.SearchFailure(exception, index, shardId, nodeId));
     }
 
     private void assertResponseEquals(BulkByScrollResponse expected, BulkByScrollResponse actual) {
@@ -101,14 +106,14 @@ public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkBySc
             assertEquals(expectedFailure.getNodeId(), actualFailure.getNodeId());
             assertEquals(expectedFailure.getReason().getClass(), actualFailure.getReason().getClass());
             assertEquals(expectedFailure.getReason().getMessage(), actualFailure.getReason().getMessage());
+            assertEquals(expectedFailure.getStatus(), actualFailure.getStatus());
         }
     }
 
-    public static void assertEqualBulkResponse(BulkByScrollResponse expected, BulkByScrollResponse actual,
-                                        boolean includeUpdated, boolean includeCreated) {
+    public static void assertEqualBulkResponse(BulkByScrollResponse expected, BulkByScrollResponse actual, boolean includeUpdated,
+                                               boolean includeCreated) {
         assertEquals(expected.getTook(), actual.getTook());
-        BulkByScrollTaskStatusTests
-            .assertEqualStatus(expected.getStatus(), actual.getStatus(), includeUpdated, includeCreated);
+        BulkByScrollTaskStatusTests.assertEqualStatus(expected.getStatus(), actual.getStatus(), includeUpdated, includeCreated);
         assertEquals(expected.getBulkFailures().size(), actual.getBulkFailures().size());
         for (int i = 0; i < expected.getBulkFailures().size(); i++) {
             Failure expectedFailure = expected.getBulkFailures().get(i);
@@ -126,7 +131,8 @@ public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkBySc
             assertEquals(expectedFailure.getIndex(), actualFailure.getIndex());
             assertEquals(expectedFailure.getShardId(), actualFailure.getShardId());
             assertEquals(expectedFailure.getNodeId(), actualFailure.getNodeId());
-            assertThat(expectedFailure.getReason().getMessage(), containsString(actualFailure.getReason().getMessage()));
+            assertEquals(expectedFailure.getStatus(), actualFailure.getStatus());
+            assertThat(actualFailure.getReason().getMessage(), containsString(expectedFailure.getReason().getMessage()));
         }
     }
 
@@ -137,17 +143,24 @@ public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkBySc
 
     @Override
     protected BulkByScrollResponse createTestInstance() {
-        // failures are tested separately, so we can test XContent equivalence at least when we have no failures
-        return
-            new BulkByScrollResponse(
-                timeValueMillis(randomNonNegativeLong()), BulkByScrollTaskStatusTests.randomStatusWithoutException(),
-                emptyList(), emptyList(), randomBoolean()
-            );
+        if (testExceptions) {
+            return new BulkByScrollResponse(timeValueMillis(randomNonNegativeLong()), BulkByScrollTaskStatusTests.randomStatus(),
+                randomIndexingFailures(), randomSearchFailures(), randomBoolean());
+        } else {
+            return new BulkByScrollResponse(timeValueMillis(randomNonNegativeLong()),
+                BulkByScrollTaskStatusTests.randomStatusWithoutException(), emptyList(), emptyList(), randomBoolean());
+        }
     }
 
     @Override
     protected BulkByScrollResponse doParseInstance(XContentParser parser) throws IOException {
         return BulkByScrollResponse.fromXContent(parser);
+    }
+
+    @Override
+    protected boolean assertToXContentEquivalence() {
+        // XContentEquivalence fails in the exception case, due to how exceptions are serialized.
+        return testExceptions == false;
     }
 
     @Override

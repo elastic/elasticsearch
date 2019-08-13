@@ -110,6 +110,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=node-id]
 `version`::
 		{es} version running on this node.
 
+The `os` flag can be set to retrieve information that concern the operating 
 system:
 
 `os.refresh_interval_in_millis`::
@@ -178,6 +179,10 @@ GET /_nodes/nodeId1,nodeId2/_all
 
 The `_all` flag can be set to return all the information - or you can omit it.
 
+
+[[cluster-nodes-info-api-example-plugins]]
+===== Example for plugins metric
+
 If `plugins` is specified, the result will contain details about the installed 
 plugins and modules:
 
@@ -245,6 +250,10 @@ The API returns the following response:
 // TESTRESPONSE[s/"attributes": \{[^\}]*\}/"attributes": $body.$_path/]
 // TESTRESPONSE[s/"plugins": \[[^\]]*\]/"plugins": $body.$_path/]
 // TESTRESPONSE[s/"modules": \[[^\]]*\]/"modules": $body.$_path/]
+
+
+[[cluster-nodes-info-api-example-ingest]]
+===== Example for ingest metric
 
 If `ingest` is specified, the response contains details about the available 
 processors per node:

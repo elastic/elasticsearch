@@ -77,6 +77,7 @@ public class ClusterPrivilegeResolver {
         Collections.unmodifiableSet(Sets.newHashSet("cluster:admin/slm/*", StartILMAction.NAME, StopILMAction.NAME, GetStatusAction.NAME));
     private static final Set<String> READ_SLM_PATTERN = Collections.unmodifiableSet(Sets.newHashSet(GetSnapshotLifecycleAction.NAME,
         GetStatusAction.NAME));
+    private static final Set<String> MANAGE_ENRICH_AUTOMATON = Collections.unmodifiableSet(Sets.newHashSet("cluster:admin/xpack/enrich/*"));
 
     public static final NamedClusterPrivilege NONE = new ActionClusterPrivilege("none", Collections.emptySet(), Collections.emptySet());
     public static final NamedClusterPrivilege ALL = new ActionClusterPrivilege("all", ALL_CLUSTER_PATTERN);
@@ -113,6 +114,7 @@ public class ClusterPrivilegeResolver {
     public static final NamedClusterPrivilege READ_ILM = new ActionClusterPrivilege("read_ilm", READ_ILM_PATTERN);
     public static final NamedClusterPrivilege MANAGE_SLM = new ActionClusterPrivilege("manage_slm", MANAGE_SLM_PATTERN);
     public static final NamedClusterPrivilege READ_SLM = new ActionClusterPrivilege("read_slm", READ_SLM_PATTERN);
+    public static final NamedClusterPrivilege MANAGE_ENRICH = new ActionClusterPrivilege("manage_enrich", MANAGE_ENRICH_AUTOMATON);
 
     private static final Map<String, NamedClusterPrivilege> VALUES = Collections.unmodifiableMap(
         Stream.of(
@@ -143,7 +145,8 @@ public class ClusterPrivilegeResolver {
         MANAGE_ILM,
         READ_ILM,
         MANAGE_SLM,
-        READ_SLM).collect(Collectors.toMap(cp -> cp.name(), cp -> cp)));
+        READ_SLM,
+        MANAGE_ENRICH).collect(Collectors.toMap(cp -> cp.name(), cp -> cp)));
 
     /**
      * Resolves a {@link NamedClusterPrivilege} from a given name if it exists.

@@ -132,11 +132,11 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
         }
 
         return Arrays.asList(
-            new RestGetEnrichPolicyAction(settings, restController),
-            new RestDeleteEnrichPolicyAction(settings, restController),
-            new RestListEnrichPolicyAction(settings, restController),
-            new RestPutEnrichPolicyAction(settings, restController),
-            new RestExecuteEnrichPolicyAction(settings, restController)
+            new RestGetEnrichPolicyAction(restController),
+            new RestDeleteEnrichPolicyAction(restController),
+            new RestListEnrichPolicyAction(restController),
+            new RestPutEnrichPolicyAction(restController),
+            new RestExecuteEnrichPolicyAction(restController)
         );
     }
 

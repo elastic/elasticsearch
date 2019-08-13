@@ -11,36 +11,6 @@ Removes a JSON document from the specified index.
 
 `DELETE /<index>/_doc/<_id>`
 
-[[docs-delete-api-path-params]]
-==== {api-path-parms-title}
-
-`<index>`::
-(Required, string) Name of the target index.
-
-`<_id>`::
-(Required, string) Unique identifier for the document.
-
-[[docs-delete-api-query-params]]
-==== {api-query-parms-title}
-
-include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-seq-no]
-
-include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-primary-term]
-
-include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-pipeline]
-
-include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-refresh]
-
-include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-routing]
-
-include::{docdir}/rest-api/common-parms.asciidoc[tag=timeout]
-
-include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-version]
-
-include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-version-type]
-
-include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-wait-for-active-shards]
-
 [[docs-delete-api-desc]]
 ==== {api-description-title}
 
@@ -105,7 +75,7 @@ DELETE /twitter/_doc/1?routing=kimchy
 // CONSOLE
 // TEST[continued]
 
-This request deletes the tweet with id `1, but it is routed based on the
+This request deletes the tweet with id `1`, but it is routed based on the
 user. The document is not deleted if the correct routing is not specified.
 
 [float]
@@ -142,7 +112,6 @@ example.
 Control when the changes made by this request are visible to search. See
 <<docs-refresh>>.
 
-
 [float]
 [[delete-timeout]]
 ===== Timeout
@@ -162,6 +131,36 @@ DELETE /twitter/_doc/1?timeout=5m
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
+
+[[docs-delete-api-path-params]]
+==== {api-path-parms-title}
+
+`<index>`::
+(Required, string) Name of the target index.
+
+`<_id>`::
+(Required, string) Unique identifier for the document.
+
+[[docs-delete-api-query-params]]
+==== {api-query-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-seq-no]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-primary-term]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-pipeline]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-refresh]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-routing]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=timeout]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-version]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-version-type]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-wait-for-active-shards]
 
 [[docs-delete-api-example]]
 ==== {api-examples-title}

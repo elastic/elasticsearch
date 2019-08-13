@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.dataframe.transforms;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -19,6 +20,11 @@ import org.elasticsearch.common.breaker.CircuitBreaker.Durability;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.search.profile.SearchProfileShardResults;
+import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerPosition;
@@ -29,6 +35,7 @@ import org.elasticsearch.xpack.core.dataframe.transforms.pivot.AggregationConfig
 import org.elasticsearch.xpack.core.dataframe.transforms.pivot.GroupConfigTests;
 import org.elasticsearch.xpack.core.dataframe.transforms.pivot.PivotConfig;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
+import org.elasticsearch.xpack.core.indexing.IterationResult;
 import org.elasticsearch.xpack.dataframe.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.dataframe.transforms.pivot.Pivot;
 import org.junit.Before;
@@ -47,9 +54,15 @@ import java.util.function.Function;
 
 import static org.elasticsearch.xpack.core.dataframe.transforms.DestConfigTests.randomDestConfig;
 import static org.elasticsearch.xpack.core.dataframe.transforms.SourceConfigTests.randomSourceConfig;
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.nullValue;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class DataFrameIndexerTests extends ESTestCase {
@@ -239,6 +252,52 @@ public class DataFrameIndexerTests extends ESTestCase {
             assertThat(pageSizeAfterFirstReduction, greaterThan((long)indexer.getPageSize()));
             assertThat(pageSizeAfterFirstReduction, greaterThan((long)DataFrameIndexer.MINIMUM_PAGE_SIZE));
 
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    public void testDoProcessAggNullCheck() {
+        Integer pageSize = randomBoolean() ? null : randomIntBetween(500, 10_000);
+        DataFrameTransformConfig config = new DataFrameTransformConfig(randomAlphaOfLength(10),
+            randomSourceConfig(),
+            randomDestConfig(),
+            null,
+            null,
+            null,
+            new PivotConfig(GroupConfigTests.randomGroupConfig(), AggregationConfigTests.randomAggregationConfig(), pageSize),
+            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000));
+        SearchResponse searchResponse = new SearchResponse(new InternalSearchResponse(
+            new SearchHits(
+                new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), 0.0f),
+            // Simulate completely null aggs
+            null,
+            new Suggest(Collections.emptyList()),
+            new SearchProfileShardResults(Collections.emptyMap()), false, false, 1),
+            "", 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
+        AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
+        Function<SearchRequest, SearchResponse> searchFunction = searchRequest -> searchResponse;
+        Function<BulkRequest, BulkResponse> bulkFunction = bulkRequest -> new BulkResponse(new BulkItemResponse[0], 100);
+
+        Consumer<Exception> failureConsumer = e -> {
+            final StringWriter sw = new StringWriter();
+            final PrintWriter pw = new PrintWriter(sw, true);
+            e.printStackTrace(pw);
+            fail(e.getMessage());
+        };
+
+        final ExecutorService executor = Executors.newFixedThreadPool(1);
+        try {
+            DataFrameAuditor auditor = mock(DataFrameAuditor.class);
+
+            MockedDataFrameIndexer indexer = new MockedDataFrameIndexer(executor, config, Collections.emptyMap(), auditor, state, null,
+                new DataFrameIndexerTransformStats(), searchFunction, bulkFunction, failureConsumer);
+
+            IterationResult<DataFrameIndexerPosition> newPosition = indexer.doProcess(searchResponse);
+            assertThat(newPosition.getToIndex(), is(empty()));
+            assertThat(newPosition.getPosition(), is(nullValue()));
+            assertThat(newPosition.isDone(), is(true));
+            verify(auditor, times(1)).info(anyString(), anyString());
         } finally {
             executor.shutdownNow();
         }

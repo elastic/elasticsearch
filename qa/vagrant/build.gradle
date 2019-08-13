@@ -18,10 +18,7 @@
  */
 
 plugins {
-  id 'java'
-  id 'elasticsearch.build'
-  id 'elasticsearch.vagrantsupport'
-  id 'elasticsearch.vagrant'
+  id 'elasticsearch.distro-test'
 }
 
 dependencies {
@@ -36,36 +33,9 @@ dependencies {
   compile "commons-logging:commons-logging:${versions.commonslogging}"
 
   compile project(':libs:elasticsearch-core')
-
-  // pulls in the jar built by this project and its dependencies
-  packagingTest project(path: project.path, configuration: 'runtime')
 }
 
-List<String> plugins = []
-for (Project subproj : project.rootProject.subprojects) {
-  if (subproj.parent.path == ':plugins' || subproj.path.equals(':example-plugins:custom-settings')) {
-    // add plugin as a dep
-    dependencies {
-      packaging project(path: "${subproj.path}", configuration: 'zip')
-    }
-    plugins.add(subproj.name)
-  }
-}
-plugins = plugins.toSorted()
-
-setupPackagingTest {
-  doFirst {
-    File expectedPlugins = file('build/plugins/expected')
-    expectedPlugins.parentFile.mkdirs()
-    expectedPlugins.setText(plugins.join('\n'), 'UTF-8')
-  }
-}
-
-esvagrant {
-  testClass 'org.elasticsearch.packaging.PackagingTests'
-}
-
-forbiddenApisMain {
+forbiddenApisTest {
   replaceSignatureFiles 'jdk-signatures'
 }
 
@@ -91,3 +61,50 @@ tasks.thirdPartyAudit.ignoreMissingClasses (
         'javax.servlet.ServletContextEvent',
         'javax.servlet.ServletContextListener'
 )
+
+tasks.register('destructivePackagingTest') {
+  dependsOn 'destructiveDistroTest', 'destructiveBatsTest.oss', 'destructiveBatsTest.default'
+}
+
+subprojects { Project platformProject ->
+
+  // TODO: remove this property lookup once CI is switched to use an explicit task for the sample tests
+  boolean allBoxes = (project.findProperty('vagrant.boxes') ?: '') == 'all'
+  if (allBoxes || ['centos-7', 'ubuntu-1604'].contains(platformProject.name)) {
+    tasks.register('packagingTest') {
+      dependsOn 'distroTest', 'batsTest.oss', 'batsTest.default'
+    }
+  }
+
+  vagrant {
+    hostEnv 'VAGRANT_PROJECT_DIR', platformProject.projectDir.absolutePath
+  }
+}
+
+configurations {
+  allPlugins
+}
+
+List<String> plugins = []
+for (Project subproj : project.rootProject.subprojects) {
+  if (subproj.parent.path == ':plugins' || subproj.path.equals(':example-plugins:custom-settings')) {
+    // add plugin as a dep
+    dependencies {
+      allPlugins project(path: "${subproj.path}", configuration: 'zip')
+    }
+    plugins.add(subproj.name)
+  }
+}
+plugins = plugins.toSorted()
+
+tasks.named('copyDistributions') {
+  from configurations.allPlugins
+  doLast {
+    // TODO: this was copied from the old way bats tests get the plugins list. we should pass
+    // this in differently when converting to java tests
+    File expectedPlugins = file('build/plugins/expected')
+    expectedPlugins.parentFile.mkdirs()
+    expectedPlugins.setText(plugins.join('\n'), 'UTF-8')
+  }
+}
+

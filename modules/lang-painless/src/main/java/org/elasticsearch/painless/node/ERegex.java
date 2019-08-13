@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Constant;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -51,6 +52,11 @@ public final class ERegex extends AExpression {
         }
 
         this.flags = flags;
+    }
+
+    @Override
+    void storeSettings(CompilerSettings settings) {
+        // do nothing
     }
 
     @Override

@@ -14,7 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformTaskState;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStats;
 import org.junit.After;
 import org.junit.Before;
 
@@ -29,6 +29,7 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.oneOf;
 
 public class DataFrameTaskFailedStateIT extends DataFrameRestTestCase {
 
@@ -60,7 +61,7 @@ public class DataFrameTaskFailedStateIT extends DataFrameRestTestCase {
         createContinuousPivotReviewsTransform(transformId, dataFrameIndex, null);
         failureTransforms.add(transformId);
         startDataframeTransform(transformId, false);
-        awaitState(transformId, DataFrameTransformTaskState.FAILED);
+        awaitState(transformId, DataFrameTransformStats.State.FAILED);
         Map<?, ?> fullState = getDataFrameState(transformId);
         final String failureReason = "task encountered more than 0 failures; latest failure: " +
             "Bulk index experienced failures. See the logs of the node running the transform for details.";
@@ -78,7 +79,7 @@ public class DataFrameTaskFailedStateIT extends DataFrameRestTestCase {
         // Verify that we can force stop a failed transform
         stopDataFrameTransform(transformId, true);
 
-        awaitState(transformId, DataFrameTransformTaskState.STOPPED);
+        awaitState(transformId, DataFrameTransformStats.State.STOPPED);
         fullState = getDataFrameState(transformId);
         assertThat(XContentMapValues.extractValue("reason", fullState), is(nullValue()));
     }
@@ -91,7 +92,7 @@ public class DataFrameTaskFailedStateIT extends DataFrameRestTestCase {
         createContinuousPivotReviewsTransform(transformId, dataFrameIndex, null);
         failureTransforms.add(transformId);
         startDataframeTransform(transformId, false);
-        awaitState(transformId, DataFrameTransformTaskState.FAILED);
+        awaitState(transformId, DataFrameTransformStats.State.FAILED);
         Map<?, ?> fullState = getDataFrameState(transformId);
         final String failureReason = "task encountered more than 0 failures; latest failure: " +
             "Bulk index experienced failures. See the logs of the node running the transform for details.";
@@ -114,15 +115,15 @@ public class DataFrameTaskFailedStateIT extends DataFrameRestTestCase {
         // Verify that we have started and that our reason is cleared
         fullState = getDataFrameState(transformId);
         assertThat(XContentMapValues.extractValue("reason", fullState), is(nullValue()));
-        assertThat(XContentMapValues.extractValue("task_state", fullState), equalTo("started"));
+        assertThat(XContentMapValues.extractValue("state", fullState), oneOf("started", "indexing"));
         assertThat((Integer)XContentMapValues.extractValue("stats.index_failures", fullState), greaterThanOrEqualTo(1));
 
         stopDataFrameTransform(transformId, true);
     }
 
-    private void awaitState(String transformId, DataFrameTransformTaskState state) throws Exception {
+    private void awaitState(String transformId, DataFrameTransformStats.State state) throws Exception {
         assertBusy(() -> {
-            String currentState = getDataFrameTaskState(transformId);
+            String currentState = getDataFrameTransformState(transformId);
             assertThat(currentState, equalTo(state.value()));
         }, 180, TimeUnit.SECONDS); // It should not take this long, but if the scheduler gets deferred, it could
     }

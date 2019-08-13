@@ -768,7 +768,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 new RestDeleteRoleMappingAction(settings, restController, getLicenseState()),
                 new RestGetTokenAction(settings, restController, getLicenseState()),
                 new RestInvalidateTokenAction(settings, restController, getLicenseState()),
-                new RestGetCertificateInfoAction(settings, restController),
+                new RestGetCertificateInfoAction(restController),
                 new RestSamlPrepareAuthenticationAction(settings, restController, getLicenseState()),
                 new RestSamlAuthenticateAction(settings, restController, getLicenseState()),
                 new RestSamlLogoutAction(settings, restController, getLicenseState()),

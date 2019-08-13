@@ -91,9 +91,10 @@ public class RestRequestTests extends ESTestCase {
         final HttpRequest httpRequest = mock(HttpRequest.class);
         when (httpRequest.uri()).thenReturn("");
         when (httpRequest.content()).thenReturn(new BytesArray(new byte[1]));
+        when (httpRequest.getHeaders()).thenReturn(
+            Collections.singletonMap("Content-Type", Collections.singletonList(randomFrom("application/json", "application/x-ndjson"))));
         final RestRequest request =
                 RestRequest.request(mock(NamedXContentRegistry.class), httpRequest, mock(HttpChannel.class));
-        request.setXContentType(XContentType.JSON);
         assertFalse(request.isContentConsumed());
         try {
             consumer.accept(request);

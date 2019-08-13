@@ -169,7 +169,7 @@ final class FetchSearchPhase extends SearchPhase {
                 @Override
                 public void onFailure(Exception e) {
                     try {
-                        logger.warn(() -> new ParameterizedMessage("[{}] Failed to execute fetch phase", fetchSearchRequest.id()), e);
+                        logger.debug(() -> new ParameterizedMessage("[{}] Failed to execute fetch phase", fetchSearchRequest.id()), e);
                         counter.onFailure(shardIndex, shardTarget, e);
                     } finally {
                         // the search context might not be cleared on the node where the fetch was executed for example

@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -155,7 +156,15 @@ public class TransportPreviewDataFrameTransformAction extends
                     ActionListener.wrap(
                         r -> {
                             try {
-                                final CompositeAggregation agg = r.getAggregations().get(COMPOSITE_AGGREGATION_NAME);
+                                final Aggregations aggregations = r.getAggregations();
+                                if (aggregations == null) {
+                                    listener.onFailure(
+                                        new ElasticsearchStatusException("Source indices have been deleted or closed.",
+                                            RestStatus.BAD_REQUEST)
+                                    );
+                                    return;
+                                }
+                                final CompositeAggregation agg = aggregations.get(COMPOSITE_AGGREGATION_NAME);
                                 DataFrameIndexerTransformStats stats = new DataFrameIndexerTransformStats();
                                 // remove all internal fields
 

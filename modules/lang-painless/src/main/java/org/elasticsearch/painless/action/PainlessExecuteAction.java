@@ -30,9 +30,9 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.RAMDirectory;
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
@@ -50,7 +50,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -564,8 +563,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
 
     public static class RestAction extends BaseRestHandler {
 
-        public RestAction(Settings settings, RestController controller) {
-            super(settings);
+        public RestAction(RestController controller) {
             controller.registerHandler(GET, "/_scripts/painless/_execute", this);
             controller.registerHandler(POST, "/_scripts/painless/_execute", this);
         }

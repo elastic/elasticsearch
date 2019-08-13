@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -43,8 +44,13 @@ final class PSubBrace extends AStoreable {
     }
 
     @Override
+    void storeSettings(CompilerSettings settings) {
+        throw createError(new IllegalStateException("illegal tree structure"));
+    }
+
+    @Override
     void extractVariables(Set<String> variables) {
-        index.extractVariables(variables);
+        throw createError(new IllegalStateException("illegal tree structure"));
     }
 
     @Override

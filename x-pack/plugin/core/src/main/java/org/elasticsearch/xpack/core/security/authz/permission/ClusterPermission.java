@@ -5,121 +5,195 @@
  */
 package org.elasticsearch.xpack.core.security.authz.permission;
 
+import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
+import org.elasticsearch.xpack.core.security.support.Automatons;
 
-import java.util.Collection;
-import java.util.Collections;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 /**
  * A permission that is based on privileges for cluster wide actions, with the optional ability to inspect the request object
  */
-public abstract class ClusterPermission {
-    private final ClusterPrivilege privilege;
+public class ClusterPermission {
+    public static final ClusterPermission NONE = new ClusterPermission(Set.of(), List.of());
 
-    ClusterPermission(ClusterPrivilege privilege) {
-        this.privilege = privilege;
-    }
+    private final Set<ClusterPrivilege> clusterPrivileges;
+    private final List<PermissionCheck> checks;
 
-    public ClusterPrivilege privilege() {
-        return privilege;
-    }
-
-    public abstract boolean check(String action, TransportRequest request);
-
-    public boolean grants(ClusterPrivilege clusterPrivilege) {
-        return Operations.subsetOf(clusterPrivilege.getAutomaton(), this.privilege().getAutomaton());
-    }
-
-    public abstract List<Tuple<ClusterPrivilege, ConditionalClusterPrivilege>> privileges();
-
-    /**
-     * A permission that is based solely on cluster privileges and does not consider request state
-     */
-    public static class SimpleClusterPermission extends ClusterPermission {
-
-        public static final SimpleClusterPermission NONE = new SimpleClusterPermission(ClusterPrivilege.NONE);
-
-        private final Predicate<String> predicate;
-
-        SimpleClusterPermission(ClusterPrivilege privilege) {
-            super(privilege);
-            this.predicate = privilege.predicate();
-        }
-
-        @Override
-        public boolean check(String action, TransportRequest request) {
-            return predicate.test(action);
-        }
-
-        @Override
-        public List<Tuple<ClusterPrivilege, ConditionalClusterPrivilege>> privileges() {
-            return Collections.singletonList(new Tuple<>(super.privilege, null));
-        }
+    private ClusterPermission(final Set<ClusterPrivilege> clusterPrivileges,
+                              final List<PermissionCheck> checks) {
+        this.clusterPrivileges = Set.copyOf(clusterPrivileges);
+        this.checks = List.copyOf(checks);
     }
 
     /**
-     * A permission that makes use of both cluster privileges and request inspection
+     * Checks permission to a cluster action for a given request.
+     *
+     * @param action  cluster action
+     * @param request {@link TransportRequest}
+     * @return {@code true} if the access is allowed else returns {@code false}
      */
-    public static class ConditionalClusterPermission extends ClusterPermission {
-        private final ConditionalClusterPrivilege conditionalPrivilege;
+    public boolean check(final String action, final TransportRequest request) {
+        return checks.stream().anyMatch(permission -> permission.check(action, request));
+    }
 
-        public ConditionalClusterPermission(ConditionalClusterPrivilege conditionalPrivilege) {
-            super(conditionalPrivilege.getPrivilege());
-            this.conditionalPrivilege = conditionalPrivilege;
+    /**
+     * Checks if the specified {@link ClusterPermission}'s actions are implied by this {@link ClusterPermission}
+     *
+     * @param otherClusterPermission {@link ClusterPermission}
+     * @return {@code true} if the specified cluster permissions actions are implied by this cluster permission else returns {@code false}
+     */
+    public boolean implies(final ClusterPermission otherClusterPermission) {
+        if (otherClusterPermission.checks.isEmpty()) {
+            return true;
+        } else {
+            for (PermissionCheck otherPermissionCheck : otherClusterPermission.checks) {
+                boolean isImplied = this.checks.stream().anyMatch(thisPermissionCheck -> thisPermissionCheck.implies(otherPermissionCheck));
+                if (isImplied == false) {
+                    return false;
+                }
+            }
+            return true;
+        }
+    }
+
+    public Set<ClusterPrivilege> privileges() {
+        return clusterPrivileges;
+    }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static class Builder {
+        private final Set<ClusterPrivilege> clusterPrivileges = new HashSet<>();
+        private final List<Automaton> actionAutomatons = new ArrayList<>();
+        private final List<PermissionCheck> permissionChecks = new ArrayList<>();
+
+        public Builder add(final ClusterPrivilege clusterPrivilege, final Set<String> allowedActionPatterns,
+                           final Set<String> excludeActionPatterns) {
+            this.clusterPrivileges.add(clusterPrivilege);
+            if (allowedActionPatterns.isEmpty() && excludeActionPatterns.isEmpty()) {
+                this.actionAutomatons.add(Automatons.EMPTY);
+            } else {
+                final Automaton allowedAutomaton = Automatons.patterns(allowedActionPatterns);
+                final Automaton excludedAutomaton = Automatons.patterns(excludeActionPatterns);
+                this.actionAutomatons.add(Automatons.minusAndMinimize(allowedAutomaton, excludedAutomaton));
+            }
+            return this;
         }
 
-        @Override
-        public boolean check(String action, TransportRequest request) {
-            return super.privilege.predicate().test(action) && conditionalPrivilege.getRequestPredicate().test(request);
+        public Builder add(final ConfigurableClusterPrivilege configurableClusterPrivilege, final Predicate<String> actionPredicate,
+                           final Predicate<TransportRequest> requestPredicate) {
+            return add(configurableClusterPrivilege, new ActionRequestPredicatePermissionCheck(configurableClusterPrivilege,
+                                                                                               actionPredicate,
+                                                                                               requestPredicate));
         }
 
-        @Override
-        public List<Tuple<ClusterPrivilege, ConditionalClusterPrivilege>> privileges() {
-            return Collections.singletonList(new Tuple<>(super.privilege, conditionalPrivilege));
+        public Builder add(final ClusterPrivilege clusterPrivilege, final PermissionCheck permissionCheck) {
+            this.clusterPrivileges.add(clusterPrivilege);
+            this.permissionChecks.add(permissionCheck);
+            return this;
+        }
+
+        public ClusterPermission build() {
+            if (clusterPrivileges.isEmpty()) {
+                return NONE;
+            }
+            List<PermissionCheck> checks = this.permissionChecks;
+            if (false == actionAutomatons.isEmpty()) {
+                final Automaton mergedAutomaton = Automatons.unionAndMinimize(this.actionAutomatons);
+                checks = new ArrayList<>(this.permissionChecks.size() + 1);
+                checks.add(new AutomatonPermissionCheck(mergedAutomaton));
+                checks.addAll(this.permissionChecks);
+            }
+            return new ClusterPermission(this.clusterPrivileges, checks);
         }
     }
 
     /**
-     * A permission that composes a number of other cluster permissions
+     * Evaluates whether the cluster actions (optionally for a given request)
+     * is permitted by this permission.
      */
-    public static class CompositeClusterPermission extends ClusterPermission {
-        private final Collection<ClusterPermission> children;
+    public interface PermissionCheck {
+        /**
+         * Checks permission to a cluster action for a given request.
+         *
+         * @param action  action name
+         * @param request {@link TransportRequest}
+         * @return {@code true} if the specified action for given request is allowed else returns {@code false}
+         */
+        boolean check(String action, TransportRequest request);
 
-        public CompositeClusterPermission(Collection<ClusterPermission> children) {
-            super(buildPrivilege(children));
-            this.children = children;
-        }
+        /**
+         * Checks whether specified {@link PermissionCheck} is implied by this {@link PermissionCheck}.<br>
+         * This is important method to be considered during implementation as it compares {@link PermissionCheck}s.
+         * If {@code permissionCheck.implies(otherPermissionCheck)}, that means all the actions allowed by {@code otherPermissionCheck}
+         * are also allowed by {@code permissionCheck}, irrespective of the request structure.
+         *
+         * @param otherPermissionCheck {@link PermissionCheck}
+         * @return {@code true} if the specified permission is implied by this {@link PermissionCheck} else
+         * returns {@code false}
+         */
+        boolean implies(PermissionCheck otherPermissionCheck);
+    }
 
-        private static ClusterPrivilege buildPrivilege(Collection<ClusterPermission> children) {
-            final Set<String> names = children.stream()
-                .map(ClusterPermission::privilege)
-                .map(ClusterPrivilege::name)
-                .flatMap(Set::stream)
-                .collect(Collectors.toSet());
-            return ClusterPrivilege.get(names);
+    // Automaton based permission check
+    private static class AutomatonPermissionCheck implements PermissionCheck {
+        private final Automaton automaton;
+        private final Predicate<String> actionPredicate;
+
+        AutomatonPermissionCheck(final Automaton automaton) {
+            this.automaton = automaton;
+            this.actionPredicate = Automatons.predicate(automaton);
         }
 
         @Override
-        public List<Tuple<ClusterPrivilege, ConditionalClusterPrivilege>> privileges() {
-            return children.stream().map(ClusterPermission::privileges).flatMap(List::stream).collect(Collectors.toList());
+        public boolean check(final String action, final TransportRequest request) {
+            return actionPredicate.test(action);
         }
 
         @Override
-        public boolean check(String action, TransportRequest request) {
-            return children.stream().anyMatch(p -> p.check(action, request));
+        public boolean implies(final PermissionCheck permissionCheck) {
+            if (permissionCheck instanceof AutomatonPermissionCheck) {
+                return Operations.subsetOf(((AutomatonPermissionCheck) permissionCheck).automaton, this.automaton);
+            }
+            return false;
+        }
+    }
+
+    // action and request based permission check
+    private static class ActionRequestPredicatePermissionCheck implements PermissionCheck {
+        private final ClusterPrivilege clusterPrivilege;
+        final Predicate<String> actionPredicate;
+        final Predicate<TransportRequest> requestPredicate;
+
+        ActionRequestPredicatePermissionCheck(final ClusterPrivilege clusterPrivilege, final Predicate<String> actionPredicate,
+                                              final Predicate<TransportRequest> requestPredicate) {
+            this.clusterPrivilege = clusterPrivilege;
+            this.actionPredicate = actionPredicate;
+            this.requestPredicate = requestPredicate;
         }
 
         @Override
-        public boolean grants(ClusterPrivilege clusterPrivilege) {
-            return children.stream().anyMatch(p -> p.grants(clusterPrivilege));
+        public boolean check(final String action, final TransportRequest request) {
+            return actionPredicate.test(action) && requestPredicate.test(request);
+        }
+
+        @Override
+        public boolean implies(final PermissionCheck permissionCheck) {
+            if (permissionCheck instanceof ActionRequestPredicatePermissionCheck) {
+                final ActionRequestPredicatePermissionCheck otherCheck = (ActionRequestPredicatePermissionCheck) permissionCheck;
+                return this.clusterPrivilege.equals(otherCheck.clusterPrivilege);
+            }
+            return false;
         }
     }
 }

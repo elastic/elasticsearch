@@ -1,5 +1,8 @@
 [[cat-count]]
-=== cat count
+=== cat count API
+++++
+<titleabbrev>cat count</titleabbrev>
+++++
 
 Provides quick access to a document count of individual indices or all indices
 in a cluster.

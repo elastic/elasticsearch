@@ -22,7 +22,6 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -44,8 +43,8 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  */
 public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexRequest, ReindexAction> {
 
-    public RestReindexAction(Settings settings, RestController controller) {
-        super(settings, ReindexAction.INSTANCE);
+    public RestReindexAction(RestController controller) {
+        super(ReindexAction.INSTANCE);
         controller.registerHandler(POST, "/_reindex", this);
     }
 

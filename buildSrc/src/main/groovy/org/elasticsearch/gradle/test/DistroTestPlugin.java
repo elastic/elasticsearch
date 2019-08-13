@@ -100,10 +100,10 @@ public class DistroTestPlugin implements Plugin<Project> {
         batsTests.put("bats oss", configureBatsTest(project, "oss", distributionsDir, copyDistributionsTask));
         batsTests.put("bats default", configureBatsTest(project, "default", distributionsDir, copyDistributionsTask));
         configureBatsTest(project, "plugins",distributionsDir, copyDistributionsTask, copyPluginsTask).configure(t ->
-            t.setPluginsDir(pluginsDir.get())
+            t.setPluginsDir(pluginsDir)
         );
         configureBatsTest(project, "upgrade", distributionsDir, copyDistributionsTask, copyUpgradeTask).configure(t ->
-            t.setUpgradeDir(upgradeDir.get()));
+            t.setUpgradeDir(upgradeDir));
 
         project.subprojects(vmProject -> {
             vmProject.getPluginManager().apply(VagrantBasePlugin.class);

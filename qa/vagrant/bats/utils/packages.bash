@@ -58,6 +58,7 @@ export_elasticsearch_paths() {
 install_package() {
     local version=$(cat version)
     local rpmCommand='-i'
+    local dir='./'
     while getopts ":fuv:" opt; do
         case $opt in
             u)
@@ -67,6 +68,9 @@ install_package() {
             f)
                 rpmCommand='-U --force'
                 dpkgCommand='--force-conflicts'
+                ;;
+            d)
+                dir=$OPTARG
                 ;;
             v)
                 version=$OPTARG
@@ -83,9 +87,9 @@ install_package() {
       deb_classifier=""
     fi
     if is_rpm; then
-        rpm $rpmCommand $PACKAGE_NAME-$version$rpm_classifier.rpm
+        rpm $rpmCommand $dir/$PACKAGE_NAME-$version$rpm_classifier.rpm
     elif is_dpkg; then
-        run dpkg $dpkgCommand -i $PACKAGE_NAME-$version$deb_classifier.deb
+        run dpkg $dpkgCommand -i $dir/$PACKAGE_NAME-$version$deb_classifier.deb
         [[ "$status" -eq 0 ]] || {
             echo "dpkg failed:"
             echo "$output"

@@ -20,6 +20,9 @@ name of the restored index as well as some of its settings. There is a great
 deal of flexibility in how the snapshot and restore functionality can be used.
 // end::restore-intro[]
 
+You can automate your snapshot backup and restore process by using
+<<getting-started-snapshot-lifecycle-management, snapshot lifecycle management>>.
+
 // tag::backup-warning[]
 WARNING: You cannot back up an Elasticsearch cluster by simply taking a copy of
 the data directories of all of its nodes. Elasticsearch may be making changes to
@@ -124,7 +127,7 @@ which returns:
 -----------------------------------
 // TESTRESPONSE
 
-To retrieve information about multiple repositories, specify a comma-delimited 
+To retrieve information about multiple repositories, specify a comma-delimited
 list of repositories. You can also use the * wildcard when
 specifying repository names. For example, the following request retrieves
 information about all of the snapshot repositories that start with `repo` or

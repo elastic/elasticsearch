@@ -31,6 +31,7 @@ import org.gradle.api.InvalidUserDataException
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.Task
+import org.gradle.api.plugins.BasePlugin
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.publish.maven.plugins.MavenPublishPlugin
 import org.gradle.api.tasks.Copy
@@ -109,7 +110,7 @@ class PluginBuildPlugin implements Plugin<Project> {
                 addNoticeGeneration(project, extension)
             }
         }
-        project.testingConventions {
+        project.tasks.named('testingConventions').configure {
             naming.clear()
             naming {
                 Tests {
@@ -157,7 +158,7 @@ class PluginBuildPlugin implements Plugin<Project> {
     /** Adds an integTest task which runs rest tests */
     private static void createIntegTestTask(Project project) {
         RestIntegTestTask integTest = project.tasks.create('integTest', RestIntegTestTask.class)
-        integTest.mustRunAfter(project.precommit, project.test)
+        integTest.mustRunAfter('precommit', 'test')
         if (project.plugins.hasPlugin(TestClustersPlugin.class) == false) {
             // only if not using test clusters
             project.integTestCluster.distribution = System.getProperty('tests.distribution', 'integ-test-zip')
@@ -241,7 +242,9 @@ class PluginBuildPlugin implements Plugin<Project> {
                 include 'bin/**'
             }
         }
-        project.assemble.dependsOn(bundle)
+        project.tasks.named(BasePlugin.ASSEMBLE_TASK_NAME).configure {
+          dependsOn(bundle)
+        }
 
         // also make the zip available as a configuration (used when depending on this project)
         project.configurations.create('zip')

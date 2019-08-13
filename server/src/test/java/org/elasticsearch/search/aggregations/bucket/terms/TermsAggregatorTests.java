@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.InetAddressPoint;
+import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -37,10 +38,12 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -77,6 +80,7 @@ import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
+import org.elasticsearch.test.geo.RandomGeoGenerator;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -879,6 +883,60 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                         assertEquals(missingValues[i], result.getBuckets().get(0).getKey());
                         assertEquals(1, result.getBuckets().get(0).getDocCount());
                     }
+                }
+            }
+        }
+    }
+
+    public void testGeoPointField() throws Exception {
+        try (Directory directory = newDirectory()) {
+            GeoPoint point = RandomGeoGenerator.randomPoint(random());
+            final String field = "field";
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                Document document = new Document();
+                document.add(new LatLonDocValuesField(field, point.getLat(), point.getLon()));
+                indexWriter.addDocument(document);
+                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                    MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType();
+                    fieldType.setHasDocValues(true);
+                    fieldType.setName("field");
+
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name", null) .field(field);
+                    // Note - other places we throw IllegalArgumentException
+                    expectThrows(AggregationExecutionException.class, () -> {
+                        createAggregator(aggregationBuilder, indexSearcher, fieldType);
+                    });
+                }
+            }
+        }
+    }
+
+    public void testIpField() throws Exception {
+        try (Directory directory = newDirectory()) {
+            final String field = "field";
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                Document document = new Document();
+                document.add(new SortedSetDocValuesField("field",
+                    new BytesRef(InetAddressPoint.encode(InetAddresses.forString("192.168.100.42")))));
+                indexWriter.addDocument(document);
+                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                    MappedFieldType fieldType = new IpFieldMapper.IpFieldType();
+                    fieldType.setHasDocValues(true);
+                    fieldType.setName("field");
+
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name", null) .field(field);
+                    // Note - other places we throw IllegalArgumentException
+                    Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
+                    aggregator.preCollection();
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+                    Terms result = (Terms) aggregator.buildAggregation(0L);
+                    assertEquals("_name", result.getName());
+                    assertEquals(1, result.getBuckets().size());
+                    assertEquals("192.168.100.42", result.getBuckets().get(0).getKey());
+                    assertEquals(1, result.getBuckets().get(0).getDocCount());
                 }
             }
         }

@@ -47,7 +47,7 @@ import static org.mockito.Mockito.when;
 // TODO: in 8.0.0 remove all instances of MAX_OPEN_JOBS_NODE_ATTR from this file
 public class JobNodeSelectorTests extends ESTestCase {
 
-    // To simplify the the logic in this class all jobs have the same memory requirement
+    // To simplify the logic in this class all jobs have the same memory requirement
     private static final ByteSizeValue JOB_MEMORY_REQUIREMENT = new ByteSizeValue(10, ByteSizeUnit.MB);
 
     private MlMemoryTracker memoryTracker;
@@ -84,10 +84,6 @@ public class JobNodeSelectorTests extends ESTestCase {
 
         node = new DiscoveryNode(null, "_node_id1", ta, attributes, Collections.emptySet(), Version.CURRENT);
         assertEquals("{_node_id1}{ml.machine_memory=5}", JobNodeSelector.nodeNameAndMlAttributes(node));
-
-        attributes.put("node.ml", "true");
-        node = new DiscoveryNode("_node_name1", "_node_id1", ta, attributes, Collections.emptySet(), Version.CURRENT);
-        assertEquals("{_node_name1}{ml.machine_memory=5}{node.ml=true}", JobNodeSelector.nodeNameAndMlAttributes(node));
     }
 
     public void testSelectLeastLoadedMlNode_byCount() {
@@ -566,10 +562,11 @@ public class JobNodeSelectorTests extends ESTestCase {
     static void addDataFrameAnalyticsJobTask(String id, String nodeId, DataFrameAnalyticsState state,
                                              PersistentTasksCustomMetaData.Builder builder, boolean isStale) {
         builder.addTask(MlTasks.dataFrameAnalyticsTaskId(id), MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
-            new StartDataFrameAnalyticsAction.TaskParams(id), new PersistentTasksCustomMetaData.Assignment(nodeId, "test assignment"));
+            new StartDataFrameAnalyticsAction.TaskParams(id, Version.CURRENT),
+            new PersistentTasksCustomMetaData.Assignment(nodeId, "test assignment"));
         if (state != null) {
             builder.updateTaskState(MlTasks.dataFrameAnalyticsTaskId(id),
-                new DataFrameAnalyticsTaskState(state, builder.getLastAllocationId() - (isStale ? 1 : 0)));
+                new DataFrameAnalyticsTaskState(state, builder.getLastAllocationId() - (isStale ? 1 : 0), null));
         }
     }
 }

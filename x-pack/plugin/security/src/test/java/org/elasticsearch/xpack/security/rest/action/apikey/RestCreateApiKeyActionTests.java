@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.security.rest.action.apikey;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -30,7 +30,6 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
-import org.elasticsearch.xpack.security.rest.action.apikey.RestCreateApiKeyAction;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -87,8 +86,8 @@ public class RestCreateApiKeyActionTests extends ESTestCase {
 
         try (NodeClient client = new NodeClient(Settings.EMPTY, threadPool) {
             @Override
-            public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(Action<Response> action, Request request,
-                    ActionListener<Response> listener) {
+            public <Request extends ActionRequest, Response extends ActionResponse>
+            void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
                 CreateApiKeyRequest createApiKeyRequest = (CreateApiKeyRequest) request;
                 @SuppressWarnings("unchecked")
                 RestToXContentListener<CreateApiKeyResponse> actionListener = (RestToXContentListener<CreateApiKeyResponse>) listener;

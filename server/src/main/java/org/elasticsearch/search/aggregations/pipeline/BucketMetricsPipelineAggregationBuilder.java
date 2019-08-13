@@ -107,7 +107,7 @@ public abstract class BucketMetricsPipelineAggregationBuilder<AF extends BucketM
     protected abstract PipelineAggregator createInternal(Map<String, Object> metaData);
 
     @Override
-    public void doValidate(AggregatorFactory<?> parent, Collection<AggregationBuilder> aggBuilders,
+    public void doValidate(AggregatorFactory parent, Collection<AggregationBuilder> aggBuilders,
             Collection<PipelineAggregationBuilder> pipelineAggregatorFactories) {
         if (bucketsPaths.length != 1) {
             throw new IllegalStateException(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()

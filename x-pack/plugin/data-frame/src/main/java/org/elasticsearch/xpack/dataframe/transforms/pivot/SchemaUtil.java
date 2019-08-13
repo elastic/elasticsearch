@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetaData;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -174,6 +175,7 @@ public final class SchemaUtil {
         GetFieldMappingsRequest fieldMappingRequest = new GetFieldMappingsRequest();
         fieldMappingRequest.indices(index);
         fieldMappingRequest.fields(fields);
+        fieldMappingRequest.indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
 
         client.execute(GetFieldMappingsAction.INSTANCE, fieldMappingRequest, ActionListener.wrap(
             response -> listener.onResponse(extractFieldMappings(response.mappings())),

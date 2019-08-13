@@ -1,5 +1,5 @@
-[[search-request-search-type]]
-=== Search Type
+[[request-body-search-search-type]]
+==== Search Type
 
 There are different execution paths that can be done when executing a
 distributed search. The distributed search operation needs to be
@@ -35,7 +35,7 @@ by setting the *search_type* parameter in the query string. The types
 are:
 
 [[query-then-fetch]]
-==== Query Then Fetch
+===== Query Then Fetch
 
 Parameter value: *query_then_fetch*.
 
@@ -50,11 +50,18 @@ During the second phase, the coordinating node requests the document
 content (and highlighted snippets, if any) from *only the relevant
 shards*.
 
+[source,js]
+--------------------------------------------------
+GET twitter/_search?search_type=query_then_fetch
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
 NOTE: This is the default setting, if you do not specify a `search_type`
       in your request.
 
 [[dfs-query-then-fetch]]
-==== Dfs, Query Then Fetch
+===== Dfs, Query Then Fetch
 
 Parameter value: *dfs_query_then_fetch*.
 
@@ -62,4 +69,9 @@ Same as "Query Then Fetch", except for an initial scatter phase which
 goes and computes the distributed term frequencies for more accurate
 scoring.
 
-
+[source,js]
+--------------------------------------------------
+GET twitter/_search?search_type=dfs_query_then_fetch
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]

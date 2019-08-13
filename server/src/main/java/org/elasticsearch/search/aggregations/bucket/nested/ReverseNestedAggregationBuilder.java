@@ -92,7 +92,7 @@ public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<
     }
 
     @Override
-    protected AggregatorFactory<?> doBuild(SearchContext context, AggregatorFactory<?> parent, Builder subFactoriesBuilder)
+    protected AggregatorFactory doBuild(SearchContext context, AggregatorFactory parent, Builder subFactoriesBuilder)
             throws IOException {
         if (findNestedAggregatorFactory(parent) == null) {
             throw new SearchParseException(context,
@@ -120,7 +120,7 @@ public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<
         }
     }
 
-    private static NestedAggregatorFactory findNestedAggregatorFactory(AggregatorFactory<?> parent) {
+    private static NestedAggregatorFactory findNestedAggregatorFactory(AggregatorFactory parent) {
         if (parent == null) {
             return null;
         } else if (parent instanceof NestedAggregatorFactory) {

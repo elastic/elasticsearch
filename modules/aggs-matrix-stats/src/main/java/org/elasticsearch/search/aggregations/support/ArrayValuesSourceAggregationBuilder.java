@@ -239,10 +239,10 @@ public abstract class ArrayValuesSourceAggregationBuilder<VS extends ValuesSourc
     }
 
     @Override
-    protected final ArrayValuesSourceAggregatorFactory<VS, ?> doBuild(SearchContext context, AggregatorFactory<?> parent,
+    protected final ArrayValuesSourceAggregatorFactory<VS> doBuild(SearchContext context, AggregatorFactory parent,
                                                                       AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         Map<String, ValuesSourceConfig<VS>> configs = resolveConfig(context);
-        ArrayValuesSourceAggregatorFactory<VS, ?> factory = innerBuild(context, configs, parent, subFactoriesBuilder);
+        ArrayValuesSourceAggregatorFactory<VS> factory = innerBuild(context, configs, parent, subFactoriesBuilder);
         return factory;
     }
 
@@ -255,9 +255,9 @@ public abstract class ArrayValuesSourceAggregationBuilder<VS extends ValuesSourc
         return configs;
     }
 
-    protected abstract ArrayValuesSourceAggregatorFactory<VS, ?> innerBuild(SearchContext context,
+    protected abstract ArrayValuesSourceAggregatorFactory<VS> innerBuild(SearchContext context,
                                                                 Map<String, ValuesSourceConfig<VS>> configs,
-                                                                AggregatorFactory<?> parent,
+                                                                AggregatorFactory parent,
                                                                 AggregatorFactories.Builder subFactoriesBuilder) throws IOException;
 
     public ValuesSourceConfig<VS> config(SearchContext context, String field, Script script) {

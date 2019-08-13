@@ -60,10 +60,10 @@ public class InboundHandlerTests extends ESTestCase {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         InboundMessage.Reader reader = new InboundMessage.Reader(version, namedWriteableRegistry, threadPool.getThreadContext());
         TransportHandshaker handshaker = new TransportHandshaker(version, threadPool, (n, c, r, v) -> {
-        }, (v, f, c, r, r_id) -> {
+        }, (v, c, r, r_id) -> {
         });
         TransportKeepAlive keepAlive = new TransportKeepAlive(threadPool, TcpChannel::sendMessage);
-        OutboundHandler outboundHandler = new OutboundHandler("node", version, new String[0], threadPool, BigArrays.NON_RECYCLING_INSTANCE,
+        OutboundHandler outboundHandler = new OutboundHandler("node", version, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
             transportLogger);
         handler = new InboundHandler(threadPool, outboundHandler, reader, new NoneCircuitBreakerService(), transportLogger, handshaker,
             keepAlive);
@@ -128,7 +128,7 @@ public class InboundHandlerTests extends ESTestCase {
             }, ThreadPool.Names.SAME, false, true);
         handler.registerRequestHandler(registry);
         String requestValue = randomAlphaOfLength(10);
-        OutboundMessage.Request request = new OutboundMessage.Request(threadPool.getThreadContext(), new String[0],
+        OutboundMessage.Request request = new OutboundMessage.Request(threadPool.getThreadContext(),
             new TestRequest(requestValue), version, action, requestId, false, isCompressed);
 
         BytesReference bytes = request.serialize(new BytesStreamOutput());
@@ -171,11 +171,6 @@ public class InboundHandlerTests extends ESTestCase {
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(value);
@@ -196,13 +191,7 @@ public class InboundHandlerTests extends ESTestCase {
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeString(value);
         }
     }

@@ -22,6 +22,8 @@ import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.test.AntFixture
 import org.elasticsearch.gradle.test.RestIntegTestTask
 
+import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
+
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
@@ -74,9 +76,9 @@ integTest.enabled = false
 
         setting 'discovery.seed_providers', 'ec2'
         setting 'network.host', '_ec2_'
-        setting 'discovery.ec2.endpoint', { "http://${-> fixture.addressAndPort}" }
+        setting 'discovery.ec2.endpoint', { "http://${-> fixture.addressAndPort}" }, IGNORE_VALUE
 
-        systemProperty "com.amazonaws.sdk.ec2MetadataServiceEndpointOverride", { "http://${-> fixture.addressAndPort}" }
+        systemProperty "com.amazonaws.sdk.ec2MetadataServiceEndpointOverride", { "http://${-> fixture.addressAndPort}" }, IGNORE_VALUE
     }
 }
 
@@ -103,7 +105,7 @@ ec2FixtureContainerCredentials.env 'ACTIVATE_CONTAINER_CREDENTIALS', true
 
 testClusters.integTestContainerCredentials {
     environment 'AWS_CONTAINER_CREDENTIALS_FULL_URI',
-        { "http://${-> tasks.findByName("ec2FixtureContainerCredentials").addressAndPort}/ecs_credentials_endpoint" }
+        { "http://${-> tasks.findByName("ec2FixtureContainerCredentials").addressAndPort}/ecs_credentials_endpoint" }, IGNORE_VALUE
 }
 
 // Extra config for InstanceProfile

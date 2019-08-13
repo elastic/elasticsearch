@@ -19,7 +19,7 @@
 
 package org.elasticsearch.client.node;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -41,10 +41,10 @@ import java.util.function.Supplier;
  */
 public class NodeClient extends AbstractClient {
 
-    private Map<Action, TransportAction> actions;
+    private Map<ActionType, TransportAction> actions;
     /**
      * The id of the local {@link DiscoveryNode}. Useful for generating task ids from tasks returned by
-     * {@link #executeLocally(Action, ActionRequest, TaskListener)}.
+     * {@link #executeLocally(ActionType, ActionRequest, TaskListener)}.
      */
     private Supplier<String> localNodeId;
     private RemoteClusterService remoteClusterService;
@@ -53,7 +53,7 @@ public class NodeClient extends AbstractClient {
         super(settings, threadPool);
     }
 
-    public void initialize(Map<Action, TransportAction> actions, Supplier<String> localNodeId,
+    public void initialize(Map<ActionType, TransportAction> actions, Supplier<String> localNodeId,
                            RemoteClusterService remoteClusterService) {
         this.actions = actions;
         this.localNodeId = localNodeId;
@@ -67,47 +67,47 @@ public class NodeClient extends AbstractClient {
 
     @Override
     public <Request extends ActionRequest, Response extends ActionResponse>
-    void doExecute(Action<Response> action, Request request, ActionListener<Response> listener) {
+    void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
         // Discard the task because the Client interface doesn't use it.
         executeLocally(action, request, listener);
     }
 
     /**
-     * Execute an {@link Action} locally, returning that {@link Task} used to track it, and linking an {@link ActionListener}. Prefer this
-     * method if you don't need access to the task when listening for the response. This is the method used to implement the {@link Client}
-     * interface.
+     * Execute an {@link ActionType} locally, returning that {@link Task} used to track it, and linking an {@link ActionListener}.
+     * Prefer this method if you don't need access to the task when listening for the response. This is the method used to
+     * implement the {@link Client} interface.
      */
     public <    Request extends ActionRequest,
                 Response extends ActionResponse
-            > Task executeLocally(Action<Response> action, Request request, ActionListener<Response> listener) {
+            > Task executeLocally(ActionType<Response> action, Request request, ActionListener<Response> listener) {
         return transportAction(action).execute(request, listener);
     }
 
     /**
-     * Execute an {@link Action} locally, returning that {@link Task} used to track it, and linking an {@link TaskListener}. Prefer this
-     * method if you need access to the task when listening for the response.
+     * Execute an {@link ActionType} locally, returning that {@link Task} used to track it, and linking an {@link TaskListener}.
+     * Prefer this method if you need access to the task when listening for the response.
      */
     public <    Request extends ActionRequest,
                 Response extends ActionResponse
-            > Task executeLocally(Action<Response> action, Request request, TaskListener<Response> listener) {
+            > Task executeLocally(ActionType<Response> action, Request request, TaskListener<Response> listener) {
         return transportAction(action).execute(request, listener);
     }
 
     /**
      * The id of the local {@link DiscoveryNode}. Useful for generating task ids from tasks returned by
-     * {@link #executeLocally(Action, ActionRequest, TaskListener)}.
+     * {@link #executeLocally(ActionType, ActionRequest, TaskListener)}.
      */
     public String getLocalNodeId() {
         return localNodeId.get();
     }
 
     /**
-     * Get the {@link TransportAction} for an {@link Action}, throwing exceptions if the action isn't available.
+     * Get the {@link TransportAction} for an {@link ActionType}, throwing exceptions if the action isn't available.
      */
     @SuppressWarnings("unchecked")
     private <    Request extends ActionRequest,
                 Response extends ActionResponse
-            > TransportAction<Request, Response> transportAction(Action<Response> action) {
+            > TransportAction<Request, Response> transportAction(ActionType<Response> action) {
         if (actions == null) {
             throw new IllegalStateException("NodeClient has not been initialized");
         }

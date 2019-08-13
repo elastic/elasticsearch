@@ -6,37 +6,26 @@
 
 package org.elasticsearch.xpack.core.ccr.action;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class UnfollowAction extends Action<AcknowledgedResponse> {
+public class UnfollowAction extends ActionType<AcknowledgedResponse> {
 
     public static final UnfollowAction INSTANCE = new UnfollowAction();
     public static final String NAME = "indices:admin/xpack/ccr/unfollow";
 
     private UnfollowAction() {
-        super(NAME);
-    }
-
-    @Override
-    public AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
-    public Writeable.Reader<AcknowledgedResponse> getResponseReader() {
-        return AcknowledgedResponse::new;
+        super(NAME, AcknowledgedResponse::new);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest {

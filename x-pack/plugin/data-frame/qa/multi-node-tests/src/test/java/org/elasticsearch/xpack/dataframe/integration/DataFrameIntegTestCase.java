@@ -24,7 +24,9 @@ import org.elasticsearch.client.dataframe.StartDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.StartDataFrameTransformResponse;
 import org.elasticsearch.client.dataframe.StopDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.StopDataFrameTransformResponse;
+import org.elasticsearch.client.dataframe.UpdateDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig;
+import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfigUpdate;
 import org.elasticsearch.client.dataframe.transforms.DestConfig;
 import org.elasticsearch.client.dataframe.transforms.QueryConfig;
 import org.elasticsearch.client.dataframe.transforms.SourceConfig;
@@ -133,9 +135,10 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
     protected void waitUntilCheckpoint(String id, long checkpoint, TimeValue waitTime) throws Exception {
         assertBusy(() ->
             assertEquals(checkpoint, getDataFrameTransformStats(id)
-                .getTransformsStateAndStats()
+                .getTransformsStats()
                 .get(0)
-                .getTransformState()
+                .getCheckpointingInfo()
+                .getLast()
                 .getCheckpoint()),
             waitTime.getMillis(),
             TimeUnit.MILLISECONDS);
@@ -143,25 +146,21 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
 
     protected DateHistogramGroupSource createDateHistogramGroupSourceWithFixedInterval(String field,
                                                                                        DateHistogramInterval interval,
-                                                                                       ZoneId zone,
-                                                                                       String format) {
+                                                                                       ZoneId zone) {
         DateHistogramGroupSource.Builder builder = DateHistogramGroupSource.builder()
             .setField(field)
             .setInterval(new DateHistogramGroupSource.FixedInterval(interval))
-            .setTimeZone(zone)
-            .setFormat(format);
+            .setTimeZone(zone);
         return builder.build();
     }
 
     protected DateHistogramGroupSource createDateHistogramGroupSourceWithCalendarInterval(String field,
                                                                                           DateHistogramInterval interval,
-                                                                                          ZoneId zone,
-                                                                                          String format) {
+                                                                                          ZoneId zone) {
         DateHistogramGroupSource.Builder builder = DateHistogramGroupSource.builder()
             .setField(field)
             .setInterval(new DateHistogramGroupSource.CalendarInterval(interval))
-            .setTimeZone(zone)
-            .setFormat(format);
+            .setTimeZone(zone);
         return builder.build();
     }
 
@@ -214,6 +213,7 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
             .setId(id)
             .setSource(SourceConfig.builder().setIndex(sourceIndices).setQueryConfig(createQueryConfig(queryBuilder)).build())
             .setDest(DestConfig.builder().setIndex(destinationIndex).build())
+            .setFrequency(TimeValue.timeValueSeconds(10))
             .setPivotConfig(createPivotConfig(groups, aggregations))
             .setDescription("Test data frame transform config id: " + id);
     }
@@ -231,6 +231,11 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
         RestHighLevelClient restClient = new TestRestHighLevelClient();
         BulkResponse response = restClient.bulk(request, RequestOptions.DEFAULT);
         assertThat(response.buildFailureMessage(), response.hasFailures(), is(false));
+    }
+
+    protected void updateConfig(String id, DataFrameTransformConfigUpdate update) throws Exception {
+        RestHighLevelClient restClient = new TestRestHighLevelClient();
+        restClient.dataFrame().updateDataFrameTransform(new UpdateDataFrameTransformRequest(update, id), RequestOptions.DEFAULT);
     }
 
     protected void createReviewsIndex(String indexName, int numDocs) throws Exception {
@@ -343,7 +348,7 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
             .build();
     }
 
-    private static class TestRestHighLevelClient extends RestHighLevelClient {
+    protected static class TestRestHighLevelClient extends RestHighLevelClient {
         private static final List<NamedXContentRegistry.Entry> X_CONTENT_ENTRIES =
             new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents();
         TestRestHighLevelClient() {

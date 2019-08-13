@@ -44,7 +44,7 @@ public class DataFrameAnalyticsSourceTests extends AbstractSerializingTestCase<D
     }
 
     public static DataFrameAnalyticsSource createRandom() {
-        String index = randomAlphaOfLength(10);
+        String[] index = generateRandomStringArray(10, 10, false, false);
         QueryProvider queryProvider = null;
         if (randomBoolean()) {
             try {

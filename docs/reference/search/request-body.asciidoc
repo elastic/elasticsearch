@@ -1,5 +1,5 @@
 [[search-request-body]]
-== Request Body Search
+=== Request Body Search
 
 The search request can be executed with a search DSL, which includes the
 <<query-dsl,Query DSL>>, within its body. Here is an
@@ -56,7 +56,7 @@ And here is a sample response:
 // TESTRESPONSE[s/"took": 1/"took": $body.took/]
 
 [float]
-=== Parameters
+==== Parameters
 
 [horizontal]
 `timeout`::
@@ -82,7 +82,7 @@ And here is a sample response:
     The type of the search operation to perform. Can be
     `dfs_query_then_fetch` or `query_then_fetch`.
     Defaults to `query_then_fetch`.
-    See <<search-request-search-type,_Search Type_>> for more.
+    See <<request-body-search-search-type,_Search Type_>> for more.
 
 `request_cache`::
 
@@ -129,7 +129,7 @@ Both HTTP GET and HTTP POST can be used to execute search with body. Since not
 all clients support GET with body, POST is allowed as well.
 
 [float]
-=== Fast check for any matching docs
+==== Fast check for any matching docs
 
 NOTE: `terminate_after` is always applied **after** the `post_filter` and stops
        the query as well as the aggregation executions when enough hits have been

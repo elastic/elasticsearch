@@ -103,7 +103,7 @@
  * <li>First, find the most recent {@code RepositoryData} by getting a list of all index-N blobs through listing all blobs with prefix
  * "index-" under the repository root and then selecting the one with the highest value for N.</li>
  * <li>If this operation fails because the repository's {@code BlobContainer} does not support list operations (in the case of read-only
- * repositories), read the highest value of N from the the index.latest blob.</li>
+ * repositories), read the highest value of N from the index.latest blob.</li>
  * </ol>
  * </li>
  * <li>

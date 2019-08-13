@@ -61,6 +61,7 @@ public class DataFrameDataExtractorTests extends ESTestCase {
     private ActionFuture<ClearScrollResponse> clearScrollFuture;
 
     @Before
+    @SuppressWarnings("unchecked")
     public void setUpTests() {
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
@@ -70,8 +71,8 @@ public class DataFrameDataExtractorTests extends ESTestCase {
         indices = Arrays.asList("index-1", "index-2");
         query = QueryBuilders.matchAllQuery();
         extractedFields = new ExtractedFields(Arrays.asList(
-            ExtractedField.newField("field_1", ExtractedField.ExtractionMethod.DOC_VALUE),
-            ExtractedField.newField("field_2", ExtractedField.ExtractionMethod.DOC_VALUE)));
+            ExtractedField.newField("field_1", Collections.singleton("keyword"), ExtractedField.ExtractionMethod.DOC_VALUE),
+            ExtractedField.newField("field_2", Collections.singleton("keyword"), ExtractedField.ExtractionMethod.DOC_VALUE)));
         scrollSize = 1000;
         headers = Collections.emptyMap();
 
@@ -127,7 +128,7 @@ public class DataFrameDataExtractorTests extends ESTestCase {
         assertThat(searchRequest, containsString("\"query\":{\"match_all\":{\"boost\":1.0}}"));
         assertThat(searchRequest, containsString("\"docvalue_fields\":[{\"field\":\"field_1\"},{\"field\":\"field_2\"}]"));
         assertThat(searchRequest, containsString("\"_source\":{\"includes\":[],\"excludes\":[]}"));
-        assertThat(searchRequest, containsString("\"sort\":[{\"_id_copy\":{\"order\":\"asc\"}}]"));
+        assertThat(searchRequest, containsString("\"sort\":[{\"ml__id_copy\":{\"order\":\"asc\"}}]"));
 
         // Check continue scroll requests had correct ids
         assertThat(dataExtractor.capturedContinueScrollIds.size(), equalTo(2));
@@ -287,8 +288,8 @@ public class DataFrameDataExtractorTests extends ESTestCase {
 
     public void testIncludeSourceIsFalseAndAtLeastOneSourceField() throws IOException {
         extractedFields = new ExtractedFields(Arrays.asList(
-            ExtractedField.newField("field_1", ExtractedField.ExtractionMethod.DOC_VALUE),
-            ExtractedField.newField("field_2", ExtractedField.ExtractionMethod.SOURCE)));
+            ExtractedField.newField("field_1", Collections.singleton("keyword"), ExtractedField.ExtractionMethod.DOC_VALUE),
+            ExtractedField.newField("field_2", Collections.singleton("text"), ExtractedField.ExtractionMethod.SOURCE)));
 
         TestExtractor dataExtractor = createExtractor(false);
 

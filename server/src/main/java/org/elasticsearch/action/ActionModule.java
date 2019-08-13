@@ -33,7 +33,6 @@ import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsAct
 import org.elasticsearch.action.admin.cluster.node.hotthreads.TransportNodesHotThreadsAction;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
 import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
-import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAction;
 import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsAction;
 import org.elasticsearch.action.admin.cluster.node.reload.TransportNodesReloadSecureSettingsAction;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
@@ -71,6 +70,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.TransportGetSnapshot
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.TransportRestoreSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusAction;
+import org.elasticsearch.action.admin.cluster.snapshots.status.TransportNodesSnapshotsStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.TransportSnapshotsStatusAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.TransportClusterStateAction;
@@ -95,6 +95,7 @@ import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheActio
 import org.elasticsearch.action.admin.indices.cache.clear.TransportClearIndicesCacheAction;
 import org.elasticsearch.action.admin.indices.close.CloseIndexAction;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
+import org.elasticsearch.action.admin.indices.close.TransportVerifyShardBeforeCloseAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
@@ -102,6 +103,7 @@ import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.flush.FlushAction;
 import org.elasticsearch.action.admin.indices.flush.SyncedFlushAction;
 import org.elasticsearch.action.admin.indices.flush.TransportFlushAction;
+import org.elasticsearch.action.admin.indices.flush.TransportShardFlushAction;
 import org.elasticsearch.action.admin.indices.flush.TransportSyncedFlushAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.elasticsearch.action.admin.indices.forcemerge.TransportForceMergeAction;
@@ -121,6 +123,7 @@ import org.elasticsearch.action.admin.indices.recovery.RecoveryAction;
 import org.elasticsearch.action.admin.indices.recovery.TransportRecoveryAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.TransportRefreshAction;
+import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.TransportRolloverAction;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsAction;
@@ -206,8 +209,14 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.gateway.TransportNodesListGatewayMetaState;
+import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards;
+import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
+import org.elasticsearch.index.seqno.RetentionLeaseBackgroundSyncAction;
+import org.elasticsearch.index.seqno.RetentionLeaseSyncAction;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 import org.elasticsearch.persistent.CompletionPersistentTaskAction;
 import org.elasticsearch.persistent.RemovePersistentTaskAction;
 import org.elasticsearch.persistent.StartPersistentTaskAction;
@@ -412,9 +421,8 @@ public class ActionModule extends AbstractModule {
             }
 
             public <Request extends ActionRequest, Response extends ActionResponse> void register(
-                Action<Response> action, Class<? extends TransportAction<Request, Response>> transportAction,
-                Class<?>... supportTransportActions) {
-                register(new ActionHandler<>(action, transportAction, supportTransportActions));
+                ActionType<Response> action, Class<? extends TransportAction<Request, Response>> transportAction) {
+                register(new ActionHandler<>(action, transportAction));
             }
         }
         ActionRegistry actions = new ActionRegistry();
@@ -460,8 +468,8 @@ public class ActionModule extends AbstractModule {
         actions.register(OpenIndexAction.INSTANCE, TransportOpenIndexAction.class);
         actions.register(CloseIndexAction.INSTANCE, TransportCloseIndexAction.class);
         actions.register(GetMappingsAction.INSTANCE, TransportGetMappingsAction.class);
-        actions.register(GetFieldMappingsAction.INSTANCE, TransportGetFieldMappingsAction.class,
-                TransportGetFieldMappingsIndexAction.class);
+        actions.register(GetFieldMappingsAction.INSTANCE, TransportGetFieldMappingsAction.class);
+        actions.register(TransportGetFieldMappingsIndexAction.TYPE, TransportGetFieldMappingsIndexAction.class);
         actions.register(PutMappingAction.INSTANCE, TransportPutMappingAction.class);
         actions.register(IndicesAliasesAction.INSTANCE, TransportIndicesAliasesAction.class);
         actions.register(UpdateSettingsAction.INSTANCE, TransportUpdateSettingsAction.class);
@@ -484,14 +492,14 @@ public class ActionModule extends AbstractModule {
         actions.register(IndexAction.INSTANCE, TransportIndexAction.class);
         actions.register(GetAction.INSTANCE, TransportGetAction.class);
         actions.register(TermVectorsAction.INSTANCE, TransportTermVectorsAction.class);
-        actions.register(MultiTermVectorsAction.INSTANCE, TransportMultiTermVectorsAction.class,
-                TransportShardMultiTermsVectorAction.class);
+        actions.register(MultiTermVectorsAction.INSTANCE, TransportMultiTermVectorsAction.class);
+        actions.register(TransportShardMultiTermsVectorAction.TYPE, TransportShardMultiTermsVectorAction.class);
         actions.register(DeleteAction.INSTANCE, TransportDeleteAction.class);
         actions.register(UpdateAction.INSTANCE, TransportUpdateAction.class);
-        actions.register(MultiGetAction.INSTANCE, TransportMultiGetAction.class,
-                TransportShardMultiGetAction.class);
-        actions.register(BulkAction.INSTANCE, TransportBulkAction.class,
-                TransportShardBulkAction.class);
+        actions.register(MultiGetAction.INSTANCE, TransportMultiGetAction.class);
+        actions.register(TransportShardMultiGetAction.TYPE, TransportShardMultiGetAction.class);
+        actions.register(BulkAction.INSTANCE, TransportBulkAction.class);
+        actions.register(TransportShardBulkAction.TYPE, TransportShardBulkAction.class);
         actions.register(SearchAction.INSTANCE, TransportSearchAction.class);
         actions.register(SearchScrollAction.INSTANCE, TransportSearchScrollAction.class);
         actions.register(MultiSearchAction.INSTANCE, TransportMultiSearchAction.class);
@@ -505,8 +513,8 @@ public class ActionModule extends AbstractModule {
         actions.register(GetStoredScriptAction.INSTANCE, TransportGetStoredScriptAction.class);
         actions.register(DeleteStoredScriptAction.INSTANCE, TransportDeleteStoredScriptAction.class);
 
-        actions.register(FieldCapabilitiesAction.INSTANCE, TransportFieldCapabilitiesAction.class,
-            TransportFieldCapabilitiesIndexAction.class);
+        actions.register(FieldCapabilitiesAction.INSTANCE, TransportFieldCapabilitiesAction.class);
+        actions.register(TransportFieldCapabilitiesIndexAction.TYPE, TransportFieldCapabilitiesIndexAction.class);
 
         actions.register(PutPipelineAction.INSTANCE, PutPipelineTransportAction.class);
         actions.register(GetPipelineAction.INSTANCE, GetPipelineTransportAction.class);
@@ -526,6 +534,18 @@ public class ActionModule extends AbstractModule {
         actions.register(RetentionLeaseActions.Renew.INSTANCE, RetentionLeaseActions.Renew.TransportAction.class);
         actions.register(RetentionLeaseActions.Remove.INSTANCE, RetentionLeaseActions.Remove.TransportAction.class);
 
+        // internal actions
+        actions.register(GlobalCheckpointSyncAction.TYPE, GlobalCheckpointSyncAction.class);
+        actions.register(RetentionLeaseBackgroundSyncAction.TYPE, RetentionLeaseBackgroundSyncAction.class);
+        actions.register(RetentionLeaseSyncAction.TYPE, RetentionLeaseSyncAction.class);
+        actions.register(TransportNodesSnapshotsStatus.TYPE, TransportNodesSnapshotsStatus.class);
+        actions.register(TransportNodesListGatewayMetaState.TYPE, TransportNodesListGatewayMetaState.class);
+        actions.register(TransportVerifyShardBeforeCloseAction.TYPE, TransportVerifyShardBeforeCloseAction.class);
+        actions.register(TransportNodesListGatewayStartedShards.TYPE, TransportNodesListGatewayStartedShards.class);
+        actions.register(TransportNodesListShardStoreMetaData.TYPE, TransportNodesListShardStoreMetaData.class);
+        actions.register(TransportShardFlushAction.TYPE, TransportShardFlushAction.class);
+        actions.register(TransportShardRefreshAction.TYPE, TransportShardRefreshAction.class);
+
         return unmodifiableMap(actions.getRegistry());
     }
 
@@ -541,139 +561,140 @@ public class ActionModule extends AbstractModule {
                 catActions.add((AbstractCatAction) a);
             }
         };
-        registerHandler.accept(new RestAddVotingConfigExclusionAction(settings, restController));
-        registerHandler.accept(new RestClearVotingConfigExclusionsAction(settings, restController));
-        registerHandler.accept(new RestMainAction(settings, restController));
-        registerHandler.accept(new RestNodesInfoAction(settings, restController, settingsFilter));
-        registerHandler.accept(new RestRemoteClusterInfoAction(settings, restController));
-        registerHandler.accept(new RestNodesStatsAction(settings, restController));
-        registerHandler.accept(new RestNodesUsageAction(settings, restController));
-        registerHandler.accept(new RestNodesHotThreadsAction(settings, restController));
-        registerHandler.accept(new RestClusterAllocationExplainAction(settings, restController));
-        registerHandler.accept(new RestClusterStatsAction(settings, restController));
-        registerHandler.accept(new RestClusterStateAction(settings, restController, settingsFilter));
-        registerHandler.accept(new RestClusterHealthAction(settings, restController));
-        registerHandler.accept(new RestClusterUpdateSettingsAction(settings, restController));
+        registerHandler.accept(new RestAddVotingConfigExclusionAction(restController));
+        registerHandler.accept(new RestClearVotingConfigExclusionsAction(restController));
+        registerHandler.accept(new RestMainAction(restController));
+        registerHandler.accept(new RestNodesInfoAction(restController, settingsFilter));
+        registerHandler.accept(new RestRemoteClusterInfoAction(restController));
+        registerHandler.accept(new RestNodesStatsAction(restController));
+        registerHandler.accept(new RestNodesUsageAction(restController));
+        registerHandler.accept(new RestNodesHotThreadsAction(restController));
+        registerHandler.accept(new RestClusterAllocationExplainAction(restController));
+        registerHandler.accept(new RestClusterStatsAction(restController));
+        registerHandler.accept(new RestClusterStateAction(restController, settingsFilter));
+        registerHandler.accept(new RestClusterHealthAction(restController));
+        registerHandler.accept(new RestClusterUpdateSettingsAction(restController));
         registerHandler.accept(new RestClusterGetSettingsAction(settings, restController, clusterSettings, settingsFilter));
-        registerHandler.accept(new RestClusterRerouteAction(settings, restController, settingsFilter));
-        registerHandler.accept(new RestClusterSearchShardsAction(settings, restController));
-        registerHandler.accept(new RestPendingClusterTasksAction(settings, restController));
-        registerHandler.accept(new RestPutRepositoryAction(settings, restController));
-        registerHandler.accept(new RestGetRepositoriesAction(settings, restController, settingsFilter));
-        registerHandler.accept(new RestDeleteRepositoryAction(settings, restController));
-        registerHandler.accept(new RestVerifyRepositoryAction(settings, restController));
-        registerHandler.accept(new RestGetSnapshotsAction(settings, restController));
-        registerHandler.accept(new RestCreateSnapshotAction(settings, restController));
-        registerHandler.accept(new RestRestoreSnapshotAction(settings, restController));
-        registerHandler.accept(new RestDeleteSnapshotAction(settings, restController));
-        registerHandler.accept(new RestSnapshotsStatusAction(settings, restController));
-        registerHandler.accept(new RestGetIndicesAction(settings, restController));
-        registerHandler.accept(new RestIndicesStatsAction(settings, restController));
-        registerHandler.accept(new RestIndicesSegmentsAction(settings, restController));
-        registerHandler.accept(new RestIndicesShardStoresAction(settings, restController));
-        registerHandler.accept(new RestGetAliasesAction(settings, restController));
-        registerHandler.accept(new RestIndexDeleteAliasesAction(settings, restController));
-        registerHandler.accept(new RestIndexPutAliasAction(settings, restController));
-        registerHandler.accept(new RestIndicesAliasesAction(settings, restController));
-        registerHandler.accept(new RestCreateIndexAction(settings, restController));
-        registerHandler.accept(new RestResizeHandler.RestShrinkIndexAction(settings, restController));
-        registerHandler.accept(new RestResizeHandler.RestSplitIndexAction(settings, restController));
-        registerHandler.accept(new RestRolloverIndexAction(settings, restController));
-        registerHandler.accept(new RestDeleteIndexAction(settings, restController));
-        registerHandler.accept(new RestCloseIndexAction(settings, restController));
-        registerHandler.accept(new RestOpenIndexAction(settings, restController));
+        registerHandler.accept(new RestClusterRerouteAction(restController, settingsFilter));
+        registerHandler.accept(new RestClusterSearchShardsAction(restController));
+        registerHandler.accept(new RestPendingClusterTasksAction(restController));
+        registerHandler.accept(new RestPutRepositoryAction(restController));
+        registerHandler.accept(new RestGetRepositoriesAction(restController, settingsFilter));
+        registerHandler.accept(new RestDeleteRepositoryAction(restController));
+        registerHandler.accept(new RestVerifyRepositoryAction(restController));
+        registerHandler.accept(new RestGetSnapshotsAction(restController));
+        registerHandler.accept(new RestCreateSnapshotAction(restController));
+        registerHandler.accept(new RestRestoreSnapshotAction(restController));
+        registerHandler.accept(new RestDeleteSnapshotAction(restController));
+        registerHandler.accept(new RestSnapshotsStatusAction(restController));
+        registerHandler.accept(new RestGetIndicesAction(restController));
+        registerHandler.accept(new RestIndicesStatsAction(restController));
+        registerHandler.accept(new RestIndicesSegmentsAction(restController));
+        registerHandler.accept(new RestIndicesShardStoresAction(restController));
+        registerHandler.accept(new RestGetAliasesAction(restController));
+        registerHandler.accept(new RestIndexDeleteAliasesAction(restController));
+        registerHandler.accept(new RestIndexPutAliasAction(restController));
+        registerHandler.accept(new RestIndicesAliasesAction(restController));
+        registerHandler.accept(new RestCreateIndexAction(restController));
+        registerHandler.accept(new RestResizeHandler.RestShrinkIndexAction(restController));
+        registerHandler.accept(new RestResizeHandler.RestSplitIndexAction(restController));
+        registerHandler.accept(new RestResizeHandler.RestCloneIndexAction(restController));
+        registerHandler.accept(new RestRolloverIndexAction(restController));
+        registerHandler.accept(new RestDeleteIndexAction(restController));
+        registerHandler.accept(new RestCloseIndexAction(restController));
+        registerHandler.accept(new RestOpenIndexAction(restController));
 
-        registerHandler.accept(new RestUpdateSettingsAction(settings, restController));
-        registerHandler.accept(new RestGetSettingsAction(settings, restController));
+        registerHandler.accept(new RestUpdateSettingsAction(restController));
+        registerHandler.accept(new RestGetSettingsAction(restController));
 
-        registerHandler.accept(new RestAnalyzeAction(settings, restController));
-        registerHandler.accept(new RestGetIndexTemplateAction(settings, restController));
-        registerHandler.accept(new RestPutIndexTemplateAction(settings, restController));
-        registerHandler.accept(new RestDeleteIndexTemplateAction(settings, restController));
+        registerHandler.accept(new RestAnalyzeAction(restController));
+        registerHandler.accept(new RestGetIndexTemplateAction(restController));
+        registerHandler.accept(new RestPutIndexTemplateAction(restController));
+        registerHandler.accept(new RestDeleteIndexTemplateAction(restController));
 
-        registerHandler.accept(new RestPutMappingAction(settings, restController));
-        registerHandler.accept(new RestGetMappingAction(settings, restController));
-        registerHandler.accept(new RestGetFieldMappingAction(settings, restController));
+        registerHandler.accept(new RestPutMappingAction(restController));
+        registerHandler.accept(new RestGetMappingAction(restController));
+        registerHandler.accept(new RestGetFieldMappingAction(restController));
 
-        registerHandler.accept(new RestRefreshAction(settings, restController));
-        registerHandler.accept(new RestFlushAction(settings, restController));
-        registerHandler.accept(new RestSyncedFlushAction(settings, restController));
-        registerHandler.accept(new RestForceMergeAction(settings, restController));
-        registerHandler.accept(new RestUpgradeAction(settings, restController));
-        registerHandler.accept(new RestUpgradeStatusAction(settings, restController));
-        registerHandler.accept(new RestClearIndicesCacheAction(settings, restController));
+        registerHandler.accept(new RestRefreshAction(restController));
+        registerHandler.accept(new RestFlushAction(restController));
+        registerHandler.accept(new RestSyncedFlushAction(restController));
+        registerHandler.accept(new RestForceMergeAction(restController));
+        registerHandler.accept(new RestUpgradeAction(restController));
+        registerHandler.accept(new RestUpgradeStatusAction(restController));
+        registerHandler.accept(new RestClearIndicesCacheAction(restController));
 
-        registerHandler.accept(new RestIndexAction(settings, restController));
-        registerHandler.accept(new RestGetAction(settings, restController));
-        registerHandler.accept(new RestGetSourceAction(settings, restController));
+        registerHandler.accept(new RestIndexAction(restController));
+        registerHandler.accept(new RestGetAction(restController));
+        registerHandler.accept(new RestGetSourceAction(restController));
         registerHandler.accept(new RestMultiGetAction(settings, restController));
-        registerHandler.accept(new RestDeleteAction(settings, restController));
-        registerHandler.accept(new RestCountAction(settings, restController));
-        registerHandler.accept(new RestTermVectorsAction(settings, restController));
-        registerHandler.accept(new RestMultiTermVectorsAction(settings, restController));
+        registerHandler.accept(new RestDeleteAction(restController));
+        registerHandler.accept(new RestCountAction(restController));
+        registerHandler.accept(new RestTermVectorsAction(restController));
+        registerHandler.accept(new RestMultiTermVectorsAction(restController));
         registerHandler.accept(new RestBulkAction(settings, restController));
-        registerHandler.accept(new RestUpdateAction(settings, restController));
+        registerHandler.accept(new RestUpdateAction(restController));
 
-        registerHandler.accept(new RestSearchAction(settings, restController));
-        registerHandler.accept(new RestSearchScrollAction(settings, restController));
-        registerHandler.accept(new RestClearScrollAction(settings, restController));
+        registerHandler.accept(new RestSearchAction(restController));
+        registerHandler.accept(new RestSearchScrollAction(restController));
+        registerHandler.accept(new RestClearScrollAction(restController));
         registerHandler.accept(new RestMultiSearchAction(settings, restController));
 
-        registerHandler.accept(new RestValidateQueryAction(settings, restController));
+        registerHandler.accept(new RestValidateQueryAction(restController));
 
-        registerHandler.accept(new RestExplainAction(settings, restController));
+        registerHandler.accept(new RestExplainAction(restController));
 
-        registerHandler.accept(new RestRecoveryAction(settings, restController));
+        registerHandler.accept(new RestRecoveryAction(restController));
 
-        registerHandler.accept(new RestReloadSecureSettingsAction(settings, restController));
+        registerHandler.accept(new RestReloadSecureSettingsAction(restController));
 
         // Scripts API
-        registerHandler.accept(new RestGetStoredScriptAction(settings, restController));
-        registerHandler.accept(new RestPutStoredScriptAction(settings, restController));
-        registerHandler.accept(new RestDeleteStoredScriptAction(settings, restController));
+        registerHandler.accept(new RestGetStoredScriptAction(restController));
+        registerHandler.accept(new RestPutStoredScriptAction(restController));
+        registerHandler.accept(new RestDeleteStoredScriptAction(restController));
 
-        registerHandler.accept(new RestFieldCapabilitiesAction(settings, restController));
+        registerHandler.accept(new RestFieldCapabilitiesAction(restController));
 
         // Tasks API
-        registerHandler.accept(new RestListTasksAction(settings, restController, nodesInCluster));
-        registerHandler.accept(new RestGetTaskAction(settings, restController));
-        registerHandler.accept(new RestCancelTasksAction(settings, restController, nodesInCluster));
+        registerHandler.accept(new RestListTasksAction(restController, nodesInCluster));
+        registerHandler.accept(new RestGetTaskAction(restController));
+        registerHandler.accept(new RestCancelTasksAction(restController, nodesInCluster));
 
         // Ingest API
-        registerHandler.accept(new RestPutPipelineAction(settings, restController));
-        registerHandler.accept(new RestGetPipelineAction(settings, restController));
-        registerHandler.accept(new RestDeletePipelineAction(settings, restController));
-        registerHandler.accept(new RestSimulatePipelineAction(settings, restController));
+        registerHandler.accept(new RestPutPipelineAction(restController));
+        registerHandler.accept(new RestGetPipelineAction(restController));
+        registerHandler.accept(new RestDeletePipelineAction(restController));
+        registerHandler.accept(new RestSimulatePipelineAction(restController));
 
         // CAT API
-        registerHandler.accept(new RestAllocationAction(settings, restController));
-        registerHandler.accept(new RestShardsAction(settings, restController));
-        registerHandler.accept(new RestMasterAction(settings, restController));
-        registerHandler.accept(new RestNodesAction(settings, restController));
-        registerHandler.accept(new RestTasksAction(settings, restController, nodesInCluster));
-        registerHandler.accept(new RestIndicesAction(settings, restController));
-        registerHandler.accept(new RestSegmentsAction(settings, restController));
+        registerHandler.accept(new RestAllocationAction(restController));
+        registerHandler.accept(new RestShardsAction(restController));
+        registerHandler.accept(new RestMasterAction(restController));
+        registerHandler.accept(new RestNodesAction(restController));
+        registerHandler.accept(new RestTasksAction(restController, nodesInCluster));
+        registerHandler.accept(new RestIndicesAction(restController));
+        registerHandler.accept(new RestSegmentsAction(restController));
         // Fully qualified to prevent interference with rest.action.count.RestCountAction
-        registerHandler.accept(new org.elasticsearch.rest.action.cat.RestCountAction(settings, restController));
+        registerHandler.accept(new org.elasticsearch.rest.action.cat.RestCountAction(restController));
         // Fully qualified to prevent interference with rest.action.indices.RestRecoveryAction
-        registerHandler.accept(new RestCatRecoveryAction(settings, restController));
-        registerHandler.accept(new RestHealthAction(settings, restController));
-        registerHandler.accept(new org.elasticsearch.rest.action.cat.RestPendingClusterTasksAction(settings, restController));
-        registerHandler.accept(new RestAliasAction(settings, restController));
-        registerHandler.accept(new RestThreadPoolAction(settings, restController));
-        registerHandler.accept(new RestPluginsAction(settings, restController));
-        registerHandler.accept(new RestFielddataAction(settings, restController));
-        registerHandler.accept(new RestNodeAttrsAction(settings, restController));
-        registerHandler.accept(new RestRepositoriesAction(settings, restController));
-        registerHandler.accept(new RestSnapshotAction(settings, restController));
-        registerHandler.accept(new RestTemplatesAction(settings, restController));
+        registerHandler.accept(new RestCatRecoveryAction(restController));
+        registerHandler.accept(new RestHealthAction(restController));
+        registerHandler.accept(new org.elasticsearch.rest.action.cat.RestPendingClusterTasksAction(restController));
+        registerHandler.accept(new RestAliasAction(restController));
+        registerHandler.accept(new RestThreadPoolAction(restController));
+        registerHandler.accept(new RestPluginsAction(restController));
+        registerHandler.accept(new RestFielddataAction(restController));
+        registerHandler.accept(new RestNodeAttrsAction(restController));
+        registerHandler.accept(new RestRepositoriesAction(restController));
+        registerHandler.accept(new RestSnapshotAction(restController));
+        registerHandler.accept(new RestTemplatesAction(restController));
         for (ActionPlugin plugin : actionPlugins) {
             for (RestHandler handler : plugin.getRestHandlers(settings, restController, clusterSettings, indexScopedSettings,
                     settingsFilter, indexNameExpressionResolver, nodesInCluster)) {
                 registerHandler.accept(handler);
             }
         }
-        registerHandler.accept(new RestCatAction(settings, restController, catActions));
+        registerHandler.accept(new RestCatAction(restController, catActions));
     }
 
     @Override
@@ -683,19 +704,15 @@ public class ActionModule extends AbstractModule {
         bind(new TypeLiteral<RequestValidators<PutMappingRequest>>() {}).toInstance(mappingRequestValidators);
         bind(new TypeLiteral<RequestValidators<IndicesAliasesRequest>>() {}).toInstance(indicesAliasesRequestRequestValidators);
         bind(AutoCreateIndex.class).toInstance(autoCreateIndex);
-        bind(TransportLivenessAction.class).asEagerSingleton();
 
-        // register Action -> transportAction Map used by NodeClient
+        // register ActionType -> transportAction Map used by NodeClient
         @SuppressWarnings("rawtypes")
-        MapBinder<Action, TransportAction> transportActionsBinder
-                = MapBinder.newMapBinder(binder(), Action.class, TransportAction.class);
+        MapBinder<ActionType, TransportAction> transportActionsBinder
+                = MapBinder.newMapBinder(binder(), ActionType.class, TransportAction.class);
         for (ActionHandler<?, ?> action : actions.values()) {
             // bind the action as eager singleton, so the map binder one will reuse it
             bind(action.getTransportAction()).asEagerSingleton();
             transportActionsBinder.addBinding(action.getAction()).to(action.getTransportAction()).asEagerSingleton();
-            for (Class<?> supportAction : action.getSupportTransportActions()) {
-                bind(supportAction).asEagerSingleton();
-            }
         }
 
     }

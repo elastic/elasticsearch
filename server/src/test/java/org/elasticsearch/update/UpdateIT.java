@@ -292,7 +292,8 @@ public class UpdateIT extends ESIntegTestCase {
     }
 
     public void testUpdate() throws Exception {
-        createTestIndex();
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias").writeIndex(true)));
+        assertAcked(prepareCreate("test2").addAlias(new Alias("alias")));
         ensureGreen();
 
         Script fieldIncScript = new Script(ScriptType.INLINE, UPDATE_SCRIPTS, FIELD_INC_SCRIPT, Collections.singletonMap("field", "field"));

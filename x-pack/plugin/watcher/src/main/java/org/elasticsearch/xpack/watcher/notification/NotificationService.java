@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.notification;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureString;
@@ -94,7 +95,7 @@ public abstract class NotificationService<Account> {
         final Settings completeSettings = completeSettingsBuilder.build();
         // obtain account names and create accounts
         final Set<String> accountNames = getAccountNames(completeSettings);
-        this.accounts = createAccounts(completeSettings, accountNames, this::createAccount);
+        this.accounts = createAccounts(completeSettings, accountNames, (name, accountSettings) -> createAccount(name, accountSettings));
         this.defaultAccount = findDefaultAccountOrNull(completeSettings, this.accounts);
     }
 
@@ -179,12 +180,13 @@ public abstract class NotificationService<Account> {
         // get the secure settings out
         final SecureSettings sourceSecureSettings = Settings.builder().put(source, true).getSecureSettings();
         // filter and cache them...
-        final Map<String, SecureString> cache = new HashMap<>();
+        final Map<String, Tuple<SecureString, byte[]>> cache = new HashMap<>();
         if (sourceSecureSettings != null && securePluginSettings != null) {
             for (final String settingKey : sourceSecureSettings.getSettingNames()) {
                 for (final Setting<?> secureSetting : securePluginSettings) {
                     if (secureSetting.match(settingKey)) {
-                        cache.put(settingKey, sourceSecureSettings.getString(settingKey));
+                        cache.put(settingKey,
+                                new Tuple<>(sourceSecureSettings.getString(settingKey), sourceSecureSettings.getSHA256Digest(settingKey)));
                     }
                 }
             }
@@ -197,8 +199,8 @@ public abstract class NotificationService<Account> {
             }
 
             @Override
-            public SecureString getString(String setting) throws GeneralSecurityException {
-                return cache.get(setting);
+            public SecureString getString(String setting) {
+                return cache.get(setting).v1();
             }
 
             @Override
@@ -207,8 +209,13 @@ public abstract class NotificationService<Account> {
             }
 
             @Override
-            public InputStream getFile(String setting) throws GeneralSecurityException {
+            public InputStream getFile(String setting) {
                 throw new IllegalStateException("A NotificationService setting cannot be File.");
+            }
+
+            @Override
+            public byte[] getSHA256Digest(String setting) {
+                return cache.get(setting).v2();
             }
 
             @Override

@@ -1,24 +1,66 @@
 [[cluster-pending]]
-== Pending cluster tasks
+=== Pending cluster tasks
 
-The pending cluster tasks API returns a list of any cluster-level changes
-(e.g. create index, update mapping, allocate or fail shard) which have not yet
-been executed.
+Returns cluster-level changes that have not yet been executed.
+
+
+[[cluster-pending-api-request]]
+==== {api-request-title}
+
+`GET /_cluster/pending_tasks`
+
+
+[[cluster-pending-api-desc]]
+==== {api-description-title}
+
+The pending cluster tasks API returns a list of any cluster-level changes (e.g. 
+create index, update mapping, allocate or fail shard) which have not yet been 
+executed.
 
 NOTE: This API returns a list of any pending updates to the cluster state. These are distinct from the tasks reported by the
 <<tasks,Task Management API>> which include periodic tasks and tasks initiated by the user, such as node stats, search queries, or create
 index requests. However, if a user-initiated task such as a create index command causes a cluster state update, the activity of this task
 might be reported by both task api and pending cluster tasks API.
 
-[source,js]
---------------------------------------------------
-GET /_cluster/pending_tasks
---------------------------------------------------
-// CONSOLE
 
-Usually this will return an empty list as cluster-level changes are usually
-fast. However if there are tasks queued up, the output will look something
-like this:
+[[cluster-pending-api-path-params]]
+==== {api-path-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+
+
+[[cluster-pending-api-response-body]]
+==== {api-response-body-title}
+
+`tasks`::
+    (object) A list of pending tasks.
+    
+`insert_order`::
+    (integer) The number that represents when the task has been inserted into 
+    the task queue.
+    
+`priority`::
+    (string) The priority of the pending task.
+    
+`source`::
+    (string) A general description of the cluster task that may include a reason 
+    and origin. 
+    
+`time_in_queue_millis`::
+    (integer) The time expressed in milliseconds since the task is waiting for 
+    being performed.
+    
+`time_in_queue`::
+    (string) The time since the task is waiting for being performed.
+
+
+[[cluster-pending-api-example]]
+==== {api-examples-title}
+
+Usually the request will return an empty list as cluster-level changes are fast. 
+However, if there are tasks queued up, the response will look similar like this:
 
 [source,js]
 --------------------------------------------------

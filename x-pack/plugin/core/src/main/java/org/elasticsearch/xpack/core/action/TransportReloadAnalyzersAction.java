@@ -24,11 +24,12 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.action.ReloadAnalyzersResponse.ReloadDetails;
 import org.elasticsearch.xpack.core.action.TransportReloadAnalyzersAction.ReloadResult;
 
 import java.io.IOException;
@@ -59,65 +60,61 @@ public class TransportReloadAnalyzersAction
 
     @Override
     protected ReloadResult readShardResult(StreamInput in) throws IOException {
-        ReloadResult reloadResult = new ReloadResult();
-        reloadResult.readFrom(in);
-        return reloadResult;
+        return new ReloadResult(in);
     }
 
     @Override
     protected ReloadAnalyzersResponse newResponse(ReloadAnalyzersRequest request, int totalShards, int successfulShards, int failedShards,
             List<ReloadResult> responses, List<DefaultShardOperationFailedException> shardFailures, ClusterState clusterState) {
-        Map<String, List<String>> reloadedIndicesNodes = new HashMap<String, List<String>>();
+        Map<String, ReloadDetails> reloadedIndicesDetails = new HashMap<String, ReloadDetails>();
         for (ReloadResult result : responses) {
-            if (reloadedIndicesNodes.containsKey(result.index)) {
-                List<String> nodes = reloadedIndicesNodes.get(result.index);
-                nodes.add(result.nodeId);
+            if (reloadedIndicesDetails.containsKey(result.index)) {
+                reloadedIndicesDetails.get(result.index).merge(result);;
             } else {
-                List<String> nodes = new ArrayList<>();
-                nodes.add(result.nodeId);
-                reloadedIndicesNodes.put(result.index, nodes);
+                HashSet<String> nodeIds = new HashSet<String>();
+                nodeIds.add(result.nodeId);
+                ReloadDetails details = new ReloadDetails(result.index, nodeIds, new HashSet<String>(result.reloadedSearchAnalyzers));
+                reloadedIndicesDetails.put(result.index, details);
             }
         }
-        return new ReloadAnalyzersResponse(totalShards, successfulShards, failedShards, shardFailures, reloadedIndicesNodes);
+        return new ReloadAnalyzersResponse(totalShards, successfulShards, failedShards, shardFailures, reloadedIndicesDetails);
     }
 
     @Override
     protected ReloadAnalyzersRequest readRequestFrom(StreamInput in) throws IOException {
-        final ReloadAnalyzersRequest request = new ReloadAnalyzersRequest();
-        request.readFrom(in);
-        return request;
+        return new ReloadAnalyzersRequest(in);
     }
 
     @Override
     protected ReloadResult shardOperation(ReloadAnalyzersRequest request, ShardRouting shardRouting) throws IOException {
         logger.info("reloading analyzers for index shard " + shardRouting);
         IndexService indexService = indicesService.indexService(shardRouting.index());
-        indexService.mapperService().reloadSearchAnalyzers(indicesService.getAnalysis());
-        return new ReloadResult(shardRouting.index().getName(), shardRouting.currentNodeId());
+        List<String> reloadedSearchAnalyzers = indexService.mapperService().reloadSearchAnalyzers(indicesService.getAnalysis());
+        return new ReloadResult(shardRouting.index().getName(), shardRouting.currentNodeId(), reloadedSearchAnalyzers);
     }
 
-    public static final class ReloadResult implements Streamable {
+    static final class ReloadResult implements Writeable {
         String index;
         String nodeId;
+        List<String> reloadedSearchAnalyzers;
 
-        private ReloadResult(String index, String nodeId) {
+        private ReloadResult(String index, String nodeId, List<String> reloadedSearchAnalyzers) {
             this.index = index;
             this.nodeId = nodeId;
+            this.reloadedSearchAnalyzers = reloadedSearchAnalyzers;
         }
 
-        private ReloadResult() {
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
+        private ReloadResult(StreamInput in) throws IOException {
             this.index = in.readString();
             this.nodeId = in.readString();
+            this.reloadedSearchAnalyzers = in.readStringList();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(index);
             out.writeString(nodeId);
+            out.writeStringCollection(this.reloadedSearchAnalyzers);
         }
     }
 

@@ -22,31 +22,42 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.blobstore.BlobMetaData;
+import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.NoSuchFileException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.Locale;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasKey;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -57,6 +68,14 @@ public final class BlobStoreTestUtil {
         final BlobStoreRepository repo =
             (BlobStoreRepository) testCluster.getCurrentMasterNodeInstance(RepositoriesService.class).repository(repoName);
         BlobStoreTestUtil.assertConsistency(repo, repo.threadPool().executor(ThreadPool.Names.GENERIC));
+    }
+
+    public static boolean blobExists(BlobContainer container, String blobName) throws IOException {
+        try (InputStream ignored = container.readBlob(blobName)) {
+            return true;
+        } catch (NoSuchFileException e) {
+            return false;
+        }
     }
 
     /**
@@ -73,25 +92,21 @@ public final class BlobStoreTestUtil {
             @Override
             protected void doRun() throws Exception {
                 final BlobContainer blobContainer = repository.blobContainer();
-                assertTrue(
-                    "Could not find index.latest blob for repo [" + repository + "]", blobContainer.blobExists("index.latest"));
                 final long latestGen;
                 try (DataInputStream inputStream = new DataInputStream(blobContainer.readBlob("index.latest"))) {
                     latestGen = inputStream.readLong();
+                } catch (NoSuchFileException e) {
+                    throw new AssertionError("Could not find index.latest blob for repo [" + repository + "]");
                 }
                 assertIndexGenerations(blobContainer, latestGen);
                 final RepositoryData repositoryData;
-                try (InputStream inputStream = blobContainer.readBlob("index-" + latestGen);
-                     BytesStreamOutput out = new BytesStreamOutput()) {
-                    Streams.copy(inputStream, out);
-                    try (XContentParser parser =
-                             XContentHelper.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
-                                 out.bytes(), XContentType.JSON)) {
-                        repositoryData = RepositoryData.snapshotsFromXContent(parser, latestGen);
-                    }
+                try (InputStream blob = blobContainer.readBlob("index-" + latestGen);
+                     XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
+                         LoggingDeprecationHandler.INSTANCE, blob)) {
+                    repositoryData = RepositoryData.snapshotsFromXContent(parser, latestGen);
                 }
                 assertIndexUUIDs(blobContainer, repositoryData);
-                assertSnapshotUUIDs(blobContainer, repositoryData);
+                assertSnapshotUUIDs(repository, repositoryData);
                 listener.onResponse(null);
             }
         });
@@ -114,20 +129,121 @@ public final class BlobStoreTestUtil {
         if (indicesContainer == null) {
             foundIndexUUIDs = Collections.emptyList();
         } else {
+            // Skip Lucene MockFS extraN directory
             foundIndexUUIDs = indicesContainer.children().keySet().stream().filter(
                 s -> s.startsWith("extra") == false).collect(Collectors.toList());
         }
         assertThat(foundIndexUUIDs, containsInAnyOrder(expectedIndexUUIDs.toArray(Strings.EMPTY_ARRAY)));
     }
 
-    private static void assertSnapshotUUIDs(BlobContainer repoRoot, RepositoryData repositoryData) throws IOException {
-        final List<String> expectedSnapshotUUIDs =
-            repositoryData.getSnapshotIds().stream().map(SnapshotId::getUUID).collect(Collectors.toList());
+    private static void assertSnapshotUUIDs(BlobStoreRepository repository, RepositoryData repositoryData) throws IOException {
+        final BlobContainer repoRoot = repository.blobContainer();
+        final Collection<SnapshotId> snapshotIds = repositoryData.getSnapshotIds();
+        final List<String> expectedSnapshotUUIDs = snapshotIds.stream().map(SnapshotId::getUUID).collect(Collectors.toList());
         for (String prefix : new String[]{"snap-", "meta-"}) {
                 final Collection<String> foundSnapshotUUIDs = repoRoot.listBlobs().keySet().stream().filter(p -> p.startsWith(prefix))
                     .map(p -> p.replace(prefix, "").replace(".dat", ""))
                     .collect(Collectors.toSet());
                 assertThat(foundSnapshotUUIDs, containsInAnyOrder(expectedSnapshotUUIDs.toArray(Strings.EMPTY_ARRAY)));
+        }
+
+        final BlobContainer indicesContainer = repository.getBlobContainer().children().get("indices");
+        final Map<String, BlobContainer> indices;
+        if (indicesContainer == null) {
+            indices = Collections.emptyMap();
+        } else {
+            indices = indicesContainer.children();
+        }
+        // Assert that for each snapshot, the relevant metadata was written to index and shard folders
+        for (SnapshotId snapshotId: snapshotIds) {
+            final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotId);
+            for (String index : snapshotInfo.indices()) {
+                final IndexId indexId = repositoryData.resolveIndexId(index);
+                assertThat(indices, hasKey(indexId.getId()));
+                final BlobContainer indexContainer = indices.get(indexId.getId());
+                assertThat(indexContainer.listBlobs(),
+                    hasKey(String.format(Locale.ROOT, BlobStoreRepository.METADATA_NAME_FORMAT, snapshotId.getUUID())));
+                for (Map.Entry<String, BlobContainer> entry : indexContainer.children().entrySet()) {
+                    // Skip Lucene MockFS extraN directory
+                    if (entry.getKey().startsWith("extra")) {
+                        continue;
+                    }
+                    if (snapshotInfo.shardFailures().stream().noneMatch(shardFailure ->
+                        shardFailure.index().equals(index) != false && shardFailure.shardId() == Integer.parseInt(entry.getKey()))) {
+                        assertThat(entry.getValue().listBlobs(),
+                            hasKey(String.format(Locale.ROOT, BlobStoreRepository.SNAPSHOT_NAME_FORMAT, snapshotId.getUUID())));
+                    }
+                }
+            }
+        }
+    }
+
+    public static long createDanglingIndex(BlobStoreRepository repository, String name, Set<String> files)
+            throws InterruptedException, ExecutionException {
+        final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        final AtomicLong totalSize = new AtomicLong();
+        repository.threadPool().generic().execute(new ActionRunnable<>(future) {
+            @Override
+            protected void doRun() throws Exception {
+                final BlobStore blobStore = repository.blobStore();
+                BlobContainer container =
+                    blobStore.blobContainer(repository.basePath().add("indices").add(name));
+                for (String file : files) {
+                    int size = randomIntBetween(0, 10);
+                    totalSize.addAndGet(size);
+                    container.writeBlob(file, new ByteArrayInputStream(new byte[size]), size, false);
+                }
+                future.onResponse(null);
+            }
+        });
+        future.get();
+        return totalSize.get();
+    }
+
+    public static void assertCorruptionVisible(BlobStoreRepository repository, Map<String, Set<String>> indexToFiles) {
+        final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+        repository.threadPool().generic().execute(new ActionRunnable<>(future) {
+            @Override
+            protected void doRun() throws Exception {
+                final BlobStore blobStore = repository.blobStore();
+                for (String index : indexToFiles.keySet()) {
+                    if (blobStore.blobContainer(repository.basePath().add("indices"))
+                        .children().containsKey(index) == false) {
+                        future.onResponse(false);
+                        return;
+                    }
+                    for (String file : indexToFiles.get(index)) {
+                        try (InputStream ignored =
+                                     blobStore.blobContainer(repository.basePath().add("indices").add(index)).readBlob(file)) {
+                        } catch (NoSuchFileException e) {
+                            future.onResponse(false);
+                            return;
+                        }
+                    }
+                }
+                future.onResponse(true);
+            }
+        });
+        assertTrue(future.actionGet());
+    }
+
+    public static void assertBlobsByPrefix(BlobStoreRepository repository, BlobPath path, String prefix, Map<String, BlobMetaData> blobs) {
+        final PlainActionFuture<Map<String, BlobMetaData>> future = PlainActionFuture.newFuture();
+        repository.threadPool().generic().execute(new ActionRunnable<>(future) {
+            @Override
+            protected void doRun() throws Exception {
+                final BlobStore blobStore = repository.blobStore();
+                future.onResponse(blobStore.blobContainer(path).listBlobsByPrefix(prefix));
+            }
+        });
+        Map<String, BlobMetaData> foundBlobs = future.actionGet();
+        if (blobs.isEmpty()) {
+            assertThat(foundBlobs.keySet(), empty());
+        } else {
+            assertThat(foundBlobs.keySet(), containsInAnyOrder(blobs.keySet().toArray(Strings.EMPTY_ARRAY)));
+            for (Map.Entry<String, BlobMetaData> entry : foundBlobs.entrySet()) {
+                assertEquals(entry.getValue().length(), blobs.get(entry.getKey()).length());
+            }
         }
     }
 }

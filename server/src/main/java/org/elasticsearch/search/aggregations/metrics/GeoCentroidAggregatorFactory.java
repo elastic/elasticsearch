@@ -32,10 +32,10 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-class GeoCentroidAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint, GeoCentroidAggregatorFactory> {
+class GeoCentroidAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> {
 
     GeoCentroidAggregatorFactory(String name, ValuesSourceConfig<ValuesSource.GeoPoint> config,
-            SearchContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder,
+            SearchContext context, AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
             Map<String, Object> metaData) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metaData);
     }

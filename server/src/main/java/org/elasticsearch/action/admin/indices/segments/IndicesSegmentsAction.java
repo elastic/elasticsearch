@@ -19,19 +19,14 @@
 
 package org.elasticsearch.action.admin.indices.segments;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 
-public class IndicesSegmentsAction extends Action<IndicesSegmentResponse> {
+public class IndicesSegmentsAction extends ActionType<IndicesSegmentResponse> {
 
     public static final IndicesSegmentsAction INSTANCE = new IndicesSegmentsAction();
     public static final String NAME = "indices:monitor/segments";
 
     private IndicesSegmentsAction() {
-        super(NAME);
-    }
-
-    @Override
-    public IndicesSegmentResponse newResponse() {
-        return new IndicesSegmentResponse();
+        super(NAME, IndicesSegmentResponse::new);
     }
 }

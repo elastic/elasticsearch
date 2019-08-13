@@ -18,17 +18,18 @@
  */
 package org.elasticsearch.indices;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardIT;
 import org.elasticsearch.index.shard.IndexShardTestCase;
@@ -426,7 +427,7 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
             client().prepareIndex("test", "test", Integer.toString(i)).setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
         }
 
-        IndexSearcherWrapper wrapper = new IndexSearcherWrapper() {};
+        CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = directoryReader -> directoryReader;
         shard.close("simon says", false);
         AtomicReference<IndexShard> shardRef = new AtomicReference<>();
         Settings settings = Settings.builder().put("indices.memory.index_buffer_size", "50kb").build();

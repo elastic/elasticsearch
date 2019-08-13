@@ -730,8 +730,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setQuery(QueryBuilders.matchAllQuery()) // <6>
                 .setQueryDelay(TimeValue.timeValueMinutes(1)) // <7>
                 .setScriptFields(scriptFields) // <8>
-                .setScrollSize(1000) // <9>
-                .setJobId("update-datafeed-job"); // <10>
+                .setScrollSize(1000); // <9>
             // end::update-datafeed-config
 
             // Clearing aggregation to avoid complex validation rules
@@ -2802,7 +2801,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testGetDataFrameAnalytics() throws Exception {
-        createIndex(DF_ANALYTICS_CONFIG.getSource().getIndex());
+        createIndex(DF_ANALYTICS_CONFIG.getSource().getIndex()[0]);
 
         RestHighLevelClient client = highLevelClient();
         client.machineLearning().putDataFrameAnalytics(new PutDataFrameAnalyticsRequest(DF_ANALYTICS_CONFIG), RequestOptions.DEFAULT);
@@ -2851,7 +2850,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testGetDataFrameAnalyticsStats() throws Exception {
-        createIndex(DF_ANALYTICS_CONFIG.getSource().getIndex());
+        createIndex(DF_ANALYTICS_CONFIG.getSource().getIndex()[0]);
 
         RestHighLevelClient client = highLevelClient();
         client.machineLearning().putDataFrameAnalytics(new PutDataFrameAnalyticsRequest(DF_ANALYTICS_CONFIG), RequestOptions.DEFAULT);
@@ -2901,7 +2900,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testPutDataFrameAnalytics() throws Exception {
-        createIndex(DF_ANALYTICS_CONFIG.getSource().getIndex());
+        createIndex(DF_ANALYTICS_CONFIG.getSource().getIndex()[0]);
 
         RestHighLevelClient client = highLevelClient();
         {
@@ -2994,7 +2993,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testDeleteDataFrameAnalytics() throws Exception {
-        createIndex(DF_ANALYTICS_CONFIG.getSource().getIndex());
+        createIndex(DF_ANALYTICS_CONFIG.getSource().getIndex()[0]);
 
         RestHighLevelClient client = highLevelClient();
         client.machineLearning().putDataFrameAnalytics(new PutDataFrameAnalyticsRequest(DF_ANALYTICS_CONFIG), RequestOptions.DEFAULT);
@@ -3044,9 +3043,9 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testStartDataFrameAnalytics() throws Exception {
-        createIndex(DF_ANALYTICS_CONFIG.getSource().getIndex());
+        createIndex(DF_ANALYTICS_CONFIG.getSource().getIndex()[0]);
         highLevelClient().index(
-            new IndexRequest(DF_ANALYTICS_CONFIG.getSource().getIndex()).source(XContentType.JSON, "total", 10000)
+            new IndexRequest(DF_ANALYTICS_CONFIG.getSource().getIndex()[0]).source(XContentType.JSON, "total", 10000)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE), RequestOptions.DEFAULT);
         RestHighLevelClient client = highLevelClient();
         client.machineLearning().putDataFrameAnalytics(new PutDataFrameAnalyticsRequest(DF_ANALYTICS_CONFIG), RequestOptions.DEFAULT);
@@ -3101,15 +3100,16 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testStopDataFrameAnalytics() throws Exception {
-        createIndex(DF_ANALYTICS_CONFIG.getSource().getIndex());
+        createIndex(DF_ANALYTICS_CONFIG.getSource().getIndex()[0]);
         highLevelClient().index(
-            new IndexRequest(DF_ANALYTICS_CONFIG.getSource().getIndex()).source(XContentType.JSON, "total", 10000)
+            new IndexRequest(DF_ANALYTICS_CONFIG.getSource().getIndex()[0]).source(XContentType.JSON, "total", 10000)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE), RequestOptions.DEFAULT);
         RestHighLevelClient client = highLevelClient();
         client.machineLearning().putDataFrameAnalytics(new PutDataFrameAnalyticsRequest(DF_ANALYTICS_CONFIG), RequestOptions.DEFAULT);
         {
             // tag::stop-data-frame-analytics-request
             StopDataFrameAnalyticsRequest request = new StopDataFrameAnalyticsRequest("my-analytics-config"); // <1>
+            request.setForce(false); // <2>
             // end::stop-data-frame-analytics-request
 
             // tag::stop-data-frame-analytics-execute

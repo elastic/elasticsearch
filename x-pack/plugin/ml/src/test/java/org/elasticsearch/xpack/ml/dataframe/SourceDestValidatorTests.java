@@ -64,7 +64,7 @@ public class SourceDestValidatorTests extends ESTestCase {
 
     public void testCheck_GivenSimpleSourceIndexAndValidDestIndex() {
         DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder("test")
-            .setSource(new DataFrameAnalyticsSource("source-1", null))
+            .setSource(createSource("source-1"))
             .setDest(new DataFrameAnalyticsDest("dest", null))
             .setAnalysis(new OutlierDetection())
             .build();
@@ -75,7 +75,7 @@ public class SourceDestValidatorTests extends ESTestCase {
 
     public void testCheck_GivenMissingConcreteSourceIndex() {
         DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder("test")
-            .setSource(new DataFrameAnalyticsSource("missing", null))
+            .setSource(createSource("missing"))
             .setDest(new DataFrameAnalyticsDest("dest", null))
             .setAnalysis(new OutlierDetection())
             .build();
@@ -89,7 +89,7 @@ public class SourceDestValidatorTests extends ESTestCase {
 
     public void testCheck_GivenMissingWildcardSourceIndex() {
         DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder("test")
-            .setSource(new DataFrameAnalyticsSource("missing*", null))
+            .setSource(createSource("missing*"))
             .setDest(new DataFrameAnalyticsDest("dest", null))
             .setAnalysis(new OutlierDetection())
             .build();
@@ -103,7 +103,7 @@ public class SourceDestValidatorTests extends ESTestCase {
 
     public void testCheck_GivenDestIndexSameAsSourceIndex() {
         DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder("test")
-            .setSource(new DataFrameAnalyticsSource("source-1", null))
+            .setSource(createSource("source-1"))
             .setDest(new DataFrameAnalyticsDest("source-1", null))
             .setAnalysis(new OutlierDetection())
             .build();
@@ -117,7 +117,7 @@ public class SourceDestValidatorTests extends ESTestCase {
 
     public void testCheck_GivenDestIndexMatchesSourceIndex() {
         DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder("test")
-            .setSource(new DataFrameAnalyticsSource("source-*", null))
+            .setSource(createSource("source-*"))
             .setDest(new DataFrameAnalyticsDest(SOURCE_2, null))
             .setAnalysis(new OutlierDetection())
             .build();
@@ -131,7 +131,7 @@ public class SourceDestValidatorTests extends ESTestCase {
 
     public void testCheck_GivenDestIndexMatchesOneOfSourceIndices() {
         DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder("test")
-            .setSource(new DataFrameAnalyticsSource("source-1,source-*", null))
+            .setSource(createSource("source-1,source-*"))
             .setDest(new DataFrameAnalyticsDest(SOURCE_2, null))
             .setAnalysis(new OutlierDetection())
             .build();
@@ -145,7 +145,7 @@ public class SourceDestValidatorTests extends ESTestCase {
 
     public void testCheck_GivenDestIndexIsAliasThatMatchesMultipleIndices() {
         DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder("test")
-            .setSource(new DataFrameAnalyticsSource(SOURCE_1, null))
+            .setSource(createSource(SOURCE_1))
             .setDest(new DataFrameAnalyticsDest("dest-alias", null))
             .setAnalysis(new OutlierDetection())
             .build();
@@ -160,7 +160,7 @@ public class SourceDestValidatorTests extends ESTestCase {
 
     public void testCheck_GivenDestIndexIsAliasThatIsIncludedInSource() {
         DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder("test")
-            .setSource(new DataFrameAnalyticsSource("source-1", null))
+            .setSource(createSource("source-1"))
             .setDest(new DataFrameAnalyticsDest("source-1-alias", null))
             .setAnalysis(new OutlierDetection())
             .build();
@@ -172,5 +172,9 @@ public class SourceDestValidatorTests extends ESTestCase {
         assertThat(e.getMessage(),
             equalTo("Destination index [source-1-alias], which is an alias for [source-1], " +
                 "must not be included in source index [source-1]"));
+    }
+
+    private static DataFrameAnalyticsSource createSource(String... index) {
+        return new DataFrameAnalyticsSource(index, null);
     }
 }

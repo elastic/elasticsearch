@@ -676,6 +676,9 @@ final class MLRequestConverters {
             params.putParam(
                 StopDataFrameAnalyticsRequest.ALLOW_NO_MATCH.getPreferredName(), Boolean.toString(stopRequest.getAllowNoMatch()));
         }
+        if (stopRequest.getForce() != null) {
+            params.putParam(StopDataFrameAnalyticsRequest.FORCE.getPreferredName(), Boolean.toString(stopRequest.getForce()));
+        }
         request.addParameters(params.asMap());
         return request;
     }

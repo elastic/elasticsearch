@@ -5,26 +5,15 @@
  */
 package org.elasticsearch.license;
 
-import org.elasticsearch.action.Action;
-import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 
-public class PutLicenseAction extends Action<PutLicenseResponse> {
+public class PutLicenseAction extends ActionType<PutLicenseResponse> {
 
     public static final PutLicenseAction INSTANCE = new PutLicenseAction();
     public static final String NAME = "cluster:admin/xpack/license/put";
 
     private PutLicenseAction() {
-        super(NAME);
-    }
-
-    @Override
-    public PutLicenseResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
-    public Writeable.Reader<PutLicenseResponse> getResponseReader() {
-        return PutLicenseResponse::new;
+        super(NAME, PutLicenseResponse::new);
     }
 }

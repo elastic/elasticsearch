@@ -20,7 +20,6 @@ package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -29,8 +28,8 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import java.io.IOException;
 
 public class RestDeleteIndexTemplateAction extends BaseRestHandler {
-    public RestDeleteIndexTemplateAction(Settings settings, RestController controller) {
-        super(settings);
+
+    public RestDeleteIndexTemplateAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.DELETE, "/_template/{name}", this);
     }
 

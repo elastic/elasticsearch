@@ -23,7 +23,8 @@ Returns cluster nodes statistics.
 [[cluster-nodes-stats-api-desc]]
 ==== {api-description-title}
 
-The cluster nodes stats API allows to retrieve one or more (or all) of the 
+You can use the cluster nodes stats API to retrieve statistics for nodes in a cluster.
+
 
 All the nodes selective options are explained <<cluster-nodes,here>>.
 

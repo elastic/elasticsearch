@@ -67,7 +67,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
@@ -333,7 +332,7 @@ public class RestClient implements Closeable {
 
                 @Override
                 public void cancelled() {
-                    listener.onDefinitiveFailure(new CancellationException("request was cancelled"));
+                    listener.onDefinitiveFailure(Cancellable.newCancellationException());
                 }
             });
         });

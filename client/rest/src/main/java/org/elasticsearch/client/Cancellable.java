@@ -26,7 +26,10 @@ import java.util.concurrent.CancellationException;
 /**
  * Represents an operation that can be cancelled.
  * Returned when executing async requests through {@link RestClient#performRequestAsync(Request, ResponseListener)}, so that the request
- * can be cancelled if needed.
+ * can be cancelled if needed. Cancelling a request will result in calling {@link AbstractExecutionAwareRequest#abort()} on the underlying
+ * request object, which will in turn cancel its corresponding {@link java.util.concurrent.Future}.
+ * Note that cancelling a request does not automatically translate to aborting its execution on the server side, which needs to be
+ * specifically implemented in each API.
  */
 public class Cancellable {
 
@@ -53,6 +56,7 @@ public class Cancellable {
 
     /**
      * Cancels the on-going request that is associated with the current instance of {@link Cancellable}.
+     *
      */
     public synchronized void cancel() {
         this.httpRequest.abort();
@@ -72,8 +76,12 @@ public class Cancellable {
      */
     synchronized void runIfNotCancelled(Runnable runnable) {
         if (this.httpRequest.isAborted()) {
-            throw new CancellationException("request was cancelled");
+            throw newCancellationException();
         }
         runnable.run();
+    }
+
+    static CancellationException newCancellationException() {
+        return new CancellationException("request was cancelled");
     }
 }

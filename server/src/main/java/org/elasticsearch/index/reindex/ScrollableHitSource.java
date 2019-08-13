@@ -21,8 +21,10 @@ package org.elasticsearch.index.reindex;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BackoffPolicy;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -35,6 +37,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -356,6 +359,7 @@ public abstract class ScrollableHitSource {
      */
     public static class SearchFailure implements Writeable, ToXContentObject {
         private final Throwable reason;
+        private final RestStatus status;
         @Nullable
         private final String index;
         @Nullable
@@ -367,12 +371,19 @@ public abstract class ScrollableHitSource {
         public static final String SHARD_FIELD = "shard";
         public static final String NODE_FIELD = "node";
         public static final String REASON_FIELD = "reason";
+        public static final String STATUS_FIELD = BulkItemResponse.Failure.STATUS_FIELD;
 
         public SearchFailure(Throwable reason, @Nullable String index, @Nullable Integer shardId, @Nullable String nodeId) {
+            this(reason, index, shardId, nodeId, ExceptionsHelper.status(reason));
+        }
+
+        public SearchFailure(Throwable reason, @Nullable String index, @Nullable Integer shardId, @Nullable String nodeId,
+                             RestStatus status) {
             this.index = index;
             this.shardId = shardId;
             this.reason = requireNonNull(reason, "reason cannot be null");
             this.nodeId = nodeId;
+            this.status = status;
         }
 
         /**
@@ -390,6 +401,7 @@ public abstract class ScrollableHitSource {
             index = in.readOptionalString();
             shardId = in.readOptionalVInt();
             nodeId = in.readOptionalString();
+            status = ExceptionsHelper.status(reason);
         }
 
         @Override
@@ -406,6 +418,10 @@ public abstract class ScrollableHitSource {
 
         public Integer getShardId() {
             return shardId;
+        }
+
+        public RestStatus getStatus() {
+            return this.status;
         }
 
         public Throwable getReason() {
@@ -429,6 +445,7 @@ public abstract class ScrollableHitSource {
             if (nodeId != null) {
                 builder.field(NODE_FIELD, nodeId);
             }
+            builder.field(STATUS_FIELD, status.getStatus());
             builder.field(REASON_FIELD);
             {
                 builder.startObject();

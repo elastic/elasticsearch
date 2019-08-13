@@ -101,7 +101,7 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
         });
 
         awaitForBlock(plugins);
-        assertTrue(cancellable.cancel());
+        cancellable.cancel();
         ensureSearchTaskIsCancelled(nodeIdToName::get);
 
         disableBlocks(plugins);
@@ -109,7 +109,40 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
         assertThat(error.get(), instanceOf(CancellationException.class));
     }
 
-    //TODO test with retries!
+    public void testAutomaticCancellationDuringFetchPhase() throws Exception {
+        Map<String, String> nodeIdToName = readNodesInfo();
+
+        List<ScriptedBlockPlugin> plugins = initBlockFactory();
+        indexTestData();
+
+        Request searchRequest = new Request("GET", "/test/_search");
+        SearchSourceBuilder searchSource = new SearchSourceBuilder().scriptField("test_field",
+            new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.SCRIPT_NAME, Collections.emptyMap()));
+        searchRequest.setJsonEntity(Strings.toString(searchSource));
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> error = new AtomicReference<>();
+        Cancellable cancellable = getRestClient().performRequestAsync(searchRequest, new ResponseListener() {
+            @Override
+            public void onSuccess(Response response) {
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception exception) {
+                error.set(exception);
+                latch.countDown();
+            }
+        });
+
+        awaitForBlock(plugins);
+        cancellable.cancel();
+        ensureSearchTaskIsCancelled(nodeIdToName::get);
+
+        disableBlocks(plugins);
+        latch.await();
+        assertThat(error.get(), instanceOf(CancellationException.class));
+    }
 
     private static Map<String, String> readNodesInfo() {
         Map<String, String> nodeIdToName = new HashMap<>();

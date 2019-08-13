@@ -182,8 +182,12 @@ public class DistroTestPlugin implements Plugin<Project> {
                     try {
                         Files.writeString(archivesPath.resolve("version"), VersionProperties.getElasticsearch());
                         Files.writeString(archivesPath.resolve("upgrade_from_version"), upgradeFromVersion);
+                        Path upgradeMarkerPath = archivesPath.resolve("upgrade_is_oss");
+                        project.delete(upgradeMarkerPath);
                         // this is always true, but bats tests rely on it. It is just temporary until bats is removed.
-                        Files.writeString(archivesPath.resolve("upgrade_is_oss"), "");
+                        if (upgradeVersion.onOrAfter("6.3.0")) {
+                            Files.writeString(upgradeMarkerPath, "");
+                        }
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }

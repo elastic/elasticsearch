@@ -21,7 +21,6 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -34,8 +33,8 @@ import java.io.IOException;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetTaskAction extends BaseRestHandler {
-    public RestGetTaskAction(Settings settings, RestController controller) {
-        super(settings);
+
+    public RestGetTaskAction(RestController controller) {
         controller.registerHandler(GET, "/_tasks/{task_id}", this);
     }
 

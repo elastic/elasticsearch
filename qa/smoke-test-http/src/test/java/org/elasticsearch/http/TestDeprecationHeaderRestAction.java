@@ -67,7 +67,6 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
     private final Settings settings;
 
     public TestDeprecationHeaderRestAction(Settings settings, RestController controller) {
-        super(settings);
         this.settings = settings;
 
         controller.registerAsDeprecatedHandler(RestRequest.Method.GET, "/_test_cluster/deprecated_settings", this,

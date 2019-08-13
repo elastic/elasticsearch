@@ -333,7 +333,10 @@ with status code that indicates an error
 
 The `performRequestAsync` method returns a `Cancellable` that exposes a single
 public method called `cancel`. Such method can be called to cancel the on-going
-request.
+request. Cancelling a request will result in aborting the http request through
+the underlying http client. On the server side, this does not automatically
+translate to the execution of that request being cancelled, which needs to be
+specifically implemented in the API itself.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

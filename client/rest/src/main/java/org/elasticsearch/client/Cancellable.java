@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.client;
 
+import org.apache.http.client.methods.AbstractExecutionAwareRequest;
 import org.apache.http.client.methods.HttpRequestBase;
 
 import java.util.concurrent.CancellationException;
@@ -58,10 +59,16 @@ public class Cancellable {
     }
 
     /**
-     * Executes some arbitrary code iff the on-going request has not been cancelled, otherwise it throws {@link CancellationException}.
+     * Executes some arbitrary code iff the on-going request has not been cancelled, otherwise throws {@link CancellationException}.
      * This is needed to guarantee that cancelling a request works correctly even in case {@link #cancel()} is called between different
-     * attempts of the same request. If the request has already been cancelled we don't go ahead, otherwise we run the provided
-     * {@link Runnable} which will reset the request and send the next attempt.
+     * attempts of the same request. The low-level client reuses the same instance of the {@link AbstractExecutionAwareRequest} by calling
+     * {@link AbstractExecutionAwareRequest#reset()} between subsequent retries. The {@link #cancel()} method can be called at anytime,
+     * and we need to handle the case where it gets called while there is no request being executed as one attempt may have failed and
+     * the subsequent attempt has not been started yet.
+     * If the request has already been cancelled we don't go ahead with the next attempt, and artificially raise the
+     * {@link CancellationException}, otherwise we run the provided {@link Runnable} which will reset the request and send the next attempt.
+     * Note that this method must be synchronized as well as the {@link #cancel()} method, to prevent a request from being cancelled
+     * when there is no future to cancel, which would make cancelling the request a no-op.
      */
     synchronized void runIfNotCancelled(Runnable runnable) {
         if (this.httpRequest.isAborted()) {

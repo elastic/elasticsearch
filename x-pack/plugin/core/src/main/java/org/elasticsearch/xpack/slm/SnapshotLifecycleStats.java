@@ -35,10 +35,10 @@ import java.util.stream.Collectors;
  */
 public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
 
-    private final CounterMetric retentionRunCount;
-    private final CounterMetric retentionFailedCount;
-    private final CounterMetric retentionTimedOut;
-    private final CounterMetric retentionTimeMs;
+    private final CounterMetric retentionRunCount = new CounterMetric();
+    private final CounterMetric retentionFailedCount = new CounterMetric();
+    private final CounterMetric retentionTimedOut = new CounterMetric();
+    private final CounterMetric retentionTimeMs = new CounterMetric();
     private final Map<String, SnapshotPolicyStats> policyStats;
 
     public static final ParseField RETENTION_RUNS = new ParseField("retention_runs");
@@ -75,35 +75,23 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
 
     public SnapshotLifecycleStats() {
         this.policyStats = new ConcurrentHashMap<>();
-        this.retentionRunCount = new CounterMetric();
-        this.retentionFailedCount = new CounterMetric();
-        this.retentionTimedOut = new CounterMetric();
-        this.retentionTimeMs = new CounterMetric();
     }
 
     // Package visible for testing
     SnapshotLifecycleStats(long retentionRuns, long retentionFailed, long retentionTimedOut, long retentionTimeMs,
                            Map<String, SnapshotPolicyStats> policyStats) {
-        this.retentionRunCount = new CounterMetric();
         this.retentionRunCount.inc(retentionRuns);
-        this.retentionFailedCount = new CounterMetric();
         this.retentionFailedCount.inc(retentionFailed);
-        this.retentionTimedOut = new CounterMetric();
         this.retentionTimedOut.inc(retentionTimedOut);
-        this.retentionTimeMs = new CounterMetric();
         this.retentionTimeMs.inc(retentionTimeMs);
         this.policyStats = policyStats;
     }
 
     public SnapshotLifecycleStats(StreamInput in) throws IOException {
         this.policyStats = new ConcurrentHashMap<>(in.readMap(StreamInput::readString, SnapshotPolicyStats::new));
-        this.retentionRunCount = new CounterMetric();
         this.retentionRunCount.inc(in.readVLong());
-        this.retentionFailedCount = new CounterMetric();
         this.retentionFailedCount.inc(in.readVLong());
-        this.retentionTimedOut = new CounterMetric();
         this.retentionTimedOut.inc(in.readVLong());
-        this.retentionTimeMs = new CounterMetric();
         this.retentionTimeMs.inc(in.readVLong());
     }
 

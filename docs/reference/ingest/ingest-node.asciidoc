@@ -842,7 +842,7 @@ plugin.mandatory: ingest-attachment
 
 A node will not start if this plugin is not available.
 
-The <<ingest-stats,node stats API>> can be used to fetch ingest usage statistics, globally and on a per
+The <<cluster-nodes-stats,node stats API>> can be used to fetch ingest usage statistics, globally and on a per
 pipeline basis. Useful to find out which pipelines are used the most or spent the most time on preprocessing.
 
 [float]

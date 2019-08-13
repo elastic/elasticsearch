@@ -6,11 +6,11 @@
 package org.elasticsearch.xpack.ml.datafeed.extractor.fields;
 
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.geo.geometry.Geometry;
-import org.elasticsearch.geo.geometry.Point;
-import org.elasticsearch.geo.geometry.ShapeType;
-import org.elasticsearch.geo.utils.StandardValidator;
-import org.elasticsearch.geo.utils.WellKnownText;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.ShapeType;
+import org.elasticsearch.geometry.utils.StandardValidator;
+import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.search.SearchHit;
 
 import java.io.IOException;
@@ -168,7 +168,7 @@ public abstract class ExtractedField {
                         throw new IllegalArgumentException("Unexpected non-point geo_shape type: " + geometry.type().name());
                     }
                     Point pt = ((Point)geometry);
-                    return pt.getLat() + "," + pt.getLon();
+                    return pt.getY() + "," + pt.getX();
                 } else {
                     throw new IllegalArgumentException("Unexpected value for a geo_shape field: " + geoString);
                 }

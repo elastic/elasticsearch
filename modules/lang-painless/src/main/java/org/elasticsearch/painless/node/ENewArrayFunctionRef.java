@@ -62,10 +62,11 @@ public final class ENewArrayFunctionRef extends AExpression implements ILambda {
     @Override
     void analyze(Locals locals) {
         SReturn code = new SReturn(location, new ENewArray(location, type, Arrays.asList(new EVariable(location, "size")), false));
-        function = new SFunction(new SFunction.FunctionReserved(), location, type, locals.getNextSyntheticName(),
+        function = new SFunction(location, type, locals.getNextSyntheticName(),
                 Arrays.asList("int"), Arrays.asList("size"), Arrays.asList(code), true);
         function.storeSettings(settings);
         function.generateSignature(locals.getPainlessLookup());
+        function.extractVariables(null);
         function.analyze(Locals.newLambdaScope(locals.getProgramScope(), function.name, function.returnType,
                 function.parameters, 0, settings.getMaxLoopCounter()));
 

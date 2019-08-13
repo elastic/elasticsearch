@@ -496,10 +496,10 @@ public class SettingsTests extends ESTestCase {
 
     public void testSecureSettingIllegalName() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            SecureSetting.secureString("*IllegalName", null));
+            SecureSetting.secureString("UpperCaseSetting", null));
         assertTrue(e.getMessage().contains("does not match the allowed setting name pattern"));
         e = expectThrows(IllegalArgumentException.class, () ->
-            SecureSetting.secureFile("*IllegalName", null));
+            SecureSetting.secureFile("UpperCaseSetting", null));
         assertTrue(e.getMessage().contains("does not match the allowed setting name pattern"));
     }
 

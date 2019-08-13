@@ -15,8 +15,8 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -32,7 +32,7 @@ import java.util.stream.Collectors;
 public final class GetUserPrivilegesResponse extends ActionResponse {
 
     private Set<String> cluster;
-    private Set<ConditionalClusterPrivilege> conditionalCluster;
+    private Set<ConfigurableClusterPrivilege> configurableClusterPrivileges;
     private Set<Indices> index;
     private Set<RoleDescriptor.ApplicationResourcePrivileges> application;
     private Set<String> runAs;
@@ -40,18 +40,18 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
     public GetUserPrivilegesResponse(StreamInput in) throws IOException {
         super(in);
         cluster = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
-        conditionalCluster = Collections.unmodifiableSet(in.readSet(ConditionalClusterPrivileges.READER));
+        configurableClusterPrivileges = Collections.unmodifiableSet(in.readSet(ConfigurableClusterPrivileges.READER));
         index = Collections.unmodifiableSet(in.readSet(Indices::new));
         application = Collections.unmodifiableSet(in.readSet(RoleDescriptor.ApplicationResourcePrivileges::new));
         runAs = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
     }
 
-    public GetUserPrivilegesResponse(Set<String> cluster, Set<ConditionalClusterPrivilege> conditionalCluster,
+    public GetUserPrivilegesResponse(Set<String> cluster, Set<ConfigurableClusterPrivilege> conditionalCluster,
                                      Set<Indices> index,
                                      Set<RoleDescriptor.ApplicationResourcePrivileges> application,
                                      Set<String> runAs) {
         this.cluster = Collections.unmodifiableSet(cluster);
-        this.conditionalCluster = Collections.unmodifiableSet(conditionalCluster);
+        this.configurableClusterPrivileges = Collections.unmodifiableSet(conditionalCluster);
         this.index = Collections.unmodifiableSet(index);
         this.application = Collections.unmodifiableSet(application);
         this.runAs = Collections.unmodifiableSet(runAs);
@@ -61,8 +61,8 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         return cluster;
     }
 
-    public Set<ConditionalClusterPrivilege> getConditionalClusterPrivileges() {
-        return conditionalCluster;
+    public Set<ConfigurableClusterPrivilege> getConditionalClusterPrivileges() {
+        return configurableClusterPrivileges;
     }
 
     public Set<Indices> getIndexPrivileges() {
@@ -80,7 +80,7 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeCollection(cluster, StreamOutput::writeString);
-        out.writeCollection(conditionalCluster, ConditionalClusterPrivileges.WRITER);
+        out.writeCollection(configurableClusterPrivileges, ConfigurableClusterPrivileges.WRITER);
         out.writeCollection(index);
         out.writeCollection(application);
         out.writeCollection(runAs, StreamOutput::writeString);
@@ -96,7 +96,7 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         }
         final GetUserPrivilegesResponse that = (GetUserPrivilegesResponse) other;
         return Objects.equals(cluster, that.cluster) &&
-            Objects.equals(conditionalCluster, that.conditionalCluster) &&
+            Objects.equals(configurableClusterPrivileges, that.configurableClusterPrivileges) &&
             Objects.equals(index, that.index) &&
             Objects.equals(application, that.application) &&
             Objects.equals(runAs, that.runAs);
@@ -104,7 +104,7 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
 
     @Override
     public int hashCode() {
-        return Objects.hash(cluster, conditionalCluster, index, application, runAs);
+        return Objects.hash(cluster, configurableClusterPrivileges, index, application, runAs);
     }
 
     /**

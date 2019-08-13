@@ -1,8 +1,7 @@
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.LoggedExec
-import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.testfixtures.TestFixturesPlugin
+import org.elasticsearch.gradle.testfixtures.TestFixturesPlugin 
 
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
@@ -58,7 +57,7 @@ project.ext {
       }
 
       from(project.projectDir.toPath().resolve("src/docker/Dockerfile")) {
-        MavenFilteringHack.filter(it, expansions(oss, local))
+        expand(expansions(oss, local))
       }
     }
   }
@@ -66,7 +65,9 @@ project.ext {
 
 void addCopyDockerContextTask(final boolean oss) {
   task(taskName("copy", oss, "DockerContext"), type: Sync) {
-    inputs.properties(expansions(oss, true))
+    expansions(oss, true).each { k, v ->
+      inputs.property(k, { v.toString() })
+    }
     into files(oss)
 
     with dockerBuildContext(oss, true)

@@ -18,7 +18,7 @@
  */
 
 plugins {
-  id 'elasticsearch.build'
+  id 'elasticsearch.distro-test'
 }
 
 dependencies {
@@ -35,14 +35,7 @@ dependencies {
   compile project(':libs:elasticsearch-core')
 }
 
-configurations.create('testClasses')
-
-String classesDir = project.file(project.sourceSets.main.output.classesDirs.singleFile).toString()
-artifacts.add('testClasses', project.layout.projectDirectory.dir(classesDir)) {
-  builtBy tasks.named('testClasses')
-} 
-
-forbiddenApisMain {
+forbiddenApisTest {
   replaceSignatureFiles 'jdk-signatures'
 }
 
@@ -69,37 +62,23 @@ tasks.thirdPartyAudit.ignoreMissingClasses (
         'javax.servlet.ServletContextListener'
 )
 
-boolean sample = project.properties.get('vagrant.boxes') != 'all'
+tasks.register('destructivePackagingTest') {
+  dependsOn 'destructiveDistroTest', 'destructiveBatsTest.oss', 'destructiveBatsTest.default'
+}
 
 subprojects { Project platformProject ->
-  apply plugin: 'elasticsearch.distro-test'
-  apply plugin: 'java'
-
-  configurations.create('testClasses')
-  dependencies {
-    testClasses project(path: ':qa:vagrant', configuration: 'testClasses')
-    testRuntime project(path: ':qa:vagrant', configuration: 'runtime')
-  }
-
-  tasks.named('destructiveDistroTest') {
-    testClassesDirs += project.files(configurations.testClasses.singleFile)
-  }
 
   // TODO: remove this property lookup once CI is switched to use an explicit task for the sample tests
-  boolean allBoxes = project.properties.get('vagrant.boxes', '') == 'all'
+  boolean allBoxes = (project.findProperty('vagrant.boxes') ?: '') == 'all'
   if (allBoxes || ['centos-7', 'ubuntu-1604'].contains(platformProject.name)) {
     tasks.register('packagingTest') {
       dependsOn 'distroTest', 'batsTest.oss', 'batsTest.default'
-    }
-    tasks.register('destructivePackagingTest') {
-      dependsOn 'destructiveDistroTest', 'destructiveBatsTest.oss', 'destructiveBatsTest.default'
     }
   }
 
   vagrant {
     hostEnv 'VAGRANT_PROJECT_DIR', platformProject.projectDir.absolutePath
   }
-
 }
 
 configurations {
@@ -118,7 +97,7 @@ for (Project subproj : project.rootProject.subprojects) {
 }
 plugins = plugins.toSorted()
 
-copyPackagingArchives {
+tasks.named('copyDistributions') {
   from configurations.allPlugins
   doLast {
     // TODO: this was copied from the old way bats tests get the plugins list. we should pass

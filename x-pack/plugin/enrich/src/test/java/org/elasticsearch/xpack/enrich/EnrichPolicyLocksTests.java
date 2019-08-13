@@ -24,14 +24,14 @@ public class EnrichPolicyLocksTests extends ESTestCase {
         // Ensure that locked policies are rejected
         EsRejectedExecutionException exception1 = expectThrows(EsRejectedExecutionException.class,
             () -> policyLocks.lockPolicy(policy1));
-        assertThat(exception1.getMessage(), is(equalTo("Policy execution failed. Policy execution for [policy1]" +
+        assertThat(exception1.getMessage(), is(equalTo("Could not obtain lock because policy execution for [policy1]" +
             " is already in progress.")));
 
         policyLocks.lockPolicy(policy2);
         EsRejectedExecutionException exception2 = expectThrows(EsRejectedExecutionException.class,
             () -> policyLocks.lockPolicy(policy2));
 
-        assertThat(exception2.getMessage(), is(equalTo("Policy execution failed. Policy execution for [policy2]" +
+        assertThat(exception2.getMessage(), is(equalTo("Could not obtain lock because policy execution for [policy2]" +
             " is already in progress.")));
     }
 

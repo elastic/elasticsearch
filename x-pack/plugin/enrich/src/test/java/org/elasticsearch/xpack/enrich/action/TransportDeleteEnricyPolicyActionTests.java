@@ -6,11 +6,11 @@
 
 package org.elasticsearch.xpack.enrich.action;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
@@ -88,8 +88,9 @@ public class TransportDeleteEnricyPolicyActionTests extends EnrichStoreTests {
                 });
             latch.await();
             assertNotNull(reference.get());
-            assertThat(reference.get(), instanceOf(ElasticsearchStatusException.class));
-            assertThat(reference.get().getMessage(), equalTo("Could not delete policy [my-policy] because it is currently executing"));
+            assertThat(reference.get(), instanceOf(EsRejectedExecutionException.class));
+            assertThat(reference.get().getMessage(),
+                equalTo("Could not obtain lock because policy execution for [my-policy] is already in progress."));
         }
         {
             enrichPolicyLocks.releasePolicy(name);

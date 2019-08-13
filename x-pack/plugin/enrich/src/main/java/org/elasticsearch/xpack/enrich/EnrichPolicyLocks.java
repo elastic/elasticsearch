@@ -58,8 +58,8 @@ public class EnrichPolicyLocks {
     private final AtomicLong policyRunCounter = new AtomicLong(0L);
 
     /**
-     * Locks a policy for execution. If the policy is currently executing, this method will immediately throw without waiting.
-     * This method only blocks if another thread is currently capturing the current policy execution state.
+     * Locks a policy to prevent concurrent execution. If the policy is currently executing, this method will immediately
+     * throw without waiting. This method only blocks if another thread is currently capturing the current policy execution state.
      * @param policyName The policy name to lock for execution
      * @throws EsRejectedExecutionException if the policy is locked already or if the maximum number of concurrent policy executions
      *                                      has been reached
@@ -70,7 +70,7 @@ public class EnrichPolicyLocks {
             Semaphore runLock = policyLocks.computeIfAbsent(policyName, (name) -> new Semaphore(1));
             boolean acquired = runLock.tryAcquire();
             if (acquired == false) {
-                throw new EsRejectedExecutionException("Policy execution failed. Policy execution for [" + policyName +
+                throw new EsRejectedExecutionException("Could not obtain lock because policy execution for ["  + policyName +
                     "] is already in progress.");
             }
             policyRunCounter.incrementAndGet();

@@ -69,9 +69,9 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
         Map<String, Object> response = toMap(client().performRequest(getRequest));
         Map<?, ?> _source = (Map<?, ?>) ((Map<?, ?>) response.get("_source")).get("entry");
         assertThat(_source.size(), equalTo(3));
-        assertThat(_source.get("host"), equalTo("elastic.co"));
-        assertThat(_source.get("global_rank"), equalTo(25));
-        assertThat(_source.get("tld_rank"), equalTo(7));
+        assertThat(_source.get("tld"), equalTo("co"));
+        assertThat(_source.get("globalRank"), equalTo(25));
+        assertThat(_source.get("tldRank"), equalTo(7));
     }
 
     public void testImmutablePolicy() throws IOException {

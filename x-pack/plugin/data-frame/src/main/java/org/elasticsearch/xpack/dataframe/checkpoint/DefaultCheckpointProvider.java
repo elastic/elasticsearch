@@ -148,7 +148,9 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
 
         ClientHelper.executeWithHeadersAsync(transformConfig.getHeaders(), ClientHelper.DATA_FRAME_ORIGIN, client, GetIndexAction.INSTANCE,
                 getIndexRequest, ActionListener.wrap(getIndexResponse -> {
-                    Set<String> userIndices = new HashSet<>(Arrays.asList(getIndexResponse.getIndices()));
+                    Set<String> userIndices = getIndexResponse.getIndices() != null
+                            ? new HashSet<>(Arrays.asList(getIndexResponse.getIndices()))
+                            : Collections.emptySet();
                     // 2nd get stats request
                     ClientHelper.executeAsyncWithOrigin(client,
                         ClientHelper.DATA_FRAME_ORIGIN,

@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.planner;
 
-import org.elasticsearch.geo.geometry.Geometry;
-import org.elasticsearch.geo.geometry.Point;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.Point;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Attribute;
@@ -151,7 +151,7 @@ final class QueryTranslator {
             new CountAggs(),
             new DateTimes(),
             new Firsts(),
-            new Lasts(), 
+            new Lasts(),
             new MADs()
             );
 
@@ -673,7 +673,7 @@ final class QueryTranslator {
                             if (geometry instanceof Point) {
                                 String field = nameOf(stDistance.left());
                                 return new GeoDistanceQuery(source, field, ((Number) value).doubleValue(),
-                                    ((Point) geometry).getLat(), ((Point) geometry).getLon());
+                                    ((Point) geometry).getY(), ((Point) geometry).getX());
                             }
                         }
                     }
@@ -756,7 +756,7 @@ final class QueryTranslator {
         @Override
         protected QueryTranslation asQuery(Range r, boolean onAggs) {
             Expression e = r.value();
-            
+
             if (e instanceof NamedExpression) {
                 Query query = null;
                 AggFilter aggFilter = null;
@@ -779,7 +779,7 @@ final class QueryTranslator {
             }
         }
     }
-    
+
     static class Scalars extends ExpressionTranslator<ScalarFunction> {
 
         @Override
@@ -803,7 +803,7 @@ final class QueryTranslator {
     //
     // Agg translators
     //
-    
+
     static class CountAggs extends SingleValueAggTranslator<Count> {
 
         @Override

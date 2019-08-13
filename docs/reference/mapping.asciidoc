@@ -178,7 +178,8 @@ PUT /my-index/_mapping
 [[update-mapping]]
 == Update the mapping of a field
 
-You can't change the mapping of an existing field, except for the following:
+You can't change the mapping of an existing field, with the following
+exceptions:
 
 * You can add new <<properties,properties>> to an <<object,`object`>> field.
 * You can use the <<multi-fields,`field`>> mapping parameter to enable

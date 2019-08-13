@@ -53,6 +53,21 @@ public class GetStoredScriptsResponse extends ActionResponse implements ToXConte
         return storedScripts;
     }
 
+    /**
+     * @deprecated - Needed for backwards compatibility.
+     * Use {@link #getStoredScripts()} instead
+     *
+     * @return if a stored script and if not found <code>null</code>
+     */
+    @Deprecated
+    public StoredScriptSource getSource() {
+        if (storedScripts != null && storedScripts.size() == 1) {
+            return storedScripts.entrySet().iterator().next().getValue();
+        } else {
+            return null;
+        }
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -72,6 +87,11 @@ public class GetStoredScriptsResponse extends ActionResponse implements ToXConte
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (storedScripts == null ) {
+            out.writeVInt(0);
+            return;
+        }
+
         out.writeVInt(storedScripts.size());
         for (Map.Entry<String, StoredScriptSource> storedScript : storedScripts.entrySet()) {
             out.writeString(storedScript.getKey());

@@ -50,6 +50,15 @@ public class GetStoredScriptsRequest extends MasterNodeReadRequest<GetStoredScri
         return this.names;
     }
 
+    /**
+     * @deprecated - Needed for backwards compatibility.
+     *      * Use {@link #names()} instead
+     */
+    @Deprecated
+    public String id() {
+        return names != null && names.length == 1 ? names[0] : null;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);

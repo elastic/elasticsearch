@@ -34,5 +34,4 @@ public class GetStoredScriptRequestBuilder extends MasterNodeReadOperationReques
         request.id(id);
         return this;
     }
-
 }

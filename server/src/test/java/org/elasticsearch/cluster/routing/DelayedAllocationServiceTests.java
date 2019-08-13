@@ -69,11 +69,13 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
         clusterService = mock(ClusterService.class);
         allocationService = createAllocationService(Settings.EMPTY, new DelayedShardsMockGatewayAllocator());
         delayedAllocationService = new TestDelayAllocationService(threadPool, clusterService, allocationService);
+        delayedAllocationService.doStart();
         verify(clusterService).addListener(delayedAllocationService);
     }
 
     @After
     public void shutdownThreadPool() throws Exception {
+        delayedAllocationService.doStop();
         terminate(threadPool);
     }
 

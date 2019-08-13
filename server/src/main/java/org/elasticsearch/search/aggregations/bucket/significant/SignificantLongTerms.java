@@ -42,14 +42,9 @@ public class SignificantLongTerms extends InternalMappedSignificantTerms<Signifi
         long term;
 
         Bucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize, long term, InternalAggregations aggregations,
-                DocValueFormat format) {
+                DocValueFormat format, double score) {
             super(subsetDf, subsetSize, supersetDf, supersetSize, aggregations, format);
             this.term = term;
-        }
-
-        Bucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize, long term, InternalAggregations aggregations,
-                double score) {
-            this(subsetDf, subsetSize, supersetDf, supersetSize, term, aggregations, null);
             this.score = score;
         }
 
@@ -134,7 +129,7 @@ public class SignificantLongTerms extends InternalMappedSignificantTerms<Signifi
     @Override
     public Bucket createBucket(InternalAggregations aggregations, SignificantLongTerms.Bucket prototype) {
         return new Bucket(prototype.subsetDf, prototype.subsetSize, prototype.supersetDf, prototype.supersetSize, prototype.term,
-                aggregations, prototype.format);
+                aggregations, prototype.format, prototype.score);
     }
 
     @Override
@@ -151,6 +146,6 @@ public class SignificantLongTerms extends InternalMappedSignificantTerms<Signifi
     @Override
     Bucket createBucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize,
                         InternalAggregations aggregations, SignificantLongTerms.Bucket prototype) {
-        return new Bucket(subsetDf, subsetSize, supersetDf, supersetSize, prototype.term, aggregations, format);
+        return new Bucket(subsetDf, subsetSize, supersetDf, supersetSize, prototype.term, aggregations, format, prototype.score);
     }
 }

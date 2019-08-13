@@ -67,7 +67,7 @@ public class CumulativeSumPipelineAggregator extends PipelineAggregator {
     }
 
     @Override
-    public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
+    public InternalAggregation materializePipeline(InternalAggregation aggregation, ReduceContext reduceContext) {
         InternalMultiBucketAggregation<? extends InternalMultiBucketAggregation, ? extends InternalMultiBucketAggregation.InternalBucket>
                 histo = (InternalMultiBucketAggregation<? extends InternalMultiBucketAggregation, ? extends
                 InternalMultiBucketAggregation.InternalBucket>) aggregation;

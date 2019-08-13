@@ -460,7 +460,7 @@ public class SearchModuleTests extends ESTestCase {
         }
 
         @Override
-        public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
+        public InternalAggregation materializePipeline(InternalAggregation aggregation, ReduceContext reduceContext) {
             return null;
         }
     }

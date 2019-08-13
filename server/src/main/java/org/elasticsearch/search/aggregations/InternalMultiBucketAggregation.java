@@ -28,6 +28,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public abstract class InternalMultiBucketAggregation<A extends InternalMultiBucketAggregation,
             B extends InternalMultiBucketAggregation.InternalBucket>
@@ -73,7 +74,7 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
     protected abstract B reduceBucket(List<B> buckets, ReduceContext context);
 
     @Override
-    public abstract List<? extends InternalBucket> getBuckets();
+    public abstract List<B> getBuckets();
 
     @Override
     public Object getProperty(List<String> path) {
@@ -139,6 +140,27 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
             }
         }
         return size;
+    }
+
+    /**
+     * Unlike {@link InternalAggregation#materializePipelines(InternalAggregation, ReduceContext)}, a multi-bucket
+     * agg needs to first materialize the buckets (and their parent pipelines) before allowing sibling pipelines
+     * to materialize
+     */
+    @Override
+    public final InternalAggregation materializePipelines(InternalAggregation reducedAggs, ReduceContext reduceContext) {
+        List<B> materializedBuckets = materializeBuckets(reduceContext);
+        return super.materializePipelines(create(materializedBuckets), reduceContext);
+    }
+
+    private List<B> materializeBuckets(ReduceContext reduceContext) {
+        return getBuckets().stream().map(internalBucket -> {
+            List<InternalAggregation> aggs = internalBucket.getAggregations().asList()
+                .stream().map(aggregation
+                    -> ((InternalAggregation)aggregation).materializePipelines((InternalAggregation)aggregation, reduceContext))
+                .collect(Collectors.toList());
+            return createBucket(new InternalAggregations(aggs), internalBucket);
+        }).collect(Collectors.toList());
     }
 
     public abstract static class InternalBucket implements Bucket, Writeable {

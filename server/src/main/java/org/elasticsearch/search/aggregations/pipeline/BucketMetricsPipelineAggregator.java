@@ -74,7 +74,7 @@ public abstract class BucketMetricsPipelineAggregator extends SiblingPipelineAgg
     }
 
     @Override
-    public final InternalAggregation doReduce(Aggregations aggregations, ReduceContext context) {
+    public final InternalAggregation doMaterializePipelines(Aggregations aggregations, ReduceContext context) {
         preCollection();
         List<String> bucketsPath = AggregationPath.parse(bucketsPaths()[0]).getPathElementsAsStringList();
         for (Aggregation aggregation : aggregations) {

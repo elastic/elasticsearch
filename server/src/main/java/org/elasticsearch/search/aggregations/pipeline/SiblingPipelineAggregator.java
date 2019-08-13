@@ -49,7 +49,7 @@ public abstract class SiblingPipelineAggregator extends PipelineAggregator {
 
     @SuppressWarnings("unchecked")
     @Override
-    public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
+    public InternalAggregation materializePipeline(InternalAggregation aggregation, ReduceContext reduceContext) {
         if (aggregation instanceof InternalMultiBucketAggregation) {
             @SuppressWarnings("rawtypes")
             InternalMultiBucketAggregation multiBucketsAgg = (InternalMultiBucketAggregation) aggregation;
@@ -57,7 +57,7 @@ public abstract class SiblingPipelineAggregator extends PipelineAggregator {
             List<Bucket> newBuckets = new ArrayList<>();
             for (Bucket bucket1 : buckets) {
                 InternalMultiBucketAggregation.InternalBucket bucket = (InternalMultiBucketAggregation.InternalBucket) bucket1;
-                InternalAggregation aggToAdd = doReduce(bucket.getAggregations(), reduceContext);
+                InternalAggregation aggToAdd = doMaterializePipelines(bucket.getAggregations(), reduceContext);
                 List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false)
                     .map((p) -> (InternalAggregation) p)
                     .collect(Collectors.toList());
@@ -70,7 +70,7 @@ public abstract class SiblingPipelineAggregator extends PipelineAggregator {
             return multiBucketsAgg.create(newBuckets);
         } else if (aggregation instanceof InternalSingleBucketAggregation) {
             InternalSingleBucketAggregation singleBucketAgg = (InternalSingleBucketAggregation) aggregation;
-            InternalAggregation aggToAdd = doReduce(singleBucketAgg.getAggregations(), reduceContext);
+            InternalAggregation aggToAdd = doMaterializePipelines(singleBucketAgg.getAggregations(), reduceContext);
             List<InternalAggregation> aggs = StreamSupport.stream(singleBucketAgg.getAggregations().spliterator(), false)
                 .map((p) -> (InternalAggregation) p)
                 .collect(Collectors.toList());
@@ -82,5 +82,5 @@ public abstract class SiblingPipelineAggregator extends PipelineAggregator {
         }
     }
 
-    public abstract InternalAggregation doReduce(Aggregations aggregations, ReduceContext context);
+    public abstract InternalAggregation doMaterializePipelines(Aggregations aggregations, ReduceContext context);
 }

@@ -88,7 +88,7 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
                 continue;
             }
             if (spare == null) {
-                spare = new SignificantLongTerms.Bucket(0, 0, 0, 0, 0, null, format);
+                spare = new SignificantLongTerms.Bucket(0, 0, 0, 0, 0, null, format, 0);
             }
             spare.term = bucketOrds.get(i);
             spare.subsetDf = docCount;

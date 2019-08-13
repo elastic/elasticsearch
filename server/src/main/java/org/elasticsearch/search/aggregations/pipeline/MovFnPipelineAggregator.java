@@ -108,7 +108,7 @@ public class MovFnPipelineAggregator extends PipelineAggregator {
     }
 
     @Override
-    public InternalAggregation reduce(InternalAggregation aggregation, InternalAggregation.ReduceContext reduceContext) {
+    public InternalAggregation materializePipeline(InternalAggregation aggregation, InternalAggregation.ReduceContext reduceContext) {
         InternalMultiBucketAggregation<? extends InternalMultiBucketAggregation, ? extends InternalMultiBucketAggregation.InternalBucket>
             histo = (InternalMultiBucketAggregation<? extends InternalMultiBucketAggregation, ? extends
             InternalMultiBucketAggregation.InternalBucket>) aggregation;

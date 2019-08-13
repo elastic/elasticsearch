@@ -402,9 +402,14 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
             @SuppressWarnings("unchecked")
             A internalAgg = (A) aggs.get(0).doReduce(aggs, context);
+
+            // materialize any parent pipelines
+            internalAgg = (A) internalAgg.materializePipelines(internalAgg, context);
+
+            // materialize any sibling pipelines at top level
             if (internalAgg.pipelineAggregators().size() > 0) {
                 for (PipelineAggregator pipelineAggregator : internalAgg.pipelineAggregators()) {
-                    internalAgg = (A) pipelineAggregator.reduce(internalAgg, context);
+                    internalAgg = (A) pipelineAggregator.materializePipeline(internalAgg, context);
                 }
             }
             doAssertReducedMultiBucketConsumer(internalAgg, reduceBucketConsumer);

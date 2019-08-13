@@ -105,6 +105,9 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
             return subsetSize;
         }
 
+        // TODO we should refactor to remove this, since buckets should be immutable after they are generated.
+        // This can lead to confusing bugs if the bucket is re-created (via createBucket() or similar) without
+        // the score
         void updateScore(SignificanceHeuristic significanceHeuristic) {
             score = significanceHeuristic.getScore(subsetDf, subsetSize, supersetDf, supersetSize);
         }

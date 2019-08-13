@@ -134,7 +134,7 @@ public class AvgBucketAggregatorTests extends AggregatorTestCase {
             reducedAggs.add(histogramResult);
             reducedAggs.add(avgResult);
             Aggregations aggregations = new Aggregations(reducedAggs);
-            InternalAggregation pipelineResult = ((AvgBucketPipelineAggregator)avgBucketAgg).doReduce(aggregations, null);
+            InternalAggregation pipelineResult = ((AvgBucketPipelineAggregator)avgBucketAgg).doMaterializePipelines(aggregations, null);
             assertNotNull(pipelineResult);
         }
     }

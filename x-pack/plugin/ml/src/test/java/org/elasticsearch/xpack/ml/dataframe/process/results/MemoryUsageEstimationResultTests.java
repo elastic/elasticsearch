@@ -11,10 +11,15 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
+
 public class MemoryUsageEstimationResultTests extends AbstractXContentTestCase<MemoryUsageEstimationResult> {
 
     public static MemoryUsageEstimationResult createRandomResult() {
-        return new MemoryUsageEstimationResult(new ByteSizeValue(randomNonNegativeLong()), new ByteSizeValue(randomNonNegativeLong()));
+        return new MemoryUsageEstimationResult(
+            randomBoolean() ? new ByteSizeValue(randomNonNegativeLong()) : null,
+            randomBoolean() ? new ByteSizeValue(randomNonNegativeLong()) : null);
     }
 
     @Override
@@ -30,5 +35,17 @@ public class MemoryUsageEstimationResultTests extends AbstractXContentTestCase<M
     @Override
     protected boolean supportsUnknownFields() {
         return true;
+    }
+
+    public void testConstructor_NullValues() {
+        MemoryUsageEstimationResult result = new MemoryUsageEstimationResult(null, null);
+        assertThat(result.getExpectedMemoryUsageWithOnePartition(), nullValue());
+        assertThat(result.getExpectedMemoryUsageWithMaxPartitions(), nullValue());
+    }
+
+    public void testConstructor() {
+        MemoryUsageEstimationResult result = new MemoryUsageEstimationResult(new ByteSizeValue(2048), new ByteSizeValue(1024));
+        assertThat(result.getExpectedMemoryUsageWithOnePartition(), equalTo(new ByteSizeValue(2048)));
+        assertThat(result.getExpectedMemoryUsageWithMaxPartitions(), equalTo(new ByteSizeValue(1024)));
     }
 }

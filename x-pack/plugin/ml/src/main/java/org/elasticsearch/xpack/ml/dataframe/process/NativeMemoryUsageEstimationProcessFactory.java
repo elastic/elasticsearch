@@ -83,7 +83,7 @@ public class NativeMemoryUsageEstimationProcessFactory implements AnalyticsProce
             try {
                 IOUtils.close(process);
             } catch (IOException ioe) {
-                LOGGER.error("Can't close data frame analytics process", ioe);
+                LOGGER.error("Can't close data frame analytics memory usage estimation process", ioe);
             }
             throw e;
         }
@@ -99,7 +99,7 @@ public class NativeMemoryUsageEstimationProcessFactory implements AnalyticsProce
                 .build();
             processPipes.connectStreams(processConnectTimeout);
         } catch (IOException e) {
-            String msg = "Failed to launch data frame analytics memory estimation process for job " + jobId;
+            String msg = "Failed to launch data frame analytics memory usage estimation process for job " + jobId;
             LOGGER.error(msg);
             throw ExceptionsHelper.serverError(msg, e);
         }

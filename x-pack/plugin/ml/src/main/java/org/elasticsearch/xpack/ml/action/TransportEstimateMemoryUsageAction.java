@@ -62,9 +62,18 @@ public class TransportEstimateMemoryUsageAction
         }
     }
 
+    /**
+     * Creates unique task id for the memory estimation process. This id is useful when logging.
+     */
     private static String createTaskIdForMemoryEstimation(Task task) {
         return "memory_usage_estimation_" + task.getId();
     }
+
+    /**
+     * Performs memory usage estimation.
+     * Memory usage estimation spawns an ML C++ process which is only available on ML nodes. That's why this method can only be called on
+     * the ML node.
+     */
     private void doEstimateMemoryUsage(String taskId,
                                        EstimateMemoryUsageAction.Request request,
                                        ActionListener<EstimateMemoryUsageAction.Response> listener) {
@@ -91,6 +100,9 @@ public class TransportEstimateMemoryUsageAction
         );
     }
 
+    /**
+     * Finds the first available ML node in the cluster and redirects the request to this node.
+     */
     private void redirectToMlNode(EstimateMemoryUsageAction.Request request,
                                   ActionListener<EstimateMemoryUsageAction.Response> listener) {
         Optional<DiscoveryNode> node = findMlNode(clusterService.state());
@@ -102,6 +114,9 @@ public class TransportEstimateMemoryUsageAction
         }
     }
 
+    /**
+     * Finds the first available ML node in the cluster state.
+     */
     private static Optional<DiscoveryNode> findMlNode(ClusterState clusterState) {
         for (DiscoveryNode node : clusterState.getNodes()) {
             if (MachineLearning.isMlNode(node)) {

@@ -122,6 +122,9 @@ public class MemoryUsageEstimationProcessManager {
         };
     }
 
+    /**
+     * Extracts {@link MemoryUsageEstimationResult} from process' output.
+     */
     private static MemoryUsageEstimationResult readResult(String jobId, AnalyticsProcess<MemoryUsageEstimationResult> process) {
         Iterator<MemoryUsageEstimationResult> iterator = process.readAnalyticsResults();
         if (iterator.hasNext() == false) {

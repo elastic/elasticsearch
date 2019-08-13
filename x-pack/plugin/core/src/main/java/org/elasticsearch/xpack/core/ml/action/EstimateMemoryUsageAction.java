@@ -9,6 +9,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -25,6 +26,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class EstimateMemoryUsageAction extends ActionType<EstimateMemoryUsageAction.Response> {
 
@@ -125,12 +127,12 @@ public class EstimateMemoryUsageAction extends ActionType<EstimateMemoryUsageAct
 
         static {
             PARSER.declareField(
-                constructorArg(),
+                optionalConstructorArg(),
                 (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), EXPECTED_MEMORY_USAGE_WITH_ONE_PARTITION.getPreferredName()),
                 EXPECTED_MEMORY_USAGE_WITH_ONE_PARTITION,
                 ObjectParser.ValueType.VALUE);
             PARSER.declareField(
-                constructorArg(),
+                optionalConstructorArg(),
                 (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), EXPECTED_MEMORY_USAGE_WITH_MAX_PARTITIONS.getPreferredName()),
                 EXPECTED_MEMORY_USAGE_WITH_MAX_PARTITIONS,
                 ObjectParser.ValueType.VALUE);
@@ -139,7 +141,8 @@ public class EstimateMemoryUsageAction extends ActionType<EstimateMemoryUsageAct
         private final ByteSizeValue expectedMemoryUsageWithOnePartition;
         private final ByteSizeValue expectedMemoryUsageWithMaxPartitions;
 
-        public Response(ByteSizeValue expectedMemoryUsageWithOnePartition, ByteSizeValue expectedMemoryUsageWithMaxPartitions) {
+        public Response(@Nullable ByteSizeValue expectedMemoryUsageWithOnePartition,
+                        @Nullable ByteSizeValue expectedMemoryUsageWithMaxPartitions) {
             this.expectedMemoryUsageWithOnePartition = expectedMemoryUsageWithOnePartition;
             this.expectedMemoryUsageWithMaxPartitions = expectedMemoryUsageWithMaxPartitions;
         }
@@ -167,10 +170,14 @@ public class EstimateMemoryUsageAction extends ActionType<EstimateMemoryUsageAct
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(EXPECTED_MEMORY_USAGE_WITH_ONE_PARTITION.getPreferredName(),
-                          expectedMemoryUsageWithOnePartition.getStringRep());
-            builder.field(EXPECTED_MEMORY_USAGE_WITH_MAX_PARTITIONS.getPreferredName(),
-                          expectedMemoryUsageWithMaxPartitions.getStringRep());
+            if (expectedMemoryUsageWithOnePartition != null) {
+                builder.field(
+                    EXPECTED_MEMORY_USAGE_WITH_ONE_PARTITION.getPreferredName(), expectedMemoryUsageWithOnePartition.getStringRep());
+            }
+            if (expectedMemoryUsageWithMaxPartitions != null) {
+                builder.field(
+                    EXPECTED_MEMORY_USAGE_WITH_MAX_PARTITIONS.getPreferredName(), expectedMemoryUsageWithMaxPartitions.getStringRep());
+            }
             builder.endObject();
             return builder;
         }

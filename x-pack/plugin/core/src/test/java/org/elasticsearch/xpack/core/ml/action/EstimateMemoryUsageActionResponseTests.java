@@ -11,11 +11,16 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.action.EstimateMemoryUsageAction.Response;
 
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
+
 public class EstimateMemoryUsageActionResponseTests extends AbstractSerializingTestCase<Response> {
 
     @Override
     protected Response createTestInstance() {
-        return new Response(new ByteSizeValue(randomNonNegativeLong()), new ByteSizeValue(randomNonNegativeLong()));
+        return new Response(
+            randomBoolean() ? new ByteSizeValue(randomNonNegativeLong()) : null,
+            randomBoolean() ? new ByteSizeValue(randomNonNegativeLong()) : null);
     }
 
     @Override
@@ -26,5 +31,17 @@ public class EstimateMemoryUsageActionResponseTests extends AbstractSerializingT
     @Override
     protected Response doParseInstance(XContentParser parser) {
         return Response.PARSER.apply(parser, null);
+    }
+
+    public void testConstructor_NullValues() {
+        Response response = new Response(null, null);
+        assertThat(response.getExpectedMemoryUsageWithOnePartition(), nullValue());
+        assertThat(response.getExpectedMemoryUsageWithMaxPartitions(), nullValue());
+    }
+
+    public void testConstructor() {
+        Response response = new Response(new ByteSizeValue(2048), new ByteSizeValue(1024));
+        assertThat(response.getExpectedMemoryUsageWithOnePartition(), equalTo(new ByteSizeValue(2048)));
+        assertThat(response.getExpectedMemoryUsageWithMaxPartitions(), equalTo(new ByteSizeValue(1024)));
     }
 }

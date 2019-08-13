@@ -258,7 +258,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
     Optional<SnapshotHistoryItem> deleteSnapshot(String repo, SnapshotInfo info) {
         logger.info("[{}] snapshot retention deleting snapshot [{}]", repo, info.snapshotId());
         CountDownLatch latch = new CountDownLatch(1);
-        String policyId = (String) info.userMetadata().get(POLICY_ID_METADATA_FIELD);
+        String policyId = (String) info.userMetadata().get(POLICY_ID_METADATA_FIELD); // TODO: use getPolicyID once #45362 is merged
         AtomicReference<SnapshotHistoryItem> result = new AtomicReference<>();
         client.admin().cluster().prepareDeleteSnapshot(repo, info.snapshotId().getName())
             .execute(new LatchedActionListener<>(new ActionListener<>() {

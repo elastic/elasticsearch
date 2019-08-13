@@ -102,7 +102,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 
-[[cat-shards-api-example]]
+[[cat-segments-api-example]]
 ==== {api-examples-title}
 
 [source,js]

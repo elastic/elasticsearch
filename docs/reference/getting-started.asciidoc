@@ -34,8 +34,8 @@ trial of Elasticsearch Service] in the cloud.
 
 To take {es} for a test drive, you can create a one-click cloud deployment
 on the https://www.elastic.co/cloud/elasticsearch-service/signup[Elasticsearch Service],
-or <<run-elasticsearch-local, set up a basic {es} cluster>> on your own Linux,
-macOS, or Windows machine.
+or <<run-elasticsearch-local, set up a multi-node {es} cluster>> on your own
+Linux, macOS, or Windows machine.
 
 
 [float]
@@ -43,8 +43,10 @@ macOS, or Windows machine.
 === Run {es} locally on Linux, macOS, or Windows
 
 When you create a cluster on the Elasticsearch Service, you automatically
-get a three node cluster. To run a three node {es} cluster locally,
-install {es} using the tar or zip archive:
+get a three-node cluster. By installing from the tar or zip archive, you can
+start multiple instances of {es} locally to see how a multi-node cluster behaves.
+
+To run a three-node {es} cluster locally:
 
 . Download the Elasticsearch archive for your OS:
 +
@@ -130,11 +132,10 @@ Windows:
 .\elasticsearch.exe -Epath.data=data3 -Epath.logs=log3
 --------------------------------------------------
 +
-The default configuration enables the new nodes to automatically join the
-cluster with the first node because they are all running locally. Each node
-is automatically assigned a unique ID.
+The additional nodes are assigned unique IDs. Because you're running all three
+nodes locally, they automatically join the cluster with the first node.
 
-. Use the `_cat/health` API to verify that your three node cluster is up running.
+. Use the `cat health` API to verify that your three-node cluster is up running.
 The `cat` APIs return information about your cluster and indices in a
 format that's easier to read than raw JSON.
 +
@@ -144,10 +145,9 @@ appropriate cURL command and submit the request to your local {es} instance from
 the command line. If you have Kibana installed and running, you can also
 open Kibana and submit requests through the Dev Console.
 +
-TIP: When you're ready to start using {es} in your own applications, you'll
-want to check out the
+TIP: You'll want to check out the
 https://www.elastic.co/guide/en/elasticsearch/client/index.html[{es} language
-clients].
+clients] when you're ready to start using {es} in your own applications.
 +
 [source,js]
 --------------------------------------------------

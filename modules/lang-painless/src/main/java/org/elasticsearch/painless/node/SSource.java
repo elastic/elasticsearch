@@ -92,14 +92,10 @@ public final class SSource extends AStatement {
         void markUsedVariable(String name);
         Set<String> getUsedVariables();
         void addUsedVariables(FunctionReserved reserved);
-
-        void setMaxLoopCounter(int max);
-        int getMaxLoopCounter();
     }
 
     public static final class MainMethodReserved implements Reserved {
         private final Set<String> usedVariables = new HashSet<>();
-        private int maxLoopCounter = 0;
 
         @Override
         public void markUsedVariable(String name) {
@@ -115,20 +111,9 @@ public final class SSource extends AStatement {
         public void addUsedVariables(FunctionReserved reserved) {
             usedVariables.addAll(reserved.getUsedVariables());
         }
-
-        @Override
-        public void setMaxLoopCounter(int max) {
-            maxLoopCounter = max;
-        }
-
-        @Override
-        public int getMaxLoopCounter() {
-            return maxLoopCounter;
-        }
     }
 
     private final ScriptClassInfo scriptClassInfo;
-    private final CompilerSettings settings;
     private final String name;
     private final Printer debugStream;
     private final MainMethodReserved reserved;
@@ -136,15 +121,16 @@ public final class SSource extends AStatement {
     private final Globals globals;
     private final List<AStatement> statements;
 
+    private CompilerSettings settings;
+
     private Locals mainMethod;
     private final List<org.objectweb.asm.commons.Method> getMethods;
     private byte[] bytes;
 
-    public SSource(ScriptClassInfo scriptClassInfo, CompilerSettings settings, String name, String sourceText, Printer debugStream,
+    public SSource(ScriptClassInfo scriptClassInfo, String name, String sourceText, Printer debugStream,
             MainMethodReserved reserved, Location location, List<SFunction> functions, List<AStatement> statements) {
         super(location);
         this.scriptClassInfo = Objects.requireNonNull(scriptClassInfo);
-        this.settings = Objects.requireNonNull(settings);
         this.name = Objects.requireNonNull(name);
         this.debugStream = debugStream;
         this.reserved = Objects.requireNonNull(reserved);
@@ -153,6 +139,19 @@ public final class SSource extends AStatement {
         this.globals = new Globals(new BitSet(sourceText.length()));
 
         this.getMethods = new ArrayList<>();
+    }
+
+    @Override
+    public void storeSettings(CompilerSettings settings) {
+        for (SFunction function : functions) {
+            function.storeSettings(settings);
+        }
+
+        for (AStatement statement : statements) {
+            statement.storeSettings(settings);
+        }
+
+        this.settings = settings;
     }
 
     @Override
@@ -183,7 +182,7 @@ public final class SSource extends AStatement {
     void analyze(Locals program) {
         for (SFunction function : functions) {
             Locals functionLocals =
-                Locals.newFunctionScope(program, function.returnType, function.parameters, function.reserved.getMaxLoopCounter());
+                Locals.newFunctionScope(program, function.returnType, function.parameters, settings.getMaxLoopCounter());
             function.analyze(functionLocals);
         }
 
@@ -191,7 +190,7 @@ public final class SSource extends AStatement {
             throw createError(new IllegalArgumentException("Cannot generate an empty script."));
         }
 
-        mainMethod = Locals.newMainMethodScope(scriptClassInfo, program, reserved.getMaxLoopCounter());
+        mainMethod = Locals.newMainMethodScope(scriptClassInfo, program, settings.getMaxLoopCounter());
 
         for (int get = 0; get < scriptClassInfo.getGetMethods().size(); ++get) {
             org.objectweb.asm.commons.Method method = scriptClassInfo.getGetMethods().get(get);
@@ -405,13 +404,13 @@ public final class SSource extends AStatement {
         Label endCatch = new Label();
         writer.mark(startTry);
 
-        if (reserved.getMaxLoopCounter() > 0) {
+        if (settings.getMaxLoopCounter() > 0) {
             // if there is infinite loop protection, we do this once:
             // int #loop = settings.getMaxLoopCounter()
 
             Variable loop = mainMethod.getVariable(null, Locals.LOOP);
 
-            writer.push(reserved.getMaxLoopCounter());
+            writer.push(settings.getMaxLoopCounter());
             writer.visitVarInsn(Opcodes.ISTORE, loop.getSlot());
         }
 

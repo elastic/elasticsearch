@@ -187,7 +187,6 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             transformsCheckpointService.getCheckpointingInfo(
                     transform.getId(),
                     currentCheckpoint.get(),
-                    initialIndexerState,
                     initialPosition,
                     null,
                     listener);
@@ -196,7 +195,6 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         indexer.getCheckpointProvider().getCheckpointingInfo(
                 indexer.getLastCheckpoint(),
                 indexer.getNextCheckpoint(),
-                indexer.getState(),
                 indexer.getPosition(),
                 indexer.getProgress(),
                 listener);

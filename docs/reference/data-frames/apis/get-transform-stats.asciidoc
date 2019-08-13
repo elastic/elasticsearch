@@ -126,7 +126,7 @@ The API returns the following results:
   "transforms" : [
     {
       "id" : "ecommerce_transform",
-      "task_state" : "started",
+      "state" : "indexing",
       "stats" : {
         "pages_processed" : 2,
         "documents_processed" : 1220,
@@ -147,7 +147,6 @@ The API returns the following results:
         },
         "next" : {
           "checkpoint" : 101,
-          "indexer_state" : "started",
           "position" : {
             "indexer_position" : {
               "hashtag" : "abcd1234"

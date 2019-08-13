@@ -69,8 +69,7 @@ public class RestIndicesAction extends AbstractCatAction {
 
     private static final DateFormatter STRICT_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_time");
 
-    public RestIndicesAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestIndicesAction(RestController controller) {
         controller.registerHandler(GET, "/_cat/indices", this);
         controller.registerHandler(GET, "/_cat/indices/{index}", this);
     }

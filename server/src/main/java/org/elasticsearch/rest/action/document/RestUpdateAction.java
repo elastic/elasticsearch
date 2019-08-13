@@ -26,7 +26,6 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -45,8 +44,7 @@ public class RestUpdateAction extends BaseRestHandler {
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in " +
         "document update requests is deprecated, use the endpoint /{index}/_update/{id} instead.";
 
-    public RestUpdateAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestUpdateAction(RestController controller) {
         controller.registerHandler(POST, "/{index}/_update/{id}", this);
 
         // Deprecated typed endpoint.

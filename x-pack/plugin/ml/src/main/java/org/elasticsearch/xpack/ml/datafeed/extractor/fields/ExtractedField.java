@@ -16,10 +16,12 @@ import org.elasticsearch.search.SearchHit;
 import java.io.IOException;
 import java.text.ParseException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Represents a field to be extracted by the datafeed.
@@ -37,11 +39,14 @@ public abstract class ExtractedField {
     /** The name of the field we extract */
     protected final String name;
 
+    private final Set<String> types;
+
     private final ExtractionMethod extractionMethod;
 
-    protected ExtractedField(String alias, String name, ExtractionMethod extractionMethod) {
+    protected ExtractedField(String alias, String name, Set<String> types, ExtractionMethod extractionMethod) {
         this.alias = Objects.requireNonNull(alias);
         this.name = Objects.requireNonNull(name);
+        this.types = Objects.requireNonNull(types);
         this.extractionMethod = Objects.requireNonNull(extractionMethod);
     }
 
@@ -51,6 +56,10 @@ public abstract class ExtractedField {
 
     public String getName() {
         return name;
+    }
+
+    public Set<String> getTypes() {
+        return types;
     }
 
     public ExtractionMethod getExtractionMethod() {
@@ -65,32 +74,32 @@ public abstract class ExtractedField {
         return null;
     }
 
-    public static ExtractedField newTimeField(String name, ExtractionMethod extractionMethod) {
+    public static ExtractedField newTimeField(String name, Set<String> types, ExtractionMethod extractionMethod) {
         if (extractionMethod == ExtractionMethod.SOURCE) {
             throw new IllegalArgumentException("time field cannot be extracted from source");
         }
-        return new TimeField(name, extractionMethod);
+        return new TimeField(name, types, extractionMethod);
     }
 
     public static ExtractedField newGeoShapeField(String alias, String name) {
-        return new GeoShapeField(alias, name);
+        return new GeoShapeField(alias, name, Collections.singleton("geo_shape"));
     }
 
     public static ExtractedField newGeoPointField(String alias, String name) {
-        return new GeoPointField(alias, name);
+        return new GeoPointField(alias, name, Collections.singleton("geo_point"));
     }
 
-    public static ExtractedField newField(String name, ExtractionMethod extractionMethod) {
-        return newField(name, name, extractionMethod);
+    public static ExtractedField newField(String name, Set<String> types, ExtractionMethod extractionMethod) {
+        return newField(name, name, types, extractionMethod);
     }
 
-    public static ExtractedField newField(String alias, String name, ExtractionMethod extractionMethod) {
+    public static ExtractedField newField(String alias, String name, Set<String> types, ExtractionMethod extractionMethod) {
         switch (extractionMethod) {
             case DOC_VALUE:
             case SCRIPT_FIELD:
-                return new FromFields(alias, name, extractionMethod);
+                return new FromFields(alias, name, types, extractionMethod);
             case SOURCE:
-                return new FromSource(alias, name);
+                return new FromSource(alias, name, types);
             default:
                 throw new IllegalArgumentException("Invalid extraction method [" + extractionMethod + "]");
         }
@@ -98,7 +107,7 @@ public abstract class ExtractedField {
 
     public ExtractedField newFromSource() {
         if (supportsFromSource()) {
-            return new FromSource(alias, name);
+            return new FromSource(alias, name, types);
         }
         throw new IllegalStateException("Field (alias [" + alias + "], name [" + name + "]) should be extracted via ["
             + extractionMethod + "] and cannot be extracted from source");
@@ -106,8 +115,8 @@ public abstract class ExtractedField {
 
     private static class FromFields extends ExtractedField {
 
-        FromFields(String alias, String name, ExtractionMethod extractionMethod) {
-            super(alias, name, extractionMethod);
+        FromFields(String alias, String name, Set<String> types, ExtractionMethod extractionMethod) {
+            super(alias, name, types, extractionMethod);
         }
 
         @Override
@@ -129,8 +138,8 @@ public abstract class ExtractedField {
     private static class GeoShapeField extends FromSource {
         private static final WellKnownText wkt = new WellKnownText(true, new StandardValidator(true));
 
-        GeoShapeField(String alias, String name) {
-            super(alias, name);
+        GeoShapeField(String alias, String name, Set<String> types) {
+            super(alias, name, types);
         }
 
         @Override
@@ -186,8 +195,8 @@ public abstract class ExtractedField {
 
     private static class GeoPointField extends FromFields {
 
-        GeoPointField(String alias, String name) {
-            super(alias, name, ExtractionMethod.DOC_VALUE);
+        GeoPointField(String alias, String name, Set<String> types) {
+            super(alias, name, types, ExtractionMethod.DOC_VALUE);
         }
 
         @Override
@@ -222,8 +231,8 @@ public abstract class ExtractedField {
 
         private static final String EPOCH_MILLIS_FORMAT = "epoch_millis";
 
-        TimeField(String name, ExtractionMethod extractionMethod) {
-            super(name, name, extractionMethod);
+        TimeField(String name, Set<String> types, ExtractionMethod extractionMethod) {
+            super(name, name, types, extractionMethod);
         }
 
         @Override
@@ -255,8 +264,8 @@ public abstract class ExtractedField {
 
         private String[] namePath;
 
-        FromSource(String alias, String name) {
-            super(alias, name, ExtractionMethod.SOURCE);
+        FromSource(String alias, String name, Set<String> types) {
+            super(alias, name, types, ExtractionMethod.SOURCE);
             namePath = name.split("\\.");
         }
 

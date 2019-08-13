@@ -42,8 +42,8 @@ public class NativeMemoryUsageEstimationProcessFactory implements AnalyticsProce
         this.env = Objects.requireNonNull(env);
         this.nativeController = Objects.requireNonNull(nativeController);
         setProcessConnectTimeout(MachineLearning.PROCESS_CONNECT_TIMEOUT.get(env.settings()));
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.PROCESS_CONNECT_TIMEOUT,
-            this::setProcessConnectTimeout);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(
+            MachineLearning.PROCESS_CONNECT_TIMEOUT, this::setProcessConnectTimeout);
     }
 
     void setProcessConnectTimeout(TimeValue processConnectTimeout) {
@@ -57,11 +57,8 @@ public class NativeMemoryUsageEstimationProcessFactory implements AnalyticsProce
             ExecutorService executorService,
             Consumer<String> onProcessCrash) {
         List<Path> filesToDelete = new ArrayList<>();
-        ProcessPipes processPipes = new ProcessPipes(env, NAMED_PIPE_HELPER, AnalyticsBuilder.ANALYTICS, jobId,
-                true, false, true, true, false, false);
-
-        // The extra 2 are for the checksum and the control field
-        int numberOfFields = analyticsProcessConfig.cols() + 2;
+        ProcessPipes processPipes = new ProcessPipes(
+            env, NAMED_PIPE_HELPER, AnalyticsBuilder.ANALYTICS, jobId, true, false, false, true, false, false);
 
         createNativeProcess(jobId, analyticsProcessConfig, filesToDelete, processPipes);
 
@@ -69,10 +66,11 @@ public class NativeMemoryUsageEstimationProcessFactory implements AnalyticsProce
             jobId,
             nativeController,
             processPipes.getLogStream().get(),
-            processPipes.getProcessInStream().get(),
+            // Memory estimation process does not use the input pipe, hence null.
+            null,
             processPipes.getProcessOutStream().get(),
             null,
-            numberOfFields,
+            0,
             filesToDelete,
             onProcessCrash);
 
@@ -91,12 +89,11 @@ public class NativeMemoryUsageEstimationProcessFactory implements AnalyticsProce
 
     private void createNativeProcess(String jobId, AnalyticsProcessConfig analyticsProcessConfig, List<Path> filesToDelete,
                                      ProcessPipes processPipes) {
-        AnalyticsBuilder analyticsBuilder = new AnalyticsBuilder(
-            env::tmpFile, nativeController, processPipes, analyticsProcessConfig, filesToDelete);
+        AnalyticsBuilder analyticsBuilder =
+            new AnalyticsBuilder(env::tmpFile, nativeController, processPipes, analyticsProcessConfig, filesToDelete)
+                .performMemoryUsageEstimationOnly();
         try {
-            analyticsBuilder
-                .performMemoryUsageEstimationOnly()
-                .build();
+            analyticsBuilder.build();
             processPipes.connectStreams(processConnectTimeout);
         } catch (IOException e) {
             String msg = "Failed to launch data frame analytics memory usage estimation process for job " + jobId;

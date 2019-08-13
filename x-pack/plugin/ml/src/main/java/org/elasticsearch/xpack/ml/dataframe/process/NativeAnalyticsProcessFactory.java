@@ -81,8 +81,8 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory<An
 
     private void createNativeProcess(String jobId, AnalyticsProcessConfig analyticsProcessConfig, List<Path> filesToDelete,
                                      ProcessPipes processPipes) {
-        AnalyticsBuilder analyticsBuilder = new AnalyticsBuilder(
-            env::tmpFile, nativeController, processPipes, analyticsProcessConfig, filesToDelete);
+        AnalyticsBuilder analyticsBuilder =
+            new AnalyticsBuilder(env::tmpFile, nativeController, processPipes, analyticsProcessConfig, filesToDelete);
         try {
             analyticsBuilder.build();
             processPipes.connectStreams(processConnectTimeout);

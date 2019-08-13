@@ -178,7 +178,7 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
     public void testSpecialCharacterInName() throws Exception {
         createKeystore("");
         terminal.addSecretInput("value");
-        final String key = randomAlphaOfLength(4) + randomAlphaOfLength(1).toUpperCase(Locale.ROOT) + randomAlphaOfLength(4);
+        final String key = randomAlphaOfLength(4) + '@' + randomAlphaOfLength(4);
         final UserException e = expectThrows(UserException.class, () -> execute(key));
         final String exceptionString= "Setting name [" + key + "] does not match the allowed setting name pattern [[A-Za-z0-9_\\-.]+]";
         assertThat(

@@ -169,64 +169,28 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
      * Increment the per-policy snapshot taken count for the given policy id
      */
     public void snapshotTaken(String slmPolicy) {
-        this.policyStats.compute(slmPolicy, (k, v) -> {
-            if (v == null) {
-                SnapshotPolicyStats metrics = new SnapshotPolicyStats(slmPolicy);
-                metrics.snapshotTaken();
-                return metrics;
-            } else {
-                v.snapshotTaken();
-                return v;
-            }
-        });
+        this.policyStats.computeIfAbsent(slmPolicy, SnapshotPolicyStats::new).snapshotTaken();
     }
 
     /**
      * Increment the per-policy snapshot failure count for the given policy id
      */
     public void snapshotFailed(String slmPolicy) {
-        this.policyStats.compute(slmPolicy, (k, v) -> {
-            if (v == null) {
-                SnapshotPolicyStats metrics = new SnapshotPolicyStats(slmPolicy);
-                metrics.snapshotFailed();
-                return metrics;
-            } else {
-                v.snapshotFailed();
-                return v;
-            }
-        });
+        this.policyStats.computeIfAbsent(slmPolicy, SnapshotPolicyStats::new).snapshotFailed();
     }
 
     /**
      * Increment the per-policy snapshot deleted count for the given policy id
      */
     public void snapshotDeleted(String slmPolicy) {
-        this.policyStats.compute(slmPolicy, (k, v) -> {
-            if (v == null) {
-                SnapshotPolicyStats metrics = new SnapshotPolicyStats(slmPolicy);
-                metrics.snapshotDeleted();
-                return metrics;
-            } else {
-                v.snapshotDeleted();
-                return v;
-            }
-        });
+        this.policyStats.computeIfAbsent(slmPolicy, SnapshotPolicyStats::new).snapshotDeleted();
     }
 
     /**
      * Increment the per-policy snapshot deletion failure count for the given policy id
      */
     public void snapshotDeleteFailure(String slmPolicy) {
-        this.policyStats.compute(slmPolicy, (k, v) -> {
-            if (v == null) {
-                SnapshotPolicyStats metrics = new SnapshotPolicyStats(slmPolicy);
-                metrics.snapshotDeleteFailure();
-                return metrics;
-            } else {
-                v.snapshotDeleteFailure();
-                return v;
-            }
-        });
+        this.policyStats.computeIfAbsent(slmPolicy, SnapshotPolicyStats::new).snapshotDeleteFailure();
     }
 
     @Override

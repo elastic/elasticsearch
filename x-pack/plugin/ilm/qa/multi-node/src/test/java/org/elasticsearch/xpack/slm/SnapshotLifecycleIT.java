@@ -36,10 +36,12 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.core.slm.history.SnapshotHistoryItem.CREATE_OPERATION;
+import static org.elasticsearch.xpack.core.slm.history.SnapshotHistoryItem.DELETE_OPERATION;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -98,7 +100,7 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
             Map<String, Object> metadata = (Map<String, Object>) snapResponse.get(0).get("metadata");
             assertNotNull(metadata);
             assertThat(metadata.get("policy"), equalTo(policyName));
-            assertHistoryIsPresent(policyName, true, repoId);
+            assertHistoryIsPresent(policyName, true, repoId, CREATE_OPERATION);
 
             // Check that the last success date was written to the cluster state
             Request getReq = new Request("GET", "/_slm/policy/" + policyName);
@@ -119,7 +121,7 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
             String lastSnapshotName = (String) lastSuccessObject.get("snapshot_name");
             assertThat(lastSnapshotName, startsWith("snap-"));
 
-            assertHistoryIsPresent(policyName, true, repoId);
+            assertHistoryIsPresent(policyName, true, repoId, CREATE_OPERATION);
         });
 
         Request delReq = new Request("DELETE", "/_slm/policy/" + policyName);
@@ -170,7 +172,7 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
                 assertNotNull(snapshotName);
                 assertThat(snapshotName, startsWith("snap-"));
             }
-            assertHistoryIsPresent(policyName, false, repoName);
+            assertHistoryIsPresent(policyName, false, repoName, CREATE_OPERATION);
         });
 
         Request delReq = new Request("DELETE", "/_slm/policy/" + policyName);
@@ -214,7 +216,7 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
                     final Map<String, Object> metadata = extractMetadata(snapshotResponseMap, snapshotName);
                     assertNotNull(metadata);
                     assertThat(metadata.get("policy"), equalTo(policyName));
-                    assertHistoryIsPresent(policyName, true, repoId);
+                    assertHistoryIsPresent(policyName, true, repoId, CREATE_OPERATION);
                 } catch (ResponseException e) {
                     fail("expected snapshot to exist but it does not: " + EntityUtils.toString(e.getResponse().getEntity()));
                 }
@@ -272,7 +274,7 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
                     final Map<String, Object> metadata = extractMetadata(snapshotResponseMap, snapshotName);
                     assertNotNull(metadata);
                     assertThat(metadata.get("policy"), equalTo(policyName));
-                    assertHistoryIsPresent(policyName, true, repoId);
+                    assertHistoryIsPresent(policyName, true, repoId, CREATE_OPERATION);
                 } catch (ResponseException e) {
                     fail("expected snapshot to exist but it does not: " + EntityUtils.toString(e.getResponse().getEntity()));
                 }
@@ -300,6 +302,7 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
                 } catch (ResponseException e) {
                     assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("snapshot_missing_exception"));
                 }
+                assertHistoryIsPresent(policyName, true, repoId, DELETE_OPERATION);
             }, 60, TimeUnit.SECONDS);
 
             Request delReq = new Request("DELETE", "/_slm/policy/" + policyName);
@@ -403,7 +406,7 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
     }
 
     // This method should be called inside an assertBusy, it has no retry logic of its own
-    private void assertHistoryIsPresent(String policyName, boolean success, String repository) throws IOException {
+    private void assertHistoryIsPresent(String policyName, boolean success, String repository, String operation) throws IOException {
         final Request historySearchRequest = new Request("GET", ".slm-history*/_search");
         historySearchRequest.setJsonEntity("{\n" +
             "  \"query\": {\n" +
@@ -426,7 +429,7 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
             "        },\n" +
             "        {\n" +
             "          \"term\": {\n" +
-            "            \"operation\": \"CREATE\"\n" +
+            "            \"operation\": \"" + operation + "\"\n" +
             "          }\n" +
             "        }\n" +
             "      ]\n" +

@@ -39,8 +39,9 @@ public class SnapshotHistoryItem implements Writeable, ToXContentObject {
     static final ParseField SNAPSHOT_NAME = new ParseField("snapshot_name");
     static final ParseField OPERATION = new ParseField("operation");
     static final ParseField SUCCESS = new ParseField("success");
-    private static final String CREATE_OPERATION = "CREATE";
-    private static final String DELETE_OPERATION = "DELETE";
+
+    public static final String CREATE_OPERATION = "CREATE";
+    public static final String DELETE_OPERATION = "DELETE";
 
     protected final long timestamp;
     protected final String policyId;
@@ -118,7 +119,7 @@ public class SnapshotHistoryItem implements Writeable, ToXContentObject {
     public static SnapshotHistoryItem deletionFailureRecord(long timestamp, String snapshotName, String policyId, String repository,
                                                             Exception exception) throws IOException {
         String exceptionString = exceptionToString(exception);
-        return new SnapshotHistoryItem(timestamp, policyId, repository, snapshotName, CREATE_OPERATION, false,
+        return new SnapshotHistoryItem(timestamp, policyId, repository, snapshotName, DELETE_OPERATION, false,
             null, exceptionString);
     }
 

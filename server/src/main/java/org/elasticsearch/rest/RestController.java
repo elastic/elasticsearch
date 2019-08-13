@@ -194,9 +194,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
     }
 
-    /**
-     * Dispatch the request, if possible, returning true if a response was sent or false otherwise.
-     */
     private void dispatchRequest(RestRequest request, RestChannel channel, RestHandler handler) throws Exception {
         final int contentLength = request.contentLength();
         if (contentLength > 0) {

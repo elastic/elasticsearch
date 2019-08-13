@@ -42,7 +42,7 @@ public class PutPolicyRequestTests extends AbstractRequestTestCase<PutPolicyRequ
 
         Exception e = expectThrows(IllegalArgumentException.class,
             () -> new PutPolicyRequest(request.getName(), request.getType(), request.getIndices(), null, request.getEnrichFields()));
-        assertThat(e.getMessage(), containsString("enrichKey must be a non-null and non-empty string"));
+        assertThat(e.getMessage(), containsString("matchField must be a non-null and non-empty string"));
     }
 
     public void testEqualsAndHashcode() {

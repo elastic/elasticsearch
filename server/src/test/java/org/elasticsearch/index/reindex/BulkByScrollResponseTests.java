@@ -121,7 +121,6 @@ public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkBySc
             assertEquals(expectedFailure.getIndex(), actualFailure.getIndex());
             assertEquals(expectedFailure.getType(), actualFailure.getType());
             assertEquals(expectedFailure.getId(), actualFailure.getId());
-            assertThat(expectedFailure.getMessage(), containsString(actualFailure.getMessage()));
             assertEquals(expectedFailure.getStatus(), actualFailure.getStatus());
         }
         assertEquals(expected.getSearchFailures().size(), actual.getSearchFailures().size());
@@ -132,7 +131,6 @@ public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkBySc
             assertEquals(expectedFailure.getShardId(), actualFailure.getShardId());
             assertEquals(expectedFailure.getNodeId(), actualFailure.getNodeId());
             assertEquals(expectedFailure.getStatus(), actualFailure.getStatus());
-            assertThat(actualFailure.getReason().getMessage(), containsString(expectedFailure.getReason().getMessage()));
         }
     }
 

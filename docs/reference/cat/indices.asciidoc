@@ -1,5 +1,8 @@
 [[cat-indices]]
-=== cat indices
+=== cat indices API
+++++
+<titleabbrev>cat indices</titleabbrev>
+++++
 
 Returns high-level information about indices in a cluster.
 

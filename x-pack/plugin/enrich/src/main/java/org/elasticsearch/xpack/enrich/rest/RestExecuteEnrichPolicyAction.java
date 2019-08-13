@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.enrich.rest;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -17,8 +16,7 @@ import java.io.IOException;
 
 public class RestExecuteEnrichPolicyAction extends BaseRestHandler {
 
-    public RestExecuteEnrichPolicyAction(final Settings settings, final RestController controller) {
-        super(settings);
+    public RestExecuteEnrichPolicyAction(final RestController controller) {
         controller.registerHandler(RestRequest.Method.PUT, "/_enrich/policy/{name}/_execute", this);
         controller.registerHandler(RestRequest.Method.POST, "/_enrich/policy/{name}/_execute", this);
     }

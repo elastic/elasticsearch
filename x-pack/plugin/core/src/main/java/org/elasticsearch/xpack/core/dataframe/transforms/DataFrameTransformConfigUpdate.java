@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.dataframe.transforms;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -248,6 +249,7 @@ public class DataFrameTransformConfigUpdate implements Writeable, ToXContentObje
         if (headers != null) {
             builder.setHeaders(headers);
         }
+        builder.setVersion(Version.CURRENT);
         return builder.build();
     }
 }

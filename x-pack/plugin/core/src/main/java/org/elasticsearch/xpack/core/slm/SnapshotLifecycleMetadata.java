@@ -79,8 +79,12 @@ public class SnapshotLifecycleMetadata implements MetaData.Custom {
     public SnapshotLifecycleMetadata(StreamInput in) throws IOException {
         this.snapshotConfigurations = in.readMap(StreamInput::readString, SnapshotLifecyclePolicyMetadata::new);
         this.operationMode = in.readEnum(OperationMode.class);
-        // TODO: version qualify
-        this.slmStats = new SnapshotLifecycleStats(in);
+        // TODO: version qualify this with the correct version (7.5) once available
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            this.slmStats = new SnapshotLifecycleStats(in);
+        } else {
+            this.slmStats = new SnapshotLifecycleStats();
+        }
     }
 
     public Map<String, SnapshotLifecyclePolicyMetadata> getSnapshotConfigurations() {
@@ -119,8 +123,10 @@ public class SnapshotLifecycleMetadata implements MetaData.Custom {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(this.snapshotConfigurations, StreamOutput::writeString, (out1, value) -> value.writeTo(out1));
         out.writeEnum(this.operationMode);
-        // TODO: version qualify
-        this.slmStats.writeTo(out);
+        // TODO: version qualify this with the correct version (7.5) once available
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            this.slmStats.writeTo(out);
+        }
     }
 
     @Override
@@ -173,8 +179,12 @@ public class SnapshotLifecycleMetadata implements MetaData.Custom {
                 SnapshotLifecyclePolicyMetadata::new,
                 SnapshotLifecycleMetadataDiff::readLifecyclePolicyDiffFrom);
             this.operationMode = in.readEnum(OperationMode.class);
-            // TODO: version qualify this
-            this.slmStats = new SnapshotLifecycleStats(in);
+            // TODO: version qualify this with the correct version (7.5) once available
+            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+                this.slmStats = new SnapshotLifecycleStats(in);
+            } else {
+                this.slmStats = new SnapshotLifecycleStats();
+            }
         }
 
         @Override
@@ -193,8 +203,10 @@ public class SnapshotLifecycleMetadata implements MetaData.Custom {
         public void writeTo(StreamOutput out) throws IOException {
             lifecycles.writeTo(out);
             out.writeEnum(this.operationMode);
-            // TODO: version qualify this
-            this.slmStats.writeTo(out);
+            // TODO: version qualify this with the correct version (7.5) once available
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                this.slmStats.writeTo(out);
+            }
         }
 
         static Diff<SnapshotLifecyclePolicyMetadata> readLifecyclePolicyDiffFrom(StreamInput in) throws IOException {

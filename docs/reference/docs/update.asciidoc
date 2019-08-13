@@ -11,6 +11,28 @@ Updates a document using the specified script.
 
 `POST /<index/_update/<_id>`
 
+[[update-api-desc]]
+==== {api-description-title}
+
+Enables you script document updates. The script can update, delete, or skip
+modifying the document. The update API also supports passing a partial document,
+which is merged into the existing document. To fully replace an existing
+document, use the <<docs-index_,`index` API>>.
+
+This operation:
+
+. Gets the document (collocated with the shard) from the index.
+. Runs the specified script.
+. Indexes the result.
+
+The document must still be reindexed, but using `update` removes some network
+roundtrips and reduces chances of version conflicts between the GET and the
+index operation.
+
+The `_source` field must be enabled to use `update`. In addition to `_source`,
+you can access the following variables through the `ctx` map: `_index`,
+`_type`, `_id`, `_version`, `_routing`, and `_now` (the current timestamp).
+
 [[docs-update-api-path-params]]
 ==== {api-path-parms-title}
 
@@ -54,30 +76,6 @@ You can also specify a comma-separated list of the fields you want to retrieve.
 include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-wait-for-active-shards]
-
-
-[[update-api-desc]]
-==== {api-description-title}
-
-Enables you script document updates. The script can update, delete, or skip
-modifying the document. The update API also supports passing a partial document,
-which is merged into the existing document. To fully replace an existing
-document, use the <<docs-index_,`index` API>>.
-
-This operation:
-
-. Gets the document (collocated with the shard) from the index.
-. Runs the specified script.
-. Indexes the result.
-
-The document must still be reindexed, but using `update` removes some network
-roundtrips and reduces chances of version conflicts between the GET and the
-index operation.
-
-The `_source` field must be enabled to use `update`. In addition to `_source`,
-you can access the following variables through the `ctx` map: `_index`,
-`_type`, `_id`, `_version`, `_routing`, and `_now` (the current timestamp).
-
 
 [[update-api-example]]
 ==== {api-examples-title}

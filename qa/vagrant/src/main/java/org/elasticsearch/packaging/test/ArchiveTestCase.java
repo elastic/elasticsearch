@@ -285,27 +285,18 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
 
         final Installation.Executables bin = installation.executables();
 
-        try {
-            // set the password by passing it to stdin twice
-            Platforms.onLinux(() ->
-                sh.run("echo $\'" + password + "\n" + password + "\n\' | sudo -u " + ARCHIVE_OWNER + " "
-                    + bin.elasticsearchKeystore + " passwd")
-            );
-            Platforms.onWindows(() -> {
-                Files.createFile(installation.bin.resolve("password.txt"));
-                Files.writeString(installation.bin.resolve("password.txt"),
-                    password + System.lineSeparator() + password + System.lineSeparator());
-                sh.run("cat " + installation.bin.resolve("password.txt") + " | " + bin.elasticsearchKeystore + " passwd");
-                rm(installation.bin.resolve("password.txt"));
-            });
+        // set the password by passing it to stdin twice
+        Platforms.onLinux(() ->
+            sh.run("echo $\'" + password + "\n" + password + "\n\' | sudo -u " + ARCHIVE_OWNER + " "
+                + bin.elasticsearchKeystore + " passwd")
+        );
+        Platforms.onWindows(() -> {
+            sh.run("echo \"" + password + "`r`n" + password + "`r`n\" | " + bin.elasticsearchKeystore + " passwd");
+        });
 
-            Archives.runElasticsearch(installation, sh, password);
-            ServerUtils.runElasticsearchTests();
-            Archives.stopElasticsearch(installation);
-        } finally {
-            // do nothing atm
-            Platforms.onWindows(() -> rm(installation.bin.resolve("password.txt")));
-        }
+        Archives.runElasticsearch(installation, sh, password);
+        ServerUtils.runElasticsearchTests();
+        Archives.stopElasticsearch(installation);
     }
 
     public void test62PasswordProtectedKeystoreIncorrectPassword() throws Exception {

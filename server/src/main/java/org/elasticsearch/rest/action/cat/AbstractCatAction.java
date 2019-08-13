@@ -23,7 +23,6 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.UTF8StreamWriter;
 import org.elasticsearch.common.io.stream.BytesStream;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
@@ -36,10 +35,6 @@ import static org.elasticsearch.rest.action.cat.RestTable.buildHelpWidths;
 import static org.elasticsearch.rest.action.cat.RestTable.pad;
 
 public abstract class AbstractCatAction extends BaseRestHandler {
-
-    public AbstractCatAction(Settings settings) {
-        super(settings);
-    }
 
     protected abstract RestChannelConsumer doCatRequest(RestRequest request, NodeClient client);
 

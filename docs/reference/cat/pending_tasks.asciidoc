@@ -1,9 +1,34 @@
 [[cat-pending-tasks]]
 === cat pending tasks
 
-`pending_tasks` provides the same information as the
-<<cluster-pending,`/_cluster/pending_tasks`>> API in a
-convenient tabular format. For example:
+Returns cluster-level changes that have not yet been executed, similar to the
+<<cluster-pending, pending cluster tasks>> API.
+
+[[cat-pending-tasks-api-request]]
+==== {api-request-title}
+
+`GET /_cat/pending_tasks`
+
+[[cat-pending-tasks-api-query-params]]
+==== {api-query-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=http-format]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-h]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=help]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
+
+
+[[cat-pending-tasks-api-example]]
+==== {api-examples-title}
 
 [source,js]
 --------------------------------------------------
@@ -11,7 +36,7 @@ GET /_cat/pending_tasks?v
 --------------------------------------------------
 // CONSOLE
 
-Might look like:
+The API returns the following response:
 
 [source,txt]
 --------------------------------------------------

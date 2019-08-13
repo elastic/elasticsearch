@@ -27,7 +27,6 @@ public final class RankFeatureQueryBuilders {
      * {@code boost * S / (S + pivot)} where S is the value of the static feature.
      * @param fieldName   field that stores features
      * @param pivot       feature value that would give a score contribution equal to weight/2, must be in (0, +Infinity)
-     * @throws IllegalArgumentException if weight is not in (0,64] or pivot is not in (0, +Infinity)
      */
     public static RankFeatureQueryBuilder saturation(String fieldName, float pivot) {
         return new RankFeatureQueryBuilder(fieldName, new RankFeatureQueryBuilder.ScoreFunction.Saturation(pivot));
@@ -38,7 +37,6 @@ public final class RankFeatureQueryBuilders {
      * is computed based on index statistics and is approximately equal to the geometric mean of all
      * values that exist in the index.
      * @param fieldName   field that stores features
-     * @throws IllegalArgumentException if weight is not in (0,64] or pivot is not in (0, +Infinity)
      */
     public static RankFeatureQueryBuilder saturation(String fieldName) {
         return new RankFeatureQueryBuilder(fieldName, new RankFeatureQueryBuilder.ScoreFunction.Saturation());
@@ -49,7 +47,6 @@ public final class RankFeatureQueryBuilders {
      * {@code boost * Math.log(scalingFactor + S)} where S is the value of the static feature.
      * @param fieldName     field that stores features
      * @param scalingFactor scaling factor applied before taking the logarithm, must be in [1, +Infinity)
-     * @throws IllegalArgumentException if weight is not in (0,64] or scalingFactor is not in [1, +Infinity)
      */
     public static RankFeatureQueryBuilder log(String fieldName, float scalingFactor) {
         return new RankFeatureQueryBuilder(fieldName, new RankFeatureQueryBuilder.ScoreFunction.Log(scalingFactor));
@@ -62,7 +59,6 @@ public final class RankFeatureQueryBuilders {
      * @param pivot       feature value that would give a score contribution equal to weight/2, must be in (0, +Infinity)
      * @param exp         exponent, higher values make the function grow slower before 'pivot' and faster after 'pivot',
      *                    must be in (0, +Infinity)
-     * @throws IllegalArgumentException if weight is not in (0,64] or either pivot or exp are not in (0, +Infinity)
      */
     public static RankFeatureQueryBuilder sigmoid(String fieldName, float pivot, float exp) {
         return new RankFeatureQueryBuilder(fieldName, new RankFeatureQueryBuilder.ScoreFunction.Sigmoid(pivot, exp));

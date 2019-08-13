@@ -15,5 +15,7 @@ public final class WatcherField {
     public static final Setting<InputStream> ENCRYPTION_KEY_SETTING =
             SecureSetting.secureFile("xpack.watcher.encryption_key", null);
 
+    public static final String EMAIL_NOTIFICATION_SSL_PREFIX = "xpack.notification.email.ssl.";
+
     private WatcherField() {}
 }

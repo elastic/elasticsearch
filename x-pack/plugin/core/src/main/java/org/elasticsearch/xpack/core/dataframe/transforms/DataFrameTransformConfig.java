@@ -447,6 +447,11 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
             return this;
         }
 
+        Builder setVersion(Version version) {
+            this.transformVersion = version;
+            return this;
+        }
+
         public DataFrameTransformConfig build() {
             return new DataFrameTransformConfig(id,
                 source,

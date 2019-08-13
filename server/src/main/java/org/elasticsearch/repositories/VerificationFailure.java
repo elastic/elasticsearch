@@ -21,9 +21,9 @@ package org.elasticsearch.repositories;
 
 public class VerificationFailure {
 
-    private String nodeId;
+    private final String nodeId;
 
-    private Exception cause;
+    private final Exception cause;
 
     VerificationFailure(String nodeId, Exception cause) {
         this.nodeId = nodeId;

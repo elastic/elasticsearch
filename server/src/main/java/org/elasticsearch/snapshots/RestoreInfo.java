@@ -49,7 +49,7 @@ public class RestoreInfo implements ToXContentObject, Writeable {
 
     private int successfulShards;
 
-    RestoreInfo() {}
+    private RestoreInfo() {}
 
     public RestoreInfo(String name, List<String> indices, int totalShards, int successfulShards) {
         this.name = name;
@@ -58,7 +58,7 @@ public class RestoreInfo implements ToXContentObject, Writeable {
         this.successfulShards = successfulShards;
     }
 
-    public RestoreInfo(StreamInput in) throws IOException {
+    private RestoreInfo(StreamInput in) throws IOException {
         name = in.readString();
         int size = in.readVInt();
         List<String> indicesListBuilder = new ArrayList<>();

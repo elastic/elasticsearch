@@ -65,7 +65,7 @@ import static org.elasticsearch.snapshots.SnapshotInfo.METADATA_FIELD_INTRODUCED
  */
 public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotRequest>
         implements IndicesRequest.Replaceable, ToXContentObject {
-    public static int MAXIMUM_METADATA_BYTES = 1024; // chosen arbitrarily
+    public static final int MAXIMUM_METADATA_BYTES = 1024; // chosen arbitrarily
 
     private String snapshot;
 
@@ -169,8 +169,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         }
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             builder.value(userMetadata);
-            int size = BytesReference.bytes(builder).length();
-            return size;
+            return BytesReference.bytes(builder).length();
         } catch (IOException e) {
             // This should not be possible as we are just rendering the xcontent in memory
             throw new ElasticsearchException(e);

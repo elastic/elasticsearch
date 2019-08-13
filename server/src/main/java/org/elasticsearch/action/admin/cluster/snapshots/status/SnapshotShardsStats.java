@@ -93,13 +93,6 @@ public class SnapshotShardsStats implements ToXContentObject {
     }
 
     /**
-     * Number of shards with the snapshot in the finalizing stage
-     */
-    public int getFinalizingShards() {
-        return finalizingShards;
-    }
-
-    /**
      * Number of shards with completed snapshot
      */
     public int getDoneShards() {
@@ -136,7 +129,7 @@ public class SnapshotShardsStats implements ToXContentObject {
         {
             builder.field(Fields.INITIALIZING, getInitializingShards());
             builder.field(Fields.STARTED, getStartedShards());
-            builder.field(Fields.FINALIZING, getFinalizingShards());
+            builder.field(Fields.FINALIZING, finalizingShards);
             builder.field(Fields.DONE, getDoneShards());
             builder.field(Fields.FAILED, getFailedShards());
             builder.field(Fields.TOTAL, getTotalShards());
@@ -167,7 +160,7 @@ public class SnapshotShardsStats implements ToXContentObject {
         PARSER.declareInt(constructorArg(), new ParseField(Fields.TOTAL));
     }
 
-    public static SnapshotShardsStats fromXContent(XContentParser parser) throws IOException {
+    public static SnapshotShardsStats fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 

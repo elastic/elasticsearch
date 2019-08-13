@@ -88,7 +88,7 @@ public class RestoreSnapshotResponse extends ActionResponse implements ToXConten
         return builder;
     }
 
-    public static final ConstructingObjectParser<RestoreSnapshotResponse, Void> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<RestoreSnapshotResponse, Void> PARSER = new ConstructingObjectParser<>(
         "restore_snapshot", true, v -> {
             RestoreInfo restoreInfo = (RestoreInfo) v[0];
             Boolean accepted = (Boolean) v[1];

@@ -42,8 +42,8 @@ import java.util.stream.Collectors;
  */
 public class VerifyRepositoryResponse extends ActionResponse implements ToXContentObject {
 
-    static final String NODES = "nodes";
-    static final String NAME = "name";
+    private static final String NODES = "nodes";
+    private static final String NAME = "name";
 
     public static class NodeView implements Writeable, ToXContentObject {
         private static final ObjectParser.NamedObjectParser<NodeView, Void> PARSER;
@@ -76,8 +76,6 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
         void setName(String name) { this.name = name; }
 
         public String getName() { return name; }
-
-        public String getNodeId() { return nodeId; }
 
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject(nodeId);

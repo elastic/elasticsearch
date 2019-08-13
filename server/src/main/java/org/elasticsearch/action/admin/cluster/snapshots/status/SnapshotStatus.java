@@ -295,13 +295,9 @@ public class SnapshotStatus implements ToXContentObject, Writeable {
 
         SnapshotStatus that = (SnapshotStatus) o;
 
-        if (snapshot != null ? !snapshot.equals(that.snapshot) : that.snapshot != null) return false;
-        if (state != that.state) return false;
-        if (indicesStatus != null ? !indicesStatus.equals(that.indicesStatus) : that.indicesStatus != null)
-            return false;
-        if (shardsStats != null ? !shardsStats.equals(that.shardsStats) : that.shardsStats != null) return false;
-        if (stats != null ? !stats.equals(that.stats) : that.stats != null) return false;
-        return includeGlobalState != null ? includeGlobalState.equals(that.includeGlobalState) : that.includeGlobalState == null;
+        return Objects.equals(snapshot, that.snapshot) && state == that.state && Objects.equals(indicesStatus, that.indicesStatus)
+            && Objects.equals(shardsStats, that.shardsStats) && Objects.equals(stats, that.stats)
+            && Objects.equals(includeGlobalState, that.includeGlobalState);
     }
 
     @Override

@@ -58,7 +58,6 @@ public class SnapshotUtils {
                     continue;
                 }
                 if (indexOrPattern.charAt(0) == '+') {
-                    add = true;
                     indexOrPattern = indexOrPattern.substring(1);
                     // if its the first, add empty set
                     if (i == 0) {

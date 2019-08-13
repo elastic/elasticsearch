@@ -83,6 +83,21 @@ public class EnrichStoreTests extends ESSingleNodeTestCase {
 
             assertThat(error.getMessage(), equalTo("policy is missing"));
         }
+        {
+            IllegalArgumentException error =
+                expectThrows(IllegalArgumentException.class, () -> saveEnrichPolicy("my#policy", policy, clusterService));
+            assertThat(error.getMessage(), equalTo("Invalid policy name [my#policy], must not contain '#'"));
+        }
+        {
+            IllegalArgumentException error =
+                expectThrows(IllegalArgumentException.class, () -> saveEnrichPolicy("..", policy, clusterService));
+            assertThat(error.getMessage(), equalTo("Invalid policy name [..], must not be '.' or '..'"));
+        }
+        {
+            IllegalArgumentException error =
+                expectThrows(IllegalArgumentException.class, () -> saveEnrichPolicy("myPolicy", policy, clusterService));
+            assertThat(error.getMessage(), equalTo("Invalid policy name [myPolicy], must be lowercase"));
+        }
     }
 
     public void testDeleteValidation() {

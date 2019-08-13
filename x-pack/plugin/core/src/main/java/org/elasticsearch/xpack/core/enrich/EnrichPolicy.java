@@ -37,8 +37,8 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
     private static final ParseField TYPE = new ParseField("type");
     private static final ParseField QUERY = new ParseField("query");
     private static final ParseField INDICES = new ParseField("indices");
-    private static final ParseField ENRICH_KEY = new ParseField("enrich_key");
-    private static final ParseField ENRICH_VALUES = new ParseField("enrich_values");
+    private static final ParseField MATCH_FIELD = new ParseField("match_field");
+    private static final ParseField ENRICH_FIELDS = new ParseField("enrich_fields");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<EnrichPolicy, Void> PARSER = new ConstructingObjectParser<>("policy",
@@ -63,8 +63,8 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
             return new QuerySource(BytesReference.bytes(contentBuilder), contentBuilder.contentType());
         }, QUERY);
         parser.declareStringArray(ConstructingObjectParser.constructorArg(), INDICES);
-        parser.declareString(ConstructingObjectParser.constructorArg(), ENRICH_KEY);
-        parser.declareStringArray(ConstructingObjectParser.constructorArg(), ENRICH_VALUES);
+        parser.declareString(ConstructingObjectParser.constructorArg(), MATCH_FIELD);
+        parser.declareStringArray(ConstructingObjectParser.constructorArg(), ENRICH_FIELDS);
     }
 
     public static EnrichPolicy fromXContent(XContentParser parser) throws IOException {
@@ -74,8 +74,8 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
     private final String type;
     private final QuerySource query;
     private final List<String> indices;
-    private final String enrichKey;
-    private final List<String> enrichValues;
+    private final String matchField;
+    private final List<String> enrichFields;
 
     public EnrichPolicy(StreamInput in) throws IOException {
         this(
@@ -90,13 +90,13 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
     public EnrichPolicy(String type,
                         QuerySource query,
                         List<String> indices,
-                        String enrichKey,
-                        List<String> enrichValues) {
+                        String matchField,
+                        List<String> enrichFields) {
         this.type = type;
         this.query= query;
         this.indices = indices;
-        this.enrichKey = enrichKey;
-        this.enrichValues = enrichValues;
+        this.matchField = matchField;
+        this.enrichFields = enrichFields;
     }
 
     public String getType() {
@@ -111,12 +111,12 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         return indices;
     }
 
-    public String getEnrichKey() {
-        return enrichKey;
+    public String getMatchField() {
+        return matchField;
     }
 
-    public List<String> getEnrichValues() {
-        return enrichValues;
+    public List<String> getEnrichFields() {
+        return enrichFields;
     }
 
     public static String getBaseName(String policyName) {
@@ -128,8 +128,8 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         out.writeString(type);
         out.writeOptionalWriteable(query);
         out.writeStringCollection(indices);
-        out.writeString(enrichKey);
-        out.writeStringCollection(enrichValues);
+        out.writeString(matchField);
+        out.writeStringCollection(enrichFields);
     }
 
     @Override
@@ -139,8 +139,8 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
             builder.field(QUERY.getPreferredName(), query.getQueryAsMap());
         }
         builder.array(INDICES.getPreferredName(), indices.toArray(new String[0]));
-        builder.field(ENRICH_KEY.getPreferredName(), enrichKey);
-        builder.array(ENRICH_VALUES.getPreferredName(), enrichValues.toArray(new String[0]));
+        builder.field(MATCH_FIELD.getPreferredName(), matchField);
+        builder.array(ENRICH_FIELDS.getPreferredName(), enrichFields.toArray(new String[0]));
         return builder;
     }
 
@@ -152,8 +152,8 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         return type.equals(policy.type) &&
             Objects.equals(query, policy.query) &&
             indices.equals(policy.indices) &&
-            enrichKey.equals(policy.enrichKey) &&
-            enrichValues.equals(policy.enrichValues);
+            matchField.equals(policy.matchField) &&
+            enrichFields.equals(policy.enrichFields);
     }
 
     @Override
@@ -162,8 +162,8 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
             type,
             query,
             indices,
-            enrichKey,
-            enrichValues
+            matchField,
+            enrichFields
         );
     }
 

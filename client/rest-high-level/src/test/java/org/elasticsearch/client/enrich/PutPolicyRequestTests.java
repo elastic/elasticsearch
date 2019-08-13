@@ -41,7 +41,7 @@ public class PutPolicyRequestTests extends AbstractRequestTestCase<PutPolicyRequ
         assertThat(request.validate().isPresent(), is(false));
 
         Exception e = expectThrows(IllegalArgumentException.class,
-            () -> new PutPolicyRequest(request.getName(), request.getType(), request.getIndices(), null, request.getEnrichValues()));
+            () -> new PutPolicyRequest(request.getName(), request.getType(), request.getIndices(), null, request.getEnrichFields()));
         assertThat(e.getMessage(), containsString("enrichKey must be a non-null and non-empty string"));
     }
 
@@ -49,7 +49,7 @@ public class PutPolicyRequestTests extends AbstractRequestTestCase<PutPolicyRequ
         PutPolicyRequest testInstance = createTestInstance();
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(testInstance, (original) -> {
             PutPolicyRequest copy = new PutPolicyRequest(original.getName(), original.getType(), original.getIndices(),
-                original.getEnrichKey(), original.getEnrichValues());
+                original.getMatchField(), original.getEnrichFields());
             copy.setQuery(original.getQuery());
             return copy;
         });
@@ -99,7 +99,7 @@ public class PutPolicyRequestTests extends AbstractRequestTestCase<PutPolicyRequ
         } else {
             assertThat(serverInstance.getPolicy().getQuery(), nullValue());
         }
-        assertThat(clientTestInstance.getEnrichKey(), equalTo(serverInstance.getPolicy().getEnrichKey()));
-        assertThat(clientTestInstance.getEnrichValues(), equalTo(serverInstance.getPolicy().getEnrichValues()));
+        assertThat(clientTestInstance.getMatchField(), equalTo(serverInstance.getPolicy().getMatchField()));
+        assertThat(clientTestInstance.getEnrichFields(), equalTo(serverInstance.getPolicy().getEnrichFields()));
     }
 }

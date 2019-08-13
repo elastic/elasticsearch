@@ -47,8 +47,8 @@ public class EnrichIT extends ESRestHighLevelClientTestCase {
         Map<String, Object> responseBody = toMap(getPolicyResponse);
         assertThat(responseBody.get("type"), equalTo(putPolicyRequest.getType()));
         assertThat(responseBody.get("indices"), equalTo(putPolicyRequest.getIndices()));
-        assertThat(responseBody.get("enrich_key"), equalTo(putPolicyRequest.getEnrichKey()));
-        assertThat(responseBody.get("enrich_values"), equalTo(putPolicyRequest.getEnrichValues()));
+        assertThat(responseBody.get("enrich_key"), equalTo(putPolicyRequest.getMatchField()));
+        assertThat(responseBody.get("enrich_values"), equalTo(putPolicyRequest.getEnrichFields()));
     }
 
     private static Map<String, Object> toMap(Response response) throws IOException {

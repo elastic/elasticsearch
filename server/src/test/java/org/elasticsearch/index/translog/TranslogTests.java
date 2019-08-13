@@ -256,6 +256,7 @@ public class TranslogTests extends ESTestCase {
             .builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT)
             // only randomize between nog age retention and a long one, so failures will have a chance of reproducing
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false) // Translog retention is ignored if soft-deletes is enabled.
             .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), randomBoolean() ? "-1ms" : "1h")
             .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), randomIntBetween(-1, 2048) + "b")
             .build();

@@ -33,9 +33,11 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -573,27 +575,44 @@ public class IndexSettingsTests extends ESTestCase {
     public void testIgnoreTranslogRetentionSettingsIfSoftDeletesEnabled() {
         Settings.Builder settings = Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomIndexCompatibleVersion(random()));
+        List<String> warnings = new ArrayList<>();
         if (randomBoolean()) {
-            settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), randomPositiveTimeValue());
+            warnings.add("translog retention setting [index.translog.retention.size] is ignored " +
+                "because translog is no longer used in peer recoveries with soft-deletes enabled");
+            settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), between(1, 1024) + "b");
         }
         if (randomBoolean()) {
-            settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), between(1, 1024) + "b");
+            warnings.add("translog retention setting [index.translog.retention.age] is ignored " +
+                "because translog is no longer used in peer recoveries with soft-deletes enabled");
+            settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), randomPositiveTimeValue());
         }
         IndexMetaData metaData = newIndexMeta("index", settings.build());
         IndexSettings indexSettings = new IndexSettings(metaData, Settings.EMPTY);
+        if (warnings.isEmpty() == false) {
+            assertWarnings(warnings.toArray(String[]::new));
+            warnings.clear();
+        }
         assertThat(indexSettings.getTranslogRetentionAge().millis(), equalTo(-1L));
         assertThat(indexSettings.getTranslogRetentionSize().getBytes(), equalTo(-1L));
 
         Settings.Builder newSettings = Settings.builder().put(settings.build());
         if (randomBoolean()) {
-            newSettings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), randomPositiveTimeValue());
+            warnings.add("translog retention setting [index.translog.retention.size] is ignored " +
+                "because translog is no longer used in peer recoveries with soft-deletes enabled");
+            newSettings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), between(1, 1024) + "b");
         }
         if (randomBoolean()) {
-            newSettings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), between(1, 1024) + "b");
+            warnings.add("translog retention setting [index.translog.retention.age] is ignored " +
+                "because translog is no longer used in peer recoveries with soft-deletes enabled");
+            newSettings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), randomPositiveTimeValue());
         }
         indexSettings.updateIndexMetaData(newIndexMeta("index", newSettings.build()));
         assertThat(indexSettings.getTranslogRetentionAge().millis(), equalTo(-1L));
         assertThat(indexSettings.getTranslogRetentionSize().getBytes(), equalTo(-1L));
+        if (warnings.isEmpty() == false) {
+            assertWarnings(warnings.toArray(String[]::new));
+            warnings.clear();
+        }
     }
 
     public void testUpdateTranslogRetentionSettingsWithSoftDeletesDisabled() {

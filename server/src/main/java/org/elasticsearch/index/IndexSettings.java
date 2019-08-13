@@ -22,6 +22,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.MergePolicy;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -242,7 +243,9 @@ public final class IndexSettings {
 
     /**
      * Controls how long translog files that are no longer needed for persistence reasons
-     * will be kept around before being deleted. This setting will be ignored if soft-deletes is enabled.
+     * will be kept around before being deleted. Keeping more files is useful to increase
+     * the chance of ops based recoveries for indices with soft-deletes disabled.
+     * This setting will be ignored if soft-deletes is enabled.
      **/
     public static final Setting<TimeValue> INDEX_TRANSLOG_RETENTION_AGE_SETTING =
         Setting.timeSetting("index.translog.retention.age",
@@ -251,7 +254,9 @@ public final class IndexSettings {
 
     /**
      * Controls how many translog files that are no longer needed for persistence reasons
-     * will be kept around before being deleted. This setting will be ignored if soft-deletes is enabled.
+     * will be kept around before being deleted. Keeping more files is useful to increase
+     * the chance of ops based recoveries for indices with soft-deletes disabled.
+     * This setting will be ignored if soft-deletes is enabled.
      **/
     public static final Setting<ByteSizeValue> INDEX_TRANSLOG_RETENTION_SIZE_SETTING =
         Setting.byteSizeSetting("index.translog.retention.size", settings -> INDEX_SOFT_DELETES_SETTING.get(settings) ? "-1" : "512MB",
@@ -551,10 +556,15 @@ public final class IndexSettings {
         this.flushThresholdSize = byteSizeValue;
     }
 
+    private void logDeprecatedTranslogRetentionSetting(String settingKey) {
+        final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+        deprecationLogger.deprecatedAndMaybeLog("translog_retention_setting", "translog retention setting [{}] is ignored " +
+            "because translog is no longer used in peer recoveries with soft-deletes enabled", settingKey);
+    }
+
     private void setTranslogRetentionSize(ByteSizeValue byteSizeValue) {
         if (softDeleteEnabled && byteSizeValue.getBytes() >= 0) {
-            logger.info("setting [{}] is ignored for translog is no longer used in peer recoveries with soft-deletes enabled",
-                INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey());
+            logDeprecatedTranslogRetentionSetting(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey());
             this.translogRetentionSize = new ByteSizeValue(-1);
         } else {
             this.translogRetentionSize = byteSizeValue;
@@ -562,9 +572,8 @@ public final class IndexSettings {
     }
 
     private void setTranslogRetentionAge(TimeValue age) {
-        if (softDeleteEnabled && age.nanos() >= 0) {
-            logger.info("setting [{}] is ignored for translog is no longer used in peer recoveries with soft-deletes enabled",
-                INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey());
+        if (softDeleteEnabled && age.millis() >= 0) {
+            logDeprecatedTranslogRetentionSetting(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey());
             this.translogRetentionAge = TimeValue.MINUS_ONE;
         } else {
             this.translogRetentionAge = age;

@@ -39,8 +39,8 @@ testClusters.'remote-cluster' {
 }
 
 task mixedClusterTest(type: RestIntegTestTask) {
-  useCluster testClusters.'remote-cluster'
   runner {
+    useCluster testClusters.'remote-cluster'
     dependsOn 'remote-cluster'
     systemProperty 'tests.rest.suite', 'multi_cluster'
   }

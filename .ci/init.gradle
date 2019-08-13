@@ -23,6 +23,7 @@ final String vaultToken =  new Vault(
             .engineVersion(1)
             .build()
     )
+    .withRetries(5, 1000)
     .auth()
     .loginByAppRole("approle", System.env.VAULT_ROLE_ID, System.env.VAULT_SECRET_ID)
     .getAuthClientToken();
@@ -34,6 +35,7 @@ final Vault vault = new Vault(
         .token(vaultToken)
         .build()
 )
+        .withRetries(5, 1000)
 
 final Map<String,String> artifactoryCredentials = vault.logical()
         .read("secret/elasticsearch-ci/artifactory.elstc.co")
@@ -68,17 +70,25 @@ projectsLoaded {
             maven configCache()
         }
     }
+    rootProject {
+        project.pluginManager.withPlugin('com.gradle.build-scan') {
+            buildScan.server = 'https://gradle-enterprise.elastic.co'
+        }
+    }
 }
 
-if (System.env.GRADLE_BUILD_CACHE_URL != null) {
+final String buildCacheUrl = System.getProperty('org.elasticsearch.build.cache.url')
+final boolean buildCachePush = Boolean.valueOf(System.getProperty('org.elasticsearch.build.cache.push', 'false'))
+
+if (buildCacheUrl) {
     final Map<String,String> buildCacheCredentials = vault.logical()
             .read("secret/elasticsearch-ci/gradle-build-cache")
             .getData();
     gradle.settingsEvaluated { settings ->
         settings.buildCache {
             remote(HttpBuildCache) {
-                url = System.getenv('GRADLE_BUILD_CACHE_URL')
-                push = Boolean.valueOf(System.getenv('GRADLE_BUILD_CACHE_PUSH') ?: 'false')
+                url = buildCacheUrl
+                push = buildCachePush
                 credentials {
                         username = buildCacheCredentials.get("username")
                         password = buildCacheCredentials.get("password")

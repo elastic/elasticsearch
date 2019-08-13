@@ -182,14 +182,13 @@ public class PrivilegeTests extends ESTestCase {
     }
 
     public void testManageEnrichPrivilege() {
-        Predicate<String> predicate = ClusterPrivilege.MANAGE_ENRICH.predicate();
-        assertThat(predicate.test(DeleteEnrichPolicyAction.NAME), is(true));
-        assertThat(predicate.test(ExecuteEnrichPolicyAction.NAME), is(true));
-        assertThat(predicate.test(GetEnrichPolicyAction.NAME), is(true));
-        assertThat(predicate.test(ListEnrichPolicyAction.NAME), is(true));
-        assertThat(predicate.test(PutEnrichPolicyAction.NAME), is(true));
-        assertThat(predicate.test("cluster:admin/xpack/enrich/brand_new_api"), is(true));
-        assertThat(predicate.test("cluster:admin/xpack/whatever"), is(false));
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_ENRICH, DeleteEnrichPolicyAction.NAME);
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_ENRICH, ExecuteEnrichPolicyAction.NAME);
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_ENRICH, GetEnrichPolicyAction.NAME);
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_ENRICH, ListEnrichPolicyAction.NAME);
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_ENRICH, PutEnrichPolicyAction.NAME);
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_ENRICH, "cluster:admin/xpack/enrich/brand_new_api");
+        verifyClusterActionDenied(ClusterPrivilegeResolver.MANAGE_ENRICH, "cluster:admin/xpack/whatever");
     }
 
     public void testIlmPrivileges() {

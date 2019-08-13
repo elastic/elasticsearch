@@ -270,7 +270,7 @@ public class IngestServiceTests extends ESTestCase {
         ingestService.validatePipeline(Collections.singletonMap(discoveryNode, ingestInfo), putRequest);
     }
 
-    public void testHasProcessor() throws Exception {
+    public void testGetProcessorsInPipeline() throws Exception {
         IngestService ingestService = createWithProcessors();
         String id = "_id";
         Pipeline pipeline = ingestService.getPipeline(id);
@@ -287,15 +287,19 @@ public class IngestServiceTests extends ESTestCase {
         pipeline = ingestService.getPipeline(id);
         assertThat(pipeline, notNullValue());
 
-        assertTrue(ingestService.hasProcessor(id, Processor.class));
-        assertTrue(ingestService.hasProcessor(id, WrappingProcessorImpl.class));
-        assertTrue(ingestService.hasProcessor(id, WrappingProcessor.class));
-        assertTrue(ingestService.hasProcessor(id, FakeProcessor.class));
+        assertThat(ingestService.getProcessorsInPipeline(id, Processor.class).size(), equalTo(3));
+        assertThat(ingestService.getProcessorsInPipeline(id, WrappingProcessorImpl.class).size(), equalTo(1));
+        assertThat(ingestService.getProcessorsInPipeline(id, WrappingProcessor.class).size(), equalTo(1));
+        assertThat(ingestService.getProcessorsInPipeline(id, FakeProcessor.class).size(), equalTo(2));
 
-        assertFalse(ingestService.hasProcessor(id, ConditionalProcessor.class));
+        assertThat(ingestService.getProcessorsInPipeline(id, ConditionalProcessor.class).size(), equalTo(0));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> ingestService.getProcessorsInPipeline("fakeID", Processor.class));
+        assertThat("pipeline with id [fakeID] does not exist", equalTo(e.getMessage()));
     }
 
-    public void testHasProcessorComplexConditional() throws Exception {
+    public void testGetProcessorsInPipelineComplexConditional() throws Exception {
         LongSupplier relativeTimeProvider = mock(LongSupplier.class);
         String scriptName = "conditionalScript";
         ScriptService scriptService = new ScriptService(Settings.builder().build(),
@@ -345,12 +349,12 @@ public class IngestServiceTests extends ESTestCase {
         pipeline = ingestService.getPipeline(id);
         assertThat(pipeline, notNullValue());
 
-        assertTrue(ingestService.hasProcessor(id, Processor.class));
-        assertTrue(ingestService.hasProcessor(id, WrappingProcessor.class));
-        assertTrue(ingestService.hasProcessor(id, FakeProcessor.class));
-        assertTrue(ingestService.hasProcessor(id, ConditionalProcessor.class));
+        assertThat(ingestService.getProcessorsInPipeline(id, Processor.class).size(), equalTo(3));
+        assertThat(ingestService.getProcessorsInPipeline(id, WrappingProcessor.class).size(), equalTo(2));
+        assertThat(ingestService.getProcessorsInPipeline(id, FakeProcessor.class).size(), equalTo(1));
+        assertThat(ingestService.getProcessorsInPipeline(id, ConditionalProcessor.class).size(), equalTo(2));
 
-        assertFalse(ingestService.hasProcessor(id, WrappingProcessorImpl.class));
+        assertThat(ingestService.getProcessorsInPipeline(id, WrappingProcessorImpl.class).size(), equalTo(0));
     }
 
     public void testCrud() throws Exception {

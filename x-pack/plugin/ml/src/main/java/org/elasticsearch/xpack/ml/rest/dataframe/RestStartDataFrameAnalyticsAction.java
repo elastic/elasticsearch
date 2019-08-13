@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.rest.dataframe;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -20,8 +19,7 @@ import java.io.IOException;
 
 public class RestStartDataFrameAnalyticsAction extends BaseRestHandler {
 
-    public RestStartDataFrameAnalyticsAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestStartDataFrameAnalyticsAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.POST, MachineLearning.BASE_PATH + "data_frame/analytics/{"
             + DataFrameAnalyticsConfig.ID.getPreferredName() + "}/_start", this);
     }

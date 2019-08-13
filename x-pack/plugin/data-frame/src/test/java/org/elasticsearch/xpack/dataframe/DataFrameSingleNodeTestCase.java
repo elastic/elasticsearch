@@ -70,7 +70,7 @@ public abstract class DataFrameSingleNodeTestCase extends ESSingleNodeTestCase {
         }), latch);
 
         function.accept(listener);
-        latch.await(10, TimeUnit.SECONDS);
+        assertTrue("timed out after 20s", latch.await(20, TimeUnit.SECONDS));
     }
 
 }

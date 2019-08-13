@@ -84,7 +84,7 @@ remove_plugin() {
 
 # Install a sample plugin which fully exercises the special case file placements.
 install_plugin_example() {
-    local relativePath=${1:-$(readlink -m custom-settings-*.zip)}
+    local relativePath=${1:-$(readlink -m $BATS_PLUGINS/custom-settings-*.zip)}
     install_plugin custom-settings "$relativePath" $2
 
     bin_user=$(find "$ESHOME/bin" -maxdepth 0 -printf "%u")
@@ -146,7 +146,7 @@ install_and_check_plugin() {
         local full_name="$prefix-$name"
     fi
 
-    install_plugin $full_name "$(readlink -m $full_name-*.zip)"
+    install_plugin $full_name "$(readlink -m $BATS_PLUGINS/$full_name-*.zip)"
 
     assert_module_or_plugin_directory "$ESPLUGINS/$full_name"
     assert_file_exist "$ESPLUGINS/$full_name/plugin-descriptor.properties"
@@ -175,7 +175,7 @@ install_and_check_plugin() {
 install_meta_plugin() {
     local name=$1
 
-    install_plugin $name "$(readlink -m $name-*.zip)"
+    install_plugin $name "$(readlink -m $BATS_PLUGINS/$name-*.zip)"
     assert_module_or_plugin_directory "$ESPLUGINS/$name"
 }
 

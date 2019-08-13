@@ -27,8 +27,6 @@ task copyKeyCerts(type: Copy) {
 sourceSets.test.resources.srcDir(keystoreDir)
 processTestResources.dependsOn(copyKeyCerts)
 
-testingConventions.enabled = false
-
 integTest {
     dependsOn copyKeyCerts
     runner {

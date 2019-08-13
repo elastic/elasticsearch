@@ -67,7 +67,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
@@ -278,15 +277,13 @@ public class RestClient implements Closeable {
      * @param responseListener the {@link ResponseListener} to notify when the
      *      request is completed or fails
      */
-    public Cancellable performRequestAsync(Request request, ResponseListener responseListener) {
+    public void performRequestAsync(Request request, ResponseListener responseListener) {
         try {
             FailureTrackingResponseListener failureTrackingResponseListener = new FailureTrackingResponseListener(responseListener);
             InternalRequest internalRequest = new InternalRequest(request);
             performRequestAsync(nextNodes(), internalRequest, failureTrackingResponseListener);
-            return new Cancellable(internalRequest.httpRequest::abort);
         } catch (Exception e) {
             responseListener.onFailure(e);
-            return new Cancellable(() -> {});
         }
     }
 
@@ -332,7 +329,7 @@ public class RestClient implements Closeable {
 
             @Override
             public void cancelled() {
-                listener.onDefinitiveFailure(new CancellationException("request was aborted"));
+                listener.onDefinitiveFailure(new ExecutionException("request was cancelled", null));
             }
         });
     }

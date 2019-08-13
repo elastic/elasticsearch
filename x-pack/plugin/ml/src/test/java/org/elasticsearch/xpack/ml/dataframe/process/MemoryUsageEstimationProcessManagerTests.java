@@ -21,7 +21,7 @@ import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 
-import java.util.List;
+import java.util.Arrays;
 import java.util.concurrent.ExecutorService;
 
 import static org.hamcrest.Matchers.containsString;
@@ -66,7 +66,7 @@ public class MemoryUsageEstimationProcessManagerTests extends ESTestCase {
         executorServiceForProcess = mock(ExecutorService.class);
         process = mock(AnalyticsProcess.class);
         when(process.isProcessAlive()).thenReturn(true);
-        when(process.readAnalyticsResults()).thenReturn(List.of(PROCESS_RESULT).iterator());
+        when(process.readAnalyticsResults()).thenReturn(Arrays.asList(PROCESS_RESULT).iterator());
         processFactory = mock(AnalyticsProcessFactory.class);
         when(processFactory.createAnalyticsProcess(anyString(), any(), any(), any())).thenReturn(process);
         dataExtractor = mock(DataFrameDataExtractor.class);
@@ -109,7 +109,7 @@ public class MemoryUsageEstimationProcessManagerTests extends ESTestCase {
     }
 
     public void testRunJob_NoResults() throws Exception {
-        when(process.readAnalyticsResults()).thenReturn(List.<MemoryUsageEstimationResult>of().iterator());
+        when(process.readAnalyticsResults()).thenReturn(Arrays.<MemoryUsageEstimationResult>asList().iterator());
 
         processManager.runJobAsync(TASK_ID, dataFrameAnalyticsConfig, dataExtractorFactory, listener);
 
@@ -128,7 +128,7 @@ public class MemoryUsageEstimationProcessManagerTests extends ESTestCase {
     }
 
     public void testRunJob_MultipleResults() throws Exception {
-        when(process.readAnalyticsResults()).thenReturn(List.of(PROCESS_RESULT, PROCESS_RESULT).iterator());
+        when(process.readAnalyticsResults()).thenReturn(Arrays.asList(PROCESS_RESULT, PROCESS_RESULT).iterator());
 
         processManager.runJobAsync(TASK_ID, dataFrameAnalyticsConfig, dataExtractorFactory, listener);
 

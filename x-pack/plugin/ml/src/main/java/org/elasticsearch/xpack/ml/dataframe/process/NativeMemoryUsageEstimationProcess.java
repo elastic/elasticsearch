@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.dataframe.process;
 
 import org.elasticsearch.xpack.ml.dataframe.process.results.MemoryUsageEstimationResult;
-import org.elasticsearch.xpack.ml.process.NativeController;
 
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -18,11 +17,11 @@ public class NativeMemoryUsageEstimationProcess extends AbstractNativeAnalyticsP
 
     private static final String NAME = "memory_usage_estimation";
 
-    protected NativeMemoryUsageEstimationProcess(String jobId, NativeController nativeController, InputStream logStream,
+    protected NativeMemoryUsageEstimationProcess(String jobId, InputStream logStream,
                                                  OutputStream processInStream, InputStream processOutStream,
                                                  OutputStream processRestoreStream, int numberOfFields, List<Path> filesToDelete,
                                                  Consumer<String> onProcessCrash) {
-        super(NAME, MemoryUsageEstimationResult.PARSER, jobId, nativeController, logStream, processInStream, processOutStream,
-            processRestoreStream, numberOfFields, filesToDelete, onProcessCrash);
+        super(NAME, MemoryUsageEstimationResult.PARSER, jobId, logStream, processInStream, processOutStream, processRestoreStream,
+            numberOfFields, filesToDelete, onProcessCrash);
     }
 }

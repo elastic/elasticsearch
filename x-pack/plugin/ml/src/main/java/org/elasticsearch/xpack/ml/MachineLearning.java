@@ -513,7 +513,6 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 analyticsProcessFactory = new NativeAnalyticsProcessFactory(environment, nativeController, clusterService);
                 memoryEstimationProcessFactory =
                     new NativeMemoryUsageEstimationProcessFactory(environment, nativeController, clusterService);
-                mlController = nativeController;
             } catch (IOException e) {
                 // The low level cause of failure from the named pipe helper's perspective is almost never the real root cause, so
                 // only log this at the lowest level of detail.  It's almost always "file not found" on a named pipe we expect to be

@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.dataframe.process;
 
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xpack.ml.process.AbstractNativeProcess;
-import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.ProcessResultsParser;
 
 import java.io.IOException;
@@ -25,11 +24,10 @@ abstract class AbstractNativeAnalyticsProcess<Result> extends AbstractNativeProc
     private final ProcessResultsParser<Result> resultsParser;
 
     protected AbstractNativeAnalyticsProcess(String name, ConstructingObjectParser<Result, Void> resultParser, String jobId,
-                                             NativeController nativeController, InputStream logStream, OutputStream processInStream,
+                                             InputStream logStream, OutputStream processInStream,
                                              InputStream processOutStream, OutputStream processRestoreStream, int numberOfFields,
                                              List<Path> filesToDelete, Consumer<String> onProcessCrash) {
-        super(jobId, nativeController, logStream, processInStream, processOutStream, processRestoreStream, numberOfFields, filesToDelete,
-            onProcessCrash);
+        super(jobId, logStream, processInStream, processOutStream, processRestoreStream, numberOfFields, filesToDelete, onProcessCrash);
         this.name = Objects.requireNonNull(name);
         this.resultsParser = new ProcessResultsParser<>(Objects.requireNonNull(resultParser));
     }

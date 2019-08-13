@@ -64,7 +64,6 @@ public class NativeMemoryUsageEstimationProcessFactory implements AnalyticsProce
 
         NativeMemoryUsageEstimationProcess process = new NativeMemoryUsageEstimationProcess(
             jobId,
-            nativeController,
             processPipes.getLogStream().get(),
             // Memory estimation process does not use the input pipe, hence null.
             null,

@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.enrich;
 
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
 import java.util.function.LongSupplier;
 
@@ -27,32 +26,44 @@ public class EnrichPolicyExecutor {
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final LongSupplier nowSupplier;
     private final int fetchSize;
-    private final ConcurrentHashMap<String, Semaphore> policyLocks = new ConcurrentHashMap<>();
+    private final EnrichPolicyLocks policyLocks;
+    private final int maximumConcurrentPolicyExecutions;
+    private final Semaphore policyExecutionPermits;
 
     EnrichPolicyExecutor(Settings settings,
                          ClusterService clusterService,
                          Client client,
                          ThreadPool threadPool,
                          IndexNameExpressionResolver indexNameExpressionResolver,
+                         EnrichPolicyLocks policyLocks,
                          LongSupplier nowSupplier) {
         this.clusterService = clusterService;
         this.client = client;
         this.threadPool = threadPool;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.nowSupplier = nowSupplier;
+        this.policyLocks = policyLocks;
         this.fetchSize = EnrichPlugin.ENRICH_FETCH_SIZE_SETTING.get(settings);
+        this.maximumConcurrentPolicyExecutions = EnrichPlugin.ENRICH_MAX_CONCURRENT_POLICY_EXECUTIONS.get(settings);
+        this.policyExecutionPermits = new Semaphore(maximumConcurrentPolicyExecutions);
     }
 
     private void tryLockingPolicy(String policyName) {
-        Semaphore runLock = policyLocks.computeIfAbsent(policyName, (name) -> new Semaphore(1));
-        if (runLock.tryAcquire() == false) {
-            throw new EsRejectedExecutionException("Policy execution failed. Policy execution for [" + policyName +
-                "] is already in progress.");
+        policyLocks.lockPolicy(policyName);
+        if (policyExecutionPermits.tryAcquire() == false) {
+            // Release policy lock, and throw a different exception
+            policyLocks.releasePolicy(policyName);
+            throw new EsRejectedExecutionException("Policy execution failed. Policy execution for [" + policyName + "] would exceed " +
+                "maximum concurrent policy executions [" + maximumConcurrentPolicyExecutions + "]");
         }
     }
 
     private void releasePolicy(String policyName) {
-        policyLocks.remove(policyName);
+        try {
+            policyExecutionPermits.release();
+        } finally {
+            policyLocks.releasePolicy(policyName);
+        }
     }
 
     private class PolicyUnlockingListener implements ActionListener<PolicyExecutionResult> {

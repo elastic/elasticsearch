@@ -8,22 +8,27 @@ package org.elasticsearch.xpack.security.authc.pki;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 
 import java.security.cert.X509Certificate;
+import java.util.Objects;
 
 public class X509AuthenticationToken implements AuthenticationToken {
 
-    private final String principal;
     private final String dn;
-    private X509Certificate[] credentials;
+    private final X509Certificate[] credentials;
+    private String principal;
 
-    public X509AuthenticationToken(X509Certificate[] certificates, String principal, String dn) {
-        this.principal = principal;
-        this.credentials = certificates;
-        this.dn = dn;
+    public X509AuthenticationToken(X509Certificate[] certificates) {
+        this.credentials = Objects.requireNonNull(certificates);
+        this.dn = certificates.length == 0 ? "" : certificates[0].getSubjectX500Principal().toString();
+        this.principal = this.dn;
     }
 
     @Override
     public String principal() {
         return principal;
+    }
+
+    public void setPrincipal(String principal) {
+        this.principal = principal;
     }
 
     @Override
@@ -37,6 +42,6 @@ public class X509AuthenticationToken implements AuthenticationToken {
 
     @Override
     public void clearCredentials() {
-        credentials = null;
+        // noop
     }
 }

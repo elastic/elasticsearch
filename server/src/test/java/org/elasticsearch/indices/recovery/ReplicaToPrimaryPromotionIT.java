@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -31,6 +32,7 @@ import java.util.Locale;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 2)
@@ -46,10 +48,12 @@ public class ReplicaToPrimaryPromotionIT extends ESIntegTestCase {
         createIndex(indexName);
 
         final int numOfDocs = scaledRandomIntBetween(0, 200);
-        try (BackgroundIndexer indexer = new BackgroundIndexer(indexName, "_doc", client(), numOfDocs)) {
-            waitForDocs(numOfDocs, indexer);
+        if (numOfDocs > 0) {
+            try (BackgroundIndexer indexer = new BackgroundIndexer(indexName, "_doc", client(), numOfDocs)) {
+                waitForDocs(numOfDocs, indexer);
+            }
+            refresh(indexName);
         }
-        refresh(indexName);
 
         assertHitCount(client().prepareSearch(indexName).setSize(0).get(), numOfDocs);
         ensureGreen(indexName);
@@ -57,7 +61,8 @@ public class ReplicaToPrimaryPromotionIT extends ESIntegTestCase {
         // sometimes test with a closed index
         final IndexMetaData.State indexState = randomFrom(IndexMetaData.State.OPEN, IndexMetaData.State.CLOSE);
         if (indexState == IndexMetaData.State.CLOSE) {
-            assertAcked(client().admin().indices().prepareClose(indexName));
+            CloseIndexResponse closeIndexResponse = client().admin().indices().prepareClose(indexName).get();
+            assertThat("close index not acked - " + closeIndexResponse, closeIndexResponse.isAcknowledged(), equalTo(true));
             ensureGreen(indexName);
         }
 

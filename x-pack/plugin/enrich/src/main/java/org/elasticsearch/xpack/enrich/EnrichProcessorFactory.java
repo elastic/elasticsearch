@@ -36,13 +36,29 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
 
         String enrichKey = ConfigurationUtils.readStringProperty(TYPE, tag, config, "enrich_key", policy.getEnrichKey());
         boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, tag, config, "ignore_missing", false);
+        boolean overrideEnabled = ConfigurationUtils.readBooleanProperty(TYPE, tag, config, "override", true);
 
         final List<EnrichSpecification> specifications;
-        final List<Map<?, ?>> specificationConfig = ConfigurationUtils.readList(TYPE, tag, config, "enrich_values");
-        specifications = specificationConfig.stream()
+        final List<Map<?, ?>> setFromConfig = ConfigurationUtils.readOptionalList(TYPE, tag, config, "set_from");
+        if (setFromConfig != null) {
+            if (setFromConfig.isEmpty()) {
+                throw new IllegalArgumentException("provided set_from is empty");
+            }
+
             // TODO: Add templating support in enrich_values source and target options
-            .map(entry -> new EnrichSpecification((String) entry.get("source"), (String) entry.get("target")))
-            .collect(Collectors.toList());
+            specifications = setFromConfig.stream()
+                .map(entry -> new EnrichSpecification((String) entry.get("source"), (String) entry.get("target")))
+                .collect(Collectors.toList());
+        } else {
+            final List<String> targetsConfig = ConfigurationUtils.readList(TYPE, tag, config, "targets");
+            if (targetsConfig.isEmpty()) {
+                throw new IllegalArgumentException("provided targets is empty");
+            }
+
+            specifications = targetsConfig.stream()
+                .map(value -> new EnrichSpecification(value, value))
+                .collect(Collectors.toList());
+        }
 
         for (EnrichSpecification specification : specifications) {
             if (policy.getEnrichValues().contains(specification.sourceField) == false) {
@@ -53,7 +69,7 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
 
         switch (policy.getType()) {
             case EnrichPolicy.EXACT_MATCH_TYPE:
-                return new ExactMatchProcessor(tag, client, policyName, enrichKey, ignoreMissing, specifications);
+                return new ExactMatchProcessor(tag, client, policyName, enrichKey, ignoreMissing, overrideEnabled, specifications);
             default:
                 throw new IllegalArgumentException("unsupported policy type [" + policy.getType() + "]");
         }

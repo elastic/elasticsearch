@@ -27,6 +27,7 @@ import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -221,7 +222,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         IndexRequest indexRequest = new IndexRequest("index", "type", "id");
         indexRequest.source(Collections.emptyMap());
         bulkRequest.add(indexRequest);
-        action.execute(null, bulkRequest, ActionListener.wrap(response -> {}, exception -> {
+        ActionTestUtils.execute(action, null, bulkRequest, ActionListener.wrap(response -> {}, exception -> {
             throw new AssertionError(exception);
         }));
         assertTrue(action.isExecuted);
@@ -231,7 +232,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     public void testSingleItemBulkActionIngestSkipped() throws Exception {
         IndexRequest indexRequest = new IndexRequest("index", "type", "id");
         indexRequest.source(Collections.emptyMap());
-        singleItemBulkWriteAction.execute(null, indexRequest, ActionListener.wrap(response -> {}, exception -> {
+        ActionTestUtils.execute(singleItemBulkWriteAction, null, indexRequest, ActionListener.wrap(response -> {}, exception -> {
             throw new AssertionError(exception);
         }));
         assertTrue(action.isExecuted);
@@ -252,7 +253,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
 
         AtomicBoolean responseCalled = new AtomicBoolean(false);
         AtomicBoolean failureCalled = new AtomicBoolean(false);
-        action.execute(null, bulkRequest, ActionListener.wrap(
+        ActionTestUtils.execute(action, null, bulkRequest, ActionListener.wrap(
             response -> {
                 BulkItemResponse itemResponse = response.iterator().next();
                 assertThat(itemResponse.getFailure().getMessage(), containsString("fake exception"));
@@ -289,7 +290,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         indexRequest.setPipeline("testpipeline");
         AtomicBoolean responseCalled = new AtomicBoolean(false);
         AtomicBoolean failureCalled = new AtomicBoolean(false);
-        singleItemBulkWriteAction.execute(null, indexRequest, ActionListener.wrap(
+        ActionTestUtils.execute(singleItemBulkWriteAction, null, indexRequest, ActionListener.wrap(
                 response -> {
                     responseCalled.set(true);
                 },
@@ -332,7 +333,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             e -> {
                 throw new AssertionError(e);
             });
-        action.execute(null, bulkRequest, listener);
+        ActionTestUtils.execute(action, null, bulkRequest, listener);
 
         // should not have executed ingest locally
         verify(ingestService, never()).executeBulkRequest(anyInt(), any(), any(), any(), any());
@@ -352,7 +353,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
 
         // now make sure ingest nodes are rotated through with a subsequent request
         reset(transportService);
-        action.execute(null, bulkRequest, listener);
+        ActionTestUtils.execute(action, null, bulkRequest, listener);
         verify(transportService).sendRequest(node.capture(), eq(BulkAction.NAME), any(), remoteResponseHandler.capture());
         if (usedNode1) {
             assertSame(remoteNode2, node.getValue());
@@ -376,7 +377,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                 e -> {
                     throw new AssertionError(e);
                 });
-        singleItemBulkWriteAction.execute(null, indexRequest, listener);
+        ActionTestUtils.execute(singleItemBulkWriteAction, null, indexRequest, listener);
 
         // should not have executed ingest locally
         verify(ingestService, never()).executeBulkRequest(anyInt(), any(), any(), any(), any());
@@ -399,7 +400,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
 
         // now make sure ingest nodes are rotated through with a subsequent request
         reset(transportService);
-        singleItemBulkWriteAction.execute(null, indexRequest, listener);
+        ActionTestUtils.execute(singleItemBulkWriteAction, null, indexRequest, listener);
         verify(transportService).sendRequest(node.capture(), eq(BulkAction.NAME), any(), remoteResponseHandler.capture());
         if (usedNode1) {
             assertSame(remoteNode2, node.getValue());
@@ -448,7 +449,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         assertNull(indexRequest1.getPipeline());
         assertNull(indexRequest2.getPipeline());
         assertNull(indexRequest3.getPipeline());
-        action.execute(null, bulkRequest, ActionListener.wrap(
+        ActionTestUtils.execute(action, null, bulkRequest, ActionListener.wrap(
             response -> {
                 BulkItemResponse itemResponse = response.iterator().next();
                 assertThat(itemResponse.getFailure().getMessage(), containsString("fake exception"));
@@ -490,7 +491,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         AtomicBoolean failureCalled = new AtomicBoolean(false);
         action.needToCheck = true;
         action.indexCreated = false;
-        singleItemBulkWriteAction.execute(null, indexRequest, ActionListener.wrap(
+        ActionTestUtils.execute(singleItemBulkWriteAction, null, indexRequest, ActionListener.wrap(
             response -> responseCalled.set(true),
             e -> {
                 assertThat(e, sameInstance(exception));
@@ -523,7 +524,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         indexRequest.source(Collections.emptyMap());
         AtomicBoolean responseCalled = new AtomicBoolean(false);
         AtomicBoolean failureCalled = new AtomicBoolean(false);
-        singleItemBulkWriteAction.execute(null, indexRequest, ActionListener.wrap(
+        ActionTestUtils.execute(singleItemBulkWriteAction, null, indexRequest, ActionListener.wrap(
             response -> responseCalled.set(true),
             e -> {
                 assertThat(e, sameInstance(exception));
@@ -559,7 +560,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         indexRequest.source(Collections.emptyMap());
         AtomicBoolean responseCalled = new AtomicBoolean(false);
         AtomicBoolean failureCalled = new AtomicBoolean(false);
-        singleItemBulkWriteAction.execute(null, indexRequest, ActionListener.wrap(
+        ActionTestUtils.execute(singleItemBulkWriteAction, null, indexRequest, ActionListener.wrap(
             response -> responseCalled.set(true),
             e -> {
                 assertThat(e, sameInstance(exception));
@@ -577,7 +578,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         AtomicBoolean responseCalled = new AtomicBoolean(false);
         AtomicBoolean failureCalled = new AtomicBoolean(false);
         assertNull(indexRequest.getPipeline());
-        singleItemBulkWriteAction.execute(null, indexRequest, ActionListener.wrap(
+        ActionTestUtils.execute(singleItemBulkWriteAction, null, indexRequest, ActionListener.wrap(
             response -> {
                 responseCalled.set(true);
             },

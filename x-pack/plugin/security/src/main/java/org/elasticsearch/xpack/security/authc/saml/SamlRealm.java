@@ -218,7 +218,7 @@ public final class SamlRealm extends Realm implements Releasable {
         this.idpDescriptor = idpDescriptor;
         this.serviceProvider = spConfiguration;
 
-        this.nameIdPolicy = new SamlAuthnRequestBuilder.NameIDPolicySettings(require(config, NAMEID_FORMAT),
+        this.nameIdPolicy = new SamlAuthnRequestBuilder.NameIDPolicySettings(config.getSetting(NAMEID_FORMAT),
                 config.getSetting(NAMEID_ALLOW_CREATE), config.getSetting(NAMEID_SP_QUALIFIER));
         this.forceAuthn = config.getSetting(FORCE_AUTHN, () -> null);
         this.useSingleLogout = config.getSetting(IDP_SINGLE_LOGOUT);

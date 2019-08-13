@@ -28,6 +28,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.RoutingMissingException;
@@ -64,6 +65,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.ingest.IngestService;
@@ -84,7 +86,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.function.LongSupplier;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
@@ -117,7 +118,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                                ClusterService clusterService, IngestService ingestService,
                                NodeClient client, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                AutoCreateIndex autoCreateIndex, LongSupplier relativeTimeProvider) {
-        super(BulkAction.NAME, transportService, actionFilters, (Supplier<BulkRequest>) BulkRequest::new, ThreadPool.Names.WRITE);
+        super(BulkAction.NAME, transportService, actionFilters, BulkRequest::new, ThreadPool.Names.WRITE);
         Objects.requireNonNull(relativeTimeProvider);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
@@ -330,10 +331,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
      * retries on retryable cluster blocks, resolves item requests,
      * constructs shard bulk requests and delegates execution to shard bulk action
      * */
-    private final class BulkOperation extends AbstractRunnable {
+    private final class BulkOperation extends ActionRunnable<BulkResponse> {
         private final Task task;
         private final BulkRequest bulkRequest;
-        private final ActionListener<BulkResponse> listener;
         private final AtomicArray<BulkItemResponse> responses;
         private final long startTimeNanos;
         private final ClusterStateObserver observer;
@@ -341,9 +341,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
         BulkOperation(Task task, BulkRequest bulkRequest, ActionListener<BulkResponse> listener, AtomicArray<BulkItemResponse> responses,
                 long startTimeNanos, Map<String, IndexNotFoundException> indicesThatCannotBeCreated) {
+            super(listener);
             this.task = task;
             this.bulkRequest = bulkRequest;
-            this.listener = listener;
             this.responses = responses;
             this.startTimeNanos = startTimeNanos;
             this.indicesThatCannotBeCreated = indicesThatCannotBeCreated;
@@ -351,12 +351,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
 
         @Override
-        public void onFailure(Exception e) {
-            listener.onFailure(e);
-        }
-
-        @Override
-        protected void doRun() throws Exception {
+        protected void doRun() {
             final ClusterState clusterState = observer.setAndGetObservedState();
             if (handleBlockExceptions(clusterState)) {
                 return;
@@ -713,7 +708,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 new BulkItemResponse(slot, indexRequest.opType(),
                     new UpdateResponse(
                         new ShardId(indexRequest.index(), IndexMetaData.INDEX_UUID_NA_VALUE, 0),
-                        indexRequest.type(), indexRequest.id(), indexRequest.version(), DocWriteResponse.Result.NOOP
+                        indexRequest.type(), indexRequest.id(), SequenceNumbers.UNASSIGNED_SEQ_NO, SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
+                        indexRequest.version(), DocWriteResponse.Result.NOOP
                     )
                 )
             );

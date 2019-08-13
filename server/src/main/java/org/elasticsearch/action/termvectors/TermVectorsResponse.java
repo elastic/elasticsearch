@@ -145,11 +145,6 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
         return headerRef != null;
     }
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
     public Fields getFields() throws IOException {
         if (hasTermVectors() && isExists()) {
             if (!sourceCopied) { // make the bytes safe

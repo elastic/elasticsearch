@@ -53,7 +53,6 @@ public class TransportDeleteEnrichPolicyAction extends TransportMasterNodeAction
         return ThreadPool.Names.SAME;
     }
 
-    @Override
     protected AcknowledgedResponse newResponse() {
         throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }

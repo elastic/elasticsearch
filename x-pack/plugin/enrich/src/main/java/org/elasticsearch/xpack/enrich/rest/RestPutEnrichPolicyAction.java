@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.enrich.rest;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -18,8 +17,7 @@ import java.io.IOException;
 
 public class RestPutEnrichPolicyAction extends BaseRestHandler {
 
-    public RestPutEnrichPolicyAction(final Settings settings, final RestController controller) {
-        super(settings);
+    public RestPutEnrichPolicyAction(final RestController controller) {
         controller.registerHandler(RestRequest.Method.PUT, "/_enrich/policy/{name}", this);
     }
 

@@ -27,6 +27,10 @@ task copyKeyCerts(type: Copy) {
 sourceSets.test.resources.srcDir(keystoreDir)
 processTestResources.dependsOn(copyKeyCerts)
 
+// Disabled and tracked here https://github.com/elastic/elasticsearch/issues/45405
+integTest.enabled = false
+testingConventions.enabled = false
+
 integTest {
     dependsOn copyKeyCerts
     runner {
@@ -40,11 +44,12 @@ integTest {
 
 testClusters.integTest {
     numberOfNodes = 3
-    distribution = 'DEFAULT'
+    testDistribution = 'DEFAULT'
 
     setting 'xpack.security.enabled', 'true'
     setting 'xpack.ml.enabled', 'true'
     setting 'xpack.watcher.enabled', 'false'
+    setting 'xpack.ilm.enabled', 'false'
     setting 'xpack.monitoring.enabled', 'false'
     setting 'xpack.security.authc.token.enabled', 'true'
     setting 'xpack.security.transport.ssl.enabled', 'true'

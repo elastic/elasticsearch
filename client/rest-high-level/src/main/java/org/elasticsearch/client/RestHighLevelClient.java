@@ -257,6 +257,7 @@ public class RestHighLevelClient implements Closeable {
     private final RollupClient rollupClient = new RollupClient(this);
     private final CcrClient ccrClient = new CcrClient(this);
     private final DataFrameClient dataFrameClient = new DataFrameClient(this);
+    private final EnrichClient enrichClient = new EnrichClient(this);
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
@@ -479,6 +480,10 @@ public class RestHighLevelClient implements Closeable {
      */
     public DataFrameClient dataFrame() {
         return dataFrameClient;
+    }
+
+    public EnrichClient enrich() {
+        return enrichClient;
     }
 
     /**
@@ -1010,8 +1015,9 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Executes a search using the Search Scroll API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-scroll.html">Search Scroll
-     * API on elastic.co</a>
+     * See <a
+     * href="https://www.elastic.co/guide/en/elasticsearch/reference/master/search-request-body.html#request-body-search-scroll">Search
+     * Scroll API on elastic.co</a>
      * @param searchScrollRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -1024,8 +1030,9 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Executes a search using the Search Scroll API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-scroll.html">Search Scroll
-     * API on elastic.co</a>
+     * See <a
+     * href="https://www.elastic.co/guide/en/elasticsearch/reference/master/search-request-body.html#request-body-search-scroll">Search
+     * Scroll API on elastic.co</a>
      * @param searchScrollRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -1037,8 +1044,9 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Asynchronously executes a search using the Search Scroll API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-scroll.html">Search Scroll
-     * API on elastic.co</a>
+     * See <a
+     * href="https://www.elastic.co/guide/en/elasticsearch/reference/master/search-request-body.html#request-body-search-scroll">Search
+     * Scroll API on elastic.co</a>
      * @param searchScrollRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -1052,8 +1060,9 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Asynchronously executes a search using the Search Scroll API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-scroll.html">Search Scroll
-     * API on elastic.co</a>
+     * See <a
+     * href="https://www.elastic.co/guide/en/elasticsearch/reference/master/search-request-body.html#request-body-search-scroll">Search
+     * Scroll API on elastic.co</a>
      * @param searchScrollRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -1066,7 +1075,8 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Clears one or more scroll ids using the Clear Scroll API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-scroll.html#_clear_scroll_api">
+     * See <a
+     * href="https://www.elastic.co/guide/en/elasticsearch/reference/master/search-request-body.html#_clear_scroll_api">
      * Clear Scroll API on elastic.co</a>
      * @param clearScrollRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -1079,7 +1089,8 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Asynchronously clears one or more scroll ids using the Clear Scroll API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-scroll.html#_clear_scroll_api">
+     * See <a
+     * href="https://www.elastic.co/guide/en/elasticsearch/reference/master/search-request-body.html#_clear_scroll_api">
      * Clear Scroll API on elastic.co</a>
      * @param clearScrollRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized

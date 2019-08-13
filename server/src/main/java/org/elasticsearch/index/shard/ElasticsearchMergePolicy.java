@@ -46,7 +46,7 @@ import java.util.Map;
  */
 public final class ElasticsearchMergePolicy extends FilterMergePolicy {
 
-    private static Logger logger = LogManager.getLogger(ElasticsearchMergePolicy.class);
+    private static final Logger logger = LogManager.getLogger(ElasticsearchMergePolicy.class);
 
     // True if the next merge request should do segment upgrades:
     private volatile boolean upgradeInProgress;

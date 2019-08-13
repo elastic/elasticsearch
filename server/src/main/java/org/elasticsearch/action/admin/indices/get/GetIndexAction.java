@@ -19,19 +19,14 @@
 
 package org.elasticsearch.action.admin.indices.get;
 
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 
-public class GetIndexAction extends StreamableResponseActionType<GetIndexResponse> {
+public class GetIndexAction extends ActionType<GetIndexResponse> {
 
     public static final GetIndexAction INSTANCE = new GetIndexAction();
     public static final String NAME = "indices:admin/get";
 
     private GetIndexAction() {
-        super(NAME);
-    }
-
-    @Override
-    public GetIndexResponse newResponse() {
-        return new GetIndexResponse();
+        super(NAME, GetIndexResponse::new);
     }
 }

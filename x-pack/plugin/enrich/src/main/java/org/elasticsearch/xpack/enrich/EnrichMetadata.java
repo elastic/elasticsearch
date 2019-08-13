@@ -15,7 +15,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
 import java.io.IOException;
@@ -28,7 +27,7 @@ import java.util.Objects;
 /**
  * Encapsulates enrich policies as custom metadata inside cluster state.
  */
-public final class EnrichMetadata extends AbstractNamedDiffable<MetaData.Custom> implements XPackPlugin.XPackMetaDataCustom {
+public final class EnrichMetadata extends AbstractNamedDiffable<MetaData.Custom> implements MetaData.Custom {
 
     static final String TYPE = "enrich";
 

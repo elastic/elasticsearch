@@ -31,6 +31,7 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.repositories.ESBlobStoreContainerTestCase;
+import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 
 import javax.security.auth.Subject;
 import java.io.IOException;
@@ -137,6 +138,6 @@ public class HdfsBlobStoreContainerTests extends ESBlobStoreContainerTestCase {
         byte[] data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
         writeBlob(container, "foo", new BytesArray(data), randomBoolean());
         assertArrayEquals(readBlobFully(container, "foo", data.length), data);
-        assertTrue(container.blobExists("foo"));
+        assertTrue(BlobStoreTestUtil.blobExists(container, "foo"));
     }
 }

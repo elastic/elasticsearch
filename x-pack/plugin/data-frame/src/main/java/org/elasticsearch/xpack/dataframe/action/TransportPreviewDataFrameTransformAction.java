@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -103,6 +104,19 @@ public class TransportPreviewDataFrameTransformAction extends
         }
 
         Pivot pivot = new Pivot(config.getPivotConfig());
+        try {
+            pivot.validateConfig();
+        } catch (ElasticsearchStatusException e) {
+            listener.onFailure(
+                new ElasticsearchStatusException(DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION,
+                    e.status(),
+                    e));
+            return;
+        } catch (Exception e) {
+            listener.onFailure(new ElasticsearchStatusException(
+                DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION, RestStatus.INTERNAL_SERVER_ERROR, e));
+            return;
+        }
 
         getPreview(pivot, config.getSource(), config.getDestination().getPipeline(), config.getDestination().getIndex(), listener);
     }
@@ -142,8 +156,16 @@ public class TransportPreviewDataFrameTransformAction extends
                     ActionListener.wrap(
                         r -> {
                             try {
-                                final CompositeAggregation agg = r.getAggregations().get(COMPOSITE_AGGREGATION_NAME);
-                                DataFrameIndexerTransformStats stats = DataFrameIndexerTransformStats.withDefaultTransformId();
+                                final Aggregations aggregations = r.getAggregations();
+                                if (aggregations == null) {
+                                    listener.onFailure(
+                                        new ElasticsearchStatusException("Source indices have been deleted or closed.",
+                                            RestStatus.BAD_REQUEST)
+                                    );
+                                    return;
+                                }
+                                final CompositeAggregation agg = aggregations.get(COMPOSITE_AGGREGATION_NAME);
+                                DataFrameIndexerTransformStats stats = new DataFrameIndexerTransformStats();
                                 // remove all internal fields
 
                                 if (pipeline == null) {

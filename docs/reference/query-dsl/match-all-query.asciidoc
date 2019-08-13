@@ -1,5 +1,8 @@
 [[query-dsl-match-all-query]]
-== Match All Query
+== Match all query
+++++
+<titleabbrev>Match all</titleabbrev>
+++++
 
 The most simple query, which matches all documents, giving them all a `_score`
 of `1.0`.

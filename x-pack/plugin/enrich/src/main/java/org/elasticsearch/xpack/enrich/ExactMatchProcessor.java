@@ -30,6 +30,7 @@ public final class ExactMatchProcessor extends AbstractEnrichProcessor {
     private final BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> searchRunner;
     private final String enrichKey;
     private final boolean ignoreMissing;
+    private final boolean overrideEnabled;
     private final List<EnrichSpecification> specifications;
 
     ExactMatchProcessor(String tag,
@@ -37,6 +38,7 @@ public final class ExactMatchProcessor extends AbstractEnrichProcessor {
                         String policyName,
                         String enrichKey,
                         boolean ignoreMissing,
+                        boolean overrideEnabled,
                         List<EnrichSpecification> specifications) {
         this(
             tag,
@@ -44,6 +46,7 @@ public final class ExactMatchProcessor extends AbstractEnrichProcessor {
             policyName,
             enrichKey,
             ignoreMissing,
+            overrideEnabled,
             specifications
         );
     }
@@ -53,11 +56,13 @@ public final class ExactMatchProcessor extends AbstractEnrichProcessor {
                         String policyName,
                         String enrichKey,
                         boolean ignoreMissing,
+                        boolean overrideEnabled,
                         List<EnrichSpecification> specifications) {
         super(tag, policyName);
         this.searchRunner = searchRunner;
         this.enrichKey = enrichKey;
         this.ignoreMissing = ignoreMissing;
+        this.overrideEnabled = overrideEnabled;
         this.specifications = specifications;
     }
 
@@ -73,8 +78,8 @@ public final class ExactMatchProcessor extends AbstractEnrichProcessor {
 
             TermQueryBuilder termQuery = new TermQueryBuilder(enrichKey, value);
             ConstantScoreQueryBuilder constantScore = new ConstantScoreQueryBuilder(termQuery);
-            // TODO: Use a custom transport action instead of the search API
             SearchSourceBuilder searchBuilder = new SearchSourceBuilder();
+            searchBuilder.from(0);
             searchBuilder.size(1);
             searchBuilder.trackScores(false);
             searchBuilder.fetchSource(specifications.stream().map(s -> s.sourceField).toArray(String[]::new), null);
@@ -108,7 +113,9 @@ public final class ExactMatchProcessor extends AbstractEnrichProcessor {
                 assert enrichDocument != null : "enrich document for id [" + enrichKey + "] was empty despite non-zero search hits length";
                 for (EnrichSpecification specification : specifications) {
                     Object enrichFieldValue = enrichDocument.get(specification.sourceField);
-                    ingestDocument.setFieldValue(specification.targetField, enrichFieldValue);
+                    if (overrideEnabled || ingestDocument.hasField(specification.targetField) == false) {
+                        ingestDocument.setFieldValue(specification.targetField, enrichFieldValue);
+                    }
                 }
                 handler.accept(ingestDocument, null);
             });
@@ -133,6 +140,10 @@ public final class ExactMatchProcessor extends AbstractEnrichProcessor {
 
     boolean isIgnoreMissing() {
         return ignoreMissing;
+    }
+
+    boolean isOverrideEnabled() {
+        return overrideEnabled;
     }
 
     List<EnrichSpecification> getSpecifications() {

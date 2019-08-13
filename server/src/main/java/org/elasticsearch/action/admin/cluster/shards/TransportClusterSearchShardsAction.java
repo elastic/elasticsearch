@@ -47,7 +47,7 @@ import java.util.Map;
 import java.util.Set;
 
 public class TransportClusterSearchShardsAction extends
-        TransportMasterNodeReadAction<ClusterSearchShardsRequest, ClusterSearchShardsResponse> {
+    TransportMasterNodeReadAction<ClusterSearchShardsRequest, ClusterSearchShardsResponse> {
 
     private final IndicesService indicesService;
 
@@ -70,11 +70,6 @@ public class TransportClusterSearchShardsAction extends
     protected ClusterBlockException checkBlock(ClusterSearchShardsRequest request, ClusterState state) {
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ,
                 indexNameExpressionResolver.concreteIndexNames(state, request));
-    }
-
-    @Override
-    protected ClusterSearchShardsResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

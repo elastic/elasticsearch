@@ -30,7 +30,6 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
-import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
@@ -45,6 +44,7 @@ import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplat
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.indices.AnalyzeRequest;
+import org.elasticsearch.client.indices.CloseIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.GetFieldMappingsRequest;
 import org.elasticsearch.client.indices.GetIndexRequest;
@@ -603,7 +603,8 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         CloseIndexRequest closeIndexRequest = new CloseIndexRequest(indices);
 
         Map<String, String> expectedParams = new HashMap<>();
-        RequestConvertersTests.setRandomTimeout(closeIndexRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
+        RequestConvertersTests.setRandomTimeout(timeout -> closeIndexRequest.setTimeout(TimeValue.parseTimeValue(timeout, "test")),
+            AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
         RequestConvertersTests.setRandomMasterTimeout(closeIndexRequest, expectedParams);
         RequestConvertersTests.setRandomIndicesOptions(closeIndexRequest::indicesOptions, closeIndexRequest::indicesOptions,
             expectedParams);
@@ -614,12 +615,6 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         Assert.assertThat(expectedParams, equalTo(request.getParameters()));
         Assert.assertThat(request.getMethod(), equalTo(HttpPost.METHOD_NAME));
         Assert.assertThat(request.getEntity(), nullValue());
-    }
-
-    public void testCloseIndexEmptyIndices() {
-        String[] indices = ESTestCase.randomBoolean() ? null : Strings.EMPTY_ARRAY;
-        ActionRequestValidationException validationException = new CloseIndexRequest(indices).validate();
-        Assert.assertNotNull(validationException);
     }
 
     public void testRefresh() {
@@ -835,18 +830,33 @@ public class IndicesRequestConvertersTests extends ESTestCase {
 
     public void testSplitWrongResizeType() {
         ResizeRequest resizeRequest = new ResizeRequest("target", "source");
-        resizeRequest.setResizeType(ResizeType.SHRINK);
+        ResizeType wrongType = randomFrom(ResizeType.SHRINK, ResizeType.CLONE);
+        resizeRequest.setResizeType(wrongType);
         IllegalArgumentException iae = LuceneTestCase.expectThrows(IllegalArgumentException.class, ()
             -> IndicesRequestConverters.split(resizeRequest));
-        Assert.assertEquals("Wrong resize type [SHRINK] for indices split request", iae.getMessage());
+        Assert.assertEquals("Wrong resize type [" + wrongType.name() + "] for indices split request", iae.getMessage());
+    }
+
+    public void testClone() throws IOException {
+        resizeTest(ResizeType.CLONE, IndicesRequestConverters::clone);
+    }
+
+    public void testCloneWrongResizeType() {
+        ResizeRequest resizeRequest = new ResizeRequest("target", "source");
+        ResizeType wrongType = randomFrom(ResizeType.SHRINK, ResizeType.SPLIT);
+        resizeRequest.setResizeType(wrongType);
+        IllegalArgumentException iae = LuceneTestCase.expectThrows(IllegalArgumentException.class, ()
+            -> IndicesRequestConverters.clone(resizeRequest));
+        Assert.assertEquals("Wrong resize type [" + wrongType.name() + "] for indices clone request", iae.getMessage());
     }
 
     public void testShrinkWrongResizeType() {
         ResizeRequest resizeRequest = new ResizeRequest("target", "source");
-        resizeRequest.setResizeType(ResizeType.SPLIT);
+        ResizeType wrongType = randomFrom(ResizeType.SPLIT, ResizeType.CLONE);
+        resizeRequest.setResizeType(wrongType);
         IllegalArgumentException iae = LuceneTestCase.expectThrows(IllegalArgumentException.class, ()
             -> IndicesRequestConverters.shrink(resizeRequest));
-        Assert.assertEquals("Wrong resize type [SPLIT] for indices shrink request", iae.getMessage());
+        Assert.assertEquals("Wrong resize type [" + wrongType.name() + "] for indices shrink request", iae.getMessage());
     }
 
     public void testShrink() throws IOException {

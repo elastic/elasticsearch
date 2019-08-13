@@ -16,8 +16,7 @@ import org.elasticsearch.xpack.core.slm.action.GetSnapshotLifecycleStatsAction;
 
 public class RestGetSnapshotLifecycleStatsAction extends BaseRestHandler {
 
-    public RestGetSnapshotLifecycleStatsAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestGetSnapshotLifecycleStatsAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.GET, "/_slm/stats", this);
     }
 

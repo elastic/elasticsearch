@@ -225,7 +225,8 @@ public class Analysis {
      * @throws IllegalArgumentException
      *          If the word list cannot be found at either key.
      */
-    public static List<String> getWordList(Environment env, Settings settings, String settingPath, String settingList, boolean removeComments) {
+    public static List<String> getWordList(Environment env, Settings settings,
+                                           String settingPath, String settingList, boolean removeComments) {
         String wordListPath = settings.get(settingPath, null);
 
         if (wordListPath == null) {

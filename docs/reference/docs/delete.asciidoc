@@ -84,8 +84,8 @@ user. The document is not deleted if the correct routing is not specified.
 
 If an <<docs-index_,external versioning variant>> is used,
 the delete operation automatically creates the specified index if it does not
-exist. (For information about manually creating indices, see
-<<indices-create-index,create index API>>.)
+exist. For information about manually creating indices, see
+<<indices-create-index,create index API>>.
 
 [float]
 [[delete-distributed]]

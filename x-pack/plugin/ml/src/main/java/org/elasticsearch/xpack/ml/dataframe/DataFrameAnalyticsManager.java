@@ -126,6 +126,9 @@ public class DataFrameAnalyticsManager {
         // Reindexing is complete; start analytics
         ActionListener<RefreshResponse> refreshListener = ActionListener.wrap(
             refreshResponse -> {
+                if (task.isStopping()) {
+                    return;
+                }
                 task.setReindexingTaskId(null);
                 startAnalytics(task, config, false);
             },
@@ -134,12 +137,17 @@ public class DataFrameAnalyticsManager {
 
         // Refresh to ensure copied index is fully searchable
         ActionListener<BulkByScrollResponse> reindexCompletedListener = ActionListener.wrap(
-            bulkResponse ->
+            bulkResponse -> {
+                if (task.isStopping()) {
+                    return;
+                }
+                task.setReindexingFinished();
                 ClientHelper.executeAsyncWithOrigin(client,
                     ClientHelper.ML_ORIGIN,
                     RefreshAction.INSTANCE,
                     new RefreshRequest(config.getDest().getIndex()),
-                    refreshListener),
+                    refreshListener);
+            },
             error -> task.updateState(DataFrameAnalyticsState.FAILED, error.getMessage())
         );
 
@@ -187,6 +195,9 @@ public class DataFrameAnalyticsManager {
     }
 
     private void startAnalytics(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config, boolean isTaskRestarting) {
+        // Ensure we mark reindexing is finished for the case we are recovering a task that had finished reindexing
+        task.setReindexingFinished();
+
         // Update state to ANALYZING and start process
         ActionListener<DataFrameDataExtractorFactory> dataExtractorFactoryListener = ActionListener.wrap(
             dataExtractorFactory -> {

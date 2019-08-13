@@ -78,6 +78,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         putAnalytics(config);
 
         assertState(id, DataFrameAnalyticsState.STOPPED);
+        assertProgress(id, 0, 0, 0, 0);
 
         startAnalytics(id);
         waitUntilAnalyticsIsStopped(id);
@@ -113,6 +114,9 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             }
         }
         assertThat(scoreOfOutlier, is(greaterThan(scoreOfNonOutlier)));
+
+        assertProgress(id, 100, 100, 100, 100);
+        assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
     }
 
     public void testOutlierDetectionWithEnoughDocumentsToScroll() throws Exception {
@@ -143,6 +147,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         putAnalytics(config);
 
         assertState(id, DataFrameAnalyticsState.STOPPED);
+        assertProgress(id, 0, 0, 0, 0);
 
         startAnalytics(id);
         waitUntilAnalyticsIsStopped(id);
@@ -156,6 +161,9 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             .setTrackTotalHits(true)
             .setQuery(QueryBuilders.existsQuery("custom_ml.outlier_score")).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) docCount));
+
+        assertProgress(id, 100, 100, 100, 100);
+        assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
     }
 
     public void testOutlierDetectionWithMoreFieldsThanDocValueFieldLimit() throws Exception {
@@ -201,6 +209,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         putAnalytics(config);
 
         assertState(id, DataFrameAnalyticsState.STOPPED);
+        assertProgress(id, 0, 0, 0, 0);
 
         startAnalytics(id);
         waitUntilAnalyticsIsStopped(id);
@@ -224,6 +233,9 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             double outlierScore = (double) resultsObject.get("outlier_score");
             assertThat(outlierScore, allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0)));
         }
+
+        assertProgress(id, 100, 100, 100, 100);
+        assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/43960")
@@ -312,6 +324,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         putAnalytics(config);
 
         assertState(id, DataFrameAnalyticsState.STOPPED);
+        assertProgress(id, 0, 0, 0, 0);
 
         startAnalytics(id);
         waitUntilAnalyticsIsStopped(id);
@@ -325,6 +338,9 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             .setTrackTotalHits(true)
             .setQuery(QueryBuilders.existsQuery("ml.outlier_score")).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) bulkRequestBuilder.numberOfActions()));
+
+        assertProgress(id, 100, 100, 100, 100);
+        assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
     }
 
     public void testOutlierDetectionWithPreExistingDestIndex() throws Exception {
@@ -358,6 +374,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         putAnalytics(config);
 
         assertState(id, DataFrameAnalyticsState.STOPPED);
+        assertProgress(id, 0, 0, 0, 0);
 
         startAnalytics(id);
         waitUntilAnalyticsIsStopped(id);
@@ -371,6 +388,9 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             .setTrackTotalHits(true)
             .setQuery(QueryBuilders.existsQuery("ml.outlier_score")).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) bulkRequestBuilder.numberOfActions()));
+
+        assertProgress(id, 100, 100, 100, 100);
+        assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
     }
 
     public void testRegressionWithNumericFeatureAndFewDocuments() throws Exception {
@@ -406,6 +426,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         putAnalytics(config);
 
         assertState(id, DataFrameAnalyticsState.STOPPED);
+        assertProgress(id, 0, 0, 0, 0);
 
         startAnalytics(id);
         waitUntilAnalyticsIsStopped(id);
@@ -438,6 +459,9 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             }
         }
         assertThat(resultsWithPrediction, greaterThan(0));
+
+        assertProgress(id, 100, 100, 100, 100);
+        assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
     }
 
     public void testModelMemoryLimitLowerThanEstimatedMemoryUsage() {

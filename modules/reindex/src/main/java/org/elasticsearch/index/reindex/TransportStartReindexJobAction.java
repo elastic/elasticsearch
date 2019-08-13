@@ -19,6 +19,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -34,6 +35,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksService;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -128,7 +130,9 @@ public class TransportStartReindexJobAction extends HandledTransportAction<Start
                                 if (reindexState.getException() == null) {
                                     listener.onResponse(new StartReindexJobAction.Response(taskId, reindexState.getReindexResponse()));
                                 } else {
-                                    listener.onFailure(reindexState.getException());
+                                    Exception exception = reindexState.getException();
+                                    RestStatus statusCode = reindexState.getFailureStatusCode();
+                                    listener.onFailure(new ElasticsearchStatusException(exception.getMessage(), statusCode, exception));
                                 }
                             }
 

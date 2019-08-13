@@ -21,6 +21,7 @@ package org.elasticsearch.index.reindex;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.Client;
@@ -32,6 +33,7 @@ import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -178,7 +180,7 @@ public class ReindexTask extends AllocatedPersistentTask {
         TaskManager taskManager = getTaskManager();
         assert taskManager != null : "TaskManager should have been set before reindex started";
 
-        ReindexTaskIndexState reindexState = new ReindexTaskIndexState(reindexRequest, response, null);
+        ReindexTaskIndexState reindexState = new ReindexTaskIndexState(reindexRequest, response, null, (RestStatus) null);
         reindexIndexClient.updateReindexTaskDoc(getPersistentTaskId(), reindexState, new ActionListener<>() {
             @Override
             public void onResponse(Void v) {
@@ -224,7 +226,8 @@ public class ReindexTask extends AllocatedPersistentTask {
         TaskManager taskManager = getTaskManager();
         assert taskManager != null : "TaskManager should have been set before reindex started";
 
-        ReindexTaskIndexState reindexState = new ReindexTaskIndexState(reindexRequest, null, ex);
+        ElasticsearchException exception = wrapException(ex);
+        ReindexTaskIndexState reindexState = new ReindexTaskIndexState(reindexRequest, null, exception, exception.status());
 
         reindexIndexClient.updateReindexTaskDoc(getPersistentTaskId(), reindexState, new ActionListener<>() {
             @Override
@@ -264,6 +267,14 @@ public class ReindexTask extends AllocatedPersistentTask {
             taskManager.storeResult(ReindexTask.this, ex, ActionListener.wrap(() -> markAsFailed(ex)));
         } else {
             markAsFailed(ex);
+        }
+    }
+
+    private static ElasticsearchException wrapException(Exception ex) {
+        if (ex instanceof ElasticsearchException) {
+            return (ElasticsearchException) ex;
+        } else {
+            return new ElasticsearchException(ex);
         }
     }
 

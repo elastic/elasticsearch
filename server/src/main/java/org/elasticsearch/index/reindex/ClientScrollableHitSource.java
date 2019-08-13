@@ -39,7 +39,10 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -49,7 +52,6 @@ import java.util.function.Consumer;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
-import static org.elasticsearch.common.util.CollectionUtils.isEmpty;
 
 /**
  * A scrollable source of hits from a {@linkplain Client} instance.
@@ -57,33 +59,68 @@ import static org.elasticsearch.common.util.CollectionUtils.isEmpty;
 public class ClientScrollableHitSource extends ScrollableHitSource {
     private final ParentTaskAssigningClient client;
     private final SearchRequest firstSearchRequest;
+    private final String restartFromField;
 
     public ClientScrollableHitSource(Logger logger, BackoffPolicy backoffPolicy, ThreadPool threadPool, Runnable countSearchRetry,
                                      Consumer<AsyncResponse> onResponse, Consumer<Exception> fail,
-                                     ParentTaskAssigningClient client, SearchRequest firstSearchRequest) {
-        super(logger, backoffPolicy, threadPool, countSearchRetry, onResponse, fail);
+                                     ParentTaskAssigningClient client, SearchRequest firstSearchRequest, String restartFromField) {
+        super(logger, backoffPolicy, threadPool, countSearchRetry, onResponse, fail, restartFromField);
         this.client = client;
         this.firstSearchRequest = firstSearchRequest;
+        this.restartFromField = restartFromField;
     }
 
     @Override
-    public void doStart(RejectAwareActionListener<Response> searchListener) {
-        if (logger.isDebugEnabled()) {
-            logger.debug("executing initial scroll against {}",
-                isEmpty(firstSearchRequest.indices()) ? "all indices" : firstSearchRequest.indices());
+    public void doStart(TimeValue extraKeepAlive, RejectAwareActionListener<Response> searchListener) {
+        SearchRequest searchRequest = firstSearchRequest;
+        if (extraKeepAlive != null && extraKeepAlive.nanos() != 0) {
+            searchRequest = new SearchRequest(searchRequest).scroll(keepAliveTime(extraKeepAlive));
         }
-        client.search(firstSearchRequest, wrapListener(searchListener));
+        client.search(searchRequest, wrapListener(searchListener));
+    }
+
+    @Override
+    protected void doRestart(TimeValue extraKeepAlive, long restartFromValue, RejectAwareActionListener searchListener) {
+        SearchRequest restartRequest = createRestartFromRequest(restartFromValue, extraKeepAlive);
+        client.search(restartRequest, wrapListener(searchListener));
+    }
+
+    private SearchRequest createRestartFromRequest(long restartFromValue, TimeValue extraKeepAlive) {
+        SearchRequest restartFromRequest = new SearchRequest(firstSearchRequest).scroll(keepAliveTime(extraKeepAlive));
+        RangeQueryBuilder restartFromFilter = new RangeQueryBuilder(restartFromField).gte(restartFromValue);
+        SearchSourceBuilder newSearchSourceBuilder =
+            restartFromRequest.source() != null ? restartFromRequest.source().copy() : new SearchSourceBuilder();
+        if (newSearchSourceBuilder.query() == null) {
+            newSearchSourceBuilder.query(restartFromFilter);
+        } else {
+            newSearchSourceBuilder.query(new BoolQueryBuilder().filter(restartFromRequest.source().query()).filter(restartFromFilter));
+        }
+        restartFromRequest.source(newSearchSourceBuilder);
+        return restartFromRequest;
+    }
+
+    protected String[] indices() {
+        return firstSearchRequest.indices();
     }
 
     @Override
     protected void doStartNextScroll(String scrollId, TimeValue extraKeepAlive, RejectAwareActionListener<Response> searchListener) {
         SearchScrollRequest request = new SearchScrollRequest();
         // Add the wait time into the scroll timeout so it won't timeout while we wait for throttling
-        request.scrollId(scrollId).scroll(timeValueNanos(firstSearchRequest.scroll().keepAlive().nanos() + extraKeepAlive.nanos()));
+        request.scrollId(scrollId).scroll(keepAliveTime(extraKeepAlive));
         client.searchScroll(request, wrapListener(searchListener));
     }
 
-    private ActionListener<SearchResponse> wrapListener(RejectAwareActionListener<Response> searchListener) {
+    @Override
+    protected boolean canRestart() {
+        return restartFromField != null;
+    }
+
+    private TimeValue keepAliveTime(TimeValue extraKeepAlive) {
+        return timeValueNanos(firstSearchRequest.scroll().keepAlive().nanos() + extraKeepAlive.nanos());
+    }
+
+    private ActionListener<SearchResponse> wrapListener(RejectAwareActionListener searchListener) {
         return new ActionListener<>() {
             @Override
             public void onResponse(SearchResponse searchResponse) {

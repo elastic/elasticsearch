@@ -69,14 +69,14 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
     public RemoteScrollableHitSource(Logger logger, BackoffPolicy backoffPolicy, ThreadPool threadPool, Runnable countSearchRetry,
                                      Consumer<AsyncResponse> onResponse, Consumer<Exception> fail,
                                      RestClient client, BytesReference query, SearchRequest searchRequest) {
-        super(logger, backoffPolicy, threadPool, countSearchRetry, onResponse, fail);
+        super(logger, backoffPolicy, threadPool, countSearchRetry, onResponse, fail, null);// todo: handle resume or grace
         this.query = query;
         this.searchRequest = searchRequest;
         this.client = client;
     }
 
     @Override
-    protected void doStart(RejectAwareActionListener<Response> searchListener) {
+    protected void doStart(TimeValue extraKeepAlive, RejectAwareActionListener<Response> searchListener) {
         lookupRemoteVersion(RejectAwareActionListener.withResponseHandler(searchListener, version -> {
             remoteVersion = version;
             execute(RemoteRequestBuilders.initialSearch(searchRequest, query, remoteVersion),
@@ -98,9 +98,25 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
     }
 
     @Override
+    protected void doRestart(TimeValue extraKeepAlive, long restartFromValue, RejectAwareActionListener<Response> searchListener) {
+        assert false;
+        throw new UnsupportedOperationException("restart during remote reindex not supported yet");
+    }
+
+    @Override
     protected void doStartNextScroll(String scrollId, TimeValue extraKeepAlive, RejectAwareActionListener<Response> searchListener) {
         TimeValue keepAlive = timeValueNanos(searchRequest.scroll().keepAlive().nanos() + extraKeepAlive.nanos());
         execute(RemoteRequestBuilders.scroll(scrollId, keepAlive, remoteVersion), RESPONSE_PARSER, searchListener);
+    }
+
+    @Override
+    protected boolean canRestart() {
+        return false;
+    }
+
+    @Override
+    protected String[] indices() {
+        return searchRequest.indices();
     }
 
     @Override

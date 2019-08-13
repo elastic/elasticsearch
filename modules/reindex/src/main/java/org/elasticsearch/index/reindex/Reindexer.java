@@ -33,6 +33,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.client.RestClient;
@@ -47,10 +48,14 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.reindex.remote.RemoteScrollableHitSource;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -92,15 +97,39 @@ public class Reindexer {
     }
 
     public void execute(BulkByScrollTask task, ReindexRequest request, ActionListener<BulkByScrollResponse> listener) {
+        request.getSearchRequest().allowPartialSearchResults(false);
+        // Notice that this is called both on leader and workers when slicing.
+        String resumableSortingField = request.getRemoteInfo() == null ? getOrAddRestartFromField(request.getSearchRequest()) : null;
+
         BulkByScrollParallelizationHelper.executeSlicedAction(task, request, ReindexAction.INSTANCE, listener, client,
             clusterService.localNode(),
             () -> {
                 ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(), task);
                 AsyncIndexBySearchAction searchAction = new AsyncIndexBySearchAction(task, logger, assigningClient, threadPool,
-                    scriptService, reindexSslConfig, request, listener);
+                    scriptService, reindexSslConfig, request, resumableSortingField, listener);
                 searchAction.start();
             });
 
+    }
+
+    private static String getOrAddRestartFromField(SearchRequest searchRequest) {
+        // we keep with the tradition of modifying the input request, though this can lead to strange results (in transport clients).
+        List<SortBuilder<?>> sorts = searchRequest.source().sorts();
+        if (sorts != null && sorts.size() >= 1) {
+            SortBuilder<?> firstSort = sorts.get(0);
+            if (firstSort instanceof FieldSortBuilder) {
+                FieldSortBuilder fieldSort = (FieldSortBuilder) firstSort;
+                if (SeqNoFieldMapper.NAME.equals(fieldSort.getFieldName())
+                    && fieldSort.order() == SortOrder.ASC) {
+                    return SeqNoFieldMapper.NAME;
+                }
+                // todo: support non seq_no fields and descending, but need to check field is numeric and handle missing values too then.
+            }
+            return null;
+        }
+
+        searchRequest.source().sort(SeqNoFieldMapper.NAME);
+        return SeqNoFieldMapper.NAME;
     }
 
     /**
@@ -170,18 +199,20 @@ public class Reindexer {
 
         AsyncIndexBySearchAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
                                  ThreadPool threadPool, ScriptService scriptService, ReindexSslConfig sslConfig, ReindexRequest request,
-                                 ActionListener<BulkByScrollResponse> listener) {
+                                 String restartFromField, ActionListener<BulkByScrollResponse> listener) {
             super(task,
                 /*
                  * We only need the source version if we're going to use it when write and we only do that when the destination request uses
                  * external versioning.
                  */
                 request.getDestination().versionType() != VersionType.INTERNAL,
-                false, logger, client, threadPool, request, listener, scriptService, sslConfig);
+                SeqNoFieldMapper.NAME.equals(restartFromField), logger, client, threadPool, request, listener,
+                scriptService, sslConfig, restartFromField);
         }
 
         @Override
-        protected ScrollableHitSource buildScrollableResultSource(BackoffPolicy backoffPolicy) {
+        protected ScrollableHitSource buildScrollableResultSource(BackoffPolicy backoffPolicy,
+                                                                  String restartFromField) {
             if (mainRequest.getRemoteInfo() != null) {
                 RemoteInfo remoteInfo = mainRequest.getRemoteInfo();
                 createdThreads = synchronizedList(new ArrayList<>());
@@ -191,7 +222,7 @@ public class Reindexer {
                     this::onScrollResponse, this::finishHim,
                     restClient, remoteInfo.getQuery(), mainRequest.getSearchRequest());
             }
-            return super.buildScrollableResultSource(backoffPolicy);
+            return super.buildScrollableResultSource(backoffPolicy, restartFromField);
         }
 
         @Override

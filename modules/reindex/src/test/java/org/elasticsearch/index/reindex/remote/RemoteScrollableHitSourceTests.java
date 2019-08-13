@@ -158,7 +158,7 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
 
     public void testParseStartOk() throws Exception {
         AtomicBoolean called = new AtomicBoolean();
-        sourceWithMockedRemoteCall("start_ok.json").doStart(wrapAsListener(r -> {
+        sourceWithMockedRemoteCall("start_ok.json").doStart(TimeValue.ZERO, wrapAsListener(r -> {
             assertFalse(r.isTimedOut());
             assertEquals(FAKE_SCROLL_ID, r.getScrollId());
             assertEquals(4, r.getTotalHits());
@@ -226,7 +226,7 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
      */
     public void testScanJumpStart() throws Exception {
         AtomicBoolean called = new AtomicBoolean();
-        sourceWithMockedRemoteCall("start_scan.json", "scroll_ok.json").doStart(wrapAsListener(r -> {
+        sourceWithMockedRemoteCall("start_scan.json", "scroll_ok.json").doStart(TimeValue.ZERO, wrapAsListener(r -> {
             assertFalse(r.isTimedOut());
             assertEquals(FAKE_SCROLL_ID, r.getScrollId());
             assertEquals(4, r.getTotalHits());
@@ -266,7 +266,7 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
             assertEquals("{\"test\":\"test1\"}", r.getHits().get(0).getSource().utf8ToString());
             called.set(true);
         };
-        sourceWithMockedRemoteCall("rejection.json").doStart(wrapAsListener(checkResponse));
+        sourceWithMockedRemoteCall("rejection.json").doStart(TimeValue.ZERO, wrapAsListener(checkResponse));
         assertTrue(called.get());
         called.set(false);
         sourceWithMockedRemoteCall("rejection.json").doStartNextScroll("scroll", timeValueMillis(0), wrapAsListener(checkResponse));
@@ -295,7 +295,7 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
             assertEquals("{\"test\":\"test10000\"}", r.getHits().get(0).getSource().utf8ToString());
             called.set(true);
         };
-        sourceWithMockedRemoteCall("failure_with_status.json").doStart(wrapAsListener(checkResponse));
+        sourceWithMockedRemoteCall("failure_with_status.json").doStart(TimeValue.ZERO, wrapAsListener(checkResponse));
         assertTrue(called.get());
         called.set(false);
         sourceWithMockedRemoteCall("failure_with_status.json").doStartNextScroll("scroll", timeValueMillis(0),
@@ -317,7 +317,7 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
             assertEquals(14, failure.getColumnNumber());
             called.set(true);
         };
-        sourceWithMockedRemoteCall("request_failure.json").doStart(wrapAsListener(checkResponse));
+        sourceWithMockedRemoteCall("request_failure.json").doStart(TimeValue.ZERO, wrapAsListener(checkResponse));
         assertTrue(called.get());
         called.set(false);
         sourceWithMockedRemoteCall("request_failure.json").doStartNextScroll("scroll", timeValueMillis(0), wrapAsListener(checkResponse));
@@ -369,7 +369,7 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
         String header = randomAlphaOfLength(5);
         threadPool.getThreadContext().putHeader("test", header);
         AtomicBoolean called = new AtomicBoolean();
-        sourceWithMockedRemoteCall("start_ok.json").doStart(wrapAsListener(r -> {
+        sourceWithMockedRemoteCall("start_ok.json").doStart(TimeValue.ZERO, wrapAsListener(r -> {
             assertEquals(header, threadPool.getThreadContext().getHeader("test"));
             called.set(true);
         }));

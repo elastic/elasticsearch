@@ -119,7 +119,8 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     AbstractAsyncBulkByScrollAction(BulkByScrollTask task, boolean needsSourceDocumentVersions,
                                     boolean needsSourceDocumentSeqNoAndPrimaryTerm, Logger logger, ParentTaskAssigningClient client,
                                     ThreadPool threadPool, Request mainRequest, ActionListener<BulkByScrollResponse> listener,
-                                    @Nullable ScriptService scriptService, @Nullable ReindexSslConfig sslConfig) {
+                                    @Nullable ScriptService scriptService, @Nullable ReindexSslConfig sslConfig,
+                                    @Nullable String restartFromField) {
         this.task = task;
         this.scriptService = scriptService;
         this.sslConfig = sslConfig;
@@ -135,7 +136,9 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         this.listener = listener;
         BackoffPolicy backoffPolicy = buildBackoffPolicy();
         bulkRetry = new Retry(BackoffPolicy.wrap(backoffPolicy, worker::countBulkRetry), threadPool);
-        scrollSource = buildScrollableResultSource(backoffPolicy);
+        // todo: this is trappy, since if a subclass override relies on subclass fields, they are not initialized. We should fix
+        // to simply pass in the hit-source.
+        scrollSource = buildScrollableResultSource(backoffPolicy, restartFromField);
         scriptApplier = Objects.requireNonNull(buildScriptApplier(), "script applier must not be null");
         /*
          * Default to sorting by doc. We can't do this in the request itself because it is normal to *add* to the sorts rather than replace
@@ -213,10 +216,11 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         return bulkRequest;
     }
 
-    protected ScrollableHitSource buildScrollableResultSource(BackoffPolicy backoffPolicy) {
+    protected ScrollableHitSource buildScrollableResultSource(BackoffPolicy backoffPolicy,
+                                                              String restartFromField) {
         return new ClientScrollableHitSource(logger, backoffPolicy, threadPool, worker::countSearchRetry,
             this::onScrollResponse, this::finishHim, client,
-                mainRequest.getSearchRequest());
+                mainRequest.getSearchRequest(), restartFromField);
     }
 
     /**

@@ -8,7 +8,7 @@ REST APIs to store, search, and analyze data?
 
 Follow this getting started tutorial to:
 
-. Get an {es} instance up and running
+. Get an {es} cluster up and running
 . Index some sample documents
 . Search for documents using the {es} query language
 . Analyze the results using bucket and metrics aggregations
@@ -31,156 +31,158 @@ trial of Elasticsearch Service] in the cloud.
 
 [[getting-started-install]]
 == Get {es} up and running
-To take {es} for a test drive, you can create a one-click cloud deployment on
-the https://www.elastic.co/cloud/elasticsearch-service/signup[Elasticsearch
-Service], or set up a basic {es} cluster on your own
-<<run-elasticsearch-linux,Linux>>,
-macOS, or
-<<run-elasticsearch-win,Windows>> machine.
+
+To take {es} for a test drive, you can create a one-click cloud deployment
+on the https://www.elastic.co/cloud/elasticsearch-service/signup[Elasticsearch Service],
+or <<run-elasticsearch-local, set up a multi-node {es} cluster>> on your own
+Linux, macOS, or Windows machine.
+
 
 [float]
-[[run-elasticsearch-linux]]
-=== Run {es} on Linux
+[[run-elasticsearch-local]]
+=== Run {es} locally on Linux, macOS, or Windows
 
-For simplicity, let's use the {ref}/targz.html[tar] file.
+When you create a cluster on the Elasticsearch Service, you automatically
+get a three-node cluster. By installing from the tar or zip archive, you can
+start multiple instances of {es} locally to see how a multi-node cluster behaves.
 
-Let's download the Elasticsearch {version} Linux tar as follows:
+To run a three-node {es} cluster locally:
 
+. Download the Elasticsearch archive for your OS:
++
+Linux: https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-linux-x86_64.tar.gz[elasticsearch-{version}-linux-x86_64.tar.gz]
++
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
 curl -L -O https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-linux-x86_64.tar.gz
 --------------------------------------------------
 // NOTCONSOLE
++
+macOS: https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-darwin-x86_64.tar.gz[elasticsearch-{version}-darwin-x86_64.tar.gz]
++
+["source","sh",subs="attributes,callouts"]
+--------------------------------------------------
+curl -L -O https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-darwin-x86_64.tar.gz
+--------------------------------------------------
+// NOTCONSOLE
++
+Windows:
+https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-windows-x86_64.zip[elasticsearch-{version}-windows-x86_64.zip]
 
-Then extract it as follows:
-
+. Extract the archive:
++
+Linux:
++
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
 tar -xvf elasticsearch-{version}-linux-x86_64.tar.gz
 --------------------------------------------------
++
+macOS:
++
+["source","sh",subs="attributes,callouts"]
+--------------------------------------------------
+tar -xvf elasticsearch-{version}-darwin-x86_64.tar.gz
+--------------------------------------------------
++
+Windows PowerShell:
++
+["source","sh",subs="attributes,callouts"]
+--------------------------------------------------
+Expand-Archive elasticsearch-{version}-windows-x86_64.zip
+--------------------------------------------------
 
-It will then create a bunch of files and folders in your current directory. We then go into the bin directory as follows:
-
+. Start elasticsearch from the `bin` directory:
++
+Linux and macOS:
++
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
 cd elasticsearch-{version}/bin
---------------------------------------------------
-
-And now we are ready to start our node and single cluster:
-
-[source,sh]
---------------------------------------------------
 ./elasticsearch
 --------------------------------------------------
-
-[float]
-[[run-elasticsearch-win]]
-=== Run {es} on Windows
-
-For Windows users, we recommend using the {ref}/windows.html[MSI Installer package]. The package contains a graphical user interface (GUI) that guides you through the installation process.
-
-First, download the Elasticsearch {version} MSI from
-https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.msi.
-
-Then double-click the downloaded file to launch the GUI. Within the first screen, select the deployment directories:
-
-[[getting-started-msi-installer-locations]]
-image::images/msi_installer/msi_installer_locations.png[]
-
-Then select whether to install as a service or start Elasticsearch manually as needed.
-To align with the Linux example, choose not to install as a service:
-
-[[getting-started-msi-installer-service]]
-image::images/msi_installer/msi_installer_no_service.png[]
-
-For configuration, simply leave the default values:
-
-[[getting-started-msi-installer-configuration]]
-image::images/msi_installer/msi_installer_configuration.png[]
-
-Again, to align with the tar example, uncheck all plugins to not install any plugins:
-
-[[getting-started-msi-installer-plugins]]
-image::images/msi_installer/msi_installer_plugins.png[]
-
-After clicking the install button, Elasticsearch will be installed:
-
-[[getting-started-msi-installer-success]]
-image::images/msi_installer/msi_installer_success.png[]
-
-By default, Elasticsearch will be installed at `%PROGRAMFILES%\Elastic\Elasticsearch`. Navigate here and go into the bin directory as follows:
-
-**with Command Prompt:**
-
-[source,sh]
---------------------------------------------------
-cd %PROGRAMFILES%\Elastic\Elasticsearch\bin
---------------------------------------------------
-
-**with PowerShell:**
-
-[source,powershell]
---------------------------------------------------
-cd $env:PROGRAMFILES\Elastic\Elasticsearch\bin
---------------------------------------------------
-
-And now we are ready to start our node and single cluster:
-
-[source,sh]
---------------------------------------------------
-.\elasticsearch.exe
---------------------------------------------------
-
-[float]
-[[successfully-running-node]]
-=== Verify that {es} is running
-
-If everything goes well with installation, you should see a bunch of messages that look like below:
-
++
+Windows:
++
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-[2018-09-13T12:20:01,766][INFO ][o.e.e.NodeEnvironment    ] [localhost.localdomain] using [1] data paths, mounts [[/home (/dev/mapper/fedora-home)]], net usable_space [335.3gb], net total_space [410.3gb], types [ext4]
-[2018-09-13T12:20:01,772][INFO ][o.e.e.NodeEnvironment    ] [localhost.localdomain] heap size [990.7mb], compressed ordinary object pointers [true]
-[2018-09-13T12:20:01,774][INFO ][o.e.n.Node               ] [localhost.localdomain] node name [localhost.localdomain], node ID [B0aEHNagTiWx7SYj-l4NTw]
-[2018-09-13T12:20:01,775][INFO ][o.e.n.Node               ] [localhost.localdomain] version[{version}], pid[13030], build[oss/zip/77fc20e/2018-09-13T15:37:57.478402Z], OS[Linux/4.16.11-100.fc26.x86_64/amd64], JVM["Oracle Corporation"/OpenJDK 64-Bit Server VM/10/10+46]
-[2018-09-13T12:20:01,775][INFO ][o.e.n.Node               ] [localhost.localdomain] JVM arguments [-Xms1g, -Xmx1g, -XX:+UseConcMarkSweepGC, -XX:CMSInitiatingOccupancyFraction=75, -XX:+UseCMSInitiatingOccupancyOnly, -XX:+AlwaysPreTouch, -Xss1m, -Djava.awt.headless=true, -Dfile.encoding=UTF-8, -Djna.nosys=true, -XX:-OmitStackTraceInFastThrow, -Dio.netty.noUnsafe=true, -Dio.netty.noKeySetOptimization=true, -Dio.netty.recycler.maxCapacityPerThread=0, -Dlog4j.shutdownHookEnabled=false, -Dlog4j2.disable.jmx=true, -Djava.io.tmpdir=/tmp/elasticsearch.LN1ctLCi, -XX:+HeapDumpOnOutOfMemoryError, -XX:HeapDumpPath=data, -XX:ErrorFile=logs/hs_err_pid%p.log, -Xlog:gc*,gc+age=trace,safepoint:file=logs/gc.log:utctime,pid,tags:filecount=32,filesize=64m, -Djava.locale.providers=COMPAT, -XX:UseAVX=2, -Dio.netty.allocator.type=unpooled, -Des.path.home=/home/manybubbles/Workspaces/Elastic/master/elasticsearch/qa/unconfigured-node-name/build/cluster/integTestCluster node0/elasticsearch-7.0.0-alpha1-SNAPSHOT, -Des.path.conf=/home/manybubbles/Workspaces/Elastic/master/elasticsearch/qa/unconfigured-node-name/build/cluster/integTestCluster node0/elasticsearch-7.0.0-alpha1-SNAPSHOT/config, -Des.distribution.flavor=oss, -Des.distribution.type=zip]
-[2018-09-13T12:20:02,543][INFO ][o.e.p.PluginsService     ] [localhost.localdomain] loaded module [aggs-matrix-stats]
-[2018-09-13T12:20:02,543][INFO ][o.e.p.PluginsService     ] [localhost.localdomain] loaded module [analysis-common]
-[2018-09-13T12:20:02,543][INFO ][o.e.p.PluginsService     ] [localhost.localdomain] loaded module [ingest-common]
-[2018-09-13T12:20:02,544][INFO ][o.e.p.PluginsService     ] [localhost.localdomain] loaded module [lang-expression]
-[2018-09-13T12:20:02,544][INFO ][o.e.p.PluginsService     ] [localhost.localdomain] loaded module [lang-mustache]
-[2018-09-13T12:20:02,544][INFO ][o.e.p.PluginsService     ] [localhost.localdomain] loaded module [lang-painless]
-[2018-09-13T12:20:02,544][INFO ][o.e.p.PluginsService     ] [localhost.localdomain] loaded module [mapper-extras]
-[2018-09-13T12:20:02,544][INFO ][o.e.p.PluginsService     ] [localhost.localdomain] loaded module [parent-join]
-[2018-09-13T12:20:02,544][INFO ][o.e.p.PluginsService     ] [localhost.localdomain] loaded module [percolator]
-[2018-09-13T12:20:02,544][INFO ][o.e.p.PluginsService     ] [localhost.localdomain] loaded module [rank-eval]
-[2018-09-13T12:20:02,544][INFO ][o.e.p.PluginsService     ] [localhost.localdomain] loaded module [reindex]
-[2018-09-13T12:20:02,545][INFO ][o.e.p.PluginsService     ] [localhost.localdomain] loaded module [repository-url]
-[2018-09-13T12:20:02,545][INFO ][o.e.p.PluginsService     ] [localhost.localdomain] loaded module [transport-netty4]
-[2018-09-13T12:20:02,545][INFO ][o.e.p.PluginsService     ] [localhost.localdomain] no plugins loaded
-[2018-09-13T12:20:04,657][INFO ][o.e.d.DiscoveryModule    ] [localhost.localdomain] using discovery type [zen]
-[2018-09-13T12:20:05,006][INFO ][o.e.n.Node               ] [localhost.localdomain] initialized
-[2018-09-13T12:20:05,007][INFO ][o.e.n.Node               ] [localhost.localdomain] starting ...
-[2018-09-13T12:20:05,202][INFO ][o.e.t.TransportService   ] [localhost.localdomain] publish_address {127.0.0.1:9300}, bound_addresses {[::1]:9300}, {127.0.0.1:9300}
-[2018-09-13T12:20:05,221][WARN ][o.e.b.BootstrapChecks    ] [localhost.localdomain] max file descriptors [4096] for elasticsearch process is too low, increase to at least [65535]
-[2018-09-13T12:20:05,221][WARN ][o.e.b.BootstrapChecks    ] [localhost.localdomain] max virtual memory areas vm.max_map_count [65530] is too low, increase to at least [262144]
-[2018-09-13T12:20:08,355][INFO ][o.e.c.s.MasterService    ] [localhost.localdomain] elected-as-master ([0] nodes joined)[, ], reason: master node changed {previous [], current [{localhost.localdomain}{B0aEHNagTiWx7SYj-l4NTw}{hzsQz6CVQMCTpMCVLM4IHg}{127.0.0.1}{127.0.0.1:9300}{testattr=test}]}
-[2018-09-13T12:20:08,360][INFO ][o.e.c.s.ClusterApplierService] [localhost.localdomain] master node changed {previous [], current [{localhost.localdomain}{B0aEHNagTiWx7SYj-l4NTw}{hzsQz6CVQMCTpMCVLM4IHg}{127.0.0.1}{127.0.0.1:9300}{testattr=test}]}, reason: apply cluster state (from master [master {localhost.localdomain}{B0aEHNagTiWx7SYj-l4NTw}{hzsQz6CVQMCTpMCVLM4IHg}{127.0.0.1}{127.0.0.1:9300}{testattr=test} committed version [1] source [elected-as-master ([0] nodes joined)[, ]]])
-[2018-09-13T12:20:08,384][INFO ][o.e.h.n.Netty4HttpServerTransport] [localhost.localdomain] publish_address {127.0.0.1:9200}, bound_addresses {[::1]:9200}, {127.0.0.1:9200}
-[2018-09-13T12:20:08,384][INFO ][o.e.n.Node               ] [localhost.localdomain] started
-
+cd %PROGRAMFILES%\Elastic\Elasticsearch\bin
+.\elasticsearch.exe
 --------------------------------------------------
++
+You now have a single-node {es} cluster up and running!
 
-Without going too much into detail, we can see that our node named "localhost.localdomain" has started and elected itself as a master in a single cluster. Don't worry yet at the moment what master means. The main thing that is important here is that we have started one node within one cluster.
-
-As mentioned previously, we can override either the cluster or node name. This can be done from the command line when starting Elasticsearch as follows:
-
-[source,sh]
+. Start two more instances of {es} so you can see how a typical multi-node
+cluster behaves. You need to specify unique data and log paths
+for each node.
++
+Linux and macOS:
++
+["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-./elasticsearch -Ecluster.name=my_cluster_name -Enode.name=my_node_name
+./elasticsearch -Epath.data=data2 -Epath.logs=log2
+./elasticsearch -Epath.data=data3 -Epath.logs=log3
 --------------------------------------------------
++
+Windows:
++
+["source","sh",subs="attributes,callouts"]
+--------------------------------------------------
+.\elasticsearch.exe -Epath.data=data2 -Epath.logs=log2
+.\elasticsearch.exe -Epath.data=data3 -Epath.logs=log3
+--------------------------------------------------
++
+The additional nodes are assigned unique IDs. Because you're running all three
+nodes locally, they automatically join the cluster with the first node.
 
-Also note the line marked http with information about the HTTP address (`192.168.8.112`) and port (`9200`) that our node is reachable from. By default, Elasticsearch uses port `9200` to provide access to its REST API. This port is configurable if necessary.
+. Use the `cat health` API to verify that your three-node cluster is up running.
+The `cat` APIs return information about your cluster and indices in a
+format that's easier to read than raw JSON.
++
+You can interact directly with your cluster by submitting HTTP requests to
+the {es} REST API. Most of the examples in this guide enable you to copy the
+appropriate cURL command and submit the request to your local {es} instance from
+the command line. If you have Kibana installed and running, you can also
+open Kibana and submit requests through the Dev Console.
++
+TIP: You'll want to check out the
+https://www.elastic.co/guide/en/elasticsearch/client/index.html[{es} language
+clients] when you're ready to start using {es} in your own applications.
++
+[source,js]
+--------------------------------------------------
+GET /_cat/health?v
+--------------------------------------------------
+// CONSOLE
++
+The response should indicate that the status of the _elasticsearch_ cluster
+is _green_ and it has three nodes:
++
+[source,txt]
+--------------------------------------------------
+epoch      timestamp cluster       status node.total node.data shards pri relo init unassign pending_tasks max_task_wait_time active_shards_percent
+1565052807 00:53:27  elasticsearch green           3         3      6   3    0    0        0             0                  -                100.0%
+--------------------------------------------------
+// TESTRESPONSE[s/1565052807 00:53:27  elasticsearch/\\d+ \\d+:\\d+:\\d+ integTest/]
+// TESTRESPONSE[s/3         3      6   3/\\d+         \\d+      \\d+   \\d+/]
+// TESTRESPONSE[s/0             0                  -/0             \\d+                  -/]
+// TESTRESPONSE[non_json]
++
+NOTE: The cluster status will remain yellow if you are only running a single
+instance of {es}. A single node cluster is fully functional, but data
+cannot be replicated to another node to provide resiliency. Replica shards must
+be available for the cluster status to be green. If the cluster status is red,
+some data is unavailable.
+
+[float]
+[[gs-other-install]]
+=== Other installation options
+
+Installing {es} from an archive file enables you to easily install and run
+multiple instances locally so you can try things out. To run a single instance,
+you can  run {es} in a Docker container, install {es} using the DEB or RPM
+packages on Linux, install using Homebrew on macOS, or install using the MSI
+package installer on Windows. See <<install-elasticsearch>> for more information.
 
 [[getting-started-explore]]
 == Exploring Your Cluster

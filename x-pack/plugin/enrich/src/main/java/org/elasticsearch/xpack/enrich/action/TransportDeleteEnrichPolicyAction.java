@@ -73,7 +73,7 @@ public class TransportDeleteEnrichPolicyAction extends TransportMasterNodeAction
             List<AbstractEnrichProcessor> enrichProcessors =
                 ingestService.getProcessorsInPipeline(pipelineConfiguration.getId(), AbstractEnrichProcessor.class);
             for (AbstractEnrichProcessor processor: enrichProcessors) {
-                if (processor.getPolicyName().equalsIgnoreCase(request.getName())) {
+                if (processor.getPolicyName().equals(request.getName())) {
                     pipelinesWithProcessors.add(pipelineConfiguration.getId());
                 }
             }

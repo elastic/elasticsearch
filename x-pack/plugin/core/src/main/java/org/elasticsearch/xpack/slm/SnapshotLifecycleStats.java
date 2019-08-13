@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -212,34 +213,21 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
         builder.field(RETENTION_TIME.getPreferredName(), retentionTime);
         builder.field(RETENTION_TIME_MILLIS.getPreferredName(), retentionTime.millis());
 
-        long totalTaken = 0;
-        long totalFailed = 0;
-        long totalDeleted = 0;
-        long totalDeleteFailures = 0;
         Map<String, SnapshotPolicyStats> metrics = getMetrics();
-        builder.startObject(POLICY_STATS.getPreferredName());
-        for (Map.Entry<String, SnapshotPolicyStats> policy : metrics.entrySet()) {
-            SnapshotPolicyStats perPolicyMetrics = policy.getValue();
-            builder.startObject(policy.getKey());
-            long taken = perPolicyMetrics.snapshotsTaken.count();
-            long failed = perPolicyMetrics.snapshotsFailed.count();
-            long deleted = perPolicyMetrics.snapshotsDeleted.count();
-            long deleteFailed = perPolicyMetrics.snapshotDeleteFailures.count();
-            totalFailed += failed;
-            totalTaken += taken;
-            totalDeleted += deleted;
-            totalDeleteFailures += deleteFailed;
-            builder.field(SnapshotPolicyStats.SNAPSHOTS_TAKEN.getPreferredName(), taken);
-            builder.field(SnapshotPolicyStats.SNAPSHOTS_FAILED.getPreferredName(), failed);
-            builder.field(SnapshotPolicyStats.SNAPSHOTS_DELETED.getPreferredName(), deleted);
-            builder.field(SnapshotPolicyStats.SNAPSHOT_DELETION_FAILURES.getPreferredName(), deleteFailed);
-            builder.endObject();
-        }
-        builder.endObject();
+        long totalTaken = metrics.values().stream().mapToLong(s -> s.snapshotsTaken.count()).sum();
+        long totalFailed = metrics.values().stream().mapToLong(s -> s.snapshotsFailed.count()).sum();
+        long totalDeleted = metrics.values().stream().mapToLong(s -> s.snapshotsDeleted.count()).sum();
+        long totalDeleteFailures = metrics.values().stream().mapToLong(s -> s.snapshotDeleteFailures.count()).sum();
         builder.field(TOTAL_TAKEN.getPreferredName(), totalTaken);
         builder.field(TOTAL_FAILED.getPreferredName(), totalFailed);
         builder.field(TOTAL_DELETIONS.getPreferredName(), totalDeleted);
         builder.field(TOTAL_DELETION_FAILURES.getPreferredName(), totalDeleteFailures);
+        builder.startObject(POLICY_STATS.getPreferredName());
+        for (Map.Entry<String, SnapshotPolicyStats> policy : metrics.entrySet()) {
+            SnapshotPolicyStats perPolicyMetrics = policy.getValue();
+            perPolicyMetrics.toXContent(builder, params);
+        }
+        builder.endObject();
         builder.endObject();
         return builder;
     }
@@ -271,7 +259,7 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
         return Strings.toString(this);
     }
 
-    public static class SnapshotPolicyStats implements Writeable {
+    public static class SnapshotPolicyStats implements Writeable, ToXContentFragment {
         private final String policyId;
         private final CounterMetric snapshotsTaken = new CounterMetric();
         private final CounterMetric snapshotsFailed = new CounterMetric();
@@ -378,6 +366,17 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
                 Objects.equals(snapshotsFailed.count(), other.snapshotsFailed.count()) &&
                 Objects.equals(snapshotsDeleted.count(), other.snapshotsDeleted.count()) &&
                 Objects.equals(snapshotDeleteFailures.count(), other.snapshotDeleteFailures.count());
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(policyId);
+            builder.field(SnapshotPolicyStats.SNAPSHOTS_TAKEN.getPreferredName(), snapshotsTaken.count());
+            builder.field(SnapshotPolicyStats.SNAPSHOTS_FAILED.getPreferredName(), snapshotsFailed.count());
+            builder.field(SnapshotPolicyStats.SNAPSHOTS_DELETED.getPreferredName(), snapshotsDeleted.count());
+            builder.field(SnapshotPolicyStats.SNAPSHOT_DELETION_FAILURES.getPreferredName(), snapshotDeleteFailures.count());
+            builder.endObject();
+            return null;
         }
     }
 

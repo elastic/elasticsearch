@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.slm.action;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -16,8 +15,7 @@ import org.elasticsearch.xpack.core.slm.action.DeleteSnapshotLifecycleAction;
 
 public class RestDeleteSnapshotLifecycleAction extends BaseRestHandler {
 
-    public RestDeleteSnapshotLifecycleAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestDeleteSnapshotLifecycleAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.DELETE, "/_slm/policy/{name}", this);
     }
 

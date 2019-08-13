@@ -63,6 +63,9 @@ final class JvmErgonomics {
                 ergonomicChoices.add("-Dio.netty.allocator.type=pooled");
             }
         }
+        if (systemProperties.containsKey("io.netty.allocator.numDirectArenas") == false) {
+            ergonomicChoices.add("-Dio.netty.allocator.numDirectArenas=0");
+        }
         final long maxDirectMemorySize = extractMaxDirectMemorySize(finalJvmOptions);
         if (maxDirectMemorySize == 0) {
             ergonomicChoices.add("-XX:MaxDirectMemorySize=" + heapSize / 2);

@@ -12,6 +12,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.sql.qa.jdbc.JdbcIntegrationTestCase;
@@ -47,7 +48,7 @@ public abstract class CustomDateFormatTestCase extends BaseRestSqlTestCase {
         for (int i = 0; i < customFormats.length; i++) {
             String field = "date_" + i;
             docs[i] = "{\"" + field + "\":\"" +
-                    DateTimeFormatter.ofPattern(customFormats[i], Locale.ROOT).format(nowWithMillisResolution("UTC")) + "\"}";
+                    DateTimeFormatter.ofPattern(customFormats[i], Locale.ROOT).format(DateUtils.nowWithMillisResolution()) + "\"}";
             datesConditions.append(i > 0 ? " OR " : "").append(field + randomFrom(operators) + randomFrom(nowFunctions));
         }
         
@@ -90,10 +91,5 @@ public abstract class CustomDateFormatTestCase extends BaseRestSqlTestCase {
 
         request.setJsonEntity(Strings.toString(index));
         client().performRequest(request);
-    }
-    
-    private ZonedDateTime nowWithMillisResolution(String zoneId) {
-        Clock millisResolutionClock = Clock.tick(Clock.system(ZoneId.of(zoneId)), Duration.ofMillis(1));
-        return ZonedDateTime.now(millisResolutionClock);
     }
 }

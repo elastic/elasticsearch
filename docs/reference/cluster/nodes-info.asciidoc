@@ -110,7 +110,6 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=node-id]
 `version`::
 		{es} version running on this node.
 
-The `os` flag can be set to retrieve information that concern the operating 
 system:
 
 `os.refresh_interval_in_millis`::

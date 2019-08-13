@@ -1,5 +1,8 @@
 [[cat-segments]]
-=== cat segments
+=== cat segments API
+++++
+<titleabbrev>cat segments</titleabbrev>
+++++
 
 Returns low-level information about the https://lucene.apache.org/core/[Lucene]
 segments in index shards, similar to the <<indices-segments, indices segments>>

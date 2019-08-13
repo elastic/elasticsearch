@@ -1,5 +1,8 @@
 [[cat-repositories]]
-=== cat repositories
+=== cat repositories API
+++++
+<titleabbrev>cat repositories</titleabbrev>
+++++
 
 Returns the <<_repositories,snapshot repositories>> for a cluster.
 

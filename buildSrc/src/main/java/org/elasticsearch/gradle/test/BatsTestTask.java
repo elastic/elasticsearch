@@ -25,6 +25,7 @@ import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputDirectory;
+import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.TaskAction;
 
 import java.util.ArrayList;
@@ -36,12 +37,16 @@ public class BatsTestTask extends DefaultTask {
     private final DirectoryProperty testsDir;
     private final DirectoryProperty utilsDir;
     private final DirectoryProperty distributionsDir;
+    private final DirectoryProperty pluginsDir;
+    private final DirectoryProperty upgradeDir;
     private String packageName;
 
     public BatsTestTask() {
         this.testsDir = getProject().getObjects().directoryProperty();
         this.utilsDir = getProject().getObjects().directoryProperty();
         this.distributionsDir = getProject().getObjects().directoryProperty();
+        this.pluginsDir = getProject().getObjects().directoryProperty();
+        this.upgradeDir = getProject().getObjects().directoryProperty();
     }
 
     @InputDirectory
@@ -71,6 +76,26 @@ public class BatsTestTask extends DefaultTask {
         this.distributionsDir.set(distributionsDir);
     }
 
+    @InputDirectory
+    @Optional
+    public Provider<Directory> getPluginsDir() {
+        return pluginsDir;
+    }
+
+    public void setPluginsDir(Provider<Directory> pluginsDir) {
+        this.pluginsDir.set(pluginsDir);
+    }
+
+    @InputDirectory
+    @Optional
+    public Provider<Directory> getUpgradeDir() {
+        return upgradeDir;
+    }
+
+    public void setUpgradeDir(Provider<Directory> upgradeDir) {
+        this.upgradeDir.set(upgradeDir);
+    }
+
     @Input
     public String getPackageName() {
         return packageName;
@@ -93,6 +118,12 @@ public class BatsTestTask extends DefaultTask {
             spec.environment(System.getenv());
             spec.environment("BATS_TESTS", testsDir.getAsFile().get().toString());
             spec.environment("BATS_UTILS", utilsDir.getAsFile().get().toString());
+            if (pluginsDir.isPresent()) {
+                spec.environment("BATS_PLUGINS", pluginsDir.getAsFile().get().toString());
+            }
+            if (upgradeDir.isPresent()) {
+                spec.environment("BATS_UPGRADE", upgradeDir.getAsFile().get().toString());
+            }
             spec.environment("PACKAGE_NAME", packageName);
             spec.setCommandLine(command);
         });

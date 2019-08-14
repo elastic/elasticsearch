@@ -128,6 +128,10 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
         // delete the pipelines so the policies can be deleted
         client().performRequest(new Request("DELETE", "/_ingest/pipeline/my_pipeline"));
         client().performRequest(new Request("DELETE", "/_ingest/pipeline/another_pipeline"));
+
+        // verify the delete did not happen
+        Request getRequest = new Request("GET", "/_enrich/policy/my_policy");
+        assertOK(client().performRequest(getRequest));
     }
 
     private static Map<String, Object> toMap(Response response) throws IOException {

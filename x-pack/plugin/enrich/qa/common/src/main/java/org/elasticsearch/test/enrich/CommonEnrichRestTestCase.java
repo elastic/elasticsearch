@@ -33,7 +33,7 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
         }
     }
 
-    public void testBasicFlow() throws Exception {
+    private void setupGenericLifecycleTest(boolean deletePipeilne) throws Exception {
         // Create the policy:
         Request putPolicyRequest = new Request("PUT", "/_enrich/policy/my_policy");
         putPolicyRequest.setJsonEntity("{\"type\": \"exact_match\",\"indices\": [\"my-source-index\"], \"match_field\": \"host\", " +
@@ -75,6 +75,15 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
         assertThat(_source.get("host"), equalTo("elastic.co"));
         assertThat(_source.get("global_rank"), equalTo(25));
         assertThat(_source.get("tld_rank"), equalTo(7));
+
+        if (deletePipeilne) {
+            // delete the pipeline so the policies can be deleted
+            client().performRequest(new Request("DELETE", "/_ingest/pipeline/my_pipeline"));
+        }
+    }
+
+    public void testBasicFlow() throws Exception {
+        setupGenericLifecycleTest(true);
     }
 
     public void testImmutablePolicy() throws IOException {
@@ -85,6 +94,40 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
 
         ResponseException exc = expectThrows(ResponseException.class, () -> client().performRequest(putPolicyRequest));
         assertTrue(exc.getMessage().contains("policy [my_policy] already exists"));
+    }
+
+    public void testDeleteIsCaseSensitive() throws Exception {
+        Request putPolicyRequest = new Request("PUT", "/_enrich/policy/my_policy");
+        putPolicyRequest.setJsonEntity("{\"type\": \"exact_match\",\"indices\": [\"my-source-index\"], \"enrich_key\": \"host\", " +
+            "\"enrich_values\": [\"globalRank\", \"tldRank\", \"tld\"]}");
+        assertOK(client().performRequest(putPolicyRequest));
+
+        ResponseException exc = expectThrows(ResponseException.class,
+            () -> client().performRequest(new Request("DELETE", "/_enrich/policy/MY_POLICY")));
+        assertTrue(exc.getMessage().contains("policy [MY_POLICY] not found"));
+    }
+
+    public void testDeleteExistingPipeline() throws Exception {
+        // lets not delete the pipeline at first, to test the failure
+        setupGenericLifecycleTest(false);
+
+        Request putPipelineRequest = new Request("PUT", "/_ingest/pipeline/another_pipeline");
+        putPipelineRequest.setJsonEntity("{\"processors\":[" +
+            "{\"enrich\":{\"policy_name\":\"my_policy\",\"enrich_key\":\"host\",\"set_from\":[" +
+            "{\"source\":\"globalRank\",\"target\":\"global_rank\"}," +
+            "{\"source\":\"tldRank\",\"target\":\"tld_rank\"}" +
+            "]}}" +
+            "]}");
+        assertOK(client().performRequest(putPipelineRequest));
+
+        ResponseException exc = expectThrows(ResponseException.class,
+            () -> client().performRequest(new Request("DELETE", "/_enrich/policy/my_policy")));
+        assertTrue(exc.getMessage().contains("Could not delete policy [my_policy] because" +
+            " a pipeline is referencing it [my_pipeline, another_pipeline]"));
+
+        // delete the pipelines so the policies can be deleted
+        client().performRequest(new Request("DELETE", "/_ingest/pipeline/my_pipeline"));
+        client().performRequest(new Request("DELETE", "/_ingest/pipeline/another_pipeline"));
     }
 
     private static Map<String, Object> toMap(Response response) throws IOException {

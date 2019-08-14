@@ -12,7 +12,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -24,12 +23,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
-final class ExactMatchProcessor extends AbstractProcessor {
+public final class ExactMatchProcessor extends AbstractEnrichProcessor {
 
     static final String ENRICH_KEY_FIELD_NAME = "enrich_key_field";
 
     private final BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> searchRunner;
-    private final String policyName;
     private final String enrichKey;
     private final boolean ignoreMissing;
     private final boolean overrideEnabled;
@@ -60,9 +58,8 @@ final class ExactMatchProcessor extends AbstractProcessor {
                         boolean ignoreMissing,
                         boolean overrideEnabled,
                         List<EnrichSpecification> specifications) {
-        super(tag);
+        super(tag, policyName);
         this.searchRunner = searchRunner;
-        this.policyName = policyName;
         this.enrichKey = enrichKey;
         this.ignoreMissing = ignoreMissing;
         this.overrideEnabled = overrideEnabled;
@@ -89,7 +86,7 @@ final class ExactMatchProcessor extends AbstractProcessor {
             searchBuilder.query(constantScore);
 
             SearchRequest req = new SearchRequest();
-            req.indices(EnrichPolicy.getBaseName(policyName));
+            req.indices(EnrichPolicy.getBaseName(getPolicyName()));
             req.preference(Preference.LOCAL.type());
             req.source(searchBuilder);
 
@@ -135,10 +132,6 @@ final class ExactMatchProcessor extends AbstractProcessor {
     @Override
     public String getType() {
         return EnrichProcessorFactory.TYPE;
-    }
-
-    String getPolicyName() {
-        return policyName;
     }
 
     String getEnrichKey() {

@@ -439,4 +439,5 @@
           script:
             lang: painless
             source: syntax errors are fun!
-  - match: {error.reason: 'compile error'}
+  # TODO: Changed the message because of exception serialization
+  - match: {error.reason: 'Elasticsearch exception [type=script_exception, reason=compile error]'}

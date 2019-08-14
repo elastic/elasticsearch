@@ -10,7 +10,7 @@ esplugin {
 archivesBaseName = 'x-pack-deprecation'
 
 dependencies {
-    compileOnly "org.elasticsearch.plugin:x-pack-core:${version}"
+    compileOnly project(":x-pack:plugin:core")
 }
 
 integTest.enabled = false

@@ -22,7 +22,6 @@ package org.elasticsearch.index.codec;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.codecs.lucene50.Lucene50PostingsFormat.FSTLoadMode;
 import org.apache.lucene.codecs.lucene50.Lucene50StoredFieldsFormat;
 import org.apache.lucene.codecs.lucene80.Lucene80Codec;
 import org.elasticsearch.common.lucene.Lucene;
@@ -48,7 +47,7 @@ public class PerFieldMappingPostingFormatCodec extends Lucene80Codec {
     }
 
     public PerFieldMappingPostingFormatCodec(Lucene50StoredFieldsFormat.Mode compressionMode, MapperService mapperService, Logger logger) {
-        super(compressionMode, FSTLoadMode.AUTO);
+        super(compressionMode);
         this.mapperService = mapperService;
         this.logger = logger;
     }

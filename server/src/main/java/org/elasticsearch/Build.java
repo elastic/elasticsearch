@@ -124,7 +124,7 @@ public class Build {
     static {
         final Flavor flavor;
         final Type type;
-        final String shortHash;
+        final String hash;
         final String date;
         final boolean isSnapshot;
         final String version;
@@ -142,7 +142,7 @@ public class Build {
         )) {
             try (JarInputStream jar = new JarInputStream(FileSystemUtils.openFileURLStream(url))) {
                 Manifest manifest = jar.getManifest();
-                shortHash = manifest.getMainAttributes().getValue("Change");
+                hash = manifest.getMainAttributes().getValue("Change");
                 date = manifest.getMainAttributes().getValue("Build-Date");
                 isSnapshot = "true".equals(manifest.getMainAttributes().getValue("X-Compile-Elasticsearch-Snapshot"));
                 version = manifest.getMainAttributes().getValue("X-Compile-Elasticsearch-Version");
@@ -151,8 +151,8 @@ public class Build {
             }
         } else {
             // not running from the official elasticsearch jar file (unit tests, IDE, uber client jar, shadiness)
-            shortHash = "Unknown";
-            date = "Unknown";
+            hash = "unknown";
+            date = "unknown";
             version = Version.CURRENT.toString();
             final String buildSnapshot = System.getProperty("build.snapshot");
             if (buildSnapshot != null) {
@@ -167,8 +167,8 @@ public class Build {
                 isSnapshot = true;
             }
         }
-        if (shortHash == null) {
-            throw new IllegalStateException("Error finding the build shortHash. " +
+        if (hash == null) {
+            throw new IllegalStateException("Error finding the build hash. " +
                     "Stopping Elasticsearch now so it doesn't run in subtly broken ways. This is likely a build bug.");
         }
         if (date == null) {
@@ -180,7 +180,7 @@ public class Build {
                 "Stopping Elasticsearch now so it doesn't run in subtly broken ways. This is likely a build bug.");
         }
 
-        CURRENT = new Build(flavor, type, shortHash, date, isSnapshot, version);
+        CURRENT = new Build(flavor, type, hash, date, isSnapshot, version);
     }
 
     private final boolean isSnapshot;
@@ -197,24 +197,24 @@ public class Build {
 
     private final Flavor flavor;
     private final Type type;
-    private final String shortHash;
+    private final String hash;
     private final String date;
     private final String version;
 
     public Build(
-        final Flavor flavor, final Type type, final String shortHash, final String date, boolean isSnapshot,
+        final Flavor flavor, final Type type, final String hash, final String date, boolean isSnapshot,
         String version
     ) {
         this.flavor = flavor;
         this.type = type;
-        this.shortHash = shortHash;
+        this.hash = hash;
         this.date = date;
         this.isSnapshot = isSnapshot;
         this.version = version;
     }
 
-    public String shortHash() {
-        return shortHash;
+    public String hash() {
+        return hash;
     }
 
     public String date() {
@@ -224,50 +224,26 @@ public class Build {
     public static Build readBuild(StreamInput in) throws IOException {
         final Flavor flavor;
         final Type type;
-        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
-            // be lenient when reading on the wire, the enumeration values from other versions might be different than what we know
-            flavor = Flavor.fromDisplayName(in.readString(), false);
-        } else {
-            flavor = Flavor.OSS;
-        }
-        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
-            // be lenient when reading on the wire, the enumeration values from other versions might be different than what we know
-            type = Type.fromDisplayName(in.readString(), false);
-        } else {
-            type = Type.UNKNOWN;
-        }
+        // be lenient when reading on the wire, the enumeration values from other versions might be different than what we know
+        flavor = Flavor.fromDisplayName(in.readString(), false);
+        // be lenient when reading on the wire, the enumeration values from other versions might be different than what we know
+        type = Type.fromDisplayName(in.readString(), false);
         String hash = in.readString();
         String date = in.readString();
         boolean snapshot = in.readBoolean();
 
         final String version;
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-            version = in.readString();
-        } else {
-            version = in.getVersion().toString();
-        }
+        version = in.readString();
         return new Build(flavor, type, hash, date, snapshot, version);
     }
 
     public static void writeBuild(Build build, StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
-            out.writeString(build.flavor().displayName());
-        }
-        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
-            final Type buildType;
-            if (out.getVersion().before(Version.V_6_7_0) && build.type() == Type.DOCKER) {
-                buildType = Type.TAR;
-            } else {
-                buildType = build.type();
-            }
-            out.writeString(buildType.displayName());
-        }
-        out.writeString(build.shortHash());
+        out.writeString(build.flavor().displayName());
+        out.writeString(build.type().displayName());
+        out.writeString(build.hash());
         out.writeString(build.date());
         out.writeBoolean(build.isSnapshot());
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            out.writeString(build.getQualifiedVersion());
-        }
+        out.writeString(build.getQualifiedVersion());
     }
 
     /**
@@ -306,7 +282,7 @@ public class Build {
 
     @Override
     public String toString() {
-        return "[" + flavor.displayName() + "][" + type.displayName + "][" + shortHash + "][" + date + "][" + version +"]";
+        return "[" + flavor.displayName() + "][" + type.displayName + "][" + hash + "][" + date + "][" + version +"]";
     }
 
     @Override
@@ -331,7 +307,7 @@ public class Build {
         if (isSnapshot != build.isSnapshot) {
             return false;
         }
-        if (!shortHash.equals(build.shortHash)) {
+        if (hash.equals(build.hash) == false) {
             return false;
         }
         if (version.equals(build.version) == false) {
@@ -342,7 +318,7 @@ public class Build {
 
     @Override
     public int hashCode() {
-        return Objects.hash(flavor, type, isSnapshot, shortHash, date, version);
+        return Objects.hash(flavor, type, isSnapshot, hash, date, version);
     }
 
 }

@@ -227,13 +227,6 @@ public class VersionUtils {
         }
     }
 
-    /** returns the first future incompatible version */
-    public static Version incompatibleFutureVersion(Version version) {
-        final Optional<Version> opt = ALL_VERSIONS.stream().filter(version::before).filter(v -> v.isCompatible(version) == false).findAny();
-        assert opt.isPresent() : "no future incompatible version for " + version;
-        return opt.get();
-    }
-
     /** returns the first future compatible version */
     public static Version compatibleFutureVersion(Version version) {
         final Optional<Version> opt = ALL_VERSIONS.stream().filter(version::before).filter(v -> v.isCompatible(version)).findAny();
@@ -254,5 +247,15 @@ public class VersionUtils {
      */
     public static Version randomIndexCompatibleVersion(Random random) {
         return randomVersionBetween(random, Version.CURRENT.minimumIndexCompatibilityVersion(), Version.CURRENT);
+    }
+
+    /**
+     * Returns a random version index compatible with the given version, but not the given version.
+     */
+    public static Version randomPreviousCompatibleVersion(Random random, Version version) {
+        // TODO: change this to minimumCompatibilityVersion(), but first need to remove released/unreleased
+        // versions so getPreviousVerison returns the *actual* previous version. Otherwise eg 8.0.0 returns say 7.0.2 for previous,
+        // but 7.2.0 for minimum compat
+        return randomVersionBetween(random, version.minimumIndexCompatibilityVersion(), getPreviousVersion(version));
     }
 }

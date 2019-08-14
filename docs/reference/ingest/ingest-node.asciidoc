@@ -563,7 +563,7 @@ template for all indexes that hold data that needs pre-index processing.
 [[conditionals-with-regex]]
 === Conditionals with the Regular Expressions
 The `if` conditional is implemented as a Painless script, which requires
-{painless}//painless-examples.html#modules-scripting-painless-regex[explicit support for regular expressions].
+{painless}//painless-regexes.html[explicit support for regular expressions].
 
 `script.painless.regex.enabled: true` must be set in `elasticsearch.yml` to use regular
 expressions in the `if` condition.
@@ -828,8 +828,8 @@ See <<ingest-conditionals>> to learn more about the `if` field and conditional e
 
 See <<handling-failure-in-pipelines>> to learn more about the `on_failure` field and error handling in pipelines.
 
-The <<ingest-info,node info API>> can be used to figure out what processors are available in a cluster.
-The <<ingest-info,node info API>> will provide a per node list of what processors are available.
+The <<cluster-nodes-info,node info API>> can be used to figure out what processors are available in a cluster.
+The <<cluster-nodes-info,node info API>> will provide a per node list of what processors are available.
 
 Custom processors must be installed on all nodes. The put pipeline API will fail if a processor specified in a pipeline
 doesn't exist on all nodes. If you rely on custom processor plugins make sure to mark these plugins as mandatory by adding
@@ -842,7 +842,7 @@ plugin.mandatory: ingest-attachment
 
 A node will not start if this plugin is not available.
 
-The <<ingest-stats,node stats API>> can be used to fetch ingest usage statistics, globally and on a per
+The <<cluster-nodes-stats,node stats API>> can be used to fetch ingest usage statistics, globally and on a per
 pipeline basis. Useful to find out which pipelines are used the most or spent the most time on preprocessing.
 
 [float]
@@ -864,9 +864,11 @@ include::processors/foreach.asciidoc[]
 include::processors/geoip.asciidoc[]
 include::processors/grok.asciidoc[]
 include::processors/gsub.asciidoc[]
+include::processors/html_strip.asciidoc[]
 include::processors/join.asciidoc[]
 include::processors/json.asciidoc[]
 include::processors/kv.asciidoc[]
+include::processors/lowercase.asciidoc[]
 include::processors/pipeline.asciidoc[]
 include::processors/remove.asciidoc[]
 include::processors/rename.asciidoc[]

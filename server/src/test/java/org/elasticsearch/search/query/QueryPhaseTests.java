@@ -353,11 +353,23 @@ public class QueryPhaseTests extends IndexShardTestCase {
         TestSearchContext context = new TestSearchContext(null, indexShard);
         context.setTask(new SearchTask(123L, "", "", "", null, Collections.emptyMap()));
         context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
-        context.terminateAfter(1);
 
         final IndexReader reader = DirectoryReader.open(dir);
         IndexSearcher contextSearcher = new IndexSearcher(reader);
 
+        context.terminateAfter(numDocs);
+        {
+            context.setSize(10);
+            TotalHitCountCollector collector = new TotalHitCountCollector();
+            context.queryCollectors().put(TotalHitCountCollector.class, collector);
+            QueryPhase.execute(context, contextSearcher, checkCancelled -> {});
+            assertFalse(context.queryResult().terminatedEarly());
+            assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
+            assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(10));
+            assertThat(collector.getTotalHits(), equalTo(numDocs));
+        }
+
+        context.terminateAfter(1);
         {
             context.setSize(1);
             QueryPhase.execute(context, contextSearcher, checkCancelled -> {});
@@ -419,7 +431,6 @@ public class QueryPhaseTests extends IndexShardTestCase {
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(0));
             assertThat(collector.getTotalHits(), equalTo(1));
         }
-
         reader.close();
         dir.close();
     }
@@ -668,6 +679,39 @@ public class QueryPhaseTests extends IndexShardTestCase {
                 assertFalse(TopDocsCollectorContext.hasInfMaxScore(query));
             }
         }
+    }
+
+    public void testMinScore() throws Exception {
+        Directory dir = newDirectory();
+        IndexWriterConfig iwc = newIndexWriterConfig();
+        RandomIndexWriter w = new RandomIndexWriter(random(), dir, iwc);
+        for (int i = 0; i < 10; i++) {
+            Document doc = new Document();
+            doc.add(new StringField("foo", "bar", Store.NO));
+            doc.add(new StringField("filter", "f1", Store.NO));
+            w.addDocument(doc);
+        }
+        w.close();
+
+        IndexReader reader = DirectoryReader.open(dir);
+        IndexSearcher contextSearcher = new IndexSearcher(reader);
+        TestSearchContext context = new TestSearchContext(null, indexShard);
+        context.parsedQuery(new ParsedQuery(
+            new BooleanQuery.Builder()
+                .add(new TermQuery(new Term("foo", "bar")), Occur.MUST)
+                .add(new TermQuery(new Term("filter", "f1")), Occur.SHOULD)
+                .build()
+        ));
+        context.minimumScore(0.01f);
+        context.setTask(new SearchTask(123L, "", "", "", null, Collections.emptyMap()));
+        context.setSize(1);
+        context.trackTotalHitsUpTo(5);
+
+        QueryPhase.execute(context, contextSearcher, checkCancelled -> {});
+        assertEquals(10, context.queryResult().topDocs().topDocs.totalHits.value);
+
+        reader.close();
+        dir.close();
     }
 
     private static IndexSearcher getAssertingEarlyTerminationSearcher(IndexReader reader, int size) {

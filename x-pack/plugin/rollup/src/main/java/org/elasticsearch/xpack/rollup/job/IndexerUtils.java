@@ -5,7 +5,8 @@
  */
 package org.elasticsearch.xpack.rollup.job;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -32,7 +33,7 @@ import java.util.stream.Collectors;
  * They are extracted out as static classes mainly to make testing easier.
  */
 class IndexerUtils {
-    private static final Logger logger = Logger.getLogger(IndexerUtils.class.getName());
+    private static final Logger logger = LogManager.getLogger(IndexerUtils.class);
 
     /**
      * The only entry point in this class.  You hand this method an aggregation and an index

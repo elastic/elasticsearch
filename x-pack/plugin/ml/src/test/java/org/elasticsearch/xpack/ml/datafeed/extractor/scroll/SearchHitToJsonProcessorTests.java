@@ -16,16 +16,21 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class SearchHitToJsonProcessorTests extends ESTestCase {
 
     public void testProcessGivenSingleHit() throws IOException {
-        ExtractedField timeField = ExtractedField.newField("time", ExtractedField.ExtractionMethod.DOC_VALUE);
-        ExtractedField missingField = ExtractedField.newField("missing", ExtractedField.ExtractionMethod.DOC_VALUE);
-        ExtractedField singleField = ExtractedField.newField("single", ExtractedField.ExtractionMethod.DOC_VALUE);
-        ExtractedField arrayField = ExtractedField.newField("array", ExtractedField.ExtractionMethod.DOC_VALUE);
+        ExtractedField timeField = ExtractedField.newField("time", Collections.singleton("date"),
+            ExtractedField.ExtractionMethod.DOC_VALUE);
+        ExtractedField missingField = ExtractedField.newField("missing", Collections.singleton("float"),
+            ExtractedField.ExtractionMethod.DOC_VALUE);
+        ExtractedField singleField = ExtractedField.newField("single", Collections.singleton("keyword"),
+            ExtractedField.ExtractionMethod.DOC_VALUE);
+        ExtractedField arrayField = ExtractedField.newField("array", Collections.singleton("keyword"),
+            ExtractedField.ExtractionMethod.DOC_VALUE);
         TimeBasedExtractedFields extractedFields = new TimeBasedExtractedFields(timeField,
                 Arrays.asList(timeField, missingField, singleField, arrayField));
 
@@ -41,10 +46,14 @@ public class SearchHitToJsonProcessorTests extends ESTestCase {
     }
 
     public void testProcessGivenMultipleHits() throws IOException {
-        ExtractedField timeField = ExtractedField.newField("time", ExtractedField.ExtractionMethod.DOC_VALUE);
-        ExtractedField missingField = ExtractedField.newField("missing", ExtractedField.ExtractionMethod.DOC_VALUE);
-        ExtractedField singleField = ExtractedField.newField("single", ExtractedField.ExtractionMethod.DOC_VALUE);
-        ExtractedField arrayField = ExtractedField.newField("array", ExtractedField.ExtractionMethod.DOC_VALUE);
+        ExtractedField timeField = ExtractedField.newField("time", Collections.singleton("date"),
+            ExtractedField.ExtractionMethod.DOC_VALUE);
+        ExtractedField missingField = ExtractedField.newField("missing", Collections.singleton("float"),
+            ExtractedField.ExtractionMethod.DOC_VALUE);
+        ExtractedField singleField = ExtractedField.newField("single", Collections.singleton("keyword"),
+            ExtractedField.ExtractionMethod.DOC_VALUE);
+        ExtractedField arrayField = ExtractedField.newField("array", Collections.singleton("keyword"),
+            ExtractedField.ExtractionMethod.DOC_VALUE);
         TimeBasedExtractedFields extractedFields = new TimeBasedExtractedFields(timeField,
                 Arrays.asList(timeField, missingField, singleField, arrayField));
 

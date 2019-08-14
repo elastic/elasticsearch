@@ -39,25 +39,29 @@ public class PivotConfig implements ToXContentObject {
 
     private static final ParseField GROUP_BY = new ParseField("group_by");
     private static final ParseField AGGREGATIONS = new ParseField("aggregations");
+    private static final ParseField MAX_PAGE_SEARCH_SIZE = new ParseField("max_page_search_size");
 
     private final GroupConfig groups;
     private final AggregationConfig aggregationConfig;
+    private final Integer maxPageSearchSize;
 
     private static final ConstructingObjectParser<PivotConfig, Void> PARSER = new ConstructingObjectParser<>("pivot_config", true,
-                args -> new PivotConfig((GroupConfig) args[0], (AggregationConfig) args[1]));
+                args -> new PivotConfig((GroupConfig) args[0], (AggregationConfig) args[1], (Integer) args[2]));
 
     static {
         PARSER.declareObject(constructorArg(), (p, c) -> (GroupConfig.fromXContent(p)), GROUP_BY);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> AggregationConfig.fromXContent(p), AGGREGATIONS);
+        PARSER.declareInt(optionalConstructorArg(), MAX_PAGE_SEARCH_SIZE);
     }
 
     public static PivotConfig fromXContent(final XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    PivotConfig(GroupConfig groups, final AggregationConfig aggregationConfig) {
+    PivotConfig(GroupConfig groups, final AggregationConfig aggregationConfig, Integer maxPageSearchSize) {
         this.groups = groups;
         this.aggregationConfig = aggregationConfig;
+        this.maxPageSearchSize = maxPageSearchSize;
     }
 
     @Override
@@ -65,6 +69,9 @@ public class PivotConfig implements ToXContentObject {
         builder.startObject();
         builder.field(GROUP_BY.getPreferredName(), groups);
         builder.field(AGGREGATIONS.getPreferredName(), aggregationConfig);
+        if (maxPageSearchSize != null) {
+            builder.field(MAX_PAGE_SEARCH_SIZE.getPreferredName(), maxPageSearchSize);
+        }
         builder.endObject();
         return builder;
     }
@@ -75,6 +82,10 @@ public class PivotConfig implements ToXContentObject {
 
     public GroupConfig getGroupConfig() {
         return groups;
+    }
+
+    public Integer getMaxPageSearchSize() {
+        return maxPageSearchSize;
     }
 
     @Override
@@ -89,12 +100,14 @@ public class PivotConfig implements ToXContentObject {
 
         final PivotConfig that = (PivotConfig) other;
 
-        return Objects.equals(this.groups, that.groups) && Objects.equals(this.aggregationConfig, that.aggregationConfig);
+        return Objects.equals(this.groups, that.groups)
+            && Objects.equals(this.aggregationConfig, that.aggregationConfig)
+            && Objects.equals(this.maxPageSearchSize, that.maxPageSearchSize);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(groups, aggregationConfig);
+        return Objects.hash(groups, aggregationConfig, maxPageSearchSize);
     }
 
     public static Builder builder() {
@@ -104,6 +117,7 @@ public class PivotConfig implements ToXContentObject {
     public static class Builder {
         private GroupConfig groups;
         private AggregationConfig aggregationConfig;
+        private Integer maxPageSearchSize;
 
         /**
          * Set how to group the source data
@@ -135,8 +149,22 @@ public class PivotConfig implements ToXContentObject {
             return this;
         }
 
+        /**
+         * Sets the paging maximum paging maxPageSearchSize that date frame transform can use when
+         * pulling the data from the source index.
+         *
+         * If OOM is triggered, the paging maxPageSearchSize is dynamically reduced so that the transform can continue to gather data.
+         *
+         * @param maxPageSearchSize Integer value between 10 and 10_000
+         * @return the {@link Builder} with the paging maxPageSearchSize set.
+         */
+        public Builder setMaxPageSearchSize(Integer maxPageSearchSize) {
+            this.maxPageSearchSize = maxPageSearchSize;
+            return this;
+        }
+
         public PivotConfig build() {
-            return new PivotConfig(groups, aggregationConfig);
+            return new PivotConfig(groups, aggregationConfig, maxPageSearchSize);
         }
     }
 }

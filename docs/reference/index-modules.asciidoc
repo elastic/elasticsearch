@@ -36,7 +36,7 @@ specific index module:
 
 `index.number_of_shards`::
 
-    The number of primary shards that an index should have.  Defaults to 5.
+    The number of primary shards that an index should have.  Defaults to 1.
     This setting can only be set at index creation time.  It cannot be
     changed on a closed index. Note: the number of shards are limited to `1024` per
     index. This limitation is a safety limit to prevent accidental creation of indices
@@ -124,7 +124,7 @@ specific index module:
     The maximum value of `from + size` for searches to this index. Defaults to
     `10000`. Search requests take heap memory and time proportional to
     `from + size` and this limits that memory. See
-    <<search-request-scroll,Scroll>> or <<search-request-search-after,Search After>> for a more efficient alternative
+    <<request-body-search-scroll,Scroll>> or <<request-body-search-search-after,Search After>> for a more efficient alternative
     to raising this.
 
 `index.max_inner_result_window`::
@@ -166,8 +166,10 @@ specific index module:
     allow writes and metadata changes.
 
 `index.blocks.read_only_allow_delete`::
-    Identical to `index.blocks.read_only` but allows deleting the index to free
-     up resources.
+
+    Similar to `index.blocks.read_only` but also allows deleting the index to
+    free up resources. The <<disk-allocator,disk-based shard allocator>> may
+    add and remove this block automatically.
 
 `index.blocks.read`::
 
@@ -199,11 +201,13 @@ specific index module:
      This setting is only applicable when highlighting is requested on a text that was indexed without offsets or term vectors.
      Defaults to `1000000`.
 
+[[index-max-terms-count]]
  `index.max_terms_count`::
 
     The maximum number of terms that can be used in Terms Query.
     Defaults to `65536`.
 
+[[index-max-regex-length]]
  `index.max_regex_length`::
 
     The maximum length of regex that can be used in Regexp Query.

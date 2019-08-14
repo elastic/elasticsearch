@@ -42,11 +42,7 @@ public class VersionConflictEngineException extends EngineException {
     }
 
     public VersionConflictEngineException(ShardId shardId, String id, String explanation) {
-        this(shardId, null, id, explanation);
-    }
-
-    public VersionConflictEngineException(ShardId shardId, Throwable cause, String id, String explanation) {
-        this(shardId, "[{}]: version conflict, {}", cause, id, explanation);
+        this(shardId, "[{}]: version conflict, {}", null, id, explanation);
     }
 
     public VersionConflictEngineException(ShardId shardId, String msg, Throwable cause, Object... params) {

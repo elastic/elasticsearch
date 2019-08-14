@@ -24,11 +24,10 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.XPackClient;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
-import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
-import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
+import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
+import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
 
 import java.util.List;
 import java.util.Optional;
@@ -222,7 +221,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                         creationCheck.set(false);
                         onPutPolicyFailure(policy, e);
                     }
-                }, (req, listener) -> new XPackClient(client).ilmClient().putLifecyclePolicy(req, listener));
+                }, (req, listener) -> client.execute(PutLifecycleAction.INSTANCE, req, listener));
         });
     }
 

@@ -58,6 +58,9 @@ public class AntFixture extends AntTask implements Fixture {
     @Input
     boolean useShell = false
 
+    @Input
+    int maxWaitInSeconds = 30
+
     /**
      * A flag to indicate whether the fixture should be run in the foreground, or spawned.
      * It is protected so subclasses can override (eg RunTask).
@@ -128,7 +131,7 @@ public class AntFixture extends AntTask implements Fixture {
 
         String failedProp = "failed${name}"
         // first wait for resources, or the failure marker from the wrapper script
-        ant.waitfor(maxwait: '30', maxwaitunit: 'second', checkevery: '500', checkeveryunit: 'millisecond', timeoutproperty: failedProp) {
+        ant.waitfor(maxwait: maxWaitInSeconds, maxwaitunit: 'second', checkevery: '500', checkeveryunit: 'millisecond', timeoutproperty: failedProp) {
             or {
                 resourceexists {
                     file(file: failureMarker.toString())

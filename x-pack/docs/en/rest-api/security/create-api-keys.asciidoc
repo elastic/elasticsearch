@@ -7,12 +7,19 @@
 
 Creates an API key for access without requiring basic authentication.
 
-==== Request
+[[security-api-create-api-key-request]]
+==== {api-request-title}
 
 `POST /_security/api_key`
 `PUT /_security/api_key`
 
-==== Description
+[[security-api-create-api-key-prereqs]]
+==== {api-prereq-title}
+
+* To use this API, you must have at least the `manage_api_key` cluster privilege.
+
+[[security-api-create-api-key-desc]]
+==== {api-description-title}
 
 The API keys are created by the {es} API key service, which is automatically enabled
 when you configure TLS on the HTTP interface. See <<tls-http>>. Alternatively,
@@ -30,25 +37,31 @@ when you create the API keys.
 See <<api-key-service-settings>> for configuration settings related to API key
 service.
 
-==== Request Body
+
+[[security-api-create-api-key-request-body]]
+==== {api-request-body-title}
 
 The following parameters can be specified in the body of a POST or PUT request:
 
 `name`::
 (string) Specifies the name for this API key.
 
-`role_descriptors` (required)::
-(array-of-role-descriptor) An array of role descriptors for this API key. This
-parameter is required but can be an empty array, which applies the permissions
-of the authenticated user. If you supply role descriptors, they must be a subset
-of the authenticated user's permissions. The structure of role descriptor is the
-same as the request for create role API. For more details, see
+`role_descriptors`::
+(Optional, array-of-role-descriptor) An array of role descriptors for this API
+key. This parameter is optional. When it is not specified or is an empty array,
+then the API key will have the permissions of the authenticated user. If you
+supply role descriptors, they must be a subset of the authenticated user's
+permissions. The structure of role descriptor is the same as the request for
+create role API. For more details, see
 <<security-api-roles,role management APIs>>.
 
 `expiration`::
-(string) Optional expiration time for the API key. By default, API keys never expire.
+(Optional, string) Expiration time for the API key. By default, API keys never
+expire.
 
-==== Examples
+
+[[security-api-create-api-key-example]]
+==== {api-examples-title}
 
 The following example creates an API key:
 

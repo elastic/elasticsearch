@@ -1,9 +1,9 @@
 {
   "license.post_start_basic": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/start-basic.html",
+    "stability": "stable",
     "methods": ["POST"],
     "url": {
-      "path": "/_license/start_basic",
       "paths": ["/_license/start_basic"],
       "parts" : {
       },

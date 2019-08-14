@@ -6,15 +6,15 @@
 
 package org.elasticsearch.xpack.core.dataframe.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -24,31 +24,24 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
+import org.elasticsearch.xpack.core.dataframe.transforms.DestConfig;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class PreviewDataFrameTransformAction extends Action<PreviewDataFrameTransformAction.Response> {
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+
+public class PreviewDataFrameTransformAction extends ActionType<PreviewDataFrameTransformAction.Response> {
 
     public static final PreviewDataFrameTransformAction INSTANCE = new PreviewDataFrameTransformAction();
     public static final String NAME = "cluster:admin/data_frame/preview";
 
     private PreviewDataFrameTransformAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, PreviewDataFrameTransformAction.Response::new);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
@@ -66,8 +59,20 @@ public class PreviewDataFrameTransformAction extends Action<PreviewDataFrameTran
 
         public static Request fromXContent(final XContentParser parser) throws IOException {
             Map<String, Object> content = parser.map();
-            // Destination and ID are not required for Preview, so we just supply our own
-            content.put(DataFrameField.DESTINATION.getPreferredName(), Collections.singletonMap("index", "unused-transform-preview-index"));
+            // dest.index and ID are not required for Preview, so we just supply our own
+            Map<String, String> tempDestination = new HashMap<>();
+            tempDestination.put(DestConfig.INDEX.getPreferredName(), "unused-transform-preview-index");
+            // Users can still provide just dest.pipeline to preview what their data would look like given the pipeline ID
+            Object providedDestination = content.get(DataFrameField.DESTINATION.getPreferredName());
+            if (providedDestination instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String, String> destMap = (Map<String, String>)providedDestination;
+                String pipeline = destMap.get(DestConfig.PIPELINE.getPreferredName());
+                if (pipeline != null) {
+                    tempDestination.put(DestConfig.PIPELINE.getPreferredName(), pipeline);
+                }
+            }
+            content.put(DataFrameField.DESTINATION.getPreferredName(), tempDestination);
             content.put(DataFrameField.ID.getPreferredName(), "transform-preview");
             try(XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(content);
                 XContentParser newParser = XContentType.JSON
@@ -81,8 +86,15 @@ public class PreviewDataFrameTransformAction extends Action<PreviewDataFrameTran
 
         @Override
         public ActionRequestValidationException validate() {
-            return null;
+            ActionRequestValidationException validationException = null;
+            if(config.getPivotConfig() != null) {
+                for(String failure : config.getPivotConfig().aggFieldValidation()) {
+                    validationException = addValidationError(failure, validationException);
+                }
+            }
+            return validationException;
         }
+
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -120,11 +132,14 @@ public class PreviewDataFrameTransformAction extends Action<PreviewDataFrameTran
     public static class Response extends ActionResponse implements ToXContentObject {
 
         private List<Map<String, Object>> docs;
+        private Map<String, Object> mappings;
         public static ParseField PREVIEW = new ParseField("preview");
+        public static ParseField MAPPINGS = new ParseField("mappings");
 
         static ObjectParser<Response, Void> PARSER = new ObjectParser<>("data_frame_transform_preview", Response::new);
         static {
             PARSER.declareObjectArray(Response::setDocs, (p, c) -> p.mapOrdered(), PREVIEW);
+            PARSER.declareObject(Response::setMappings, (p, c) -> p.mapOrdered(), MAPPINGS);
         }
         public Response() {}
 
@@ -133,6 +148,10 @@ public class PreviewDataFrameTransformAction extends Action<PreviewDataFrameTran
             this.docs = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
                 this.docs.add(in.readMap());
+            }
+            if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
+                Map<String, Object> objectMap = in.readMap();
+                this.mappings = objectMap == null ? null : Map.copyOf(objectMap);
             }
         }
 
@@ -144,11 +163,46 @@ public class PreviewDataFrameTransformAction extends Action<PreviewDataFrameTran
             this.docs = new ArrayList<>(docs);
         }
 
+        public void setMappings(Map<String, Object> mappings) {
+            this.mappings = Map.copyOf(mappings);
+        }
+
+        /**
+         * This takes the a {@code Map<String, String>} of the type "fieldname: fieldtype" and transforms it into the
+         * typical mapping format.
+         *
+         * Example:
+         *
+         * input:
+         * {"field1.subField1": "long", "field2": "keyword"}
+         *
+         * output:
+         * {
+         *     "properties": {
+         *         "field1.subField1": {
+         *             "type": "long"
+         *         },
+         *         "field2": {
+         *             "type": "keyword"
+         *         }
+         *     }
+         * }
+         * @param mappings A Map of the form {"fieldName": "fieldType"}
+         */
+        public void setMappingsFromStringMap(Map<String, String> mappings) {
+            Map<String, Object> fieldMappings = new HashMap<>();
+            mappings.forEach((k, v) -> fieldMappings.put(k, Map.of("type", v)));
+            this.mappings = Map.of("properties", fieldMappings);
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeInt(docs.size());
             for (Map<String, Object> doc : docs) {
                 out.writeMapWithConsistentOrder(doc);
+            }
+            if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
+                out.writeMap(mappings);
             }
         }
 
@@ -156,6 +210,9 @@ public class PreviewDataFrameTransformAction extends Action<PreviewDataFrameTran
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(PREVIEW.getPreferredName(), docs);
+            if (mappings != null) {
+                builder.field(MAPPINGS.getPreferredName(), mappings);
+            }
             builder.endObject();
             return builder;
         }
@@ -171,12 +228,12 @@ public class PreviewDataFrameTransformAction extends Action<PreviewDataFrameTran
             }
 
             Response other = (Response) obj;
-            return Objects.equals(other.docs, docs);
+            return Objects.equals(other.docs, docs) && Objects.equals(other.mappings, mappings);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hashCode(docs);
+            return Objects.hash(docs, mappings);
         }
 
         public static Response fromXContent(final XContentParser parser) throws IOException {

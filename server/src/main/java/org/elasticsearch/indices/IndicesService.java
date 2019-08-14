@@ -109,13 +109,13 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
@@ -199,7 +199,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final IndicesQueryCache indicesQueryCache;
     private final MetaStateService metaStateService;
     private final Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders;
-    private final Map<String, Function<IndexSettings, IndexStore>> indexStoreFactories;
+    private final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories;
     final AbstractRefCounted indicesRefCount; // pkg-private for testing
     private final CountDownLatch closeLatch = new CountDownLatch(1);
 
@@ -215,7 +215,7 @@ public class IndicesService extends AbstractLifecycleComponent
                           IndexScopedSettings indexScopedSettings, CircuitBreakerService circuitBreakerService, BigArrays bigArrays,
                           ScriptService scriptService, Client client, MetaStateService metaStateService,
                           Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders,
-                          Map<String, Function<IndexSettings, IndexStore>> indexStoreFactories) {
+                          Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories) {
         this.settings = settings;
         this.threadPool = threadPool;
         this.pluginsService = pluginsService;
@@ -250,13 +250,13 @@ public class IndicesService extends AbstractLifecycleComponent
         this.engineFactoryProviders = engineFactoryProviders;
 
         // do not allow any plugin-provided index store type to conflict with a built-in type
-        for (final String indexStoreType : indexStoreFactories.keySet()) {
+        for (final String indexStoreType : directoryFactories.keySet()) {
             if (IndexModule.isBuiltinType(indexStoreType)) {
                 throw new IllegalStateException("registered index store type [" + indexStoreType + "] conflicts with a built-in type");
             }
         }
 
-        this.indexStoreFactories = indexStoreFactories;
+        this.directoryFactories = directoryFactories;
         // doClose() is called when shutting down a node, yet there might still be ongoing requests
         // that we need to wait for before closing some resources such as the caches. In order to
         // avoid closing these resources while ongoing requests are still being processed, we use a
@@ -327,48 +327,36 @@ public class IndicesService extends AbstractLifecycleComponent
         return closeLatch.await(timeout, timeUnit);
     }
 
-    /**
-     * Returns the node stats indices stats. The {@code includePrevious} flag controls
-     * if old shards stats will be aggregated as well (only for relevant stats, such as
-     * refresh and indexing, not for docs/store).
-     */
-    public NodeIndicesStats stats(boolean includePrevious) {
-        return stats(includePrevious, new CommonStatsFlags().all());
-    }
-
-    public NodeIndicesStats stats(boolean includePrevious, CommonStatsFlags flags) {
-        CommonStats oldStats = new CommonStats(flags);
-
-        if (includePrevious) {
-            Flag[] setFlags = flags.getFlags();
-            for (Flag flag : setFlags) {
-                switch (flag) {
-                    case Get:
-                        oldStats.get.add(oldShardsStats.getStats);
-                        break;
-                    case Indexing:
-                        oldStats.indexing.add(oldShardsStats.indexingStats);
-                        break;
-                    case Search:
-                        oldStats.search.add(oldShardsStats.searchStats);
-                        break;
-                    case Merge:
-                        oldStats.merge.add(oldShardsStats.mergeStats);
-                        break;
-                    case Refresh:
-                        oldStats.refresh.add(oldShardsStats.refreshStats);
-                        break;
-                    case Recovery:
-                        oldStats.recoveryStats.add(oldShardsStats.recoveryStats);
-                        break;
-                    case Flush:
-                        oldStats.flush.add(oldShardsStats.flushStats);
-                        break;
-                }
+    public NodeIndicesStats stats(CommonStatsFlags flags) {
+        CommonStats commonStats = new CommonStats(flags);
+        // the cumulative statistics also account for shards that are no longer on this node, which is tracked by oldShardsStats
+        for (Flag flag : flags.getFlags()) {
+            switch (flag) {
+                case Get:
+                    commonStats.get.add(oldShardsStats.getStats);
+                    break;
+                case Indexing:
+                    commonStats.indexing.add(oldShardsStats.indexingStats);
+                    break;
+                case Search:
+                    commonStats.search.add(oldShardsStats.searchStats);
+                    break;
+                case Merge:
+                    commonStats.merge.add(oldShardsStats.mergeStats);
+                    break;
+                case Refresh:
+                    commonStats.refresh.add(oldShardsStats.refreshStats);
+                    break;
+                case Recovery:
+                    commonStats.recoveryStats.add(oldShardsStats.recoveryStats);
+                    break;
+                case Flush:
+                    commonStats.flush.add(oldShardsStats.flushStats);
+                    break;
             }
         }
 
-        return new NodeIndicesStats(oldStats, statsByShard(this, flags));
+        return new NodeIndicesStats(commonStats, statsByShard(this, flags));
     }
 
     Map<Index, List<IndexShardStats>> statsByShard(final IndicesService indicesService, final CommonStatsFlags flags) {
@@ -546,7 +534,7 @@ public class IndicesService extends AbstractLifecycleComponent
             idxSettings.getNumberOfReplicas(),
             indexCreationContext);
 
-        final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry, getEngineFactory(idxSettings), indexStoreFactories);
+        final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry, getEngineFactory(idxSettings), directoryFactories);
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
             indexModule.addIndexOperationListener(operationListener);
         }
@@ -613,7 +601,7 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     public synchronized MapperService createIndexMapperService(IndexMetaData indexMetaData) throws IOException {
         final IndexSettings idxSettings = new IndexSettings(indexMetaData, this.settings, indexScopedSettings);
-        final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry, getEngineFactory(idxSettings), indexStoreFactories);
+        final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry, getEngineFactory(idxSettings), directoryFactories);
         pluginsService.onIndexModule(indexModule);
         return indexModule.newIndexMapperService(xContentRegistry, mapperRegistry, scriptService);
     }
@@ -1219,7 +1207,7 @@ public class IndicesService extends AbstractLifecycleComponent
             }
             // Reschedule itself to run again if not closed
             if (closed.get() == false) {
-                threadPool.schedule(this, interval, ThreadPool.Names.SAME);
+                threadPool.scheduleUnlessShuttingDown(interval, ThreadPool.Names.SAME, this);
             }
         }
 

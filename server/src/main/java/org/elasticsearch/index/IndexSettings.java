@@ -301,6 +301,19 @@ public final class IndexSettings {
     public static final Setting<Boolean> INDEX_SEARCH_THROTTLED = Setting.boolSetting("index.search.throttled", false,
         Property.IndexScope, Property.PrivateIndex, Property.Dynamic);
 
+    /**
+     * Determines a balance between file-based and operations-based peer recoveries. The number of operations that will be used in an
+     * operations-based peer recovery is limited to this proportion of the total number of documents in the shard (including deleted
+     * documents) on the grounds that a file-based peer recovery may copy all of the documents in the shard over to the new peer, but is
+     * significantly faster than replaying the missing operations on the peer, so once a peer falls far enough behind the primary it makes
+     * more sense to copy all the data over again instead of replaying history.
+     *
+     * Defaults to retaining history for up to 10% of the documents in the shard. This can only be changed in tests, since this setting is
+     * intentionally unregistered.
+     */
+    public static final Setting<Double> FILE_BASED_RECOVERY_THRESHOLD_SETTING
+        = Setting.doubleSetting("index.recovery.file_based_threshold", 0.1d, 0.0d, Setting.Property.IndexScope);
+
     private final Index index;
     private final Version version;
     private final Logger logger;
@@ -458,7 +471,7 @@ public final class IndexSettings {
         generationThresholdSize = scopedSettings.get(INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING);
         mergeSchedulerConfig = new MergeSchedulerConfig(this);
         gcDeletesInMillis = scopedSettings.get(INDEX_GC_DELETES_SETTING).getMillis();
-        softDeleteEnabled = version.onOrAfter(Version.V_6_5_0) && scopedSettings.get(INDEX_SOFT_DELETES_SETTING);
+        softDeleteEnabled = scopedSettings.get(INDEX_SOFT_DELETES_SETTING);
         softDeleteRetentionOperations = scopedSettings.get(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING);
         retentionLeaseMillis = scopedSettings.get(INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING).millis();
         warmerEnabled = scopedSettings.get(INDEX_WARMER_ENABLED_SETTING);

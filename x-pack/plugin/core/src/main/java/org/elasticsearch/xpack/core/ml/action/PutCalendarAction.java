@@ -5,12 +5,11 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -28,17 +27,12 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class PutCalendarAction extends Action<PutCalendarAction.Response>  {
+public class PutCalendarAction extends ActionType<PutCalendarAction.Response> {
     public static final PutCalendarAction INSTANCE = new PutCalendarAction();
     public static final String NAME = "cluster:admin/xpack/ml/calendars/put";
 
     private PutCalendarAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        return new Response();
+        super(NAME, Response::new);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {
@@ -59,6 +53,11 @@ public class PutCalendarAction extends Action<PutCalendarAction.Response>  {
 
         public Request() {
 
+        }
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            calendar = new Calendar(in);
         }
 
         public Request(Calendar calendar) {
@@ -88,12 +87,6 @@ public class PutCalendarAction extends Action<PutCalendarAction.Response>  {
                         validationException);
             }
             return validationException;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            calendar = new Calendar(in);
         }
 
         @Override
@@ -137,7 +130,9 @@ public class PutCalendarAction extends Action<PutCalendarAction.Response>  {
 
         private Calendar calendar;
 
-        public Response() {
+        public Response(StreamInput in) throws IOException {
+            super(in);
+            calendar = new Calendar(in);
         }
 
         public Response(Calendar calendar) {
@@ -145,23 +140,7 @@ public class PutCalendarAction extends Action<PutCalendarAction.Response>  {
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            if (in.getVersion().before(Version.V_6_3_0)) {
-                //the acknowledged flag was removed
-                in.readBoolean();
-            }
-            calendar = new Calendar(in);
-
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            if (out.getVersion().before(Version.V_6_3_0)) {
-                //the acknowledged flag is no longer supported
-                out.writeBoolean(true);
-            }
             calendar.writeTo(out);
         }
 

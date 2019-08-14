@@ -30,7 +30,7 @@ DESC
 
 `DESC` and `DESCRIBE` are aliases to <<sql-syntax-show-columns>>.
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs/docs.csv-spec[describeTable]
 ----

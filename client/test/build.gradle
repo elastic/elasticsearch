@@ -44,7 +44,7 @@ forbiddenApisTest {
 }
 
 // JarHell is part of es server, which we don't want to pull in
-// TODO: Not anymore. Now in :libs:core
+// TODO: Not anymore. Now in :libs:elasticsearch-core
 jarHell.enabled=false
 
 // TODO: should we have licenses for our test deps?

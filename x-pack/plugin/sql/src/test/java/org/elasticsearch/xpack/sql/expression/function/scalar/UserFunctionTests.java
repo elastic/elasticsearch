@@ -30,7 +30,8 @@ public class UserFunctionTests extends ESTestCase {
                 new Configuration(DateUtils.UTC, Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT,
                                   Protocol.PAGE_TIMEOUT, null, 
                                   randomFrom(Mode.values()), randomAlphaOfLength(10), 
-                                  null, randomAlphaOfLengthBetween(1, 15), randomBoolean()),
+                                  null, randomAlphaOfLengthBetween(1, 15), 
+                                  randomBoolean(), randomBoolean()),
                 new FunctionRegistry(),
                 IndexResolution.valid(test),
                 new Verifier(new Metrics())

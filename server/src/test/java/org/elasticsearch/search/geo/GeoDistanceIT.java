@@ -29,7 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.geo.utils.Geohash;
+import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -185,7 +185,6 @@ public class GeoDistanceIT extends ESIntegTestCase {
         String name = "TestPosition";
 
         search.setQuery(QueryBuilders.matchAllQuery())
-            .setTypes("type1")
             .addAggregation(AggregationBuilders.geoDistance(name, new GeoPoint(tgt_lat, tgt_lon))
             .field("location")
             .unit(DistanceUnit.MILES)

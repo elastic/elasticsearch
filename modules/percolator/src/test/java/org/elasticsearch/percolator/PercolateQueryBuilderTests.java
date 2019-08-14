@@ -54,6 +54,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.equalTo;
@@ -153,12 +154,12 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
         if (indexedDocumentExists) {
             return new GetResponse(
                     new GetResult(indexedDocumentIndex, MapperService.SINGLE_MAPPING_NAME, indexedDocumentId, 0, 1, 0L, true,
-                            documentSource.iterator().next(), Collections.emptyMap())
+                            documentSource.iterator().next(), Collections.emptyMap(), Collections.emptyMap())
             );
         } else {
             return new GetResponse(
                     new GetResult(indexedDocumentIndex, MapperService.SINGLE_MAPPING_NAME, indexedDocumentId, UNASSIGNED_SEQ_NO, 0, -1,
-                        false, null, Collections.emptyMap())
+                        false, null, Collections.emptyMap(), Collections.emptyMap())
             );
         }
     }
@@ -295,9 +296,17 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
         }
     }
 
+    /**
+     * Test that this query is never cacheable
+     */
     @Override
-    protected boolean isCacheable(PercolateQueryBuilder queryBuilder) {
-        return false;
+    public void testCacheability() throws IOException {
+        PercolateQueryBuilder queryBuilder = createTestQueryBuilder();
+        QueryShardContext context = createShardContext();
+        assert context.isCacheable();
+        QueryBuilder rewritten = rewriteQuery(queryBuilder, new QueryShardContext(context));
+        assertNotNull(rewritten.toQuery(context));
+        assertFalse("query should not be cacheable: " + queryBuilder.toString(), context.isCacheable());
     }
 
     @Override
@@ -329,6 +338,31 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
 
         assertEquals(query.getCandidateMatchesQuery(), aliasQuery.getCandidateMatchesQuery());
         assertEquals(query.getVerifiedMatchesQuery(), aliasQuery.getVerifiedMatchesQuery());
+    }
+
+    public void testSettingNameWhileRewriting() {
+        String testName = "name1";
+        QueryShardContext shardContext = createShardContext();
+        PercolateQueryBuilder percolateQueryBuilder = doCreateTestQueryBuilder(true);
+        percolateQueryBuilder.setName(testName);
+
+        QueryBuilder rewrittenQueryBuilder = percolateQueryBuilder.doRewrite(shardContext);
+
+        assertEquals(testName, ((PercolateQueryBuilder) rewrittenQueryBuilder).getQueryName());
+        assertNotEquals(rewrittenQueryBuilder, percolateQueryBuilder);
+    }
+
+    public void testSettingNameWhileRewritingWhenDocumentSupplierAndSourceNotNull() {
+        Supplier<BytesReference> supplier = () -> new BytesArray("{\"test\": \"test\"}");
+        String testName = "name1";
+        QueryShardContext shardContext = createShardContext();
+        PercolateQueryBuilder percolateQueryBuilder = new PercolateQueryBuilder(queryField, null, supplier);
+        percolateQueryBuilder.setName(testName);
+
+        QueryBuilder rewrittenQueryBuilder = percolateQueryBuilder.doRewrite(shardContext);
+
+        assertEquals(testName, ((PercolateQueryBuilder) rewrittenQueryBuilder).getQueryName());
+        assertNotEquals(rewrittenQueryBuilder, percolateQueryBuilder);
     }
 
 }

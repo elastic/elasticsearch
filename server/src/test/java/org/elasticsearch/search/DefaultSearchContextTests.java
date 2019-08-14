@@ -63,7 +63,6 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-
 public class DefaultSearchContextTests extends ESTestCase {
 
     public void testPreProcess() throws Exception {
@@ -72,7 +71,6 @@ public class DefaultSearchContextTests extends ESTestCase {
         when(shardSearchRequest.searchType()).thenReturn(SearchType.DEFAULT);
         ShardId shardId = new ShardId("index", UUID.randomUUID().toString(), 1);
         when(shardSearchRequest.shardId()).thenReturn(shardId);
-        when(shardSearchRequest.types()).thenReturn(new String[]{});
 
         IndexShard indexShard = mock(IndexShard.class);
         QueryCachingPolicy queryCachingPolicy = mock(QueryCachingPolicy.class);
@@ -111,7 +109,9 @@ public class DefaultSearchContextTests extends ESTestCase {
         try (Directory dir = newDirectory();
              RandomIndexWriter w = new RandomIndexWriter(random(), dir);
              IndexReader reader = w.getReader();
-             Engine.Searcher searcher = new Engine.Searcher("test", new IndexSearcher(reader), reader)) {
+             Engine.Searcher searcher = new Engine.Searcher("test", reader,
+                 IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(),
+                 IndexSearcher.getDefaultQueryCachingPolicy(), reader)) {
 
             SearchShardTarget target = new SearchShardTarget("node", shardId, null, OriginalIndices.NONE);
 

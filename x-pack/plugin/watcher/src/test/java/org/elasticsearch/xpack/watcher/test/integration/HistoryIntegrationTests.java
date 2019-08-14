@@ -18,6 +18,9 @@ import org.elasticsearch.xpack.core.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.core.watcher.input.Input;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
+import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;
+import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchRequestBuilder;
+import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
@@ -59,10 +62,10 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
                 templateRequest(searchSource().sort(SortBuilders.fieldSort("inner.date").order(SortOrder.DESC)), "foo")))
         );
 
-        PutWatchResponse response = watcherClient().preparePutWatch("test_watch").setSource(builder).get();
+        PutWatchResponse response = new PutWatchRequestBuilder(client()).setId("test_watch").setSource(builder).get();
         assertThat(response.isCreated(), is(true));
 
-        watcherClient().prepareExecuteWatch("test_watch").setRecordExecution(true).get();
+        new ExecuteWatchRequestBuilder(client()).setId("test_watch").setRecordExecution(true).get();
 
         flushAndRefresh(".watcher-history-*");
         SearchResponse searchResponse = client().prepareSearch(".watcher-history-*").get();
@@ -85,14 +88,14 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
             input = chainInput().add("chained", input);
         }
 
-        watcherClient().preparePutWatch("test_watch")
+        new PutWatchRequestBuilder(client()).setId("test_watch")
                 .setSource(watchBuilder()
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.HOURS)))
                         .input(input)
                         .addAction("_logger", loggingAction("#### randomLogging")))
                 .get();
 
-        watcherClient().prepareExecuteWatch("test_watch").setRecordExecution(true).get();
+        new ExecuteWatchRequestBuilder(client()).setId("test_watch").setRecordExecution(true).get();
 
         refresh(".watcher-history*");
         SearchResponse searchResponse = client().prepareSearch(".watcher-history*").setSize(0).get();
@@ -126,14 +129,14 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
             input = chainInput().add("chained", input);
         }
 
-        watcherClient().preparePutWatch("test_watch")
+        new PutWatchRequestBuilder(client()).setId("test_watch")
                 .setSource(watchBuilder()
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.HOURS)))
                         .input(input)
                         .addAction("_logger", loggingAction("#### randomLogging")))
                 .get();
 
-        watcherClient().prepareExecuteWatch("test_watch").setRecordExecution(true).get();
+        new ExecuteWatchRequestBuilder(client()).setId("test_watch").setRecordExecution(true).get();
 
         refresh(".watcher-history*");
         SearchResponse searchResponse = client().prepareSearch(".watcher-history*").setSize(0).get();
@@ -157,16 +160,16 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
     }
 
     public void testThatHistoryContainsStatus() throws Exception {
-        watcherClient().preparePutWatch("test_watch")
+        new PutWatchRequestBuilder(client()).setId("test_watch")
                 .setSource(watchBuilder()
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.HOURS)))
                         .input(simpleInput("foo", "bar"))
                         .addAction("_logger", loggingAction("#### randomLogging")))
                 .get();
 
-        watcherClient().prepareExecuteWatch("test_watch").setRecordExecution(true).get();
+        new ExecuteWatchRequestBuilder(client()).setId("test_watch").setRecordExecution(true).get();
 
-        WatchStatus status = watcherClient().prepareGetWatch("test_watch").get().getStatus();
+        WatchStatus status = new GetWatchRequestBuilder(client()).setId("test_watch").get().getStatus();
 
         refresh(".watcher-history*");
         SearchResponse searchResponse = client().prepareSearch(".watcher-history*").setSize(1).get();

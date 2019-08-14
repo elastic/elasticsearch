@@ -1,9 +1,49 @@
 [[cat-fielddata]]
-== cat fielddata
+=== cat fielddata API
+++++
+<titleabbrev>cat fielddata</titleabbrev>
+++++
 
-`fielddata` shows how much heap memory is currently being used by fielddata
-on every data node in the cluster.
+Returns the amount of heap memory currently used by fielddata on every data node
+in the cluster.
 
+
+[[cat-fielddata-api-request]]
+==== {api-request-title}
+
+`GET /_cat/fielddata/{fields}`
+
+
+[[cat-fielddata-api-path-params]]
+==== {api-path-parms-title}
+
+`{fields}`::
+(Optional, string) Comma-separated list of fields used to limit returned
+information.
+
+
+[[cat-fielddata-api-query-params]]
+==== {api-query-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=bytes]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=http-format]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-h]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=help]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
+
+
+[[cat-fielddata-api-example]]
+==== {api-examples-title}
 
 ////
 Hidden setup snippet to build an index with fielddata so our results are real:
@@ -20,6 +60,10 @@ PUT test
       "soul": {
         "type": "text",
         "fielddata":true
+      },
+      "mind": {
+        "type": "text",
+        "fielddata":true
       }
     }
   }
@@ -27,34 +71,22 @@ PUT test
 POST test/_doc?refresh
 {
   "body": "some words so there is a little field data",
-  "soul": "some more words"
+  "soul": "some more words",
+  "mind": "even more words"
 }
 
 # Perform a search to load the field data
-POST test/_search?sort=body,soul
+POST test/_search?sort=body,soul,mind
 --------------------------------------------------
 // CONSOLE
 ////
 
-[source,js]
---------------------------------------------------
-GET /_cat/fielddata?v
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
+[[cat-fielddata-api-example-ind]]
+===== Example with an individual field
 
-Looks like:
-
-[source,txt]
---------------------------------------------------
-id                     host      ip        node    field   size
-Nqk-6inXQq-OxUfOUI8jNQ 127.0.0.1 127.0.0.1 Nqk-6in body    544b
-Nqk-6inXQq-OxUfOUI8jNQ 127.0.0.1 127.0.0.1 Nqk-6in soul    480b
---------------------------------------------------
-// TESTRESPONSE[s/544b|480b/\\d+(\\.\\d+)?[tgmk]?b/]
-// TESTRESPONSE[s/Nqk-6in[^ ]*/.+/ s/soul|body/\\w+/ _cat]
-
-Fields can be specified either as a query parameter, or in the URL path:
+You can specify an individual field in the request body or URL path. The
+following `fieldata` API request retrieves heap memory size information for the
+`body` field.
 
 [source,js]
 --------------------------------------------------
@@ -63,7 +95,7 @@ GET /_cat/fielddata?v&fields=body
 // CONSOLE
 // TEST[continued]
 
-Which looks like:
+The API returns the following response:
 
 [source,txt]
 --------------------------------------------------
@@ -71,9 +103,15 @@ id                     host      ip        node    field   size
 Nqk-6inXQq-OxUfOUI8jNQ 127.0.0.1 127.0.0.1 Nqk-6in body    544b
 --------------------------------------------------
 // TESTRESPONSE[s/544b|480b/\\d+(\\.\\d+)?[tgmk]?b/]
-// TESTRESPONSE[s/Nqk-6in[^ ]*/.+/ _cat]
+// TESTRESPONSE[s/Nqk-6in[^ ]*/.+/ non_json]
 
-And it accepts a comma delimited list:
+[[cat-fielddata-api-example-list]]
+===== Example with a list of fields
+
+You can specify a comma-separated list of fields in the request body or URL
+path. The following `fieldata` API request retrieves heap memory size
+information for the `body` and `soul` fields.
+
 
 [source,js]
 --------------------------------------------------
@@ -82,7 +120,7 @@ GET /_cat/fielddata/body,soul?v
 // CONSOLE
 // TEST[continued]
 
-Which produces the same output as the first snippet:
+The API returns the following response:
 
 [source,txt]
 --------------------------------------------------
@@ -91,6 +129,32 @@ Nqk-6inXQq-OxUfOUI8jNQ 127.0.0.1 127.0.0.1 Nqk-6in body    544b
 Nqk-6inXQq-OxUfOUI8jNQ 127.0.0.1 127.0.0.1 Nqk-6in soul    480b
 --------------------------------------------------
 // TESTRESPONSE[s/544b|480b/\\d+(\\.\\d+)?[tgmk]?b/]
-// TESTRESPONSE[s/Nqk-6in[^ ]*/.+/ s/soul|body/\\w+/ _cat]
+// TESTRESPONSE[s/Nqk-6in[^ ]*/.+/ s/soul|body/\\w+/ non_json]
 
-The output shows the individual fielddata for the `body` and `soul` fields, one row per field per node.
+The response shows the individual fielddata for the `body` and `soul` fields,
+one row per field per node.
+
+[[cat-fielddata-api-example-all]]
+===== Example with all fields in a cluster
+
+The following `fieldata` API request retrieves heap memory size
+information all fields.
+
+[source,js]
+--------------------------------------------------
+GET /_cat/fielddata?v
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+The API returns the following response:
+
+[source,txt]
+--------------------------------------------------
+id                     host      ip        node    field   size
+Nqk-6inXQq-OxUfOUI8jNQ 127.0.0.1 127.0.0.1 Nqk-6in body    544b
+Nqk-6inXQq-OxUfOUI8jNQ 127.0.0.1 127.0.0.1 Nqk-6in mind    360b
+Nqk-6inXQq-OxUfOUI8jNQ 127.0.0.1 127.0.0.1 Nqk-6in soul    480b
+--------------------------------------------------
+// TESTRESPONSE[s/544b|480b|360b/\\d+(\\.\\d+)?[tgmk]?b/]
+// TESTRESPONSE[s/Nqk-6in[^ ]*/.+/ s/soul|body|mind/\\w+/ non_json]

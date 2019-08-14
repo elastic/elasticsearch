@@ -23,14 +23,19 @@ package org.elasticsearch.painless;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.painless.action.PainlessContextAction;
 import org.elasticsearch.painless.action.PainlessExecuteAction;
 import org.elasticsearch.painless.spi.PainlessExtension;
@@ -45,7 +50,10 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.pipeline.MovingFunctionScript;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -103,8 +111,13 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
     }
 
     @Override
-    public Collection<Module> createGuiceModules() {
-        return Collections.singleton(b -> b.bind(PainlessScriptEngine.class).toInstance(painlessScriptEngine.get()));
+    public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
+                                               ResourceWatcherService resourceWatcherService, ScriptService scriptService,
+                                               NamedXContentRegistry xContentRegistry, Environment environment,
+                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
+        // this is a hack to bind the painless script engine in guice (all components are added to guice), so that
+        // the painless context api. this is a temporary measure until transport actions do no require guice
+        return Collections.singletonList(painlessScriptEngine.get());
     }
 
     @Override
@@ -142,8 +155,8 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
                                              IndexNameExpressionResolver indexNameExpressionResolver,
                                              Supplier<DiscoveryNodes> nodesInCluster) {
         List<RestHandler> handlers = new ArrayList<>();
-        handlers.add(new PainlessExecuteAction.RestAction(settings, restController));
-        handlers.add(new PainlessContextAction.RestAction(settings, restController));
+        handlers.add(new PainlessExecuteAction.RestAction(restController));
+        handlers.add(new PainlessContextAction.RestAction(restController));
         return handlers;
     }
 }

@@ -46,6 +46,13 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Quarter;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.SecondOfMinute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.WeekOfYear;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Year;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StAswkt;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StDistance;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StGeometryType;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StWkttosql;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StX;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StY;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StZ;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.ACos;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.ASin;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.ATan;
@@ -249,11 +256,23 @@ public class FunctionRegistry {
                 def(Space.class, Space::new, "SPACE"),
                 def(Substring.class, Substring::new, "SUBSTRING"),
                 def(UCase.class, UCase::new, "UCASE"));
+
         // DataType conversion
         addToMap(def(Cast.class, Cast::new, "CAST", "CONVERT"));
         // Scalar "meta" functions
         addToMap(def(Database.class, Database::new, "DATABASE"),
                 def(User.class, User::new, "USER"));
+
+        // Geo Functions
+        addToMap(def(StAswkt.class, StAswkt::new, "ST_ASWKT", "ST_ASTEXT"),
+                def(StDistance.class, StDistance::new, "ST_DISTANCE"),
+                def(StWkttosql.class, StWkttosql::new, "ST_WKTTOSQL", "ST_GEOMFROMTEXT"),
+                def(StGeometryType.class, StGeometryType::new, "ST_GEOMETRYTYPE"),
+                def(StX.class, StX::new, "ST_X"),
+                def(StY.class, StY::new, "ST_Y"),
+                def(StZ.class, StZ::new, "ST_Z")
+        );
+
         // Special
         addToMap(def(Score.class, Score::new, "SCORE"));
     }

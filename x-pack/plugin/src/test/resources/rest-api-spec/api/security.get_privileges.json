@@ -1,9 +1,9 @@
 {
   "security.get_privileges": {
-    "documentation": "TODO",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-privileges.html",
+    "stability": "stable",
     "methods": [ "GET" ],
     "url": {
-      "path": "/_security/privilege/{application}/{name}",
       "paths": [
         "/_security/privilege",
         "/_security/privilege/{application}",

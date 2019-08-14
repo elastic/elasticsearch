@@ -58,7 +58,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource, SignificantTermsAggregatorFactory>
+public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource>
         implements Releasable {
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
             LogManager.getLogger(SignificantTermsAggregatorFactory.class));
@@ -82,7 +82,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                                              TermsAggregator.BucketCountThresholds bucketCountThresholds,
                                              SignificanceHeuristic significanceHeuristic,
                                              SearchContext context,
-                                             AggregatorFactory<?> parent,
+                                             AggregatorFactory parent,
                                              AggregatorFactories.Builder subFactoriesBuilder,
                                              Map<String, Object> metaData) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metaData);

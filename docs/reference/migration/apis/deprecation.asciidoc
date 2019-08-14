@@ -6,33 +6,32 @@
 <titleabbrev>Deprecation info</titleabbrev>
 ++++
 
+IMPORTANT: Use this API to check for deprecated configuration before performing
+a major version upgrade. You should run it on the the last minor version of the
+major version you are upgrading from, as earlier minor versions may not include
+all deprecations.
+
 The deprecation API is to be used to retrieve information about different
 cluster, node, and index level settings that use deprecated features that will
 be removed or changed in the next major version.
 
-[float]
-==== Request
+[[migration-api-request]]
+==== {api-request-title}
 
 `GET /_migration/deprecations` +
 
 `GET /<index_name>/_migration/deprecations`
 
-//=== Description
-
-[float]
-==== Path Parameters
+[[migration-api-path-params]]
+==== {api-path-parms-title}
 
 `index_name`::
-  (string) Identifier for the index. It can be an index name or a wildcard
-  expression. When you specify this parameter, only index-level deprecations for
-  the specified indices are returned.
+  (Optional, string) Identifier for the index. It can be an index name or a
+  wildcard expression. When you specify this parameter, only index-level
+  deprecations for the specified indices are returned.
 
-//=== Query Parameters
-
-//=== Authorization
-
-[float]
-==== Examples
+[[migration-api-example]]
+==== {api-examples-title}
 
 To see the list of offenders in your cluster, submit a GET request to the
 `_migration/deprecations` endpoint:

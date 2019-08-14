@@ -172,10 +172,6 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
         }
     }
 
-    private NodeEnvironment.NodePath[] toNodePaths(Path[] dataPaths) {
-        return Arrays.stream(dataPaths).map(NodeRepurposeCommand::createNodePath).toArray(NodeEnvironment.NodePath[]::new);
-    }
-
     private Set<String> indexUUIDsFor(Set<Path> indexPaths) {
         return indexPaths.stream().map(Path::getFileName).map(Path::toString).collect(Collectors.toSet());
     }
@@ -221,17 +217,9 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
 
     @SafeVarargs
     @SuppressWarnings("varargs")
-    private final Set<Path> uniqueParentPaths(Collection<Path>... paths) {
+    private Set<Path> uniqueParentPaths(Collection<Path>... paths) {
         // equals on Path is good enough here due to the way these are collected.
         return Arrays.stream(paths).flatMap(Collection::stream).map(Path::getParent).collect(Collectors.toSet());
-    }
-
-    private static NodeEnvironment.NodePath createNodePath(Path path) {
-        try {
-            return new NodeEnvironment.NodePath(path);
-        } catch (IOException e) {
-            throw new ElasticsearchException("Unable to investigate path: " + path + ": " + e.getMessage());
-        }
     }
 
     //package-private for testing

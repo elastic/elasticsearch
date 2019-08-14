@@ -1,9 +1,9 @@
 {
   "indices.analyze": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-analyze.html",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-analyze.html",
+    "stability": "stable",
     "methods": ["GET", "POST"],
     "url": {
-      "path": "/_analyze",
       "paths": ["/_analyze", "/{index}/_analyze"],
       "parts": {
         "index": {

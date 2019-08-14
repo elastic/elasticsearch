@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authc.esnative;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -77,7 +77,7 @@ public class NativeUsersStoreTests extends ESTestCase {
 
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse>
-            void doExecute(Action<Response> action, Request request, ActionListener<Response> listener) {
+            void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
                 requests.add(new Tuple<>(request, listener));
             }
         };
@@ -118,6 +118,7 @@ public class NativeUsersStoreTests extends ESTestCase {
             0, 1, 1L,
                 true,
                 BytesReference.bytes(jsonBuilder().map(values)),
+                Collections.emptyMap(),
                 Collections.emptyMap());
 
         final PlainActionFuture<NativeUsersStore.ReservedUserInfo> future = new PlainActionFuture<>();
@@ -187,6 +188,7 @@ public class NativeUsersStoreTests extends ESTestCase {
                 UNASSIGNED_SEQ_NO, 0, 1L,
                 false,
                 null,
+                Collections.emptyMap(),
                 Collections.emptyMap());
 
         actionRespond(GetRequest.class, new GetResponse(getResult));
@@ -229,6 +231,7 @@ public class NativeUsersStoreTests extends ESTestCase {
                 0, 1, 1L,
                 true,
                 source,
+                Collections.emptyMap(),
                 Collections.emptyMap());
 
         actionRespond(GetRequest.class, new GetResponse(getResult));

@@ -120,16 +120,16 @@ public class AnalysisRegistryTests extends ESTestCase {
                 return null;
             }
         };
-        Analyzer analyzer = new CustomAnalyzer("tokenizerName", null, new CharFilterFactory[0], new TokenFilterFactory[] { tokenFilter });
+        Analyzer analyzer = new CustomAnalyzer(null, new CharFilterFactory[0], new TokenFilterFactory[] { tokenFilter });
         MapperException ex = expectThrows(MapperException.class,
                 () -> emptyRegistry.build(IndexSettingsModule.newIndexSettings("index", settings),
-                        singletonMap("default", new PreBuiltAnalyzerProvider("my_analyzer", AnalyzerScope.INDEX, analyzer)), emptyMap(),
+                        singletonMap("default", new PreBuiltAnalyzerProvider("default", AnalyzerScope.INDEX, analyzer)), emptyMap(),
                         emptyMap(), emptyMap(), emptyMap()));
-        assertEquals("analyzer [my_analyzer] contains filters [my_filter] that are not allowed to run in all mode.", ex.getMessage());
+        assertEquals("analyzer [default] contains filters [my_filter] that are not allowed to run in all mode.", ex.getMessage());
     }
 
     public void testOverrideDefaultIndexAnalyzerIsUnsupported() {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0_alpha1, Version.CURRENT);
+        Version version = VersionUtils.randomIndexCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         AnalyzerProvider<?> defaultIndex = new PreBuiltAnalyzerProvider("default_index", AnalyzerScope.INDEX, new EnglishAnalyzer());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,

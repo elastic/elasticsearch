@@ -33,9 +33,13 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaDataUpdateSettingsService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.io.IOException;
 
 public class TransportUpdateSettingsAction extends TransportMasterNodeAction<UpdateSettingsRequest, AcknowledgedResponse> {
 
@@ -45,8 +49,8 @@ public class TransportUpdateSettingsAction extends TransportMasterNodeAction<Upd
     public TransportUpdateSettingsAction(TransportService transportService, ClusterService clusterService,
                                          ThreadPool threadPool, MetaDataUpdateSettingsService updateSettingsService,
                                          ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(UpdateSettingsAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-            UpdateSettingsRequest::new);
+        super(UpdateSettingsAction.NAME, transportService, clusterService, threadPool, actionFilters, UpdateSettingsRequest::new,
+            indexNameExpressionResolver);
         this.updateSettingsService = updateSettingsService;
     }
 
@@ -74,12 +78,12 @@ public class TransportUpdateSettingsAction extends TransportMasterNodeAction<Upd
     }
 
     @Override
-    protected AcknowledgedResponse newResponse() {
-        return new AcknowledgedResponse();
+    protected AcknowledgedResponse read(StreamInput in) throws IOException {
+        return new AcknowledgedResponse(in);
     }
 
     @Override
-    protected void masterOperation(final UpdateSettingsRequest request, final ClusterState state,
+    protected void masterOperation(Task task, final UpdateSettingsRequest request, final ClusterState state,
                                    final ActionListener<AcknowledgedResponse> listener) {
         final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
         UpdateSettingsClusterStateUpdateRequest clusterStateUpdateRequest = new UpdateSettingsClusterStateUpdateRequest()

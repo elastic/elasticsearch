@@ -35,13 +35,28 @@ public class PreviewDataFrameTransformsActionResponseTests extends AbstractSeria
         int size = randomIntBetween(0, 10);
         List<Map<String, Object>> data = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            Map<String, Object> datum = new HashMap<>();
-            Map<String, Object> entry = new HashMap<>();
-            entry.put("value1", randomIntBetween(1, 100));
-            datum.put(randomAlphaOfLength(10), entry);
-            data.add(datum);
+            data.add(Map.of(randomAlphaOfLength(10), Map.of("value1", randomIntBetween(1, 100))));
         }
-        return new Response(data);
+
+        Response response = new Response(data);
+        if (randomBoolean()) {
+            size = randomIntBetween(0, 10);
+            if (randomBoolean()) {
+                Map<String, Object> mappings = new HashMap<>(size);
+                for (int i = 0; i < size; i++) {
+                    mappings.put(randomAlphaOfLength(10), Map.of("type", randomAlphaOfLength(10)));
+                }
+                response.setMappings(mappings);
+            } else {
+                Map<String, String> mappings = new HashMap<>(size);
+                for (int i = 0; i < size; i++) {
+                    mappings.put(randomAlphaOfLength(10), randomAlphaOfLength(10));
+                }
+                response.setMappingsFromStringMap(mappings);
+            }
+        }
+
+        return response;
     }
 
     @Override

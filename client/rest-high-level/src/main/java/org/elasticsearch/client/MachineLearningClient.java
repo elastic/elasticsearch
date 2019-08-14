@@ -25,6 +25,7 @@ import org.elasticsearch.client.ml.CloseJobResponse;
 import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
 import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
+import org.elasticsearch.client.ml.DeleteDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
 import org.elasticsearch.client.ml.DeleteExpiredDataRequest;
 import org.elasticsearch.client.ml.DeleteExpiredDataResponse;
@@ -33,6 +34,10 @@ import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteJobResponse;
 import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
+import org.elasticsearch.client.ml.EstimateMemoryUsageRequest;
+import org.elasticsearch.client.ml.EstimateMemoryUsageResponse;
+import org.elasticsearch.client.ml.EvaluateDataFrameRequest;
+import org.elasticsearch.client.ml.EvaluateDataFrameResponse;
 import org.elasticsearch.client.ml.FindFileStructureRequest;
 import org.elasticsearch.client.ml.FindFileStructureResponse;
 import org.elasticsearch.client.ml.FlushJobRequest;
@@ -47,6 +52,10 @@ import org.elasticsearch.client.ml.GetCalendarsRequest;
 import org.elasticsearch.client.ml.GetCalendarsResponse;
 import org.elasticsearch.client.ml.GetCategoriesRequest;
 import org.elasticsearch.client.ml.GetCategoriesResponse;
+import org.elasticsearch.client.ml.GetDataFrameAnalyticsRequest;
+import org.elasticsearch.client.ml.GetDataFrameAnalyticsResponse;
+import org.elasticsearch.client.ml.GetDataFrameAnalyticsStatsRequest;
+import org.elasticsearch.client.ml.GetDataFrameAnalyticsStatsResponse;
 import org.elasticsearch.client.ml.GetDatafeedRequest;
 import org.elasticsearch.client.ml.GetDatafeedResponse;
 import org.elasticsearch.client.ml.GetDatafeedStatsRequest;
@@ -78,6 +87,8 @@ import org.elasticsearch.client.ml.PreviewDatafeedResponse;
 import org.elasticsearch.client.ml.PutCalendarJobRequest;
 import org.elasticsearch.client.ml.PutCalendarRequest;
 import org.elasticsearch.client.ml.PutCalendarResponse;
+import org.elasticsearch.client.ml.PutDataFrameAnalyticsRequest;
+import org.elasticsearch.client.ml.PutDataFrameAnalyticsResponse;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutDatafeedResponse;
 import org.elasticsearch.client.ml.PutFilterRequest;
@@ -87,8 +98,11 @@ import org.elasticsearch.client.ml.PutJobResponse;
 import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
 import org.elasticsearch.client.ml.RevertModelSnapshotResponse;
 import org.elasticsearch.client.ml.SetUpgradeModeRequest;
+import org.elasticsearch.client.ml.StartDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.StartDatafeedResponse;
+import org.elasticsearch.client.ml.StopDataFrameAnalyticsRequest;
+import org.elasticsearch.client.ml.StopDataFrameAnalyticsResponse;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
 import org.elasticsearch.client.ml.StopDatafeedResponse;
 import org.elasticsearch.client.ml.UpdateDatafeedRequest;
@@ -1874,6 +1888,344 @@ public final class MachineLearningClient {
             MLRequestConverters::setUpgradeMode,
             options,
             AcknowledgedResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
+     * Creates a new Data Frame Analytics config
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/put-dfanalytics.html">
+     *     PUT Data Frame Analytics documentation</a>
+     *
+     * @param request The {@link PutDataFrameAnalyticsRequest} containing the
+     * {@link org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsConfig}
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return The {@link PutDataFrameAnalyticsResponse} containing the created
+     * {@link org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsConfig}
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public PutDataFrameAnalyticsResponse putDataFrameAnalytics(PutDataFrameAnalyticsRequest request,
+                                                               RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::putDataFrameAnalytics,
+            options,
+            PutDataFrameAnalyticsResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Creates a new Data Frame Analytics config asynchronously and notifies listener upon completion
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/put-dfanalytics.html">
+     *     PUT Data Frame Analytics documentation</a>
+     *
+     * @param request The {@link PutDataFrameAnalyticsRequest} containing the
+     * {@link org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsConfig}
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void putDataFrameAnalyticsAsync(PutDataFrameAnalyticsRequest request, RequestOptions options,
+                                           ActionListener<PutDataFrameAnalyticsResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::putDataFrameAnalytics,
+            options,
+            PutDataFrameAnalyticsResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
+     * Gets a single or multiple Data Frame Analytics configs
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-dfanalytics.html">
+     *     GET Data Frame Analytics documentation</a>
+     *
+     * @param request The {@link GetDataFrameAnalyticsRequest}
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return {@link GetDataFrameAnalyticsResponse} response object containing the
+     * {@link org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsConfig} objects
+     */
+    public GetDataFrameAnalyticsResponse getDataFrameAnalytics(GetDataFrameAnalyticsRequest request,
+                                                               RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::getDataFrameAnalytics,
+            options,
+            GetDataFrameAnalyticsResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Gets a single or multiple Data Frame Analytics configs asynchronously and notifies listener upon completion
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-dfanalytics.html">
+     *     GET Data Frame Analytics documentation</a>
+     *
+     * @param request The {@link GetDataFrameAnalyticsRequest}
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void getDataFrameAnalyticsAsync(GetDataFrameAnalyticsRequest request, RequestOptions options,
+                                           ActionListener<GetDataFrameAnalyticsResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::getDataFrameAnalytics,
+            options,
+            GetDataFrameAnalyticsResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
+     * Gets the running statistics of a Data Frame Analytics
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-dfanalytics-stats.html">
+     *     GET Data Frame Analytics Stats documentation</a>
+     *
+     * @param request The {@link GetDataFrameAnalyticsStatsRequest}
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return {@link GetDataFrameAnalyticsStatsResponse} response object
+     */
+    public GetDataFrameAnalyticsStatsResponse getDataFrameAnalyticsStats(GetDataFrameAnalyticsStatsRequest request,
+                                                                         RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::getDataFrameAnalyticsStats,
+            options,
+            GetDataFrameAnalyticsStatsResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Gets the running statistics of a Data Frame Analytics asynchronously and notifies listener upon completion
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-dfanalytics-stats.html">
+     *     GET Data Frame Analytics Stats documentation</a>
+     *
+     * @param request The {@link GetDataFrameAnalyticsStatsRequest}
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void getDataFrameAnalyticsStatsAsync(GetDataFrameAnalyticsStatsRequest request, RequestOptions options,
+                                                ActionListener<GetDataFrameAnalyticsStatsResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::getDataFrameAnalyticsStats,
+            options,
+            GetDataFrameAnalyticsStatsResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
+     * Starts Data Frame Analytics
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/start-dfanalytics.html">
+     *     Start Data Frame Analytics documentation</a>
+     *
+     * @param request The {@link StartDataFrameAnalyticsRequest}
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return action acknowledgement
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public AcknowledgedResponse startDataFrameAnalytics(StartDataFrameAnalyticsRequest request,
+                                                        RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::startDataFrameAnalytics,
+            options,
+            AcknowledgedResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Starts Data Frame Analytics asynchronously and notifies listener upon completion
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/start-dfanalytics.html">
+     *     Start Data Frame Analytics documentation</a>
+     *
+     * @param request The {@link StartDataFrameAnalyticsRequest}
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void startDataFrameAnalyticsAsync(StartDataFrameAnalyticsRequest request, RequestOptions options,
+                                             ActionListener<AcknowledgedResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::startDataFrameAnalytics,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
+     * Stops Data Frame Analytics
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/stop-dfanalytics.html">
+     *     Stop Data Frame Analytics documentation</a>
+     *
+     * @param request The {@link StopDataFrameAnalyticsRequest}
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return {@link StopDataFrameAnalyticsResponse}
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public StopDataFrameAnalyticsResponse stopDataFrameAnalytics(StopDataFrameAnalyticsRequest request,
+                                                                 RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::stopDataFrameAnalytics,
+            options,
+            StopDataFrameAnalyticsResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Stops Data Frame Analytics asynchronously and notifies listener upon completion
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/stop-dfanalytics.html">
+     *     Stop Data Frame Analytics documentation</a>
+     *
+     * @param request The {@link StopDataFrameAnalyticsRequest}
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void stopDataFrameAnalyticsAsync(StopDataFrameAnalyticsRequest request, RequestOptions options,
+                                            ActionListener<StopDataFrameAnalyticsResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::stopDataFrameAnalytics,
+            options,
+            StopDataFrameAnalyticsResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
+     * Deletes the given Data Frame Analytics config
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/delete-dfanalytics.html">
+     *     DELETE Data Frame Analytics documentation</a>
+     *
+     * @param request The {@link DeleteDataFrameAnalyticsRequest}
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return action acknowledgement
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public AcknowledgedResponse deleteDataFrameAnalytics(DeleteDataFrameAnalyticsRequest request,
+                                                         RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::deleteDataFrameAnalytics,
+            options,
+            AcknowledgedResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Deletes the given Data Frame Analytics config asynchronously and notifies listener upon completion
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/delete-dfanalytics.html">
+     *     DELETE Data Frame Analytics documentation</a>
+     *
+     * @param request The {@link DeleteDataFrameAnalyticsRequest}
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void deleteDataFrameAnalyticsAsync(DeleteDataFrameAnalyticsRequest request, RequestOptions options,
+                                              ActionListener<AcknowledgedResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::deleteDataFrameAnalytics,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
+     * Evaluates the given Data Frame
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/evaluate-dfanalytics.html">
+     *     Evaluate Data Frame documentation</a>
+     *
+     * @param request The {@link EvaluateDataFrameRequest}
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return {@link EvaluateDataFrameResponse} response object
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public EvaluateDataFrameResponse evaluateDataFrame(EvaluateDataFrameRequest request,
+                                                       RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::evaluateDataFrame,
+            options,
+            EvaluateDataFrameResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Evaluates the given Data Frame asynchronously and notifies listener upon completion
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/evaluate-dfanalytics.html">
+     *     Evaluate Data Frame documentation</a>
+     *
+     * @param request The {@link EvaluateDataFrameRequest}
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void evaluateDataFrameAsync(EvaluateDataFrameRequest request, RequestOptions options,
+                                       ActionListener<EvaluateDataFrameResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::evaluateDataFrame,
+            options,
+            EvaluateDataFrameResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
+     * Estimates memory usage for the given Data Frame Analytics
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/estimate-memory-usage-dfanalytics.html">
+     *     Estimate Memory Usage for Data Frame Analytics documentation</a>
+     *
+     * @param request The {@link EstimateMemoryUsageRequest}
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return {@link EstimateMemoryUsageResponse} response object
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public EstimateMemoryUsageResponse estimateMemoryUsage(EstimateMemoryUsageRequest request,
+                                                           RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::estimateMemoryUsage,
+            options,
+            EstimateMemoryUsageResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Estimates memory usage for the given Data Frame Analytics asynchronously and notifies listener upon completion
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/estimate-memory-usage-dfanalytics.html">
+     *     Estimate Memory Usage for Data Frame Analytics documentation</a>
+     *
+     * @param request The {@link EstimateMemoryUsageRequest}
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void estimateMemoryUsageAsync(EstimateMemoryUsageRequest request, RequestOptions options,
+                                         ActionListener<EstimateMemoryUsageResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::estimateMemoryUsage,
+            options,
+            EstimateMemoryUsageResponse::fromXContent,
             listener,
             Collections.emptySet());
     }

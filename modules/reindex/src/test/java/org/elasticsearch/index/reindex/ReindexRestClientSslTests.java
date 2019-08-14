@@ -120,10 +120,11 @@ public class ReindexRestClientSslTests extends ESTestCase {
         final List<Thread> threads = new ArrayList<>();
         final Settings settings = Settings.builder()
             .put("path.home", createTempDir())
+            .put("reindex.ssl.supported_protocols", "TLSv1.2")
             .build();
         final Environment environment = TestEnvironment.newEnvironment(settings);
         final ReindexSslConfig ssl = new ReindexSslConfig(settings, environment, mock(ResourceWatcherService.class));
-        try (RestClient client = TransportReindexAction.buildRestClient(getRemoteInfo(), ssl, 1L, threads)) {
+        try (RestClient client = Reindexer.buildRestClient(getRemoteInfo(), ssl, 1L, threads)) {
             expectThrows(SSLHandshakeException.class, () -> client.performRequest(new Request("GET", "/")));
         }
     }
@@ -134,10 +135,11 @@ public class ReindexRestClientSslTests extends ESTestCase {
         final Settings settings = Settings.builder()
             .put("path.home", createTempDir())
             .putList("reindex.ssl.certificate_authorities", ca.toString())
+            .put("reindex.ssl.supported_protocols", "TLSv1.2")
             .build();
         final Environment environment = TestEnvironment.newEnvironment(settings);
         final ReindexSslConfig ssl = new ReindexSslConfig(settings, environment, mock(ResourceWatcherService.class));
-        try (RestClient client = TransportReindexAction.buildRestClient(getRemoteInfo(), ssl, 1L, threads)) {
+        try (RestClient client = Reindexer.buildRestClient(getRemoteInfo(), ssl, 1L, threads)) {
             final Response response = client.performRequest(new Request("GET", "/"));
             assertThat(response.getStatusLine().getStatusCode(), Matchers.is(200));
         }
@@ -149,10 +151,11 @@ public class ReindexRestClientSslTests extends ESTestCase {
         final Settings settings = Settings.builder()
             .put("path.home", createTempDir())
             .put("reindex.ssl.verification_mode", "NONE")
+            .put("reindex.ssl.supported_protocols", "TLSv1.2")
             .build();
         final Environment environment = TestEnvironment.newEnvironment(settings);
         final ReindexSslConfig ssl = new ReindexSslConfig(settings, environment, mock(ResourceWatcherService.class));
-        try (RestClient client = TransportReindexAction.buildRestClient(getRemoteInfo(), ssl, 1L, threads)) {
+        try (RestClient client = Reindexer.buildRestClient(getRemoteInfo(), ssl, 1L, threads)) {
             final Response response = client.performRequest(new Request("GET", "/"));
             assertThat(response.getStatusLine().getStatusCode(), Matchers.is(200));
         }
@@ -169,6 +172,7 @@ public class ReindexRestClientSslTests extends ESTestCase {
             .put("reindex.ssl.certificate", cert)
             .put("reindex.ssl.key", key)
             .put("reindex.ssl.key_passphrase", "client-password")
+            .put("reindex.ssl.supported_protocols", "TLSv1.2")
             .build();
         AtomicReference<Certificate[]> clientCertificates = new AtomicReference<>();
         handler = https -> {
@@ -181,7 +185,7 @@ public class ReindexRestClientSslTests extends ESTestCase {
         };
         final Environment environment = TestEnvironment.newEnvironment(settings);
         final ReindexSslConfig ssl = new ReindexSslConfig(settings, environment, mock(ResourceWatcherService.class));
-        try (RestClient client = TransportReindexAction.buildRestClient(getRemoteInfo(), ssl, 1L, threads)) {
+        try (RestClient client = Reindexer.buildRestClient(getRemoteInfo(), ssl, 1L, threads)) {
             final Response response = client.performRequest(new Request("GET", "/"));
             assertThat(response.getStatusLine().getStatusCode(), Matchers.is(200));
             final Certificate[] certs = clientCertificates.get();
@@ -195,8 +199,9 @@ public class ReindexRestClientSslTests extends ESTestCase {
     }
 
     private RemoteInfo getRemoteInfo() {
-        return new RemoteInfo("https", server.getAddress().getHostName(), server.getAddress().getPort(), "/", new BytesArray("test"),
-            "user", "password", Collections.emptyMap(), RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT);
+        return new RemoteInfo("https", server.getAddress().getHostName(), server.getAddress().getPort(), "/",
+            new BytesArray("{\"match_all\":{}}"), "user", "password", Collections.emptyMap(), RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
+            RemoteInfo.DEFAULT_CONNECT_TIMEOUT);
     }
 
     @SuppressForbidden(reason = "use http server")

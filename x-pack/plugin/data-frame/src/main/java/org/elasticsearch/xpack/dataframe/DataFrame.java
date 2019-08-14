@@ -16,14 +16,15 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry.Entry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.license.XPackLicenseState;
@@ -40,6 +41,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.core.dataframe.DataFrameNamedXContentProvider;
 import org.elasticsearch.xpack.core.dataframe.action.DeleteDataFrameTransformAction;
 import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsAction;
 import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStatsAction;
@@ -48,6 +52,7 @@ import org.elasticsearch.xpack.core.dataframe.action.PutDataFrameTransformAction
 import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformAction;
 import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformTaskAction;
 import org.elasticsearch.xpack.core.dataframe.action.StopDataFrameTransformAction;
+import org.elasticsearch.xpack.core.dataframe.action.UpdateDataFrameTransformAction;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.dataframe.action.TransportDeleteDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.action.TransportGetDataFrameTransformsAction;
@@ -57,6 +62,7 @@ import org.elasticsearch.xpack.dataframe.action.TransportPutDataFrameTransformAc
 import org.elasticsearch.xpack.dataframe.action.TransportStartDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.action.TransportStartDataFrameTransformTaskAction;
 import org.elasticsearch.xpack.dataframe.action.TransportStopDataFrameTransformAction;
+import org.elasticsearch.xpack.dataframe.action.TransportUpdateDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.checkpoint.DataFrameTransformsCheckpointService;
 import org.elasticsearch.xpack.dataframe.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex;
@@ -68,18 +74,17 @@ import org.elasticsearch.xpack.dataframe.rest.action.RestPreviewDataFrameTransfo
 import org.elasticsearch.xpack.dataframe.rest.action.RestPutDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.rest.action.RestStartDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.rest.action.RestStopDataFrameTransformAction;
+import org.elasticsearch.xpack.dataframe.rest.action.RestUpdateDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformPersistentTasksExecutor;
+import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformTask;
 
 import java.io.IOException;
 import java.time.Clock;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
@@ -90,15 +95,10 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
     public static final String NAME = "data_frame";
     public static final String TASK_THREAD_POOL_NAME = "data_frame_indexing";
 
-    // list of headers that will be stored when a transform is created
-    public static final Set<String> HEADER_FILTERS = new HashSet<>(
-            Arrays.asList("es-security-runas-user", "_xpack_security_authentication"));
-
-    private static final Logger logger = LogManager.getLogger(XPackPlugin.class);
+    private static final Logger logger = LogManager.getLogger(DataFrame.class);
 
     private final boolean enabled;
     private final Settings settings;
-    private final boolean transportClientMode;
     private final SetOnce<DataFrameTransformsConfigManager> dataFrameTransformsConfigManager = new SetOnce<>();
     private final SetOnce<DataFrameAuditor> dataFrameAuditor = new SetOnce<>();
     private final SetOnce<DataFrameTransformsCheckpointService> dataFrameTransformsCheckpointService = new SetOnce<>();
@@ -106,21 +106,7 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
 
     public DataFrame(Settings settings) {
         this.settings = settings;
-
         this.enabled = XPackSettings.DATA_FRAME_ENABLED.get(settings);
-        this.transportClientMode = XPackPlugin.transportClientMode(settings);
-    }
-
-    @Override
-    public Collection<Module> createGuiceModules() {
-        List<Module> modules = new ArrayList<>();
-
-        if (transportClientMode) {
-            return modules;
-        }
-
-        modules.add(b -> XPackPlugin.bindFeatureSet(b, DataFrameFeatureSet.class));
-        return modules;
     }
 
     protected XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }
@@ -135,20 +121,23 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
         }
 
         return Arrays.asList(
-                new RestPutDataFrameTransformAction(settings, restController),
-                new RestStartDataFrameTransformAction(settings, restController),
-                new RestStopDataFrameTransformAction(settings, restController),
-                new RestDeleteDataFrameTransformAction(settings, restController),
-                new RestGetDataFrameTransformsAction(settings, restController),
-                new RestGetDataFrameTransformsStatsAction(settings, restController),
-                new RestPreviewDataFrameTransformAction(settings, restController)
+                new RestPutDataFrameTransformAction(restController),
+                new RestStartDataFrameTransformAction(restController),
+                new RestStopDataFrameTransformAction(restController),
+                new RestDeleteDataFrameTransformAction(restController),
+                new RestGetDataFrameTransformsAction(restController),
+                new RestGetDataFrameTransformsStatsAction(restController),
+                new RestPreviewDataFrameTransformAction(restController),
+                new RestUpdateDataFrameTransformAction(restController)
         );
     }
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        if (!enabled) {
-            return emptyList();
+        var usageAction = new ActionHandler<>(XPackUsageFeatureAction.DATA_FRAME, DataFrameUsageTransportAction.class);
+        var infoAction = new ActionHandler<>(XPackInfoFeatureAction.DATA_FRAME, DataFrameInfoTransportAction.class);
+        if (enabled == false) {
+            return Arrays.asList(usageAction, infoAction);
         }
 
         return Arrays.asList(
@@ -159,13 +148,15 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
                 new ActionHandler<>(DeleteDataFrameTransformAction.INSTANCE, TransportDeleteDataFrameTransformAction.class),
                 new ActionHandler<>(GetDataFrameTransformsAction.INSTANCE, TransportGetDataFrameTransformsAction.class),
                 new ActionHandler<>(GetDataFrameTransformsStatsAction.INSTANCE, TransportGetDataFrameTransformsStatsAction.class),
-                new ActionHandler<>(PreviewDataFrameTransformAction.INSTANCE, TransportPreviewDataFrameTransformAction.class)
-                );
+                new ActionHandler<>(PreviewDataFrameTransformAction.INSTANCE, TransportPreviewDataFrameTransformAction.class),
+                new ActionHandler<>(UpdateDataFrameTransformAction.INSTANCE, TransportUpdateDataFrameTransformAction.class),
+                usageAction,
+                infoAction);
     }
 
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
-        if (false == enabled || transportClientMode) {
+        if (false == enabled) {
             return emptyList();
         }
 
@@ -179,12 +170,14 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
             ResourceWatcherService resourceWatcherService, ScriptService scriptService, NamedXContentRegistry xContentRegistry,
             Environment environment, NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
-        if (enabled == false || transportClientMode) {
+        if (enabled == false) {
             return emptyList();
         }
         dataFrameAuditor.set(new DataFrameAuditor(client, clusterService.getNodeName()));
         dataFrameTransformsConfigManager.set(new DataFrameTransformsConfigManager(client, xContentRegistry));
-        dataFrameTransformsCheckpointService.set(new DataFrameTransformsCheckpointService(client, dataFrameTransformsConfigManager.get()));
+        dataFrameTransformsCheckpointService.set(new DataFrameTransformsCheckpointService(client,
+                                                                                          dataFrameTransformsConfigManager.get(),
+                                                                                          dataFrameAuditor.get()));
 
         return Arrays.asList(dataFrameTransformsConfigManager.get(), dataFrameAuditor.get(), dataFrameTransformsCheckpointService.get());
     }
@@ -209,7 +202,7 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
     @Override
     public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService, ThreadPool threadPool,
             Client client, SettingsModule settingsModule) {
-        if (enabled == false || transportClientMode) {
+        if (enabled == false) {
             return emptyList();
         }
 
@@ -221,8 +214,20 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
         assert dataFrameAuditor.get() != null;
         assert dataFrameTransformsCheckpointService.get() != null;
 
-        return Collections.singletonList(new DataFrameTransformPersistentTasksExecutor(client, dataFrameTransformsConfigManager.get(),
-                dataFrameTransformsCheckpointService.get(), schedulerEngine.get(), dataFrameAuditor.get(), threadPool));
+        return Collections.singletonList(
+            new DataFrameTransformPersistentTasksExecutor(client,
+                dataFrameTransformsConfigManager.get(),
+                dataFrameTransformsCheckpointService.get(),
+                schedulerEngine.get(),
+                dataFrameAuditor.get(),
+                threadPool,
+                clusterService,
+                settingsModule.getSettings()));
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        return Collections.singletonList(DataFrameTransformTask.NUM_FAILURE_RETRIES_SETTING);
     }
 
     @Override
@@ -230,5 +235,10 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
         if (schedulerEngine.get() != null) {
             schedulerEngine.get().stop();
         }
+    }
+
+    @Override
+    public List<Entry> getNamedXContent() {
+        return new DataFrameNamedXContentProvider().getNamedXContentParsers();
     }
 }

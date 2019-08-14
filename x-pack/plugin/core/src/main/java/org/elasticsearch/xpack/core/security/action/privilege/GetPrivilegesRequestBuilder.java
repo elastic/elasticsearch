@@ -13,8 +13,8 @@ import org.elasticsearch.client.ElasticsearchClient;
  */
 public final class GetPrivilegesRequestBuilder extends ActionRequestBuilder<GetPrivilegesRequest, GetPrivilegesResponse> {
 
-    public GetPrivilegesRequestBuilder(ElasticsearchClient client, GetPrivilegesAction action) {
-        super(client, action, new GetPrivilegesRequest());
+    public GetPrivilegesRequestBuilder(ElasticsearchClient client) {
+        super(client, GetPrivilegesAction.INSTANCE, new GetPrivilegesRequest());
     }
 
     public GetPrivilegesRequestBuilder privileges(String... privileges) {

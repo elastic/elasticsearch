@@ -1,0 +1,51 @@
+--
+:api: update-data-frame-transform
+:request: UpdateDataFrameTransformRequest
+:response: UpdateDataFrameTransformResponse
+--
+[id="{upid}-{api}"]
+=== Update {dataframe-transform} API
+
+Updates an existing {dataframe-transform}.
+
+The API accepts a +{request}+ object as a request and returns a +{response}+.
+
+[id="{upid}-{api}-request"]
+==== Update {dataframe-transform} request
+
+A +{request}+ requires the following argument:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> The update configuration with which to update the {dataframe-transform}.
+<2> The ID of the configuration to update.
+<3> Whether or not to wait to run deferrable validations until `_start` is called.
+This option should be used with care as the created {dataframe-transform} will run
+with the privileges of the user creating it. Meaning, if they do not have privileges,
+such an error will not be visible until `_start` is called.
+
+[id="{upid}-{api}-config"]
+==== {dataframe-transform-cap} update configuration
+
+The `DataFrameTransformConfigUpdate` object contains all the details about updated
+{dataframe-transform} configuration and contains the following arguments:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-config]
+--------------------------------------------------
+<1> The source indices and query from which to gather data.
+<2> The destination index and optional pipeline.
+<3> How often to check for updates to the source indices.
+<4> How to keep the {dataframe-transform} in sync with incoming data.
+<5> Optional free text description of the transform.
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ contains the updated {dataframe-transform} configuration 
+or an error if the update failed or is invalid.

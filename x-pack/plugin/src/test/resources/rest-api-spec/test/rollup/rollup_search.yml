@@ -1244,4 +1244,49 @@ setup:
   - match: { aggregations.date_histogram#histo.buckets.3.doc_count: 20 }
   - match: { aggregations.date_histogram#histo.buckets.3.max#the_max.value: 4 }
 
+---
+"Search error against live index":
+
+  - do:
+      catch: bad_request
+      rollup.rollup_search:
+        index: "foo"
+        body:
+          size: 0
+          aggs:
+            histo:
+              date_histogram:
+                field: "timestamp"
+                interval: "asdfasdf"
+
+
+---
+"Search error against rollup and live index":
+
+  - do:
+      catch: bad_request
+      rollup.rollup_search:
+        index: "foo*"
+        body:
+          size: 0
+          aggs:
+            histo:
+              date_histogram:
+                field: "timestamp"
+                interval: "asdfasdf"
+
+---
+"Search error no matching indices":
+
+  - do:
+      catch: /Must specify at least one concrete index/
+      rollup.rollup_search:
+        index: "bar*"
+        body:
+          size: 0
+          aggs:
+            histo:
+              date_histogram:
+                field: "timestamp"
+                interval: "1h"
 

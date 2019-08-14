@@ -19,23 +19,20 @@
 
 package org.elasticsearch.plugin.store.smb;
 
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.store.IndexStore;
-import org.elasticsearch.index.store.smbmmapfs.SmbMmapFsIndexStore;
-import org.elasticsearch.index.store.smbsimplefs.SmbSimpleFsIndexStore;
+import org.elasticsearch.index.store.smbmmapfs.SmbMmapFsDirectoryFactory;
+import org.elasticsearch.index.store.smbsimplefs.SmbSimpleFsDirectoryFactory;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.Plugin;
 
 import java.util.Map;
-import java.util.function.Function;
 
 public class SMBStorePlugin extends Plugin implements IndexStorePlugin {
 
     @Override
-    public Map<String, Function<IndexSettings, IndexStore>> getIndexStoreFactories() {
+    public Map<String, DirectoryFactory> getDirectoryFactories() {
         return Map.of(
-                "smb_mmap_fs", SmbMmapFsIndexStore::new,
-                "smb_simple_fs", SmbSimpleFsIndexStore::new);
+                "smb_mmap_fs", new SmbMmapFsDirectoryFactory(),
+                "smb_simple_fs", new SmbSimpleFsDirectoryFactory());
     }
 
 }

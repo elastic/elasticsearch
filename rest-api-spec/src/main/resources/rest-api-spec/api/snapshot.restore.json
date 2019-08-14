@@ -1,9 +1,9 @@
 {
   "snapshot.restore": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/modules-snapshots.html",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/modules-snapshots.html",
+    "stability": "stable",
     "methods": ["POST"],
     "url": {
-      "path": "/_snapshot/{repository}/{snapshot}/_restore",
       "paths": ["/_snapshot/{repository}/{snapshot}/_restore"],
       "parts": {
         "repository": {

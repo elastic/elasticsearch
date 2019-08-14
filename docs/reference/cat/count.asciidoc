@@ -1,8 +1,77 @@
 [[cat-count]]
-== cat count
+=== cat count API
+++++
+<titleabbrev>cat count</titleabbrev>
+++++
 
-`count` provides quick access to the document count of the entire
-cluster, or individual indices.
+Provides quick access to a document count of individual indices or all indices
+in a cluster.
+
+NOTE: The document count only includes live documents, not deleted documents
+which have not yet been removed by the merge process.
+
+
+[[cat-count-api-request]]
+==== {api-request-title}
+
+`GET /_cat/count/{index}`
+
+
+[[cat-count-api-path-params]]
+==== {api-path-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
+
+
+[[cat-count-api-query-params]]
+==== {api-query-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=http-format]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-h]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=help]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
+
+
+[[cat-count-api-example]]
+==== {api-examples-title}
+
+[[cat-count-api-example-ind]]
+===== Example with an individual index
+
+The following `count` API request retrieves the document count of a single
+index, `twitter`.
+
+[source,js]
+--------------------------------------------------
+GET /_cat/count/twitter?v
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:big_twitter]
+
+
+The API returns the following response:
+
+[source,txt]
+--------------------------------------------------
+epoch      timestamp count
+1475868259 15:24:20  120
+--------------------------------------------------
+// TESTRESPONSE[s/1475868259 15:24:20/\\d+ \\d+:\\d+:\\d+/ non_json]
+
+[[cat-count-api-example-all]]
+===== Example with all indices in a cluster
+
+The following `count` API request retrieves the document count of all indices in
+the cluster.
 
 [source,js]
 --------------------------------------------------
@@ -12,30 +81,11 @@ GET /_cat/count?v
 // TEST[setup:big_twitter]
 // TEST[s/^/POST test\/test\?refresh\n{"test": "test"}\n/]
 
-Looks like:
+The API returns the following response:
 
 [source,txt]
 --------------------------------------------------
 epoch      timestamp count
-1475868259 15:24:19  121
+1475868259 15:24:20  121
 --------------------------------------------------
-// TESTRESPONSE[s/1475868259 15:24:19/\\d+ \\d+:\\d+:\\d+/ _cat]
-
-Or for a single index:
-
-[source,js]
---------------------------------------------------
-GET /_cat/count/twitter?v
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-[source,txt]
---------------------------------------------------
-epoch      timestamp count
-1475868259 15:24:20  120
---------------------------------------------------
-// TESTRESPONSE[s/1475868259 15:24:20/\\d+ \\d+:\\d+:\\d+/ _cat]
-
-
-NOTE: The document count indicates the number of live documents and does not include deleted documents which have not yet been cleaned up by the merge process.
+// TESTRESPONSE[s/1475868259 15:24:20/\\d+ \\d+:\\d+:\\d+/ non_json]

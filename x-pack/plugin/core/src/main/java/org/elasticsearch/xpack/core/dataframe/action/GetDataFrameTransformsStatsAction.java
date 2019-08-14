@@ -7,8 +7,9 @@
 package org.elasticsearch.xpack.core.dataframe.action;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
@@ -16,13 +17,14 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.action.util.PageParams;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStats;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStats;
+import org.elasticsearch.xpack.core.dataframe.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -31,27 +33,18 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransformsStatsAction.Response> {
+public class GetDataFrameTransformsStatsAction extends ActionType<GetDataFrameTransformsStatsAction.Response> {
 
     public static final GetDataFrameTransformsStatsAction INSTANCE = new GetDataFrameTransformsStatsAction();
     public static final String NAME = "cluster:monitor/data_frame/stats/get";
     public GetDataFrameTransformsStatsAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, GetDataFrameTransformsStatsAction.Response::new);
     }
 
     public static class Request extends BaseTasksRequest<Request> {
         private final String id;
         private PageParams pageParams = PageParams.defaultParams();
+        private boolean allowNoMatch = true;
 
         public static final int MAX_SIZE_RETURN = 1000;
         // used internally to expand the queried id expression
@@ -71,6 +64,9 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
             id = in.readString();
             expandedIds = Collections.unmodifiableList(in.readStringList());
             pageParams = new PageParams(in);
+            if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
+                allowNoMatch = in.readBoolean();
+            }
         }
 
         @Override
@@ -100,12 +96,23 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
             return pageParams;
         }
 
+        public boolean isAllowNoMatch() {
+            return allowNoMatch;
+        }
+
+        public void setAllowNoMatch(boolean allowNoMatch) {
+            this.allowNoMatch = allowNoMatch;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(id);
             out.writeStringCollection(expandedIds);
             pageParams.writeTo(out);
+            if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
+                out.writeBoolean(allowNoMatch);
+            }
         }
 
         @Override
@@ -120,7 +127,7 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
 
         @Override
         public int hashCode() {
-            return Objects.hash(id, pageParams);
+            return Objects.hash(id, pageParams, allowNoMatch);
         }
 
         @Override
@@ -132,57 +139,73 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(id, other.id) && Objects.equals(pageParams, other.pageParams);
+            return Objects.equals(id, other.id)
+                && Objects.equals(pageParams, other.pageParams)
+                && allowNoMatch == other.allowNoMatch;
         }
     }
 
     public static class Response extends BaseTasksResponse implements ToXContentObject {
-        private List<DataFrameTransformStateAndStats> transformsStateAndStats;
+        private final QueryPage<DataFrameTransformStats> transformsStats;
 
-        public Response(List<DataFrameTransformStateAndStats> transformsStateAndStats) {
-            super(Collections.emptyList(), Collections.emptyList());
-            this.transformsStateAndStats = transformsStateAndStats;
+        public Response(List<DataFrameTransformStats> transformStateAndStats, long count) {
+            this(new QueryPage<>(transformStateAndStats, count, DataFrameField.TRANSFORMS));
         }
 
-        public Response(List<DataFrameTransformStateAndStats> transformsStateAndStats, List<TaskOperationFailure> taskFailures,
-                List<? extends ElasticsearchException> nodeFailures) {
+        public Response(List<DataFrameTransformStats> transformStateAndStats,
+                        long count,
+                        List<TaskOperationFailure> taskFailures,
+                        List<? extends ElasticsearchException> nodeFailures) {
+            this(new QueryPage<>(transformStateAndStats, count, DataFrameField.TRANSFORMS), taskFailures, nodeFailures);
+        }
+
+        private Response(QueryPage<DataFrameTransformStats> transformsStats) {
+            this(transformsStats, Collections.emptyList(), Collections.emptyList());
+        }
+
+        private Response(QueryPage<DataFrameTransformStats> transformsStats,
+                         List<TaskOperationFailure> taskFailures,
+                         List<? extends ElasticsearchException> nodeFailures) {
             super(taskFailures, nodeFailures);
-            this.transformsStateAndStats = transformsStateAndStats;
+            this.transformsStats = ExceptionsHelper.requireNonNull(transformsStats, "transformsStats");
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            transformsStateAndStats = in.readList(DataFrameTransformStateAndStats::new);
+            if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
+                transformsStats = new QueryPage<>(in, DataFrameTransformStats::new);
+            } else {
+                List<DataFrameTransformStats> stats = in.readList(DataFrameTransformStats::new);
+                transformsStats = new QueryPage<>(stats, stats.size(), DataFrameField.TRANSFORMS);
+            }
         }
 
-        public List<DataFrameTransformStateAndStats> getTransformsStateAndStats() {
-            return transformsStateAndStats;
+        public List<DataFrameTransformStats> getTransformsStats() {
+            return transformsStats.results();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeList(transformsStateAndStats);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+            if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
+                transformsStats.writeTo(out);
+            } else {
+                out.writeList(transformsStats.results());
+            }
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             toXContentCommon(builder, params);
-            builder.field(DataFrameField.COUNT.getPreferredName(), transformsStateAndStats.size());
-            builder.field(DataFrameField.TRANSFORMS.getPreferredName(), transformsStateAndStats);
+            transformsStats.doXContentBody(builder, params);
             builder.endObject();
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(transformsStateAndStats);
+            return Objects.hash(transformsStats);
         }
 
         @Override
@@ -196,7 +219,7 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
             }
 
             final Response that = (Response) other;
-            return Objects.equals(this.transformsStateAndStats, that.transformsStateAndStats);
+            return Objects.equals(this.transformsStats, that.transformsStats);
         }
 
         @Override

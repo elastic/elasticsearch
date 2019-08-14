@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -27,6 +28,7 @@ import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.def;
 import org.objectweb.asm.Type;
 
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -49,6 +51,11 @@ final class PSubDefCall extends AExpression {
 
         this.name = Objects.requireNonNull(name);
         this.arguments = Objects.requireNonNull(arguments);
+    }
+
+    @Override
+    void storeSettings(CompilerSettings settings) {
+        throw createError(new IllegalStateException("illegal tree structure"));
     }
 
     @Override
@@ -84,7 +91,8 @@ final class PSubDefCall extends AExpression {
             arguments.set(argument, expression.cast(locals));
         }
 
-        actual = expected == null || explicit ? def.class : expected;
+        // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
+        actual = expected == null || expected == ZonedDateTime.class || explicit ? def.class : expected;
     }
 
     @Override

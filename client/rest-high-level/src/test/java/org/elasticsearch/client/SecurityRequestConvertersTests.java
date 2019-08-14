@@ -315,7 +315,7 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         assertNull(request.getEntity());
     }
 
-    public void testGetAllApplicationPrivileges() throws Exception {
+    public void testGetAllPrivilegesForApplication() throws Exception {
         final String application = randomAlphaOfLength(6);
         GetPrivilegesRequest getPrivilegesRequest = GetPrivilegesRequest.getApplicationPrivileges(application);
         Request request = SecurityRequestConverters.getPrivileges(getPrivilegesRequest);
@@ -339,7 +339,7 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         assertNull(request.getEntity());
     }
 
-    public void testGetAllPrivileges() throws Exception {
+    public void testGetAllApplicationPrivileges() throws Exception {
         GetPrivilegesRequest getPrivilegesRequest = GetPrivilegesRequest.getAllPrivileges();
         Request request = SecurityRequestConverters.getPrivileges(getPrivilegesRequest);
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());

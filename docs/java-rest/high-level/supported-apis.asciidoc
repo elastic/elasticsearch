@@ -83,12 +83,12 @@ include::miscellaneous/ping.asciidoc[]
 include::miscellaneous/x-pack-info.asciidoc[]
 include::miscellaneous/x-pack-usage.asciidoc[]
 
-== Indices APIs
+== Index APIs
 
 :upid: {mainid}
 :doc-tests-file: {doc-tests}/IndicesClientDocumentationIT.java
 
-The Java High Level REST Client supports the following Indices APIs:
+The Java High Level REST Client supports the following Index APIs:
 
 Index Management::
 * <<{upid}-analyze>>
@@ -99,6 +99,7 @@ Index Management::
 * <<{upid}-close-index>>
 * <<{upid}-shrink-index>>
 * <<{upid}-split-index>>
+* <<{upid}-clone-index>>
 * <<{upid}-refresh>>
 * <<{upid}-flush>>
 * <<{upid}-flush-synced>>
@@ -133,6 +134,7 @@ include::indices/open_index.asciidoc[]
 include::indices/close_index.asciidoc[]
 include::indices/shrink_index.asciidoc[]
 include::indices/split_index.asciidoc[]
+include::indices/clone_index.asciidoc[]
 include::indices/refresh.asciidoc[]
 include::indices/flush.asciidoc[]
 include::indices/flush_synced.asciidoc[]
@@ -155,6 +157,7 @@ include::indices/get_index.asciidoc[]
 include::indices/freeze_index.asciidoc[]
 include::indices/unfreeze_index.asciidoc[]
 include::indices/delete_template.asciidoc[]
+include::indices/reload_analyzers.asciidoc[]
 
 == Cluster APIs
 
@@ -285,6 +288,13 @@ The Java High Level REST Client supports the following Machine Learning APIs:
 * <<{upid}-put-calendar-job>>
 * <<{upid}-delete-calendar-job>>
 * <<{upid}-delete-calendar>>
+* <<{upid}-get-data-frame-analytics>>
+* <<{upid}-get-data-frame-analytics-stats>>
+* <<{upid}-put-data-frame-analytics>>
+* <<{upid}-delete-data-frame-analytics>>
+* <<{upid}-start-data-frame-analytics>>
+* <<{upid}-stop-data-frame-analytics>>
+* <<{upid}-evaluate-data-frame>>
 * <<{upid}-put-filter>>
 * <<{upid}-get-filters>>
 * <<{upid}-update-filter>>
@@ -329,6 +339,13 @@ include::ml/delete-calendar-event.asciidoc[]
 include::ml/put-calendar-job.asciidoc[]
 include::ml/delete-calendar-job.asciidoc[]
 include::ml/delete-calendar.asciidoc[]
+include::ml/get-data-frame-analytics.asciidoc[]
+include::ml/get-data-frame-analytics-stats.asciidoc[]
+include::ml/put-data-frame-analytics.asciidoc[]
+include::ml/delete-data-frame-analytics.asciidoc[]
+include::ml/start-data-frame-analytics.asciidoc[]
+include::ml/stop-data-frame-analytics.asciidoc[]
+include::ml/evaluate-data-frame.asciidoc[]
 include::ml/put-filter.asciidoc[]
 include::ml/get-filters.asciidoc[]
 include::ml/update-filter.asciidoc[]
@@ -404,6 +421,7 @@ The Java High Level REST Client supports the following Security APIs:
 * <<java-rest-high-security-delete-role-mapping>>
 * <<java-rest-high-security-create-token>>
 * <<{upid}-invalidate-token>>
+* <<{upid}-get-builtin-privileges>>
 * <<{upid}-get-privileges>>
 * <<{upid}-put-privileges>>
 * <<{upid}-delete-privileges>>
@@ -421,6 +439,7 @@ include::security/put-role.asciidoc[]
 include::security/get-roles.asciidoc[]
 include::security/delete-role.asciidoc[]
 include::security/delete-privileges.asciidoc[]
+include::security/get-builtin-privileges.asciidoc[]
 include::security/get-privileges.asciidoc[]
 include::security/clear-roles-cache.asciidoc[]
 include::security/clear-realm-cache.asciidoc[]
@@ -547,16 +566,19 @@ include::ilm/lifecycle_management_status.asciidoc[]
 include::ilm/retry_lifecycle_policy.asciidoc[]
 include::ilm/remove_lifecycle_policy_from_index.asciidoc[]
 
-== Data Frame APIs
+[[_data_frame_transform_apis]]
+== {dataframe-transform-cap} APIs
 
 :upid: {mainid}-dataframe
 :doc-tests-file: {doc-tests}/DataFrameTransformDocumentationIT.java
 
-The Java High Level REST Client supports the following Data Frame APIs:
+The Java High Level REST Client supports the following {dataframe-transform}
+APIs:
 
 * <<{upid}-get-data-frame-transform>>
 * <<{upid}-get-data-frame-transform-stats>>
 * <<{upid}-put-data-frame-transform>>
+* <<{upid}-update-data-frame-transform>>
 * <<{upid}-delete-data-frame-transform>>
 * <<{upid}-preview-data-frame-transform>>
 * <<{upid}-start-data-frame-transform>>
@@ -565,6 +587,7 @@ The Java High Level REST Client supports the following Data Frame APIs:
 include::dataframe/get_data_frame.asciidoc[]
 include::dataframe/get_data_frame_stats.asciidoc[]
 include::dataframe/put_data_frame.asciidoc[]
+include::dataframe/update_data_frame.asciidoc[]
 include::dataframe/delete_data_frame.asciidoc[]
 include::dataframe/preview_data_frame.asciidoc[]
 include::dataframe/start_data_frame.asciidoc[]

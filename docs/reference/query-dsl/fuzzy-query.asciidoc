@@ -1,5 +1,8 @@
 [[query-dsl-fuzzy-query]]
-=== Fuzzy Query
+=== Fuzzy query
+++++
+<titleabbrev>Fuzzy</titleabbrev>
+++++
 
 Returns documents that contain terms similar to the search term, as measured by
 a http://en.wikipedia.org/wiki/Levenshtein_distance[Levenshtein edit distance].

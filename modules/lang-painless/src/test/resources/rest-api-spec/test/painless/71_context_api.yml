@@ -17,6 +17,6 @@
     - match: { classes.6.methods.0.parameters.0 : java.lang.CharSequence }
     - match: { classes.6.methods.0.parameters.1 : int }
     - match: { classes.6.methods.0.parameters.2 : int }
-    - match: { imported_methods.0.name: dotProduct }
-    - match: { class_bindings.0.name: cosineSimilarity }
+    - match: { imported_methods.0.name: saturation }
+    - match: { class_bindings.0.name: decayDateExp }
     - match: { instance_bindings: [] }

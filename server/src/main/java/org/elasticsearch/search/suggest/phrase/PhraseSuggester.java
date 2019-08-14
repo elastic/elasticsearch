@@ -156,4 +156,13 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
         spare.copyUTF8Bytes(suggestion.getText());
         return new PhraseSuggestion.Entry(new Text(spare.toString()), 0, spare.length(), cutoffScore);
     }
+
+    @Override
+    protected Suggestion<? extends Entry<? extends Option>> emptySuggestion(String name, PhraseSuggestionContext suggestion,
+            CharsRefBuilder spare) throws IOException {
+        PhraseSuggestion phraseSuggestion = new PhraseSuggestion(name, suggestion.getSize());
+        spare.copyUTF8Bytes(suggestion.getText());
+        phraseSuggestion.addTerm(new PhraseSuggestion.Entry(new Text(spare.toString()), 0, spare.length()));
+        return phraseSuggestion;
+    }
 }

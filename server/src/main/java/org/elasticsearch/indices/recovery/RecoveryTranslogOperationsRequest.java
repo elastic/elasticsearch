@@ -98,9 +98,9 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
     }
 
     RecoveryTranslogOperationsRequest(StreamInput in) throws IOException {
-        super.readFrom(in);
+        super(in);
         recoveryId = in.readLong();
-        shardId = ShardId.readShardId(in);
+        shardId = new ShardId(in);
         operations = Translog.readOperations(in, "recovery");
         totalTranslogOps = in.readVInt();
         maxSeenAutoIdTimestampOnPrimary = in.readZLong();
@@ -128,8 +128,4 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
         }
     }
     
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
-}

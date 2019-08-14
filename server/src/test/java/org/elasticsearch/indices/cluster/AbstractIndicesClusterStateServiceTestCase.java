@@ -355,8 +355,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
                                      BiConsumer<IndexShard, ActionListener<ResyncTask>> primaryReplicaSyncer,
                                      long applyingClusterStateVersion,
                                      Set<String> inSyncAllocationIds,
-                                     IndexShardRoutingTable routingTable,
-                                     Set<String> pre60AllocationIds) throws IOException {
+                                     IndexShardRoutingTable routingTable) throws IOException {
             failRandomly();
             assertThat(this.shardId(), equalTo(shardRouting.shardId()));
             assertTrue("current: " + this.shardRouting + ", got: " + shardRouting, this.shardRouting.isSameAllocation(shardRouting));

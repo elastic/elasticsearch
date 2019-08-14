@@ -330,7 +330,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
     }
 
     private static SearchRequest randomSearchRequest() {
-        return randomBoolean() ? new SearchRequest() : SearchRequest.crossClusterSearch(new SearchRequest(),
+        return randomBoolean() ? new SearchRequest() : SearchRequest.subSearchRequest(new SearchRequest(),
             Strings.EMPTY_ARRAY, "remote", 0, randomBoolean());
     }
 

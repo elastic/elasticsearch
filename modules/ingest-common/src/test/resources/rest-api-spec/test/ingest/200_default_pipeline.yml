@@ -119,6 +119,12 @@ teardown:
           {"doc":{"bytes_source_field":"2kb"}, "doc_as_upsert":true}
           {"update":{"_id":"8","_index":"test"}}
           {"script": "ctx._source.ran_script = true","upsert":{"bytes_source_field":"3kb"}, "scripted_upsert" : true}
+          {"update":{"_id":"6_alias","_index":"test_alias"}}
+          {"script":"ctx._source.ran_script = true","upsert":{"bytes_source_field":"1kb"}}
+          {"update":{"_id":"7_alias","_index":"test_alias"}}
+          {"doc":{"bytes_source_field":"2kb"}, "doc_as_upsert":true}
+          {"update":{"_id":"8_alias","_index":"test_alias"}}
+          {"script": "ctx._source.ran_script = true","upsert":{"bytes_source_field":"3kb"}, "scripted_upsert" : true}
 
   - do:
       mget:
@@ -127,6 +133,9 @@ teardown:
           - { _index: "test", _id: "6" }
           - { _index: "test", _id: "7" }
           - { _index: "test", _id: "8" }
+          - { _index: "test", _id: "6_alias" }
+          - { _index: "test", _id: "7_alias" }
+          - { _index: "test", _id: "8_alias" }
   - match: { docs.0._index: "test" }
   - match: { docs.0._id: "6" }
   - match: { docs.0._source.bytes_source_field: "1kb" }
@@ -141,6 +150,20 @@ teardown:
   - match: { docs.2._source.bytes_source_field: "3kb" }
   - match: { docs.2._source.bytes_target_field: 3072 }
   - match: { docs.2._source.ran_script: true }
+  - match: { docs.3._index: "test" }
+  - match: { docs.3._id: "6_alias" }
+  - match: { docs.3._source.bytes_source_field: "1kb" }
+  - match: { docs.3._source.bytes_target_field: 1024 }
+  - is_false: docs.3._source.ran_script
+  - match: { docs.4._index: "test" }
+  - match: { docs.4._id: "7_alias" }
+  - match: { docs.4._source.bytes_source_field: "2kb" }
+  - match: { docs.4._source.bytes_target_field: 2048 }
+  - match: { docs.5._index: "test" }
+  - match: { docs.5._id: "8_alias" }
+  - match: { docs.5._source.bytes_source_field: "3kb" }
+  - match: { docs.5._source.bytes_target_field: 3072 }
+  - match: { docs.5._source.ran_script: true }
 
 # explicit no default pipeline
   - do:

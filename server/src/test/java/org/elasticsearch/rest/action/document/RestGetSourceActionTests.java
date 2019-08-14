@@ -23,7 +23,6 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
@@ -52,7 +51,7 @@ public class RestGetSourceActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        new RestGetSourceAction(Settings.EMPTY, controller());
+        new RestGetSourceAction(controller());
     }
 
     @AfterClass
@@ -96,7 +95,7 @@ public class RestGetSourceActionTests extends RestActionTestCase {
     public void testRestGetSourceAction() throws Exception {
         final BytesReference source = new BytesArray("{\"foo\": \"bar\"}");
         final GetResponse response =
-            new GetResponse(new GetResult("index1", "_doc", "1", UNASSIGNED_SEQ_NO, 0, -1, true, source, emptyMap()));
+            new GetResponse(new GetResult("index1", "_doc", "1", UNASSIGNED_SEQ_NO, 0, -1, true, source, emptyMap(), null));
 
         final RestResponse restResponse = listener.buildResponse(response);
 
@@ -107,7 +106,7 @@ public class RestGetSourceActionTests extends RestActionTestCase {
 
     public void testRestGetSourceActionWithMissingDocument() {
         final GetResponse response =
-            new GetResponse(new GetResult("index1", "_doc", "1", UNASSIGNED_SEQ_NO, 0, -1, false, null, emptyMap()));
+            new GetResponse(new GetResult("index1", "_doc", "1", UNASSIGNED_SEQ_NO, 0, -1, false, null, emptyMap(), null));
 
         final ResourceNotFoundException exception = expectThrows(ResourceNotFoundException.class, () -> listener.buildResponse(response));
 
@@ -116,7 +115,7 @@ public class RestGetSourceActionTests extends RestActionTestCase {
 
     public void testRestGetSourceActionWithMissingDocumentSource() {
         final GetResponse response =
-            new GetResponse(new GetResult("index1", "_doc", "1", UNASSIGNED_SEQ_NO, 0, -1, true, null, emptyMap()));
+            new GetResponse(new GetResult("index1", "_doc", "1", UNASSIGNED_SEQ_NO, 0, -1, true, null, emptyMap(), null));
 
         final ResourceNotFoundException exception = expectThrows(ResourceNotFoundException.class, () -> listener.buildResponse(response));
 

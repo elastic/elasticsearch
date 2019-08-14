@@ -233,8 +233,7 @@ public class GceSeedHostsProvider implements SeedHostsProvider {
 
                         // ip_private is a single IP Address. We need to build a TransportAddress from it
                         // If user has set `es_port` metadata, we don't need to ping all ports
-                        // we only limit to 1 addresses, makes no sense to ping 100 ports
-                        TransportAddress[] addresses = transportService.addressesFromString(address, 1);
+                        TransportAddress[] addresses = transportService.addressesFromString(address);
 
                         for (TransportAddress transportAddress : addresses) {
                             logger.trace("adding {}, type {}, address {}, transport_address {}, status {}", name, type,

@@ -37,7 +37,7 @@ public abstract class SecureSetting<T> extends Setting<T> {
     /** Determines whether legacy settings with sensitive values should be allowed. */
     private static final boolean ALLOW_INSECURE_SETTINGS = Booleans.parseBoolean(System.getProperty("es.allow_insecure_settings", "false"));
 
-    private static final Set<Property> ALLOWED_PROPERTIES = EnumSet.of(Property.Deprecated);
+    private static final Set<Property> ALLOWED_PROPERTIES = EnumSet.of(Property.Deprecated, Property.Consistent);
 
     private static final Property[] FIXED_PROPERTIES = {
         Property.NodeScope
@@ -92,6 +92,23 @@ public abstract class SecureSetting<T> extends Setting<T> {
         }
         try {
             return getSecret(secureSettings);
+        } catch (GeneralSecurityException e) {
+            throw new RuntimeException("failed to read secure setting " + getKey(), e);
+        }
+    }
+
+    /**
+     * Returns the digest of this secure setting's value or {@code null} if the setting is missing (inside the keystore). This method can be
+     * called even after the {@code SecureSettings} have been closed, unlike {@code #get(Settings)}. The digest is used to check for changes
+     * of the value (by re-reading the {@code SecureSettings}), without actually transmitting the value to compare with.
+     */
+    public byte[] getSecretDigest(Settings settings) {
+        final SecureSettings secureSettings = settings.getSecureSettings();
+        if (secureSettings == null || false == secureSettings.getSettingNames().contains(getKey())) {
+            return null;
+        }
+        try {
+            return secureSettings.getSHA256Digest(getKey());
         } catch (GeneralSecurityException e) {
             throw new RuntimeException("failed to read secure setting " + getKey(), e);
         }

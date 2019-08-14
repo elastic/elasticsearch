@@ -13,15 +13,15 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
-import org.elasticsearch.xpack.core.dataframe.transforms.pivot.DateHistogramGroupSource;
-import org.elasticsearch.xpack.core.dataframe.transforms.pivot.SingleGroupSource;
 
 import java.io.IOException;
+import java.time.Clock;
 import java.util.Map;
 import java.util.Map.Entry;
 
@@ -33,24 +33,26 @@ public final class DataframeIndex {
 
     private static final String PROPERTIES = "properties";
     private static final String TYPE = "type";
-    private static final String FORMAT = "format";
     private static final String META = "_meta";
-    private static final String DEFAULT_TIME_FORMAT = "strict_date_optional_time||epoch_millis";
 
     private DataframeIndex() {
     }
 
-    public static void createDestinationIndex(Client client, DataFrameTransformConfig transformConfig, Map<String, String> mappings,
-            final ActionListener<Boolean> listener) {
+    public static void createDestinationIndex(Client client,
+                                              Clock clock,
+                                              DataFrameTransformConfig transformConfig,
+                                              Map<String, String> mappings,
+                                              ActionListener<Boolean> listener) {
         CreateIndexRequest request = new CreateIndexRequest(transformConfig.getDestination().getIndex());
 
         // TODO: revisit number of shards, number of replicas
         request.settings(Settings.builder() // <1>
-                .put("index.number_of_shards", 1).put("index.number_of_replicas", 0));
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1"));
 
-        request.mapping(SINGLE_MAPPING_NAME, createMappingXContent(mappings,
-            transformConfig.getPivotConfig().getGroupConfig().getGroups(),
-            transformConfig.getId()));
+        request.mapping(
+            SINGLE_MAPPING_NAME,
+            createMappingXContent(mappings, transformConfig.getId(), clock));
 
         client.execute(CreateIndexAction.INSTANCE, request, ActionListener.wrap(createIndexResponse -> {
             listener.onResponse(true);
@@ -63,30 +65,13 @@ public final class DataframeIndex {
     }
 
     private static XContentBuilder createMappingXContent(Map<String, String> mappings,
-                                                         Map<String, SingleGroupSource> groupSources,
-                                                         String id) {
+                                                         String id,
+                                                         Clock clock) {
         try {
             XContentBuilder builder = jsonBuilder().startObject();
             builder.startObject(SINGLE_MAPPING_NAME);
-            addMetaData(builder, id);
-            builder.startObject(PROPERTIES);
-            for (Entry<String, String> field : mappings.entrySet()) {
-                String fieldName = field.getKey();
-                String fieldType = field.getValue();
-
-                builder.startObject(fieldName);
-                builder.field(TYPE, fieldType);
-
-                SingleGroupSource groupSource = groupSources.get(fieldName);
-                if (groupSource instanceof DateHistogramGroupSource) {
-                    String format = ((DateHistogramGroupSource) groupSource).getFormat();
-                    if (format != null) {
-                        builder.field(FORMAT, DEFAULT_TIME_FORMAT + "||" + format);
-                    }
-                }
-                builder.endObject();
-            }
-            builder.endObject(); // properties
+            addProperties(builder, mappings);
+            addMetaData(builder, id, clock);
             builder.endObject(); // _doc type
             return builder.endObject();
         } catch (IOException e) {
@@ -94,17 +79,32 @@ public final class DataframeIndex {
         }
     }
 
-    private static XContentBuilder addMetaData(XContentBuilder builder, String id) throws IOException {
-        builder.startObject(META);
-        builder.field(DataFrameField.CREATED_BY, DataFrameField.DATA_FRAME_SIGNATURE);
-        builder.startObject(DataFrameField.META_FIELDNAME);
-        builder.field(DataFrameField.CREATION_DATE_MILLIS, System.currentTimeMillis());
-        builder.startObject(DataFrameField.VERSION);
-        builder.field(DataFrameField.CREATED, Version.CURRENT);
-        builder.endObject();
-        builder.field(DataFrameField.TRANSFORM, id);
-        builder.endObject(); // META_FIELDNAME
-        builder.endObject(); // META
+    private static XContentBuilder addProperties(XContentBuilder builder,
+                                                 Map<String, String> mappings) throws IOException {
+        builder.startObject(PROPERTIES);
+        for (Entry<String, String> field : mappings.entrySet()) {
+            String fieldName = field.getKey();
+            String fieldType = field.getValue();
+
+            builder.startObject(fieldName);
+            builder.field(TYPE, fieldType);
+
+            builder.endObject();
+        }
+        builder.endObject(); // PROPERTIES
         return builder;
+    }
+
+    private static XContentBuilder addMetaData(XContentBuilder builder, String id, Clock clock) throws IOException {
+        return builder.startObject(META)
+            .field(DataFrameField.CREATED_BY, DataFrameField.DATA_FRAME_SIGNATURE)
+            .startObject(DataFrameField.META_FIELDNAME)
+                .field(DataFrameField.CREATION_DATE_MILLIS, clock.millis())
+                .startObject(DataFrameField.VERSION)
+                    .field(DataFrameField.CREATED, Version.CURRENT)
+                .endObject()
+                .field(DataFrameField.TRANSFORM, id)
+            .endObject() // META_FIELDNAME
+        .endObject(); // META
     }
 }

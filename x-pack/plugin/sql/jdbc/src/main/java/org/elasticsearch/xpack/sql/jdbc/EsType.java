@@ -44,7 +44,9 @@ public enum EsType implements SQLType {
     INTERVAL_DAY_TO_SECOND(   ExtraTypes.INTERVAL_DAY_SECOND),
     INTERVAL_HOUR_TO_MINUTE(  ExtraTypes.INTERVAL_HOUR_MINUTE),
     INTERVAL_HOUR_TO_SECOND(  ExtraTypes.INTERVAL_HOUR_SECOND),
-    INTERVAL_MINUTE_TO_SECOND(ExtraTypes.INTERVAL_MINUTE_SECOND);
+    INTERVAL_MINUTE_TO_SECOND(ExtraTypes.INTERVAL_MINUTE_SECOND),
+    GEO_POINT(                ExtraTypes.GEOMETRY),
+    GEO_SHAPE(                ExtraTypes.GEOMETRY);
 
     private final Integer type;
 

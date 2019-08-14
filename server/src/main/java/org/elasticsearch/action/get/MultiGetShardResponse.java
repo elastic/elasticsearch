@@ -30,14 +30,35 @@ import java.util.List;
 
 public class MultiGetShardResponse extends ActionResponse {
 
-    IntArrayList locations;
-    List<GetResponse> responses;
-    List<MultiGetResponse.Failure> failures;
+    final IntArrayList locations;
+    final List<GetResponse> responses;
+    final List<MultiGetResponse.Failure> failures;
 
     MultiGetShardResponse() {
         locations = new IntArrayList();
         responses = new ArrayList<>();
         failures = new ArrayList<>();
+    }
+
+    MultiGetShardResponse(StreamInput in) throws IOException {
+        super(in);
+        int size = in.readVInt();
+        locations = new IntArrayList(size);
+        responses = new ArrayList<>(size);
+        failures = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            locations.add(in.readVInt());
+            if (in.readBoolean()) {
+                responses.add(new GetResponse(in));
+            } else {
+                responses.add(null);
+            }
+            if (in.readBoolean()) {
+                failures.add(new MultiGetResponse.Failure(in));
+            } else {
+                failures.add(null);
+            }
+        }
     }
 
     public void add(int location, GetResponse response) {
@@ -53,32 +74,7 @@ public class MultiGetShardResponse extends ActionResponse {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        int size = in.readVInt();
-        locations = new IntArrayList(size);
-        responses = new ArrayList<>(size);
-        failures = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            locations.add(in.readVInt());
-            if (in.readBoolean()) {
-                GetResponse response = new GetResponse();
-                response.readFrom(in);
-                responses.add(response);
-            } else {
-                responses.add(null);
-            }
-            if (in.readBoolean()) {
-                failures.add(MultiGetResponse.Failure.readFailure(in));
-            } else {
-                failures.add(null);
-            }
-        }
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeVInt(locations.size());
         for (int i = 0; i < locations.size(); i++) {
             out.writeVInt(locations.get(i));

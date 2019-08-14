@@ -35,14 +35,14 @@ publishing {
 }
 
 dependencies {
-  compile "org.elasticsearch.client:elasticsearch-rest-client:${version}"
+  compile project(":client:rest")
   compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   compile "commons-codec:commons-codec:${versions.commonscodec}"
   compile "commons-logging:commons-logging:${versions.commonslogging}"
   compile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
 
-  testCompile "org.elasticsearch.client:test:${version}"
+  testCompile project(":client:test")
   testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testCompile "junit:junit:${versions.junit}"
   testCompile "org.elasticsearch:securemock:${versions.securemock}"
@@ -68,7 +68,7 @@ dependencyLicenses {
 }
 
 // JarHell is part of es server, which we don't want to pull in
-// TODO: Not anymore. Now in :libs:core
+// TODO: Not anymore. Now in :libs:elasticsearch-core
 jarHell.enabled=false
 
 testingConventions {

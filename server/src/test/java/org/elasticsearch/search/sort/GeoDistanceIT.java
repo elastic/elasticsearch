@@ -27,7 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.geo.utils.Geohash;
+import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -272,7 +272,8 @@ public class GeoDistanceIT extends ESIntegTestCase {
 
         // Order: Asc
         SearchResponse searchResponse = client().prepareSearch("companies").setQuery(matchAllQuery()).addSort(SortBuilders
-                .geoDistanceSort("branches.location", 40.7143528, -74.0059731).order(SortOrder.ASC).setNestedPath("branches"))
+                .geoDistanceSort("branches.location", 40.7143528, -74.0059731).order(SortOrder.ASC)
+                .setNestedSort(new NestedSortBuilder("branches")))
                 .get();
 
         assertHitCount(searchResponse, 4);
@@ -285,7 +286,8 @@ public class GeoDistanceIT extends ESIntegTestCase {
         // Order: Asc, Mode: max
         searchResponse = client()
                 .prepareSearch("companies").setQuery(matchAllQuery()).addSort(SortBuilders.geoDistanceSort("branches.location",
-                        40.7143528, -74.0059731).order(SortOrder.ASC).sortMode(SortMode.MAX).setNestedPath("branches"))
+                        40.7143528, -74.0059731).order(SortOrder.ASC).sortMode(SortMode.MAX)
+                .setNestedSort(new NestedSortBuilder("branches")))
                 .get();
 
         assertHitCount(searchResponse, 4);
@@ -297,7 +299,8 @@ public class GeoDistanceIT extends ESIntegTestCase {
 
         // Order: Desc
         searchResponse = client().prepareSearch("companies").setQuery(matchAllQuery()).addSort(SortBuilders
-                .geoDistanceSort("branches.location", 40.7143528, -74.0059731).order(SortOrder.DESC).setNestedPath("branches"))
+                .geoDistanceSort("branches.location", 40.7143528, -74.0059731).order(SortOrder.DESC)
+                .setNestedSort(new NestedSortBuilder("branches")))
                 .get();
 
         assertHitCount(searchResponse, 4);
@@ -310,7 +313,8 @@ public class GeoDistanceIT extends ESIntegTestCase {
         // Order: Desc, Mode: min
         searchResponse = client()
                 .prepareSearch("companies").setQuery(matchAllQuery()).addSort(SortBuilders.geoDistanceSort("branches.location",
-                        40.7143528, -74.0059731).order(SortOrder.DESC).sortMode(SortMode.MIN).setNestedPath("branches"))
+                        40.7143528, -74.0059731).order(SortOrder.DESC).sortMode(SortMode.MIN)
+                .setNestedSort(new NestedSortBuilder("branches")))
                 .get();
 
         assertHitCount(searchResponse, 4);
@@ -322,7 +326,8 @@ public class GeoDistanceIT extends ESIntegTestCase {
 
         searchResponse = client()
                 .prepareSearch("companies").setQuery(matchAllQuery()).addSort(SortBuilders.geoDistanceSort("branches.location",
-                        40.7143528, -74.0059731).sortMode(SortMode.AVG).order(SortOrder.ASC).setNestedPath("branches"))
+                        40.7143528, -74.0059731).sortMode(SortMode.AVG).order(SortOrder.ASC)
+                .setNestedSort(new NestedSortBuilder("branches")))
                 .get();
 
         assertHitCount(searchResponse, 4);
@@ -334,7 +339,8 @@ public class GeoDistanceIT extends ESIntegTestCase {
 
         searchResponse = client().prepareSearch("companies")
                 .setQuery(matchAllQuery()).addSort(SortBuilders.geoDistanceSort("branches.location", 40.7143528, -74.0059731)
-                        .setNestedPath("branches").sortMode(SortMode.AVG).order(SortOrder.DESC).setNestedPath("branches"))
+                .setNestedSort(new NestedSortBuilder("branches"))
+                .sortMode(SortMode.AVG).order(SortOrder.DESC))
                 .get();
 
         assertHitCount(searchResponse, 4);
@@ -346,8 +352,10 @@ public class GeoDistanceIT extends ESIntegTestCase {
 
         searchResponse = client().prepareSearch("companies").setQuery(matchAllQuery())
                 .addSort(SortBuilders.geoDistanceSort("branches.location", 40.7143528, -74.0059731)
-                        .setNestedFilter(termQuery("branches.name", "brooklyn"))
-                        .sortMode(SortMode.AVG).order(SortOrder.ASC).setNestedPath("branches"))
+                        .setNestedSort(new NestedSortBuilder("branches")
+                            .setFilter(termQuery("branches.name", "brooklyn"))
+                        )
+                        .sortMode(SortMode.AVG).order(SortOrder.ASC))
                 .get();
         assertHitCount(searchResponse, 4);
         assertFirstHit(searchResponse, hasId("4"));
@@ -360,7 +368,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
         try {
                 client().prepareSearch("companies").setQuery(matchAllQuery())
                         .addSort(SortBuilders.geoDistanceSort("branches.location", 40.7143528, -74.0059731).sortMode(SortMode.SUM)
-                                .setNestedPath("branches"));
+                                .setNestedSort(new NestedSortBuilder("branches")));
                 fail("Sum should not be allowed as sort mode");
         } catch (IllegalArgumentException e) {
             //expected

@@ -54,8 +54,11 @@ public class SecurityWithBasicLicenseIT extends ESRestTestCase {
         checkAuthentication();
         checkHasPrivileges();
         checkIndexWrite();
+
+        final Tuple<String, String> keyAndId = getApiKeyAndId();
+        assertAuthenticateWithApiKey(keyAndId, true);
+
         assertFailToGetToken();
-        assertFailToGetApiKey();
         assertAddRoleWithDLS(false);
         assertAddRoleWithFLS(false);
     }
@@ -79,9 +82,8 @@ public class SecurityWithBasicLicenseIT extends ESRestTestCase {
         } finally {
             revertTrial();
             assertAuthenticateWithToken(accessToken, false);
-            assertAuthenticateWithApiKey(keyAndId, false);
+            assertAuthenticateWithApiKey(keyAndId, true);
             assertFailToGetToken();
-            assertFailToGetApiKey();
             assertAddRoleWithDLS(false);
             assertAddRoleWithFLS(false);
         }
@@ -197,12 +199,6 @@ public class SecurityWithBasicLicenseIT extends ESRestTestCase {
         ResponseException e = expectThrows(ResponseException.class, () -> adminClient().performRequest(buildGetTokenRequest()));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
         assertThat(e.getMessage(), containsString("current license is non-compliant for [security tokens]"));
-    }
-
-    private void assertFailToGetApiKey() {
-        ResponseException e = expectThrows(ResponseException.class, () -> adminClient().performRequest(buildGetApiKeyRequest()));
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
-        assertThat(e.getMessage(), containsString("current license is non-compliant for [api keys]"));
     }
 
     private void assertAuthenticateWithToken(String accessToken, boolean shouldSucceed) throws IOException {

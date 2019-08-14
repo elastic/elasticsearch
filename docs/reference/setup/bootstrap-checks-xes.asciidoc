@@ -53,9 +53,8 @@ must also be valid.
 === SSL/TLS check
 //See TLSLicenseBootstrapCheck.java
 
-In 6.0 and later releases, if you have a gold, platinum, or enterprise license
-and {es} {security-features} are enabled, you must configure SSL/TLS for
-internode-communication.
+If you enable {es} {security-features}, unless you have a trial license, you 
+must configure SSL/TLS for internode-communication.
 
 NOTE: Single-node clusters that use a loopback interface do not have this
 requirement.  For more information, see

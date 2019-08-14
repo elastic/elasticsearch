@@ -174,8 +174,7 @@ class AwsEc2SeedHostsProvider implements SeedHostsProvider {
                 }
                 if (address != null) {
                     try {
-                        // we only limit to 1 port per address, makes no sense to ping 100 ports
-                        final TransportAddress[] addresses = transportService.addressesFromString(address, 1);
+                        final TransportAddress[] addresses = transportService.addressesFromString(address);
                         for (int i = 0; i < addresses.length; i++) {
                             logger.trace("adding {}, address {}, transport_address {}", instance.getInstanceId(), address, addresses[i]);
                             dynamicHosts.add(addresses[i]);

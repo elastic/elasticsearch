@@ -35,8 +35,19 @@
               "type": "date",
               "format": "epoch_millis"
             },
-            "superseded_by": {
-              "type": "keyword"
+            "superseding": {
+              "type": "object",
+              "properties": {
+                "encrypted_tokens": {
+                  "type": "binary"
+                },
+                "encryption_iv": {
+                  "type": "binary"
+                },
+                "encryption_salt": {
+                  "type": "binary"
+                }
+              }
             },
             "invalidated" : {
               "type" : "boolean"

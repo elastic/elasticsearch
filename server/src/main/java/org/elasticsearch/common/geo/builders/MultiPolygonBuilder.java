@@ -26,7 +26,8 @@ import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.geo.geometry.MultiPolygon;
+import org.elasticsearch.geometry.MultiPolygon;
+import org.elasticsearch.geometry.Polygon;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.spatial4j.shape.Shape;
 
@@ -188,14 +189,14 @@ public class MultiPolygonBuilder extends ShapeBuilder<Shape, MultiPolygon, Multi
     @SuppressWarnings({"unchecked"})
     @Override
     public MultiPolygon buildGeometry() {
-        List<org.elasticsearch.geo.geometry.Polygon> shapes = new ArrayList<>(this.polygons.size());
+        List<Polygon> shapes = new ArrayList<>(this.polygons.size());
         Object poly;
         for (PolygonBuilder polygon : this.polygons) {
             poly = polygon.buildGeometry();
             if (poly instanceof List) {
-                shapes.addAll((List<org.elasticsearch.geo.geometry.Polygon>) poly);
+                shapes.addAll((List<Polygon>) poly);
             } else {
-                shapes.add((org.elasticsearch.geo.geometry.Polygon)poly);
+                shapes.add((Polygon)poly);
             }
         }
         if (shapes.isEmpty()) {

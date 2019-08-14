@@ -20,7 +20,6 @@
 package org.elasticsearch.index.reindex;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
@@ -71,7 +70,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
                 ClusterState state = clusterService.state();
                 ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(),
                     bulkByScrollTask);
-                new AsyncIndexBySearchAction(bulkByScrollTask, logger, assigningClient, threadPool, this, request, state,
+                new AsyncIndexBySearchAction(bulkByScrollTask, logger, assigningClient, threadPool, scriptService, request, state,
                     listener).start();
             }
         );
@@ -82,25 +81,20 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
      */
     static class AsyncIndexBySearchAction extends AbstractAsyncBulkByScrollAction<UpdateByQueryRequest, TransportUpdateByQueryAction> {
 
-        private final boolean useSeqNoForCAS;
-
         AsyncIndexBySearchAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
-                ThreadPool threadPool, TransportUpdateByQueryAction action, UpdateByQueryRequest request, ClusterState clusterState,
-                ActionListener<BulkByScrollResponse> listener) {
+                                 ThreadPool threadPool, ScriptService scriptService, UpdateByQueryRequest request,
+                                 ClusterState clusterState, ActionListener<BulkByScrollResponse> listener) {
             super(task,
-                // not all nodes support sequence number powered optimistic concurrency control, we fall back to version
-                clusterState.nodes().getMinNodeVersion().onOrAfter(Version.V_6_7_0) == false,
-                // all nodes support sequence number powered optimistic concurrency control and we can use it
-                clusterState.nodes().getMinNodeVersion().onOrAfter(Version.V_6_7_0),
-                logger, client, threadPool, action, request, listener);
-            useSeqNoForCAS = clusterState.nodes().getMinNodeVersion().onOrAfter(Version.V_6_7_0);
+                // use sequence number powered optimistic concurrency control
+                false, true,
+                logger, client, threadPool, request, listener, scriptService, null);
         }
 
         @Override
         public BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> buildScriptApplier() {
             Script script = mainRequest.getScript();
             if (script != null) {
-                return new UpdateByQueryScriptApplier(worker, mainAction.scriptService, script, script.getParams());
+                return new UpdateByQueryScriptApplier(worker, scriptService, script, script.getParams());
             }
             return super.buildScriptApplier();
         }

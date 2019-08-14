@@ -1,9 +1,9 @@
 {
   "data_frame.stop_data_frame_transform": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/stop-data-frame-transform.html",
+    "stability": "beta",
     "methods": [ "POST" ],
     "url": {
-      "path": "/_data_frame/transforms/{transform_id}/_stop",
       "paths": [ "/_data_frame/transforms/{transform_id}/_stop" ],
       "parts": {
         "transform_id": {
@@ -22,6 +22,11 @@
           "type": "time",
           "required": false,
           "description": "Controls the time to wait until the transform has stopped. Default to 30 seconds"
+        },
+        "allow_no_match": {
+          "type": "boolean",
+          "required": false,
+          "description": "Whether to ignore if a wildcard expression matches no data frame transforms. (This includes `_all` string or when no data frame transforms have been specified)"
         }
       }
     },

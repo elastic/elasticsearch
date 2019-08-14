@@ -20,6 +20,7 @@
 package org.elasticsearch.index.shard;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -31,7 +32,6 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -99,7 +99,7 @@ final class StoreRecovery {
     }
 
     boolean recoverFromLocalShards(BiConsumer<String, MappingMetaData> mappingUpdateConsumer,
-                                        final IndexShard indexShard, final List<LocalShardSnapshot> shards) throws IOException {
+                                        final IndexShard indexShard, final List<LocalShardSnapshot> shards) {
         if (canRecover(indexShard)) {
             RecoverySource.Type recoveryType = indexShard.recoveryState().getRecoverySource().getType();
             assert recoveryType == RecoverySource.Type.LOCAL_SHARDS: "expected local shards recovery type: " + recoveryType;
@@ -119,8 +119,6 @@ final class StoreRecovery {
             Sort indexSort = indexShard.getIndexSort();
             final boolean hasNested = indexShard.mapperService().hasNested();
             final boolean isSplit = sourceMetaData.getNumberOfShards() < indexShard.indexSettings().getNumberOfShards();
-            assert isSplit == false || sourceMetaData.getCreationVersion().onOrAfter(Version.V_6_0_0_alpha1) : "for split we require a " +
-                "single type but the index is created before 6.0.0";
             return executeRecovery(indexShard, () -> {
                 logger.debug("starting recovery from local shards {}", shards);
                 try {
@@ -356,7 +354,6 @@ final class StoreRecovery {
         final RecoveryState recoveryState = indexShard.recoveryState();
         final boolean indexShouldExists = recoveryState.getRecoverySource().getType() != RecoverySource.Type.EMPTY_STORE;
         indexShard.prepareForIndexRecovery();
-        long version = -1;
         SegmentInfos si = null;
         final Store store = indexShard.store();
         store.incRef();
@@ -378,29 +375,19 @@ final class StoreRecovery {
                             "shard allocated for local recovery (post api), should exist, but doesn't, current files: " + files, e);
                     }
                 }
-                if (si != null) {
-                    if (indexShouldExists) {
-                        version = si.getVersion();
-                    } else {
-                        // it exists on the directory, but shouldn't exist on the FS, its a leftover (possibly dangling)
-                        // its a "new index create" API, we have to do something, so better to clean it than use same data
-                        logger.trace("cleaning existing shard, shouldn't exists");
-                        Lucene.cleanLuceneIndex(store.directory());
-                        si = null;
-                    }
+                if (si != null && indexShouldExists == false) {
+                    // it exists on the directory, but shouldn't exist on the FS, its a leftover (possibly dangling)
+                    // its a "new index create" API, we have to do something, so better to clean it than use same data
+                    logger.trace("cleaning existing shard, shouldn't exists");
+                    Lucene.cleanLuceneIndex(store.directory());
+                    si = null;
                 }
             } catch (Exception e) {
                 throw new IndexShardRecoveryException(shardId, "failed to fetch index version after copying it over", e);
             }
-            recoveryState.getIndex().updateVersion(version);
             if (recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
                 assert indexShouldExists;
-                store.bootstrapNewHistory();
-                final SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
-                final long localCheckpoint = Long.parseLong(segmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
-                final String translogUUID = Translog.createEmptyTranslog(
-                    indexShard.shardPath().resolveTranslog(), localCheckpoint, shardId, indexShard.getPendingPrimaryTerm());
-                store.associateIndexWithNewTranslog(translogUUID);
+                bootstrap(indexShard, store);
                 writeEmptyRetentionLeasesFile(indexShard);
             } else if (indexShouldExists) {
                 if (recoveryState.getRecoverySource().shouldBootstrapNewHistoryUUID()) {
@@ -470,15 +457,11 @@ final class StoreRecovery {
                 snapshotShardId = new ShardId(indexName, IndexMetaData.INDEX_UUID_NA_VALUE, shardId.id());
             }
             final IndexId indexId = repository.getRepositoryData().resolveIndexId(indexName);
-            repository.restoreShard(indexShard, restoreSource.snapshot().getSnapshotId(),
+            assert indexShard.getEngineOrNull() == null;
+            repository.restoreShard(indexShard.store(), restoreSource.snapshot().getSnapshotId(),
                 restoreSource.version(), indexId, snapshotShardId, indexShard.recoveryState());
             final Store store = indexShard.store();
-            store.bootstrapNewHistory();
-            final SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
-            final long localCheckpoint = Long.parseLong(segmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
-            final String translogUUID = Translog.createEmptyTranslog(
-                indexShard.shardPath().resolveTranslog(), localCheckpoint, shardId, indexShard.getPendingPrimaryTerm());
-            store.associateIndexWithNewTranslog(translogUUID);
+            bootstrap(indexShard, store);
             assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
             writeEmptyRetentionLeasesFile(indexShard);
             indexShard.openEngineAndRecoverFromTranslog();
@@ -490,4 +473,12 @@ final class StoreRecovery {
         }
     }
 
+    private void bootstrap(final IndexShard indexShard, final Store store) throws IOException {
+        store.bootstrapNewHistory();
+        final SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
+        final long localCheckpoint = Long.parseLong(segmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+        final String translogUUID = Translog.createEmptyTranslog(
+            indexShard.shardPath().resolveTranslog(), localCheckpoint, shardId, indexShard.getPendingPrimaryTerm());
+        store.associateIndexWithNewTranslog(translogUUID);
+    }
 }

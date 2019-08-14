@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -175,8 +176,8 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContentOb
                 builder.field("ip", node.getAddress());
 
                 builder.startArray("roles");
-                for (DiscoveryNode.Role role : node.getRoles()) {
-                    builder.value(role.getRoleName());
+                for (DiscoveryNodeRole role : node.getRoles()) {
+                    builder.value(role.roleName());
                 }
                 builder.endArray();
 

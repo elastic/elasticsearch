@@ -93,7 +93,7 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
 
     @Override
     public DeferringBucketCollector getDeferringCollector() {
-        deferringCollector = new MergingBucketsDeferringCollector(context);
+        deferringCollector = new MergingBucketsDeferringCollector(context, descendsFromGlobalAggregator(parent()));
         return deferringCollector;
     }
 

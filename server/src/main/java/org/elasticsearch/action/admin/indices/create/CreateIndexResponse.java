@@ -52,20 +52,16 @@ public class CreateIndexResponse extends ShardsAcknowledgedResponse {
         objectParser.declareField(constructorArg(), (parser, context) -> parser.textOrNull(), INDEX, ObjectParser.ValueType.STRING_OR_NULL);
     }
 
-    private String index;
+    private final String index;
 
-    public CreateIndexResponse() {}
-
-    protected CreateIndexResponse(boolean acknowledged, boolean shardsAcknowledged, String index) {
-        super(acknowledged, shardsAcknowledged);
-        this.index = index;
+    protected CreateIndexResponse(StreamInput in) throws IOException {
+        super(in, true);
+        index = in.readString();
     }
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        readShardsAcknowledged(in);
-        index = in.readString();
+    public CreateIndexResponse(boolean acknowledged, boolean shardsAcknowledged, String index) {
+        super(acknowledged, shardsAcknowledged);
+        this.index = index;
     }
 
     @Override

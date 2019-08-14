@@ -29,10 +29,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.sql.qa.rest.BaseRestSqlTestCase.mode;
+import static org.elasticsearch.xpack.sql.qa.rest.BaseRestSqlTestCase.randomMode;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.SQL_QUERY_REST_ENDPOINT;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.columnInfo;
-import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.mode;
-import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.randomMode;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -122,6 +122,7 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
             List<Object> columns = new ArrayList<>();
             columns.add(columnInfo(mode, "name", "keyword", JDBCType.VARCHAR, 32766));
             columns.add(columnInfo(mode, "type", "keyword", JDBCType.VARCHAR, 32766));
+            columns.add(columnInfo(mode, "kind", "keyword", JDBCType.VARCHAR, 32766));
             Map<String, Object> expected = new HashMap<>();
             expected.put("columns", columns);
             List<List<String>> rows = new ArrayList<>();
@@ -129,6 +130,7 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
                 List<String> fields = new ArrayList<>();
                 fields.add(table);
                 fields.add("BASE TABLE");
+                fields.add("INDEX");
                 rows.add(fields);
             }
             expected.put("rows", rows);

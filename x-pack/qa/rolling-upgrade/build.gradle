@@ -11,7 +11,7 @@ test.enabled = false
 
 dependencies {
   testCompile project(':x-pack:qa')
-  testCompile ("org.elasticsearch.client:elasticsearch-rest-high-level-client:${version}")
+  testCompile project(':client:rest-high-level')
 }
 
 Closure waitWithAuth = { NodeInfo node, AntBuilder ant ->
@@ -121,15 +121,16 @@ for (Version version : bwcVersions.wireCompatible) {
         setting 'xpack.security.transport.ssl.enabled', 'true'
         setting 'xpack.security.authc.token.enabled', 'true'
         setting 'xpack.security.authc.token.timeout', '60m'
-        setting 'logger.org.elasticsearch.xpack.security.authc.TokenService', 'trace'
         setting 'xpack.security.audit.enabled', 'true'
-        if (project.inFipsJvm) {
-            setting 'xpack.security.transport.ssl.key', 'testnode.pem'
-            setting 'xpack.security.transport.ssl.certificate', 'testnode.crt'
-            keystoreSetting 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
-        } else {
-            setting 'xpack.security.transport.ssl.keystore.path', 'testnode.jks'
-            setting 'xpack.security.transport.ssl.keystore.password', 'testnode'
+        rootProject.globalInfo.ready {
+            if (project.inFipsJvm) {
+                setting 'xpack.security.transport.ssl.key', 'testnode.pem'
+                setting 'xpack.security.transport.ssl.certificate', 'testnode.crt'
+                keystoreSetting 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
+            } else {
+                setting 'xpack.security.transport.ssl.keystore.path', 'testnode.jks'
+                setting 'xpack.security.transport.ssl.keystore.password', 'testnode'
+            }
         }
         dependsOn copyTestNodeKeyMaterial
         extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
@@ -187,14 +188,15 @@ for (Version version : bwcVersions.wireCompatible) {
             setting 'xpack.security.enabled', 'true'
             setting 'xpack.security.transport.ssl.enabled', 'true'
             setting 'xpack.security.authc.token.timeout', '60m'
-            setting 'logger.org.elasticsearch.xpack.security.authc.TokenService', 'trace'
-            if (project.inFipsJvm) {
-                setting 'xpack.security.transport.ssl.key', 'testnode.pem'
-                setting 'xpack.security.transport.ssl.certificate', 'testnode.crt'
-                keystoreSetting 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
-            } else {
-                setting 'xpack.security.transport.ssl.keystore.path', 'testnode.jks'
-                setting 'xpack.security.transport.ssl.keystore.password', 'testnode'
+            rootProject.globalInfo.ready {
+                if (project.inFipsJvm) {
+                    setting 'xpack.security.transport.ssl.key', 'testnode.pem'
+                    setting 'xpack.security.transport.ssl.certificate', 'testnode.crt'
+                    keystoreSetting 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
+                } else {
+                    setting 'xpack.security.transport.ssl.keystore.path', 'testnode.jks'
+                    setting 'xpack.security.transport.ssl.keystore.password', 'testnode'
+                }
             }
             setting 'node.attr.upgraded', 'true'
             setting 'xpack.security.authc.token.enabled', 'true'
@@ -238,7 +240,9 @@ for (Version version : bwcVersions.wireCompatible) {
                 'mixed_cluster/30_ml_jobs_crud/Create a job in the mixed cluster and write some data',
                 'mixed_cluster/40_ml_datafeed_crud/Put job and datafeed in mixed cluster',
                 'mixed_cluster/40_ml_datafeed_crud/Put job and datafeed without aggs in mixed cluster',
-                'mixed_cluster/40_ml_datafeed_crud/Put job and datafeed with aggs in mixed cluster'
+                'mixed_cluster/40_ml_datafeed_crud/Put job and datafeed with aggs in mixed cluster',
+                'mixed_cluster/80_data_frame_jobs_crud/Test put batch data frame transforms on mixed cluster',
+                'mixed_cluster/80_data_frame_jobs_crud/Test put continuous data frame transform on mixed cluster'
         ].join(',')
         finalizedBy "${baseName}#oldClusterTestCluster#node1.stop"
     }

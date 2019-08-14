@@ -297,10 +297,10 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
     /**
      * Split the list of node shard states into groups yes/no/throttle based on allocation deciders
      */
-    private NodesToAllocate buildNodesToAllocate(RoutingAllocation allocation,
-                                                 List<NodeGatewayStartedShards> nodeShardStates,
-                                                 ShardRouting shardRouting,
-                                                 boolean forceAllocate) {
+    private static NodesToAllocate buildNodesToAllocate(RoutingAllocation allocation,
+                                                        List<NodeGatewayStartedShards> nodeShardStates,
+                                                        ShardRouting shardRouting,
+                                                        boolean forceAllocate) {
         List<DecidedNode> yesNodeShards = new ArrayList<>();
         List<DecidedNode> throttledNodeShards = new ArrayList<>();
         List<DecidedNode> noNodeShards = new ArrayList<>();

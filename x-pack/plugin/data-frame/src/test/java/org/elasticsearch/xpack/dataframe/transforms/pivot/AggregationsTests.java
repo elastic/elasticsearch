@@ -34,16 +34,32 @@ public class AggregationsTests extends ESTestCase {
         assertEquals("half_float", Aggregations.resolveTargetMapping("min", "half_float"));
 
         // sum
-        assertEquals("int", Aggregations.resolveTargetMapping("sum", "int"));
         assertEquals("double", Aggregations.resolveTargetMapping("sum", "double"));
-        assertEquals("half_float", Aggregations.resolveTargetMapping("sum", "half_float"));
+        assertEquals("double", Aggregations.resolveTargetMapping("sum", "half_float"));
+        assertEquals("double", Aggregations.resolveTargetMapping("sum", null));
+
+        // geo_centroid
+        assertEquals("geo_point", Aggregations.resolveTargetMapping("geo_centroid", "geo_point"));
+        assertEquals("geo_point", Aggregations.resolveTargetMapping("geo_centroid", null));
+
+        // geo_bounds
+        assertEquals("geo_shape", Aggregations.resolveTargetMapping("geo_bounds", "geo_shape"));
+        assertEquals("geo_shape", Aggregations.resolveTargetMapping("geo_bounds", null));
 
         // scripted_metric
         assertEquals("_dynamic", Aggregations.resolveTargetMapping("scripted_metric", null));
         assertEquals("_dynamic", Aggregations.resolveTargetMapping("scripted_metric", "int"));
 
-        // scripted_metric
+        // bucket_script
         assertEquals("_dynamic", Aggregations.resolveTargetMapping("bucket_script", null));
         assertEquals("_dynamic", Aggregations.resolveTargetMapping("bucket_script", "int"));
+
+        // bucket_selector
+        assertEquals("_dynamic", Aggregations.resolveTargetMapping("bucket_selector", null));
+        assertEquals("_dynamic", Aggregations.resolveTargetMapping("bucket_selector", "int"));
+
+        // weighted_avg
+        assertEquals("_dynamic", Aggregations.resolveTargetMapping("weighted_avg", null));
+        assertEquals("_dynamic", Aggregations.resolveTargetMapping("weighted_avg", "double"));
     }
 }

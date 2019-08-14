@@ -32,17 +32,18 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.indexlifecycle.DeleteAction;
-import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
-import org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction;
-import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
-import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyMetadata;
-import org.elasticsearch.xpack.core.indexlifecycle.LifecycleType;
-import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
-import org.elasticsearch.xpack.core.indexlifecycle.TimeseriesLifecycleType;
-import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.DeleteAction;
+import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
+import org.elasticsearch.xpack.core.ilm.LifecycleAction;
+import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
+import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
+import org.elasticsearch.xpack.core.ilm.LifecycleType;
+import org.elasticsearch.xpack.core.ilm.OperationMode;
+import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
+import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
 import org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -223,7 +224,8 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
     // otherwise a rolling upgrade would not work as expected, when the node has a .watches shard on it
     public void testThatTemplatesAreAppliedOnNewerNodes() {
         DiscoveryNode localNode = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode masterNode = new DiscoveryNode("master", ESTestCase.buildNewFakeTransportAddress(), Version.V_6_0_0);
+        DiscoveryNode masterNode = new DiscoveryNode("master", ESTestCase.buildNewFakeTransportAddress(),
+            VersionUtils.randomPreviousCompatibleVersion(random(), Version.CURRENT));
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("master").add(localNode).add(masterNode).build();
 
         ClusterChangedEvent event = createClusterChangedEvent(Arrays.asList(WatcherIndexTemplateRegistryField.TRIGGERED_TEMPLATE_NAME,
@@ -318,10 +320,6 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
     private static class TestPutIndexTemplateResponse extends AcknowledgedResponse {
         TestPutIndexTemplateResponse(boolean acknowledged) {
             super(acknowledged);
-        }
-
-        TestPutIndexTemplateResponse() {
-            super();
         }
     }
 }

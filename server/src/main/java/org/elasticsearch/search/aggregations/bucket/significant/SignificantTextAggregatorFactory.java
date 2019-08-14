@@ -49,7 +49,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class SignificantTextAggregatorFactory extends AggregatorFactory<SignificantTextAggregatorFactory>
+public class SignificantTextAggregatorFactory extends AggregatorFactory
         implements Releasable {
 
     private final IncludeExclude includeExclude;
@@ -67,7 +67,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory<Signific
 
     public SignificantTextAggregatorFactory(String name, IncludeExclude includeExclude,
             QueryBuilder filterBuilder, TermsAggregator.BucketCountThresholds bucketCountThresholds,
-            SignificanceHeuristic significanceHeuristic, SearchContext context, AggregatorFactory<?> parent,
+            SignificanceHeuristic significanceHeuristic, SearchContext context, AggregatorFactory parent,
             AggregatorFactories.Builder subFactoriesBuilder, String fieldName, String [] sourceFieldNames,
             boolean filterDuplicateText, Map<String, Object> metaData) throws IOException {
         super(name, context, parent, subFactoriesBuilder, metaData);

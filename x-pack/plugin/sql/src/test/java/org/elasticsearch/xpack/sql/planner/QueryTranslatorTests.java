@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.planner;
 
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.sql.querydsl.agg.AggFilter;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByDateHistogram;
 import org.elasticsearch.xpack.sql.querydsl.query.BoolQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.ExistsQuery;
+import org.elasticsearch.xpack.sql.querydsl.query.GeoDistanceQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.NotQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.Query;
 import org.elasticsearch.xpack.sql.querydsl.query.RangeQuery;
@@ -55,6 +57,7 @@ import org.elasticsearch.xpack.sql.util.DateUtils;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
+import java.time.ZonedDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
@@ -63,8 +66,11 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation.E;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation.PI;
+import static org.elasticsearch.xpack.sql.planner.QueryTranslator.DATE_FORMAT;
+import static org.elasticsearch.xpack.sql.planner.QueryTranslator.TIME_FORMAT;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
 
 public class QueryTranslatorTests extends ESTestCase {
@@ -127,6 +133,56 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("int", tq.term());
         assertEquals(5, tq.value());
     }
+    
+    public void testTermEqualityForDate() {
+        LogicalPlan p = plan("SELECT some.string FROM test WHERE date = 5");
+        assertTrue(p instanceof Project);
+        p = ((Project) p).child();
+        assertTrue(p instanceof Filter);
+        Expression condition = ((Filter) p).condition();
+        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        Query query = translation.query;
+        assertTrue(query instanceof TermQuery);
+        TermQuery tq = (TermQuery) query;
+        assertEquals("date", tq.term());
+        assertEquals(5, tq.value());
+    }
+    
+    public void testTermEqualityForDateWithLiteralDate() {
+        LogicalPlan p = plan("SELECT some.string FROM test WHERE date = CAST('2019-08-08T12:34:56' AS DATETIME)");
+        assertTrue(p instanceof Project);
+        p = ((Project) p).child();
+        assertTrue(p instanceof Filter);
+        Expression condition = ((Filter) p).condition();
+        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        Query query = translation.query;
+        assertTrue(query instanceof RangeQuery);
+        RangeQuery rq = (RangeQuery) query;
+        assertEquals("date", rq.field());
+        assertEquals("2019-08-08T12:34:56.000Z", rq.upper());
+        assertEquals("2019-08-08T12:34:56.000Z", rq.lower());
+        assertTrue(rq.includeLower());
+        assertTrue(rq.includeUpper());
+        assertEquals(DATE_FORMAT, rq.format());
+    }
+    
+    public void testTermEqualityForDateWithLiteralTime() {
+        LogicalPlan p = plan("SELECT some.string FROM test WHERE date = CAST('12:34:56' AS TIME)");
+        assertTrue(p instanceof Project);
+        p = ((Project) p).child();
+        assertTrue(p instanceof Filter);
+        Expression condition = ((Filter) p).condition();
+        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        Query query = translation.query;
+        assertTrue(query instanceof RangeQuery);
+        RangeQuery rq = (RangeQuery) query;
+        assertEquals("date", rq.field());
+        assertEquals("12:34:56.000", rq.upper());
+        assertEquals("12:34:56.000", rq.lower());
+        assertTrue(rq.includeLower());
+        assertTrue(rq.includeUpper());
+        assertEquals(TIME_FORMAT, rq.format());
+    }
 
     public void testComparisonAgainstColumns() {
         LogicalPlan p = plan("SELECT some.string FROM test WHERE date > int");
@@ -177,7 +233,63 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue(query instanceof RangeQuery);
         RangeQuery rq = (RangeQuery) query;
         assertEquals("date", rq.field());
-        assertEquals(DateUtils.asDateTime("1969-05-13T12:34:56Z"), rq.lower());
+        assertEquals("1969-05-13T12:34:56.000Z", rq.lower());
+    }
+    
+    public void testDateRangeWithCurrentTimestamp() {
+        testDateRangeWithCurrentFunctions("CURRENT_TIMESTAMP()", DATE_FORMAT, TestUtils.TEST_CFG.now());
+    }
+    
+    public void testDateRangeWithCurrentDate() {
+        testDateRangeWithCurrentFunctions("CURRENT_DATE()", DATE_FORMAT, DateUtils.asDateOnly(TestUtils.TEST_CFG.now()));
+    }
+    
+    public void testDateRangeWithToday() {
+        testDateRangeWithCurrentFunctions("TODAY()", DATE_FORMAT, DateUtils.asDateOnly(TestUtils.TEST_CFG.now()));
+    }
+    
+    public void testDateRangeWithNow() {
+        testDateRangeWithCurrentFunctions("NOW()", DATE_FORMAT, TestUtils.TEST_CFG.now());
+    }
+    
+    public void testDateRangeWithCurrentTime() {
+        testDateRangeWithCurrentFunctions("CURRENT_TIME()", TIME_FORMAT, TestUtils.TEST_CFG.now());
+    }
+    
+    private void testDateRangeWithCurrentFunctions(String function, String pattern, ZonedDateTime now) {
+        String operator = randomFrom(new String[] {">", ">=", "<", "<=", "=", "!="});
+        LogicalPlan p = plan("SELECT some.string FROM test WHERE date" + operator + function);
+        assertTrue(p instanceof Project);
+        p = ((Project) p).child();
+        assertTrue(p instanceof Filter);
+        Expression condition = ((Filter) p).condition();
+        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        Query query = translation.query;
+        RangeQuery rq;
+        
+        if (operator.equals("!=")) {
+            assertTrue(query instanceof NotQuery);
+            NotQuery nq = (NotQuery) query;
+            assertTrue(nq.child() instanceof RangeQuery);
+            rq = (RangeQuery) nq.child();
+        } else {
+            assertTrue(query instanceof RangeQuery);
+            rq = (RangeQuery) query;
+        }
+        assertEquals("date", rq.field());
+        
+        if (operator.contains("<") || operator.equals("=") || operator.equals("!=")) { 
+            assertEquals(DateFormatter.forPattern(pattern).format(now.withNano(DateUtils.getNanoPrecision(null, now.getNano()))),
+                    rq.upper());
+        }
+        if (operator.contains(">") || operator.equals("=") || operator.equals("!=")) {
+            assertEquals(DateFormatter.forPattern(pattern).format(now.withNano(DateUtils.getNanoPrecision(null, now.getNano()))),
+                    rq.lower());
+        }
+
+        assertEquals(operator.equals("=") || operator.equals("!=") || operator.equals("<="), rq.includeUpper());
+        assertEquals(operator.equals("=") || operator.equals("!=") || operator.equals(">="), rq.includeLower());
+        assertEquals(pattern, rq.format());
     }
 
     public void testLikeOnInexact() {
@@ -496,7 +608,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertNull(translation.query);
         AggFilter aggFilter = translation.aggFilter;
         assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(InternalSqlScriptUtils." +
-            operation.name().toLowerCase(Locale.ROOT) + "(params.a0),params.v0))",
+                operation.name().toLowerCase(Locale.ROOT) + "(params.a0),params.v0))",
             aggFilter.scriptTemplate().toString());
         assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=max(int){a->"));
         assertThat(aggFilter.scriptTemplate().params().toString(), endsWith(", {v=10}]"));
@@ -559,6 +671,109 @@ public class QueryTranslatorTests extends ESTestCase {
             aggFilter.scriptTemplate().toString());
         assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=MAX(int){a->"));
         assertThat(aggFilter.scriptTemplate().params().toString(), endsWith(", {v=10}]"));
+    }
+
+    public void testTranslateStAsWktForPoints() {
+        LogicalPlan p = plan("SELECT ST_AsWKT(point) FROM test WHERE ST_AsWKT(point) = 'point (10 20)'");
+        assertThat(p, instanceOf(Project.class));
+        assertThat(p.children().get(0), instanceOf(Filter.class));
+        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertFalse(condition.foldable());
+        QueryTranslation translation = QueryTranslator.toQuery(condition, true);
+        assertNull(translation.query);
+        AggFilter aggFilter = translation.aggFilter;
+        assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.eq(" +
+                "InternalSqlScriptUtils.stAswkt(InternalSqlScriptUtils.geoDocValue(doc,params.v0))," +
+                "params.v1)" +
+                ")",
+            aggFilter.scriptTemplate().toString());
+        assertEquals("[{v=point}, {v=point (10 20)}]", aggFilter.scriptTemplate().params().toString());
+    }
+
+    public void testTranslateStWktToSql() {
+        LogicalPlan p = plan("SELECT shape FROM test WHERE ST_WKTToSQL(keyword) = ST_WKTToSQL('point (10 20)')");
+        assertThat(p, instanceOf(Project.class));
+        assertThat(p.children().get(0), instanceOf(Filter.class));
+        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertFalse(condition.foldable());
+        QueryTranslation translation = QueryTranslator.toQuery(condition, true);
+        assertNull(translation.query);
+        AggFilter aggFilter = translation.aggFilter;
+        assertEquals("InternalSqlScriptUtils.nullSafeFilter(" +
+                "InternalSqlScriptUtils.eq(InternalSqlScriptUtils.stWktToSql(" +
+                "InternalSqlScriptUtils.docValue(doc,params.v0)),InternalSqlScriptUtils.stWktToSql(params.v1)))",
+            aggFilter.scriptTemplate().toString());
+        assertEquals("[{v=keyword}, {v=point (10.0 20.0)}]", aggFilter.scriptTemplate().params().toString());
+    }
+
+    public void testTranslateStDistanceToScript() {
+        String operator = randomFrom(">", ">=");
+        String operatorFunction = operator.equalsIgnoreCase(">") ? "gt" : "gte";
+        LogicalPlan p = plan("SELECT shape FROM test WHERE ST_Distance(point, ST_WKTToSQL('point (10 20)')) " + operator + " 20");
+        assertThat(p, instanceOf(Project.class));
+        assertThat(p.children().get(0), instanceOf(Filter.class));
+        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertFalse(condition.foldable());
+        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        assertNull(translation.aggFilter);
+        assertTrue(translation.query instanceof ScriptQuery);
+        ScriptQuery sc = (ScriptQuery) translation.query;
+        assertEquals("InternalSqlScriptUtils.nullSafeFilter(" +
+                "InternalSqlScriptUtils." + operatorFunction + "(" +
+                "InternalSqlScriptUtils.stDistance(" +
+                "InternalSqlScriptUtils.geoDocValue(doc,params.v0),InternalSqlScriptUtils.stWktToSql(params.v1)),params.v2))",
+            sc.script().toString());
+        assertEquals("[{v=point}, {v=point (10.0 20.0)}, {v=20}]", sc.script().params().toString());
+    }
+
+    public void testTranslateStDistanceToQuery() {
+        String operator = randomFrom("<", "<=");
+        LogicalPlan p = plan("SELECT shape FROM test WHERE ST_Distance(point, ST_WKTToSQL('point (10 20)')) " + operator + " 25");
+        assertThat(p, instanceOf(Project.class));
+        assertThat(p.children().get(0), instanceOf(Filter.class));
+        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertFalse(condition.foldable());
+        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        assertNull(translation.aggFilter);
+        assertTrue(translation.query instanceof GeoDistanceQuery);
+        GeoDistanceQuery gq = (GeoDistanceQuery) translation.query;
+        assertEquals("point", gq.field());
+        assertEquals(20.0, gq.lat(), 0.00001);
+        assertEquals(10.0, gq.lon(), 0.00001);
+        assertEquals(25.0, gq.distance(), 0.00001);
+    }
+
+    public void testTranslateStXY() {
+        String dim = randomFrom("X", "Y");
+        LogicalPlan p = plan("SELECT ST_AsWKT(point) FROM test WHERE ST_" + dim + "(point) = 10");
+        assertThat(p, instanceOf(Project.class));
+        assertThat(p.children().get(0), instanceOf(Filter.class));
+        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertFalse(condition.foldable());
+        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        assertNull(translation.aggFilter);
+        assertThat(translation.query, instanceOf(ScriptQuery.class));
+        ScriptQuery sc = (ScriptQuery) translation.query;
+        assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.eq(InternalSqlScriptUtils.st" + dim + "(" +
+                "InternalSqlScriptUtils.geoDocValue(doc,params.v0)),params.v1))",
+            sc.script().toString());
+        assertEquals("[{v=point}, {v=10}]", sc.script().params().toString());
+    }
+
+    public void testTranslateStGeometryType() {
+        LogicalPlan p = plan("SELECT ST_AsWKT(point) FROM test WHERE ST_GEOMETRYTYPE(point) = 'POINT'");
+        assertThat(p, instanceOf(Project.class));
+        assertThat(p.children().get(0), instanceOf(Filter.class));
+        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertFalse(condition.foldable());
+        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        assertNull(translation.aggFilter);
+        assertThat(translation.query, instanceOf(ScriptQuery.class));
+        ScriptQuery sc = (ScriptQuery) translation.query;
+        assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.eq(InternalSqlScriptUtils.stGeometryType(" +
+                "InternalSqlScriptUtils.geoDocValue(doc,params.v0)),params.v1))",
+            sc.script().toString());
+        assertEquals("[{v=point}, {v=POINT}]", sc.script().params().toString());
     }
 
     public void testTranslateCoalesce_GroupBy_Painless() {

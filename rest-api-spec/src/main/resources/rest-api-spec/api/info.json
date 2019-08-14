@@ -1,9 +1,9 @@
 {
   "info": {
-    "documentation": "http://www.elastic.co/guide/",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html",
+    "stability": "stable",
     "methods": ["GET"],
     "url": {
-      "path": "/",
       "paths": ["/"],
       "parts": {
       },

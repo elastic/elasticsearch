@@ -7,7 +7,8 @@
 package org.elasticsearch.xpack.dataframe.transforms.pivot;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -47,7 +48,9 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class PivotTests extends ESTestCase {
 
@@ -61,7 +64,7 @@ public class PivotTests extends ESTestCase {
     @Before
     public void registerAggregationNamedObjects() throws Exception {
         // register aggregations as NamedWriteable
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
         namedXContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 
@@ -107,6 +110,16 @@ public class PivotTests extends ESTestCase {
         assertInvalidTransform(client, source, pivot);
     }
 
+    public void testInitialPageSize() throws Exception {
+        int expectedPageSize = 1000;
+
+        Pivot pivot = new Pivot(new PivotConfig(GroupConfigTests.randomGroupConfig(), getValidAggregationConfig(), expectedPageSize));
+        assertThat(pivot.getInitialPageSize(), equalTo(expectedPageSize));
+
+        pivot = new Pivot(new PivotConfig(GroupConfigTests.randomGroupConfig(), getValidAggregationConfig(), null));
+        assertThat(pivot.getInitialPageSize(), equalTo(Pivot.DEFAULT_INITIAL_PAGE_SIZE));
+    }
+
     public void testSearchFailure() throws Exception {
         // test a failure during the search operation, transform creation fails if
         // search has failures although they might just be temporary
@@ -130,10 +143,10 @@ public class PivotTests extends ESTestCase {
     public void testValidateAllUnsupportedAggregations() throws Exception {
         for (String agg : unsupportedAggregations) {
             AggregationConfig aggregationConfig = getAggregationConfig(agg);
-            SourceConfig source = new SourceConfig(new String[]{"existing_source"}, QueryConfig.matchAll());
 
             Pivot pivot = new Pivot(getValidPivotConfig(aggregationConfig));
-            assertInvalidTransform(client, source, pivot);
+            ElasticsearchException ex = expectThrows(ElasticsearchException.class, pivot::validateConfig);
+            assertThat("expected aggregations to be unsupported, but they were", ex, is(notNullValue()));
         }
     }
 
@@ -144,8 +157,8 @@ public class PivotTests extends ESTestCase {
 
         @SuppressWarnings("unchecked")
         @Override
-        protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(Action<Response> action, Request request,
-                ActionListener<Response> listener) {
+        protected <Request extends ActionRequest, Response extends ActionResponse>
+        void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
 
             if (request instanceof SearchRequest) {
                 SearchRequest searchRequest = (SearchRequest) request;
@@ -177,11 +190,11 @@ public class PivotTests extends ESTestCase {
     }
 
     private PivotConfig getValidPivotConfig() throws IOException {
-        return new PivotConfig(GroupConfigTests.randomGroupConfig(), getValidAggregationConfig());
+        return new PivotConfig(GroupConfigTests.randomGroupConfig(), getValidAggregationConfig(), null);
     }
 
     private PivotConfig getValidPivotConfig(AggregationConfig aggregationConfig) throws IOException {
-        return new PivotConfig(GroupConfigTests.randomGroupConfig(), aggregationConfig);
+        return new PivotConfig(GroupConfigTests.randomGroupConfig(), aggregationConfig, null);
     }
 
     private AggregationConfig getValidAggregationConfig() throws IOException {
@@ -204,6 +217,22 @@ public class PivotTests extends ESTestCase {
                 "\"bucket_script\":{" +
                 "\"buckets_path\":{\"param_1\":\"other_bucket\"}," +
                 "\"script\":\"return params.param_1\"}}}");
+        }
+        if (agg.equals(AggregationType.BUCKET_SELECTOR.getName())) {
+            return parseAggregations("{\"pivot_bucket_selector\":{" +
+                "\"bucket_selector\":{" +
+                "\"buckets_path\":{\"param_1\":\"other_bucket\"}," +
+                "\"script\":\"params.param_1 > 42.0\"}}}");
+        }
+        if (agg.equals(AggregationType.WEIGHTED_AVG.getName())) {
+            return parseAggregations("{\n" +
+                "\"pivot_weighted_avg\": {\n" +
+                "  \"weighted_avg\": {\n" +
+                "   \"value\": {\"field\": \"values\"},\n" +
+                "   \"weight\": {\"field\": \"weights\"}\n" +
+                "  }\n" +
+                "}\n" +
+                "}");
         }
         return parseAggregations("{\n" + "  \"pivot_" + agg + "\": {\n" + "    \"" + agg + "\": {\n" + "      \"field\": \"values\"\n"
                 + "    }\n" + "  }" + "}");
@@ -228,7 +257,7 @@ public class PivotTests extends ESTestCase {
     private static void validate(Client client, SourceConfig source, Pivot pivot, boolean expectValid) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
-        pivot.validate(client, source, ActionListener.wrap(validity -> {
+        pivot.validateQuery(client, source, ActionListener.wrap(validity -> {
             assertEquals(expectValid, validity);
             latch.countDown();
         }, e -> {

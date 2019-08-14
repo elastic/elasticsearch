@@ -1,9 +1,9 @@
 {
   "cat.recovery": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cat-recovery.html",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/cat-recovery.html",
+    "stability": "stable",
     "methods": ["GET"],
     "url": {
-      "path": "/_cat/recovery",
       "paths": ["/_cat/recovery", "/_cat/recovery/{index}"],
       "parts": {
         "index": {

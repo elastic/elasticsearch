@@ -99,7 +99,7 @@ public class ExtendedStatsAggregationBuilder
 
     @Override
     protected ExtendedStatsAggregatorFactory innerBuild(SearchContext context, ValuesSourceConfig<Numeric> config,
-            AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
+            AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
         return new ExtendedStatsAggregatorFactory(name, config, sigma, context, parent, subFactoriesBuilder, metaData);
     }
 
@@ -110,12 +110,15 @@ public class ExtendedStatsAggregationBuilder
     }
 
     @Override
-    protected int innerHashCode() {
-        return Objects.hash(sigma);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), sigma);
     }
 
     @Override
-    protected boolean innerEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         ExtendedStatsAggregationBuilder other = (ExtendedStatsAggregationBuilder) obj;
         return Objects.equals(sigma, other.sigma);
     }

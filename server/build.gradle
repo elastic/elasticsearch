@@ -56,8 +56,10 @@ if (!isEclipse && !isIdea) {
   }
 
   forbiddenApisJava12 {
-    if (project.runtimeJavaVersion < JavaVersion.VERSION_12) {
-      targetCompatibility = JavaVersion.VERSION_12.getMajorVersion()
+    doFirst {
+      if (project.runtimeJavaVersion < JavaVersion.VERSION_12) {
+        targetCompatibility = JavaVersion.VERSION_12.getMajorVersion()
+      }
     }
   }
 
@@ -72,13 +74,13 @@ if (!isEclipse && !isIdea) {
 
 dependencies {
 
-  compile "org.elasticsearch:elasticsearch-core:${version}"
-  compile "org.elasticsearch:elasticsearch-secure-sm:${version}"
-  compile "org.elasticsearch:elasticsearch-x-content:${version}"
-  compile "org.elasticsearch:elasticsearch-geo:${version}"
+  compile project(':libs:elasticsearch-core')
+  compile project(':libs:elasticsearch-secure-sm')
+  compile project(':libs:elasticsearch-x-content')
+  compile project(":libs:elasticsearch-geo")
   
-  compileOnly project(':libs:plugin-classloader')
-  testRuntime project(':libs:plugin-classloader')
+  compileOnly project(':libs:elasticsearch-plugin-classloader')
+  testRuntime project(':libs:elasticsearch-plugin-classloader')
 
   // lucene
   compile "org.apache.lucene:lucene-core:${versions.lucene}"
@@ -98,8 +100,8 @@ dependencies {
   compile "org.apache.lucene:lucene-suggest:${versions.lucene}"
 
   // utilities
-  compile "org.elasticsearch:elasticsearch-cli:${version}"
-  compile 'com.carrotsearch:hppc:0.7.1'
+  compile project(":libs:elasticsearch-cli")
+  compile 'com.carrotsearch:hppc:0.8.1'
 
   // time handling, remove with java 8 time
   compile "joda-time:joda-time:${versions.joda}"
@@ -116,8 +118,6 @@ dependencies {
   // logging
   compile "org.apache.logging.log4j:log4j-api:${versions.log4j}"
   compile "org.apache.logging.log4j:log4j-core:${versions.log4j}", optional
-  // to bridge dependencies that are still on Log4j 1 to Log4j 2
-  compile "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}", optional
 
   // repackaged jna with native bits linked against all elastic supported platforms
   compile "org.elasticsearch:jna:${versions.jna}"
@@ -127,9 +127,9 @@ dependencies {
   }
 
   if (isEclipse == false || project.path == ":server-tests") {
-    testCompile("org.elasticsearch.test:framework:${version}") {
+    testCompile(project(":test:framework")) {
       // tests use the locally compiled version of server
-      exclude group: 'org.elasticsearch', module: 'elasticsearch'
+      exclude group: 'org.elasticsearch', module: 'server'
     }
   }
 }

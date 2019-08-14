@@ -92,7 +92,7 @@ public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<
     }
 
     @Override
-    protected AggregatorFactory<?> doBuild(SearchContext context, AggregatorFactory<?> parent, Builder subFactoriesBuilder)
+    protected AggregatorFactory doBuild(SearchContext context, AggregatorFactory parent, Builder subFactoriesBuilder)
             throws IOException {
         if (findNestedAggregatorFactory(parent) == null) {
             throw new SearchParseException(context,
@@ -120,7 +120,7 @@ public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<
         }
     }
 
-    private static NestedAggregatorFactory findNestedAggregatorFactory(AggregatorFactory<?> parent) {
+    private static NestedAggregatorFactory findNestedAggregatorFactory(AggregatorFactory parent) {
         if (parent == null) {
             return null;
         } else if (parent instanceof NestedAggregatorFactory) {
@@ -168,14 +168,16 @@ public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<
         return factory;
     }
 
-
     @Override
-    protected int doHashCode() {
-        return Objects.hash(path);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), path);
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         ReverseNestedAggregationBuilder other = (ReverseNestedAggregationBuilder) obj;
         return Objects.equals(path, other.path);
     }

@@ -468,15 +468,6 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     /**
-     * Returns whether to preserve SLM Policies of this test. Defaults to not
-     * preserving them. Only runs at all if xpack is installed on the cluster
-     * being tested.
-     */
-    protected boolean preserveSLMPoliciesUponCompletion() {
-        return false;
-    }
-
-    /**
      * Returns whether to wait to make absolutely certain that all snapshots
      * have been deleted.
      */
@@ -493,9 +484,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
 
         // Clean up SLM policies before trying to wipe snapshots so that no new ones get started by SLM after wiping
-        if (hasXPack && false == preserveSLMPoliciesUponCompletion()) {
-            deleteAllSLMPolicies();
-        }
+        deleteAllSLMPolicies();
 
         SetOnce<Map<String, List<Map<?,?>>>> inProgressSnapshots = new SetOnce<>();
         if (waitForAllSnapshotsWiped()) {

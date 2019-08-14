@@ -300,7 +300,7 @@ Note above that for the delete action, there is no corresponding source document
 The Bulk API does not fail due to failures in one of the actions. If a single action fails for whatever reason, it will continue to process the remainder of the actions after it. When the bulk API returns, it will provide a status for each action (in the same order it was sent in) so that you can check if a specific action failed or not.
 
 [float]
-==== Sample Dataset
+==== Sample dataset
 
 Now that we've gotten a glimpse of the basics, let's try to work on a more realistic dataset. I've prepared a sample of fictitious JSON documents of customer bank account information. Each document has the following schema:
 

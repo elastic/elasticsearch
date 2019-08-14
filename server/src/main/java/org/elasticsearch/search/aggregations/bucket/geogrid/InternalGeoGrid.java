@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
@@ -102,7 +103,7 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket>
         BucketPriorityQueue<InternalGeoGridBucket> ordered = new BucketPriorityQueue<>(size);
         for (LongObjectPagedHashMap.Cursor<List<B>> cursor : buckets) {
             List<B> sameCellBuckets = cursor.value;
-            InternalGeoGridBucket removed = ordered.insertWithOverflow(sameCellBuckets.get(0).reduce(sameCellBuckets, reduceContext));
+            InternalGeoGridBucket removed = ordered.insertWithOverflow(reduceBucket(sameCellBuckets, reduceContext));
             if (removed != null) {
                 reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(removed));
             } else {
@@ -116,6 +117,20 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket>
         }
         return create(getName(), requiredSize, Arrays.asList(list), pipelineAggregators(), getMetaData());
     }
+
+    public B reduceBucket(List<B> buckets, InternalAggregation.ReduceContext context) {
+        assert buckets.size() > 0;
+        List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());
+        long docCount = 0;
+        for (B bucket : buckets) {
+            docCount += bucket.docCount;
+            aggregationsList.add(bucket.aggregations);
+        }
+        final InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);
+        return createBucket(buckets.get(0), docCount, aggs);
+    }
+
+    abstract B createBucket(InternalGeoGridBucket bucket, long docCount, InternalAggregations aggregations);
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {

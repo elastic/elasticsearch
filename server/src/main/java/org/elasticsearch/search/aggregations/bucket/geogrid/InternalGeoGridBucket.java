@@ -39,6 +39,8 @@ public abstract class InternalGeoGridBucket<B extends InternalGeoGridBucket>
     protected long docCount;
     protected InternalAggregations aggregations;
 
+    long bucketOrd;
+
     public InternalGeoGridBucket(long hashAsLong, long docCount, InternalAggregations aggregations) {
         this.docCount = docCount;
         this.aggregations = aggregations;
@@ -60,9 +62,6 @@ public abstract class InternalGeoGridBucket<B extends InternalGeoGridBucket>
         out.writeVLong(docCount);
         aggregations.writeTo(out);
     }
-
-    abstract B buildBucket(InternalGeoGridBucket bucket, long hashAsLong, long docCount, InternalAggregations aggregations);
-
 
     long hashAsLong() {
         return hashAsLong;
@@ -87,17 +86,6 @@ public abstract class InternalGeoGridBucket<B extends InternalGeoGridBucket>
             return -1;
         }
         return 0;
-    }
-
-    public B reduce(List<B> buckets, InternalAggregation.ReduceContext context) {
-        List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());
-        long docCount = 0;
-        for (B bucket : buckets) {
-            docCount += bucket.docCount;
-            aggregationsList.add(bucket.aggregations);
-        }
-        final InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);
-        return buildBucket(this, hashAsLong, docCount, aggs);
     }
 
     @Override

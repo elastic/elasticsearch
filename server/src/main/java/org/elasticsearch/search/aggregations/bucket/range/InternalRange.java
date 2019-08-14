@@ -121,17 +121,6 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
             return FACTORY;
         }
 
-        Bucket reduce(List<Bucket> ranges, ReduceContext context) {
-            long docCount = 0;
-            List<InternalAggregations> aggregationsList = new ArrayList<>(ranges.size());
-            for (Bucket range : ranges) {
-                docCount += range.docCount;
-                aggregationsList.add(range.aggregations);
-            }
-            final InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);
-            return getFactory().createBucket(key, from, to, docCount, aggs, keyed, format);
-        }
-
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             if (keyed) {
@@ -314,9 +303,22 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
 
         final List<B> ranges = new ArrayList<>();
         for (int i = 0; i < this.ranges.size(); ++i) {
-            ranges.add((B) rangeList[i].get(0).reduce(rangeList[i], reduceContext));
+            ranges.add((B) reduceBucket(rangeList[i], reduceContext));
         }
         return getFactory().create(name, ranges, format, keyed, pipelineAggregators(), getMetaData());
+    }
+
+    Bucket reduceBucket(List<Bucket> ranges, ReduceContext context) {
+        assert ranges.size() > 0;
+        long docCount = 0;
+        List<InternalAggregations> aggregationsList = new ArrayList<>(ranges.size());
+        for (Bucket range : ranges) {
+            docCount += range.docCount;
+            aggregationsList.add(range.aggregations);
+        }
+        final InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);
+        Bucket prototype = ranges.get(0);
+        return getFactory().createBucket(prototype.key, prototype.from, prototype.to, docCount, aggs, keyed, format);
     }
 
     @Override

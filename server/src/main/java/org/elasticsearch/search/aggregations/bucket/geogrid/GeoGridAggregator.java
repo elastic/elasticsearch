@@ -96,48 +96,6 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
         };
     }
 
-    // private impl that stores a bucket ord. This allows for computing the aggregations lazily.
-    static class OrdinalBucket extends InternalGeoGridBucket {
-
-        long bucketOrd;
-        InternalGeoGridBucket sourceBucket; // used to keep track of appropriate getKeyAsString method
-
-        OrdinalBucket(InternalGeoGridBucket sourceBucket) {
-            super(sourceBucket.hashAsLong, sourceBucket.docCount, sourceBucket.aggregations);
-            this.sourceBucket = sourceBucket;
-        }
-
-        void hashAsLong(long hashAsLong) {
-            this.hashAsLong = hashAsLong;
-            this.sourceBucket.hashAsLong = hashAsLong;
-        }
-
-        @Override
-        InternalGeoGridBucket buildBucket(InternalGeoGridBucket bucket, long hashAsLong, long docCount,
-                                          InternalAggregations aggregations) {
-            OrdinalBucket ordBucket = new OrdinalBucket(bucket);
-            ordBucket.hashAsLong = hashAsLong;
-            ordBucket.docCount = docCount;
-            ordBucket.aggregations = aggregations;
-            // this is done because the aggregator may be rebuilt from cache (non OrdinalBucket),
-            // or it may be rebuilding from a new calculation, and therefore copying bucketOrd.
-            if (bucket instanceof OrdinalBucket) {
-                ordBucket.bucketOrd = ((OrdinalBucket) bucket).bucketOrd;
-            }
-            return ordBucket;
-        }
-
-        @Override
-        public Object getKey() {
-            return sourceBucket.getKey();
-        }
-
-        @Override
-        public String getKeyAsString() {
-            return sourceBucket.getKeyAsString();
-        }
-    }
-
     abstract T buildAggregation(String name, int requiredSize, List<InternalGeoGridBucket> buckets,
                                               List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData);
 
@@ -155,23 +113,23 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
         consumeBucketsAndMaybeBreak(size);
 
         BucketPriorityQueue ordered = new BucketPriorityQueue(size);
-        OrdinalBucket spare = null;
+        InternalGeoGridBucket spare = null;
         for (long i = 0; i < bucketOrds.size(); i++) {
             if (spare == null) {
-                spare = new OrdinalBucket(newEmptyBucket());
+                spare = newEmptyBucket();
             }
 
             // need a special function to keep the source bucket
             // up-to-date so it can get the appropriate key
-            spare.hashAsLong(bucketOrds.get(i));
+            spare.hashAsLong = bucketOrds.get(i);
             spare.docCount = bucketDocCount(i);
             spare.bucketOrd = i;
-            spare = (OrdinalBucket) ordered.insertWithOverflow(spare);
+            spare = (InternalGeoGridBucket) ordered.insertWithOverflow(spare);
         }
 
         final InternalGeoGridBucket[] list = new InternalGeoGridBucket[ordered.size()];
         for (int i = ordered.size() - 1; i >= 0; --i) {
-            final OrdinalBucket bucket = (OrdinalBucket) ordered.pop();
+            final InternalGeoGridBucket bucket = (InternalGeoGridBucket) ordered.pop();
             bucket.aggregations = bucketAggregations(bucket.bucketOrd);
             list[i] = bucket;
         }

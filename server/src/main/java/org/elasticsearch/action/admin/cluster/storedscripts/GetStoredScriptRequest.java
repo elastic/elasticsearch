@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -30,54 +31,73 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class GetStoredScriptRequest extends MasterNodeReadRequest<GetStoredScriptRequest> {
 
-    protected String id;
+    private String[] names;
 
-    GetStoredScriptRequest() {
-        super();
+    public GetStoredScriptRequest() {
+        this(new String[]{});
     }
 
-    public GetStoredScriptRequest(String id) {
-        super();
-
-        this.id = id;
+    public GetStoredScriptRequest(String... names) {
+        this.names = names;
     }
 
     public GetStoredScriptRequest(StreamInput in) throws IOException {
         super(in);
-        id = in.readString();
+        names = in.readStringArray();
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeString(id);
+    /**
+     * Returns he names of the scripts.
+     */
+    public String[] names() {
+        return this.names;
     }
 
-    @Override
-    public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = null;
-
-        if (id == null || id.isEmpty()) {
-            validationException = addValidationError("must specify id for stored script", validationException);
-        } else if (id.contains("#")) {
-            validationException = addValidationError("id cannot contain '#' for stored script", validationException);
-        }
-
-        return validationException;
-    }
-
+    /**
+     * @deprecated - Needed for backwards compatibility.
+     * Use {@link #names()} instead
+     *
+     * Return the script if there is only one defined, null otherwise
+     */
+    @Deprecated
     public String id() {
-        return id;
+        return names != null && names.length == 1 ? names[0] : null;
     }
 
+    /**
+     * @deprecated - Needed for backwards compatibility.
+     * Set the script names param instead
+     */
+    @Deprecated
     public GetStoredScriptRequest id(String id) {
-        this.id = id;
+        this.names = new String[] { id };
 
         return this;
     }
 
     @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeStringArray(names);
+    }
+
+    @Override
+    public ActionRequestValidationException validate() {
+        ActionRequestValidationException validationException = null;
+        if (names == null) {
+            validationException = addValidationError("names is null or empty", validationException);
+        } else {
+            for (String name : names) {
+                if (name == null || !Strings.hasText(name)) {
+                    validationException = addValidationError("name is missing", validationException);
+                }
+            }
+        }
+        return validationException;
+    }
+
+    @Override
     public String toString() {
-        return "get script [" + id + "]";
+        return "get script";
     }
 }

@@ -8,18 +8,18 @@
   - do:
       put_script:
         id: "1"
-        body: { "script": {"lang": "painless", "source": "_score * doc['myParent.weight'].value" } }
+        body: { "script": { "lang": "painless", "source": "_score * doc['myParent.weight'].value" } }
   - match: { acknowledged: true }
 
   - do:
       put_script:
         id: "foo"
-        body: { "script": {"lang": "painless", "source": "_score * 9.9" } }
+        body: { "script": { "lang": "painless", "source": "_score * 9.9" } }
   - match: { acknowledged: true }
 
   - do:
-     get_scripts: {}
+     get_script: {}
 
-  - length: {$body: 2}
+  - length: { $body: 2 }
   - match: { 1.script: {"lang": "painless", "source": "_score * doc['myParent.weight'].value"} }
   - match: { foo.script: {"lang": "painless", "source": "_score * 9.9"} }

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.script;
 
+import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -53,16 +54,15 @@ public class StoredScriptsIT extends ESIntegTestCase {
         assertAcked(client().admin().cluster().preparePutStoredScript()
                 .setId("foobar")
                 .setContent(new BytesArray("{\"script\": {\"lang\": \"" + LANG + "\", \"source\": \"1\"} }"), XContentType.JSON));
-        String script = client().admin().cluster().prepareGetStoredScript("foobar")
-                .get().getSource().getSource();
+        String script = client().admin().cluster().prepareGetStoredScript("foobar").get().getSource().getSource();
         assertNotNull(script);
         assertEquals("1", script);
 
         assertAcked(client().admin().cluster().prepareDeleteStoredScript()
                 .setId("foobar"));
-        StoredScriptSource source = client().admin().cluster().prepareGetStoredScript("foobar")
-                .get().getSource();
-        assertNull(source);
+        GetStoredScriptResponse response = client().admin().cluster().prepareGetStoredScript("foobar")
+            .get();
+        assertEquals(0, response.getStoredScripts().size());
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> client().admin().cluster().preparePutStoredScript()
                 .setId("id#")
@@ -81,7 +81,7 @@ public class StoredScriptsIT extends ESIntegTestCase {
             .setContent(new BytesArray("{\"script\": {\"lang\": \"" + LANG + "\", \"source\": \"9.9\"} }"),
                 XContentType.JSON));
 
-        Map<String, StoredScriptSource> storedScripts = client().admin().cluster().prepareGetStoredScripts().get().getStoredScripts();
+        Map<String, StoredScriptSource> storedScripts = client().admin().cluster().prepareGetStoredScript().get().getStoredScripts();
         assertEquals(2, storedScripts.size());
 
         StoredScriptSource source = storedScripts.get("foobar");

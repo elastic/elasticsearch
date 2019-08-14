@@ -8,7 +8,7 @@
     "url":{
       "paths":[
         {
-          "path":"/_scripts/{id}",
+          "path":"/_script/{id}",
           "methods":[
             "PUT",
             "POST"
@@ -21,7 +21,7 @@
           }
         },
         {
-          "path":"/_scripts/{id}/{context}",
+          "path":"/_script/{id}/{context}",
           "methods":[
             "PUT",
             "POST"

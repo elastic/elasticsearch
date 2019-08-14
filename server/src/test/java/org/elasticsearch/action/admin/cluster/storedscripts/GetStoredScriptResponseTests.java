@@ -26,6 +26,7 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Predicate;
 
@@ -38,7 +39,10 @@ public class GetStoredScriptResponseTests extends AbstractSerializingTestCase<Ge
 
     @Override
     protected GetStoredScriptResponse createTestInstance() {
-        return new GetStoredScriptResponse(randomAlphaOfLengthBetween(1, 10), randomScriptSource());
+        Map<String, StoredScriptSource> storedScripts = new HashMap<>();
+        storedScripts.put(randomAlphaOfLengthBetween(1, 10), randomScriptSource());
+
+        return new GetStoredScriptResponse(storedScripts);
     }
 
     @Override

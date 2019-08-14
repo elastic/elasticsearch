@@ -96,9 +96,6 @@ import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRe
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequestBuilder;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
-import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptsRequest;
-import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptsRequestBuilder;
-import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptsResponse;
 import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequestBuilder;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequest;
@@ -710,7 +707,13 @@ public interface ClusterAdminClient extends ElasticsearchClient {
     /**
      * Get a script from the cluster state
      */
+    @Deprecated
     GetStoredScriptRequestBuilder prepareGetStoredScript(String id);
+
+    /**
+     * Get scripts from the cluster state
+     */
+    GetStoredScriptRequestBuilder prepareGetStoredScript(String... name);
 
     /**
      * Get a script from the cluster state
@@ -721,25 +724,4 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      * Get a script from the cluster state
      */
     ActionFuture<GetStoredScriptResponse> getStoredScript(GetStoredScriptRequest request);
-
-    /**
-     * Get a script from the cluster state
-     */
-    @Deprecated
-    GetStoredScriptsRequestBuilder prepareGetStoredScripts(String id);
-
-    /**
-     * Get scripts from the cluster state
-     */
-    GetStoredScriptsRequestBuilder prepareGetStoredScripts(String... name);
-
-    /**
-     * Get all scripts from the cluster state
-     */
-    void getStoredScripts(GetStoredScriptsRequest request, ActionListener<GetStoredScriptsResponse> listener);
-
-    /**
-     * Get all scripts from the cluster state
-     */
-    ActionFuture<GetStoredScriptsResponse> getStoredScripts(GetStoredScriptsRequest request);
 }

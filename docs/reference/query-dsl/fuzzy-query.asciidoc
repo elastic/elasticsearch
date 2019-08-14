@@ -76,24 +76,9 @@ are:
 +
 --
 `AUTO` (Default)::
-Changes edit distance based on the length of the search term.
-+
-You can set a minimum and maximum edit distance using the
-`AUTO:[minimum],[maximum]` syntax. The default value is `AUTO:3,6`, which uses
-the following edit distances based on search term length:
-+
-* For search terms of 2 characters or less, terms must match exactly.
-* For search terms of 3–5 characters, terms must match within a one edit
-distance.
-* For search terms greater than 5 characters, terms must match within a two edit
-distance.
-
-`0`:: No edits allowed. Terms must match exactly.
-
-`1`:: Terms must match within one edit.
-
-`2`:: Terms must match within two edits.
---
+`fuzziness`::
+(Optional, string) Maximum edit distance allowed for matching. See <<fuzziness>>
+for valid values and more information.
 
 `max_expansions`::
 +

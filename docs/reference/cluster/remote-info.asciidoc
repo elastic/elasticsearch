@@ -3,6 +3,7 @@
 
 Returns configured remote cluster information.
 
+
 [[cluster-remote-info-api-request]]
 ==== {api-request-title}
 

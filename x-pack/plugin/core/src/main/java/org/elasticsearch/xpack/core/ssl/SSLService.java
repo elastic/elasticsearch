@@ -276,7 +276,7 @@ public class SSLService {
     }
 
     /**
-     * Indicates whether client authentication is enabled for a particular configuration
+     * Indicates whether client authentication is enabled and that the client's certificates are verified
      */
     public boolean isClientAuthEnabledWithVerification(SSLConfiguration sslConfiguration) {
         Objects.requireNonNull(sslConfiguration, "SSLConfiguration cannot be null");

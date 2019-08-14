@@ -82,7 +82,7 @@ for valid values and more information.
 +
 --
 (Optional, integer) Maximum number of variations created. Defaults to `50`.
-+
+
 WARNING: Avoid using a high value in the `max_expansions` parameter, especially
 if the `prefix_length` parameter value is `0`. High values in the
 `max_expansions` parameter can cause poor performance due to the high number of

@@ -229,8 +229,8 @@ operation was that version 1 of the document was created:
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/]
-+// TESTRESPONSE[s/"successful" : \d+/"successful" : $body._shards.successful/]
-+// TESTRESPONSE[s/"_primary_term" : \d+/"_primary_term" : $body._primary_term/]
+// TESTRESPONSE[s/"successful" : \d+/"successful" : $body._shards.successful/]
+// TESTRESPONSE[s/"_primary_term" : \d+/"_primary_term" : $body._primary_term/]
 
 
 The new document is available immediately from any node in the cluster.
@@ -287,7 +287,7 @@ This example updates the first document (ID of 1) and then deletes the second do
 
 [source,sh]
 --------------------------------------------------
-POST /customer/_bulk?pretty
+POST /customer/_bulk
 {"update":{"_id":"1"}}
 {"doc": { "name": "John Doe becomes Jane Doe" } }
 {"delete":{"_id":"2"}}

@@ -247,7 +247,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
                     iterator.remove();
                 }
             }
-            if (parsedDeprecatedParameters == false) {
+            if (parserContext.indexVersionCreated().onOrAfter(Version.V_6_6_0) && parsedDeprecatedParameters == false) {
                 params.remove(DEPRECATED_PARAMETERS_KEY);
             }
             Builder builder = newBuilder(name, params);

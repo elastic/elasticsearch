@@ -39,7 +39,7 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
 
         switch (policy.getType()) {
             case EnrichPolicy.EXACT_MATCH_TYPE:
-                return new ExactMatchProcessor(tag, client, policyName, field, targetField, policy.getEnrichKey(),
+                return new ExactMatchProcessor(tag, client, policyName, field, targetField, policy.getMatchField(),
                     ignoreMissing, overrideEnabled);
             default:
                 throw new IllegalArgumentException("unsupported policy type [" + policy.getType() + "]");

@@ -30,7 +30,7 @@ final class ExactMatchProcessor extends AbstractProcessor {
     private final String policyName;
     private final String field;
     private final String targetField;
-    private final String enrichKey;
+    private final String matchField;
     private final boolean ignoreMissing;
     private final boolean overrideEnabled;
 
@@ -39,7 +39,7 @@ final class ExactMatchProcessor extends AbstractProcessor {
                         String policyName,
                         String field,
                         String targetField,
-                        String enrichKey,
+                        String matchField,
                         boolean ignoreMissing,
                         boolean overrideEnabled) {
         this(
@@ -48,7 +48,7 @@ final class ExactMatchProcessor extends AbstractProcessor {
             policyName,
             field,
             targetField,
-            enrichKey, ignoreMissing,
+            matchField, ignoreMissing,
             overrideEnabled
         );
     }
@@ -58,7 +58,7 @@ final class ExactMatchProcessor extends AbstractProcessor {
                         String policyName,
                         String field,
                         String targetField,
-                        String enrichKey,
+                        String matchField,
                         boolean ignoreMissing,
                         boolean overrideEnabled) {
         super(tag);
@@ -66,7 +66,7 @@ final class ExactMatchProcessor extends AbstractProcessor {
         this.policyName = policyName;
         this.field = field;
         this.targetField = targetField;
-        this.enrichKey = enrichKey;
+        this.matchField = matchField;
         this.ignoreMissing = ignoreMissing;
         this.overrideEnabled = overrideEnabled;
     }
@@ -87,7 +87,7 @@ final class ExactMatchProcessor extends AbstractProcessor {
             searchBuilder.from(0);
             searchBuilder.size(1);
             searchBuilder.trackScores(false);
-            searchBuilder.fetchSource(null, enrichKey);
+            searchBuilder.fetchSource(null, matchField);
             searchBuilder.query(constantScore);
 
             SearchRequest req = new SearchRequest();
@@ -148,8 +148,8 @@ final class ExactMatchProcessor extends AbstractProcessor {
         return targetField;
     }
 
-    public String getEnrichKey() {
-        return enrichKey;
+    public String getMatchField() {
+        return matchField;
     }
 
     boolean isIgnoreMissing() {

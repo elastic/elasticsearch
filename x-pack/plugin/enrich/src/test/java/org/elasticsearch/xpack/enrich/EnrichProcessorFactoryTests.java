@@ -54,7 +54,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
         assertThat(result.getPolicyName(), equalTo("majestic"));
         assertThat(result.getField(), equalTo("host"));
         assertThat(result.getTargetField(), equalTo("entry"));
-        assertThat(result.getEnrichKey(), equalTo("my_key"));
+        assertThat(result.getMatchField(), equalTo("my_key"));
         assertThat(result.isIgnoreMissing(), is(keyIgnoreMissing));
         if (overrideEnabled != null) {
             assertThat(result.isOverrideEnabled(), is(overrideEnabled));

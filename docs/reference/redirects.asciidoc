@@ -561,7 +561,7 @@ See <<security-api-has-privileges>>.
 [role="exclude",id="xpack-commands"]
 === X-Pack commands
 
-See <<commands>>. 
+See <<commands>>.
 
 [role="exclude",id="ml-api-definitions"]
 === Machine learning API definitions
@@ -606,12 +606,12 @@ See <<faster-prefix-queries>>.
 [role="exclude",id="xpack-api"]
 === X-Pack APIs
 
-{es} {xpack} APIs are now documented in <<rest-apis, REST APIs>>. 
+{es} {xpack} APIs are now documented in <<rest-apis, REST APIs>>.
 
 [role="exclude",id="ml-calendar-resource"]]
 === Calendar resources
 
-See <<ml-get-calendar>> and 
+See <<ml-get-calendar>> and
 {stack-ov}/ml-calendars.html[Calendars and scheduled events].
 
 [role="exclude",id="ml-filter-resource"]
@@ -623,7 +623,7 @@ See <<ml-get-filter>> and
 [role="exclude",id="ml-event-resource"]
 === Scheduled event resources
 
-See <<ml-get-calendar-event>> and 
+See <<ml-get-calendar-event>> and
 {stack-ov}/ml-calendars.html[Calendars and scheduled events].
 
 [role="exclude",id="index-apis"]

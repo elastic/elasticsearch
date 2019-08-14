@@ -225,8 +225,8 @@ means the document came from the local cluster.
 [[skip-unavailable-clusters]]
 === Skip unavailable clusters
 
-By default, a {ccs} returns an error and no results if one or more of the remote
-clusters in the request are unavailable.
+By default, a {ccs} returns an error if *any* cluster in the request is
+unavailable.
 
 To skip an unavailable cluster during a {ccs}, set the
 <<skip-unavailable,`skip_unavailable`>> cluster setting to `true`.

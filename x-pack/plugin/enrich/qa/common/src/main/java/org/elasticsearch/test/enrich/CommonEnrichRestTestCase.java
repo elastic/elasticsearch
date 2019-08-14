@@ -98,8 +98,8 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
 
     public void testDeleteIsCaseSensitive() throws Exception {
         Request putPolicyRequest = new Request("PUT", "/_enrich/policy/my_policy");
-        putPolicyRequest.setJsonEntity("{\"type\": \"exact_match\",\"indices\": [\"my-source-index\"], \"enrich_key\": \"host\", " +
-            "\"enrich_values\": [\"globalRank\", \"tldRank\", \"tld\"]}");
+        putPolicyRequest.setJsonEntity("{\"type\": \"exact_match\",\"indices\": [\"my-source-index\"], \"match_field\": \"host\", " +
+            "\"enrich_fields\": [\"globalRank\", \"tldRank\", \"tld\"]}");
         assertOK(client().performRequest(putPolicyRequest));
 
         ResponseException exc = expectThrows(ResponseException.class,

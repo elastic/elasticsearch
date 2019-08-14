@@ -93,16 +93,26 @@ public abstract class Terminal {
 
     /** Prints a line to the terminal at {@code verbosity} level. */
     public final void println(Verbosity verbosity, String msg) {
-        print(verbosity, msg + lineSeparator, false);
+        print(verbosity, msg + lineSeparator);
+    }
+
+    /** Prints message to the terminal's standard output at {@code verbosity} level, without a newline. */
+    public final void print(Verbosity verbosity, String msg) {
+        print(verbosity, msg, false);
     }
 
     /** Prints message to the terminal at {@code verbosity} level, without a newline. */
-    public final void print(Verbosity verbosity, String msg, boolean isError) {
+    private void print(Verbosity verbosity, String msg, boolean isError) {
         if (isPrintable(verbosity)) {
             PrintWriter writer = isError ? getErrorWriter() : getWriter();
             writer.print(msg);
             writer.flush();
         }
+    }
+
+    /** Prints a line to the terminal's standard error at {@link Verbosity#NORMAL} verbosity level, without a newline. */
+    public final void errorPrint(Verbosity verbosity, String msg) {
+        print(verbosity, msg, true);
     }
 
     /** Prints a line to the terminal's standard error at {@link Verbosity#NORMAL} verbosity level. */
@@ -112,7 +122,7 @@ public abstract class Terminal {
 
     /** Prints a line to the terminal's standard error at {@code verbosity} level. */
     public final void errorPrintln(Verbosity verbosity, String msg) {
-        print(verbosity, msg + lineSeparator, true);
+        errorPrint(verbosity, msg + lineSeparator);
     }
 
     /** Checks if is enough {@code verbosity} level to be printed */

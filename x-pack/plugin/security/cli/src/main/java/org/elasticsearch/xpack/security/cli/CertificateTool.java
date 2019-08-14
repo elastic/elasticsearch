@@ -704,10 +704,10 @@ public class CertificateTool extends LoggingAwareMultiCommand {
             terminal.println("");
             if (certInfo.size() > 1) {
                 terminal.println(Terminal.Verbosity.NORMAL, "This file should be properly secured as it contains the private keys for ");
-                terminal.print(Terminal.Verbosity.NORMAL, "all instances", false);
+                terminal.print(Terminal.Verbosity.NORMAL, "all instances");
             } else {
                 terminal.println(Terminal.Verbosity.NORMAL, "This file should be properly secured as it contains the private key for ");
-                terminal.print(Terminal.Verbosity.NORMAL, "your instance", false);
+                terminal.print(Terminal.Verbosity.NORMAL, "your instance");
             }
             if (caInfo.generated && keepCaKey) {
                 terminal.println(Terminal.Verbosity.NORMAL, " and for the certificate authority.");

@@ -314,7 +314,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         assertThat(taskManager.getTasks().values(), empty());
     }
 
-    public void testRegisterTaskFails() {
+    public void testRegisterTaskFails() throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
 
         final Client mockClient = mock(Client.class);
@@ -363,11 +363,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         // Failed to start the task, make sure it wasn't invoked further
         assertThat(executor.executions.size(), equalTo(0));
 
-        try {
-            latch.await(5, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            fail("Task completion failed to be triggered on fatal registration error");
-        }
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
     }
 
     private <Params extends PersistentTaskParams> ClusterState addTask(ClusterState state, String action, Params params,

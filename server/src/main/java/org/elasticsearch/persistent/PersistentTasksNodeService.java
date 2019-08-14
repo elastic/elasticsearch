@@ -115,8 +115,9 @@ public class PersistentTasksNodeService implements ClusterStateListener {
                             try {
                                 startTask(taskInProgress);
                             } catch (Exception e) {
-                                logger.error("Unable to start allocated task [{}] with id [{}] and allocation id [{}]",
-                                    taskInProgress.getTaskName(), taskInProgress.getId(), taskInProgress.getAllocationId());
+                                logger.error("Unable to start allocated task [" + taskInProgress.getTaskName()
+                                    + "] with id [" + taskInProgress.getId()
+                                    + "] and allocation id [" + taskInProgress.getAllocationId() + "]", e);
                             }
                         } else {
                             // The task is still running
@@ -173,8 +174,9 @@ public class PersistentTasksNodeService implements ClusterStateListener {
         try {
             task = (AllocatedPersistentTask) taskManager.register("persistent", taskInProgress.getTaskName() + "[c]", request);
         } catch (Exception e) {
-            logger.error("Fatal error registering persistent task [{}] with id [{}] and allocation id [{}], removing from persistent tasks",
-                taskInProgress.getTaskName(), taskInProgress.getId(), taskInProgress.getAllocationId());
+            logger.error("Fatal error registering persistent task [" + taskInProgress.getTaskName()
+                + "] with id [" + taskInProgress.getId() + "] and allocation id [" + taskInProgress.getAllocationId()
+                + "], removing from persistent tasks", e);
             notifyMasterOfFailedTask(taskInProgress, e);
             return;
         }
@@ -202,19 +204,21 @@ public class PersistentTasksNodeService implements ClusterStateListener {
         }
     }
 
-    private <Params extends PersistentTaskParams> void notifyMasterOfFailedTask(PersistentTask<Params> taskInProgress, Exception e) {
-        persistentTasksService.sendCompletionRequest(taskInProgress.getId(), taskInProgress.getAllocationId(), e,
+    private <Params extends PersistentTaskParams> void notifyMasterOfFailedTask(PersistentTask<Params> taskInProgress,
+                                                                                Exception originalException) {
+        persistentTasksService.sendCompletionRequest(taskInProgress.getId(), taskInProgress.getAllocationId(), originalException,
             new ActionListener<>() {
                 @Override
                 public void onResponse(PersistentTask<?> persistentTask) {
-                    logger.trace("completion notification for task [{}] with id [{}] was successful", taskInProgress.getTaskName(),
+                    logger.trace("completion notification for failed task [{}] with id [{}] was successful", taskInProgress.getTaskName(),
                         taskInProgress.getAllocationId());
                 }
 
                 @Override
-                public void onFailure(Exception e) {
+                public void onFailure(Exception notificationException) {
+                    notificationException.addSuppressed(originalException);
                     logger.warn(new ParameterizedMessage("notification for task [{}] with id [{}] failed",
-                        taskInProgress.getTaskName(), taskInProgress.getAllocationId()), e);
+                        taskInProgress.getTaskName(), taskInProgress.getAllocationId()), notificationException);
                 }
             });
     }

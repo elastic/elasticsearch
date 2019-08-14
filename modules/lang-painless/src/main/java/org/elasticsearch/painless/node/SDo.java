@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -44,6 +45,15 @@ public final class SDo extends AStatement {
 
         this.condition = Objects.requireNonNull(condition);
         this.block = block;
+    }
+
+    @Override
+    void storeSettings(CompilerSettings settings) {
+        condition.storeSettings(settings);
+
+        if (block != null) {
+            block.storeSettings(settings);
+        }
     }
 
     @Override

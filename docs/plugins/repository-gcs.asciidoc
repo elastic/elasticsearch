@@ -232,8 +232,8 @@ The following settings are supported:
 `chunk_size`::
 
     Big files can be broken down into chunks during snapshotting if needed.
-    The chunk size can be specified by using size value notation,
-    e.g. , `10MB` or `5KB`. Defaults to `100MB`, which is the maximum permitted.
+    Specify the chunk size as a value and unit, for example:
+    `10MB` or `5KB`. Defaults to `100MB`, which is the maximum permitted.
 
 `compress`::
 

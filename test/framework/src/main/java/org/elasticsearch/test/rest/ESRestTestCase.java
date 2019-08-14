@@ -494,7 +494,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 assertBusy(() -> {
                     snapshots.set(wipeSnapshots());
                     assertThat(snapshots.get().size(), equalTo(0));
-                });
+                }, 2, TimeUnit.MINUTES);
                 // At this point there should be no snaphots
                 inProgressSnapshots.set(snapshots.get());
             } catch (AssertionError e) {

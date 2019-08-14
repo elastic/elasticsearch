@@ -126,6 +126,13 @@ public final class GetApiKeyRequest extends ActionRequest {
         return new GetApiKeyRequest(null, null, null, apiKeyName, ownedByAuthenticatedUser);
     }
 
+    /**
+     * Creates get api key request to retrieve api key information for the api keys owned by the current authenticated user.
+     */
+    public static GetApiKeyRequest forOwnedApiKeys() {
+        return new GetApiKeyRequest(null, null, null, null, true);
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;

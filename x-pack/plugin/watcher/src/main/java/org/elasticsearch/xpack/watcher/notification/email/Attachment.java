@@ -42,6 +42,7 @@ public abstract class Attachment extends BodyPartSource {
     protected Attachment(String id, String name, String contentType, boolean inline, Set<String> warnings) {
         super(id, name, contentType);
         this.inline = inline;
+        assert warnings != null;
         this.warnings = warnings;
     }
 

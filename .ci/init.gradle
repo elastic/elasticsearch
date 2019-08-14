@@ -1,12 +1,15 @@
 import com.bettercloud.vault.VaultConfig;
 import com.bettercloud.vault.Vault;
+import net.rubygrapefruit.platform.Native;
+import net.rubygrapefruit.platform.Process
 
 initscript {
     repositories {
-        mavenCentral()
+        jcenter()
     }
     dependencies {
         classpath 'com.bettercloud:vault-java-driver:4.1.0'
+        classpath "net.rubygrapefruit:native-platform:0.18"
     }
 }
 
@@ -28,6 +31,8 @@ final String vaultToken =  new Vault(
     .loginByAppRole("approle", System.env.VAULT_ROLE_ID, System.env.VAULT_SECRET_ID)
     .getAuthClientToken();
 
+
+
 final Vault vault = new Vault(
      new VaultConfig()
         .address(System.env.VAULT_ADDR)
@@ -36,6 +41,14 @@ final Vault vault = new Vault(
         .build()
 )
         .withRetries(5, 1000)
+    
+Process process = Native.get(Process.class)
+// Remove initial credentials from the envirnemnt so the build can't access them
+['VAULT_ROLE_ID', 'VAULT_SECRET_ID'].each { 
+    process.setEnvironmentVariable(it, null)
+}
+// export the token so the build could still talk with vault
+process.setEnvironmentVariable("VAULT_TOKEN", vaultToken)   
 
 final Map<String,String> artifactoryCredentials = vault.logical()
         .read("secret/elasticsearch-ci/artifactory.elstc.co")

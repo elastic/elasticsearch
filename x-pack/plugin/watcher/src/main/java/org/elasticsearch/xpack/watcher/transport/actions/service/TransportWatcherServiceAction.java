@@ -51,7 +51,7 @@ public class TransportWatcherServiceAction extends TransportMasterNodeAction<Wat
                                          ThreadPool threadPool, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver) {
         super(WatcherServiceAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, WatcherServiceRequest::new);
+            WatcherServiceRequest::new, indexNameExpressionResolver);
     }
 
     @Override

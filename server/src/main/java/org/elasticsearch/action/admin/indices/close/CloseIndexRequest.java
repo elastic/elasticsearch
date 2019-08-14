@@ -42,6 +42,17 @@ public class CloseIndexRequest extends AcknowledgedRequest<CloseIndexRequest> im
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
     private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
 
+    public CloseIndexRequest(StreamInput in) throws IOException {
+        super(in);
+        indices = in.readStringArray();
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
+        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
+            waitForActiveShards = ActiveShardCount.readFrom(in);
+        } else {
+            waitForActiveShards = ActiveShardCount.NONE;
+        }
+    }
+
     public CloseIndexRequest() {
     }
 
@@ -111,18 +122,6 @@ public class CloseIndexRequest extends AcknowledgedRequest<CloseIndexRequest> im
     public CloseIndexRequest waitForActiveShards(final ActiveShardCount waitForActiveShards) {
         this.waitForActiveShards = waitForActiveShards;
         return this;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        indices = in.readStringArray();
-        indicesOptions = IndicesOptions.readIndicesOptions(in);
-        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
-            waitForActiveShards = ActiveShardCount.readFrom(in);
-        } else {
-            waitForActiveShards = ActiveShardCount.NONE;
-        }
     }
 
     @Override

@@ -48,19 +48,20 @@ import org.elasticsearch.client.core.MainRequest;
 import org.elasticsearch.client.core.MainResponse;
 import org.elasticsearch.client.dataframe.transforms.SyncConfig;
 import org.elasticsearch.client.dataframe.transforms.TimeSyncConfig;
-import org.elasticsearch.client.indexlifecycle.AllocateAction;
-import org.elasticsearch.client.indexlifecycle.DeleteAction;
-import org.elasticsearch.client.indexlifecycle.ForceMergeAction;
-import org.elasticsearch.client.indexlifecycle.FreezeAction;
-import org.elasticsearch.client.indexlifecycle.LifecycleAction;
-import org.elasticsearch.client.indexlifecycle.ReadOnlyAction;
-import org.elasticsearch.client.indexlifecycle.RolloverAction;
-import org.elasticsearch.client.indexlifecycle.SetPriorityAction;
-import org.elasticsearch.client.indexlifecycle.ShrinkAction;
-import org.elasticsearch.client.indexlifecycle.UnfollowAction;
+import org.elasticsearch.client.ilm.AllocateAction;
+import org.elasticsearch.client.ilm.DeleteAction;
+import org.elasticsearch.client.ilm.ForceMergeAction;
+import org.elasticsearch.client.ilm.FreezeAction;
+import org.elasticsearch.client.ilm.LifecycleAction;
+import org.elasticsearch.client.ilm.ReadOnlyAction;
+import org.elasticsearch.client.ilm.RolloverAction;
+import org.elasticsearch.client.ilm.SetPriorityAction;
+import org.elasticsearch.client.ilm.ShrinkAction;
+import org.elasticsearch.client.ilm.UnfollowAction;
 import org.elasticsearch.client.ml.dataframe.DataFrameAnalysis;
 import org.elasticsearch.client.ml.dataframe.OutlierDetection;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredErrorMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.regression.RSquaredMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.Regression;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.AucRocMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.BinarySoftClassification;
@@ -676,7 +677,7 @@ public class RestHighLevelClientTests extends ESTestCase {
 
     public void testProvidedNamedXContents() {
         List<NamedXContentRegistry.Entry> namedXContents = RestHighLevelClient.getProvidedNamedXContents();
-        assertEquals(34, namedXContents.size());
+        assertEquals(36, namedXContents.size());
         Map<Class<?>, Integer> categories = new HashMap<>();
         List<String> names = new ArrayList<>();
         for (NamedXContentRegistry.Entry namedXContent : namedXContents) {
@@ -716,12 +717,22 @@ public class RestHighLevelClientTests extends ESTestCase {
         assertTrue(names.contains(TimeSyncConfig.NAME));
         assertEquals(Integer.valueOf(2), categories.get(org.elasticsearch.client.ml.dataframe.evaluation.Evaluation.class));
         assertThat(names, hasItems(BinarySoftClassification.NAME, Regression.NAME));
-        assertEquals(Integer.valueOf(5), categories.get(org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric.class));
+        assertEquals(Integer.valueOf(6), categories.get(org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric.class));
         assertThat(names,
-            hasItems(AucRocMetric.NAME, PrecisionMetric.NAME, RecallMetric.NAME, ConfusionMatrixMetric.NAME, MeanSquaredErrorMetric.NAME));
-        assertEquals(Integer.valueOf(5), categories.get(org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric.Result.class));
+            hasItems(AucRocMetric.NAME,
+                PrecisionMetric.NAME,
+                RecallMetric.NAME,
+                ConfusionMatrixMetric.NAME,
+                MeanSquaredErrorMetric.NAME,
+                RSquaredMetric.NAME));
+        assertEquals(Integer.valueOf(6), categories.get(org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric.Result.class));
         assertThat(names,
-            hasItems(AucRocMetric.NAME, PrecisionMetric.NAME, RecallMetric.NAME, ConfusionMatrixMetric.NAME, MeanSquaredErrorMetric.NAME));
+            hasItems(AucRocMetric.NAME,
+                PrecisionMetric.NAME,
+                RecallMetric.NAME,
+                ConfusionMatrixMetric.NAME,
+                MeanSquaredErrorMetric.NAME,
+                RSquaredMetric.NAME));
     }
 
     public void testApiNamingConventions() throws Exception {

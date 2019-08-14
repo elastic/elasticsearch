@@ -55,6 +55,14 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
 
     private Settings settings = EMPTY_SETTINGS;
 
+    public PutRepositoryRequest(StreamInput in) throws IOException {
+        super(in);
+        name = in.readString();
+        type = in.readString();
+        settings = readSettingsFromStream(in);
+        verify = in.readBoolean();
+    }
+
     public PutRepositoryRequest() {
     }
 
@@ -214,15 +222,6 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
             }
         }
         return this;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        name = in.readString();
-        type = in.readString();
-        settings = readSettingsFromStream(in);
-        verify = in.readBoolean();
     }
 
     @Override

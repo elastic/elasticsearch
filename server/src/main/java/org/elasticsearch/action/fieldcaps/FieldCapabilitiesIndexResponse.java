@@ -40,11 +40,11 @@ public class FieldCapabilitiesIndexResponse extends ActionResponse implements Wr
         this.responseMap = responseMap;
     }
 
-    FieldCapabilitiesIndexResponse() {
-    }
-
-    FieldCapabilitiesIndexResponse(StreamInput input) throws IOException {
-        this.readFrom(input);
+    FieldCapabilitiesIndexResponse(StreamInput in) throws IOException {
+        super(in);
+        this.indexName = in.readString();
+        this.responseMap =
+            in.readMap(StreamInput::readString, FieldCapabilities::new);
     }
 
 
@@ -68,14 +68,6 @@ public class FieldCapabilitiesIndexResponse extends ActionResponse implements Wr
      */
     public FieldCapabilities getField(String field) {
         return responseMap.get(field);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        this.indexName = in.readString();
-        this.responseMap =
-            in.readMap(StreamInput::readString, FieldCapabilities::new);
     }
 
     @Override

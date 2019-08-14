@@ -20,8 +20,8 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter.DatafeedTimingStatsPersister;
 import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.Term;
-import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.junit.Before;
 
 import java.io.BufferedReader;
@@ -93,7 +93,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
                 .addAggregator(AggregationBuilders.histogram("time").field("time").interval(1000).subAggregation(
                         AggregationBuilders.terms("airline").field("airline").subAggregation(
                                 AggregationBuilders.avg("responsetime").field("responsetime"))));
-        timingStatsReporter = new DatafeedTimingStatsReporter(new DatafeedTimingStats(jobId), mock(JobResultsPersister.class));
+        timingStatsReporter = new DatafeedTimingStatsReporter(new DatafeedTimingStats(jobId), mock(DatafeedTimingStatsPersister.class));
     }
 
     public void testExtraction() throws IOException {

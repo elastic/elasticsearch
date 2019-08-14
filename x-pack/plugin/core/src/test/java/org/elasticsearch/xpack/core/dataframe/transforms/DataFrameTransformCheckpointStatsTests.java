@@ -14,7 +14,10 @@ import java.io.IOException;
 public class DataFrameTransformCheckpointStatsTests extends AbstractSerializingDataFrameTestCase<DataFrameTransformCheckpointStats>
 {
     public static DataFrameTransformCheckpointStats randomDataFrameTransformCheckpointStats() {
-        return new DataFrameTransformCheckpointStats(randomNonNegativeLong(), randomNonNegativeLong());
+        return new DataFrameTransformCheckpointStats(randomLongBetween(1, 1_000_000),
+            DataFrameIndexerPositionTests.randomDataFrameIndexerPosition(),
+            randomBoolean() ? null : DataFrameTransformProgressTests.randomDataFrameTransformProgress(),
+            randomLongBetween(1, 1_000_000), randomLongBetween(0, 1_000_000));
     }
 
     @Override
@@ -31,5 +34,4 @@ public class DataFrameTransformCheckpointStatsTests extends AbstractSerializingD
     protected Reader<DataFrameTransformCheckpointStats> instanceReader() {
         return DataFrameTransformCheckpointStats::new;
     }
-
 }

@@ -21,10 +21,10 @@ public class DeleteRoleMappingResponse extends ActionResponse implements ToXCont
 
     private boolean found = false;
 
-    /**
-     * Package private for {@link DeleteRoleMappingAction#newResponse()}
-     */
-    public DeleteRoleMappingResponse() {}
+    public DeleteRoleMappingResponse(StreamInput in) throws IOException {
+        super(in);
+        found = in.readBoolean();
+    }
 
     public DeleteRoleMappingResponse(boolean found) {
         this.found = found;
@@ -42,12 +42,6 @@ public class DeleteRoleMappingResponse extends ActionResponse implements ToXCont
      */
     public boolean isFound() {
         return this.found;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        found = in.readBoolean();
     }
 
     @Override

@@ -72,8 +72,7 @@ public class TransportPutDataFrameAnalyticsAction
                                                 XPackLicenseState licenseState, Client client, ThreadPool threadPool,
                                                 ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver,
                                                 DataFrameAnalyticsConfigProvider configProvider) {
-        super(PutDataFrameAnalyticsAction.NAME, transportService, PutDataFrameAnalyticsAction.Request::new, actionFilters
-        );
+        super(PutDataFrameAnalyticsAction.NAME, transportService, actionFilters, PutDataFrameAnalyticsAction.Request::new);
         this.licenseState = licenseState;
         this.configProvider = configProvider;
         this.threadPool = threadPool;

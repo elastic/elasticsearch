@@ -117,7 +117,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
                                     JobConfigProvider jobConfigProvider, DatafeedConfigProvider datafeedConfigProvider,
                                     MlMemoryTracker memoryTracker) {
         super(DeleteJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, DeleteJobAction.Request::new);
+                DeleteJobAction.Request::new, indexNameExpressionResolver);
         this.client = client;
         this.persistentTasksService = persistentTasksService;
         this.auditor = auditor;

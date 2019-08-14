@@ -56,7 +56,7 @@ public class TransportClusterUpdateSettingsAction extends
                                                 ThreadPool threadPool, AllocationService allocationService, ActionFilters actionFilters,
                                                 IndexNameExpressionResolver indexNameExpressionResolver, ClusterSettings clusterSettings) {
         super(ClusterUpdateSettingsAction.NAME, false, transportService, clusterService, threadPool, actionFilters,
-            indexNameExpressionResolver, ClusterUpdateSettingsRequest::new);
+            ClusterUpdateSettingsRequest::new, indexNameExpressionResolver);
         this.allocationService = allocationService;
         this.clusterSettings = clusterSettings;
     }

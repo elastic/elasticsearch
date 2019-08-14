@@ -26,7 +26,7 @@ public class TransportGetBucketsAction extends HandledTransportAction<GetBuckets
     @Inject
     public TransportGetBucketsAction(TransportService transportService, ActionFilters actionFilters, JobResultsProvider jobResultsProvider,
                                      JobManager jobManager, Client client) {
-        super(GetBucketsAction.NAME, transportService, GetBucketsAction.Request::new, actionFilters);
+        super(GetBucketsAction.NAME, transportService, actionFilters, GetBucketsAction.Request::new);
         this.jobResultsProvider = jobResultsProvider;
         this.jobManager = jobManager;
         this.client = client;

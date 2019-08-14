@@ -6,9 +6,10 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction.Request;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification.BinarySoftClassificationTests;
@@ -16,7 +17,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification.B
 import java.util.ArrayList;
 import java.util.List;
 
-public class EvaluateDataFrameActionRequestTests extends AbstractStreamableXContentTestCase<Request> {
+public class EvaluateDataFrameActionRequestTests extends AbstractSerializingTestCase<Request> {
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
@@ -42,13 +43,13 @@ public class EvaluateDataFrameActionRequestTests extends AbstractStreamableXCont
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
+    protected Writeable.Reader<Request> instanceReader() {
+        return Request::new;
     }
 
     @Override
-    protected Request createBlankInstance() {
-        return new Request();
+    protected boolean supportsUnknownFields() {
+        return false;
     }
 
     @Override

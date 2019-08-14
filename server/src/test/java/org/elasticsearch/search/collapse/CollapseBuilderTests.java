@@ -118,7 +118,7 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
         case 2:
         default:
             newBuilder = copyInstance(instance);
-            List<InnerHitBuilder> innerHits = newBuilder.getInnerHits();
+            List<InnerHitBuilder> innerHits = new ArrayList<>(newBuilder.getInnerHits());
             for (int i = 0; i < between(1, 5); i++) {
                 innerHits.add(InnerHitBuilderTests.randomInnerHits());
             }

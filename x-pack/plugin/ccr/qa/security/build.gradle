@@ -20,7 +20,7 @@ task 'leader-cluster'(type: RestIntegTestTask) {
 }
 
 testClusters.'leader-cluster' {
-    distribution = 'Default'
+    testDistribution = 'DEFAULT'
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'xpack.security.enabled', 'true'
     setting 'xpack.monitoring.enabled', 'false'
@@ -31,15 +31,15 @@ testClusters.'leader-cluster' {
 
 task 'follow-cluster'(type: RestIntegTestTask) {
     dependsOn 'leader-cluster'
-    useCluster testClusters.'leader-cluster'
     runner {
+        useCluster testClusters.'leader-cluster'
         systemProperty 'tests.target_cluster', 'follow'
         nonInputProperties.systemProperty 'tests.leader_host', "${-> testClusters.'leader-cluster'.getAllHttpSocketURI().get(0)}"
     }
 }
 
 testClusters.'follow-cluster' {
-    distribution = 'Default'
+    testDistribution = 'DEFAULT'
     setting 'cluster.remote.leader_cluster.seeds', {
         "\"${testClusters.'leader-cluster'.getAllTransportPortURI().join(",")}\""
     }

@@ -1,5 +1,8 @@
 [[geo-point]]
 === Geo-point datatype
+++++
+<titleabbrev>Geo-point</titleabbrev>
+++++
 
 Fields of type `geo_point` accept latitude-longitude pairs, which can be used:
 

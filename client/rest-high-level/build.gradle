@@ -53,6 +53,7 @@ dependencies {
    */
   compile project(':server')
   compile project(':client:rest')
+  compile project(':modules:mapper-extras')
   compile project(':modules:parent-join')
   compile project(':modules:aggs-matrix-stats')
   compile project(':modules:rank-eval')

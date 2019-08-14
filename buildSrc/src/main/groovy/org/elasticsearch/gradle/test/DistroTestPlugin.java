@@ -131,6 +131,7 @@ public class DistroTestPlugin implements Plugin<Project> {
                 configureVMWrapperTask(vmProject, desc, task.getName(), vmDependencies).configure(t -> {
                     t.setProgressHandler(new BatsProgressLogger(project.getLogger()));
                     t.onlyIf(spec -> isWindows(vmProject) == false); // bats doesn't run on windows
+                    t.dependsOn(copyDistributionsTask);
                 });
             });
         });

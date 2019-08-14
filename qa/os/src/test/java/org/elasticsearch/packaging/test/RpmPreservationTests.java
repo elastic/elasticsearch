@@ -51,6 +51,7 @@ public class RpmPreservationTests extends PackagingTestCase {
     public void onlyCompatibleDistributions() {
         assumeTrue("only rpm platforms", isRPM());
         assumeTrue("rpm distributions", distribution().packaging == Distribution.Packaging.RPM);
+        assumeTrue("only bundled jdk", distribution().hasJdk);
         assumeTrue("only compatible distributions", distribution().packaging.compatible);
     }
 

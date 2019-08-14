@@ -49,6 +49,7 @@ public class DebPreservationTests extends PackagingTestCase {
     public void onlyCompatibleDistributions() {
         assumeTrue("only dpkg platforms", isDPKG());
         assumeTrue("deb distributions", distribution().packaging == Distribution.Packaging.DEB);
+        assumeTrue("only bundled jdk", distribution().hasJdk);
         assumeTrue("only compatible distributions", distribution().packaging.compatible);
     }
 

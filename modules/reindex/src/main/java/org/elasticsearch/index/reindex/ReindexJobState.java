@@ -55,6 +55,7 @@ public class ReindexJobState implements Task.Status, PersistentTaskState {
     }
 
     ReindexJobState(TaskId ephemeralTaskId, Status status) {
+        assert status != null : "Status cannot be null";
         this.ephemeralTaskId = ephemeralTaskId;
         this.status = status;
     }

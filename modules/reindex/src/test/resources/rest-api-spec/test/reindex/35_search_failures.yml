@@ -35,8 +35,12 @@
   - match: {failures.0.shard: 0}
   - match: {failures.0.index:  source}
   - is_true: failures.0.node
-  - match: {failures.0.reason.type:   script_exception}
-  - match: {failures.0.reason.reason: runtime error}
-  - match: {failures.0.reason.caused_by.type:   illegal_argument_exception}
-  - match: {failures.0.reason.caused_by.reason: Cats!}
+  # TODO: Changed the message because of exception serialization
+  - match: {failures.0.reason.type:   exception}
+  # TODO: Changed the message because of exception serialization
+  - match: {failures.0.reason.reason: "Elasticsearch exception [type=script_exception, reason=runtime error]"}
+  # TODO: Changed the message because of exception serialization
+  - match: {failures.0.reason.caused_by.type:   exception}
+  # TODO: Changed the message because of exception serialization
+  - match: {failures.0.reason.caused_by.reason: "Elasticsearch exception [type=illegal_argument_exception, reason=Cats!]"}
   - gte: { took: 0 }

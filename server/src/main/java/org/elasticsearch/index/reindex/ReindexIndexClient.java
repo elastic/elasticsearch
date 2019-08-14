@@ -33,6 +33,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -53,10 +54,12 @@ public class ReindexIndexClient {
     public static final String REINDEX_ORIGIN = "reindex";
 
     private final Client client;
+    private final ClusterService clusterService;
     private final NamedXContentRegistry xContentRegistry;
 
-    public ReindexIndexClient(Client client, NamedXContentRegistry xContentRegistry) {
+    public ReindexIndexClient(Client client, ClusterService clusterService, NamedXContentRegistry xContentRegistry) {
         this.client = new OriginSettingClient(client, REINDEX_ORIGIN);
+        this.clusterService = clusterService;
         this.xContentRegistry = xContentRegistry;
     }
 
@@ -82,7 +85,12 @@ public class ReindexIndexClient {
         });
     }
 
-    public void createReindexTaskDoc(String taskId, ReindexTaskIndexState reindexState, boolean indexExists,
+    public void createReindexTaskDoc(String taskId, ReindexTaskIndexState reindexState, ActionListener<Void> listener) {
+        boolean reindexIndexExists = clusterService.state().routingTable().hasIndex(ReindexIndexClient.REINDEX_INDEX);
+        createReindexTaskDoc(taskId, reindexState, reindexIndexExists, listener);
+    }
+
+    private void createReindexTaskDoc(String taskId, ReindexTaskIndexState reindexState, boolean indexExists,
                                      ActionListener<Void> listener) {
         if (indexExists) {
             index(taskId, reindexState, DocWriteRequest.OpType.CREATE, listener);

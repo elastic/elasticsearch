@@ -26,7 +26,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
@@ -45,7 +44,6 @@ import java.util.function.Predicate;
 public class TransportStartReindexJobAction extends HandledTransportAction<StartReindexJobAction.Request, StartReindexJobAction.Response> {
 
     private final ThreadPool threadPool;
-    private final ClusterService clusterService;
     private final PersistentTasksService persistentTasksService;
     private final ReindexValidator reindexValidator;
     private final ReindexIndexClient reindexIndexClient;
@@ -57,10 +55,9 @@ public class TransportStartReindexJobAction extends HandledTransportAction<Start
                                           AutoCreateIndex autoCreateIndex, NamedXContentRegistry xContentRegistry) {
         super(StartReindexJobAction.NAME, transportService, actionFilters, StartReindexJobAction.Request::new);
         this.threadPool = threadPool;
-        this.clusterService = clusterService;
         this.reindexValidator = new ReindexValidator(settings, clusterService, indexNameExpressionResolver, autoCreateIndex);
         this.persistentTasksService = persistentTasksService;
-        this.reindexIndexClient = new ReindexIndexClient(client, xContentRegistry);
+        this.reindexIndexClient = new ReindexIndexClient(client, clusterService, xContentRegistry);
     }
 
     @Override
@@ -77,11 +74,8 @@ public class TransportStartReindexJobAction extends HandledTransportAction<Start
         boolean storeTaskResult = request.getWaitForCompletion() == false;
         ReindexJob job = new ReindexJob(storeTaskResult, threadPool.getThreadContext().getHeaders());
 
-        ClusterState clusterState = clusterService.state();
-        boolean reindexIndexExists = clusterState.routingTable().hasIndex(ReindexIndexClient.REINDEX_INDEX);
-
         ReindexTaskIndexState reindexState = new ReindexTaskIndexState(request.getReindexRequest());
-        reindexIndexClient.createReindexTaskDoc(generatedId, reindexState, reindexIndexExists, new ActionListener<>() {
+        reindexIndexClient.createReindexTaskDoc(generatedId, reindexState, new ActionListener<>() {
             @Override
             public void onResponse(Void v) {
                 // TODO: Task name

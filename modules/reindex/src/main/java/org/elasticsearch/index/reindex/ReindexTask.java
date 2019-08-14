@@ -98,7 +98,7 @@ public class ReindexTask extends AllocatedPersistentTask {
         // TODO: description
         super(id, type, action, "persistent reindex", parentTask, headers);
         this.client = (NodeClient) client;
-        this.reindexIndexClient = new ReindexIndexClient(client, xContentRegistry);
+        this.reindexIndexClient = new ReindexIndexClient(client, clusterService, xContentRegistry);
         this.reindexer = reindexer;
         this.taskId = new TaskId(clusterService.localNode().getId(), id);
         this.childTask = new BulkByScrollTask(id, type, action, getDescription(), parentTask, headers);
@@ -122,7 +122,7 @@ public class ReindexTask extends AllocatedPersistentTask {
                 reindexer.initTask(childTask, reindexRequest, new ActionListener<>() {
                     @Override
                     public void onResponse(Void aVoid) {
-                        updateClusterStateToStarted(reindexJob.shouldStoreResult(), performReindex);
+                        sendStartedNotification(reindexJob.shouldStoreResult(), performReindex);
                     }
 
                     @Override
@@ -140,7 +140,7 @@ public class ReindexTask extends AllocatedPersistentTask {
         });
     }
 
-    private void updateClusterStateToStarted(boolean shouldStoreResult, Runnable listener) {
+    private void sendStartedNotification(boolean shouldStoreResult, Runnable listener) {
         updatePersistentTaskState(new ReindexJobState(taskId, ReindexJobState.Status.STARTED), new ActionListener<>() {
             @Override
             public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
@@ -219,7 +219,6 @@ public class ReindexTask extends AllocatedPersistentTask {
                 updateClusterStateToFailed(shouldStoreResult, ReindexJobState.Status.FAILED_TO_WRITE_TO_REINDEX_INDEX, ex);
             }
         });
-
     }
 
     private void handleError(boolean shouldStoreResult, ReindexRequest reindexRequest, Exception ex) {

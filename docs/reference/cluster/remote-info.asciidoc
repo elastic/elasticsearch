@@ -1,20 +1,24 @@
 [[cluster-remote-info]]
 === Remote Cluster Info
 
+Returns configured remote cluster information.
+
+[[cluster-remote-info-api-request]]
+==== {api-request-title}
+
+`GET /_remote/info`
+
+
+[[cluster-remote-info-api-desc]]
+==== {api-description-title}
+
 The cluster remote info API allows to retrieve all of the configured
-remote cluster information.
+remote cluster information. It returns connection and endpoint information keyed 
+by the configured remote cluster alias.
 
-[source,js]
-----------------------------------
-GET /_remote/info
-----------------------------------
-// CONSOLE
 
-This command returns connection and endpoint information keyed by
-the configured remote cluster alias.
-
-[float]
-[[connection-info]]
+[[cluster-remote-info-api-response-body]]
+==== {api-response-body-title}
 
 `seeds`::
 	The configured initial seed transport addresses of the remote cluster.

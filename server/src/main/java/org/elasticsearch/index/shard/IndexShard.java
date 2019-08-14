@@ -3394,7 +3394,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     onNewEngine(newReadWriteEngine);
                 } finally {
                     if (newEngineReference.get() != newReadWriteEngine) {
-                        newReadWriteEngine.close();
+                        newReadWriteEngine.close(); // shard was closed
                     }
                 }
             }

@@ -1130,13 +1130,15 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     public static void assertAtMostOneLuceneDocumentPerSequenceNumber(Engine engine) throws IOException {
-        try {
-            engine.refresh("test");
-            try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
-                assertAtMostOneLuceneDocumentPerSequenceNumber(engine.config().getIndexSettings(), searcher.getDirectoryReader());
+        if (engine instanceof InternalEngine) {
+            try {
+                engine.refresh("test");
+                try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+                    assertAtMostOneLuceneDocumentPerSequenceNumber(engine.config().getIndexSettings(), searcher.getDirectoryReader());
+                }
+            } catch (AlreadyClosedException ignored) {
+                // engine was closed
             }
-        } catch (AlreadyClosedException ignored) {
-
         }
     }
 

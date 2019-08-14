@@ -160,7 +160,8 @@ public abstract class InternalRareTerms<A extends InternalRareTerms<A, B>, B ext
 
     abstract B createBucket(long docCount, InternalAggregations aggs, B prototype);
 
-    public B reduceBucket(List<B> buckets, ReduceContext context) {
+    @Override
+    protected B reduceBucket(List<B> buckets, ReduceContext context) {
         assert buckets.size() > 0;
         long docCount = 0;
         List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());

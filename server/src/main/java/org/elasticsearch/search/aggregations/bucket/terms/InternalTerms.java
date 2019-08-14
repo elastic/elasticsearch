@@ -289,7 +289,8 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
         return create(name, Arrays.asList(list), docCountError, otherDocCount);
     }
 
-    private B reduceBucket(List<B> buckets, ReduceContext context) {
+    @Override
+    protected B reduceBucket(List<B> buckets, ReduceContext context) {
         assert buckets.size() > 0;
         long docCount = 0;
         // For the per term doc count error we add up the errors from the

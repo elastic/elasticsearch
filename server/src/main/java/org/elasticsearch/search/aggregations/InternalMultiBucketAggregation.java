@@ -66,6 +66,8 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
      */
     public abstract B createBucket(InternalAggregations aggregations, B prototype);
 
+    protected abstract B reduceBucket(List<B> buckets, ReduceContext context);
+
     @Override
     public abstract List<? extends InternalBucket> getBuckets();
 

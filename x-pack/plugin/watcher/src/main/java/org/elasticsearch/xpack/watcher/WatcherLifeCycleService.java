@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.watcher.watch.WatchStoreUtils;
 
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
@@ -42,6 +43,7 @@ public class WatcherLifeCycleService implements ClusterStateListener {
     private final AtomicReference<List<ShardRouting>> previousShardRoutings = new AtomicReference<>(Collections.emptyList());
     private volatile boolean shutDown = false; // indicates that the node has been shutdown and we should never start watcher after this.
     private volatile WatcherService watcherService;
+    private final EnumSet<WatcherState> stopStates = EnumSet.of(WatcherState.STOPPED, WatcherState.STOPPING);
 
     WatcherLifeCycleService(ClusterService clusterService, WatcherService watcherService) {
         this.watcherService = watcherService;
@@ -93,8 +95,7 @@ public class WatcherLifeCycleService implements ClusterStateListener {
         }
 
         boolean isWatcherStoppedManually = isWatcherStoppedManually(event.state());
-        boolean isStoppedOrStopping = this.state.get() == WatcherState.STOPPED ||
-            this.state.get() == WatcherState.STOPPING;
+        boolean isStoppedOrStopping = stopStates.contains(this.state.get());
         // if this is not a data node, we need to start it ourselves possibly
         if (event.state().nodes().getLocalNode().isDataNode() == false &&
             isWatcherStoppedManually == false && isStoppedOrStopping) {

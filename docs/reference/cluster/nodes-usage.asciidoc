@@ -11,7 +11,7 @@ Returns information on the usage of features.
 
 `GET _nodes/{node_id}/usage` +
 
-`GET _nodes/usage/{metric}` +
+`GET /_nodes/usage/{metric}` +
 
 `GET /_nodes/{node_id}/usage/{metric}`
 

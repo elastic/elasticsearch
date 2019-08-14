@@ -813,8 +813,8 @@ The main piece to configure is the enrich policy:
 | `type`             | yes       | -                    | The policy type.
 | `indices`          | yes       | -                    | The indices to fetch the data from.
 | `query`            | no        | `match_all` query    | The query to be used to select which documents are included.
-| `enrich_key`       | yes       | -                    | The field that the enrich processor will query against.
-| `enrich_values`    | yes       | -                    | The fields to include in the enrich index.
+| `match_field`      | yes       | -                    | The field that will be used to match against an input document.
+| `enrich_fields`    | yes       | -                    | The fields that will be available to enrich the input document.
 |======
 
 [[enrich-policy-types]]
@@ -859,8 +859,8 @@ PUT /_enrich/policy/users-policy
 {
     "type": "exact_match",
     "indices": "users",
-    "enrich_key": "email",
-    "enrich_values": ["first_name", "last_name", "address", "city", "zip", "state"]
+    "match_field": "email",
+    "enrich_fields": ["first_name", "last_name", "address", "city", "zip", "state"]
 }
 --------------------------------------------------
 // CONSOLE
@@ -986,8 +986,8 @@ PUT /_enrich/policy/my-policy
 {
     "type": "exact_match",
     "indices": "users",
-    "enrich_key": "email",
-    "enrich_values": ["first_name", "last_name", "address", "city", "zip", "state"]
+    "match_field": "email",
+    "enrich_fields": ["first_name", "last_name", "address", "city", "zip", "state"]
 }
 --------------------------------------------------
 // CONSOLE
@@ -1023,8 +1023,8 @@ Response:
 {
     "type": "exact_match",
     "indices": ["users"],
-    "enrich_key": "email",
-    "enrich_values": ["first_name", "last_name", "address", "city", "zip", "state"]
+    "match_field": "email",
+    "enrich_fields": ["first_name", "last_name", "address", "city", "zip", "state"]
 }
 --------------------------------------------------
 // TESTRESPONSE
@@ -1053,8 +1053,8 @@ Response:
             "name" : "my-policy",
             "type" : "exact_match",
             "indices" : ["users"],
-            "enrich_key" : "email",
-            "enrich_values" : [
+            "match_field" : "email",
+            "enrich_fields" : [
                 "first_name",
                 "last_name",
                 "address",

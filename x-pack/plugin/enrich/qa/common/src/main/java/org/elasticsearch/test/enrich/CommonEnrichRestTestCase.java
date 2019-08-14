@@ -36,8 +36,8 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
     public void testBasicFlow() throws Exception {
         // Create the policy:
         Request putPolicyRequest = new Request("PUT", "/_enrich/policy/my_policy");
-        putPolicyRequest.setJsonEntity("{\"type\": \"exact_match\",\"indices\": [\"my-source-index\"], \"enrich_key\": \"host\", " +
-            "\"enrich_values\": [\"globalRank\", \"tldRank\", \"tld\"]}");
+        putPolicyRequest.setJsonEntity("{\"type\": \"exact_match\",\"indices\": [\"my-source-index\"], \"match_field\": \"host\", " +
+            "\"enrich_fields\": [\"globalRank\", \"tldRank\", \"tld\"]}");
         assertOK(client().performRequest(putPolicyRequest));
 
         // Add entry to source index and then refresh:
@@ -79,8 +79,8 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
 
     public void testImmutablePolicy() throws IOException {
         Request putPolicyRequest = new Request("PUT", "/_enrich/policy/my_policy");
-        putPolicyRequest.setJsonEntity("{\"type\": \"exact_match\",\"indices\": [\"my-source-index\"], \"enrich_key\": \"host\", " +
-            "\"enrich_values\": [\"globalRank\", \"tldRank\", \"tld\"]}");
+        putPolicyRequest.setJsonEntity("{\"type\": \"exact_match\",\"indices\": [\"my-source-index\"], \"match_field\": \"host\", " +
+            "\"enrich_fields\": [\"globalRank\", \"tldRank\", \"tld\"]}");
         assertOK(client().performRequest(putPolicyRequest));
 
         ResponseException exc = expectThrows(ResponseException.class, () -> client().performRequest(putPolicyRequest));

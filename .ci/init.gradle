@@ -13,14 +13,20 @@ initscript {
     }
 }
 
-['VAULT_ADDR', 'VAULT_ROLE_ID', 'VAULT_SECRET_ID'].each {
-    if (System.env."$it" == null) {
-        throw new GradleException("$it must be set!")
+if (System.env.VAULT_ADDR == null) {
+    throw new GradleException("You must set the VAULT_ADDR environment variable to use this init script.")
+}
 
+if (System.env.VAULT_TOKEN == null) {
+    ['VAULT_ROLE_ID', 'VAULT_SECRET_ID'].each {
+        if (System.env."$it" == null) {
+            throw new GradleException("$it must be set!")
+
+        }
     }
 }
 
-final String vaultToken =  new Vault(
+final String vaultToken = System.env.VAULT_TOKEN :?   new Vault(
         new VaultConfig()
             .address(System.env.VAULT_ADDR)
             .engineVersion(1)
@@ -30,7 +36,6 @@ final String vaultToken =  new Vault(
     .auth()
     .loginByAppRole("approle", System.env.VAULT_ROLE_ID, System.env.VAULT_SECRET_ID)
     .getAuthClientToken();
-
 
 
 final Vault vault = new Vault(

@@ -128,10 +128,11 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
 
         for (int i = 0; i < numDocs; i++) {
             GetResponse getResponse = client().get(new GetRequest("my-index", Integer.toString(i))).actionGet();
-            Map<?, ?> source = (Map<?, ?>) getResponse.getSourceAsMap().get("user");
-            assertThat(source.size(), equalTo(DECORATE_FIELDS.length));
+            Map<String, Object> source = getResponse.getSourceAsMap();
+            Map<?, ?> userEntry = (Map<?, ?>) source.get("user");
+            assertThat(userEntry.size(), equalTo(DECORATE_FIELDS.length));
             for (String field : DECORATE_FIELDS) {
-                assertThat(source.get(field), notNullValue());
+                assertThat(userEntry.get(field), notNullValue());
             }
         }
     }

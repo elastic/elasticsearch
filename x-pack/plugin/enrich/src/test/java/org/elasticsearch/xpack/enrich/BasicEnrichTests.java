@@ -41,7 +41,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
         return List.of(LocalStateEnrich.class, ReindexPlugin.class);
     }
 
-    public void qtestIngestDataWithEnrichProcessor() {
+    public void testIngestDataWithEnrichProcessor() {
         int numDocs = 32;
         List<String> keys = createSourceIndex(numDocs);
 
@@ -71,12 +71,13 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
 
         for (int i = 0; i < numDocs; i++) {
             GetResponse getResponse = client().get(new GetRequest("my-index", Integer.toString(i))).actionGet();
-            Map<?, ?> source = (Map<?, ?>) getResponse.getSourceAsMap().get("user");
-            assertThat(source, notNullValue());
-            assertThat(source.size(), equalTo(DECORATE_FIELDS.length));
+            Map<String, Object> source = getResponse.getSourceAsMap();
+            Map<?, ?> userEntry = (Map<?, ?>) source.get("user");
+            assertThat(userEntry, notNullValue());
+            assertThat(userEntry.size(), equalTo(DECORATE_FIELDS.length));
             for (int j = 0; j < 3; j++) {
                 String field = DECORATE_FIELDS[j];
-                assertThat(source.get(field), equalTo(keys.get(i) + j));
+                assertThat(userEntry.get(field), equalTo(keys.get(i) + j));
             }
         }
     }

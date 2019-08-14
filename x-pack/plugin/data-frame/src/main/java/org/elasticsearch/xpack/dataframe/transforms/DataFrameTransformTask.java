@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.bulk.BulkAction;
@@ -20,6 +21,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -29,12 +31,14 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
+import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
 import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformTaskAction;
 import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformTaskAction.Response;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerPosition;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransform;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpoint;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointingInfo;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformProgress;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState;
@@ -44,11 +48,13 @@ import org.elasticsearch.xpack.core.dataframe.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine.Event;
+import org.elasticsearch.xpack.dataframe.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.dataframe.checkpoint.DataFrameTransformsCheckpointService;
 import org.elasticsearch.xpack.dataframe.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 import org.elasticsearch.xpack.dataframe.transforms.pivot.AggregationResultUtils;
 
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -82,6 +88,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
     private final DataFrameAuditor auditor;
     private final DataFrameIndexerPosition initialPosition;
     private final IndexerState initialIndexerState;
+    private volatile Instant changesLastDetectedAt;
 
     private final SetOnce<ClientDataFrameIndexer> indexer = new SetOnce<>();
 
@@ -174,6 +181,43 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
     public long getCheckpoint() {
         return currentCheckpoint.get();
+    }
+
+    public void getCheckpointingInfo(DataFrameTransformsCheckpointService transformsCheckpointService,
+            ActionListener<DataFrameTransformCheckpointingInfo> listener) {
+        ClientDataFrameIndexer indexer = getIndexer();
+        if (indexer == null) {
+            transformsCheckpointService.getCheckpointingInfo(
+                    transform.getId(),
+                    currentCheckpoint.get(),
+                    initialPosition,
+                    null,
+                    listener);
+            return;
+        }
+        indexer.getCheckpointProvider().getCheckpointingInfo(
+                indexer.getLastCheckpoint(),
+                indexer.getNextCheckpoint(),
+                indexer.getPosition(),
+                indexer.getProgress(),
+                ActionListener.wrap(
+                    info -> {
+                        if (changesLastDetectedAt == null) {
+                            listener.onResponse(info);
+                        } else {
+                            listener.onResponse(info.setChangesLastDetectedAt(changesLastDetectedAt));
+                        }
+                    },
+                    listener::onFailure
+                ));
+    }
+
+    public DataFrameTransformCheckpoint getLastCheckpoint() {
+        return getIndexer().getLastCheckpoint();
+    }
+
+    public DataFrameTransformCheckpoint getNextCheckpoint() {
+        return getIndexer().getNextCheckpoint();
     }
 
     /**
@@ -287,6 +331,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             logger.debug("Trigger initial run");
             getIndexer().maybeTriggerAsyncJob(System.currentTimeMillis());
         } else if (getIndexer().isContinuous() && getIndexer().sourceHasChanged()) {
+            changesLastDetectedAt = Instant.now();
             logger.debug("Source has changed, triggering new indexer run");
             getIndexer().maybeTriggerAsyncJob(System.currentTimeMillis());
         }
@@ -328,6 +373,14 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
     }
 
     synchronized void markAsFailed(String reason, ActionListener<Void> listener) {
+        // If the indexer is `STOPPING` this means that `DataFrameTransformTask#stop` was called previously, but something caused
+        // the indexer to fail. Since `ClientDataFrameIndexer#doSaveState` will persist the state to the index once the indexer stops,
+        // it is probably best to NOT change the internal state of the task and allow the normal stopping logic to continue.
+        if (getIndexer() != null && getIndexer().getState() == IndexerState.STOPPING) {
+            logger.info("Attempt to fail transform [" + getTransformId() + "] with reason [" + reason + "] while it was stopping.");
+            auditor.info(getTransformId(), "Attempted to fail transform with reason [" + reason + "] while in STOPPING state.");
+            return;
+        }
         auditor.error(transform.getId(), reason);
         // We should not keep retrying. Either the task will be stopped, or started
         // If it is started again, it is registered again.
@@ -429,9 +482,11 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         }
 
         ClientDataFrameIndexer build(DataFrameTransformTask parentTask) {
+            CheckpointProvider checkpointProvider = transformsCheckpointService.getCheckpointProvider(transformConfig);
+
             return new ClientDataFrameIndexer(this.transformId,
                 this.transformsConfigManager,
-                this.transformsCheckpointService,
+                checkpointProvider,
                 new AtomicReference<>(this.indexerState),
                 this.initialPosition,
                 this.client,
@@ -521,7 +576,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         private long logCount = 0;
         private final Client client;
         private final DataFrameTransformsConfigManager transformsConfigManager;
-        private final DataFrameTransformsCheckpointService transformsCheckpointService;
+        private final CheckpointProvider checkpointProvider;
         private final String transformId;
         private final DataFrameTransformTask transformTask;
         private final AtomicInteger failureCount;
@@ -531,7 +586,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
         ClientDataFrameIndexer(String transformId,
                                DataFrameTransformsConfigManager transformsConfigManager,
-                               DataFrameTransformsCheckpointService transformsCheckpointService,
+                               CheckpointProvider checkpointProvider,
                                AtomicReference<IndexerState> initialState,
                                DataFrameIndexerPosition initialPosition,
                                Client client,
@@ -557,8 +612,8 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 nextCheckpoint);
             this.transformId = ExceptionsHelper.requireNonNull(transformId, "transformId");
             this.transformsConfigManager = ExceptionsHelper.requireNonNull(transformsConfigManager, "transformsConfigManager");
-            this.transformsCheckpointService = ExceptionsHelper.requireNonNull(transformsCheckpointService,
-                "transformsCheckpointService");
+            this.checkpointProvider = ExceptionsHelper.requireNonNull(checkpointProvider, "checkpointProvider");
+
             this.client = ExceptionsHelper.requireNonNull(client, "client");
             this.transformTask = parentTask;
             this.failureCount = new AtomicInteger(0);
@@ -569,30 +624,73 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             // On each run, we need to get the total number of docs and reset the count of processed docs
             // Since multiple checkpoints can be executed in the task while it is running on the same node, we need to gather
             // the progress here, and not in the executor.
-            if (initialRun()) {
-                createCheckpoint(ActionListener.wrap(cp -> {
-                    nextCheckpoint = cp;
-                    TransformProgressGatherer.getInitialProgress(this.client, buildFilterQuery(), getConfig(), ActionListener.wrap(
-                            newProgress -> {
-                                logger.trace("[{}] reset the progress from [{}] to [{}]", transformId, progress, newProgress);
-                                progress = newProgress;
+            ActionListener<Void> updateConfigListener = ActionListener.wrap(
+                updateConfigResponse -> {
+                    if (initialRun()) {
+                        createCheckpoint(ActionListener.wrap(cp -> {
+                            nextCheckpoint = cp;
+                            // If nextCheckpoint > 1, this means that we are now on the checkpoint AFTER the batch checkpoint
+                            // Consequently, the idea of percent complete no longer makes sense.
+                            if (nextCheckpoint.getCheckpoint() > 1) {
+                                progress = new DataFrameTransformProgress(null, 0L, 0L);
                                 super.onStart(now, listener);
-                            },
-                            failure -> {
-                                progress = null;
-                                logger.warn("Unable to load progress information for task [" + transformId + "]", failure);
-                                super.onStart(now, listener);
+                                return;
                             }
-                        ));
-                }, listener::onFailure));
+                            TransformProgressGatherer.getInitialProgress(this.client, buildFilterQuery(), getConfig(), ActionListener.wrap(
+                                newProgress -> {
+                                    logger.trace("[{}] reset the progress from [{}] to [{}]", transformId, progress, newProgress);
+                                    progress = newProgress;
+                                    super.onStart(now, listener);
+                                },
+                                failure -> {
+                                    progress = null;
+                                    logger.warn("Unable to load progress information for task [" + transformId + "]", failure);
+                                    super.onStart(now, listener);
+                                }
+                            ));
+                        }, listener::onFailure));
+                    } else {
+                        super.onStart(now, listener);
+                    }
+                },
+                listener::onFailure
+            );
+
+            // If we are continuous, we will want to verify we have the latest stored configuration
+            if (isContinuous()) {
+                transformsConfigManager.getTransformConfiguration(getJobId(), ActionListener.wrap(
+                    config -> {
+                        transformConfig = config;
+                        logger.debug("[" + getJobId() + "] successfully refreshed data frame transform config from index.");
+                        updateConfigListener.onResponse(null);
+                    },
+                    failure -> {
+                        String msg = DataFrameMessages.getMessage(
+                            DataFrameMessages.FAILED_TO_RELOAD_TRANSFORM_CONFIGURATION,
+                            getJobId());
+                        logger.error(msg, failure);
+                        // If the transform config index or the transform config is gone, something serious occurred
+                        // We are in an unknown state and should fail out
+                        if (failure instanceof ResourceNotFoundException) {
+                            updateConfigListener.onFailure(new TransformConfigReloadingException(msg, failure));
+                        } else {
+                            auditor.warning(getJobId(), msg);
+                            updateConfigListener.onResponse(null);
+                        }
+                    }
+                ));
             } else {
-                super.onStart(now, listener);
+                updateConfigListener.onResponse(null);
             }
         }
 
         @Override
         protected String getJobId() {
             return transformId;
+        }
+
+        public CheckpointProvider getCheckpointProvider() {
+            return checkpointProvider;
         }
 
         @Override
@@ -742,19 +840,34 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 // super.onFinish() fortunately ignores the listener
                 super.onFinish(listener);
                 long checkpoint = transformTask.currentCheckpoint.getAndIncrement();
-                lastCheckpoint = nextCheckpoint;
+                lastCheckpoint = getNextCheckpoint();
                 nextCheckpoint = null;
                 // Reset our failure count as we have finished and may start again with a new checkpoint
                 failureCount.set(0);
 
-                // TODO: progress hack to get around bucket_selector filtering out buckets
                 // With bucket_selector we could have read all the buckets and completed the transform
                 // but not "see" all the buckets since they were filtered out. Consequently, progress would
                 // show less than 100% even though we are done.
                 // NOTE: this method is called in the same thread as the processing thread.
                 // Theoretically, there should not be a race condition with updating progress here.
-                if (progress != null && progress.getRemainingDocs() > 0) {
-                    progress.docsProcessed(progress.getRemainingDocs());
+                // NOTE 2: getPercentComplete should only NOT be null on the first (batch) checkpoint
+                if (progress != null && progress.getPercentComplete() != null && progress.getPercentComplete() < 100.0) {
+                    progress.incrementDocsProcessed(progress.getTotalDocs() - progress.getDocumentsProcessed());
+                }
+                logger.info("Last checkpoint for {} {}", getJobId(), Strings.toString(lastCheckpoint));
+                // If the last checkpoint is now greater than 1, that means that we have just processed the first
+                // continuous checkpoint and should start recording the exponential averages
+                if (lastCheckpoint != null && lastCheckpoint.getCheckpoint() > 1) {
+                    long docsIndexed = 0;
+                    long docsProcessed = 0;
+                    // This should not happen as we simply create a new one when we reach continuous checkpoints
+                    // but this is a paranoid `null` check
+                    if (progress != null) {
+                        docsIndexed = progress.getDocumentsIndexed();
+                        docsProcessed = progress.getDocumentsProcessed();
+                    }
+                    long durationMs = System.currentTimeMillis() - lastCheckpoint.getTimestamp();
+                    getStats().incrementCheckpointExponentialAverages(durationMs < 0 ? 0 : durationMs, docsIndexed, docsProcessed);
                 }
                 if (shouldAuditOnFinish(checkpoint)) {
                     auditor.info(transformTask.getTransformId(),
@@ -804,9 +917,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
         @Override
         protected void createCheckpoint(ActionListener<DataFrameTransformCheckpoint> listener) {
-            transformsCheckpointService.getCheckpoint(transformConfig,
-                transformTask.currentCheckpoint.get() + 1,
-                ActionListener.wrap(
+            checkpointProvider.createNextCheckpoint(getLastCheckpoint(), ActionListener.wrap(
                     checkpoint -> transformsConfigManager.putTransformCheckpoint(checkpoint,
                         ActionListener.wrap(
                             putCheckPointResponse -> listener.onResponse(checkpoint),
@@ -826,18 +937,10 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             }
 
             CountDownLatch latch = new CountDownLatch(1);
-
             SetOnce<Boolean> changed = new SetOnce<>();
-            transformsCheckpointService.getCheckpoint(transformConfig, new LatchedActionListener<>(ActionListener.wrap(
-                    cp -> {
-                        long behind = DataFrameTransformCheckpoint.getBehind(lastCheckpoint, cp);
-                        if (behind > 0) {
-                            logger.debug("Detected changes, dest is {} operations behind the source", behind);
-                            changed.set(true);
-                        } else {
-                            changed.set(false);
-                        }
-                    }, e -> {
+
+            checkpointProvider.sourceHasChanged(getLastCheckpoint(),
+                    new LatchedActionListener<>(ActionListener.wrap(changed::set, e -> {
                         changed.set(false);
                         logger.warn(
                                 "Failed to detect changes for data frame transform [" + transformId + "], skipping update till next check",
@@ -865,7 +968,9 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         }
 
         private boolean isIrrecoverableFailure(Exception e) {
-            return e instanceof IndexNotFoundException || e instanceof AggregationResultUtils.AggregationExtractionException;
+            return e instanceof IndexNotFoundException
+                || e instanceof AggregationResultUtils.AggregationExtractionException
+                || e instanceof TransformConfigReloadingException;
         }
 
         synchronized void handleFailure(Exception e) {
@@ -897,6 +1002,12 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
     private static class BulkIndexingException extends ElasticsearchException {
         BulkIndexingException(String msg, Object... args) {
             super(msg, args);
+        }
+    }
+
+    private static class TransformConfigReloadingException extends ElasticsearchException {
+        TransformConfigReloadingException(String msg, Throwable cause, Object... args) {
+            super(msg, cause, args);
         }
     }
 }

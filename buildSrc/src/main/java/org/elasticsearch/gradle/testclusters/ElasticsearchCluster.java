@@ -117,6 +117,10 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         return clusterName;
     }
 
+    public String getPath() {
+        return path;
+    }
+
     @Override
     public void setVersion(String version) {
         nodes.all(each -> each.setVersion(version));

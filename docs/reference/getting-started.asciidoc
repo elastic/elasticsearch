@@ -229,7 +229,8 @@ operation was that version 1 of the document was created:
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/]
-// TESTRESPONSE[s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
++// TESTRESPONSE[s/"successful" : \d+/"successful" : $body._shards.successful/]
++// TESTRESPONSE[s/"_primary_term" : \d+/"_primary_term" : $body._primary_term/]
 
 
 The new document is available immediately from any node in the cluster.

@@ -724,7 +724,7 @@ GET /bank/_search
 
 [float]
 [[getting-started-filters]]
-==== Executing Filters
+==== Executing filters
 
 In the previous section, we skipped over a little detail called the document score (`_score` field in the search results). The score is a numeric value that is a relative measure of how well the document matches the search query that we specified. The higher the score, the more relevant the document is, the lower the score, the less relevant the document is.
 

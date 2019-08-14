@@ -950,6 +950,7 @@ Which returns:
 
 [source,js]
 --------------------------------------------------
+DELETE /_ingest/pipeline/user_lookup
 DELETE /_enrich/policy/users-policy
 --------------------------------------------------
 // CONSOLE

@@ -18,21 +18,38 @@
  */
 package org.elasticsearch.rest.action.admin.cluster;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
+import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.script.StoredScriptSource;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.HEAD;
+import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
+import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestGetStoredScriptAction extends BaseRestHandler {
 
+    private static final DeprecationLogger deprecationLogger =
+        new DeprecationLogger(LogManager.getLogger(RestGetStoredScriptAction.class));
+
     public RestGetStoredScriptAction(RestController controller) {
-        controller.registerHandler(GET, "/_scripts/{id}", this);
+        controller.registerHandler(GET, "/_script", this);
+        controller.registerWithDeprecatedHandler(GET, "/_script/{name}", this,
+            GET, "/_scripts/{name}", deprecationLogger);
+        controller.registerHandler(HEAD, "/_script/{name}", this);
     }
 
     @Override
@@ -42,9 +59,21 @@ public class RestGetStoredScriptAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, NodeClient client) throws IOException {
-        String id = request.param("id");
-        GetStoredScriptRequest getRequest = new GetStoredScriptRequest(id);
+        final String[] names = Strings.splitStringByCommaToArray(request.param("name"));
+
+        GetStoredScriptRequest getRequest = new GetStoredScriptRequest(names);
         getRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getRequest.masterNodeTimeout()));
-        return channel -> client.admin().cluster().getStoredScript(getRequest, new RestStatusToXContentListener<>(channel));
+
+        final boolean implicitAll = getRequest.names().length == 0;
+
+        return channel -> client.admin().cluster().getStoredScript(getRequest, new RestToXContentListener<>(channel) {
+            @Override
+            protected RestStatus getStatus(final GetStoredScriptResponse response)
+            {
+                Map<String, StoredScriptSource> storedScripts = response.getStoredScripts();
+                final boolean templateExists = storedScripts != null && !storedScripts.isEmpty();
+                return (templateExists || implicitAll) ? OK : NOT_FOUND;
+            }
+        });
     }
 }

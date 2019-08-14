@@ -25,19 +25,20 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.StoredScriptSource;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class GetStoredScriptResponse extends ActionResponse implements StatusToXContentObject {
+public class GetStoredScriptResponse extends ActionResponse implements ToXContentObject {
 
     public static final ParseField _ID_PARSE_FIELD = new ParseField("_id");
     public static final ParseField FOUND_PARSE_FIELD = new ParseField("found");
@@ -62,69 +63,96 @@ public class GetStoredScriptResponse extends ActionResponse implements StatusToX
             SCRIPT, ObjectParser.ValueType.OBJECT);
     }
 
-    private String id;
-    private StoredScriptSource source;
+    private Map<String, StoredScriptSource> storedScripts;
 
-    public GetStoredScriptResponse(StreamInput in) throws IOException {
+    GetStoredScriptResponse(StreamInput in) throws IOException {
         super(in);
 
-        if (in.readBoolean()) {
-            source = new StoredScriptSource(in);
-        } else {
-            source = null;
+        int size = in.readVInt();
+        storedScripts = new HashMap<>(size);
+        for (int i = 0 ; i < size ; i++) {
+            String id = in.readString();
+            storedScripts.put(id, new StoredScriptSource(in));
         }
-        id = in.readString();
     }
 
     GetStoredScriptResponse(String id, StoredScriptSource source) {
-        this.id = id;
-        this.source = source;
+        this.storedScripts = new HashMap<>();
+        storedScripts.put(id, source);
     }
 
-    public String getId() {
-        return id;
+    GetStoredScriptResponse(Map<String, StoredScriptSource> storedScripts) {
+        this.storedScripts = storedScripts;
+    }
+
+    public Map<String, StoredScriptSource> getStoredScripts() {
+        return storedScripts;
     }
 
     /**
+     * @deprecated - Needed for backwards compatibility.
+     * Use {@link #getStoredScripts()} instead
+     *
      * @return if a stored script and if not found <code>null</code>
      */
+    @Deprecated
     public StoredScriptSource getSource() {
-        return source;
-    }
-
-    @Override
-    public RestStatus status() {
-        return source != null ? RestStatus.OK : RestStatus.NOT_FOUND;
+        if (storedScripts != null && storedScripts.size() == 1) {
+            return storedScripts.entrySet().iterator().next().getValue();
+        } else {
+            return null;
+        }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+//        ScriptMetaData scriptMetaData = new ScriptMetaData(getStoredScripts());
+//        return scriptMetaData.toXContent(builder, params);
         builder.startObject();
 
-        builder.field(_ID_PARSE_FIELD.getPreferredName(), id);
-        builder.field(FOUND_PARSE_FIELD.getPreferredName(), source != null);
-        if (source != null) {
-            builder.field(StoredScriptSource.SCRIPT_PARSE_FIELD.getPreferredName());
-            source.toXContent(builder, params);
+        Map<String, StoredScriptSource> storedScripts = getStoredScripts();
+        if (storedScripts != null) {
+            for (Map.Entry<String, StoredScriptSource> storedScript : storedScripts.entrySet()) {
+                builder.startObject(storedScript.getKey());
+                builder.field(StoredScriptSource.SCRIPT_PARSE_FIELD.getPreferredName());
+                storedScript.getValue().toXContent(builder, params);
+                builder.endObject();
+            }
         }
-
         builder.endObject();
         return builder;
     }
 
     public static GetStoredScriptResponse fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
+        final Map<String, StoredScriptSource> storedScripts = new HashMap<>();
+        for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                String name = parser.currentName();
+                parser.nextToken();
+                parser.nextToken();
+                StoredScriptSource storedScriptSource = StoredScriptSource.fromXContent(parser, false);
+                storedScripts.put(name, storedScriptSource);
+            }
+        }
+        return new GetStoredScriptResponse(storedScripts);
     }
+
+//    public static GetStoredScriptResponse fromXContent(XContentParser parser) throws IOException {
+//        return PARSER.parse(parser, null);
+//    }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (source == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            source.writeTo(out);
+        if (storedScripts == null ) {
+            out.writeVInt(0);
+            return;
         }
-        out.writeString(id);
+
+        out.writeVInt(storedScripts.size());
+        for (Map.Entry<String, StoredScriptSource> storedScript : storedScripts.entrySet()) {
+            out.writeString(storedScript.getKey());
+            storedScript.getValue().writeTo(out);
+        }
     }
 
     @Override
@@ -132,12 +160,11 @@ public class GetStoredScriptResponse extends ActionResponse implements StatusToX
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         GetStoredScriptResponse that = (GetStoredScriptResponse) o;
-        return Objects.equals(id, that.id) &&
-            Objects.equals(source, that.source);
+        return Objects.equals(storedScripts, that.storedScripts);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, source);
+        return storedScripts.hashCode();
     }
 }

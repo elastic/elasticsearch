@@ -18,9 +18,12 @@
  */
 package org.elasticsearch.rest.action.admin.cluster;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -35,11 +38,18 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestPutStoredScriptAction extends BaseRestHandler {
 
+    private static final DeprecationLogger deprecationLogger =
+        new DeprecationLogger(LogManager.getLogger(RestGetStoredScriptAction.class));
+
     public RestPutStoredScriptAction(RestController controller) {
-        controller.registerHandler(POST, "/_scripts/{id}", this);
-        controller.registerHandler(PUT, "/_scripts/{id}", this);
-        controller.registerHandler(POST, "/_scripts/{id}/{context}", this);
-        controller.registerHandler(PUT, "/_scripts/{id}/{context}", this);
+        controller.registerWithDeprecatedHandler(POST, "/_script/{id}", this,
+            POST, "/_scripts/{id}", deprecationLogger);
+        controller.registerWithDeprecatedHandler(PUT, "/_script/{id}", this,
+            PUT, "/_scripts/{id}", deprecationLogger);
+        controller.registerWithDeprecatedHandler(POST, "/_script/{id}/{context}", this,
+            POST, "/_scripts/{id}/{context}", deprecationLogger);
+        controller.registerWithDeprecatedHandler(PUT, "/_script/{id}/{context}", this,
+            PUT, "/_scripts/{id}/{context}", deprecationLogger);
     }
 
     @Override

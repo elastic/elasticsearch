@@ -548,7 +548,6 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         }
     }
 
-
     public ScriptStats stats() {
         return scriptMetrics.stats();
     }

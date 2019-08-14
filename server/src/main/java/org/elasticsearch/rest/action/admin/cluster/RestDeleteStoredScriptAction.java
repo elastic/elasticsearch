@@ -18,8 +18,11 @@
  */
 package org.elasticsearch.rest.action.admin.cluster;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -31,8 +34,12 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 public class RestDeleteStoredScriptAction extends BaseRestHandler {
 
+    private static final DeprecationLogger deprecationLogger =
+        new DeprecationLogger(LogManager.getLogger(RestGetStoredScriptAction.class));
+
     public RestDeleteStoredScriptAction(RestController controller) {
-        controller.registerHandler(DELETE, "/_scripts/{id}", this);
+        controller.registerWithDeprecatedHandler(DELETE, "/_script/{id}", this,
+            DELETE, "/_scripts/{id}", deprecationLogger);
     }
 
     @Override

@@ -645,7 +645,7 @@ final class RequestConverters {
     }
 
     static Request putScript(PutStoredScriptRequest putStoredScriptRequest) throws IOException {
-        String endpoint = new EndpointBuilder().addPathPartAsIs("_scripts").addPathPart(putStoredScriptRequest.id()).build();
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_script").addPathPart(putStoredScriptRequest.id()).build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         Params params = new Params();
         params.withTimeout(putStoredScriptRequest.timeout());
@@ -702,7 +702,7 @@ final class RequestConverters {
     }
 
     static Request getScript(GetStoredScriptRequest getStoredScriptRequest) {
-        String endpoint = new EndpointBuilder().addPathPartAsIs("_scripts").addPathPart(getStoredScriptRequest.id()).build();
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_script").addPathPart(getStoredScriptRequest.id()).build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         Params params = new Params();
         params.withMasterTimeout(getStoredScriptRequest.masterNodeTimeout());
@@ -711,7 +711,7 @@ final class RequestConverters {
     }
 
     static Request deleteScript(DeleteStoredScriptRequest deleteStoredScriptRequest) {
-        String endpoint = new EndpointBuilder().addPathPartAsIs("_scripts").addPathPart(deleteStoredScriptRequest.id()).build();
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_script").addPathPart(deleteStoredScriptRequest.id()).build();
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
         Params params = new Params();
         params.withTimeout(deleteStoredScriptRequest.timeout());

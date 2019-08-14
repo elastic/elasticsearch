@@ -813,8 +813,8 @@ The main piece to configure is the enrich policy:
 | `type`             | yes       | -                    | The policy type.
 | `indices`          | yes       | -                    | The indices to fetch the data from.
 | `query`            | no        | `match_all` query    | The query to be used to select which documents are included.
-| `match_field`      | yes       | -                    | The field that the enrich processor will query against.
-| `enrich_fields`    | yes       | -                    | The fields to include in the enrich index.
+| `match_field`      | yes       | -                    | The field that will be used to match against an input document.
+| `enrich_fields`    | yes       | -                    | The fields that will be available to enrich the input document.
 |======
 
 [[enrich-policy-types]]

@@ -64,6 +64,11 @@ public class LegacyGeoShapeQueryProcessor implements AbstractGeometryFieldMapper
     }
 
     @Override
+    public Query process(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
+        throw new UnsupportedOperationException("process method should not be called for PrefixTree based geo_shapes");
+    }
+
+    @Override
     public Query process(Geometry shape, String fieldName, SpatialStrategy strategy, ShapeRelation relation, QueryShardContext context) {
         LegacyGeoShapeFieldMapper.GeoShapeFieldType shapeFieldType = (LegacyGeoShapeFieldMapper.GeoShapeFieldType) ft;
         SpatialStrategy spatialStrategy = shapeFieldType.strategy();

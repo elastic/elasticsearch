@@ -553,7 +553,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
     }
 
     /** local class that encapsulates xcontent parsed shape parameters */
-    protected abstract static class ParsedShapeQueryParams {
+    protected abstract static class ParsedGeometryQueryParams {
         public String fieldName;
         public ShapeRelation relation;
         public ShapeBuilder shape;
@@ -571,7 +571,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
         protected abstract boolean parseXContentField(XContentParser parser) throws IOException;
     }
 
-    public static ParsedShapeQueryParams parsedParamsFromXContent(XContentParser parser, ParsedShapeQueryParams params)
+    public static ParsedGeometryQueryParams parsedParamsFromXContent(XContentParser parser, ParsedGeometryQueryParams params)
         throws IOException {
         String fieldName = null;
         XContentParser.Token token;

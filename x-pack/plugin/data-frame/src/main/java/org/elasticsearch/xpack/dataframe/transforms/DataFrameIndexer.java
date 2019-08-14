@@ -226,7 +226,8 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
 
         // NOTE: progress is also mutated in ClientDataFrameIndexer#onFinished
         if (progress != null) {
-            progress.docsProcessed(getStats().getNumDocuments() - docsBeforeProcess);
+            progress.incrementDocsProcessed(getStats().getNumDocuments() - docsBeforeProcess);
+            progress.incrementDocsIndexed(result.getToIndex().size());
         }
 
         return result;

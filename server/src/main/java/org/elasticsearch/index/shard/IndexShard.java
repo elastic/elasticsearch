@@ -3345,7 +3345,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 new ReadOnlyEngine(newEngineConfig(replicationTracker), seqNoStats, translogStats, false, Function.identity()) {
                     @Override
                     public IndexCommitRef acquireLastIndexCommit(boolean flushFirst) {
-                        synchronized (mutex) {
+                        synchronized (engineMutex) {
+                            if (newEngineReference.get() == null) {
+                                throw new AlreadyClosedException("engine was closed");
+                            }
                             // ignore flushFirst since we flushed above and we do not want to interfere with ongoing translog replay
                             return newEngineReference.get().acquireLastIndexCommit(false);
                         }
@@ -3353,7 +3356,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
                     @Override
                     public IndexCommitRef acquireSafeIndexCommit() {
-                        synchronized (mutex) {
+                        synchronized (engineMutex) {
+                            if (newEngineReference.get() == null) {
+                                throw new AlreadyClosedException("engine was closed");
+                            }
                             return newEngineReference.get().acquireSafeIndexCommit();
                         }
                     }
@@ -3380,8 +3386,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     }
                 }
             }
-            newEngineReference.set(engineFactory.newReadWriteEngine(newEngineConfig(replicationTracker)));
-            onNewEngine(newEngineReference.get());
+            final Engine newReadWriteEngine = engineFactory.newReadWriteEngine(newEngineConfig(replicationTracker));
+            synchronized (mutex) {
+                try {
+                    verifyNotClosed();
+                    newEngineReference.set(newReadWriteEngine);
+                    onNewEngine(newReadWriteEngine);
+                } finally {
+                    if (newEngineReference.get() != newReadWriteEngine) {
+                        newReadWriteEngine.close();
+                    }
+                }
+            }
         }
         final Engine.TranslogRecoveryRunner translogRunner = (engine, snapshot) -> runTranslogRecovery(
             engine, snapshot, Engine.Operation.Origin.LOCAL_RESET, () -> {

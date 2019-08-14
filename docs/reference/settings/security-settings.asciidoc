@@ -54,12 +54,6 @@ the sensitive nature of the information.
 Enables fips mode of operation. Set this to `true` if you run this {es} instance in a FIPS 140-2 enabled JVM.  For more information, see <<fips-140-compliance>>. Defaults to `false`.
 
 [float]
-[[password-security-settings]]
-==== Default password security settings
-`xpack.security.authc.accept_default_password`::
-In `elasticsearch.yml`, set this to `false` to disable support for the default "changeme" password.
-
-[float]
 [[password-hashing-settings]]
 ==== Password hashing settings
 `xpack.security.authc.password_hashing.algorithm`::

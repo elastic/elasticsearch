@@ -122,7 +122,7 @@ The Azure repository supports following settings:
 
     Big files can be broken down into chunks during snapshotting if needed.
     The chunk size can be specified by using size value notation,
-    i.e. `10MB`, `5KB`, `500B`. Defaults to `64MB` (64MB max)
+    i.e. `10MB`, `5KB`, `500B`. Defaults to `64MB` (64MB max).
 
 `compress`::
 

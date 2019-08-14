@@ -47,8 +47,6 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         File compilerJavaHome = findCompilerJavaHome();
         File runtimeJavaHome = findRuntimeJavaHome(compilerJavaHome);
 
-        Object gitRevisionResolver = createGitRevisionResolver(project);
-
         final List<JavaHome> javaVersions = new ArrayList<>();
         for (int version = 8; version <= Integer.parseInt(minimumCompilerVersion.getMajorVersion()); version++) {
             if (System.getenv(getJavaHomeEnvVarName(Integer.toString(version))) != null) {
@@ -96,7 +94,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             ext.set("minimumCompilerVersion", minimumCompilerVersion);
             ext.set("minimumRuntimeVersion", minimumRuntimeVersion);
             ext.set("gradleJavaVersion", Jvm.current().getJavaVersion());
-            ext.set("gitRevision", gitRevisionResolver);
+            ext.set("gitRevision", gitRevision(project));
             ext.set("buildDate", ZonedDateTime.now(ZoneOffset.UTC));
         });
     }
@@ -207,83 +205,65 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         return _defaultParallel;
     }
 
-    private Object createGitRevisionResolver(final Project project) {
-        return new Object() {
-            private final AtomicReference<String> gitRevision = new AtomicReference<>();
-
-            @Override
-            public String toString() {
-                if (gitRevision.get() == null) {
-                    this.gitRevision.compareAndSet(null, gitRevision());
-                }
-                return gitRevision.get();
+    private String gitRevision(final Project project) {
+        try {
+            /*
+             * We want to avoid forking another process to run git rev-parse HEAD. Instead, we will read the refs manually. The
+             * documentation for this follows from https://git-scm.com/docs/gitrepository-layout and https://git-scm.com/docs/git-worktree.
+             *
+             * There are two cases to consider:
+             *  - a plain repository with .git directory at the root of the working tree
+             *  - a worktree with a plain text .git file at the root of the working tree
+             *
+             * In each case, our goal is to parse the HEAD file to get either a ref or a bare revision (in the case of being in detached
+             * HEAD state).
+             *
+             * In the case of a plain repository, we can read the HEAD file directly, resolved directly from the .git directory.
+             *
+             * In the case of a worktree, we read the gitdir from the plain text .git file. This resolves to a directory from which we read
+             * the HEAD file and resolve commondir to the plain git repository.
+             */
+            final Path dotGit = project.getRootProject().getRootDir().toPath().resolve(".git");
+            final String revision;
+            if (Files.exists(dotGit) == false) {
+                return "unknown";
             }
-
-            private String gitRevision() {
-                try {
-                    /*
-                     * We want to avoid forking another process to run git rev-parse HEAD. Instead, we will read the refs manually. The
-                     * documentation for this follows from https://git-scm.com/docs/gitrepository-layout and
-                     * https://git-scm.com/docs/git-worktree.
-                     *
-                     * There are two cases to consider:
-                     *  - a plain repository with .git directory at the root of the working tree
-                     *  - a worktree with a plain text .git file at the root of the working tree
-                     *
-                     * In each case, our goal is to parse the HEAD file to get either a ref or a bare revision (in the case of being in
-                     * detached HEAD state).
-                     *
-                     * In the case of a plain repository, we can read the HEAD file directly, resolved directly from the .git
-                     * directory.
-                     *
-                     * In the case of a worktree, we read the gitdir from the plain text .git file. This resolves to a directory from
-                     * which we read the HEAD file and resolve commondir to the plain git repository.
-                     */
-                    final Path dotGit = project.getRootProject().getRootDir().toPath().resolve(".git");
-                    final String revision;
-                    if (Files.exists(dotGit) == false) {
-                        return "unknown";
-                    }
-                    final Path head;
-                    final Path gitDir;
-                    if (Files.isDirectory(dotGit)) {
-                        // this is a git repository, we can read HEAD directly
-                        head = dotGit.resolve("HEAD");
-                        gitDir = dotGit;
-                    } else {
-                        // this is a git worktree, follow the pointer to the repository
-                        final Path workTree = Paths.get(readFirstLine(dotGit).substring("gitdir:".length()).trim());
-                        head = workTree.resolve("HEAD");
-                        final Path commonDir = Paths.get(readFirstLine(workTree.resolve("commondir")));
-                        if (commonDir.isAbsolute()) {
-                            gitDir = commonDir;
-                        } else {
-                            // this is the common case
-                            gitDir = workTree.resolve(commonDir);
-                        }
-                    }
-                    final String ref = readFirstLine(head);
-                    if (ref.startsWith("ref:")) {
-                        revision = readFirstLine(gitDir.resolve(ref.substring("ref:".length()).trim()));
-                    } else {
-                        // we are in detached HEAD state
-                        revision = ref;
-                    }
-                    return revision;
-                } catch (final IOException e) {
-                    // for now, do not be lenient until we have better understanding of real-world scenarios where this happens
-                    throw new GradleException("unable to read the git revision", e);
+            final Path head;
+            final Path gitDir;
+            if (Files.isDirectory(dotGit)) {
+                // this is a git repository, we can read HEAD directly
+                head = dotGit.resolve("HEAD");
+                gitDir = dotGit;
+            } else {
+                // this is a git worktree, follow the pointer to the repository
+                final Path workTree = Paths.get(readFirstLine(dotGit).substring("gitdir:".length()).trim());
+                head = workTree.resolve("HEAD");
+                final Path commonDir = Paths.get(readFirstLine(workTree.resolve("commondir")));
+                if (commonDir.isAbsolute()) {
+                    gitDir = commonDir;
+                } else {
+                    // this is the common case
+                    gitDir = workTree.resolve(commonDir);
                 }
             }
-
-            private String readFirstLine(final Path path) throws IOException {
-                return Files.lines(path, StandardCharsets.UTF_8)
-                    .findFirst()
-                    .orElseThrow(() -> new IOException("file [" + path + "] is empty"));
+            final String ref = readFirstLine(head);
+            if (ref.startsWith("ref:")) {
+                revision = readFirstLine(gitDir.resolve(ref.substring("ref:".length()).trim()));
+            } else {
+                // we are in detached HEAD state
+                revision = ref;
             }
+            return revision;
+        } catch (final IOException e) {
+            // for now, do not be lenient until we have better understanding of real-world scenarios where this happens
+            throw new GradleException("unable to read the git revision", e);
+        }
+    }
 
-        };
-
+    private String readFirstLine(final Path path) throws IOException {
+        return Files.lines(path, StandardCharsets.UTF_8)
+            .findFirst()
+            .orElseThrow(() -> new IOException("file [" + path + "] is empty"));
     }
 
 }

@@ -28,7 +28,7 @@ import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.geo.utils.Geohash;
+import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.test.ESTestCase;
 import org.locationtech.spatial4j.context.SpatialContext;
 import org.locationtech.spatial4j.distance.DistanceUtils;

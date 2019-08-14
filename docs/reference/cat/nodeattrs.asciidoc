@@ -1,5 +1,8 @@
 [[cat-nodeattrs]]
-=== cat nodeattrs
+=== cat nodeattrs API
+++++
+<titleabbrev>cat nodeattrs</titleabbrev>
+++++
 
 Returns information about custom node attributes.
 

@@ -1,5 +1,8 @@
 [[cat-health]]
-=== cat health
+=== cat health API
+++++
+<titleabbrev>cat health</titleabbrev>
+++++
 
 Returns the health status of a cluster, similar to the <<cluster-health,cluster
 health>> API.

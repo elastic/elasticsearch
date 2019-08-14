@@ -43,8 +43,8 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
         return PARSER.apply(parser, null).build();
     }
 
-    public static Builder builder(String id) {
-        return new Builder().setId(id);
+    public static Builder builder() {
+        return new Builder();
     }
 
     private static final ParseField ID = new ParseField("id");
@@ -103,13 +103,13 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
     private final Instant createTime;
     private final Version version;
 
-    private DataFrameAnalyticsConfig(String id, DataFrameAnalyticsSource source, DataFrameAnalyticsDest dest, DataFrameAnalysis analysis,
-                                     @Nullable FetchSourceContext analyzedFields, @Nullable ByteSizeValue modelMemoryLimit,
-                                     @Nullable Instant createTime, @Nullable Version version) {
-        this.id = Objects.requireNonNull(id);
-        this.source = Objects.requireNonNull(source);
-        this.dest = Objects.requireNonNull(dest);
-        this.analysis = Objects.requireNonNull(analysis);
+    private DataFrameAnalyticsConfig(@Nullable String id, @Nullable DataFrameAnalyticsSource source, @Nullable DataFrameAnalyticsDest dest,
+                                     @Nullable DataFrameAnalysis analysis, @Nullable FetchSourceContext analyzedFields,
+                                     @Nullable ByteSizeValue modelMemoryLimit, @Nullable Instant createTime, @Nullable Version version) {
+        this.id = id;
+        this.source = source;
+        this.dest = dest;
+        this.analysis = analysis;
         this.analyzedFields = analyzedFields;
         this.modelMemoryLimit = modelMemoryLimit;
         this.createTime = createTime == null ? null : Instant.ofEpochMilli(createTime.toEpochMilli());;
@@ -151,12 +151,21 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(ID.getPreferredName(), id);
-        builder.field(SOURCE.getPreferredName(), source);
-        builder.field(DEST.getPreferredName(), dest);
-        builder.startObject(ANALYSIS.getPreferredName());
-        builder.field(analysis.getName(), analysis);
-        builder.endObject();
+        if (id != null) {
+            builder.field(ID.getPreferredName(), id);
+        }
+        if (source != null) {
+            builder.field(SOURCE.getPreferredName(), source);
+        }
+        if (dest != null) {
+            builder.field(DEST.getPreferredName(), dest);
+        }
+        if (analysis != null) {
+            builder
+                .startObject(ANALYSIS.getPreferredName())
+                .field(analysis.getName(), analysis)
+                .endObject();
+        }
         if (analyzedFields != null) {
             builder.field(ANALYZED_FIELDS.getPreferredName(), analyzedFields);
         }

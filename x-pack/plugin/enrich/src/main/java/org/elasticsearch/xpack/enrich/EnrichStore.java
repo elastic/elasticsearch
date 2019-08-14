@@ -10,11 +10,13 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -42,6 +44,13 @@ public final class EnrichStore {
         }
         if (policy == null) {
             throw new IllegalArgumentException("policy is missing");
+        }
+        // The policy name is used to create the enrich index name and
+        // therefor a policy name has the same restrictions as an index name
+        MetaDataCreateIndexService.validateIndexOrAliasName(name,
+            (policyName, error) -> new IllegalArgumentException("Invalid policy name [" + policyName + "], " + error));
+        if (name.toLowerCase(Locale.ROOT).equals(name) == false) {
+            throw new IllegalArgumentException("Invalid policy name [" + name + "], must be lowercase");
         }
         // TODO: add policy validation
 

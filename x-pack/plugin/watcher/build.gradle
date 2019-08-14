@@ -44,7 +44,7 @@ dependencies {
 
     testCompile 'org.subethamail:subethasmtp:3.1.7'
     // needed for subethasmtp, has @GuardedBy annotation
-    testCompile 'com.google.code.findbugs:jsr305:3.0.1'
+    testCompile 'com.google.code.findbugs:jsr305:3.0.2'
 }
 
 // classes are missing, e.g. com.ibm.icu.lang.UCharacter

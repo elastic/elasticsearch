@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -64,6 +65,7 @@ import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.action.DeleteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.core.slm.action.ExecuteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.core.slm.action.GetSnapshotLifecycleAction;
+import org.elasticsearch.xpack.core.slm.action.GetSnapshotLifecycleStatsAction;
 import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
 import org.elasticsearch.xpack.core.slm.history.SnapshotHistoryStore;
 import org.elasticsearch.xpack.core.slm.history.SnapshotLifecycleTemplateRegistry;
@@ -94,10 +96,12 @@ import org.elasticsearch.xpack.slm.SnapshotRetentionTask;
 import org.elasticsearch.xpack.slm.action.RestDeleteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.slm.action.RestExecuteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.slm.action.RestGetSnapshotLifecycleAction;
+import org.elasticsearch.xpack.slm.action.RestGetSnapshotLifecycleStatsAction;
 import org.elasticsearch.xpack.slm.action.RestPutSnapshotLifecycleAction;
 import org.elasticsearch.xpack.slm.action.TransportDeleteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.slm.action.TransportExecuteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.slm.action.TransportGetSnapshotLifecycleAction;
+import org.elasticsearch.xpack.slm.action.TransportGetSnapshotLifecycleStatsAction;
 import org.elasticsearch.xpack.slm.action.TransportPutSnapshotLifecycleAction;
 
 import java.io.IOException;
@@ -109,6 +113,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.core.ClientHelper.INDEX_LIFECYCLE_ORIGIN;
 
 public class IndexLifecycle extends Plugin implements ActionPlugin {
     private final SetOnce<IndexLifecycleService> indexLifecycleInitialisationService = new SetOnce<>();
@@ -151,7 +156,8 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
                 getClock(), System::currentTimeMillis, xContentRegistry));
         SnapshotLifecycleTemplateRegistry templateRegistry = new SnapshotLifecycleTemplateRegistry(settings, clusterService, threadPool,
             client, xContentRegistry);
-        snapshotHistoryStore.set(new SnapshotHistoryStore(settings, client, getClock().getZone()));
+        snapshotHistoryStore.set(new SnapshotHistoryStore(settings, new OriginSettingClient(client, INDEX_LIFECYCLE_ORIGIN),
+            getClock().getZone()));
         snapshotLifecycleService.set(new SnapshotLifecycleService(settings,
             () -> new SnapshotLifecycleTask(client, clusterService, snapshotHistoryStore.get()), clusterService, getClock()));
         snapshotRetentionService.set(new SnapshotRetentionService(settings,
@@ -212,7 +218,8 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
                 new RestPutSnapshotLifecycleAction(restController),
                 new RestDeleteSnapshotLifecycleAction(restController),
                 new RestGetSnapshotLifecycleAction(restController),
-                new RestExecuteSnapshotLifecycleAction(restController)
+                new RestExecuteSnapshotLifecycleAction(restController),
+                new RestGetSnapshotLifecycleStatsAction(restController)
             );
     }
 
@@ -241,6 +248,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
                 new ActionHandler<>(DeleteSnapshotLifecycleAction.INSTANCE, TransportDeleteSnapshotLifecycleAction.class),
                 new ActionHandler<>(GetSnapshotLifecycleAction.INSTANCE, TransportGetSnapshotLifecycleAction.class),
                 new ActionHandler<>(ExecuteSnapshotLifecycleAction.INSTANCE, TransportExecuteSnapshotLifecycleAction.class),
+                new ActionHandler<>(GetSnapshotLifecycleStatsAction.INSTANCE, TransportGetSnapshotLifecycleStatsAction.class),
                 usageAction,
                 infoAction);
     }

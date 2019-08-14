@@ -194,15 +194,19 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             }
 
             SnapshotLifecyclePolicyMetadata.Builder newPolicyMetadata = SnapshotLifecyclePolicyMetadata.builder(policyMetadata);
+            final SnapshotLifecycleStats stats = snapMeta.getStats();
 
             if (exception.isPresent()) {
+                stats.snapshotFailed(policyName);
                 newPolicyMetadata.setLastFailure(new SnapshotInvocationRecord(snapshotName, timestamp, exceptionToString()));
             } else {
+                stats.snapshotTaken(policyName);
                 newPolicyMetadata.setLastSuccess(new SnapshotInvocationRecord(snapshotName, timestamp, null));
             }
 
             snapLifecycles.put(policyName, newPolicyMetadata.build());
-            SnapshotLifecycleMetadata lifecycleMetadata = new SnapshotLifecycleMetadata(snapLifecycles, snapMeta.getOperationMode());
+            SnapshotLifecycleMetadata lifecycleMetadata = new SnapshotLifecycleMetadata(snapLifecycles,
+                snapMeta.getOperationMode(), stats);
             MetaData currentMeta = currentState.metaData();
             return ClusterState.builder(currentState)
                 .metaData(MetaData.builder(currentMeta)

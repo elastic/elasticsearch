@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.slm;
 
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.Request;
@@ -122,6 +123,14 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
             assertThat(lastSnapshotName, startsWith("snap-"));
 
             assertHistoryIsPresent(policyName, true, repoId, CREATE_OPERATION);
+
+            Map<String, Object> stats = getSLMStats();
+            Map<String, Object> policyStats = (Map<String, Object>) stats.get(SnapshotLifecycleStats.POLICY_STATS.getPreferredName());
+            Map<String, Object> policyIdStats = (Map<String, Object>) policyStats.get(policyName);
+            int snapsTaken = (int) policyIdStats.get(SnapshotLifecycleStats.SnapshotPolicyStats.SNAPSHOTS_TAKEN.getPreferredName());
+            int totalTaken = (int) stats.get(SnapshotLifecycleStats.TOTAL_TAKEN.getPreferredName());
+            assertThat(snapsTaken, greaterThanOrEqualTo(1));
+            assertThat(totalTaken, greaterThanOrEqualTo(1));
         });
 
         Request delReq = new Request("DELETE", "/_slm/policy/" + policyName);
@@ -173,12 +182,21 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
                 assertThat(snapshotName, startsWith("snap-"));
             }
             assertHistoryIsPresent(policyName, false, repoName, CREATE_OPERATION);
+
+            Map<String, Object> stats = getSLMStats();
+            Map<String, Object> policyStats = (Map<String, Object>) stats.get(SnapshotLifecycleStats.POLICY_STATS.getPreferredName());
+            Map<String, Object> policyIdStats = (Map<String, Object>) policyStats.get(policyName);
+            int snapsFailed = (int) policyIdStats.get(SnapshotLifecycleStats.SnapshotPolicyStats.SNAPSHOTS_FAILED.getPreferredName());
+            int totalFailed = (int) stats.get(SnapshotLifecycleStats.TOTAL_FAILED.getPreferredName());
+            assertThat(snapsFailed, greaterThanOrEqualTo(1));
+            assertThat(totalFailed, greaterThanOrEqualTo(1));
         });
 
         Request delReq = new Request("DELETE", "/_slm/policy/" + policyName);
         assertOK(client().performRequest(delReq));
     }
 
+    @SuppressWarnings("unchecked")
     public void testPolicyManualExecution() throws Exception {
         final String indexName = "test";
         final String policyName = "test-policy";
@@ -220,8 +238,17 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
                 } catch (ResponseException e) {
                     fail("expected snapshot to exist but it does not: " + EntityUtils.toString(e.getResponse().getEntity()));
                 }
+
+                Map<String, Object> stats = getSLMStats();
+                Map<String, Object> policyStats = (Map<String, Object>) stats.get(SnapshotLifecycleStats.POLICY_STATS.getPreferredName());
+                Map<String, Object> policyIdStats = (Map<String, Object>) policyStats.get(policyName);
+                int snapsTaken = (int) policyIdStats.get(SnapshotLifecycleStats.SnapshotPolicyStats.SNAPSHOTS_TAKEN.getPreferredName());
+                int totalTaken = (int) stats.get(SnapshotLifecycleStats.TOTAL_TAKEN.getPreferredName());
+                assertThat(snapsTaken, equalTo(1));
+                assertThat(totalTaken, equalTo(1));
             });
         }
+
 
         Request delReq = new Request("DELETE", "/_slm/policy/" + policyName);
         assertOK(client().performRequest(delReq));
@@ -237,6 +264,7 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
         });
     }
 
+    @SuppressWarnings("unchecked")
     public void testBasicTimeBasedRetenion() throws Exception {
         final String indexName = "test";
         final String policyName = "test-policy";
@@ -303,7 +331,22 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
                     assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("snapshot_missing_exception"));
                 }
                 assertHistoryIsPresent(policyName, true, repoId, DELETE_OPERATION);
+
+                Map<String, Object> stats = getSLMStats();
+                Map<String, Object> policyStats = (Map<String, Object>) stats.get(SnapshotLifecycleStats.POLICY_STATS.getPreferredName());
+                Map<String, Object> policyIdStats = (Map<String, Object>) policyStats.get(policyName);
+                int snapsTaken = (int) policyIdStats.get(SnapshotLifecycleStats.SnapshotPolicyStats.SNAPSHOTS_TAKEN.getPreferredName());
+                int snapsDeleted = (int) policyIdStats.get(SnapshotLifecycleStats.SnapshotPolicyStats.SNAPSHOTS_DELETED.getPreferredName());
+                int retentionRun = (int) stats.get(SnapshotLifecycleStats.RETENTION_RUNS.getPreferredName());
+                int totalTaken = (int) stats.get(SnapshotLifecycleStats.TOTAL_TAKEN.getPreferredName());
+                int totalDeleted = (int) stats.get(SnapshotLifecycleStats.TOTAL_DELETIONS.getPreferredName());
+                assertThat(snapsTaken, equalTo(1));
+                assertThat(totalTaken, equalTo(1));
+                assertThat(retentionRun, greaterThanOrEqualTo(1));
+                assertThat(snapsDeleted, equalTo(1));
+                assertThat(totalDeleted, equalTo(1));
             }, 60, TimeUnit.SECONDS);
+
 
             Request delReq = new Request("DELETE", "/_slm/policy/" + policyName);
             assertOK(client().performRequest(delReq));
@@ -403,6 +446,18 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
             .map(snapshot -> (Map<String, Object>) snapshot.get("metadata"))
             .findFirst()
             .orElse(null);
+    }
+
+    private Map<String, Object> getSLMStats() {
+        try {
+            Response response = client().performRequest(new Request("GET", "/_slm/stats"));
+            try (InputStream content = response.getEntity().getContent()) {
+                return XContentHelper.convertToMap(XContentType.JSON.xContent(), content, true);
+            }
+        } catch (Exception e) {
+            fail("exception retrieving stats: " + e);
+            throw new ElasticsearchException(e);
+        }
     }
 
     // This method should be called inside an assertBusy, it has no retry logic of its own

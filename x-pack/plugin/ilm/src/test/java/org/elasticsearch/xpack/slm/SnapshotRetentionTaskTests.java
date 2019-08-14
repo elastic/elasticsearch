@@ -46,7 +46,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -78,7 +77,8 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
 
         // Test with empty SLM metadata
         MetaData metaData = MetaData.builder()
-            .putCustom(SnapshotLifecycleMetadata.TYPE, new SnapshotLifecycleMetadata(Collections.emptyMap(), OperationMode.RUNNING))
+            .putCustom(SnapshotLifecycleMetadata.TYPE,
+                new SnapshotLifecycleMetadata(Collections.emptyMap(), OperationMode.RUNNING, new SnapshotLifecycleStats()))
             .build();
         state = ClusterState.builder(new ClusterName("cluster")).metaData(metaData).build();
         assertThat(SnapshotRetentionTask.getAllPoliciesWithRetentionEnabled(state), equalTo(Collections.emptyMap()));
@@ -190,7 +190,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                     logger.info("--> retrieving snapshots [{}]", snaps);
                     return Collections.singletonMap(repoId, snaps);
                 },
-                (repo, snapInfo) -> {
+                (deletionPolicyId, repo, snapInfo, slmStats) -> {
                     logger.info("--> deleting {} from repo {}", snapInfo, repo);
                     deleted.add(snapInfo);
                     deletionLatch.countDown();
@@ -289,7 +289,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                     logger.info("--> retrieving snapshots [{}]", snaps);
                     return Collections.singletonMap(repoId, snaps);
                 },
-                (repo, snapInfo) -> {
+                (deletionPolicyId, repo, snapInfo, slmStats) -> {
                     logger.info("--> deleting {}", snapInfo.snapshotId());
                     // Don't pause until snapshot 2
                     if (snapInfo.snapshotId().equals(snap2.snapshotId())) {
@@ -346,7 +346,8 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             .collect(Collectors.toMap(pm -> pm.getPolicy().getId(), pm -> pm));
 
         MetaData metaData = MetaData.builder()
-            .putCustom(SnapshotLifecycleMetadata.TYPE, new SnapshotLifecycleMetadata(policyMetadataMap, OperationMode.RUNNING))
+            .putCustom(SnapshotLifecycleMetadata.TYPE,
+                new SnapshotLifecycleMetadata(policyMetadataMap, OperationMode.RUNNING, new SnapshotLifecycleStats()))
             .build();
         return ClusterState.builder(new ClusterName("cluster"))
             .metaData(metaData)
@@ -355,13 +356,13 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
 
     private static class MockSnapshotRetentionTask extends SnapshotRetentionTask {
         private final Supplier<Map<String, List<SnapshotInfo>>> snapshotRetriever;
-        private final BiFunction<String, SnapshotInfo, Optional<SnapshotHistoryItem>> deleteRunner;
+        private final DeleteSnapshotMock deleteRunner;
 
         MockSnapshotRetentionTask(Client client,
                                   ClusterService clusterService,
                                   SnapshotHistoryStore historyStore,
                                   Supplier<Map<String, List<SnapshotInfo>>> snapshotRetriever,
-                                  BiFunction<String, SnapshotInfo, Optional<SnapshotHistoryItem>> deleteRunner,
+                                  DeleteSnapshotMock deleteRunner,
                                   LongSupplier nanoSupplier) {
             super(client, clusterService, nanoSupplier, historyStore);
             this.snapshotRetriever = snapshotRetriever;
@@ -376,8 +377,13 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
         }
 
         @Override
-        Optional<SnapshotHistoryItem> deleteSnapshot(String repo, SnapshotInfo snapshot) {
-            return deleteRunner.apply(repo, snapshot);
+        Optional<SnapshotHistoryItem> deleteSnapshot(String policyId, String repo, SnapshotInfo snapshot, SnapshotLifecycleStats slmStats) {
+            return deleteRunner.apply(policyId, repo, snapshot, slmStats);
         }
+    }
+
+    @FunctionalInterface
+    interface DeleteSnapshotMock {
+        Optional<SnapshotHistoryItem> apply(String policyId, String repo, SnapshotInfo snapshot, SnapshotLifecycleStats slmStats);
     }
 }

@@ -24,6 +24,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.queries.BinaryDocValuesRangeQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -407,7 +408,7 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
 
         testCase(
             new MatchAllDocsQuery(),
-            builder -> builder.fixedInterval(new DateHistogramInterval("1d")).offset("12h"),
+            builder -> builder.fixedInterval(new DateHistogramInterval("1d")).offset("36h"),
             writer -> {
                 writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range1)))));
                 writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range2)))));
@@ -528,6 +529,114 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
 
                 assertEquals(asZDT("2019-08-02T00:00:00"), histo.getBuckets().get(0).getKey());
                 assertEquals(3, histo.getBuckets().get(0).getDocCount());
+
+                assertTrue(AggregationInspectionHelper.hasValue(histo));
+            }
+        );
+    }
+
+    public void testIntersectQuery() throws Exception {
+        RangeFieldMapper.Range range1 = new RangeFieldMapper.Range(RangeType.DATE, asLong("2019-08-02T02:15:00"),
+            asLong("2019-08-02T02:45:00"), true, true);
+        RangeFieldMapper.Range range2 = new RangeFieldMapper.Range(RangeType.DATE, asLong("2019-08-02T05:15:00"),
+            asLong("2019-08-02T05:45:00"), true, true);
+
+        RangeFieldMapper.Range range3 = new RangeFieldMapper.Range(RangeType.DATE, asLong("2019-08-02T03:15:00"),
+            asLong("2019-08-02T03:45:00"), true, true);
+        RangeFieldMapper.Range range4 = new RangeFieldMapper.Range(RangeType.DATE, asLong("2019-08-02T04:15:00"),
+            asLong("2019-08-02T04:45:00"), true, true);
+        RangeFieldMapper.Range range5 = new RangeFieldMapper.Range(RangeType.DATE, asLong("2019-08-02T03:30:00"),
+            asLong("2019-08-02T04:30:00"), true, true);
+
+        RangeFieldMapper.Range range6 = new RangeFieldMapper.Range(RangeType.DATE, asLong("2019-08-02T02:15:00"),
+            asLong("2019-08-02T03:45:00"), true, true);
+        RangeFieldMapper.Range range7 = new RangeFieldMapper.Range(RangeType.DATE, asLong("2019-08-02T04:15:00"),
+            asLong("2019-08-02T05:45:00"), true, true);
+        RangeFieldMapper.Range range8 = new RangeFieldMapper.Range(RangeType.DATE, asLong("2019-08-02T02:30:00"),
+            asLong("2019-08-02T05:30:00"), true, true);
+
+        Query query = RangeType.DATE.dvRangeQuery(FIELD_NAME, BinaryDocValuesRangeQuery.QueryType.INTERSECTS, asLong("2019-08-02T03:00:00"),
+            asLong("2019-08-02T05:00:00"), true, true);
+
+
+        testCase(
+            query,
+            builder -> builder.calendarInterval(DateHistogramInterval.HOUR).minDocCount(2),
+            writer -> {
+                writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range1)))));
+                writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range2)))));
+                writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range3)))));
+                writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range4)))));
+                writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range5)))));
+                writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range6)))));
+                writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range7)))));
+                writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range8)))));
+            },
+            histo -> {
+                assertEquals(4, histo.getBuckets().size());
+
+                assertEquals(asZDT("2019-08-02T02:00:00"), histo.getBuckets().get(0).getKey());
+                assertEquals(2, histo.getBuckets().get(0).getDocCount());
+
+                assertEquals(asZDT("2019-08-02T03:00:00"), histo.getBuckets().get(1).getKey());
+                assertEquals(4, histo.getBuckets().get(1).getDocCount());
+
+                assertEquals(asZDT("2019-08-02T04:00:00"), histo.getBuckets().get(2).getKey());
+                assertEquals(4, histo.getBuckets().get(2).getDocCount());
+
+                assertEquals(asZDT("2019-08-02T05:00:00"), histo.getBuckets().get(3).getKey());
+                assertEquals(2, histo.getBuckets().get(3).getDocCount());
+
+                assertTrue(AggregationInspectionHelper.hasValue(histo));
+            }
+        );
+    }
+
+    public void testWithinQuery() throws Exception {
+        RangeFieldMapper.Range range1 = new RangeFieldMapper.Range(RangeType.DATE, asLong("2019-08-02T02:15:00"),
+            asLong("2019-08-02T02:45:00"), true, true);
+        RangeFieldMapper.Range range2 = new RangeFieldMapper.Range(RangeType.DATE, asLong("2019-08-02T05:15:00"),
+            asLong("2019-08-02T05:45:00"), true, true);
+
+        RangeFieldMapper.Range range3 = new RangeFieldMapper.Range(RangeType.DATE, asLong("2019-08-02T03:15:00"),
+            asLong("2019-08-02T03:45:00"), true, true);
+        RangeFieldMapper.Range range4 = new RangeFieldMapper.Range(RangeType.DATE, asLong("2019-08-02T04:15:00"),
+            asLong("2019-08-02T04:45:00"), true, true);
+        RangeFieldMapper.Range range5 = new RangeFieldMapper.Range(RangeType.DATE, asLong("2019-08-02T03:30:00"),
+            asLong("2019-08-02T04:30:00"), true, true);
+
+        RangeFieldMapper.Range range6 = new RangeFieldMapper.Range(RangeType.DATE, asLong("2019-08-02T02:15:00"),
+            asLong("2019-08-02T03:45:00"), true, true);
+        RangeFieldMapper.Range range7 = new RangeFieldMapper.Range(RangeType.DATE, asLong("2019-08-02T04:15:00"),
+            asLong("2019-08-02T05:45:00"), true, true);
+        RangeFieldMapper.Range range8 = new RangeFieldMapper.Range(RangeType.DATE, asLong("2019-08-02T02:30:00"),
+            asLong("2019-08-02T05:30:00"), true, true);
+
+        Query query = RangeType.DATE.dvRangeQuery(FIELD_NAME, BinaryDocValuesRangeQuery.QueryType.WITHIN, asLong("2019-08-02T03:00:00"),
+            asLong("2019-08-02T05:00:00"), true, true);
+
+
+        testCase(
+            query,
+            builder -> builder.calendarInterval(DateHistogramInterval.HOUR).minDocCount(2),
+            writer -> {
+                writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range1)))));
+                writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range2)))));
+                writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range3)))));
+                writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range4)))));
+                writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range5)))));
+                writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range6)))));
+                writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range7)))));
+                writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range8)))));
+            },
+            histo -> {
+                assertEquals(2, histo.getBuckets().size());
+
+                assertEquals(asZDT("2019-08-02T03:00:00"), histo.getBuckets().get(0).getKey());
+                assertEquals(2, histo.getBuckets().get(0).getDocCount());
+
+                assertEquals(asZDT("2019-08-02T04:00:00"), histo.getBuckets().get(1).getKey());
+                assertEquals(2, histo.getBuckets().get(1).getDocCount());
 
                 assertTrue(AggregationInspectionHelper.hasValue(histo));
             }

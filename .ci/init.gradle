@@ -26,7 +26,7 @@ if (System.env.VAULT_TOKEN == null) {
     }
 }
 
-final String vaultToken = System.env.VAULT_TOKEN :?   new Vault(
+final String vaultToken = System.env.VAULT_TOKEN ?:   new Vault(
         new VaultConfig()
             .address(System.env.VAULT_ADDR)
             .engineVersion(1)

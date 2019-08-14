@@ -28,27 +28,30 @@ import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
-public class RecoveryFinalizeRecoveryRequest extends TransportRequest {
+final class RecoveryFinalizeRecoveryRequest extends TransportRequest {
 
-    private long recoveryId;
-    private ShardId shardId;
-    private long globalCheckpoint;
+    private final long recoveryId;
+    private final ShardId shardId;
+    private final long globalCheckpoint;
+    private final long trimAboveSeqNo;
 
-    public RecoveryFinalizeRecoveryRequest(StreamInput in) throws IOException {
+    RecoveryFinalizeRecoveryRequest(StreamInput in) throws IOException {
         super(in);
         recoveryId = in.readLong();
         shardId = new ShardId(in);
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-            globalCheckpoint = in.readZLong();
+        globalCheckpoint = in.readZLong();
+        if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
+            trimAboveSeqNo = in.readZLong();
         } else {
-            globalCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
+            trimAboveSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
         }
     }
 
-    RecoveryFinalizeRecoveryRequest(final long recoveryId, final ShardId shardId, final long globalCheckpoint) {
+    RecoveryFinalizeRecoveryRequest(final long recoveryId, final ShardId shardId, final long globalCheckpoint, final long trimAboveSeqNo) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.globalCheckpoint = globalCheckpoint;
+        this.trimAboveSeqNo = trimAboveSeqNo;
     }
 
     public long recoveryId() {
@@ -63,13 +66,18 @@ public class RecoveryFinalizeRecoveryRequest extends TransportRequest {
         return globalCheckpoint;
     }
 
+    public long trimAboveSeqNo() {
+        return trimAboveSeqNo;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeLong(recoveryId);
         shardId.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-            out.writeZLong(globalCheckpoint);
+        out.writeZLong(globalCheckpoint);
+        if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
+            out.writeZLong(trimAboveSeqNo);
         }
     }
 

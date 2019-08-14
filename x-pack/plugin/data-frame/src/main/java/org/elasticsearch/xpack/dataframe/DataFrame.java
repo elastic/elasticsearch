@@ -136,14 +136,14 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
         }
 
         return Arrays.asList(
-                new RestPutDataFrameTransformAction(settings, restController),
-                new RestStartDataFrameTransformAction(settings, restController),
-                new RestStopDataFrameTransformAction(settings, restController),
-                new RestDeleteDataFrameTransformAction(settings, restController),
-                new RestGetDataFrameTransformsAction(settings, restController),
-                new RestGetDataFrameTransformsStatsAction(settings, restController),
-                new RestPreviewDataFrameTransformAction(settings, restController),
-                new RestUpdateDataFrameTransformAction(settings, restController)
+                new RestPutDataFrameTransformAction(restController),
+                new RestStartDataFrameTransformAction(restController),
+                new RestStopDataFrameTransformAction(restController),
+                new RestDeleteDataFrameTransformAction(restController),
+                new RestGetDataFrameTransformsAction(restController),
+                new RestGetDataFrameTransformsStatsAction(restController),
+                new RestPreviewDataFrameTransformAction(restController),
+                new RestUpdateDataFrameTransformAction(restController)
         );
     }
 
@@ -187,7 +187,9 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
         }
         dataFrameAuditor.set(new DataFrameAuditor(client, clusterService.getNodeName()));
         dataFrameTransformsConfigManager.set(new DataFrameTransformsConfigManager(client, xContentRegistry));
-        dataFrameTransformsCheckpointService.set(new DataFrameTransformsCheckpointService(client, dataFrameTransformsConfigManager.get()));
+        dataFrameTransformsCheckpointService.set(new DataFrameTransformsCheckpointService(client,
+                                                                                          dataFrameTransformsConfigManager.get(),
+                                                                                          dataFrameAuditor.get()));
 
         return Arrays.asList(dataFrameTransformsConfigManager.get(), dataFrameAuditor.get(), dataFrameTransformsCheckpointService.get());
     }
@@ -235,6 +237,7 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
                 settingsModule.getSettings()));
     }
 
+    @Override
     public List<Setting<?>> getSettings() {
         return Collections.singletonList(DataFrameTransformTask.NUM_FAILURE_RETRIES_SETTING);
     }

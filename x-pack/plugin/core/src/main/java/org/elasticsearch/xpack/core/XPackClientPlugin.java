@@ -96,6 +96,7 @@ import org.elasticsearch.xpack.core.ml.action.DeleteFilterAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteForecastAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteModelSnapshotAction;
+import org.elasticsearch.xpack.core.ml.action.EstimateMemoryUsageAction;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
 import org.elasticsearch.xpack.core.ml.action.FindFileStructureAction;
@@ -147,6 +148,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetection;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.Evaluation;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification.AucRoc;
@@ -199,8 +201,8 @@ import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExceptExpression;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.RoleMapperExpression;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.transport.netty4.SecurityNetty4Transport;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.action.DeleteSnapshotLifecycleAction;
@@ -347,6 +349,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 StartDataFrameAnalyticsAction.INSTANCE,
                 StopDataFrameAnalyticsAction.INSTANCE,
                 EvaluateDataFrameAction.INSTANCE,
+                EstimateMemoryUsageAction.INSTANCE,
                 // security
                 ClearRealmCacheAction.INSTANCE,
                 ClearRolesCacheAction.INSTANCE,
@@ -455,6 +458,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                         MachineLearningFeatureSetUsage::new),
                 // ML - Data frame analytics
                 new NamedWriteableRegistry.Entry(DataFrameAnalysis.class, OutlierDetection.NAME.getPreferredName(), OutlierDetection::new),
+                new NamedWriteableRegistry.Entry(DataFrameAnalysis.class, Regression.NAME.getPreferredName(), Regression::new),
                 // ML - Data frame evaluation
                 new NamedWriteableRegistry.Entry(Evaluation.class, BinarySoftClassification.NAME.getPreferredName(),
                         BinarySoftClassification::new),
@@ -475,9 +479,9 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 new NamedWriteableRegistry.Entry(NamedDiff.class, TokenMetaData.TYPE, TokenMetaData::readDiffFrom),
                 new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.SECURITY, SecurityFeatureSetUsage::new),
                 // security : conditional privileges
-                new NamedWriteableRegistry.Entry(ConditionalClusterPrivilege.class,
-                    ConditionalClusterPrivileges.ManageApplicationPrivileges.WRITEABLE_NAME,
-                    ConditionalClusterPrivileges.ManageApplicationPrivileges::createFrom),
+                new NamedWriteableRegistry.Entry(ConfigurableClusterPrivilege.class,
+                    ConfigurableClusterPrivileges.ManageApplicationPrivileges.WRITEABLE_NAME,
+                    ConfigurableClusterPrivileges.ManageApplicationPrivileges::createFrom),
                 // security : role-mappings
                 new NamedWriteableRegistry.Entry(RoleMapperExpression.class, AllExpression.NAME, AllExpression::new),
                 new NamedWriteableRegistry.Entry(RoleMapperExpression.class, AnyExpression.NAME, AnyExpression::new),

@@ -44,7 +44,8 @@ public class DataFrameAnalyticsConfigTests extends AbstractXContentTestCase<Data
 
     public static DataFrameAnalyticsConfig randomDataFrameAnalyticsConfig() {
         DataFrameAnalyticsConfig.Builder builder =
-            DataFrameAnalyticsConfig.builder(randomAlphaOfLengthBetween(1, 10))
+            DataFrameAnalyticsConfig.builder()
+                .setId(randomAlphaOfLengthBetween(1, 10))
                 .setSource(randomSourceConfig())
                 .setDest(randomDestConfig())
                 .setAnalysis(randomOutlierDetection());

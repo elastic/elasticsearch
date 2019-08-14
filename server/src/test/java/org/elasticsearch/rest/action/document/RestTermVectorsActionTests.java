@@ -20,7 +20,6 @@
 package org.elasticsearch.rest.action.document;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -36,7 +35,7 @@ public class RestTermVectorsActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        new RestTermVectorsAction(Settings.EMPTY, controller());
+        new RestTermVectorsAction(controller());
     }
 
     public void testTypeInPath() {

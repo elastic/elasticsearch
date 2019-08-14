@@ -562,26 +562,27 @@ public class IngestService implements ClusterStateApplier {
     }
 
     /**
-     * Determine if a pipeline contains a processor class within it by introspecting all of the processors within the pipeline.
+     * Gets all the Processors of the given type from within a Pipeline.
      * @param pipelineId the pipeline to inspect
      * @param clazz the Processor class to look for
      * @return True if the pipeline contains an instance of the Processor class passed in
      */
-    public boolean hasProcessor(String pipelineId, Class<? extends Processor> clazz) {
+    public<P extends Processor> List<P> getProcessorsInPipeline(String pipelineId, Class<P> clazz) {
         Pipeline pipeline = getPipeline(pipelineId);
         if (pipeline == null) {
-            return false;
+            throw new IllegalArgumentException("pipeline with id [" + pipelineId + "] does not exist");
         }
 
+        List<P> processors = new ArrayList<>();
         for (Processor processor: pipeline.flattenAllProcessors()) {
             if (clazz.isAssignableFrom(processor.getClass())) {
-                return true;
+                processors.add(clazz.cast(processor));
             }
 
             while (processor instanceof WrappingProcessor) {
                 WrappingProcessor wrappingProcessor = (WrappingProcessor) processor;
                 if (clazz.isAssignableFrom(wrappingProcessor.getInnerProcessor().getClass())) {
-                    return true;
+                    processors.add(clazz.cast(wrappingProcessor.getInnerProcessor()));
                 }
                 processor = wrappingProcessor.getInnerProcessor();
                 // break in the case of self referencing processors in the event a processor author creates a
@@ -592,7 +593,7 @@ public class IngestService implements ClusterStateApplier {
             }
         }
 
-        return false;
+        return processors;
     }
 
     private static Pipeline substitutePipeline(String id, ElasticsearchParseException e) {

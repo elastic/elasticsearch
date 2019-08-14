@@ -36,6 +36,7 @@ import org.elasticsearch.gradle.vagrant.VagrantExtension;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.file.Directory;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
@@ -113,14 +114,19 @@ public class DistroTestPlugin implements Plugin<Project> {
             List<Object> vmDependencies = new ArrayList<>(configureVM(vmProject));
             vmDependencies.add(project.getConfigurations().getByName("testRuntimeClasspath"));
 
+            TaskProvider<Task> distroTest = vmProject.getTasks().register("distroTest");
             for (ElasticsearchDistribution distribution : distributions) {
                 String destructiveTaskName = destructiveDistroTestTaskName(distribution);
                 Platform platform = distribution.getPlatform();
                 if (isWindows(vmProject) == (platform == Platform.WINDOWS)) {
-                    configureVMWrapperTask(vmProject, distribution.getName() + " distribution", destructiveTaskName, vmDependencies)
-                        .configure(t -> t.dependsOn(distribution));
+                    TaskProvider<GradleDistroTestTask> vmTask =
+                        configureVMWrapperTask(vmProject, distribution.getName() + " distribution", destructiveTaskName, vmDependencies);
+                    vmTask.configure(t -> t.dependsOn(distribution));
+                    distroTest.configure(t -> t.dependsOn(vmTask));
                 }
             }
+
+
             batsTests.forEach((desc, task) -> {
                 configureVMWrapperTask(vmProject, desc, task.getName(), vmDependencies).configure(t -> {
                     t.setProgressHandler(new BatsProgressLogger(project.getLogger()));
@@ -347,7 +353,7 @@ public class DistroTestPlugin implements Plugin<Project> {
                                   Type type, Platform platform, Flavor flavor, boolean bundledJdk, String version,
                                   List<ElasticsearchDistribution> container) {
 
-        String name = flavor + "-" + (type == Type.ARCHIVE ? platform + "-" : "") + type + (bundledJdk ? "" : "-no-jdk") + "-" + version;
+        String name = distroId(type, platform, flavor, bundledJdk) + "-" + version;
         if (distributions.findByName(name) != null) {
             return;
         }
@@ -368,7 +374,11 @@ public class DistroTestPlugin implements Plugin<Project> {
         return project.getName().contains("windows");
     }
 
-    private static String destructiveDistroTestTaskName(ElasticsearchDistribution distribution) {
-        return "destructiveDistroTest." + distribution.getName();
+    private static String distroId(Type type, Platform platform, Flavor flavor, boolean bundledJdk) {
+        return flavor + "-" + (type == Type.ARCHIVE ? platform + "-" : "") + type + (bundledJdk ? "" : "-no-jdk");
+    }
+
+    private static String destructiveDistroTestTaskName(ElasticsearchDistribution distro) {
+        return "destructiveDistroTest." + distroId(distro.getType(), distro.getPlatform(), distro.getFlavor(), distro.getBundledJdk());
     }
 }

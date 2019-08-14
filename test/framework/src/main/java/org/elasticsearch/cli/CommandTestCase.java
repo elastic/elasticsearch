@@ -53,4 +53,15 @@ public abstract class CommandTestCase extends ESTestCase {
         command.mainWithoutErrorHandling(args, terminal);
         return terminal.getOutput();
     }
+
+    /**
+     * Runs the specified command with the given args.
+     * <p>
+     * Output can be found in {@link #terminal}.
+     */
+    public String execute(Command command, String... args) throws Exception {
+        this.command = command;
+        this.command.mainWithoutErrorHandling(args, terminal);
+        return terminal.getOutput();
+    }
 }

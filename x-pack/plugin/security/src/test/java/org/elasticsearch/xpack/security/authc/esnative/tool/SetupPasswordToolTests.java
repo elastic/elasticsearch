@@ -74,9 +74,11 @@ public class SetupPasswordToolTests extends CommandTestCase {
     private final String pathHomeParameter = "-Epath.home=" + createTempDir();
     private SecureString bootstrapPassword;
     private CommandLineHttpClient httpClient;
-    private KeyStoreWrapper keyStore;
     private List<String> usersInSetOrder;
-    private boolean passwordProtectedKeystore = false;
+    private KeyStoreWrapper passwordProtectedKeystore;
+    private KeyStoreWrapper keyStore;
+    private KeyStoreWrapper usedKeyStore;
+
     @Rule
     public ExpectedException thrown = ExpectedException.none();
 
@@ -86,27 +88,15 @@ public class SetupPasswordToolTests extends CommandTestCase {
         boolean useFallback = randomBoolean();
         bootstrapPassword = useFallback ? new SecureString("0xCAFEBABE".toCharArray()) :
                 new SecureString("bootstrap-password".toCharArray());
-        this.keyStore = mock(KeyStoreWrapper.class);
-        this.httpClient = mock(CommandLineHttpClient.class);
-
-        when(keyStore.isLoaded()).thenReturn(true);
-        if (useFallback) {
-            when(keyStore.getSettingNames()).thenReturn(new HashSet<>(Arrays.asList(ReservedRealm.BOOTSTRAP_ELASTIC_PASSWORD.getKey(),
-                    KeyStoreWrapper.SEED_SETTING.getKey())));
-            when(keyStore.getString(ReservedRealm.BOOTSTRAP_ELASTIC_PASSWORD.getKey())).thenReturn(bootstrapPassword);
-        } else {
-            when(keyStore.getSettingNames()).thenReturn(Collections.singleton(KeyStoreWrapper.SEED_SETTING.getKey()));
-            when(keyStore.getString(KeyStoreWrapper.SEED_SETTING.getKey())).thenReturn(bootstrapPassword);
-        }
-        if (randomBoolean()) {
-            passwordProtectedKeystore = true;
-            when(keyStore.hasPassword()).thenReturn(true);
-            doNothing().when(keyStore).decrypt("keystore-password".toCharArray());
-            doThrow(new SecurityException("Provided keystore password was incorrect", new AEADBadTagException()))
-                .when(keyStore).decrypt("wrong-password".toCharArray());
+        keyStore = mockKeystore(false, useFallback);
+        // create a password protected keystore eitherway, so that it can be used for SetupPasswordToolTests#testWrongKeystorePassword
+        passwordProtectedKeystore = mockKeystore(true, useFallback);
+        usedKeyStore = randomFrom(keyStore, passwordProtectedKeystore);
+        if (usedKeyStore.hasPassword()) {
             terminal.addSecretInput("keystore-password");
         }
 
+        this.httpClient = mock(CommandLineHttpClient.class);
         when(httpClient.getDefaultURL()).thenReturn("http://localhost:9200");
 
         HttpResponse httpResponse = new HttpResponse(HttpURLConnection.HTTP_OK, new HashMap<String, Object>());
@@ -137,35 +127,29 @@ public class SetupPasswordToolTests extends CommandTestCase {
         }
     }
 
+    private KeyStoreWrapper mockKeystore(boolean isPasswordProtected, boolean useFallback) throws Exception {
+        KeyStoreWrapper keyStore = mock(KeyStoreWrapper.class);
+        when(keyStore.isLoaded()).thenReturn(true);
+        if (useFallback) {
+            when(keyStore.getSettingNames()).thenReturn(new HashSet<>(Arrays.asList(ReservedRealm.BOOTSTRAP_ELASTIC_PASSWORD.getKey(),
+                KeyStoreWrapper.SEED_SETTING.getKey())));
+            when(keyStore.getString(ReservedRealm.BOOTSTRAP_ELASTIC_PASSWORD.getKey())).thenReturn(bootstrapPassword);
+        } else {
+            when(keyStore.getSettingNames()).thenReturn(Collections.singleton(KeyStoreWrapper.SEED_SETTING.getKey()));
+            when(keyStore.getString(KeyStoreWrapper.SEED_SETTING.getKey())).thenReturn(bootstrapPassword);
+        }
+        if (isPasswordProtected) {
+            when(keyStore.hasPassword()).thenReturn(true);
+            doNothing().when(keyStore).decrypt("keystore-password".toCharArray());
+            doThrow(new SecurityException("Provided keystore password was incorrect", new AEADBadTagException()))
+                .when(keyStore).decrypt("wrong-password".toCharArray());
+        }
+        return keyStore;
+    }
+
     @Override
     protected Command newCommand() {
-        return new SetupPasswordTool((e, s) -> httpClient, (e) -> keyStore) {
-
-            @Override
-            protected AutoSetup newAutoSetup() {
-                return new AutoSetup() {
-                    @Override
-                    protected Environment createEnv(Map<String, String> settings) throws UserException {
-                        Settings.Builder builder = Settings.builder();
-                        settings.forEach((k, v) -> builder.put(k, v));
-                        return TestEnvironment.newEnvironment(builder.build());
-                    }
-                };
-            }
-
-            @Override
-            protected InteractiveSetup newInteractiveSetup() {
-                return new InteractiveSetup() {
-                    @Override
-                    protected Environment createEnv(Map<String, String> settings) throws UserException {
-                        Settings.Builder builder = Settings.builder();
-                        settings.forEach((k, v) -> builder.put(k, v));
-                        return TestEnvironment.newEnvironment(builder.build());
-                    }
-                };
-            }
-
-        };
+        return getSetupPasswordCommandWithKeyStore(usedKeyStore);
     }
 
     public void testAutoSetup() throws Exception {
@@ -176,11 +160,11 @@ public class SetupPasswordToolTests extends CommandTestCase {
             terminal.addTextInput("Y");
             execute("auto", pathHomeParameter);
         }
-        if (passwordProtectedKeystore) {
+        if (usedKeyStore.hasPassword()) {
             // SecureString is already closed (zero-filled) and keystore-password is 17 char long
-            verify(keyStore).decrypt(new char[17]);
+            verify(usedKeyStore).decrypt(new char[17]);
         } else {
-            verify(keyStore).decrypt(new char[0]);
+            verify(usedKeyStore).decrypt(new char[0]);
         }
 
         InOrder inOrder = Mockito.inOrder(httpClient);
@@ -424,7 +408,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
         URL url = new URL(httpClient.getDefaultURL());
 
         terminal.reset();
-        if (passwordProtectedKeystore) {
+        if (usedKeyStore.hasPassword()) {
             terminal.addSecretInput("keystore-password");
         }
         terminal.addTextInput("Y");
@@ -462,15 +446,15 @@ public class SetupPasswordToolTests extends CommandTestCase {
     }
 
     public void testWrongKeystorePassword() throws Exception {
-        assumeFalse("Can't test this when the keystore isn't password protected", passwordProtectedKeystore == false);
+        Command commandWithPasswordProtectedKeystore = getSetupPasswordCommandWithKeyStore(passwordProtectedKeystore);
         terminal.reset();
         terminal.addSecretInput("wrong-password");
         final UserException e = expectThrows(UserException.class, () -> {
             if (randomBoolean()) {
-                execute("auto", pathHomeParameter, "-b", "true");
+                execute(commandWithPasswordProtectedKeystore, "auto", pathHomeParameter, "-b", "true");
             } else {
                 terminal.addTextInput("Y");
-                execute("auto", pathHomeParameter);
+                execute(commandWithPasswordProtectedKeystore, "auto", pathHomeParameter);
             }
         });
         assertThat(e.getMessage(), containsString("Wrong password for elasticsearch.keystore"));
@@ -513,5 +497,36 @@ public class SetupPasswordToolTests extends CommandTestCase {
         builder.withHttpStatus(httpStatus);
         builder.withResponseBody(responseJson);
         return builder.build();
+    }
+
+    private Command getSetupPasswordCommandWithKeyStore(KeyStoreWrapper keyStore) {
+        return new SetupPasswordTool((e, s) -> httpClient, (e) -> keyStore) {
+
+            @Override
+            protected AutoSetup newAutoSetup() {
+                return new AutoSetup() {
+                    @Override
+                    protected Environment createEnv(Map<String, String> settings) throws UserException {
+                        Settings.Builder builder = Settings.builder();
+                        settings.forEach((k, v) -> builder.put(k, v));
+                        return TestEnvironment.newEnvironment(builder.build());
+                    }
+                };
+            }
+
+            @Override
+            protected InteractiveSetup newInteractiveSetup() {
+                return new InteractiveSetup() {
+                    @Override
+                    protected Environment createEnv(Map<String, String> settings) throws UserException {
+                        Settings.Builder builder = Settings.builder();
+                        settings.forEach((k, v) -> builder.put(k, v));
+                        return TestEnvironment.newEnvironment(builder.build());
+                    }
+                };
+            }
+
+        };
+
     }
 }

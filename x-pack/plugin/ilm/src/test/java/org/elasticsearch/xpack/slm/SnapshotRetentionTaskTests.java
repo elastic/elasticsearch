@@ -147,7 +147,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
 
             AtomicReference<List<SnapshotInfo>> deleted = new AtomicReference<>();
             CountDownLatch latch = new CountDownLatch(1);
-            MockSnapshotRetentionTask retentionTask = new MockSnapshotRetentionTask(noOpClient, clusterService,
+            MockSnapshotRetentionTask retentionTask = new MockSnapshotRetentionTask(noOpClient, clusterService, threadPool,
                 () -> {
                     List<SnapshotInfo> snaps = new ArrayList<>(2);
                     snaps.add(eligibleSnapshot);
@@ -206,23 +206,24 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             // We're expected two deletions before they hit the "taken too long" test, so have a latch of 2
             CountDownLatch latch = new CountDownLatch(2);
             AtomicLong nanos = new AtomicLong(System.nanoTime());
-            OverrideDeleteSnapshotRetentionTask retentionTask = new OverrideDeleteSnapshotRetentionTask(noOpClient, clusterService,
-                () -> {
-                    List<SnapshotInfo> snaps = Arrays.asList(snap1, snap2, snap3, snap4, snap5);
-                    logger.info("--> retrieving snapshots [{}]", snaps);
-                    return Collections.singletonMap("repo", snaps);
-                },
-                (repo, snapshotId) -> {
-                    logger.info("--> deleting {}", snapshotId);
-                    // Don't pause until snapshot 2
-                    if (snapshotId.equals(snap2.snapshotId())) {
-                        logger.info("--> pausing for 501ms while deleting snap2 to simulate deletion past a threshold");
-                        nanos.addAndGet(TimeValue.timeValueMillis(501).nanos());
-                    }
-                    deleted.add(snapshotId);
-                    latch.countDown();
-                },
-                nanos::get);
+            OverrideDeleteSnapshotRetentionTask retentionTask =
+                new OverrideDeleteSnapshotRetentionTask(noOpClient, clusterService, threadPool,
+                    () -> {
+                        List<SnapshotInfo> snaps = Arrays.asList(snap1, snap2, snap3, snap4, snap5);
+                        logger.info("--> retrieving snapshots [{}]", snaps);
+                        return Collections.singletonMap("repo", snaps);
+                    },
+                    (repo, snapshotId) -> {
+                        logger.info("--> deleting {}", snapshotId);
+                        // Don't pause until snapshot 2
+                        if (snapshotId.equals(snap2.snapshotId())) {
+                            logger.info("--> pausing for 501ms while deleting snap2 to simulate deletion past a threshold");
+                            nanos.addAndGet(TimeValue.timeValueMillis(501).nanos());
+                        }
+                        deleted.add(snapshotId);
+                        latch.countDown();
+                    },
+                    nanos::get);
 
             long time = System.currentTimeMillis();
             retentionTask.triggered(new SchedulerEngine.Event(SnapshotRetentionService.SLM_RETENTION_JOB_ID, time, time));
@@ -267,9 +268,10 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
 
         MockSnapshotRetentionTask(Client client,
                                   ClusterService clusterService,
+                                  ThreadPool threadPool,
                                   Supplier<Map<String, List<SnapshotInfo>>> snapshotRetriever,
                                   Consumer<Map<String, List<SnapshotInfo>>> snapshotDeleter) {
-            super(client, clusterService, System::nanoTime);
+            super(client, clusterService, System::nanoTime, threadPool);
             this.snapshotRetriever = snapshotRetriever;
             this.snapshotDeleter = snapshotDeleter;
         }
@@ -293,10 +295,11 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
 
         OverrideDeleteSnapshotRetentionTask(Client client,
                                             ClusterService clusterService,
+                                            ThreadPool threadPool,
                                             Supplier<Map<String, List<SnapshotInfo>>> snapshotRetriever,
                                             BiConsumer<String, SnapshotId> deleteRunner,
                                             LongSupplier nanoSupplier) {
-            super(client, clusterService, nanoSupplier);
+            super(client, clusterService, nanoSupplier, threadPool);
             this.snapshotRetriever = snapshotRetriever;
             this.deleteRunner = deleteRunner;
         }

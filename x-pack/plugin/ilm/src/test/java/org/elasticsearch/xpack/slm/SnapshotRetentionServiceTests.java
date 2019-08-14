@@ -67,7 +67,7 @@ public class SnapshotRetentionServiceTests extends ESTestCase {
 
     private static class FakeRetentionTask extends SnapshotRetentionTask {
         FakeRetentionTask() {
-            super(mock(Client.class), null, System::nanoTime);
+            super(mock(Client.class), null, System::nanoTime, mock(ThreadPool.class));
         }
 
         @Override

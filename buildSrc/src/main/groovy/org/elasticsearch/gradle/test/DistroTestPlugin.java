@@ -283,7 +283,7 @@ public class DistroTestPlugin implements Plugin<Project> {
     }
 
     private static TaskProvider<BatsTestTask> configureBatsTest(Project project, String type, Provider<Directory> distributionsDir,
-                                                                TaskProvider<Copy> copyPackagingArchives, Object... deps) {
+                                                                Object... deps) {
         return project.getTasks().register("destructiveBatsTest." + type, BatsTestTask.class,
             t -> {
                 Directory batsDir = project.getLayout().getProjectDirectory().dir("bats");

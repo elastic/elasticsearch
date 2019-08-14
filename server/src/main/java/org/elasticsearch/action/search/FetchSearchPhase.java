@@ -166,7 +166,6 @@ final class FetchSearchPhase extends SearchPhase {
                     try {
                         counter.onResult(result);
                     } catch (Exception e) {
-                        assert false : e;
                         context.onPhaseFailure(FetchSearchPhase.this, "", e);
                     }
                 }

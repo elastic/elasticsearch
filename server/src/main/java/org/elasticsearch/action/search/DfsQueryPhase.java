@@ -83,7 +83,6 @@ final class DfsQueryPhase extends SearchPhase {
                         try {
                             counter.onResult(response);
                         } catch (Exception e) {
-                            assert false : e;
                             context.onPhaseFailure(DfsQueryPhase.this, "", e);
                         }
                     }

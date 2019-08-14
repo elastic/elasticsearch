@@ -351,7 +351,8 @@ public class SamlMetadataCommand extends EnvironmentAwareCommand {
             SamlUtils.validate(xmlInput, METADATA_SCHEMA);
             terminal.println(Terminal.Verbosity.VERBOSE, "The generated metadata file conforms to the SAML metadata schema");
         } catch (SAXException e) {
-            terminal.errorPrintln(Terminal.Verbosity.SILENT, "Error - The generated metadata file does not conform to the SAML metadata schema");
+            terminal.errorPrintln(Terminal.Verbosity.SILENT, "Error - The generated metadata file does not conform to the " +
+                "SAML metadata schema");
             terminal.errorPrintln("While validating " + xml.toString() + " the follow errors were found:");
             printExceptions(terminal, e);
             throw new UserException(ExitCodes.CODE_ERROR, "Generated metadata is not valid");

@@ -891,7 +891,8 @@ public class CertificateTool extends LoggingAwareMultiCommand {
             final List<String> errors = certInfo.validate();
             if (errors.size() > 0) {
                 hasError = true;
-                terminal.errorPrintln(Verbosity.SILENT, "Configuration for instance " + certInfo.name.originalName + " has invalid details");
+                terminal.errorPrintln(Verbosity.SILENT, "Configuration for instance " + certInfo.name.originalName +
+                    " has invalid details");
                 for (String message : errors) {
                     terminal.errorPrintln(Verbosity.SILENT, " * " + message);
                 }

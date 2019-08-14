@@ -316,13 +316,15 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
                     XPackSecurityFeatureConfig xPackSecurityFeatureConfig = getXPackSecurityConfig(terminal);
                     if (xPackSecurityFeatureConfig.isAvailable == false) {
                         terminal.errorPrintln("It doesn't look like the X-Pack security feature is available on this Elasticsearch node.");
-                        terminal.errorPrintln("Please check if you have installed a license that allows access to X-Pack Security feature.");
+                        terminal.errorPrintln("Please check if you have installed a license that allows access to " +
+                            "X-Pack Security feature.");
                         terminal.errorPrintln("");
                         throw new UserException(ExitCodes.CONFIG, "X-Pack Security is not available.");
                     }
                     if (xPackSecurityFeatureConfig.isEnabled == false) {
                         terminal.errorPrintln("It doesn't look like the X-Pack security feature is enabled on this Elasticsearch node.");
-                        terminal.errorPrintln("Please check if you have enabled X-Pack security in your elasticsearch.yml configuration file.");
+                        terminal.errorPrintln("Please check if you have enabled X-Pack security in your elasticsearch.yml " +
+                            "configuration file.");
                         terminal.errorPrintln("");
                         throw new UserException(ExitCodes.CONFIG, "X-Pack Security is disabled by configuration.");
                     }
@@ -362,7 +364,8 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
                     client.execute("GET", route, elasticUser, elasticUserPassword, () -> null, is -> responseBuilder(is, terminal));
             if (httpResponse.getHttpStatus() != HttpURLConnection.HTTP_OK) {
                 terminal.errorPrintln("");
-                terminal.errorPrintln("Unexpected response code [" + httpResponse.getHttpStatus() + "] from calling GET " + route.toString());
+                terminal.errorPrintln("Unexpected response code [" + httpResponse.getHttpStatus() + "] from calling GET " +
+                    route.toString());
                 if (httpResponse.getHttpStatus() == HttpURLConnection.HTTP_BAD_REQUEST) {
                     terminal.errorPrintln("It doesn't look like the X-Pack is available on this Elasticsearch node.");
                     terminal.errorPrintln("Please check that you have followed all installation instructions and that this tool");
@@ -408,7 +411,8 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
             if (httpResponse.getHttpStatus() != HttpURLConnection.HTTP_OK) {
                 terminal.errorPrintln("");
                 terminal.errorPrintln("Failed to determine the health of the cluster running at " + url);
-                terminal.errorPrintln("Unexpected response code [" + httpResponse.getHttpStatus() + "] from calling GET " + route.toString());
+                terminal.errorPrintln("Unexpected response code [" + httpResponse.getHttpStatus() + "] from calling GET " +
+                    route.toString());
                 final String cause = getErrorCause(httpResponse);
                 if (cause != null) {
                     terminal.errorPrintln("Cause: " + cause);

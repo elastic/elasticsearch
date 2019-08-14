@@ -22,6 +22,7 @@ package org.elasticsearch.packaging.test;
 import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.apache.http.client.fluent.Request;
+import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.packaging.util.Shell.Result;
@@ -70,12 +71,14 @@ import static org.junit.Assume.assumeThat;
 import static org.junit.Assume.assumeTrue;
 
 @TestCaseOrdering(TestCaseOrdering.AlphabeticOrder.class)
-public abstract class PackageTestCase extends PackagingTestCase {
+public class PackageTests extends PackagingTestCase {
     private Shell sh;
 
     @Before
     public void onlyCompatibleDistributions() throws Exception {
         assumeTrue("only compatible distributions", distribution().packaging.compatible);
+        assumeTrue("rpm or deb",
+            distribution().packaging == Distribution.Packaging.DEB || distribution().packaging == Distribution.Packaging.RPM);
         sh = newShell();
     }
 
@@ -89,6 +92,45 @@ public abstract class PackageTestCase extends PackagingTestCase {
         installation = install(distribution());
         assertInstalled(distribution());
         verifyPackageInstallation(installation, distribution(), sh);
+    }
+
+    public void test11DebDependencies() {
+        // TODO: rewrite this test to not use a real second distro to try and install
+        /*
+        assumeTrue(Platforms.isDPKG());
+
+        final Shell sh = new Shell();
+
+        final Shell.Result defaultResult = sh.run("dpkg -I " + getDistributionFile(DEFAULT_DEB));
+        final Shell.Result ossResult = sh.run("dpkg -I " + getDistributionFile(OSS_DEB));
+
+        TestCase.assertTrue(Pattern.compile("(?m)^ Depends:.*bash.*").matcher(defaultResult.stdout).find());
+        TestCase.assertTrue(Pattern.compile("(?m)^ Depends:.*bash.*").matcher(ossResult.stdout).find());
+
+        TestCase.assertTrue(Pattern.compile("(?m)^ Conflicts: elasticsearch-oss$").matcher(defaultResult.stdout).find());
+        TestCase.assertTrue(Pattern.compile("(?m)^ Conflicts: elasticsearch$").matcher(ossResult.stdout).find());
+         */
+    }
+
+    public void test11RpmDependencies() {
+        // TODO: rewrite this test to not use a real second distro to try and install
+        /*
+        assumeTrue(Platforms.isRPM());
+
+        final Shell sh = new Shell();
+
+        final Shell.Result defaultDeps = sh.run("rpm -qpR " + getDistributionFile(DEFAULT_RPM));
+        final Shell.Result ossDeps = sh.run("rpm -qpR " + getDistributionFile(OSS_RPM));
+
+        TestCase.assertTrue(Pattern.compile("(?m)^/bin/bash\\s*$").matcher(defaultDeps.stdout).find());
+        TestCase.assertTrue(Pattern.compile("(?m)^/bin/bash\\s*$").matcher(ossDeps.stdout).find());
+
+        final Shell.Result defaultConflicts = sh.run("rpm -qp --conflicts " + getDistributionFile(DEFAULT_RPM));
+        final Shell.Result ossConflicts = sh.run("rpm -qp --conflicts " + getDistributionFile(OSS_RPM));
+
+        TestCase.assertTrue(Pattern.compile("(?m)^elasticsearch-oss\\s*$").matcher(defaultConflicts.stdout).find());
+        TestCase.assertTrue(Pattern.compile("(?m)^elasticsearch\\s*$").matcher(ossConflicts.stdout).find());
+         */
     }
 
     public void test20PluginsCommandWhenNoPlugins() throws Exception {

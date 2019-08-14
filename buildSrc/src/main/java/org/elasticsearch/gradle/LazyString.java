@@ -17,14 +17,25 @@
  * under the License.
  */
 
-package org.elasticsearch.packaging.test;
+package org.elasticsearch.gradle;
 
-import org.elasticsearch.packaging.util.Distribution;
+import java.util.function.Supplier;
 
-public class OssNoJdkRpmBasicTests extends PackageTestCase {
+/**
+ * An functional interface to allow a String supplier to be resolved when calling toString().
+ *
+ * This can be used in many places where a string expression should not be evaluated until runtime.
+ */
+public class LazyString {
+
+    private Supplier<String> supplier;
+
+    public LazyString(Supplier<String> supplier) {
+        this.supplier = supplier;
+    }
 
     @Override
-    protected Distribution distribution() {
-        return Distribution.OSS_NO_JDK_RPM;
+    public String toString() {
+        return supplier.get();
     }
 }

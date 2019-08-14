@@ -36,6 +36,8 @@ import org.junit.Rule;
 import org.junit.rules.TestName;
 import org.junit.runner.RunWith;
 
+import java.nio.file.Paths;
+
 import static org.elasticsearch.packaging.util.Cleanup.cleanEverything;
 import static org.junit.Assume.assumeTrue;
 
@@ -52,9 +54,15 @@ public abstract class PackagingTestCase extends Assert {
 
     protected final Log logger = LogFactory.getLog(getClass());
 
+    private static Distribution distribution;
+
     @Rule
     public final TestName testNameRule = new TestName();
 
+    @BeforeClass
+    public static void findDistribution() {
+        distribution = new Distribution(Paths.get(System.getProperty("tests.distribution")));
+    }
     @Before
     public void setup() {
         assumeTrue("only compatible distributions", distribution().packaging.compatible);
@@ -70,7 +78,9 @@ public abstract class PackagingTestCase extends Assert {
     }
 
     /** The {@link Distribution} that should be tested in this case */
-    protected abstract Distribution distribution();
+    protected final Distribution distribution() {
+        return distribution;
+    }
 
     protected Shell newShell() throws Exception {
         Shell sh = new Shell();

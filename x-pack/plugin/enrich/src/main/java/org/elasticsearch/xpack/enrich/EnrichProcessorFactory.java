@@ -35,7 +35,7 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
             throw new IllegalArgumentException("policy [" + policyName + "] does not exists");
         }
 
-        String enrichKey = ConfigurationUtils.readStringProperty(TYPE, tag, config, "enrich_key", policy.getEnrichKey());
+        String enrichKey = ConfigurationUtils.readStringProperty(TYPE, tag, config, "enrich_key", policy.getMatchField());
         boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, tag, config, "ignore_missing", false);
         boolean overrideEnabled = ConfigurationUtils.readBooleanProperty(TYPE, tag, config, "override", true);
 
@@ -62,7 +62,7 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
         }
 
         for (EnrichSpecification specification : specifications) {
-            if (policy.getEnrichValues().contains(specification.sourceField) == false) {
+            if (policy.getEnrichFields().contains(specification.sourceField) == false) {
                 throw new IllegalArgumentException("source field [" + specification.sourceField + "] does not exist in policy [" +
                     policyName + "]");
             }

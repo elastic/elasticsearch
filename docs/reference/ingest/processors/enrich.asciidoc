@@ -43,8 +43,8 @@ PUT /_enrich/policy/users-policy
 {
     "type": "exact_match",
     "indices": "users",
-    "enrich_key": "email",
-    "enrich_values": ["first_name", "last_name", "address", "city", "zip", "state"]
+    "match_field": "email",
+    "enrich_fields": ["first_name", "last_name", "address", "city", "zip", "state"]
 }
 --------------------------------------------------
 // CONSOLE

@@ -39,17 +39,17 @@ public class PutPolicyRequest implements Validatable, ToXContentObject {
     static final ParseField TYPE_FIELD = new ParseField("type");
     static final ParseField QUERY_FIELD = new ParseField("query");
     static final ParseField INDICES_FIELD = new ParseField("indices");
-    static final ParseField ENRICH_KEY_FIELD = new ParseField("enrich_key");
-    static final ParseField ENRICH_VALUES_FIELD = new ParseField("enrich_values");
+    static final ParseField MATCH_FIELD_FIELD = new ParseField("match_field");
+    static final ParseField ENRICH_FIELDS_FIELD = new ParseField("enrich_fields");
 
     private final String name;
     private final String type;
     private BytesReference query;
     private final List<String> indices;
-    private final String enrichKey;
-    private final List<String> enrichValues;
+    private final String matchField;
+    private final List<String> enrichFields;
 
-    public PutPolicyRequest(String name, String type, List<String> indices, String enrichKey, List<String> enrichValues) {
+    public PutPolicyRequest(String name, String type, List<String> indices, String matchField, List<String> enrichFields) {
         if (Strings.hasLength(name) == false) {
             throw new IllegalArgumentException("name must be a non-null and non-empty string");
         }
@@ -59,18 +59,18 @@ public class PutPolicyRequest implements Validatable, ToXContentObject {
         if (indices == null || indices.isEmpty()) {
             throw new IllegalArgumentException("indices must be specified");
         }
-        if (Strings.hasLength(enrichKey) == false) {
-            throw new IllegalArgumentException("enrichKey must be a non-null and non-empty string");
+        if (Strings.hasLength(matchField) == false) {
+            throw new IllegalArgumentException("matchField must be a non-null and non-empty string");
         }
-        if (enrichValues == null || enrichValues.isEmpty()) {
-            throw new IllegalArgumentException("enrichValues must be specified");
+        if (enrichFields == null || enrichFields.isEmpty()) {
+            throw new IllegalArgumentException("enrichFields must be specified");
         }
 
         this.name = name;
         this.type = type;
         this.indices = indices;
-        this.enrichKey = enrichKey;
-        this.enrichValues = enrichValues;
+        this.matchField = matchField;
+        this.enrichFields = enrichFields;
     }
 
     public String getName() {
@@ -97,12 +97,12 @@ public class PutPolicyRequest implements Validatable, ToXContentObject {
         return indices;
     }
 
-    public String getEnrichKey() {
-        return enrichKey;
+    public String getMatchField() {
+        return matchField;
     }
 
-    public List<String> getEnrichValues() {
-        return enrichValues;
+    public List<String> getEnrichFields() {
+        return enrichFields;
     }
 
     @Override
@@ -113,8 +113,8 @@ public class PutPolicyRequest implements Validatable, ToXContentObject {
         if (query != null) {
             builder.field(QUERY_FIELD.getPreferredName(), asMap(query, builder.contentType()));
         }
-        builder.field(ENRICH_KEY_FIELD.getPreferredName(), enrichKey);
-        builder.field(ENRICH_VALUES_FIELD.getPreferredName(), enrichValues);
+        builder.field(MATCH_FIELD_FIELD.getPreferredName(), matchField);
+        builder.field(ENRICH_FIELDS_FIELD.getPreferredName(), enrichFields);
         builder.endObject();
         return builder;
     }
@@ -128,13 +128,13 @@ public class PutPolicyRequest implements Validatable, ToXContentObject {
             Objects.equals(type, that.type) &&
             Objects.equals(query, that.query) &&
             Objects.equals(indices, that.indices) &&
-            Objects.equals(enrichKey, that.enrichKey) &&
-            Objects.equals(enrichValues, that.enrichValues);
+            Objects.equals(matchField, that.matchField) &&
+            Objects.equals(enrichFields, that.enrichFields);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, type, query, indices, enrichKey, enrichValues);
+        return Objects.hash(name, type, query, indices, matchField, enrichFields);
     }
 
     private static BytesReference xContentToBytes(ToXContentObject object) throws IOException {

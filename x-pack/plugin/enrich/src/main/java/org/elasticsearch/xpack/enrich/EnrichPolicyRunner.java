@@ -128,8 +128,8 @@ public class EnrichPolicyRunner implements Runnable {
             }
             // Validate the key and values
             try {
-                validateField(mapping, policy.getEnrichKey(), true);
-                for (String valueFieldName : policy.getEnrichValues()) {
+                validateField(mapping, policy.getMatchField(), true);
+                for (String valueFieldName : policy.getEnrichFields()) {
                     validateField(mapping, valueFieldName, false);
                 }
             } catch (ElasticsearchException e) {
@@ -210,14 +210,14 @@ public class EnrichPolicyRunner implements Runnable {
                         .field("enabled", true)
                     .endObject()
                     .startObject("properties")
-                        .startObject(policy.getEnrichKey())
+                        .startObject(policy.getMatchField())
                             .field("type", keyType)
                             .field("doc_values", false)
                         .endObject()
                     .endObject()
                     .startObject("_meta")
                         .field(ENRICH_POLICY_FIELD_NAME, policyName)
-                        .field(ENRICH_KEY_FIELD_NAME, policy.getEnrichKey())
+                        .field(ENRICH_KEY_FIELD_NAME, policy.getMatchField())
                     .endObject()
                 .endObject()
             .endObject();
@@ -254,8 +254,8 @@ public class EnrichPolicyRunner implements Runnable {
         logger.debug("Policy [{}]: Transferring source data to new enrich index [{}]", policyName, destinationIndexName);
         // Filter down the source fields to just the ones required by the policy
         final Set<String> retainFields = new HashSet<>();
-        retainFields.add(policy.getEnrichKey());
-        retainFields.addAll(policy.getEnrichValues());
+        retainFields.add(policy.getMatchField());
+        retainFields.addAll(policy.getEnrichFields());
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         searchSourceBuilder.size(fetchSize);
         searchSourceBuilder.fetchSource(retainFields.toArray(new String[0]), new String[0]);

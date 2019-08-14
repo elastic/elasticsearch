@@ -7,8 +7,8 @@
         body:
           type: exact_match
           indices: ["bar*"]
-          enrich_key: baz
-          enrich_values: ["a", "b"]
+          match_field: baz
+          enrich_fields: ["a", "b"]
   - is_true: acknowledged
 
   - do:
@@ -21,8 +21,8 @@
         name: policy-crud
   - match: { type: exact_match }
   - match: { indices: ["bar*"] }
-  - match: { enrich_key: baz }
-  - match: { enrich_values: ["a", "b"] }
+  - match: { match_field: baz }
+  - match: { enrich_fields: ["a", "b"] }
 
   - do:
       enrich.list_policy: {}
@@ -30,8 +30,8 @@
   - match: { policies.0.name: policy-crud }
   - match: { policies.0.type: exact_match }
   - match: { policies.0.indices: ["bar*"] }
-  - match: { policies.0.enrich_key: baz }
-  - match: { policies.0.enrich_values: ["a", "b"] }
+  - match: { policies.0.match_field: baz }
+  - match: { policies.0.enrich_fields: ["a", "b"] }
 
   - do:
       enrich.delete_policy:

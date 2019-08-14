@@ -104,7 +104,7 @@ bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInfo unreleased
         dependsOn fetchLatest
         doLast {
             String refspec = System.getProperty("tests.bwc.refspec.${bwcBranch}", "${remote}/${bwcBranch}")
-            if (System.getProperty("tests.bwc.checkout.align") != null) {
+            if (System.getProperty("org.elasticsearch.bwc.checkout.align") != null) {
                 /*
                     We use a time based approach to make the bwc versions built deterministic and compatible with the current hash.
                     Most of the time we want to test against latest, but when running delayed exhaustive tests or wanting

@@ -163,7 +163,12 @@ final class FetchSearchPhase extends SearchPhase {
             new SearchActionListener<FetchSearchResult>(shardTarget, shardIndex) {
                 @Override
                 public void innerOnResponse(FetchSearchResult result) {
-                    counter.onResult(result);
+                    try {
+                        counter.onResult(result);
+                    } catch (Exception e) {
+                        assert false : e;
+                        context.onPhaseFailure(FetchSearchPhase.this, "", e);
+                    }
                 }
 
                 @Override

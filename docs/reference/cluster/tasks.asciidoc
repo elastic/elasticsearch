@@ -226,7 +226,7 @@ GET _cat/tasks?detailed
 --------------------------------------------------
 // CONSOLE
 
-
+[[task-cancellation]]
 ===== Task Cancellation
 
 If a long-running task supports cancellation, it can be cancelled with the cancel 

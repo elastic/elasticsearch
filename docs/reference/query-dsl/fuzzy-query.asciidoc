@@ -17,7 +17,28 @@ variations, or expansions, of the search term within a specified edit distance.
 The query then returns exact matches for each expansion.
 
 [[fuzzy-query-ex-request]]
-==== Example request
+==== Example requests
+
+[[fuzzy-query-ex-simple]]
+===== Simple example
+
+[source,js]
+----
+GET /_search
+{
+    "query": {
+        "fuzzy": {
+            "user": {
+                "value": "ki"
+            }
+        }
+    }
+}
+----
+// CONSOLE
+
+[[fuzzy-query-ex-advanced]]
+===== Example using advanced parameters
 
 [source,js]
 ----

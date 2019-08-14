@@ -262,7 +262,7 @@ and shows the original source fields that were indexed.
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/ ]
-// TESTRESPONSE[s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
+// TESTRESPONSE[s/"_primary_term" : \d+/"_primary_term" : $body._primary_term/]
 
 
 [float]

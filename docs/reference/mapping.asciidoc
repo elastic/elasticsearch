@@ -118,9 +118,8 @@ You know more about your data than Elasticsearch can guess, so while dynamic
 mapping can be useful to get started, at some point you will want to specify
 your own explicit mappings.
 
-You can create field mappings when you
-<<indices-create-index,create an index>>, and you can add
-fields to an existing index with the <<indices-put-mapping,PUT mapping API>>.
+You can create field mappings when you <<create-mapping,create an index>> and
+<<add-field-mapping,add fields to an existing index>>.
 
 [float]
 [[create-mapping]]
@@ -176,7 +175,7 @@ PUT /my-index/_mapping
 
 [float]
 [[update-mapping]]
-== Update the mapping of a field
+=== Update the mapping of a field
 
 You can't change the mapping of an existing field, with the following
 exceptions:

@@ -21,6 +21,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -53,6 +54,7 @@ import org.elasticsearch.xpack.dataframe.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 import org.elasticsearch.xpack.dataframe.transforms.pivot.AggregationResultUtils;
 
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -86,6 +88,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
     private final DataFrameAuditor auditor;
     private final DataFrameIndexerPosition initialPosition;
     private final IndexerState initialIndexerState;
+    private volatile Instant changesLastDetectedAt;
 
     private final SetOnce<ClientDataFrameIndexer> indexer = new SetOnce<>();
 
@@ -197,7 +200,16 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 indexer.getNextCheckpoint(),
                 indexer.getPosition(),
                 indexer.getProgress(),
-                listener);
+                ActionListener.wrap(
+                    info -> {
+                        if (changesLastDetectedAt == null) {
+                            listener.onResponse(info);
+                        } else {
+                            listener.onResponse(info.setChangesLastDetectedAt(changesLastDetectedAt));
+                        }
+                    },
+                    listener::onFailure
+                ));
     }
 
     public DataFrameTransformCheckpoint getLastCheckpoint() {
@@ -319,6 +331,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             logger.debug("Trigger initial run");
             getIndexer().maybeTriggerAsyncJob(System.currentTimeMillis());
         } else if (getIndexer().isContinuous() && getIndexer().sourceHasChanged()) {
+            changesLastDetectedAt = Instant.now();
             logger.debug("Source has changed, triggering new indexer run");
             getIndexer().maybeTriggerAsyncJob(System.currentTimeMillis());
         }
@@ -616,6 +629,13 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                     if (initialRun()) {
                         createCheckpoint(ActionListener.wrap(cp -> {
                             nextCheckpoint = cp;
+                            // If nextCheckpoint > 1, this means that we are now on the checkpoint AFTER the batch checkpoint
+                            // Consequently, the idea of percent complete no longer makes sense.
+                            if (nextCheckpoint.getCheckpoint() > 1) {
+                                progress = new DataFrameTransformProgress(null, 0L, 0L);
+                                super.onStart(now, listener);
+                                return;
+                            }
                             TransformProgressGatherer.getInitialProgress(this.client, buildFilterQuery(), getConfig(), ActionListener.wrap(
                                 newProgress -> {
                                     logger.trace("[{}] reset the progress from [{}] to [{}]", transformId, progress, newProgress);
@@ -825,14 +845,29 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 // Reset our failure count as we have finished and may start again with a new checkpoint
                 failureCount.set(0);
 
-                // TODO: progress hack to get around bucket_selector filtering out buckets
                 // With bucket_selector we could have read all the buckets and completed the transform
                 // but not "see" all the buckets since they were filtered out. Consequently, progress would
                 // show less than 100% even though we are done.
                 // NOTE: this method is called in the same thread as the processing thread.
                 // Theoretically, there should not be a race condition with updating progress here.
-                if (progress != null && progress.getRemainingDocs() > 0) {
-                    progress.docsProcessed(progress.getRemainingDocs());
+                // NOTE 2: getPercentComplete should only NOT be null on the first (batch) checkpoint
+                if (progress != null && progress.getPercentComplete() != null && progress.getPercentComplete() < 100.0) {
+                    progress.incrementDocsProcessed(progress.getTotalDocs() - progress.getDocumentsProcessed());
+                }
+                logger.info("Last checkpoint for {} {}", getJobId(), Strings.toString(lastCheckpoint));
+                // If the last checkpoint is now greater than 1, that means that we have just processed the first
+                // continuous checkpoint and should start recording the exponential averages
+                if (lastCheckpoint != null && lastCheckpoint.getCheckpoint() > 1) {
+                    long docsIndexed = 0;
+                    long docsProcessed = 0;
+                    // This should not happen as we simply create a new one when we reach continuous checkpoints
+                    // but this is a paranoid `null` check
+                    if (progress != null) {
+                        docsIndexed = progress.getDocumentsIndexed();
+                        docsProcessed = progress.getDocumentsProcessed();
+                    }
+                    long durationMs = System.currentTimeMillis() - lastCheckpoint.getTimestamp();
+                    getStats().incrementCheckpointExponentialAverages(durationMs < 0 ? 0 : durationMs, docsIndexed, docsProcessed);
                 }
                 if (shouldAuditOnFinish(checkpoint)) {
                     auditor.info(transformTask.getTransformId(),

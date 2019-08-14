@@ -93,8 +93,6 @@ public class EmailTemplateTests extends ESTestCase {
         assertThat(emailTemplate.textBody, equalTo(parsedEmailTemplate.textBody));
         assertThat(emailTemplate.htmlBody, equalTo(parsedEmailTemplate.htmlBody));
 
-
-
         emailBuilder.id("_id");
         Email email = emailBuilder.build();
         assertThat(email.subject, equalTo(subjectTemplate.getTemplate()));

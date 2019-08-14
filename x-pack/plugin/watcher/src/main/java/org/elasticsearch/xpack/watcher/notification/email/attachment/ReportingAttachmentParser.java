@@ -208,8 +208,8 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
                         }
                     });
                 }
-                return new Attachment.Bytes(attachment.id(),attachment.id(), BytesReference.toBytes(response.body()),
-                        response.contentType(), attachment.inline(), warnings);
+                return new Attachment.Bytes(attachment.id(), attachment.id(), BytesReference.toBytes(response.body()),
+                    response.contentType(), attachment.inline(), warnings);
             } else {
                 String body = response.body() != null ? response.body().utf8ToString() : null;
                 String message = LoggerMessageFormat.format("", "Watch[{}] reporting[{}] Unexpected status code host[{}], port[{}], " +

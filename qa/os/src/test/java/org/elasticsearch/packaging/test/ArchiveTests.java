@@ -21,12 +21,14 @@ package org.elasticsearch.packaging.test;
 
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.Archives;
+import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.packaging.util.Shell.Result;
+import org.junit.BeforeClass;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -53,8 +55,15 @@ import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.isEmptyString;
 import static org.junit.Assume.assumeThat;
+import static org.junit.Assume.assumeTrue;
 
 public class ArchiveTests extends PackagingTestCase {
+
+    @BeforeClass
+    public static void assumptions() {
+        assumeTrue("only archive distributions",
+            distribution().packaging == Distribution.Packaging.TAR || distribution().packaging == Distribution.Packaging.ZIP);
+    }
 
     public void test10Install() throws Exception {
         installation = installArchive(distribution());

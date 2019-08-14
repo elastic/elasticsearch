@@ -55,14 +55,13 @@ public abstract class PackagingTestCase extends Assert {
     protected final Log logger = LogFactory.getLog(getClass());
 
     private static Distribution distribution;
+    static {
+        distribution = new Distribution(Paths.get(System.getProperty("tests.distribution")));
+    }
 
     @Rule
     public final TestName testNameRule = new TestName();
 
-    @BeforeClass
-    public static void findDistribution() {
-        distribution = new Distribution(Paths.get(System.getProperty("tests.distribution")));
-    }
     @Before
     public void setup() {
         assumeTrue("only compatible distributions", distribution().packaging.compatible);
@@ -78,7 +77,7 @@ public abstract class PackagingTestCase extends Assert {
     }
 
     /** The {@link Distribution} that should be tested in this case */
-    protected final Distribution distribution() {
+    protected static Distribution distribution() {
         return distribution;
     }
 

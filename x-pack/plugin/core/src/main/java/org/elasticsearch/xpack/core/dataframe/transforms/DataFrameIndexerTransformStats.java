@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class DataFrameIndexerTransformStats extends IndexerJobStats {
 
@@ -35,12 +36,23 @@ public class DataFrameIndexerTransformStats extends IndexerJobStats {
     public static ParseField SEARCH_TOTAL = new ParseField("search_total");
     public static ParseField SEARCH_FAILURES = new ParseField("search_failures");
     public static ParseField INDEX_FAILURES = new ParseField("index_failures");
+    public static ParseField EXPONENTIAL_AVG_CHECKPOINT_DURATION_MS =
+        new ParseField("exponential_avg_checkpoint_duration_ms");
+    public static ParseField EXPONENTIAL_AVG_DOCUMENTS_INDEXED =
+        new ParseField("exponential_avg_documents_indexed");
+    public static ParseField EXPONENTIAL_AVG_DOCUMENTS_PROCESSED =
+        new ParseField("exponential_avg_documents_processed");
+
+    // This changes how much "weight" past calculations have.
+    // The shorter the window, the less "smoothing" will occur.
+    private static final int EXP_AVG_WINDOW = 10;
+    private static final double ALPHA = 2.0/(EXP_AVG_WINDOW + 1);
 
     private static final ConstructingObjectParser<DataFrameIndexerTransformStats, Void> LENIENT_PARSER = new ConstructingObjectParser<>(
             NAME, true,
             args -> new DataFrameIndexerTransformStats(
-                    (long) args[0], (long) args[1], (long) args[2], (long) args[3], (long) args[4], (long) args[5], (long) args[6],
-                    (long) args[7], (long) args[8], (long) args[9]));
+               (long) args[0], (long) args[1], (long) args[2], (long) args[3], (long) args[4], (long) args[5], (long) args[6],
+               (long) args[7], (long) args[8], (long) args[9], (Double) args[10], (Double) args[11], (Double) args[12]));
 
     static {
         LENIENT_PARSER.declareLong(constructorArg(), NUM_PAGES);
@@ -53,8 +65,14 @@ public class DataFrameIndexerTransformStats extends IndexerJobStats {
         LENIENT_PARSER.declareLong(constructorArg(), SEARCH_TOTAL);
         LENIENT_PARSER.declareLong(constructorArg(), INDEX_FAILURES);
         LENIENT_PARSER.declareLong(constructorArg(), SEARCH_FAILURES);
+        LENIENT_PARSER.declareDouble(optionalConstructorArg(), EXPONENTIAL_AVG_CHECKPOINT_DURATION_MS);
+        LENIENT_PARSER.declareDouble(optionalConstructorArg(), EXPONENTIAL_AVG_DOCUMENTS_INDEXED);
+        LENIENT_PARSER.declareDouble(optionalConstructorArg(), EXPONENTIAL_AVG_DOCUMENTS_PROCESSED);
     }
 
+    private double expAvgCheckpointDurationMs;
+    private double expAvgDocumentsIndexed;
+    private double expAvgDocumentsProcessed;
     /**
      * Create with all stats set to zero
      */
@@ -64,20 +82,39 @@ public class DataFrameIndexerTransformStats extends IndexerJobStats {
 
     public DataFrameIndexerTransformStats(long numPages, long numInputDocuments, long numOutputDocuments,
                                           long numInvocations, long indexTime, long searchTime, long indexTotal, long searchTotal,
-                                          long indexFailures, long searchFailures) {
+                                          long indexFailures, long searchFailures, Double expAvgCheckpointDurationMs,
+                                          Double expAvgDocumentsIndexed, Double expAvgDocumentsProcessed ) {
         super(numPages, numInputDocuments, numOutputDocuments, numInvocations, indexTime, searchTime, indexTotal, searchTotal,
             indexFailures, searchFailures);
+        this.expAvgCheckpointDurationMs = expAvgCheckpointDurationMs == null ? 0.0 : expAvgCheckpointDurationMs;
+        this.expAvgDocumentsIndexed = expAvgDocumentsIndexed == null ? 0.0 : expAvgDocumentsIndexed;
+        this.expAvgDocumentsProcessed = expAvgDocumentsProcessed == null ? 0.0 : expAvgDocumentsProcessed;
+    }
+
+    public DataFrameIndexerTransformStats(long numPages, long numInputDocuments, long numOutputDocuments,
+                                          long numInvocations, long indexTime, long searchTime, long indexTotal, long searchTotal,
+                                          long indexFailures, long searchFailures) {
+        this(numPages, numInputDocuments, numOutputDocuments, numInvocations, indexTime, searchTime, indexTotal, searchTotal,
+            indexFailures, searchFailures, 0.0, 0.0, 0.0);
     }
 
     public DataFrameIndexerTransformStats(DataFrameIndexerTransformStats other) {
         this(other.numPages, other.numInputDocuments, other.numOuputDocuments, other.numInvocations,
             other.indexTime, other.searchTime, other.indexTotal, other.searchTotal, other.indexFailures, other.searchFailures);
+        this.expAvgCheckpointDurationMs = other.expAvgCheckpointDurationMs;
+        this.expAvgDocumentsIndexed = other.expAvgDocumentsIndexed;
+        this.expAvgDocumentsProcessed = other.expAvgDocumentsProcessed;
     }
 
     public DataFrameIndexerTransformStats(StreamInput in) throws IOException {
         super(in);
         if (in.getVersion().before(Version.V_7_4_0)) {
             in.readString(); // was transformId
+        }
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            this.expAvgCheckpointDurationMs = in.readDouble();
+            this.expAvgDocumentsIndexed = in.readDouble();
+            this.expAvgDocumentsProcessed = in.readDouble();
         }
     }
 
@@ -86,6 +123,11 @@ public class DataFrameIndexerTransformStats extends IndexerJobStats {
         super.writeTo(out);
         if (out.getVersion().before(Version.V_7_4_0)) {
             out.writeString(DEFAULT_TRANSFORM_ID);
+        }
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeDouble(this.expAvgCheckpointDurationMs);
+            out.writeDouble(this.expAvgDocumentsIndexed);
+            out.writeDouble(this.expAvgDocumentsProcessed);
         }
     }
 
@@ -102,23 +144,43 @@ public class DataFrameIndexerTransformStats extends IndexerJobStats {
         builder.field(SEARCH_TIME_IN_MS.getPreferredName(), searchTime);
         builder.field(SEARCH_TOTAL.getPreferredName(), searchTotal);
         builder.field(SEARCH_FAILURES.getPreferredName(), searchFailures);
+        builder.field(EXPONENTIAL_AVG_CHECKPOINT_DURATION_MS.getPreferredName(), this.expAvgCheckpointDurationMs);
+        builder.field(EXPONENTIAL_AVG_DOCUMENTS_INDEXED.getPreferredName(), this.expAvgDocumentsIndexed);
+        builder.field(EXPONENTIAL_AVG_DOCUMENTS_PROCESSED.getPreferredName(), this.expAvgDocumentsProcessed);
         builder.endObject();
         return builder;
     }
 
-    public DataFrameIndexerTransformStats merge(DataFrameIndexerTransformStats other) {
-        numPages += other.numPages;
-        numInputDocuments += other.numInputDocuments;
-        numOuputDocuments += other.numOuputDocuments;
-        numInvocations += other.numInvocations;
-        indexTime += other.indexTime;
-        searchTime += other.searchTime;
-        indexTotal += other.indexTotal;
-        searchTotal += other.searchTotal;
-        indexFailures += other.indexFailures;
-        searchFailures += other.searchFailures;
+    public double getExpAvgCheckpointDurationMs() {
+        return expAvgCheckpointDurationMs;
+    }
 
-        return this;
+    public double getExpAvgDocumentsIndexed() {
+        return expAvgDocumentsIndexed;
+    }
+
+    public double getExpAvgDocumentsProcessed() {
+        return expAvgDocumentsProcessed;
+    }
+
+    public void incrementCheckpointExponentialAverages(long checkpointDurationMs, long docsIndexed, long docsProcessed) {
+        assert checkpointDurationMs >= 0;
+        assert docsIndexed >= 0;
+        assert docsProcessed >= 0;
+        // If all our exp averages are 0.0, just assign the new values.
+        if (expAvgCheckpointDurationMs == 0.0 && expAvgDocumentsIndexed == 0.0 && expAvgDocumentsProcessed == 0.0) {
+            expAvgCheckpointDurationMs = checkpointDurationMs;
+            expAvgDocumentsIndexed = docsIndexed;
+            expAvgDocumentsProcessed = docsProcessed;
+        } else {
+            expAvgCheckpointDurationMs = calculateExpAvg(expAvgCheckpointDurationMs, ALPHA, checkpointDurationMs);
+            expAvgDocumentsIndexed = calculateExpAvg(expAvgDocumentsIndexed, ALPHA, docsIndexed);
+            expAvgDocumentsProcessed = calculateExpAvg(expAvgDocumentsProcessed, ALPHA, docsProcessed);
+        }
+    }
+
+    private double calculateExpAvg(double previousExpValue, double alpha, long observedValue) {
+        return alpha * observedValue + (1-alpha) * previousExpValue;
     }
 
     @Override
@@ -142,13 +204,17 @@ public class DataFrameIndexerTransformStats extends IndexerJobStats {
             && Objects.equals(this.indexFailures, that.indexFailures)
             && Objects.equals(this.searchFailures, that.searchFailures)
             && Objects.equals(this.indexTotal, that.indexTotal)
-            && Objects.equals(this.searchTotal, that.searchTotal);
+            && Objects.equals(this.searchTotal, that.searchTotal)
+            && Objects.equals(this.expAvgCheckpointDurationMs, that.expAvgCheckpointDurationMs)
+            && Objects.equals(this.expAvgDocumentsIndexed, that.expAvgDocumentsIndexed)
+            && Objects.equals(this.expAvgDocumentsProcessed, that.expAvgDocumentsProcessed);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(numPages, numInputDocuments, numOuputDocuments, numInvocations,
-            indexTime, searchTime, indexFailures, searchFailures, indexTotal, searchTotal);
+            indexTime, searchTime, indexFailures, searchFailures, indexTotal, searchTotal,
+            expAvgCheckpointDurationMs, expAvgDocumentsIndexed, expAvgDocumentsProcessed);
     }
 
     public static DataFrameIndexerTransformStats fromXContent(XContentParser parser) {

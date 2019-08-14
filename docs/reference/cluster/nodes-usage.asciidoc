@@ -7,7 +7,7 @@ Returns information on the usage of features.
 [[cluster-nodes-usage-api-request]]
 ==== {api-request-title}
 
-`GET _nodes/usage` +
+`GET /_nodes/usage` +
 
 `GET /_nodes/{node_id}/usage` +
 

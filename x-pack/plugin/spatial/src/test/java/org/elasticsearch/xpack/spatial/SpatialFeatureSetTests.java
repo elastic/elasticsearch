@@ -29,7 +29,7 @@ public class SpatialFeatureSetTests extends ESTestCase {
     public void testAvailable() throws Exception {
         SpatialFeatureSet featureSet = new SpatialFeatureSet(Settings.EMPTY, licenseState);
         boolean available = randomBoolean();
-        when(licenseState.isGraphAllowed()).thenReturn(available);
+        when(licenseState.isSpatialAllowed()).thenReturn(available);
         assertThat(featureSet.available(), is(available));
         PlainActionFuture<XPackFeatureSet.Usage> future = new PlainActionFuture<>();
         featureSet.usage(future);

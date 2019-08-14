@@ -56,7 +56,8 @@ public class DataFrameAnalyticsIndexTests extends ESTestCase {
     private static final String[] SOURCE_INDEX = new String[] {"source-index"};
     private static final String DEST_INDEX = "dest-index";
     private static final DataFrameAnalyticsConfig ANALYTICS_CONFIG =
-        new DataFrameAnalyticsConfig.Builder(ANALYTICS_ID)
+        new DataFrameAnalyticsConfig.Builder()
+            .setId(ANALYTICS_ID)
             .setSource(new DataFrameAnalyticsSource(SOURCE_INDEX, null))
             .setDest(new DataFrameAnalyticsDest(DEST_INDEX, null))
             .setAnalysis(new OutlierDetection())

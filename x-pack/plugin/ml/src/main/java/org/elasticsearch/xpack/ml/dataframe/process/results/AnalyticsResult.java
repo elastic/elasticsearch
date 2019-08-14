@@ -3,16 +3,17 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.dataframe.process;
+package org.elasticsearch.xpack.ml.dataframe.process.results;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.ml.dataframe.process.results.RowResults;
 
 import java.io.IOException;
 import java.util.Objects;
+
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class AnalyticsResult implements ToXContentObject {
 
@@ -20,12 +21,12 @@ public class AnalyticsResult implements ToXContentObject {
 
     public static final ParseField PROGRESS_PERCENT = new ParseField("progress_percent");
 
-    static final ConstructingObjectParser<AnalyticsResult, Void> PARSER = new ConstructingObjectParser<>(TYPE.getPreferredName(),
+    public static final ConstructingObjectParser<AnalyticsResult, Void> PARSER = new ConstructingObjectParser<>(TYPE.getPreferredName(),
             a -> new AnalyticsResult((RowResults) a[0], (Integer) a[1]));
 
     static {
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), RowResults.PARSER, RowResults.TYPE);
-        PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), PROGRESS_PERCENT);
+        PARSER.declareObject(optionalConstructorArg(), RowResults.PARSER, RowResults.TYPE);
+        PARSER.declareInt(optionalConstructorArg(), PROGRESS_PERCENT);
     }
 
     private final RowResults rowResults;

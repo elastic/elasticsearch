@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.dataframe.action;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
@@ -16,11 +17,14 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformTaskAction;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformTaskState;
 import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformTask;
 
 import java.util.List;
@@ -59,7 +63,8 @@ public class TransportStartDataFrameTransformTaskAction extends
     protected void taskOperation(StartDataFrameTransformTaskAction.Request request, DataFrameTransformTask transformTask,
                                  ActionListener<StartDataFrameTransformTaskAction.Response> listener) {
         if (transformTask.getTransformId().equals(request.getId())) {
-            transformTask.start(null, listener);
+            //TODO fix bug as .start where it was failed could result in a null current checkpoint?
+            transformTask.start(null, request.isForce(), listener);
         } else {
             listener.onFailure(new RuntimeException("ID of data frame transform task [" + transformTask.getTransformId()
                 + "] does not match request's ID [" + request.getId() + "]"));

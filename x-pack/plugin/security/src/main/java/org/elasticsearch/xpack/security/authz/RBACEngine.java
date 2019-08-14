@@ -182,6 +182,8 @@ public class RBACEngine implements AuthorizationEngine {
                     String authenticatedApiKeyId = (String) authentication.getMetadata().get(ApiKeyService.API_KEY_ID_KEY);
                     if (Strings.hasText(getApiKeyRequest.getApiKeyId())) {
                         return getApiKeyRequest.getApiKeyId().equals(authenticatedApiKeyId);
+                    } else {
+                        return false;
                     }
                 }
             } else {

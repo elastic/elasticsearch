@@ -233,10 +233,6 @@ public class FileUtils {
         throw new IllegalStateException("Could not find version in filename: " + distroFile);
     }
 
-    public static Path getPackagingArchivesDir() {
-        return Paths.get(""); // tests are started in the packaging archives dir, ie the empty relative path
-    }
-
     public static Path getDistributionFile(Distribution distribution) {
         return distribution.path;
     }

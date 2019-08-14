@@ -12,7 +12,6 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -57,8 +56,6 @@ import org.elasticsearch.xpack.dataframe.transforms.pivot.AggregationResultUtils
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -324,15 +321,27 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             return;
         }
 
-        logger.debug("Data frame indexer [{}] schedule has triggered, state: [{}]", event.getJobName(), getIndexer().getState());
+        if (taskState.get() == DataFrameTransformTaskState.FAILED) {
+            logger.debug("Schedule was triggered for transform [{}] but task is failed. Ignoring trigger.", getTransformId());
+            return;
+        }
+
+        // ignore trigger if indexer is running or completely stopped
+        IndexerState indexerState = getIndexer().getState();
+        if (IndexerState.INDEXING.equals(indexerState) ||
+            IndexerState.STOPPING.equals(indexerState) ||
+            IndexerState.STOPPED.equals(indexerState)) {
+            logger.debug("Indexer for transform [{}] has state [{}], ignoring trigger", getTransformId(), indexerState);
+            return;
+        }
+
+        logger.debug("Data frame indexer [{}] schedule has triggered, state: [{}]", event.getJobName(), indexerState);
 
         // if it runs for the 1st time we just do it, if not we check for changes
-        if (currentCheckpoint.get() == 0 ) {
+        if (currentCheckpoint.get() == 0) {
             logger.debug("Trigger initial run");
             getIndexer().maybeTriggerAsyncJob(System.currentTimeMillis());
-        } else if (getIndexer().isContinuous() && getIndexer().sourceHasChanged()) {
-            changesLastDetectedAt = Instant.now();
-            logger.debug("Source has changed, triggering new indexer run");
+        } else if (getIndexer().isContinuous()) {
             getIndexer().maybeTriggerAsyncJob(System.currentTimeMillis());
         }
     }
@@ -620,7 +629,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         }
 
         @Override
-        protected void onStart(long now, ActionListener<Void> listener) {
+        protected void onStart(long now, ActionListener<Boolean> listener) {
             // On each run, we need to get the total number of docs and reset the count of processed docs
             // Since multiple checkpoints can be executed in the task while it is running on the same node, we need to gather
             // the progress here, and not in the executor.
@@ -657,30 +666,55 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             );
 
             // If we are continuous, we will want to verify we have the latest stored configuration
-            if (isContinuous()) {
-                transformsConfigManager.getTransformConfiguration(getJobId(), ActionListener.wrap(
-                    config -> {
-                        transformConfig = config;
-                        logger.debug("[" + getJobId() + "] successfully refreshed data frame transform config from index.");
+            ActionListener<Void> changedSourceListener = ActionListener.wrap(
+                r -> {
+                    if (isContinuous()) {
+                        transformsConfigManager.getTransformConfiguration(getJobId(), ActionListener.wrap(
+                            config -> {
+                                transformConfig = config;
+                                logger.debug("[{}] successfully refreshed data frame transform config from index.", transformId);
+                                updateConfigListener.onResponse(null);
+                            },
+                            failure -> {
+                                String msg = DataFrameMessages.getMessage(
+                                    DataFrameMessages.FAILED_TO_RELOAD_TRANSFORM_CONFIGURATION,
+                                    getJobId());
+                                logger.error(msg, failure);
+                                // If the transform config index or the transform config is gone, something serious occurred
+                                // We are in an unknown state and should fail out
+                                if (failure instanceof ResourceNotFoundException) {
+                                    updateConfigListener.onFailure(new TransformConfigReloadingException(msg, failure));
+                                } else {
+                                    auditor.warning(getJobId(), msg);
+                                    updateConfigListener.onResponse(null);
+                                }
+                            }
+                        ));
+                    } else {
                         updateConfigListener.onResponse(null);
-                    },
-                    failure -> {
-                        String msg = DataFrameMessages.getMessage(
-                            DataFrameMessages.FAILED_TO_RELOAD_TRANSFORM_CONFIGURATION,
-                            getJobId());
-                        logger.error(msg, failure);
-                        // If the transform config index or the transform config is gone, something serious occurred
-                        // We are in an unknown state and should fail out
-                        if (failure instanceof ResourceNotFoundException) {
-                            updateConfigListener.onFailure(new TransformConfigReloadingException(msg, failure));
-                        } else {
-                            auditor.warning(getJobId(), msg);
-                            updateConfigListener.onResponse(null);
-                        }
                     }
+                },
+                listener::onFailure
+            );
+
+            // If we are not on the initial batch checkpoint and its the first pass of whatever continuous checkpoint we are on,
+            // we should verify if there are local changes based on the sync config. If not, do not proceed further and exit.
+            if (transformTask.currentCheckpoint.get() > 0 && initialRun()) {
+                sourceHasChanged(ActionListener.wrap(
+                    hasChanged -> {
+                        if (hasChanged) {
+                            transformTask.changesLastDetectedAt = Instant.now();
+                            logger.debug("[{}] source has changed, triggering new indexer run.", transformId);
+                            changedSourceListener.onResponse(null);
+                        } else {
+                            // No changes, stop executing
+                            listener.onResponse(false);
+                        }
+                    },
+                    listener::onFailure
                 ));
             } else {
-                updateConfigListener.onResponse(null);
+                changedSourceListener.onResponse(null);
             }
         }
 
@@ -930,41 +964,22 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         }
 
         @Override
-        public boolean sourceHasChanged() {
-            if (getState() == IndexerState.INDEXING) {
-                logger.trace("Indexer is still running, ignore");
-                return false;
-            }
-
-            CountDownLatch latch = new CountDownLatch(1);
-            SetOnce<Boolean> changed = new SetOnce<>();
-
+        protected void sourceHasChanged(ActionListener<Boolean> hasChangedListener) {
             checkpointProvider.sourceHasChanged(getLastCheckpoint(),
-                    new LatchedActionListener<>(ActionListener.wrap(changed::set, e -> {
-                        changed.set(false);
+                ActionListener.wrap(
+                    hasChanged -> {
+                        logger.trace("[{}] change detected [{}]", transformId, hasChanged);
+                        hasChangedListener.onResponse(hasChanged);
+                    },
+                    e -> {
                         logger.warn(
-                                "Failed to detect changes for data frame transform [" + transformId + "], skipping update till next check",
-                                e);
-
+                            "Failed to detect changes for data frame transform [" + transformId + "], skipping update till next check.",
+                            e);
                         auditor.warning(transformId,
-                                "Failed to detect changes for data frame transform, skipping update till next check. Exception: "
-                                        + e.getMessage());
-                    }), latch));
-
-            try {
-                if (latch.await(5, TimeUnit.SECONDS)) {
-                    logger.trace("Change detected:" + changed.get());
-                    return changed.get();
-                }
-            } catch (InterruptedException e) {
-                logger.warn("Failed to detect changes for data frame transform [" + transformId + "], skipping update till next check", e);
-
-                auditor.warning(transformId,
-                        "Failed to detect changes for data frame transform, skipping update till next check. Exception: "
+                            "Failed to detect changes for data frame transform, skipping update till next check. Exception: "
                                 + e.getMessage());
-            }
-
-            return false;
+                        hasChangedListener.onResponse(false);
+                    }));
         }
 
         private boolean isIrrecoverableFailure(Exception e) {

@@ -1,5 +1,8 @@
 [[query-dsl-geo-shape-query]]
-=== GeoShape Query
+=== Geo-shape query
+++++
+<titleabbrev>Geo-shape</titleabbrev>
+++++
 
 Filter documents indexed using the `geo_shape` type.
 

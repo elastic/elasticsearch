@@ -74,7 +74,7 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
 
     @Inject
     public TransportDeleteForecastAction(TransportService transportService, ActionFilters actionFilters, Client client) {
-        super(DeleteForecastAction.NAME, transportService, DeleteForecastAction.Request::new, actionFilters);
+        super(DeleteForecastAction.NAME, transportService, actionFilters, DeleteForecastAction.Request::new);
         this.client = client;
     }
 

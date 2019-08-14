@@ -526,6 +526,9 @@ public final class InternalAutoDateHistogram extends
         if (buckets.size() > targetBuckets) {
             for (int interval : roundingInfo.innerIntervals) {
                 int resultingBuckets = buckets.size() / interval;
+                if (buckets.size() % interval != 0) {
+                    resultingBuckets++;
+                }
                 if (resultingBuckets <= targetBuckets) {
                     return mergeConsecutiveBuckets(buckets, interval, roundingIdx, roundingInfo, reduceContext);
                 }

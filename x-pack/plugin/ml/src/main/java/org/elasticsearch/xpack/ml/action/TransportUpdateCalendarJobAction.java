@@ -27,7 +27,7 @@ public class TransportUpdateCalendarJobAction extends HandledTransportAction<Upd
     @Inject
     public TransportUpdateCalendarJobAction(TransportService transportService, ActionFilters actionFilters,
                                             JobResultsProvider jobResultsProvider, JobManager jobManager) {
-        super(UpdateCalendarJobAction.NAME, transportService, UpdateCalendarJobAction.Request::new, actionFilters);
+        super(UpdateCalendarJobAction.NAME, transportService, actionFilters, UpdateCalendarJobAction.Request::new);
         this.jobResultsProvider = jobResultsProvider;
         this.jobManager = jobManager;
     }

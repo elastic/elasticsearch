@@ -24,14 +24,9 @@ import org.elasticsearch.test.ESTestCase;
 public class ActionTests extends ESTestCase {
 
     public void testEquals() {
-        class FakeAction extends StreamableResponseActionType<ActionResponse> {
+        class FakeAction extends ActionType<ActionResponse> {
             protected FakeAction(String name) {
-                super(name);
-            }
-
-            @Override
-            public ActionResponse newResponse() {
-                return null;
+                super(name, null);
             }
         }
         FakeAction fakeAction1 = new FakeAction("a");

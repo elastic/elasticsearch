@@ -46,7 +46,7 @@ public class TransportPutStoredScriptAction extends TransportMasterNodeAction<Pu
                                           ThreadPool threadPool, ActionFilters actionFilters,
                                           IndexNameExpressionResolver indexNameExpressionResolver, ScriptService scriptService) {
         super(PutStoredScriptAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, PutStoredScriptRequest::new);
+                PutStoredScriptRequest::new, indexNameExpressionResolver);
         this.scriptService = scriptService;
     }
 

@@ -21,7 +21,9 @@ import java.util.Objects;
 public class SqlTranslateResponse extends ActionResponse implements ToXContentObject {
     private SearchSourceBuilder source;
 
-    public SqlTranslateResponse() {
+    public SqlTranslateResponse(StreamInput in) throws IOException {
+        super(in);
+        source = new SearchSourceBuilder(in);
     }
 
     public SqlTranslateResponse(SearchSourceBuilder source) {
@@ -30,11 +32,6 @@ public class SqlTranslateResponse extends ActionResponse implements ToXContentOb
 
     public SearchSourceBuilder source() {
         return source;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        source = new SearchSourceBuilder(in);
     }
 
     @Override

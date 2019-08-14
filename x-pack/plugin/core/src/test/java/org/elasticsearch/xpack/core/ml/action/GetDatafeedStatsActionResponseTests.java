@@ -8,18 +8,20 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction.Response;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStatsTests;
+import org.elasticsearch.xpack.core.ml.utils.ExponentialAverageCalculationContext;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -34,7 +36,7 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 
-public class GetDatafeedStatsActionResponseTests extends AbstractStreamableTestCase<Response> {
+public class GetDatafeedStatsActionResponseTests extends AbstractWireSerializingTestCase<Response> {
 
     @Override
     protected Response createTestInstance() {
@@ -61,8 +63,8 @@ public class GetDatafeedStatsActionResponseTests extends AbstractStreamableTestC
     }
 
     @Override
-    protected Response createBlankInstance() {
-        return new Response();
+    protected Writeable.Reader<Response> instanceReader() {
+        return Response::new;
     }
 
     @SuppressWarnings("unchecked")
@@ -77,7 +79,8 @@ public class GetDatafeedStatsActionResponseTests extends AbstractStreamableTestC
                 Set.of(),
                 Version.CURRENT);
 
-        DatafeedTimingStats timingStats = new DatafeedTimingStats("my-job-id", 5, 123.456);
+        DatafeedTimingStats timingStats =
+            new DatafeedTimingStats("my-job-id", 5, 10, 100.0, new ExponentialAverageCalculationContext(50.0, null, null));
 
         Response.DatafeedStats stats = new Response.DatafeedStats("df-id", DatafeedState.STARTED, node, null, timingStats);
 
@@ -109,9 +112,12 @@ public class GetDatafeedStatsActionResponseTests extends AbstractStreamableTestC
         assertThat(nodeAttributes, hasEntry("ml.max_open_jobs", "5"));
 
         Map<String, Object> timingStatsMap = (Map<String, Object>) dfStatsMap.get("timing_stats");
-        assertThat(timingStatsMap.size(), is(equalTo(3)));
+        assertThat(timingStatsMap.size(), is(equalTo(6)));
         assertThat(timingStatsMap, hasEntry("job_id", "my-job-id"));
         assertThat(timingStatsMap, hasEntry("search_count", 5));
-        assertThat(timingStatsMap, hasEntry("total_search_time_ms", 123.456));
+        assertThat(timingStatsMap, hasEntry("bucket_count", 10));
+        assertThat(timingStatsMap, hasEntry("total_search_time_ms", 100.0));
+        assertThat(timingStatsMap, hasEntry("average_search_time_per_bucket_ms", 10.0));
+        assertThat(timingStatsMap, hasEntry("exponential_average_search_time_per_hour_ms", 50.0));
     }
 }

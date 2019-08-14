@@ -1,4 +1,5 @@
 import org.elasticsearch.gradle.test.RestIntegTestTask
+import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
@@ -14,21 +15,21 @@ task 'leader-cluster'(type: RestIntegTestTask) {
     }
 }
 testClusters.'leader-cluster' {
-    distribution = "DEFAULT"
+    testDistribution = 'DEFAULT'
     setting 'xpack.license.self_generated.type', 'trial'
 }
 
 task 'follow-cluster'(type: RestIntegTestTask) {
     dependsOn 'leader-cluster'
-    useCluster testClusters.'leader-cluster'
     runner {
+        useCluster testClusters.'leader-cluster'
         systemProperty 'tests.target_cluster', 'follow'
         nonInputProperties.systemProperty 'tests.leader_host',
                 "${-> testClusters.'leader-cluster'.getAllHttpSocketURI().get(0)}"
     }
 }
 testClusters.'follow-cluster' {
-    distribution = "DEFAULT"
+    testDistribution = 'DEFAULT'
     setting 'xpack.monitoring.collection.enabled', 'true'
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'cluster.remote.leader_cluster.seeds',
@@ -36,12 +37,11 @@ testClusters.'follow-cluster' {
     nameCustomization = { 'follow'  }
 }
 
-task followClusterRestartTest(type: Test) {
+task followClusterRestartTest(type: RestTestRunnerTask) {
     dependsOn tasks.'follow-cluster'
     useCluster testClusters.'leader-cluster'
     useCluster testClusters.'follow-cluster'
 
-    maxParallelForks = 1
     systemProperty 'tests.rest.load_packaged', 'false'
     systemProperty 'tests.target_cluster', 'follow-restart'
     doFirst {
@@ -49,7 +49,6 @@ task followClusterRestartTest(type: Test) {
         nonInputProperties.systemProperty 'tests.leader_host', "${-> testClusters.'leader-cluster'.getAllHttpSocketURI().get(0)}"
         nonInputProperties.systemProperty 'tests.rest.cluster', "${-> testClusters.'follow-cluster'.getAllHttpSocketURI().join(",")}"
     }
-    outputs.doNotCacheIf "Caching of REST tests not implemented yet", { false }
 }
 
 check.dependsOn followClusterRestartTest

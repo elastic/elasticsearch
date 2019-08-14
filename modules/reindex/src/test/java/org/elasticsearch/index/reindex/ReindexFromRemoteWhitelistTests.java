@@ -31,8 +31,8 @@ import java.util.List;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.index.reindex.TransportReindexAction.buildRemoteWhitelist;
-import static org.elasticsearch.index.reindex.TransportReindexAction.checkRemoteWhitelist;
+import static org.elasticsearch.index.reindex.ReindexValidator.buildRemoteWhitelist;
+import static org.elasticsearch.index.reindex.ReindexValidator.checkRemoteWhitelist;
 
 /**
  * Tests the reindex-from-remote whitelist of remotes.

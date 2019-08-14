@@ -44,6 +44,8 @@ import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteJobResponse;
 import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
+import org.elasticsearch.client.ml.EstimateMemoryUsageRequest;
+import org.elasticsearch.client.ml.EstimateMemoryUsageResponse;
 import org.elasticsearch.client.ml.EvaluateDataFrameRequest;
 import org.elasticsearch.client.ml.EvaluateDataFrameResponse;
 import org.elasticsearch.client.ml.FindFileStructureRequest;
@@ -124,6 +126,7 @@ import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsStats;
 import org.elasticsearch.client.ml.dataframe.OutlierDetection;
 import org.elasticsearch.client.ml.dataframe.QueryConfig;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredErrorMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.regression.RSquaredMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.Regression;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.AucRocMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.BinarySoftClassification;
@@ -140,6 +143,7 @@ import org.elasticsearch.client.ml.job.config.JobUpdate;
 import org.elasticsearch.client.ml.job.config.MlFilter;
 import org.elasticsearch.client.ml.job.process.ModelSnapshot;
 import org.elasticsearch.client.ml.job.stats.JobStats;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -166,13 +170,16 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.CoreMatchers.hasItems;
 import static org.hamcrest.CoreMatchers.not;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class MachineLearningIT extends ESRestHighLevelClientTestCase {
@@ -435,9 +442,10 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testUpdateDatafeed() throws Exception {
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+
         String jobId = randomValidJobId();
         Job job = buildJob(jobId);
-        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
         execute(new PutJobRequest(job), machineLearningClient::putJob, machineLearningClient::putJobAsync);
 
         String datafeedId = "datafeed-" + jobId;
@@ -1209,7 +1217,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
     public void testPutDataFrameAnalyticsConfig() throws Exception {
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
         String configId = "put-test-config";
-        DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder(configId)
+        DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder()
+            .setId(configId)
             .setSource(DataFrameAnalyticsSource.builder()
                 .setIndex("put-test-source-index")
                 .build())
@@ -1238,7 +1247,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
     public void testGetDataFrameAnalyticsConfig_SingleConfig() throws Exception {
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
         String configId = "get-test-config";
-        DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder(configId)
+        DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder()
+            .setId(configId)
             .setSource(DataFrameAnalyticsSource.builder()
                 .setIndex("get-test-source-index")
                 .build())
@@ -1271,7 +1281,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         List<DataFrameAnalyticsConfig> createdConfigs = new ArrayList<>();
         for (int i = 0; i < numberOfConfigs; ++i) {
             String configId = configIdPrefix + i;
-            DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder(configId)
+            DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder()
+                .setId(configId)
                 .setSource(DataFrameAnalyticsSource.builder()
                     .setIndex("get-test-source-index")
                     .build())
@@ -1340,7 +1351,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
         String configId = "get-stats-test-config";
-        DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder(configId)
+        DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder()
+            .setId(configId)
             .setSource(DataFrameAnalyticsSource.builder()
                 .setIndex(sourceIndex)
                 .build())
@@ -1382,7 +1394,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
         String configId = "start-test-config";
-        DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder(configId)
+        DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder()
+            .setId(configId)
             .setSource(DataFrameAnalyticsSource.builder()
                 .setIndex(sourceIndex)
                 .build())
@@ -1422,7 +1435,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
         String configId = "stop-test-config";
-        DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder(configId)
+        DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder()
+            .setId(configId)
             .setSource(DataFrameAnalyticsSource.builder()
                 .setIndex(sourceIndex)
                 .build())
@@ -1463,7 +1477,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
     public void testDeleteDataFrameAnalyticsConfig() throws Exception {
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
         String configId = "delete-test-config";
-        DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder(configId)
+        DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder()
+            .setId(configId)
             .setSource(DataFrameAnalyticsSource.builder()
                 .setIndex("delete-test-source-index")
                 .build())
@@ -1597,16 +1612,21 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             .add(docForRegression(regressionIndex, 0.5, 0.9));  // #9
         highLevelClient().bulk(regressionBulk, RequestOptions.DEFAULT);
 
-        evaluateDataFrameRequest = new EvaluateDataFrameRequest(regressionIndex, new Regression(actualRegression, probabilityRegression));
+        evaluateDataFrameRequest = new EvaluateDataFrameRequest(regressionIndex,
+            new Regression(actualRegression, probabilityRegression, new MeanSquaredErrorMetric(), new RSquaredMetric()));
 
         evaluateDataFrameResponse =
             execute(evaluateDataFrameRequest, machineLearningClient::evaluateDataFrame, machineLearningClient::evaluateDataFrameAsync);
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Regression.NAME));
-        assertThat(evaluateDataFrameResponse.getMetrics().size(), equalTo(1));
+        assertThat(evaluateDataFrameResponse.getMetrics().size(), equalTo(2));
 
         MeanSquaredErrorMetric.Result mseResult = evaluateDataFrameResponse.getMetricByName(MeanSquaredErrorMetric.NAME);
         assertThat(mseResult.getMetricName(), equalTo(MeanSquaredErrorMetric.NAME));
         assertThat(mseResult.getError(), closeTo(0.061000000, 1e-9));
+
+        RSquaredMetric.Result rSquaredResult = evaluateDataFrameResponse.getMetricByName(RSquaredMetric.NAME);
+        assertThat(rSquaredResult.getMetricName(), equalTo(RSquaredMetric.NAME));
+        assertThat(rSquaredResult.getValue(), closeTo(-5.1000000000000005, 1e-9));
     }
 
     private static XContentBuilder defaultMappingForTest() throws IOException {
@@ -1668,6 +1688,54 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
     private void createIndex(String indexName, XContentBuilder mapping) throws IOException {
         highLevelClient().indices().create(new CreateIndexRequest(indexName).mapping(mapping), RequestOptions.DEFAULT);
+    }
+
+    public void testEstimateMemoryUsage() throws IOException {
+        String indexName = "estimate-test-index";
+        createIndex(indexName, mappingForClassification());
+        BulkRequest bulk1 = new BulkRequest()
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (int i = 0; i < 10; ++i) {
+            bulk1.add(docForClassification(indexName, randomBoolean(), randomDoubleBetween(0.0, 1.0, true)));
+        }
+        highLevelClient().bulk(bulk1, RequestOptions.DEFAULT);
+
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        EstimateMemoryUsageRequest estimateMemoryUsageRequest =
+            new EstimateMemoryUsageRequest(
+                DataFrameAnalyticsConfig.builder()
+                    .setSource(DataFrameAnalyticsSource.builder().setIndex(indexName).build())
+                    .setAnalysis(OutlierDetection.createDefault())
+                    .build());
+
+        // We are pretty liberal here as this test does not aim at verifying concrete numbers but rather end-to-end user workflow.
+        ByteSizeValue lowerBound = new ByteSizeValue(1, ByteSizeUnit.KB);
+        ByteSizeValue upperBound = new ByteSizeValue(1, ByteSizeUnit.GB);
+
+        // Data Frame has 10 rows, expect that the returned estimates fall within (1kB, 1GB) range.
+        EstimateMemoryUsageResponse response1 =
+            execute(
+                estimateMemoryUsageRequest, machineLearningClient::estimateMemoryUsage, machineLearningClient::estimateMemoryUsageAsync);
+        assertThat(response1.getExpectedMemoryUsageWithOnePartition(), allOf(greaterThan(lowerBound), lessThan(upperBound)));
+        assertThat(response1.getExpectedMemoryUsageWithMaxPartitions(), allOf(greaterThan(lowerBound), lessThan(upperBound)));
+
+        BulkRequest bulk2 = new BulkRequest()
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (int i = 10; i < 100; ++i) {
+            bulk2.add(docForClassification(indexName, randomBoolean(), randomDoubleBetween(0.0, 1.0, true)));
+        }
+        highLevelClient().bulk(bulk2, RequestOptions.DEFAULT);
+
+        // Data Frame now has 100 rows, expect that the returned estimates will be greater than the previous ones.
+        EstimateMemoryUsageResponse response2 =
+            execute(
+                estimateMemoryUsageRequest, machineLearningClient::estimateMemoryUsage, machineLearningClient::estimateMemoryUsageAsync);
+        assertThat(
+            response2.getExpectedMemoryUsageWithOnePartition(),
+            allOf(greaterThan(response1.getExpectedMemoryUsageWithOnePartition()), lessThan(upperBound)));
+        assertThat(
+            response2.getExpectedMemoryUsageWithMaxPartitions(),
+            allOf(greaterThan(response1.getExpectedMemoryUsageWithMaxPartitions()), lessThan(upperBound)));
     }
 
     public void testPutFilter() throws Exception {

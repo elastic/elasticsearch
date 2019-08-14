@@ -22,35 +22,47 @@ package org.elasticsearch.client.documentation;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.core.AcknowledgedResponse;
-import org.elasticsearch.client.indexlifecycle.DeleteAction;
-import org.elasticsearch.client.indexlifecycle.DeleteLifecyclePolicyRequest;
-import org.elasticsearch.client.indexlifecycle.ExplainLifecycleRequest;
-import org.elasticsearch.client.indexlifecycle.ExplainLifecycleResponse;
-import org.elasticsearch.client.indexlifecycle.GetLifecyclePolicyRequest;
-import org.elasticsearch.client.indexlifecycle.GetLifecyclePolicyResponse;
-import org.elasticsearch.client.indexlifecycle.IndexLifecycleExplainResponse;
-import org.elasticsearch.client.indexlifecycle.LifecycleAction;
-import org.elasticsearch.client.indexlifecycle.LifecycleManagementStatusRequest;
-import org.elasticsearch.client.indexlifecycle.LifecycleManagementStatusResponse;
-import org.elasticsearch.client.indexlifecycle.LifecyclePolicy;
-import org.elasticsearch.client.indexlifecycle.LifecyclePolicyMetadata;
-import org.elasticsearch.client.indexlifecycle.OperationMode;
-import org.elasticsearch.client.indexlifecycle.Phase;
-import org.elasticsearch.client.indexlifecycle.PutLifecyclePolicyRequest;
-import org.elasticsearch.client.indexlifecycle.RemoveIndexLifecyclePolicyRequest;
-import org.elasticsearch.client.indexlifecycle.RemoveIndexLifecyclePolicyResponse;
-import org.elasticsearch.client.indexlifecycle.RetryLifecyclePolicyRequest;
-import org.elasticsearch.client.indexlifecycle.RolloverAction;
-import org.elasticsearch.client.indexlifecycle.ShrinkAction;
-import org.elasticsearch.client.indexlifecycle.StartILMRequest;
-import org.elasticsearch.client.indexlifecycle.StopILMRequest;
+import org.elasticsearch.client.ilm.DeleteAction;
+import org.elasticsearch.client.ilm.DeleteLifecyclePolicyRequest;
+import org.elasticsearch.client.ilm.ExplainLifecycleRequest;
+import org.elasticsearch.client.ilm.ExplainLifecycleResponse;
+import org.elasticsearch.client.ilm.GetLifecyclePolicyRequest;
+import org.elasticsearch.client.ilm.GetLifecyclePolicyResponse;
+import org.elasticsearch.client.ilm.IndexLifecycleExplainResponse;
+import org.elasticsearch.client.ilm.LifecycleAction;
+import org.elasticsearch.client.ilm.LifecycleManagementStatusRequest;
+import org.elasticsearch.client.ilm.LifecycleManagementStatusResponse;
+import org.elasticsearch.client.ilm.LifecyclePolicy;
+import org.elasticsearch.client.ilm.LifecyclePolicyMetadata;
+import org.elasticsearch.client.ilm.OperationMode;
+import org.elasticsearch.client.ilm.Phase;
+import org.elasticsearch.client.ilm.PutLifecyclePolicyRequest;
+import org.elasticsearch.client.ilm.RemoveIndexLifecyclePolicyRequest;
+import org.elasticsearch.client.ilm.RemoveIndexLifecyclePolicyResponse;
+import org.elasticsearch.client.ilm.RetryLifecyclePolicyRequest;
+import org.elasticsearch.client.ilm.RolloverAction;
+import org.elasticsearch.client.ilm.ShrinkAction;
+import org.elasticsearch.client.ilm.StartILMRequest;
+import org.elasticsearch.client.ilm.StopILMRequest;
 import org.elasticsearch.client.indices.CreateIndexRequest;
+import org.elasticsearch.client.slm.DeleteSnapshotLifecyclePolicyRequest;
+import org.elasticsearch.client.slm.ExecuteSnapshotLifecyclePolicyRequest;
+import org.elasticsearch.client.slm.ExecuteSnapshotLifecyclePolicyResponse;
+import org.elasticsearch.client.slm.GetSnapshotLifecyclePolicyRequest;
+import org.elasticsearch.client.slm.GetSnapshotLifecyclePolicyResponse;
+import org.elasticsearch.client.slm.PutSnapshotLifecyclePolicyRequest;
+import org.elasticsearch.client.slm.SnapshotInvocationRecord;
+import org.elasticsearch.client.slm.SnapshotLifecyclePolicy;
+import org.elasticsearch.client.slm.SnapshotLifecyclePolicyMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -60,6 +72,9 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.snapshots.SnapshotState;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -68,6 +83,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -738,6 +754,239 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         // end::ilm-remove-lifecycle-policy-from-index-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
+    public void testAddSnapshotLifecyclePolicy() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        PutRepositoryRequest repoRequest = new PutRepositoryRequest();
+
+        Settings.Builder settingsBuilder = Settings.builder().put("location", ".");
+        repoRequest.settings(settingsBuilder);
+        repoRequest.name("my_repository");
+        repoRequest.type(FsRepository.TYPE);
+        org.elasticsearch.action.support.master.AcknowledgedResponse response =
+            client.snapshot().createRepository(repoRequest, RequestOptions.DEFAULT);
+        assertTrue(response.isAcknowledged());
+
+        //////// PUT
+        // tag::slm-put-snapshot-lifecycle-policy
+        Map<String, Object> config = new HashMap<>();
+        config.put("indices", Collections.singletonList("idx"));
+        SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy(
+            "policy_id", "name", "1 2 3 * * ?", "my_repository", config);
+        PutSnapshotLifecyclePolicyRequest request =
+            new PutSnapshotLifecyclePolicyRequest(policy);
+        // end::slm-put-snapshot-lifecycle-policy
+
+        // tag::slm-put-snapshot-lifecycle-policy-execute
+        AcknowledgedResponse resp = client.indexLifecycle()
+            .putSnapshotLifecyclePolicy(request, RequestOptions.DEFAULT);
+        // end::slm-put-snapshot-lifecycle-policy-execute
+
+        // tag::slm-put-snapshot-lifecycle-policy-response
+        boolean putAcknowledged = resp.isAcknowledged(); // <1>
+        // end::slm-put-snapshot-lifecycle-policy-response
+        assertTrue(putAcknowledged);
+
+        // tag::slm-put-snapshot-lifecycle-policy-execute-listener
+        ActionListener<AcknowledgedResponse> putListener =
+                new ActionListener<>() {
+            @Override
+            public void onResponse(AcknowledgedResponse resp) {
+                boolean acknowledged = resp.isAcknowledged(); // <1>
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // <2>
+            }
+        };
+        // end::slm-put-snapshot-lifecycle-policy-execute-listener
+
+        // tag::slm-put-snapshot-lifecycle-policy-execute-async
+        client.indexLifecycle().putSnapshotLifecyclePolicyAsync(request,
+            RequestOptions.DEFAULT, putListener);
+        // end::slm-put-snapshot-lifecycle-policy-execute-async
+
+        //////// GET
+        // tag::slm-get-snapshot-lifecycle-policy
+        GetSnapshotLifecyclePolicyRequest getAllRequest =
+            new GetSnapshotLifecyclePolicyRequest(); // <1>
+        GetSnapshotLifecyclePolicyRequest getRequest =
+            new GetSnapshotLifecyclePolicyRequest("policy_id"); // <2>
+        // end::slm-get-snapshot-lifecycle-policy
+
+        // tag::slm-get-snapshot-lifecycle-policy-execute
+        GetSnapshotLifecyclePolicyResponse getResponse =
+            client.indexLifecycle()
+                .getSnapshotLifecyclePolicy(getRequest,
+                    RequestOptions.DEFAULT);
+        // end::slm-get-snapshot-lifecycle-policy-execute
+
+        // tag::slm-get-snapshot-lifecycle-policy-execute-listener
+        ActionListener<GetSnapshotLifecyclePolicyResponse> getListener =
+                new ActionListener<>() {
+            @Override
+            public void onResponse(GetSnapshotLifecyclePolicyResponse resp) {
+                Map<String, SnapshotLifecyclePolicyMetadata> policies =
+                    resp.getPolicies(); // <1>
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // <2>
+            }
+        };
+        // end::slm-get-snapshot-lifecycle-policy-execute-listener
+
+        // tag::slm-get-snapshot-lifecycle-policy-execute-async
+        client.indexLifecycle().getSnapshotLifecyclePolicyAsync(getRequest,
+            RequestOptions.DEFAULT, getListener);
+        // end::slm-get-snapshot-lifecycle-policy-execute-async
+
+        assertThat(getResponse.getPolicies().size(), equalTo(1));
+        // tag::slm-get-snapshot-lifecycle-policy-response
+        SnapshotLifecyclePolicyMetadata policyMeta =
+            getResponse.getPolicies().get("policy_id"); // <1>
+        long policyVersion = policyMeta.getVersion();
+        long policyModificationDate = policyMeta.getModifiedDate();
+        long nextPolicyExecutionDate = policyMeta.getNextExecution();
+        SnapshotInvocationRecord lastSuccess = policyMeta.getLastSuccess();
+        SnapshotInvocationRecord lastFailure = policyMeta.getLastFailure();
+        SnapshotLifecyclePolicyMetadata.SnapshotInProgress inProgress =
+            policyMeta.getSnapshotInProgress();
+        SnapshotLifecyclePolicy retrievedPolicy = policyMeta.getPolicy(); // <2>
+        String id = retrievedPolicy.getId();
+        String snapshotNameFormat = retrievedPolicy.getName();
+        String repositoryName = retrievedPolicy.getRepository();
+        String schedule = retrievedPolicy.getSchedule();
+        Map<String, Object> snapshotConfiguration = retrievedPolicy.getConfig();
+        // end::slm-get-snapshot-lifecycle-policy-response
+
+        assertNotNull(policyMeta);
+        assertThat(retrievedPolicy, equalTo(policy));
+        assertThat(policyVersion, equalTo(1L));
+
+        createIndex("idx", Settings.builder().put("index.number_of_shards", 1).build());
+
+        //////// EXECUTE
+        // tag::slm-execute-snapshot-lifecycle-policy
+        ExecuteSnapshotLifecyclePolicyRequest executeRequest =
+            new ExecuteSnapshotLifecyclePolicyRequest("policy_id"); // <1>
+        // end::slm-execute-snapshot-lifecycle-policy
+
+        // tag::slm-execute-snapshot-lifecycle-policy-execute
+        ExecuteSnapshotLifecyclePolicyResponse executeResponse =
+            client.indexLifecycle()
+                .executeSnapshotLifecyclePolicy(executeRequest,
+                    RequestOptions.DEFAULT);
+        // end::slm-execute-snapshot-lifecycle-policy-execute
+
+        // tag::slm-execute-snapshot-lifecycle-policy-response
+        final String snapshotName = executeResponse.getSnapshotName(); // <1>
+        // end::slm-execute-snapshot-lifecycle-policy-response
+
+        assertSnapshotExists(client, "my_repository", snapshotName);
+
+        // tag::slm-execute-snapshot-lifecycle-policy-execute-listener
+        ActionListener<ExecuteSnapshotLifecyclePolicyResponse> executeListener =
+                new ActionListener<>() {
+            @Override
+            public void onResponse(ExecuteSnapshotLifecyclePolicyResponse r) {
+                String snapshotName = r.getSnapshotName(); // <1>
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // <2>
+            }
+        };
+        // end::slm-execute-snapshot-lifecycle-policy-execute-listener
+
+        // We need a listener that will actually wait for the snapshot to be created
+        CountDownLatch latch = new CountDownLatch(1);
+        executeListener =
+            new ActionListener<>() {
+                @Override
+                public void onResponse(ExecuteSnapshotLifecyclePolicyResponse r) {
+                    try {
+                        assertSnapshotExists(client, "my_repository", r.getSnapshotName());
+                    } catch (Exception e) {
+                        // Ignore
+                    } finally {
+                        latch.countDown();
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    latch.countDown();
+                    fail("failed to execute slm execute: " + e);
+                }
+        };
+
+        // tag::slm-execute-snapshot-lifecycle-policy-execute-async
+        client.indexLifecycle()
+            .executeSnapshotLifecyclePolicyAsync(executeRequest,
+                RequestOptions.DEFAULT, executeListener);
+        // end::slm-execute-snapshot-lifecycle-policy-execute-async
+        latch.await(5, TimeUnit.SECONDS);
+
+        //////// DELETE
+        // tag::slm-delete-snapshot-lifecycle-policy
+        DeleteSnapshotLifecyclePolicyRequest deleteRequest =
+            new DeleteSnapshotLifecyclePolicyRequest("policy_id"); // <1>
+        // end::slm-delete-snapshot-lifecycle-policy
+
+        // tag::slm-delete-snapshot-lifecycle-policy-execute
+        AcknowledgedResponse deleteResp = client.indexLifecycle()
+            .deleteSnapshotLifecyclePolicy(deleteRequest, RequestOptions.DEFAULT);
+        // end::slm-delete-snapshot-lifecycle-policy-execute
+        assertTrue(deleteResp.isAcknowledged());
+
+        ActionListener<AcknowledgedResponse> deleteListener = new ActionListener<>() {
+            @Override
+            public void onResponse(AcknowledgedResponse resp) {
+                // no-op
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // no-op
+            }
+        };
+
+        // tag::slm-delete-snapshot-lifecycle-policy-execute-async
+        client.indexLifecycle()
+            .deleteSnapshotLifecyclePolicyAsync(deleteRequest,
+                RequestOptions.DEFAULT, deleteListener);
+        // end::slm-delete-snapshot-lifecycle-policy-execute-async
+
+        assertTrue(deleteResp.isAcknowledged());
+    }
+
+    private void assertSnapshotExists(final RestHighLevelClient client, final String repo, final String snapshotName) throws Exception {
+        assertBusy(() -> {
+            GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest(new String[]{repo}, new String[]{snapshotName});
+            try {
+                final GetSnapshotsResponse snaps = client.snapshot().get(getSnapshotsRequest, RequestOptions.DEFAULT);
+                Optional<SnapshotInfo> info = snaps.getSnapshots(repo).stream().findFirst();
+                if (info.isPresent()) {
+                    info.ifPresent(si -> {
+                        assertThat(si.snapshotId().getName(), equalTo(snapshotName));
+                        assertThat(si.state(), equalTo(SnapshotState.SUCCESS));
+                    });
+                } else {
+                    fail("unable to find snapshot; " + snapshotName);
+                }
+            } catch (Exception e) {
+                if (e.getMessage().contains("snapshot_missing_exception")) {
+                    fail("snapshot does not exist: " + snapshotName);
+                }
+                throw e;
+            }
+        });
     }
 
     static Map<String, Object> toMap(Response response) throws IOException {

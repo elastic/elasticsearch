@@ -730,8 +730,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setQuery(QueryBuilders.matchAllQuery()) // <6>
                 .setQueryDelay(TimeValue.timeValueMinutes(1)) // <7>
                 .setScriptFields(scriptFields) // <8>
-                .setScrollSize(1000) // <9>
-                .setJobId("update-datafeed-job"); // <10>
+                .setScrollSize(1000); // <9>
             // end::update-datafeed-config
 
             // Clearing aggregation to avoid complex validation rules
@@ -2942,7 +2941,8 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::put-data-frame-analytics-analyzed-fields
 
             // tag::put-data-frame-analytics-config
-            DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder("my-analytics-config") // <1>
+            DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder()
+                .setId("my-analytics-config") // <1>
                 .setSource(sourceConfig) // <2>
                 .setDest(destConfig) // <3>
                 .setAnalysis(outlierDetection) // <4>
@@ -3625,7 +3625,8 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
     }
 
     private static final DataFrameAnalyticsConfig DF_ANALYTICS_CONFIG =
-        DataFrameAnalyticsConfig.builder("my-analytics-config")
+        DataFrameAnalyticsConfig.builder()
+            .setId("my-analytics-config")
             .setSource(DataFrameAnalyticsSource.builder()
                 .setIndex("put-test-source-index")
                 .build())

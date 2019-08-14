@@ -582,11 +582,6 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     }
 
     @Override
-    public void readFrom(StreamInput in) {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public boolean equals(Object o) {
         if (this == o) {
             return true;

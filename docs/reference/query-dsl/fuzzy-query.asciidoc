@@ -74,14 +74,9 @@ GET /_search
 (Required, string) Term you wish to find in the provided `<field>`.
 
 `fuzziness`::
-(Optional, string) Maximum edit distance used to create expansions. Valid values
-are:
-+
---
-`AUTO` (Default)::
-`fuzziness`::
 (Optional, string) Maximum edit distance allowed for matching. See <<fuzziness>>
 for valid values and more information.
+
 
 `max_expansions`::
 +

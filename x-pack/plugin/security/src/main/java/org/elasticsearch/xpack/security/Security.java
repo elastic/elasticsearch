@@ -911,7 +911,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         }
         final boolean ssl = HTTP_SSL_ENABLED.get(settings);
         final SSLConfiguration httpSSLConfig = getSslService().getHttpTransportSSLConfiguration();
-        boolean extractClientCertificate = ssl && getSslService().isSSLClientAuthEnabled(httpSSLConfig);
+        boolean extractClientCertificate = ssl && getSslService().isClientAuthEnabledWithVerification(httpSSLConfig);
         return handler -> new SecurityRestFilter(getLicenseState(), threadContext, authcService.get(), handler, extractClientCertificate);
     }
 

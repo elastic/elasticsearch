@@ -172,7 +172,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         final boolean transportSSLEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
         for (Map.Entry<String, SSLConfiguration> entry : profileConfigurations.entrySet()) {
             final SSLConfiguration profileConfiguration = entry.getValue();
-            final boolean extractClientCert = transportSSLEnabled && sslService.isSSLClientAuthEnabled(profileConfiguration);
+            final boolean extractClientCert = transportSSLEnabled && sslService.isClientAuthEnabledWithVerification(profileConfiguration);
             profileFilters.put(entry.getKey(), new ServerTransportFilter(authcService, authzService, threadPool.getThreadContext(),
                 extractClientCert, destructiveOperations, securityContext, licenseState));
         }

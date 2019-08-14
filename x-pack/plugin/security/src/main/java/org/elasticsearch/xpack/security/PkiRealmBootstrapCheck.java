@@ -45,7 +45,7 @@ class PkiRealmBootstrapCheck implements BootstrapCheck {
         if (pkiRealmEnabled) {
             for (String contextName : getSslContextNames(settings)) {
                 final SSLConfiguration configuration = sslService.getSSLConfiguration(contextName);
-                if (sslService.isSSLClientAuthEnabled(configuration)) {
+                if (sslService.isClientAuthEnabledWithVerification(configuration)) {
                     return BootstrapCheckResult.success();
                 }
             }

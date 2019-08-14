@@ -298,8 +298,8 @@ public class SSLServiceTests extends ESTestCase {
             .put("transport.profiles.foo.port", "9400-9410")
             .build();
         sslService = new SSLService(settings, env);
-        assertTrue(sslService.isSSLClientAuthEnabled(sslService.getSSLConfiguration("xpack.security.transport.ssl")));
-        assertTrue(sslService.isSSLClientAuthEnabled(sslService.getSSLConfiguration("transport.profiles.foo.xpack.security.ssl")));
+        assertTrue(sslService.isClientAuthEnabledWithVerification(sslService.getSSLConfiguration("xpack.security.transport.ssl")));
+        assertTrue(sslService.isClientAuthEnabledWithVerification(sslService.getSSLConfiguration("transport.profiles.foo.xpack.security.ssl")));
     }
 
     public void testThatHttpClientAuthDefaultsToNone() throws Exception {

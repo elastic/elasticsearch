@@ -51,9 +51,17 @@ public class PkiRealmBootstrapCheckTests extends AbstractBootstrapCheckTestCase 
         env = TestEnvironment.newEnvironment(settings);
         assertFalse(runCheck(settings, env).isFailure());
 
+        // disable verification mode
+        settings = Settings.builder().put(settings)
+                .put("xpack.security.http.ssl.verification_mode", "none")
+                .build();
+        env = TestEnvironment.newEnvironment(settings);
+        assertTrue(runCheck(settings, env).isFailure());
+
         // disable http ssl
         settings = Settings.builder().put(settings)
                 .put("xpack.security.http.ssl.enabled", false)
+                .put("xpack.security.http.ssl.verification_mode", randomFrom("certificate", "full"))
                 .build();
         env = TestEnvironment.newEnvironment(settings);
         assertTrue(runCheck(settings, env).isFailure());
@@ -68,11 +76,18 @@ public class PkiRealmBootstrapCheckTests extends AbstractBootstrapCheckTestCase 
         // test with transport profile
         settings = Settings.builder().put(settings)
                 .put("xpack.security.transport.ssl.enabled", true)
-                .put("xpack.security.transport.client_authentication", "none")
+                .put("xpack.security.transport.ssl.client_authentication", "none")
                 .put("transport.profiles.foo.xpack.security.ssl.client_authentication", randomFrom("required", "optional"))
                 .build();
         env = TestEnvironment.newEnvironment(settings);
         assertFalse(runCheck(settings, env).isFailure());
+
+        // disable verification mode for profile
+        settings = Settings.builder().put(settings)
+                .put("transport.profiles.foo.xpack.security.ssl.verification_mode", "none")
+                .build();
+        env = TestEnvironment.newEnvironment(settings);
+        assertTrue(runCheck(settings, env).isFailure());
     }
 
     private BootstrapCheck.BootstrapCheckResult runCheck(Settings settings, Environment env) throws Exception {

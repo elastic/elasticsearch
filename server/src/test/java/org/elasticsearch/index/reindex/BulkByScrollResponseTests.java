@@ -40,7 +40,6 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.apache.lucene.util.TestUtil.randomSimpleString;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
-import static org.hamcrest.Matchers.containsString;
 
 public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkByScrollResponse> {
 
@@ -121,7 +120,6 @@ public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkBySc
             assertEquals(expectedFailure.getIndex(), actualFailure.getIndex());
             assertEquals(expectedFailure.getType(), actualFailure.getType());
             assertEquals(expectedFailure.getId(), actualFailure.getId());
-            assertThat(expectedFailure.getMessage(), containsString(actualFailure.getMessage()));
             assertEquals(expectedFailure.getStatus(), actualFailure.getStatus());
         }
         assertEquals(expected.getSearchFailures().size(), actual.getSearchFailures().size());
@@ -132,7 +130,6 @@ public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkBySc
             assertEquals(expectedFailure.getShardId(), actualFailure.getShardId());
             assertEquals(expectedFailure.getNodeId(), actualFailure.getNodeId());
             assertEquals(expectedFailure.getStatus(), actualFailure.getStatus());
-            assertThat(actualFailure.getReason().getMessage(), containsString(expectedFailure.getReason().getMessage()));
         }
     }
 

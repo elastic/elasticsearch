@@ -190,21 +190,20 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                     logger.info("--> retrieving snapshots [{}]", snaps);
                     return Collections.singletonMap(repoId, snaps);
                 },
-                (deletionPolicyId, repo, snapInfo, slmStats) -> {
+                (deletionPolicyId, repo, snapInfo, slmStats, onCompletion) -> {
                     logger.info("--> deleting {} from repo {}", snapInfo, repo);
                     deleted.add(snapInfo);
                     deletionLatch.countDown();
                     if (deletionSuccess) {
-                        return Optional.of(SnapshotHistoryItem.deletionSuccessRecord(Instant.now().toEpochMilli(),
-                            snapInfo.snapshotId().getName(), policy.getId(), repo));
+                        onCompletion.accept(Optional.of(SnapshotHistoryItem.deletionSuccessRecord(Instant.now().toEpochMilli(),
+                            snapInfo.snapshotId().getName(), policy.getId(), repo)));
                     } else {
                         try {
-                            return Optional.of(SnapshotHistoryItem.deletionFailureRecord(Instant.now().toEpochMilli(),
-                                snapInfo.snapshotId().getName(), policy.getId(), repo, new RuntimeException("deletion_failed")));
+                            onCompletion.accept(Optional.of(SnapshotHistoryItem.deletionFailureRecord(Instant.now().toEpochMilli(),
+                                snapInfo.snapshotId().getName(), policy.getId(), repo, new RuntimeException("deletion_failed"))));
                         } catch (IOException e) {
                             logger.error(e);
                             fail("failed to serialize an exception to json, this should never happen");
-                            return Optional.empty(); // impossible to hit this but necessary to make the compiler happy
                         }
                     }
                 },
@@ -289,7 +288,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                     logger.info("--> retrieving snapshots [{}]", snaps);
                     return Collections.singletonMap(repoId, snaps);
                 },
-                (deletionPolicyId, repo, snapInfo, slmStats) -> {
+                (deletionPolicyId, repo, snapInfo, slmStats, onCompletion) -> {
                     logger.info("--> deleting {}", snapInfo.snapshotId());
                     // Don't pause until snapshot 2
                     if (snapInfo.snapshotId().equals(snap2.snapshotId())) {
@@ -299,16 +298,15 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                     deleted.add(snapInfo.snapshotId());
                     deletionLatch.countDown();
                     if (deletionSuccess) {
-                        return Optional.of(SnapshotHistoryItem.deletionSuccessRecord(Instant.now().toEpochMilli(),
-                            snapInfo.snapshotId().getName(), policy.getId(), repo));
+                        onCompletion.accept(Optional.of(SnapshotHistoryItem.deletionSuccessRecord(Instant.now().toEpochMilli(),
+                            snapInfo.snapshotId().getName(), policy.getId(), repo)));
                     } else {
                         try {
-                            return Optional.of(SnapshotHistoryItem.deletionFailureRecord(Instant.now().toEpochMilli(),
-                                snapInfo.snapshotId().getName(), policy.getId(), repo, new RuntimeException("deletion_failed")));
+                            onCompletion.accept(Optional.of(SnapshotHistoryItem.deletionFailureRecord(Instant.now().toEpochMilli(),
+                                snapInfo.snapshotId().getName(), policy.getId(), repo, new RuntimeException("deletion_failed"))));
                         } catch (IOException e) {
                             logger.error(e);
                             fail("failed to serialize an exception to json, this should never happen");
-                            return Optional.empty(); // impossible to hit this but necessary to make the compiler happy
                         }
                     }
                 },
@@ -377,13 +375,15 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
         }
 
         @Override
-        Optional<SnapshotHistoryItem> deleteSnapshot(String policyId, String repo, SnapshotInfo snapshot, SnapshotLifecycleStats slmStats) {
-            return deleteRunner.apply(policyId, repo, snapshot, slmStats);
+        void deleteSnapshot(String policyId, String repo, SnapshotInfo snapshot, SnapshotLifecycleStats slmStats,
+                                                     Consumer<Optional<SnapshotHistoryItem>> onCompletion) {
+            deleteRunner.apply(policyId, repo, snapshot, slmStats, onCompletion);
         }
     }
 
     @FunctionalInterface
     interface DeleteSnapshotMock {
-        Optional<SnapshotHistoryItem> apply(String policyId, String repo, SnapshotInfo snapshot, SnapshotLifecycleStats slmStats);
+        void apply(String policyId, String repo, SnapshotInfo snapshot, SnapshotLifecycleStats slmStats,
+                                            Consumer<Optional<SnapshotHistoryItem>> onCompletion);
     }
 }

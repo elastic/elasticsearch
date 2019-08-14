@@ -116,6 +116,10 @@ public class SnapshotHistoryItem implements Writeable, ToXContentObject {
         return new SnapshotHistoryItem(timestamp, policyId, repository, snapshotName, DELETE_OPERATION, true, null, null);
     }
 
+    public static SnapshotHistoryItem deletionPossibleSuccessRecord(long timestamp, String snapshotName, String policyId, String repository, String details) {
+        return new SnapshotHistoryItem(timestamp, policyId, repository, snapshotName, DELETE_OPERATION, true, null, details);
+    }
+
     public static SnapshotHistoryItem deletionFailureRecord(long timestamp, String snapshotName, String policyId, String repository,
                                                             Exception exception) throws IOException {
         String exceptionString = exceptionToString(exception);

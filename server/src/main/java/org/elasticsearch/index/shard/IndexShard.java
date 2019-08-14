@@ -1606,9 +1606,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         synchronized (engineMutex) {
             // we must create a new engine under mutex (see IndexShard#snapshotStoreMetadata).
             final Engine newEngine = engineFactory.newReadWriteEngine(config);
-            boolean success = false;
-            try {
-                synchronized (mutex) {
+            synchronized (mutex) {
+                try {
                     verifyNotClosed();
                     assert currentEngineReference.get() == null : "engine is running";
                     onNewEngine(newEngine);
@@ -1616,11 +1615,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     // We set active because we are now writing operations to the engine; this way,
                     // if we go idle after some time and become inactive, we still give sync'd flush a chance to run.
                     active.set(true);
-                    success = true;
-                }
-            } finally {
-                if (success == false) {
-                    newEngine.close();
+                } finally {
+                    if (currentEngineReference.get() != newEngine) {
+                        newEngine.close();
+                    }
                 }
             }
         }
@@ -3372,16 +3370,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         IOUtils.close(super::close, newEngine);
                     }
                 };
-            boolean success = false;
-            try {
-                synchronized (mutex) {
+            synchronized (mutex) {
+                try {
                     verifyNotClosed();
                     IOUtils.close(currentEngineReference.getAndSet(readOnlyEngine));
-                    success = true;
-                }
-            } finally {
-                if (success == false) {
-                    readOnlyEngine.close();
+                } finally {
+                    if (currentEngineReference.get() != readOnlyEngine) {
+                        readOnlyEngine.close();
+                    }
                 }
             }
             newEngineReference.set(engineFactory.newReadWriteEngine(newEngineConfig(replicationTracker)));

@@ -27,6 +27,7 @@ import org.elasticsearch.mocksocket.MockHttpServer;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 
 import java.io.IOException;
 import java.net.ConnectException;
@@ -53,6 +54,7 @@ import static org.junit.Assert.fail;
  * Integration test to check interaction between {@link RestClient} and {@link org.apache.http.client.HttpClient}.
  * Works against real http servers, multiple hosts. Also tests failover by randomly shutting down hosts.
  */
+@Ignore("https://github.com/elastic/elasticsearch/issues/45577")
 public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
 
     private static WaitForCancelHandler waitForCancelHandler;

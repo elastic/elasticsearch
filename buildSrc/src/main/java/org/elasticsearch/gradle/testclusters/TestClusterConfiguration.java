@@ -38,7 +38,7 @@ public interface TestClusterConfiguration {
 
     void setVersion(String version);
 
-    void setVersion(List<String> version);
+    void setVersions(List<String> version);
 
     void setTestDistribution(TestDistribution distribution);
 

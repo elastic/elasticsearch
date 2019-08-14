@@ -125,8 +125,8 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     }
 
     @Override
-    public void setVersion(List<String> version) {
-        nodes.all(each -> each.setVersion(version));
+    public void setVersions(List<String> version) {
+        nodes.all(each -> each.setVersions(version));
     }
 
     @Override

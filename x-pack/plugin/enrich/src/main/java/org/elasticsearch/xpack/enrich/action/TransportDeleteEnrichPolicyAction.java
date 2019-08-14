@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.enrich.action;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -16,18 +17,26 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.ingest.IngestService;
+import org.elasticsearch.ingest.PipelineConfiguration;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
+import org.elasticsearch.xpack.enrich.AbstractEnrichProcessor;
 import org.elasticsearch.xpack.enrich.EnrichPolicyLocks;
 import org.elasticsearch.xpack.enrich.EnrichStore;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 public class TransportDeleteEnrichPolicyAction extends TransportMasterNodeAction<DeleteEnrichPolicyAction.Request, AcknowledgedResponse> {
 
     private final EnrichPolicyLocks enrichPolicyLocks;
+    private final IngestService ingestService;
 
     @Inject
     public TransportDeleteEnrichPolicyAction(TransportService transportService,
@@ -35,10 +44,12 @@ public class TransportDeleteEnrichPolicyAction extends TransportMasterNodeAction
                                              ThreadPool threadPool,
                                              ActionFilters actionFilters,
                                              IndexNameExpressionResolver indexNameExpressionResolver,
-                                             EnrichPolicyLocks enrichPolicyLocks) {
+                                             EnrichPolicyLocks enrichPolicyLocks,
+                                             IngestService ingestService) {
         super(DeleteEnrichPolicyAction.NAME, transportService, clusterService, threadPool, actionFilters,
             DeleteEnrichPolicyAction.Request::new, indexNameExpressionResolver);
         this.enrichPolicyLocks = enrichPolicyLocks;
+        this.ingestService = ingestService;
     }
 
     @Override
@@ -59,6 +70,28 @@ public class TransportDeleteEnrichPolicyAction extends TransportMasterNodeAction
     protected void masterOperation(Task task, DeleteEnrichPolicyAction.Request request, ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) throws Exception {
         enrichPolicyLocks.lockPolicy(request.getName());
+        List<PipelineConfiguration> pipelines = IngestService.getPipelines(state);
+        EnrichPolicy policy = EnrichStore.getPolicy(request.getName(), state);
+        List<String> pipelinesWithProcessors = new ArrayList<>();
+
+        for (PipelineConfiguration pipelineConfiguration : pipelines) {
+            List<AbstractEnrichProcessor> enrichProcessors =
+                ingestService.getProcessorsInPipeline(pipelineConfiguration.getId(), AbstractEnrichProcessor.class);
+            for (AbstractEnrichProcessor processor: enrichProcessors) {
+                if (processor.getPolicyName().equals(request.getName())) {
+                    pipelinesWithProcessors.add(pipelineConfiguration.getId());
+                }
+            }
+        }
+
+        if (pipelinesWithProcessors.isEmpty() == false) {
+            enrichPolicyLocks.releasePolicy(request.getName());
+            listener.onFailure(
+                new ElasticsearchStatusException("Could not delete policy [{}] because a pipeline is referencing it {}",
+                    RestStatus.CONFLICT, request.getName(), pipelinesWithProcessors));
+            return;
+        }
+
         EnrichStore.deletePolicy(request.getName(), clusterService, e -> {
             enrichPolicyLocks.releasePolicy(request.getName());
            if (e == null) {

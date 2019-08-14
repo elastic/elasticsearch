@@ -3,12 +3,10 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.dataframe.process;
+package org.elasticsearch.xpack.ml.dataframe.process.results;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
-import org.elasticsearch.xpack.ml.dataframe.process.results.RowResults;
-import org.elasticsearch.xpack.ml.dataframe.process.results.RowResultsTests;
 
 import java.io.IOException;
 

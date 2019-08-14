@@ -38,6 +38,7 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -160,6 +161,13 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         offset = in.readLong();
         extendedBounds = in.readOptionalWriteable(ExtendedBounds::new);
     }
+
+    @Override
+    protected ValuesSourceType resolveScriptAny(Script script) {
+        // TODO: No idea how we'd support Range scripts here.
+        return ValuesSourceType.NUMERIC;
+    }
+
 
     @Override
     protected boolean serializeTargetValueType(Version version) {

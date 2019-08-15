@@ -20,10 +20,10 @@ package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Matches;
-import org.apache.lucene.search.NamedMatches;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.index.query.NamedQuery;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -45,7 +45,11 @@ public final class MatchedQueriesFetchSubPhase implements FetchSubPhase {
         Weight w = searcher.createWeight(searcher.rewrite(q), ScoreMode.COMPLETE_NO_SCORES, 1);
         Matches m = w.matches(hitContext.readerContext(), hitContext.docId());
 
-        for (NamedMatches nm : NamedMatches.findNamedMatches(m)) {
+        if (m == null) {
+            return;
+        }
+
+        for (NamedQuery.NamedMatches nm : NamedQuery.findNamedMatches(m)) {
             hitContext.hit().addMatchedQuery(nm.getName());
         }
 

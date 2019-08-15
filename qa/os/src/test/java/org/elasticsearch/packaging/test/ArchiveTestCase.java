@@ -371,7 +371,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
                 // Ensure that the exit code from the java command is passed back up through the shell script
                 result = sh.runIgnoreExitCode(bin.elasticsearchCertutil + " invalid-command");
                 assertThat(result.exitCode, is(not(0)));
-                assertThat(result.stdout, containsString("Unknown command [invalid-command]"));
+                assertThat(result.stderr, containsString("Unknown command [invalid-command]"));
             };
             Platforms.onLinux(action);
             Platforms.onWindows(action);

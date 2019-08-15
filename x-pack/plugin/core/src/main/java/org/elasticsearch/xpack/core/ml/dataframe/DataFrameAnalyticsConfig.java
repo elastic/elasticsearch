@@ -57,7 +57,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
     public static final ObjectParser<Builder, Void> STRICT_PARSER = createParser(false);
     public static final ObjectParser<Builder, Void> LENIENT_PARSER = createParser(true);
 
-    public static ObjectParser<Builder, Void> createParser(boolean ignoreUnknownFields) {
+    private static ObjectParser<Builder, Void> createParser(boolean ignoreUnknownFields) {
         ObjectParser<Builder, Void> parser = new ObjectParser<>(TYPE, ignoreUnknownFields, Builder::new);
 
         parser.declareString((c, s) -> {}, CONFIG_TYPE);
@@ -281,14 +281,6 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
 
         public Builder() {}
 
-        public Builder(String id) {
-            setId(id);
-        }
-
-        public Builder(ByteSizeValue maxModelMemoryLimit) {
-            this.maxModelMemoryLimit = maxModelMemoryLimit;
-        }
-
         public Builder(DataFrameAnalyticsConfig config) {
             this(config, null);
         }
@@ -343,28 +335,8 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         }
 
         public Builder setModelMemoryLimit(ByteSizeValue modelMemoryLimit) {
-            if (modelMemoryLimit != null && modelMemoryLimit.compareTo(MIN_MODEL_MEMORY_LIMIT) < 0) {
-                throw new IllegalArgumentException("[" + MODEL_MEMORY_LIMIT.getPreferredName()
-                    + "] must be at least [" + MIN_MODEL_MEMORY_LIMIT.getStringRep() + "]");
-            }
             this.modelMemoryLimit = modelMemoryLimit;
             return this;
-        }
-
-        private void applyMaxModelMemoryLimit() {
-
-            boolean maxModelMemoryIsSet = maxModelMemoryLimit != null && maxModelMemoryLimit.getMb() > 0;
-
-            if (modelMemoryLimit == null) {
-                // Default is silently capped if higher than limit
-                if (maxModelMemoryIsSet && DEFAULT_MODEL_MEMORY_LIMIT.compareTo(maxModelMemoryLimit) > 0) {
-                    modelMemoryLimit = maxModelMemoryLimit;
-                }
-            } else if (maxModelMemoryIsSet && modelMemoryLimit.compareTo(maxModelMemoryLimit) > 0) {
-                // Explicit setting higher than limit is an error
-                throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_MODEL_MEMORY_LIMIT_GREATER_THAN_MAX,
-                    modelMemoryLimit, maxModelMemoryLimit));
-            }
         }
 
         public Builder setCreateTime(Instant createTime) {
@@ -377,9 +349,53 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             return this;
         }
 
+        /**
+         * Builds {@link DataFrameAnalyticsConfig} object.
+         */
         public DataFrameAnalyticsConfig build() {
             applyMaxModelMemoryLimit();
             return new DataFrameAnalyticsConfig(id, source, dest, analysis, headers, modelMemoryLimit, analyzedFields, createTime, version);
+        }
+
+        /**
+         * Builds {@link DataFrameAnalyticsConfig} object for the purpose of performing memory estimation.
+         * Some fields (i.e. "id", "dest") may not be present, therefore we overwrite them here to make {@link DataFrameAnalyticsConfig}'s
+         * constructor validations happy.
+         */
+        public DataFrameAnalyticsConfig buildForMemoryEstimation() {
+            return new DataFrameAnalyticsConfig(
+                id != null ? id : "dummy",
+                source,
+                dest != null ? dest : new DataFrameAnalyticsDest("dummy", null),
+                analysis,
+                headers,
+                modelMemoryLimit,
+                analyzedFields,
+                createTime,
+                version);
+        }
+
+        private void applyMaxModelMemoryLimit() {
+            boolean maxModelMemoryIsSet = maxModelMemoryLimit != null && maxModelMemoryLimit.getMb() > 0;
+
+            if (modelMemoryLimit != null) {
+                if (modelMemoryLimit.compareTo(MIN_MODEL_MEMORY_LIMIT) < 0) {
+                    // Explicit setting lower than minimum is an error
+                    throw ExceptionsHelper.badRequestException(
+                        Messages.getMessage(Messages.JOB_CONFIG_MODEL_MEMORY_LIMIT_TOO_LOW, modelMemoryLimit));
+                }
+                if (maxModelMemoryIsSet && modelMemoryLimit.compareTo(maxModelMemoryLimit) > 0) {
+                    // Explicit setting higher than limit is an error
+                    throw ExceptionsHelper.badRequestException(
+                        Messages.getMessage(
+                            Messages.JOB_CONFIG_MODEL_MEMORY_LIMIT_GREATER_THAN_MAX, modelMemoryLimit, maxModelMemoryLimit));
+                }
+            } else {
+                // Default is silently capped if higher than limit
+                if (maxModelMemoryIsSet && DEFAULT_MODEL_MEMORY_LIMIT.compareTo(maxModelMemoryLimit) > 0) {
+                    modelMemoryLimit = maxModelMemoryLimit;
+                }
+            }
         }
     }
 }

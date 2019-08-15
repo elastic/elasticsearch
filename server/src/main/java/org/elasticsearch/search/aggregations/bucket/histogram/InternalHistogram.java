@@ -350,11 +350,8 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
         return reducedBuckets;
     }
 
-    /**
-     * Reduce a list of same-keyed buckets (from multiple shards) to a single bucket. This
-     * requires all buckets to have the same key.
-     */
-    private Bucket reduceBucket(List<Bucket> buckets, ReduceContext context) {
+    @Override
+    protected Bucket reduceBucket(List<Bucket> buckets, ReduceContext context) {
         assert buckets.size() > 0;
         List<InternalAggregations> aggregations = new ArrayList<>(buckets.size());
         long docCount = 0;

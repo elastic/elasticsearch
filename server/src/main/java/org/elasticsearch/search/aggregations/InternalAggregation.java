@@ -82,6 +82,10 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
         public void consumeBucketsAndMaybeBreak(int size) {
             multiBucketConsumer.accept(size);
         }
+
+        public IntConsumer getMultiBucketConsumer() {
+            return multiBucketConsumer;
+        }
     }
 
     protected final String name;

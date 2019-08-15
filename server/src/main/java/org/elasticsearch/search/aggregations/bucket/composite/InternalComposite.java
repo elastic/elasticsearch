@@ -158,7 +158,7 @@ public class InternalComposite
         while (pq.size() > 0) {
             BucketIterator bucketIt = pq.poll();
             if (lastBucket != null && bucketIt.current.compareKey(lastBucket) != 0) {
-                InternalBucket reduceBucket = reduceBucket(buckets.get(0).key, buckets, reduceContext);
+                InternalBucket reduceBucket = reduceBucket(buckets, reduceContext);
                 buckets.clear();
                 reduceContext.consumeBucketsAndMaybeBreak(1);
                 result.add(reduceBucket);
@@ -173,7 +173,7 @@ public class InternalComposite
             }
         }
         if (buckets.size() > 0) {
-            InternalBucket reduceBucket = reduceBucket(buckets.get(0).key, buckets, reduceContext);
+            InternalBucket reduceBucket = reduceBucket(buckets, reduceContext);
             reduceContext.consumeBucketsAndMaybeBreak(1);
             result.add(reduceBucket);
         }
@@ -181,7 +181,8 @@ public class InternalComposite
         return new InternalComposite(name, size, sourceNames, formats, result, lastKey, reverseMuls, pipelineAggregators(), metaData);
     }
 
-    InternalBucket reduceBucket(CompositeKey key, List<InternalBucket> buckets, ReduceContext reduceContext) {
+    @Override
+    protected InternalBucket reduceBucket(List<InternalBucket> buckets, ReduceContext context) {
         assert buckets.size() > 0;
         List<InternalAggregations> aggregations = new ArrayList<>(buckets.size());
         long docCount = 0;
@@ -189,8 +190,8 @@ public class InternalComposite
             docCount += bucket.docCount;
             aggregations.add(bucket.aggregations);
         }
-        InternalAggregations aggs = InternalAggregations.reduce(aggregations, reduceContext);
-        return new InternalBucket(sourceNames, formats, key, reverseMuls, docCount, aggs);
+        InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);
+        return new InternalBucket(sourceNames, formats, buckets.get(0).key, reverseMuls, docCount, aggs);
     }
 
     @Override

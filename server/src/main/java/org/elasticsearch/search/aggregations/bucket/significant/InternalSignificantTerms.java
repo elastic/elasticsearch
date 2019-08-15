@@ -243,7 +243,8 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
         return create(globalSubsetSize, globalSupersetSize, Arrays.asList(list));
     }
 
-    B reduceBucket(List<B> buckets, ReduceContext context) {
+    @Override
+    protected B reduceBucket(List<B> buckets, ReduceContext context) {
         assert buckets.size() > 0;
         long subsetDf = 0;
         long supersetDf = 0;

@@ -111,7 +111,7 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
         final int size = (int) Math.min(bucketOrds.size(), shardSize);
         consumeBucketsAndMaybeBreak(size);
 
-        BucketPriorityQueue ordered = new BucketPriorityQueue(size);
+        BucketPriorityQueue<InternalGeoGridBucket> ordered = new BucketPriorityQueue<>(size);
         InternalGeoGridBucket spare = null;
         for (long i = 0; i < bucketOrds.size(); i++) {
             if (spare == null) {
@@ -123,12 +123,12 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
             spare.hashAsLong = bucketOrds.get(i);
             spare.docCount = bucketDocCount(i);
             spare.bucketOrd = i;
-            spare = (InternalGeoGridBucket) ordered.insertWithOverflow(spare);
+            spare = ordered.insertWithOverflow(spare);
         }
 
         final InternalGeoGridBucket[] list = new InternalGeoGridBucket[ordered.size()];
         for (int i = ordered.size() - 1; i >= 0; --i) {
-            final InternalGeoGridBucket bucket = (InternalGeoGridBucket) ordered.pop();
+            final InternalGeoGridBucket bucket = ordered.pop();
             bucket.aggregations = bucketAggregations(bucket.bucketOrd);
             list[i] = bucket;
         }
@@ -140,10 +140,8 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
         return buildAggregation(name, requiredSize, Collections.emptyList(), pipelineAggregators(), metaData());
     }
 
-
     @Override
     public void doClose() {
         Releasables.close(bucketOrds);
     }
-
 }

@@ -213,7 +213,8 @@ public class InternalAdjacencyMatrix
         return reduced;
     }
 
-    private InternalBucket reduceBucket(List<InternalBucket> buckets, ReduceContext context) {
+    @Override
+    protected InternalBucket reduceBucket(List<InternalBucket> buckets, ReduceContext context) {
         assert buckets.size() > 0;
         InternalBucket reduced = null;
         List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());

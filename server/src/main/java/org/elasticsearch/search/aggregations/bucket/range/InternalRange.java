@@ -289,14 +289,14 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
     @Override
     public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         reduceContext.consumeBucketsAndMaybeBreak(ranges.size());
-        List<Bucket>[] rangeList = new List[ranges.size()];
+        List<B>[] rangeList = new List[ranges.size()];
         for (int i = 0; i < rangeList.length; ++i) {
             rangeList[i] = new ArrayList<>();
         }
         for (InternalAggregation aggregation : aggregations) {
             InternalRange<B, R> ranges = (InternalRange<B, R>) aggregation;
             int i = 0;
-            for (Bucket range : ranges.ranges) {
+            for (B range : ranges.ranges) {
                 rangeList[i++].add(range);
             }
         }
@@ -308,16 +308,17 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         return getFactory().create(name, ranges, format, keyed, pipelineAggregators(), getMetaData());
     }
 
-    Bucket reduceBucket(List<Bucket> ranges, ReduceContext context) {
-        assert ranges.size() > 0;
+    @Override
+    protected B reduceBucket(List<B> buckets, ReduceContext context) {
+        assert buckets.size() > 0;
         long docCount = 0;
-        List<InternalAggregations> aggregationsList = new ArrayList<>(ranges.size());
-        for (Bucket range : ranges) {
-            docCount += range.docCount;
-            aggregationsList.add(range.aggregations);
+        List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());
+        for (Bucket bucket : buckets) {
+            docCount += bucket.docCount;
+            aggregationsList.add(bucket.aggregations);
         }
         final InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);
-        Bucket prototype = ranges.get(0);
+        Bucket prototype = buckets.get(0);
         return getFactory().createBucket(prototype.key, prototype.from, prototype.to, docCount, aggs, keyed, format);
     }
 

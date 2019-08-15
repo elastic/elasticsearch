@@ -73,7 +73,8 @@ abstract class ESElasticsearchCliTestCase extends ESTestCase {
         } catch (Exception e) {
             // if an unexpected exception is thrown, we log
             // terminal output to aid debugging
-            logger.info(terminal.getOutput());
+            logger.info("Stdout:\n" + terminal.getOutput());
+            logger.info("Stderr:\n" + terminal.getErrorOutput());
             // rethrow so the test fails
             throw e;
         }

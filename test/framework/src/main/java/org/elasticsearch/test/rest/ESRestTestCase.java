@@ -87,6 +87,7 @@ import java.util.function.Predicate;
 
 import static java.util.Collections.sort;
 import static java.util.Collections.unmodifiableList;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -493,7 +494,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 // Repeatedly delete the snapshots until there aren't any
                 assertBusy(() -> {
                     snapshots.set(wipeSnapshots());
-                    assertThat(snapshots.get().size(), equalTo(0));
+                    assertThat(snapshots.get(), anEmptyMap());
                 }, 2, TimeUnit.MINUTES);
                 // At this point there should be no snaphots
                 inProgressSnapshots.set(snapshots.get());
@@ -554,7 +555,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             deleteAllILMPolicies();
         }
 
-        assertTrue("Found in progress snapshots [" + inProgressSnapshots.get() + "].", inProgressSnapshots.get().isEmpty());
+        assertThat("Found in progress snapshots [" + inProgressSnapshots.get() + "].", inProgressSnapshots.get(), anEmptyMap());
     }
 
     /**

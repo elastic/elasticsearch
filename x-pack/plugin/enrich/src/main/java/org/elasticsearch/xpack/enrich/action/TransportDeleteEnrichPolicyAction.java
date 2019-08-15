@@ -82,6 +82,7 @@ public class TransportDeleteEnrichPolicyAction extends TransportMasterNodeAction
             listener.onFailure(
                 new ElasticsearchStatusException("Could not delete policy [{}] because a pipeline is referencing it {}",
                     RestStatus.CONFLICT, request.getName(), pipelinesWithProcessors));
+            return;
         }
 
         EnrichStore.deletePolicy(request.getName(), clusterService, e -> {

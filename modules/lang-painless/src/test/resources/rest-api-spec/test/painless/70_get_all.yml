@@ -2,8 +2,8 @@
 "Get all scripts":
 
   - skip:
-      version: " - 6.99.99"
-      reason:  this uses a new API that has been added in 7.0
+      version: " - 7.99.99"
+      reason:  this uses a new API that has been added in 8.0
 
   - do:
       put_script:

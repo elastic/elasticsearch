@@ -23,7 +23,6 @@ import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptReque
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;

@@ -67,11 +67,6 @@ public class TransportGetStoredScriptAction extends TransportMasterNodeReadActio
     @Override
     protected void masterOperation(Task task, GetStoredScriptRequest request, ClusterState state,
                                    ActionListener<GetStoredScriptResponse> listener) throws Exception {
-        if (request.id() != null) {
-            listener.onResponse(new GetStoredScriptResponse(scriptService.getStoredScripts(state)));
-            return;
-        }
-
         Map<String, StoredScriptSource> results;
 
         Map<String, StoredScriptSource> storedScripts = scriptService.getStoredScripts(state);

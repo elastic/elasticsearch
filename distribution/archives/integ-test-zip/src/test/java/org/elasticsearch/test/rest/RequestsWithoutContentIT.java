@@ -78,7 +78,7 @@ public class RequestsWithoutContentIT extends ESRestTestCase {
 
     public void testPutScriptMissingBody() throws IOException {
         ResponseException responseException = expectThrows(ResponseException.class, () ->
-                client().performRequest(new Request(randomBoolean() ? "POST" : "PUT", "/_scripts/lang")));
+                client().performRequest(new Request(randomBoolean() ? "POST" : "PUT", "/_script/lang")));
         assertResponseException(responseException, "request body is required");
     }
 

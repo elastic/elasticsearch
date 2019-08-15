@@ -204,7 +204,7 @@ It is also possible to use stored scripts. Here is a simple stored script:
 
 [source,js]
 --------------------------------------------------
-POST /_scripts/convert_currency
+POST /_script/convert_currency
 {
   "script": {
     "lang": "painless",

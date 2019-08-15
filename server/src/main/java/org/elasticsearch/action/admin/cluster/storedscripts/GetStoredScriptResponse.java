@@ -40,9 +40,9 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 
 public class GetStoredScriptResponse extends ActionResponse implements ToXContentObject {
 
-    public static final ParseField _ID_PARSE_FIELD = new ParseField("_id");
-    public static final ParseField FOUND_PARSE_FIELD = new ParseField("found");
-    public static final ParseField SCRIPT = new ParseField("script");
+    private static final ParseField _ID_PARSE_FIELD = new ParseField("_id");
+    private static final ParseField FOUND_PARSE_FIELD = new ParseField("found");
+    private static final ParseField SCRIPT = new ParseField("script");
 
     private static final ConstructingObjectParser<GetStoredScriptResponse, String> PARSER =
         new ConstructingObjectParser<>("GetStoredScriptResponse",
@@ -106,8 +106,9 @@ public class GetStoredScriptResponse extends ActionResponse implements ToXConten
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-//        ScriptMetaData scriptMetaData = new ScriptMetaData(getStoredScripts());
-//        return scriptMetaData.toXContent(builder, params);
+        if (params.paramAsBoolean("new_format", false)) {
+            return toXContentPre80(builder, params);
+        }
         builder.startObject();
 
         Map<String, StoredScriptSource> storedScripts = getStoredScripts();
@@ -137,9 +138,27 @@ public class GetStoredScriptResponse extends ActionResponse implements ToXConten
         return new GetStoredScriptResponse(storedScripts);
     }
 
-//    public static GetStoredScriptResponse fromXContent(XContentParser parser) throws IOException {
-//        return PARSER.parse(parser, null);
-//    }
+    private XContentBuilder toXContentPre80(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+
+        Map.Entry<String, StoredScriptSource> entry = storedScripts.entrySet().iterator().next();
+        String id = entry.getKey();
+        StoredScriptSource source = entry.getValue();
+
+        builder.field(_ID_PARSE_FIELD.getPreferredName(), id);
+        builder.field(FOUND_PARSE_FIELD.getPreferredName(), source != null);
+        if (source != null) {
+            builder.field(StoredScriptSource.SCRIPT_PARSE_FIELD.getPreferredName());
+            source.toXContent(builder, params);
+        }
+
+        builder.endObject();
+        return builder;
+    }
+
+    public static GetStoredScriptResponse fromXContentPre80(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, null);
+    }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {

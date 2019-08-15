@@ -24,7 +24,6 @@ import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRespo
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -47,19 +46,19 @@ public class RestGetStoredScriptAction extends BaseRestHandler {
 
     public RestGetStoredScriptAction(RestController controller) {
         controller.registerHandler(GET, "/_script", this);
-        controller.registerWithDeprecatedHandler(GET, "/_script/{name}", this,
+        controller.registerWithDeprecatedHandler(GET, "/_script/{id}", this,
             GET, "/_scripts/{name}", deprecationLogger);
-        controller.registerHandler(HEAD, "/_script/{name}", this);
+        controller.registerHandler(HEAD, "/_script/{id}", this);
     }
 
     @Override
     public String getName() {
-        return "get_stored_scripts_action";
+        return "get_stored_script_action";
     }
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, NodeClient client) throws IOException {
-        final String[] names = Strings.splitStringByCommaToArray(request.param("name"));
+        final String[] names = Strings.splitStringByCommaToArray(request.param("id"));
 
         GetStoredScriptRequest getRequest = new GetStoredScriptRequest(names);
         getRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getRequest.masterNodeTimeout()));

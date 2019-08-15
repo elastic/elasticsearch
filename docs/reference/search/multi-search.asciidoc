@@ -126,7 +126,7 @@ You can also create search templates:
 
 [source,js]
 ------------------------------------------
-POST /_scripts/my_template_1
+POST /_script/my_template_1
 {
     "script": {
         "lang": "mustache",
@@ -145,7 +145,7 @@ POST /_scripts/my_template_1
 
 [source,js]
 ------------------------------------------
-POST /_scripts/my_template_2
+POST /_script/my_template_2
 {
     "script": {
         "lang": "mustache",

@@ -962,7 +962,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
 
     protected void registerQueryScript(RestClient restClient) throws IOException {
         // tag::register-script
-        Request scriptRequest = new Request("POST", "_scripts/title_search");
+        Request scriptRequest = new Request("POST", "_script/title_search");
         scriptRequest.setJsonEntity(
             "{" +
             "  \"script\": {" +

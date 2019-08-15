@@ -12,16 +12,12 @@
   - do:
      get_script:
        id: "1"
-  - match: { found: true }
-  - match: { _id: "1" }
-  - match: { "script": {"lang": "painless", "source": "_score * doc['myParent.weight'].value"} }
+  - match: { "1" : { "script": {"lang": "painless", "source": "_score * doc['myParent.weight'].value"} } }
 
   - do:
      catch: missing
      get_script:
        id: "2"
-  - match: { found: false }
-  - match: { _id: "2" }
   - is_false: script
 
   - do:

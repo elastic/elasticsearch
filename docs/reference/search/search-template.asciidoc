@@ -42,7 +42,7 @@ You can store a search template using the stored scripts API.
 
 [source,js]
 ------------------------------------------
-POST _scripts/<templateid>
+POST _script/<templateid>
 {
     "script": {
         "lang": "mustache",
@@ -78,7 +78,7 @@ This template can be retrieved by
 
 [source,js]
 ------------------------------------------
-GET _scripts/<templateid>
+GET _script/<templateid>
 ------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -88,15 +88,13 @@ which is rendered as:
 [source,js]
 ------------------------------------------
 {
-    "script" : {
+    "<templatename>" : {
         "lang" : "mustache",
         "source" : "{\"query\":{\"match\":{\"title\":\"{{query_string}}\"}}}",
         "options": {
           "content_type" : "application/json; charset=UTF-8"
         }
-    },
-    "_id": "<templateid>",
-    "found": true
+    }
 }
 ------------------------------------------
 // TESTRESPONSE
@@ -105,7 +103,7 @@ This template can be deleted by
 
 [source,js]
 ------------------------------------------
-DELETE _scripts/<templateid>
+DELETE _script/<templateid>
 ------------------------------------------
 // CONSOLE
 // TEST[continued]

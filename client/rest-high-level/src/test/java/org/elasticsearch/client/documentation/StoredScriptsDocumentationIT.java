@@ -103,7 +103,7 @@ public class StoredScriptsDocumentationIT extends ESRestHighLevelClientTestCase 
 
             // tag::get-stored-script-execute-listener
             ActionListener<GetStoredScriptResponse> listener =
-                new ActionListener<GetStoredScriptResponse>() {
+                new ActionListener<>() {
                     @Override
                     public void onResponse(GetStoredScriptResponse response) {
                         // <1>
@@ -166,7 +166,7 @@ public class StoredScriptsDocumentationIT extends ESRestHighLevelClientTestCase 
 
         // tag::delete-stored-script-execute-listener
         ActionListener<AcknowledgedResponse> listener =
-            new ActionListener<AcknowledgedResponse>() {
+            new ActionListener<>() {
                 @Override
                 public void onResponse(AcknowledgedResponse response) {
                     // <1>
@@ -254,7 +254,7 @@ public class StoredScriptsDocumentationIT extends ESRestHighLevelClientTestCase 
 
             // tag::put-stored-script-execute-listener
             ActionListener<AcknowledgedResponse> listener =
-                new ActionListener<AcknowledgedResponse>() {
+                new ActionListener<>() {
                     @Override
                     public void onResponse(AcknowledgedResponse response) {
                         // <1>
@@ -299,9 +299,9 @@ public class StoredScriptsDocumentationIT extends ESRestHighLevelClientTestCase 
 
             client.putScript(request, RequestOptions.DEFAULT);
 
-            Map<String, Object> script = getAsMap("/_scripts/id");
-            assertThat(extractValue("script.lang", script), equalTo("mustache"));
-            assertThat(extractValue("script.source", script), equalTo("{\"query\":{\"match\":{\"title\":\"{{query_string}}\"}}}"));
+            Map<String, Object> script = getAsMap("/_script/id");
+            assertThat(extractValue("id.script.lang", script), equalTo("mustache"));
+            assertThat(extractValue("id.script.source", script), equalTo("{\"query\":{\"match\":{\"title\":\"{{query_string}}\"}}}"));
         }
     }
 

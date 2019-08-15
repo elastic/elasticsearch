@@ -22,7 +22,6 @@ import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;

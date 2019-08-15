@@ -103,14 +103,15 @@ public class DataFrameTaskFailedStateIT extends DataFrameRestTestCase {
         // Verify we have failed for the expected reason
         assertThat(XContentMapValues.extractValue("reason", fullState), equalTo(failureReason));
 
+        final String expectedFailure = "Unable to start data frame transform [test-force-start-failed-transform] " +
+            "as it is in a failed state with failure: [" + failureReason +
+            "]. Use force start to restart data frame transform once error is resolved.";
         // Verify that we cannot start the transform when the task is in a failed state
         assertBusy(() -> {
             ResponseException ex = expectThrows(ResponseException.class, () -> startDataframeTransform(transformId, false));
             assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.CONFLICT.getStatus()));
             assertThat(XContentMapValues.extractValue("error.reason", entityAsMap(ex.getResponse())),
-                equalTo("Unable to start data frame transform [test-force-start-failed-transform] as it is in a failed state with failure: [" +
-                    failureReason +
-                    "]. Use force start to restart data frame transform once error is resolved."));
+                equalTo(expectedFailure));
         }, 60, TimeUnit.SECONDS);
 
         // Correct the failure by deleting the destination index

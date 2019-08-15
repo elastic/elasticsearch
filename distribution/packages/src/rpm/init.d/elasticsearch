@@ -75,7 +75,7 @@ checkJava() {
   fi
 
   if [ ! -x "$JAVA" ]; then
-    echo "Could not find any executable java binary. Please install java in your PATH or set JAVA_HOME"
+    echo "could not find java in JAVA_HOME or bundled at ${JAVA}"
     exit 1
   fi
 }

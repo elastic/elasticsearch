@@ -1,16 +1,24 @@
 [[modules-cross-cluster-search]]
 == {ccs-cap}
 
-The _{ccs}_ feature allows any node to act as a federated client across
-multiple clusters. A {ccs} node won't join the remote cluster, instead
-it connects to a remote cluster in a light fashion in order to execute
-federated search requests. For details on communication and compatibility
-between different clusters, see <<modules-remote-clusters>>.
+*{ccs-cap}* lets you run a single search request against one or more
+<<modules-remote-clusters,remote clusters>>. For example, you can use a {ccs} to
+filter and analyze log data stored on clusters in different data centers.
+
+IMPORTANT: {ccs-cap} requires <<modules-remote-clusters, remote clusters>>.
 
 [float]
-=== Using {ccs}
+[[ccs-example]]
+=== {ccs-cap} examples
 
-{ccs-cap} requires <<modules-remote-clusters,configuring remote clusters>>.
+[float]
+[[ccs-remote-cluster-setup]]
+==== Remote cluster setup
+
+To perform a {ccs}, you must have at least one remote cluster configured.
+
+The following <<cluster-update-settings,cluster update settings>> API request
+adds three remote clusters:`cluster_one`, `cluster_two`, and `cluster_three`.
 
 [source,js]
 --------------------------------
@@ -41,11 +49,14 @@ PUT _cluster/settings
 --------------------------------
 // CONSOLE
 // TEST[setup:host]
-// TEST[s/127.0.0.1:9300/\${transport_host}/]
+// TEST[s/127.0.0.1:930\d+/\${transport_host}/]
 
-To search the `twitter` index on remote cluster `cluster_one` the index name
-must be prefixed with the alias of the remote cluster followed by the `:`
-character:
+[float]
+[[ccs-search-remote-cluster]]
+==== Search a single remote cluster
+
+The following <<search,search>> API request searches the
+`twitter` index on a single remote cluster, `cluster_one`.
 
 [source,js]
 --------------------------------------------------
@@ -61,6 +72,8 @@ GET /cluster_one:twitter/_search
 // CONSOLE
 // TEST[continued]
 // TEST[setup:twitter]
+
+The API returns the following response:
 
 [source,js]
 --------------------------------------------------
@@ -86,7 +99,7 @@ GET /cluster_one:twitter/_search
     "max_score": 1,
     "hits": [
       {
-        "_index": "cluster_one:twitter",
+        "_index": "cluster_one:twitter", <1>
         "_type": "_doc",
         "_id": "0",
         "_score": 1,
@@ -105,12 +118,22 @@ GET /cluster_one:twitter/_search
 // TESTRESPONSE[s/"max_score": 1/"max_score": "$body.hits.max_score"/]
 // TESTRESPONSE[s/"_score": 1/"_score": "$body.hits.hits.0._score"/]
 
+<1> The search response body includes the name of the remote cluster in the
+`_index` parameter.
 
-Indices with the same name on different clusters can also be searched:
+[float]
+[[ccs-search-multi-remote-cluster]]
+==== Search multiple remote clusters
+
+The following <<search,search>> API request searches the `twitter` index on
+three clusters:
+
+* Your local cluster
+* Two remote clusters, `cluster_one` and `cluster_two`
 
 [source,js]
 --------------------------------------------------
-GET /cluster_one:twitter,twitter/_search
+GET /twitter,cluster_one:twitter,cluster_two:twitter/_search
 {
   "query": {
     "match": {
@@ -122,37 +145,34 @@ GET /cluster_one:twitter,twitter/_search
 // CONSOLE
 // TEST[continued]
 
-Search results are disambiguated the same way as the indices are disambiguated in the request.
-Indices with same names are treated as different indices when results are merged. All results
-retrieved from an index located in a remote cluster are prefixed with their corresponding
-cluster alias:
+The API returns the following response:
 
 [source,js]
 --------------------------------------------------
 {
   "took": 150,
   "timed_out": false,
-  "num_reduce_phases": 3,
+  "num_reduce_phases": 4,
   "_shards": {
-    "total": 2,
-    "successful": 2,
+    "total": 3,
+    "successful": 3,
     "failed": 0,
     "skipped": 0
   },
   "_clusters": {
-    "total": 2,
-    "successful": 2,
+    "total": 3,
+    "successful": 3,
     "skipped": 0
   },
   "hits": {
     "total" : {
-        "value": 2,
+        "value": 3,
         "relation": "eq"
     },
     "max_score": 1,
     "hits": [
       {
-        "_index": "twitter",
+        "_index": "twitter", <1>
         "_type": "_doc",
         "_id": "0",
         "_score": 2,
@@ -164,7 +184,19 @@ cluster alias:
         }
       },
       {
-        "_index": "cluster_one:twitter",
+        "_index": "cluster_one:twitter", <2>
+        "_type": "_doc",
+        "_id": "0",
+        "_score": 1,
+        "_source": {
+          "user": "kimchy",
+          "date": "2009-11-15T14:12:12",
+          "message": "trying out Elasticsearch",
+          "likes": 0
+        }
+      },
+      {
+        "_index": "cluster_two:twitter", <3>
         "_type": "_doc",
         "_id": "0",
         "_score": 1,
@@ -184,100 +216,38 @@ cluster alias:
 // TESTRESPONSE[s/"_score": 1/"_score": "$body.hits.hits.0._score"/]
 // TESTRESPONSE[s/"_score": 2/"_score": "$body.hits.hits.1._score"/]
 
-[float]
-=== Skipping disconnected clusters
+<1> This document's `_index` parameter doesn't include a cluster name. This
+means the document came from the local cluster.
+<2> This document came from `cluster_one`.
+<3> This document came from `cluster_two`.
 
-By default, all remote clusters that are searched via {ccs} need to be
-available when the search request is executed. Otherwise, the whole request
-fails; even if some of the clusters are available, no search results are
-returned. You can use the boolean `skip_unavailable` setting to make remote
-clusters optional. By default, it is set to `false`.
+[float]
+[[skip-unavailable-clusters]]
+=== Skip unavailable clusters
+
+By default, a {ccs} returns an error if *any* cluster in the request is
+unavailable.
+
+To skip an unavailable cluster during a {ccs}, set the
+<<skip-unavailable,`skip_unavailable`>> cluster setting to `true`.
+
+The following <<cluster-update-settings,cluster update settings>> API request
+changes `cluster_two`'s `skip_unavailable` setting to `true`.
 
 [source,js]
 --------------------------------
 PUT _cluster/settings
 {
   "persistent": {
-    "cluster.remote.cluster_two.skip_unavailable": true <1>
+    "cluster.remote.cluster_two.skip_unavailable": true
   }
 }
 --------------------------------
 // CONSOLE
 // TEST[continued]
-<1> `cluster_two` is made optional
 
-[source,js]
---------------------------------------------------
-GET /cluster_one:twitter,cluster_two:twitter,twitter/_search <1>
-{
-  "query": {
-    "match": {
-      "user": "kimchy"
-    }
-  }
-}
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-<1> Search against the `twitter` index in `cluster_one`, `cluster_two` and also locally
-
-[source,js]
---------------------------------------------------
-{
-  "took": 150,
-  "timed_out": false,
-  "num_reduce_phases": 3,
-  "_shards": {
-    "total": 2,
-    "successful": 2,
-    "failed": 0,
-    "skipped": 0
-  },
-  "_clusters": { <1>
-    "total": 3,
-    "successful": 2,
-    "skipped": 1
-  },
-  "hits": {
-    "total" : {
-        "value": 2,
-        "relation": "eq"
-    },
-    "max_score": 1,
-    "hits": [
-      {
-        "_index": "twitter",
-        "_type": "_doc",
-        "_id": "0",
-        "_score": 2,
-        "_source": {
-          "user": "kimchy",
-          "date": "2009-11-15T14:12:12",
-          "message": "trying out Elasticsearch",
-          "likes": 0
-        }
-      },
-      {
-        "_index": "cluster_one:twitter",
-        "_type": "_doc",
-        "_id": "0",
-        "_score": 1,
-        "_source": {
-          "user": "kimchy",
-          "date": "2009-11-15T14:12:12",
-          "message": "trying out Elasticsearch",
-          "likes": 0
-        }
-      }
-    ]
-  }
-}
---------------------------------------------------
-// TESTRESPONSE[s/"took": 150/"took": "$body.took"/]
-// TESTRESPONSE[s/"max_score": 1/"max_score": "$body.hits.max_score"/]
-// TESTRESPONSE[s/"_score": 1/"_score": "$body.hits.hits.0._score"/]
-// TESTRESPONSE[s/"_score": 2/"_score": "$body.hits.hits.1._score"/]
-<1> The `clusters` section indicates that one cluster was unavailable and got skipped
+If `cluster_two` is disconnected or unavailable during a {ccs}, {es} won't
+include matching documents from that cluster in the final results.
 
 [float]
 [[ccs-works]]

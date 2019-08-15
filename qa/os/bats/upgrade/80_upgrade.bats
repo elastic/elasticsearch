@@ -44,11 +44,11 @@ setup() {
     skip_not_dpkg_or_rpm
 
     sameVersion="false"
-    if [ "$(cat upgrade_from_version)" == "$(cat version)" ]; then
+    if [ "$(cat $BATS_UPGRADE/upgrade_from_version)" == "$(cat version)" ]; then
         sameVersion="true"
     fi
     # TODO: this needs to conditionally change based on version > 6.3.0
-    if [ -f upgrade_is_oss ]; then
+    if [ -f $BATS_UPGRADE/upgrade_is_oss ]; then
       export PACKAGE_NAME="elasticsearch-oss"
     else    
       skip "upgrade cannot happen from pre 6.3.0 to elasticsearch-oss"
@@ -57,7 +57,7 @@ setup() {
 
 @test "[UPGRADE] install old version" {
     clean_before_test
-    install_package -v $(cat upgrade_from_version)
+    install_package -v $(cat $BATS_UPGRADE/upgrade_from_version) -d $BATS_UPGRADE
 }
 
 @test "[UPGRADE] modify keystore" {
@@ -74,7 +74,7 @@ setup() {
 }
 
 @test "[UPGRADE] check elasticsearch version is old version" {
-    check_elasticsearch_version "$(cat upgrade_from_version)"
+    check_elasticsearch_version "$(cat $BATS_UPGRADE/upgrade_from_version)"
 }
 
 @test "[UPGRADE] index some documents into a few indexes" {

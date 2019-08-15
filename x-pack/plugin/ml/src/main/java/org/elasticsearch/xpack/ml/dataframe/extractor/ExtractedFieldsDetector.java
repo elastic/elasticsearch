@@ -60,14 +60,16 @@ public class ExtractedFieldsDetector {
 
     private final String[] index;
     private final DataFrameAnalyticsConfig config;
+    private final String resultsField;
     private final boolean isTaskRestarting;
     private final int docValueFieldsLimit;
     private final FieldCapabilitiesResponse fieldCapabilitiesResponse;
 
-    ExtractedFieldsDetector(String[] index, DataFrameAnalyticsConfig config, boolean isTaskRestarting, int docValueFieldsLimit,
-                            FieldCapabilitiesResponse fieldCapabilitiesResponse) {
+    ExtractedFieldsDetector(String[] index, DataFrameAnalyticsConfig config, String resultsField, boolean isTaskRestarting,
+                            int docValueFieldsLimit, FieldCapabilitiesResponse fieldCapabilitiesResponse) {
         this.index = Objects.requireNonNull(index);
         this.config = Objects.requireNonNull(config);
+        this.resultsField = resultsField;
         this.isTaskRestarting = isTaskRestarting;
         this.docValueFieldsLimit = docValueFieldsLimit;
         this.fieldCapabilitiesResponse = Objects.requireNonNull(fieldCapabilitiesResponse);
@@ -76,12 +78,7 @@ public class ExtractedFieldsDetector {
     public ExtractedFields detect() {
         Set<String> fields = new HashSet<>(fieldCapabilitiesResponse.get().keySet());
         fields.removeAll(IGNORE_FIELDS);
-
-        checkResultsFieldIsNotPresent();
-
-        // Ignore fields under the results object
-        fields.removeIf(field -> field.startsWith(config.getDest().getResultsField() + "."));
-
+        removeFieldsUnderResultsField(fields);
         includeAndExcludeFields(fields);
         removeFieldsWithIncompatibleTypes(fields);
         checkRequiredFieldsArePresent(fields);
@@ -105,17 +102,28 @@ public class ExtractedFieldsDetector {
         return extractedFields;
     }
 
+    private void removeFieldsUnderResultsField(Set<String> fields) {
+        if (resultsField == null) {
+            return;
+        }
+        checkResultsFieldIsNotPresent();
+        // Ignore fields under the results object
+        fields.removeIf(field -> field.startsWith(resultsField + "."));
+    }
+
     private void checkResultsFieldIsNotPresent() {
         // If the task is restarting we do not mind the index containing the results field, we will overwrite all docs
         if (isTaskRestarting) {
             return;
         }
 
-        Map<String, FieldCapabilities> indexToFieldCaps = fieldCapabilitiesResponse.getField(config.getDest().getResultsField());
+        Map<String, FieldCapabilities> indexToFieldCaps = fieldCapabilitiesResponse.getField(resultsField);
         if (indexToFieldCaps != null && indexToFieldCaps.isEmpty() == false) {
-            throw ExceptionsHelper.badRequestException("A field that matches the {}.{} [{}] already exists;" +
-                    " please set a different {}", DataFrameAnalyticsConfig.DEST.getPreferredName(),
-                DataFrameAnalyticsDest.RESULTS_FIELD.getPreferredName(), config.getDest().getResultsField(),
+            throw ExceptionsHelper.badRequestException(
+                "A field that matches the {}.{} [{}] already exists; please set a different {}",
+                DataFrameAnalyticsConfig.DEST.getPreferredName(),
+                DataFrameAnalyticsDest.RESULTS_FIELD.getPreferredName(),
+                resultsField,
                 DataFrameAnalyticsDest.RESULTS_FIELD.getPreferredName());
         }
     }

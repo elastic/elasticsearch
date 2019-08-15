@@ -81,13 +81,13 @@ final class ExactMatchProcessor extends AbstractProcessor {
                 return;
             }
 
-            TermQueryBuilder termQuery = new TermQueryBuilder(field, value);
+            TermQueryBuilder termQuery = new TermQueryBuilder(matchField, value);
             ConstantScoreQueryBuilder constantScore = new ConstantScoreQueryBuilder(termQuery);
             SearchSourceBuilder searchBuilder = new SearchSourceBuilder();
             searchBuilder.from(0);
             searchBuilder.size(1);
             searchBuilder.trackScores(false);
-            searchBuilder.fetchSource(null, matchField);
+            searchBuilder.fetchSource(true);
             searchBuilder.query(constantScore);
 
             SearchRequest req = new SearchRequest();
@@ -109,7 +109,7 @@ final class ExactMatchProcessor extends AbstractProcessor {
                     handler.accept(ingestDocument, null);
                     return;
                 } else if (searchHits.length > 1) {
-                    handler.accept(null, new IllegalStateException("more than one doc id matching for [" + field + "]"));
+                    handler.accept(null, new IllegalStateException("more than one doc id matching for [" + matchField + "]"));
                     return;
                 }
 

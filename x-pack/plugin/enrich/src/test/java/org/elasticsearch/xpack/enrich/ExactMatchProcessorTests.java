@@ -36,7 +36,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
-import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -62,7 +61,7 @@ public class ExactMatchProcessorTests extends ESTestCase {
         assertThat(request.source().size(), equalTo(1));
         assertThat(request.source().trackScores(), equalTo(false));
         assertThat(request.source().fetchSource().fetchSource(), equalTo(true));
-        assertThat(request.source().fetchSource().excludes(), arrayContainingInAnyOrder("domain"));
+        assertThat(request.source().fetchSource().excludes(), emptyArray());
         assertThat(request.source().fetchSource().includes(), emptyArray());
         assertThat(request.source().query(), instanceOf(ConstantScoreQueryBuilder.class));
         assertThat(((ConstantScoreQueryBuilder) request.source().query()).innerQuery(), instanceOf(TermQueryBuilder.class));
@@ -96,7 +95,7 @@ public class ExactMatchProcessorTests extends ESTestCase {
         assertThat(request.source().trackScores(), equalTo(false));
         assertThat(request.source().fetchSource().fetchSource(), equalTo(true));
         assertThat(request.source().fetchSource().includes(), emptyArray());
-        assertThat(request.source().fetchSource().excludes(), arrayContainingInAnyOrder("domain"));
+        assertThat(request.source().fetchSource().excludes(), emptyArray());
         assertThat(request.source().query(), instanceOf(ConstantScoreQueryBuilder.class));
         assertThat(((ConstantScoreQueryBuilder) request.source().query()).innerQuery(), instanceOf(TermQueryBuilder.class));
         TermQueryBuilder termQueryBuilder = (TermQueryBuilder) ((ConstantScoreQueryBuilder) request.source().query()).innerQuery();
@@ -131,7 +130,7 @@ public class ExactMatchProcessorTests extends ESTestCase {
         assertThat(request.source().trackScores(), equalTo(false));
         assertThat(request.source().fetchSource().fetchSource(), equalTo(true));
         assertThat(request.source().fetchSource().includes(), emptyArray());
-        assertThat(request.source().fetchSource().excludes(), arrayContainingInAnyOrder("domain"));
+        assertThat(request.source().fetchSource().excludes(), emptyArray());
         assertThat(request.source().query(), instanceOf(ConstantScoreQueryBuilder.class));
         assertThat(((ConstantScoreQueryBuilder) request.source().query()).innerQuery(), instanceOf(TermQueryBuilder.class));
         TermQueryBuilder termQueryBuilder = (TermQueryBuilder) ((ConstantScoreQueryBuilder) request.source().query()).innerQuery();

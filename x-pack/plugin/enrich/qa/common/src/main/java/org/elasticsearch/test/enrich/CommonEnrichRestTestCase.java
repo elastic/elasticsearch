@@ -68,7 +68,8 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
         Request getRequest = new Request("GET", "/my-index/_doc/1");
         Map<String, Object> response = toMap(client().performRequest(getRequest));
         Map<?, ?> _source = (Map<?, ?>) ((Map<?, ?>) response.get("_source")).get("entry");
-        assertThat(_source.size(), equalTo(3));
+        assertThat(_source.size(), equalTo(4));
+        assertThat(_source.get("host"), equalTo("elastic.co"));
         assertThat(_source.get("tld"), equalTo("co"));
         assertThat(_source.get("globalRank"), equalTo(25));
         assertThat(_source.get("tldRank"), equalTo(7));

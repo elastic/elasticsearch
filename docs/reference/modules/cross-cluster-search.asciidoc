@@ -1,5 +1,6 @@
+[chapter]
 [[modules-cross-cluster-search]]
-== {ccs-cap}
+= Search across clusters
 
 *{ccs-cap}* lets you run a single search request against one or more
 <<modules-remote-clusters,remote clusters>>. For example, you can use a {ccs} to
@@ -9,11 +10,11 @@ IMPORTANT: {ccs-cap} requires <<modules-remote-clusters, remote clusters>>.
 
 [float]
 [[ccs-example]]
-=== {ccs-cap} examples
+== {ccs-cap} examples
 
 [float]
 [[ccs-remote-cluster-setup]]
-==== Remote cluster setup
+=== Remote cluster setup
 
 To perform a {ccs}, you must have at least one remote cluster configured.
 
@@ -53,7 +54,7 @@ PUT _cluster/settings
 
 [float]
 [[ccs-search-remote-cluster]]
-==== Search a single remote cluster
+=== Search a single remote cluster
 
 The following <<search,search>> API request searches the
 `twitter` index on a single remote cluster, `cluster_one`.
@@ -123,7 +124,7 @@ The API returns the following response:
 
 [float]
 [[ccs-search-multi-remote-cluster]]
-==== Search multiple remote clusters
+=== Search multiple remote clusters
 
 The following <<search,search>> API request searches the `twitter` index on
 three clusters:
@@ -223,7 +224,7 @@ means the document came from the local cluster.
 
 [float]
 [[skip-unavailable-clusters]]
-=== Skip unavailable clusters
+== Skip unavailable clusters
 
 By default, a {ccs} returns an error if *any* cluster in the request is
 unavailable.
@@ -251,7 +252,7 @@ include matching documents from that cluster in the final results.
 
 [float]
 [[ccs-works]]
-=== How {ccs} works
+== How {ccs} works
 Because {ccs} involves sending requests to remote clusters, any network delays
 can impact search speed. To avoid slow searches, {ccs} offers two options for
 handling network delays:
@@ -279,7 +280,7 @@ See <<ccs-unmin-roundtrips>> to learn how this option works.
 
 [float]
 [[ccs-min-roundtrips]]
-==== Minimize network roundtrips
+=== Minimize network roundtrips
 
 Here's how {ccs} works when you minimize network roundtrips.
 
@@ -304,7 +305,7 @@ image:images/ccs/ccs-min-roundtrip-client-response.png[]
 
 [float]
 [[ccs-unmin-roundtrips]]
-==== Don't minimize network roundtrips
+=== Don't minimize network roundtrips
 
 Here's how {ccs} works when you don't minimize network roundtrips.
 

@@ -10,7 +10,7 @@ import org.elasticsearch.xpack.ml.process.NativeProcess;
 import java.io.IOException;
 import java.util.Iterator;
 
-public interface AnalyticsProcess extends NativeProcess {
+public interface AnalyticsProcess<ProcessResult> extends NativeProcess {
 
     /**
      * Writes a control message that informs the process
@@ -22,7 +22,7 @@ public interface AnalyticsProcess extends NativeProcess {
     /**
      * @return stream of data frame analytics results.
      */
-    Iterator<AnalyticsResult> readAnalyticsResults();
+    Iterator<ProcessResult> readAnalyticsResults();
 
     /**
      * Read anything left in the stream before

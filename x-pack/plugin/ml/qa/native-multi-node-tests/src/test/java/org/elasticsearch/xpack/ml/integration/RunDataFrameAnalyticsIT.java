@@ -366,6 +366,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) bulkRequestBuilder.numberOfActions()));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/45425")
     public void testRegressionWithNumericFeatureAndFewDocuments() throws Exception {
         String sourceIndex = "test-regression-with-numeric-feature-and-few-docs";
 

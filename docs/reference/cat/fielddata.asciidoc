@@ -1,5 +1,8 @@
 [[cat-fielddata]]
-=== cat fielddata
+=== cat fielddata API
+++++
+<titleabbrev>cat fielddata</titleabbrev>
+++++
 
 Returns the amount of heap memory currently used by fielddata on every data node
 in the cluster.

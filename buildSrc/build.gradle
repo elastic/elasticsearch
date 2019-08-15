@@ -77,27 +77,13 @@ sourceSets {
     minimumRuntime { }
 }
 
-configurations {
-  reaper
-}
-
 compileMinimumRuntimeJava {
     targetCompatibility = 8
     sourceCompatibility = 8
 }
 
-normalization {
-    runtimeClasspath {
-        // Ignore the embedded JAR as we track this separately below as a runtime dependency
-        ignore 'META-INF/*.jar'
-    }
-}
-
 jar {
     from sourceSets.minimumRuntime.output
-    into('META-INF') {
-        from configurations.reaper
-    }
 }
 
 javadoc {
@@ -135,7 +121,6 @@ dependencies {
   testCompile "junit:junit:${props.getProperty('junit')}"
   testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${props.getProperty('randomizedrunner')}"
   testCompile 'com.github.tomakehurst:wiremock-jre8-standalone:2.23.2'
-  reaper project('reaper')
   minimumRuntimeCompile "junit:junit:${props.getProperty('junit')}"
   minimumRuntimeCompile localGroovy()
   minimumRuntimeCompile gradleApi()
@@ -184,9 +169,11 @@ if (project != rootProject) {
 
   configurations {
     distribution
+    reaper
   }
 
   dependencies {
+    reaper project('reaper')
     distribution project(':distribution:archives:windows-zip')
     distribution project(':distribution:archives:oss-windows-zip')
     distribution project(':distribution:archives:darwin-tar')
@@ -198,6 +185,9 @@ if (project != rootProject) {
   // for external projects we want to remove the marker file indicating we are running the Elasticsearch project
   processResources {
       exclude 'buildSrc.marker'
+      into('META-INF') {
+          from configurations.reaper
+      }
   }
 
   String localDownloads = "${rootProject.buildDir}/local-downloads"

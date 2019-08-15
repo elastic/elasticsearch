@@ -25,18 +25,18 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.geo.geometry.Circle;
-import org.elasticsearch.geo.geometry.Geometry;
-import org.elasticsearch.geo.geometry.GeometryCollection;
-import org.elasticsearch.geo.geometry.Line;
-import org.elasticsearch.geo.geometry.LinearRing;
-import org.elasticsearch.geo.geometry.MultiLine;
-import org.elasticsearch.geo.geometry.MultiPoint;
-import org.elasticsearch.geo.geometry.MultiPolygon;
-import org.elasticsearch.geo.geometry.Point;
-import org.elasticsearch.geo.geometry.Polygon;
-import org.elasticsearch.geo.geometry.Rectangle;
-import org.elasticsearch.geo.utils.GeographyValidator;
+import org.elasticsearch.geometry.Circle;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.GeometryCollection;
+import org.elasticsearch.geometry.Line;
+import org.elasticsearch.geometry.LinearRing;
+import org.elasticsearch.geometry.MultiLine;
+import org.elasticsearch.geometry.MultiPoint;
+import org.elasticsearch.geometry.MultiPolygon;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.Polygon;
+import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.geometry.utils.GeographyValidator;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -56,7 +56,7 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
                     .field("type", "Point")
                     .startArray("coordinates").value(100.0).value(0.0).endArray()
                 .endObject();
-        Point expected = new Point(0.0, 100.0);
+        Point expected = new Point(100.0, 0.0);
         assertGeometryEquals(expected, pointGeoJson);
     }
 
@@ -71,7 +71,7 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
                     .endArray()
                 .endObject();
 
-        Line expected = new Line(new double[] {0.0, 1.0}, new double[] { 100.0, 101.0});
+        Line expected = new Line(new double[] { 100.0, 101.0}, new double[] {0.0, 1.0});
         try (XContentParser parser = createParser(lineGeoJson)) {
             parser.nextToken();
             assertEquals(expected, new GeoJson(false, false, new GeographyValidator(true)).fromXContent(parser));
@@ -96,8 +96,8 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
                 .endObject();
 
         MultiLine expected = new MultiLine(Arrays.asList(
-            new Line(new double[] {0.0, 1.0}, new double[] { 100.0, 101.0}),
-            new Line(new double[] {2.0, 3.0}, new double[] { 102.0, 103.0})
+            new Line(new double[] { 100.0, 101.0}, new double[] {0.0, 1.0}),
+            new Line(new double[] { 102.0, 103.0}, new double[] {2.0, 3.0})
 
         ));
 
@@ -112,7 +112,7 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
                     .field("radius", "200m")
                 .endObject();
 
-        Circle expected = new Circle(0.0, 100.0, 200);
+        Circle expected = new Circle(100.0, 0.0, 200);
         assertGeometryEquals(expected, multilinesGeoJson);
     }
 
@@ -156,7 +156,7 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
                 .startArray().value(50).value(-30).endArray()
                 .endArray()
                 .endObject();
-        Rectangle expected = new Rectangle(-30, 30, -50, 50);
+        Rectangle expected = new Rectangle(-50, 50, 30, -30);
         assertGeometryEquals(expected, multilinesGeoJson);
 
         // test #2: envelope that spans dateline
@@ -167,7 +167,7 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
                 .endArray()
                 .endObject();
 
-        expected = new Rectangle(-30, 30, 50, -50);
+        expected = new Rectangle(50, -50, 30, -30);
         assertGeometryEquals(expected, multilinesGeoJson);
 
         // test #3: "envelope" (actually a triangle) with invalid number of coordinates (TopRight, BottomLeft, BottomRight)
@@ -214,8 +214,8 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
 
         Polygon p = new Polygon(
             new LinearRing(
-                new double[] {1d, 1d, 0d, 0d, 1d},
-                new double[] {100d, 101d, 101d, 100d, 100d}));
+                new double[] {100d, 101d, 101d, 100d, 100d}, new double[] {1d, 1d, 0d, 0d, 1d}
+            ));
         assertGeometryEquals(p, polygonGeoJson);
     }
 
@@ -235,8 +235,7 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
             .endObject();
 
         Polygon expected = new Polygon(new LinearRing(
-            new double[]{1.0, 1.0, 0.0, 0.0, 1.0},
-            new double[]{100.0, 101.0, 101.0, 100.0, 100.0},
+            new double[]{100.0, 101.0, 101.0, 100.0, 100.0}, new double[]{1.0, 1.0, 0.0, 0.0, 1.0},
             new double[]{10.0, 10.0, 10.0, 10.0, 10.0}
         ));
         try (XContentParser parser = createParser(polygonGeoJson)) {
@@ -504,10 +503,10 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
 
         LinearRing hole =
             new LinearRing(
-                new double[] {0.8d, 0.2d, 0.2d, 0.8d, 0.8d}, new double[] {100.2d, 100.2d, 100.8d, 100.8d, 100.2d});
+                new double[] {100.2d, 100.2d, 100.8d, 100.8d, 100.2d}, new double[] {0.8d, 0.2d, 0.2d, 0.8d, 0.8d});
         Polygon p =
             new Polygon(new LinearRing(
-                new double[] {1d, 1d, 0d, 0d, 1d}, new double[] {100d, 101d, 101d, 100d, 100d}), Collections.singletonList(hole));
+                new double[] {100d, 101d, 101d, 100d, 100d}, new double[] {1d, 1d, 0d, 0d, 1d}), Collections.singletonList(hole));
         assertGeometryEquals(p, polygonGeoJson);
     }
 
@@ -523,8 +522,8 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
                 .endObject();
 
         assertGeometryEquals(new MultiPoint(Arrays.asList(
-            new Point(0, 100),
-            new Point(1, 101))), multiPointGeoJson);
+            new Point(100, 0),
+            new Point(101, 1))), multiPointGeoJson);
     }
 
     @Override
@@ -563,13 +562,13 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
                 .endObject();
 
         LinearRing hole = new LinearRing(
-                new double[] {0.8d, 0.2d, 0.2d, 0.8d, 0.8d}, new double[] {100.2d, 100.2d, 100.8d, 100.8d, 100.2d});
+            new double[] {100.2d, 100.2d, 100.8d, 100.8d, 100.2d}, new double[] {0.8d, 0.2d, 0.2d, 0.8d, 0.8d});
 
         MultiPolygon polygons = new MultiPolygon(Arrays.asList(
             new Polygon(new LinearRing(
-                new double[] {2d, 2d, 3d, 3d, 2d}, new double[] {102d, 103d, 103d, 102d, 102d})),
+                new double[] {102d, 103d, 103d, 102d, 102d}, new double[] {2d, 2d, 3d, 3d, 2d})),
             new Polygon(new LinearRing(
-                new double[] {0d, 0d, 1d, 1d, 0d}, new double[] {100d, 101d, 101d, 100d, 100d}),
+                new double[] {100d, 101d, 101d, 100d, 100d}, new double[] {0d, 0d, 1d, 1d, 0d}),
                 Collections.singletonList(hole))));
 
         assertGeometryEquals(polygons, multiPolygonGeoJson);
@@ -609,11 +608,10 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
                 .endObject();
 
         GeometryCollection<Geometry> geometryExpected = new GeometryCollection<> (Arrays.asList(
-            new Line(new double[] {0d, 1d}, new double[] {100d, 101d}),
-            new Point(2d, 102d),
+            new Line(new double[] {100d, 101d}, new double[] {0d, 1d}),
+            new Point(102d, 2d),
             new Polygon(new LinearRing(
-                new double[] {10, 15, 0, -15, -10, 10},
-                new double[] {-177, 176, 172, 176, -177, -177}
+                new double[] {-177, 176, 172, 176, -177, -177}, new double[] {10, 15, 0, -15, -10, 10}
             ))
         ));
         assertGeometryEquals(geometryExpected, geometryCollectionGeoJson);
@@ -636,7 +634,7 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
                     .startObject("lala").field("type", "NotAPoint").endObject()
                 .endObject();
 
-            Point expectedPt = new Point(0, 100);
+            Point expectedPt = new Point(100, 0);
             assertGeometryEquals(expectedPt, pointGeoJson, false);
     }
 
@@ -665,9 +663,9 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
                 .endObject();
 
         Polygon expected = new Polygon(
-            new LinearRing(new double[]{15.0, 10.0, -10.0, -15.0, 0.0, 15.0}, new double[]{176.0, -177.0, -177.0, 176.0, 172.0, 176.0}),
+            new LinearRing(new double[]{176.0, -177.0, -177.0, 176.0, 172.0, 176.0}, new double[]{15.0, 10.0, -10.0, -15.0, 0.0, 15.0}),
             Collections.singletonList(
-                new LinearRing(new double[]{8.0, 10.0, -8.0, 8.0}, new double[]{-172.0, 174.0, -172.0, -172.0})
+                new LinearRing(new double[]{-172.0, 174.0, -172.0, -172.0}, new double[]{8.0, 10.0, -8.0, 8.0})
             ));
         assertGeometryEquals(expected, polygonGeoJson);
 
@@ -695,9 +693,9 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
                 .endObject();
 
         expected = new Polygon(
-            new LinearRing(new double[]{15.0, 0.0, -15.0, -10.0, 10.0, 15.0}, new double[]{176.0, 172.0, 176.0, -177.0, -177.0, 176.0}),
+            new LinearRing(new double[]{176.0, 172.0, 176.0, -177.0, -177.0, 176.0}, new double[]{15.0, 0.0, -15.0, -10.0, 10.0, 15.0}),
             Collections.singletonList(
-                new LinearRing(new double[]{8.0, -8.0, 10.0, 8.0}, new double[]{-172.0, -172.0, 174.0, -172.0})
+                new LinearRing(new double[]{-172.0, -172.0, 174.0, -172.0}, new double[]{8.0, -8.0, 10.0, 8.0})
             ));
         assertGeometryEquals(expected, polygonGeoJson);
     }

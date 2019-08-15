@@ -761,3 +761,7 @@ See <<explain-analyze-api>>.
 [role="exclude",id="indices-synced-flush"]
 === Synced flush API
 See <<synced-flush-api>>.
+
+[role="exclude",id="ccs-reduction"]
+=== {ccs-cap} reduction
+See <<ccs-works>>.

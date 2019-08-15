@@ -30,6 +30,22 @@
               "description":"Script ID"
             }
           }
+        },
+        {
+          "path":"/_scripts/{id}",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "id":{
+              "type":"string",
+              "description":"Script ID"
+            }
+          },
+          "deprecated":{
+            "version":"8.0.0",
+            "description":"The path is now singular"
+          }
         }
       ]
     },
@@ -37,6 +53,10 @@
       "master_timeout":{
         "type":"time",
         "description":"Specify timeout for connection to master"
+      },
+      "new_format": {
+        "type" : "boolean",
+        "description" : "Use the new format"
       }
     }
   }

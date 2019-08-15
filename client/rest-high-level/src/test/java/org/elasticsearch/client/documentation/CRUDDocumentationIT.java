@@ -284,7 +284,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             IndexResponse indexResponse = client.index(indexRequest, RequestOptions.DEFAULT);
             assertSame(RestStatus.CREATED, indexResponse.status());
 
-            Request request = new Request("POST", "/_scripts/increment-field");
+            Request request = new Request("POST", "/_script/increment-field");
             request.setJsonEntity(Strings.toString(JsonXContent.contentBuilder()
                     .startObject()
                         .startObject("script")

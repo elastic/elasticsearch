@@ -134,19 +134,19 @@ The same script in the normal form:
 === Stored scripts
 
 Scripts may be stored in and retrieved from the cluster state using the
-`_scripts` end-point.
+`_script` end-point.
 
 [float]
 ==== Request examples
 
 The following are examples of using a stored script that lives at
-`/_scripts/{id}`.
+`/_script/{id}`.
 
 First, create the script called `calculate-score` in the cluster state:
 
 [source,js]
 -----------------------------------
-POST _scripts/calculate-score
+POST _script/calculate-score
 {
   "script": {
     "lang": "painless",
@@ -160,7 +160,7 @@ This same script can be retrieved with:
 
 [source,js]
 -----------------------------------
-GET _scripts/calculate-score
+GET _script/calculate-score
 -----------------------------------
 // CONSOLE
 // TEST[continued]
@@ -190,7 +190,7 @@ And deleted with:
 
 [source,js]
 -----------------------------------
-DELETE _scripts/calculate-score
+DELETE _script/calculate-score
 -----------------------------------
 // CONSOLE
 // TEST[continued]

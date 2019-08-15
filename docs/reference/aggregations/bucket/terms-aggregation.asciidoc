@@ -572,7 +572,7 @@ This will interpret the `script` parameter as an `inline` script with the defaul
 
 [source,js]
 --------------------------------------------------
-POST /_scripts/my_script
+POST /_script/my_script
 {
   "script": {
     "lang": "painless",

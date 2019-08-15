@@ -154,7 +154,12 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                 // fire off the search. Note this is async, the method will return from here
                 executor.execute(() -> {
                     onStart(now, ActionListener.wrap(r -> {
-                        nextSearch(ActionListener.wrap(this::onSearchResponse, this::finishWithSearchFailure));
+                        assert r != null;
+                        if (r) {
+                            nextSearch(ActionListener.wrap(this::onSearchResponse, this::finishWithSearchFailure));
+                        } else {
+                            finishAndSetState();
+                        }
                     }, e -> {
                         finishAndSetState();
                         onFailure(e);
@@ -200,9 +205,11 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
      * internal state is {@link IndexerState#STARTED}.
      *
      * @param now The current time in milliseconds passed through from {@link #maybeTriggerAsyncJob(long)}
-     * @param listener listener to call after done
+     * @param listener listener to call after done. The argument passed to the listener indicates if the indexer should continue or not
+     *                 true: continue execution as normal
+     *                 false: cease execution. This does NOT call onFinish
      */
-    protected abstract void onStart(long now, ActionListener<Void> listener);
+    protected abstract void onStart(long now, ActionListener<Boolean> listener);
 
     /**
      * Executes the {@link SearchRequest} and calls <code>nextPhase</code> with the

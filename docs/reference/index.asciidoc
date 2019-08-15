@@ -44,8 +44,6 @@ include::ilm/index.asciidoc[]
 
 include::sql/index.asciidoc[]
 
-include::monitoring/index.asciidoc[]
-
 include::rollup/index.asciidoc[]
 
 include::frozen-indices.asciidoc[]

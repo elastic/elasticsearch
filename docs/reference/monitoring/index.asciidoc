@@ -1,10 +1,8 @@
 [role="xpack"]
 [testenv="basic"]
 [[es-monitoring]]
-= Monitoring {es}
+== Monitor a cluster
 
-[partintro]
---
 The Elastic {monitor-features} enable you to easily monitor the health of 
 your {es} cluster. The monitoring metrics are collected from each node and 
 stored in {es} indices. 
@@ -45,8 +43,6 @@ alerts based on the data in the monitoring indices.
 
 For an introduction to monitoring your {stack}, including Beats, {ls}, and {kib}, 
 see {stack-ov}/xpack-monitoring.html[Monitoring the {stack}].
-
---
 
 include::collectors.asciidoc[]
 include::exporters.asciidoc[]

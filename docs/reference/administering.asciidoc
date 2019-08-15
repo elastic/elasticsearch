@@ -9,4 +9,6 @@ cluster.
 
 --
 
+include::monitoring/index.asciidoc[]
+
 include::administering/backup-cluster.asciidoc[]

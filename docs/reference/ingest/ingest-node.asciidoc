@@ -937,6 +937,7 @@ Which returns:
   "_primary_term": 1,
   "_source": {
     "user": {
+      "email": "mardy.brown@email.me",
       "first_name": "Mardy",
       "last_name": "Brown",
       "zip": 70116,

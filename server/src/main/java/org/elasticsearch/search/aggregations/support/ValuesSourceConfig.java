@@ -55,7 +55,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         Object missing,
         ZoneId timeZone,
         String format) {
-        return resolve(context, valueType, field, script, missing, timeZone, format, s -> ValuesSourceType.BYTES);
+        return resolve(context, valueType, field, script, missing, timeZone, format, s -> ValuesSourceType.BYTES, s -> null);
     }
 
     /**
@@ -67,9 +67,15 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         String field, Script script,
         Object missing,
         ZoneId timeZone,
-        String format, Function<Script, ValuesSourceType> resolveScriptAny) {
+        String format,
+        Function<Script, ValuesSourceType> resolveScriptAny,
+        Function<Script, ValueType> defaultScriptValueType
+        ) {
 
         if (field == null) {
+            if (valueType == null) {
+                valueType = defaultScriptValueType.apply(script);
+            }
             if (script == null) {
                 ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(ValuesSourceType.ANY);
                 config.format(resolveFormat(null, valueType, timeZone));
@@ -94,6 +100,9 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
 
         MappedFieldType fieldType = context.fieldMapper(field);
         if (fieldType == null) {
+            if (valueType == null) {
+                valueType = defaultScriptValueType.apply(script);
+            }
             ValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : ValuesSourceType.ANY;
             ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(valuesSourceType);
             config.missing(missing);

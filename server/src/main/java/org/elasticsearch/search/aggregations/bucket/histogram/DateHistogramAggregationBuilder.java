@@ -492,6 +492,11 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
     }
 
     @Override
+    protected ValueType defaultValueType(Script script) {
+        return ValueType.DATE;
+    }
+
+    @Override
     protected ValuesSourceAggregatorFactory<ValuesSource> innerBuild(SearchContext context, ValuesSourceConfig<ValuesSource> config,
             AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
         final ZoneId tz = timeZone();

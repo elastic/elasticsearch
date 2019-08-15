@@ -150,7 +150,7 @@ public abstract class PackageTestCase extends PackagingTestCase {
             stopElasticsearch(sh);
         } finally {
             if (unlinked) {
-                sh.run("ln -sf " + readlink.stdout + " /usr/bin/java");
+                sh.run("ln -sf " + readlink.stdout.trim() + " /usr/bin/java");
             }
         }
     }

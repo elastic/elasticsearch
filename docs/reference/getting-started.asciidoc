@@ -87,7 +87,7 @@ tar -xvf elasticsearch-{version}-darwin-x86_64.tar.gz
 +
 Windows PowerShell:
 +
-["source","sh",subs="attributes,callouts"]
+["source","powershell",subs="attributes,callouts"]
 --------------------------------------------------
 Expand-Archive elasticsearch-{version}-windows-x86_64.zip
 --------------------------------------------------
@@ -104,10 +104,10 @@ cd elasticsearch-{version}/bin
 +
 Windows:
 +
-["source","sh",subs="attributes,callouts"]
+["source","powershell",subs="attributes,callouts"]
 --------------------------------------------------
-cd %PROGRAMFILES%\Elastic\Elasticsearch\bin
-.\elasticsearch.exe
+cd elasticsearch-{version}\bin
+.\elasticsearch.bat
 --------------------------------------------------
 +
 You now have a single-node {es} cluster up and running!
@@ -126,10 +126,10 @@ Linux and macOS:
 +
 Windows:
 +
-["source","sh",subs="attributes,callouts"]
+["source","powershell",subs="attributes,callouts"]
 --------------------------------------------------
-.\elasticsearch.exe -Epath.data=data2 -Epath.logs=log2
-.\elasticsearch.exe -Epath.data=data3 -Epath.logs=log3
+.\elasticsearch.bat -E path.data=data2 -E path.logs=log2
+.\elasticsearch.bat -E path.data=data3 -E path.logs=log3
 --------------------------------------------------
 +
 The additional nodes are assigned unique IDs. Because you're running all three

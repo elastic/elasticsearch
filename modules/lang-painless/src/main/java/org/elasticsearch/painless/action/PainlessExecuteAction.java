@@ -564,13 +564,13 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
     public static class RestAction extends BaseRestHandler {
 
         public RestAction(RestController controller) {
-            controller.registerHandler(GET, "/_scripts/painless/_execute", this);
-            controller.registerHandler(POST, "/_scripts/painless/_execute", this);
+            controller.registerHandler(GET, "/_script/painless/_execute", this);
+            controller.registerHandler(POST, "/_script/painless/_execute", this);
         }
 
         @Override
         public String getName() {
-            return "_scripts_painless_execute";
+            return "_script_painless_execute";
         }
 
         @Override

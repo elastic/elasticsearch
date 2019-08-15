@@ -746,7 +746,7 @@ public class RestHighLevelClientTests extends ESTestCase {
             "indices.get_upgrade",
             "indices.put_alias",
             "render_search_template",
-            "scripts_painless_execute"
+            "script_painless_execute"
         };
         //These API are not required for high-level client feature completeness
         String[] notRequiredApi = new String[] {

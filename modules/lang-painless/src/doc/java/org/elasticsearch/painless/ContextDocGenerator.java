@@ -105,7 +105,7 @@ public final class ContextDocGenerator {
     @SuppressForbidden(reason = "retrieving data from an internal API not exposed as part of the REST client")
     private static List<PainlessContextInfo> getContextInfos() throws IOException  {
         URLConnection getContextNames = new URL(
-                "http://" + System.getProperty("cluster.uri") + "/_scripts/painless/_context").openConnection();
+                "http://" + System.getProperty("cluster.uri") + "/_script/painless/_context").openConnection();
         XContentParser parser = JsonXContent.jsonXContent.createParser(null, null, getContextNames.getInputStream());
         parser.nextToken();
         parser.nextToken();
@@ -118,7 +118,7 @@ public final class ContextDocGenerator {
 
         for (String contextName : contextNames) {
             URLConnection getContextInfo = new URL(
-                    "http://" + System.getProperty("cluster.uri") + "/_scripts/painless/_context?context=" + contextName).openConnection();
+                    "http://" + System.getProperty("cluster.uri") + "/_script/painless/_context?context=" + contextName).openConnection();
             parser = JsonXContent.jsonXContent.createParser(null, null, getContextInfo.getInputStream());
             contextInfos.add(PainlessContextInfo.fromXContent(parser));
             ((HttpURLConnection)getContextInfo).disconnect();

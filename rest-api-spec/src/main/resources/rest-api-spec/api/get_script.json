@@ -11,13 +11,7 @@
           "path":"/_script",
           "methods":[
             "GET"
-          ],
-          "parts":{
-            "id":{
-              "type":"string",
-              "description":"Script ID"
-            }
-          }
+          ]
         },
         {
           "path":"/_script/{id}",

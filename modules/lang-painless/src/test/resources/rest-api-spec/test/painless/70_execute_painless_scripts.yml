@@ -15,7 +15,7 @@ setup:
 ---
 "Execute with defaults":
   - do:
-      scripts_painless_execute:
+      script_painless_execute:
         body:
           script:
             source: "params.count / params.total"
@@ -27,7 +27,7 @@ setup:
 ---
 "Execute with painless_test context":
   - do:
-      scripts_painless_execute:
+      script_painless_execute:
         body:
           script:
             source: "params.var1 - params.var2"
@@ -40,7 +40,7 @@ setup:
 ---
 "Execute with filter context":
   - do:
-      scripts_painless_execute:
+      script_painless_execute:
         body:
           script:
             source: "doc['field'].value.length() <= params.max_length"
@@ -56,7 +56,7 @@ setup:
 ---
 "Execute with score context":
   - do:
-      scripts_painless_execute:
+      script_painless_execute:
         body:
           script:
             source: "doc['rank'].value / params.max_rank"

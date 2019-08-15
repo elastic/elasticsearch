@@ -1,5 +1,5 @@
 {
-  "scripts_painless_execute":{
+  "script_painless_execute":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/painless/master/painless-execute-api.html",
       "description":"Allows an arbitrary script to be executed and a result to be returned"
@@ -8,11 +8,22 @@
     "url":{
       "paths":[
         {
-          "path":"/_scripts/painless/_execute",
+          "path":"/_script/painless/_execute",
           "methods":[
             "GET",
             "POST"
           ]
+        },
+        {
+          "path":"/_scripts/painless/_execute",
+          "methods":[
+            "GET",
+            "POST"
+          ],
+          "deprecated":{
+            "version":"8.0.0",
+            "description":"The path is now singular"
+          }
         }
       ]
     },

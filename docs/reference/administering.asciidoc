@@ -4,9 +4,34 @@
 [partintro]
 --
 Elasticsearch is a complex piece of software, with many moving parts. There are
-many APIs and features that are designed to help you manage your Elasticsearch
-cluster.
+many APIs, features, and settings designed to help you manage your
+Elasticsearch cluster.
+
+[float]
+[[setting-types]]
+== Cluster setting types
+There are two types of cluster settings:
+
+// tag::setting-types[]
+
+Static::
+
+These settings must be set at the node level, either in the
+`elasticsearch.yml` file, or as an environment variable or on the command line
+when starting a node. They must be set on every relevant node in the cluster.
+
+
+Dynamic::
+
+These settings can be dynamically updated on a live cluster with the
+<<cluster-update-settings,cluster-update-settings>> API.
+
+// end::setting-types[]
 
 --
+
+include::modules/discovery.asciidoc[]
+
+include::modules/cluster.asciidoc[]
 
 include::administering/backup-cluster.asciidoc[]

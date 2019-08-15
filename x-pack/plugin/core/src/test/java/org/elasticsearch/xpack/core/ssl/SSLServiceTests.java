@@ -299,7 +299,8 @@ public class SSLServiceTests extends ESTestCase {
             .build();
         sslService = new SSLService(settings, env);
         assertTrue(sslService.isClientAuthEnabledWithVerification(sslService.getSSLConfiguration("xpack.security.transport.ssl")));
-        assertTrue(sslService.isClientAuthEnabledWithVerification(sslService.getSSLConfiguration("transport.profiles.foo.xpack.security.ssl")));
+        assertTrue(sslService
+                .isClientAuthEnabledWithVerification(sslService.getSSLConfiguration("transport.profiles.foo.xpack.security.ssl")));
     }
 
     public void testThatHttpClientAuthDefaultsToNone() throws Exception {

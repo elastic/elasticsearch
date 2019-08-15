@@ -800,8 +800,6 @@ class BuildPlugin implements Plugin<Project> {
                 test.addTestOutputListener(listener)
                 test.addTestListener(listener)
 
-                test.doFirst { println test.jvmArgs }
-
                 /*
                  * We use lazy-evaluated strings in order to configure system properties whose value will not be known until
                  * execution time (e.g. cluster port numbers). Adding these via the normal DSL doesn't work as these get treated

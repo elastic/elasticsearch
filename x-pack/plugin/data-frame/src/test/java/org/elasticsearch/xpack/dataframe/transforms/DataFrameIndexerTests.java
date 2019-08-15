@@ -181,8 +181,8 @@ public class DataFrameIndexerTests extends ESTestCase {
         }
 
         @Override
-        protected boolean sourceHasChanged() {
-            return false;
+        protected void sourceHasChanged(ActionListener<Boolean> listener) {
+            listener.onResponse(false);
         }
 
     }

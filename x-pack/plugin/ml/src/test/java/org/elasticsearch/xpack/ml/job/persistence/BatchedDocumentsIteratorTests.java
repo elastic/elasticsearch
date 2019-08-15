@@ -162,7 +162,7 @@ public class BatchedDocumentsIteratorTests extends ESTestCase {
             return this;
         }
 
-        @SuppressWarnings("unchecked")
+        @SuppressWarnings({"unchecked", "rawtypes"})
         void finishMock() {
             if (batches.isEmpty()) {
                 givenInitialResponse();

@@ -48,13 +48,11 @@ import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
 
 import java.net.URI;
 import java.net.URISyntaxException;
-
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -202,19 +200,17 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
             return;
         }
 
-        final Map<String, Object> userMetadata = new HashMap<>();
+        final Map<String, Object> userMetadata;
         if (populateUserMetadata) {
-            Map<String, Object> claimsMap = claims.getClaims();
-            /*
-             * We whitelist the Types that we want to parse as metadata from the Claims, explicitly filtering out {@link Date}s
-             */
-            Set<Map.Entry> allowedEntries = claimsMap.entrySet().stream().filter(entry -> {
+            userMetadata = claims.getClaims().entrySet().stream().filter(entry -> {
+                /*
+                 * We whitelist the Types that we want to parse as metadata from the Claims, explicitly filtering out {@link Date}s
+                 */
                 Object v = entry.getValue();
                 return (v instanceof String || v instanceof Boolean || v instanceof Number || v instanceof Collections);
-            }).collect(Collectors.toSet());
-            for (Map.Entry entry : allowedEntries) {
-                userMetadata.put("oidc(" + entry.getKey() + ")", entry.getValue());
-            }
+            }).collect(Collectors.toUnmodifiableMap(entry -> "oidc(" + entry.getKey() + ")", Map.Entry::getValue));
+        } else {
+            userMetadata = Map.of();
         }
         final List<String> groups = groupsAttribute.getClaimValues(claims);
         final String dn = dnAttribute.getClaimValue(claims);
@@ -281,25 +277,31 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
             // This should never happen as it's already validated in the settings
             throw new SettingsException("Invalid URI: " + OP_AUTHORIZATION_ENDPOINT.getKey(), e);
         }
+        String responseType = require(config, RP_RESPONSE_TYPE);
+        String tokenEndpointString = config.getSetting(OP_TOKEN_ENDPOINT);
+        if (responseType.equals("code") && tokenEndpointString.isEmpty()) {
+            throw new SettingsException("The configuration setting [" + OP_TOKEN_ENDPOINT.getConcreteSettingForNamespace(name()).getKey()
+                + "] is required when [" + RP_RESPONSE_TYPE.getConcreteSettingForNamespace(name()).getKey() + "] is set to \"code\"");
+        }
         URI tokenEndpoint;
         try {
-            tokenEndpoint = new URI(require(config, OP_TOKEN_ENDPOINT));
+            tokenEndpoint = tokenEndpointString.isEmpty() ? null : new URI(tokenEndpointString);
         } catch (URISyntaxException e) {
             // This should never happen as it's already validated in the settings
             throw new SettingsException("Invalid URL: " + OP_TOKEN_ENDPOINT.getKey(), e);
         }
         URI userinfoEndpoint;
         try {
-            userinfoEndpoint = (config.getSetting(OP_USERINFO_ENDPOINT, () -> null) == null) ? null :
-                new URI(config.getSetting(OP_USERINFO_ENDPOINT, () -> null));
+            userinfoEndpoint = (config.getSetting(OP_USERINFO_ENDPOINT).isEmpty()) ? null :
+                new URI(config.getSetting(OP_USERINFO_ENDPOINT));
         } catch (URISyntaxException e) {
             // This should never happen as it's already validated in the settings
             throw new SettingsException("Invalid URI: " + OP_USERINFO_ENDPOINT.getKey(), e);
         }
         URI endsessionEndpoint;
         try {
-            endsessionEndpoint = (config.getSetting(OP_ENDSESSION_ENDPOINT, () -> null) == null) ? null :
-                new URI(config.getSetting(OP_ENDSESSION_ENDPOINT, () -> null));
+            endsessionEndpoint = (config.getSetting(OP_ENDSESSION_ENDPOINT).isEmpty()) ? null :
+                new URI(config.getSetting(OP_ENDSESSION_ENDPOINT));
         } catch (URISyntaxException e) {
             // This should never happen as it's already validated in the settings
             throw new SettingsException("Invalid URI: " + OP_ENDSESSION_ENDPOINT.getKey(), e);
@@ -416,9 +418,9 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
                             Object claimValueObject = claims.getClaim(claimName);
                             List<String> values;
                             if (claimValueObject == null) {
-                                values = Collections.emptyList();
+                                values = List.of();
                             } else if (claimValueObject instanceof String) {
-                                values = Collections.singletonList((String) claimValueObject);
+                                values = List.of((String) claimValueObject);
                             } else if (claimValueObject instanceof List) {
                                 values = (List<String>) claimValueObject;
                             } else {
@@ -427,6 +429,10 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
                                     + claimValueObject.getClass().getName());
                             }
                             return values.stream().map(s -> {
+                                if (s == null) {
+                                    logger.debug("OpenID Connect Claim [{}] is null", claimName);
+                                    return null;
+                                }
                                 final Matcher matcher = regex.matcher(s);
                                 if (matcher.find() == false) {
                                     logger.debug("OpenID Connect Claim [{}] is [{}], which does not match [{}]",
@@ -440,7 +446,7 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
                                     return null;
                                 }
                                 return value;
-                            }).filter(Objects::nonNull).collect(Collectors.toList());
+                            }).filter(Objects::nonNull).collect(Collectors.toUnmodifiableList());
                         });
                 } else {
                     return new ClaimParser(
@@ -448,15 +454,17 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
                         claims -> {
                             Object claimValueObject = claims.getClaim(claimName);
                             if (claimValueObject == null) {
-                                return Collections.emptyList();
+                                return List.of();
                             } else if (claimValueObject instanceof String) {
-                                return Collections.singletonList((String) claimValueObject);
+                                return List.of((String) claimValueObject);
                             } else if (claimValueObject instanceof List == false) {
                                 throw new SettingsException("Setting [" + RealmSettings.getFullSettingKey(realmConfig, setting.getClaim())
                                     + " expects a claim with String or a String Array value but found a "
                                     + claimValueObject.getClass().getName());
                             }
-                            return (List<String>) claimValueObject;
+                            return ((List<String>) claimValueObject).stream()
+                                        .filter(Objects::nonNull)
+                                        .collect(Collectors.toUnmodifiableList());
                         });
                 }
             } else if (required) {
@@ -467,8 +475,7 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
                     + "] cannot be set unless [" + RealmSettings.getFullSettingKey(realmConfig, setting.getClaim())
                     + "] is also set");
             } else {
-                return new ClaimParser("No OpenID Connect Claim for [" + setting.name(realmConfig) + "]",
-                    attributes -> Collections.emptyList());
+                return new ClaimParser("No OpenID Connect Claim for [" + setting.name(realmConfig) + "]", attributes -> List.of());
             }
         }
     }

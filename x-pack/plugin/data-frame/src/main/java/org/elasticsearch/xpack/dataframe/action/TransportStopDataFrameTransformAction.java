@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.dataframe.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -12,46 +14,85 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.util.PageParams;
+import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
 import org.elasticsearch.xpack.core.dataframe.action.StopDataFrameTransformAction;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformTaskState;
+import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformTask;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.core.dataframe.DataFrameMessages.DATA_FRAME_CANNOT_STOP_FAILED_TRANSFORM;
+
 public class TransportStopDataFrameTransformAction extends
         TransportTasksAction<DataFrameTransformTask, StopDataFrameTransformAction.Request,
         StopDataFrameTransformAction.Response, StopDataFrameTransformAction.Response> {
 
+    private static final Logger logger = LogManager.getLogger(TransportStopDataFrameTransformAction.class);
+
     private final ThreadPool threadPool;
     private final DataFrameTransformsConfigManager dataFrameTransformsConfigManager;
     private final PersistentTasksService persistentTasksService;
+    private final Client client;
 
     @Inject
     public TransportStopDataFrameTransformAction(TransportService transportService, ActionFilters actionFilters,
                                                  ClusterService clusterService, ThreadPool threadPool,
                                                  PersistentTasksService persistentTasksService,
-                                                 DataFrameTransformsConfigManager dataFrameTransformsConfigManager) {
+                                                 DataFrameTransformsConfigManager dataFrameTransformsConfigManager,
+                                                 Client client) {
         super(StopDataFrameTransformAction.NAME, clusterService, transportService, actionFilters, StopDataFrameTransformAction.Request::new,
                 StopDataFrameTransformAction.Response::new, StopDataFrameTransformAction.Response::new, ThreadPool.Names.SAME);
         this.threadPool = threadPool;
         this.dataFrameTransformsConfigManager = dataFrameTransformsConfigManager;
         this.persistentTasksService = persistentTasksService;
+        this.client = client;
+    }
+
+    static void validateTaskState(ClusterState state, List<String> transformIds, boolean isForce) {
+        PersistentTasksCustomMetaData tasks = state.metaData().custom(PersistentTasksCustomMetaData.TYPE);
+        if (isForce == false && tasks != null) {
+            List<String> failedTasks = new ArrayList<>();
+            List<String> failedReasons = new ArrayList<>();
+            for (String transformId : transformIds) {
+                PersistentTasksCustomMetaData.PersistentTask<?> dfTask = tasks.getTask(transformId);
+                if (dfTask != null
+                    && dfTask.getState() instanceof DataFrameTransformState
+                    && ((DataFrameTransformState) dfTask.getState()).getTaskState() == DataFrameTransformTaskState.FAILED) {
+                    failedTasks.add(transformId);
+                    failedReasons.add(((DataFrameTransformState) dfTask.getState()).getReason());
+                }
+            }
+            if (failedTasks.isEmpty() == false) {
+                String msg = failedTasks.size() == 1 ?
+                    DataFrameMessages.getMessage(DATA_FRAME_CANNOT_STOP_FAILED_TRANSFORM,
+                        failedTasks.get(0),
+                        failedReasons.get(0)) :
+                    "Unable to stop data frame transforms. The following transforms are in a failed state " +
+                        failedTasks + " with reasons " + failedReasons + ". Use force stop to stop the data frame transforms.";
+                throw new ElasticsearchStatusException(msg, RestStatus.CONFLICT);
+            }
+        }
     }
 
     @Override
@@ -75,13 +116,16 @@ public class TransportStopDataFrameTransformAction extends
                 finalListener = listener;
             }
 
-            dataFrameTransformsConfigManager.expandTransformIds(request.getId(), new PageParams(0, 10_000), ActionListener.wrap(
-                    expandedIds -> {
-                        request.setExpandedIds(new HashSet<>(expandedIds));
-                        request.setNodes(DataFrameNodes.dataFrameTaskNodes(expandedIds, clusterService.state()));
-                        super.doExecute(task, request, finalListener);
-                    },
-                    listener::onFailure
+            dataFrameTransformsConfigManager.expandTransformIds(request.getId(),
+                new PageParams(0, 10_000),
+                request.isAllowNoMatch(),
+                ActionListener.wrap(hitsAndIds -> {
+                    validateTaskState(state, hitsAndIds.v2(), request.isForce());
+                    request.setExpandedIds(new HashSet<>(hitsAndIds.v2()));
+                    request.setNodes(DataFrameNodes.dataFrameTaskNodes(hitsAndIds.v2(), state));
+                    super.doExecute(task, request, finalListener);
+                },
+                listener::onFailure
             ));
         }
     }
@@ -97,11 +141,14 @@ public class TransportStopDataFrameTransformAction extends
         }
 
         if (ids.contains(transformTask.getTransformId())) {
+            // This should not occur as we check that none of the tasks are in a failed state earlier
+            // Keep this check in here for insurance.
             if (transformTask.getState().getTaskState() == DataFrameTransformTaskState.FAILED && request.isForce() == false) {
                 listener.onFailure(
-                    new ElasticsearchStatusException("Unable to stop data frame transform [" + request.getId()
-                        + "] as it is in a failed state with reason: [" + transformTask.getState().getReason() +
-                        "]. Use force stop to stop the data frame transform.",
+                    new ElasticsearchStatusException(
+                        DataFrameMessages.getMessage(DATA_FRAME_CANNOT_STOP_FAILED_TRANSFORM,
+                            request.getId(),
+                            transformTask.getState().getReason()),
                         RestStatus.CONFLICT));
                 return;
             }
@@ -132,12 +179,26 @@ public class TransportStopDataFrameTransformAction extends
     waitForStopListener(StopDataFrameTransformAction.Request request,
                         ActionListener<StopDataFrameTransformAction.Response> listener) {
 
+        ActionListener<StopDataFrameTransformAction.Response> onStopListener = ActionListener.wrap(
+            waitResponse ->
+                client.admin()
+                    .indices()
+                    .prepareRefresh(DataFrameInternalIndex.INDEX_NAME)
+                    .execute(ActionListener.wrap(
+                        r -> listener.onResponse(waitResponse),
+                        e -> {
+                            logger.info("Failed to refresh internal index after delete", e);
+                            listener.onResponse(waitResponse);
+                        })
+                    ),
+            listener::onFailure
+        );
         return ActionListener.wrap(
                 response -> {
                     // Wait until the persistent task is stopped
                     // Switch over to Generic threadpool so we don't block the network thread
                     threadPool.generic().execute(() ->
-                        waitForDataFrameStopped(request.getExpandedIds(), request.getTimeout(), listener));
+                        waitForDataFrameStopped(request.getExpandedIds(), request.getTimeout(), onStopListener));
                 },
                 listener::onFailure
         );

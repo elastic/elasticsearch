@@ -19,15 +19,20 @@
 
 package org.elasticsearch.client.dataframe.transforms;
 
+import org.elasticsearch.client.dataframe.DataFrameNamedXContentProvider;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.dataframe.transforms.pivot.PivotConfigTests;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Collections;
+import java.util.List;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.client.dataframe.transforms.DestConfigTests.randomDestConfig;
@@ -36,8 +41,19 @@ import static org.elasticsearch.client.dataframe.transforms.SourceConfigTests.ra
 public class DataFrameTransformConfigTests extends AbstractXContentTestCase<DataFrameTransformConfig> {
 
     public static DataFrameTransformConfig randomDataFrameTransformConfig() {
-        return new DataFrameTransformConfig(randomAlphaOfLengthBetween(1, 10), randomSourceConfig(),
-                randomDestConfig(), PivotConfigTests.randomPivotConfig(), randomBoolean() ? null : randomAlphaOfLengthBetween(1, 100));
+        return new DataFrameTransformConfig(randomAlphaOfLengthBetween(1, 10),
+            randomSourceConfig(),
+            randomDestConfig(),
+            randomBoolean() ? null : TimeValue.timeValueMillis(randomIntBetween(1000, 1000000)),
+            randomBoolean() ? null : randomSyncConfig(), 
+            PivotConfigTests.randomPivotConfig(),
+            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 100),
+            randomBoolean() ? null : Instant.now(),
+            randomBoolean() ? null : Version.CURRENT.toString());
+    }
+
+    public static SyncConfig randomSyncConfig() {
+        return TimeSyncConfigTests.randomTimeSyncConfig();
     }
 
     @Override
@@ -64,6 +80,9 @@ public class DataFrameTransformConfigTests extends AbstractXContentTestCase<Data
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
-        return new NamedXContentRegistry(searchModule.getNamedXContents());
+        List<NamedXContentRegistry.Entry> namedXContents = searchModule.getNamedXContents();
+        namedXContents.addAll(new DataFrameNamedXContentProvider().getNamedXContentParsers());
+
+        return new NamedXContentRegistry(namedXContents);
     }
 }

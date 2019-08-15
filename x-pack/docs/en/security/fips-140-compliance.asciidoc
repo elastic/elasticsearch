@@ -119,9 +119,6 @@ features are not available while running in fips mode. The list is as follows:
   enabled JVM (pointing `JAVA_HOME` environment variable to a different java
   installation) in order to generate the keys and certificates that
   can be later used in the FIPS 140-2 enabled JVM.
-* The `elasticsearch-plugin` tool. Accordingly, `elasticsearch-plugin` can be
-  used with a different (non FIPS 140-2 enabled) Java installation if
-  available.
 * The SQL CLI client cannot run in a FIPS 140-2 enabled JVM while using
   TLS for transport security or PKI for client authentication.
 * The SAML Realm cannot decrypt and consume encrypted Assertions or encrypted

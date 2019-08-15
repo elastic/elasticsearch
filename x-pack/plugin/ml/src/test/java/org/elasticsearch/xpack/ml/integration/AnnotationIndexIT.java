@@ -10,6 +10,7 @@ import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
@@ -66,7 +67,7 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
     }
 
     private boolean annotationsIndexExists() {
-        return client().admin().indices().prepareExists(AnnotationIndex.INDEX_NAME).get().isExists();
+        return ESIntegTestCase.indexExists(AnnotationIndex.INDEX_NAME, client());
     }
 
     private int numberOfAnnotationsAliases() {

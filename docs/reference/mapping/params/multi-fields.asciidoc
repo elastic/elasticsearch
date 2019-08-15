@@ -60,8 +60,7 @@ GET my_index/_search
 
 NOTE: Multi-fields do not change the original `_source` field.
 
-TIP: The `fields` setting is allowed to have different settings for fields of
-the same name in the same index.  New multi-fields can be added to existing
+TIP: New multi-fields can be added to existing
 fields using the <<indices-put-mapping,PUT mapping API>>.
 
 ==== Multi-fields with multiple analyzers

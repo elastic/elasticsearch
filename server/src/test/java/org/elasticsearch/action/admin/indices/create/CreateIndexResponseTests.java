@@ -20,13 +20,14 @@
 package org.elasticsearch.action.admin.indices.create;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 
-public class CreateIndexResponseTests extends AbstractStreamableXContentTestCase<CreateIndexResponse> {
+public class CreateIndexResponseTests extends AbstractSerializingTestCase<CreateIndexResponse> {
 
     @Override
     protected CreateIndexResponse createTestInstance() {
@@ -37,8 +38,8 @@ public class CreateIndexResponseTests extends AbstractStreamableXContentTestCase
     }
 
     @Override
-    protected CreateIndexResponse createBlankInstance() {
-        return new CreateIndexResponse();
+    protected Writeable.Reader<CreateIndexResponse> instanceReader() {
+        return CreateIndexResponse::new;
     }
 
     @Override

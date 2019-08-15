@@ -99,7 +99,6 @@ public class DfsSearchResult extends SearchPhaseResult {
 
   @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeLong(requestId);
         out.writeVInt(terms.length);
         for (Term term : terms) {

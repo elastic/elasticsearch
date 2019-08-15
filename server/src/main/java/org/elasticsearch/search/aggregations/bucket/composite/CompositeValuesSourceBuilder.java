@@ -117,11 +117,9 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
     }
 
     @Override
-    public final int hashCode() {
-        return Objects.hash(field, missingBucket, script, valueType, order, format, innerHashCode());
+    public int hashCode() {
+        return Objects.hash(field, missingBucket, script, valueType, order, format);
     }
-
-    protected abstract int innerHashCode();
 
     @Override
     public boolean equals(Object o) {
@@ -135,11 +133,8 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
             Objects.equals(valueType, that.valueType()) &&
             Objects.equals(missingBucket, that.missingBucket()) &&
             Objects.equals(order, that.order()) &&
-            Objects.equals(format, that.format()) &&
-            innerEquals(that);
+            Objects.equals(format, that.format());
     }
-
-    protected abstract boolean innerEquals(AB builder);
 
     public String name() {
         return name;

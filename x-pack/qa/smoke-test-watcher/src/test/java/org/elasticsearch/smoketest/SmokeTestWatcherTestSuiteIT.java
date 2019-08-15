@@ -216,8 +216,8 @@ public class SmokeTestWatcherTestSuiteIT extends ESRestTestCase {
                 assertThat("watch_id for hit 0 in watcher history", foundWatchId, is(watchId));
                 objectPathReference.set(objectPath);
             } catch (ResponseException e) {
-                final String err = "Failed to perform search of watcher history - " + e;
-                logger.info(err);
+                final String err = "Failed to perform search of watcher history";
+                logger.info(err, e);
                 fail(err);
             }
         });

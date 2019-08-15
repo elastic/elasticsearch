@@ -108,6 +108,7 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
         ensureGreen();
         // ensure we have flushed segments and make them a big one via optimize
         client().admin().indices().prepareFlush().setForce(true).get();
+        client().admin().indices().prepareFlush().setForce(true).get(); // double flush to create safe commit in case of async durability
         client().admin().indices().prepareForceMerge().setMaxNumSegments(1).setFlush(true).get();
 
         final CountDownLatch latch = new CountDownLatch(1);
@@ -119,7 +120,7 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
                 (connection, requestId, action, request, options) -> {
                     if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
                         RecoveryFileChunkRequest req = (RecoveryFileChunkRequest) request;
-                        logger.debug("file chunk [{}] lastChunk: {}", req, req.lastChunk());
+                        logger.info("file chunk [{}] lastChunk: {}", req, req.lastChunk());
                         if ((req.name().endsWith("cfs") || req.name().endsWith("fdt")) && req.lastChunk() && truncate.get()) {
                             latch.countDown();
                             throw new RuntimeException("Caused some truncated files for fun and profit");

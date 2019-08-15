@@ -38,7 +38,6 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.Collections;
 import java.util.Map;
-import java.util.Set;
 
 public class InboundHandler {
 
@@ -150,16 +149,15 @@ public class InboundHandler {
     }
 
     private void handleRequest(TcpChannel channel, InboundMessage.Request message, int messageLengthBytes) {
-        final Set<String> features = message.getFeatures();
         final String action = message.getActionName();
         final long requestId = message.getRequestId();
         final StreamInput stream = message.getStreamInput();
         final Version version = message.getVersion();
-        messageListener.onRequestReceived(requestId, action);
         TransportChannel transportChannel = null;
         try {
+            messageListener.onRequestReceived(requestId, action);
             if (message.isHandshake()) {
-                handshaker.handleHandshake(version, features, channel, requestId, stream);
+                handshaker.handleHandshake(version, channel, requestId, stream);
             } else {
                 final RequestHandlerRegistry reg = getRequestHandler(action);
                 if (reg == null) {
@@ -171,7 +169,7 @@ public class InboundHandler {
                 } else {
                     breaker.addWithoutBreaking(messageLengthBytes);
                 }
-                transportChannel = new TcpTransportChannel(outboundHandler, channel, action, requestId, version, features,
+                transportChannel = new TcpTransportChannel(outboundHandler, channel, action, requestId, version,
                     circuitBreakerService, messageLengthBytes, message.isCompress());
                 final TransportRequest request = reg.newRequest(stream);
                 request.remoteAddress(new TransportAddress(channel.getRemoteAddress()));
@@ -187,7 +185,7 @@ public class InboundHandler {
         } catch (Exception e) {
             // the circuit breaker tripped
             if (transportChannel == null) {
-                transportChannel = new TcpTransportChannel(outboundHandler, channel, action, requestId, version, features,
+                transportChannel = new TcpTransportChannel(outboundHandler, channel, action, requestId, version,
                     circuitBreakerService, 0, message.isCompress());
             }
             try {

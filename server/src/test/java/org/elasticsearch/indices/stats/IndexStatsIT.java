@@ -1008,7 +1008,10 @@ public class IndexStatsIT extends ESIntegTestCase {
     }
 
     public void testFilterCacheStats() throws Exception {
-        Settings settings = Settings.builder().put(indexSettings()).put("number_of_replicas", 0).build();
+        Settings settings = Settings.builder().put(indexSettings())
+            .put("number_of_replicas", 0)
+            .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "200ms")
+            .build();
         assertAcked(prepareCreate("index").setSettings(settings).get());
         indexRandom(false, true,
                 client().prepareIndex("index", "type", "1").setSource("foo", "bar"),
@@ -1052,6 +1055,13 @@ public class IndexStatsIT extends ESIntegTestCase {
         // we need to flush and make that commit safe so that the SoftDeletesPolicy can drop everything.
         if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(settings)) {
             persistGlobalCheckpoint("index");
+            assertBusy(() -> {
+                for (final ShardStats shardStats : client().admin().indices().prepareStats("index").get().getIndex("index").getShards()) {
+                    final long maxSeqNo = shardStats.getSeqNoStats().getMaxSeqNo();
+                    assertTrue(shardStats.getRetentionLeaseStats().retentionLeases().leases().stream()
+                        .allMatch(retentionLease -> retentionLease.retainingSequenceNumber() == maxSeqNo + 1));
+                }
+            });
             flush("index");
         }
         ForceMergeResponse forceMergeResponse =
@@ -1204,7 +1214,7 @@ public class IndexStatsIT extends ESIntegTestCase {
             for (IndexService indexService : indexServices) {
                 for (IndexShard indexShard : indexService) {
                     indexShard.sync();
-                    assertThat(indexShard.getLastSyncedGlobalCheckpoint(), equalTo(indexShard.getGlobalCheckpoint()));
+                    assertThat(indexShard.getLastSyncedGlobalCheckpoint(), equalTo(indexShard.getLastKnownGlobalCheckpoint()));
                 }
             }
         }

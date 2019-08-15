@@ -1,5 +1,8 @@
 [[query-dsl-match-query]]
-=== Match Query
+=== Match query
+++++
+<titleabbrev>Match</titleabbrev>
+++++
 
 
 `match` queries accept text/numerics/dates, analyzes
@@ -154,15 +157,3 @@ The example above creates a boolean query:
 that matches documents with the term `ny` or the conjunction `new AND york`.
 By default the parameter `auto_generate_synonyms_phrase_query` is set to `true`.
 
-
-.Comparison to query_string / field
-**************************************************
-
-The match family of queries does not go through a "query parsing"
-process. It does not support field name prefixes, wildcard characters,
-or other "advanced" features. For this reason, chances of it failing are
-very small / non existent, and it provides an excellent behavior when it
-comes to just analyze and run that text as a query behavior (which is
-usually what a text search box does).
-
-**************************************************

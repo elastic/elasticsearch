@@ -26,6 +26,7 @@ import org.apache.http.message.BasicHeader;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.client.Request;
@@ -80,11 +81,13 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 import static java.util.Collections.sort;
 import static java.util.Collections.unmodifiableList;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -140,11 +143,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             assert clusterHosts == null;
             assert hasXPack == null;
             assert nodeVersions == null;
-            String cluster = System.getProperty("tests.rest.cluster");
-            if (cluster == null) {
-                throw new RuntimeException("Must specify [tests.rest.cluster] system property with a comma delimited list of [host:port] "
-                        + "to which to send REST requests");
-            }
+            String cluster = getTestRestCluster();
             String[] stringUrls = cluster.split(",");
             List<HttpHost> hosts = new ArrayList<>(stringUrls.length);
             for (String stringUrl : stringUrls) {
@@ -181,6 +180,15 @@ public abstract class ESRestTestCase extends ESTestCase {
         assert clusterHosts != null;
         assert hasXPack != null;
         assert nodeVersions != null;
+    }
+
+    protected String getTestRestCluster() {
+        String cluster = System.getProperty("tests.rest.cluster");
+        if (cluster == null) {
+            throw new RuntimeException("Must specify [tests.rest.cluster] system property with a comma delimited list of [host:port] "
+                + "to which to send REST requests");
+        }
+        return cluster;
     }
     
     /**
@@ -460,6 +468,12 @@ public abstract class ESRestTestCase extends ESTestCase {
         return false;
     }
 
+    /**
+     * Returns whether to wait to make absolutely certain that all snapshots
+     * have been deleted.
+     */
+    protected boolean waitForAllSnapshotsWiped() { return false; }
+
     private void wipeCluster() throws Exception {
 
         // Cleanup rollup before deleting indices.  A rollup job might have bulks in-flight,
@@ -470,7 +484,27 @@ public abstract class ESRestTestCase extends ESTestCase {
             waitForPendingRollupTasks();
         }
 
-        final Map<String, List<Map<?,?>>> inProgressSnapshots = wipeSnapshots();
+        // Clean up SLM policies before trying to wipe snapshots so that no new ones get started by SLM after wiping
+        deleteAllSLMPolicies();
+
+        SetOnce<Map<String, List<Map<?,?>>>> inProgressSnapshots = new SetOnce<>();
+        if (waitForAllSnapshotsWiped()) {
+            AtomicReference<Map<String, List<Map<?,?>>>> snapshots = new AtomicReference<>();
+            try {
+                // Repeatedly delete the snapshots until there aren't any
+                assertBusy(() -> {
+                    snapshots.set(wipeSnapshots());
+                    assertThat(snapshots.get(), anEmptyMap());
+                }, 2, TimeUnit.MINUTES);
+                // At this point there should be no snaphots
+                inProgressSnapshots.set(snapshots.get());
+            } catch (AssertionError e) {
+                // This will cause an error at the end of this method, but do the rest of the cleanup first
+                inProgressSnapshots.set(snapshots.get());
+            }
+        } else {
+            inProgressSnapshots.set(wipeSnapshots());
+        }
 
         if (preserveIndicesUponCompletion() == false) {
             // wipe indices
@@ -518,10 +552,10 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
 
         if (hasXPack && false == preserveILMPoliciesUponCompletion()) {
-            deleteAllPolicies();
+            deleteAllILMPolicies();
         }
 
-        assertTrue("Found in progress snapshots [" + inProgressSnapshots + "].", inProgressSnapshots.isEmpty());
+        assertThat("Found in progress snapshots [" + inProgressSnapshots.get() + "].", inProgressSnapshots.get(), anEmptyMap());
     }
 
     /**
@@ -530,7 +564,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * the snapshots intact in the repository.
      * @return Map of repository name to list of snapshots found in unfinished state
      */
-    private Map<String, List<Map<?, ?>>> wipeSnapshots() throws IOException {
+    protected Map<String, List<Map<?, ?>>> wipeSnapshots() throws IOException {
         final Map<String, List<Map<?, ?>>> inProgressSnapshots = new HashMap<>();
         for (Map.Entry<String, ?> repo : entityAsMap(adminClient.performRequest(new Request("GET", "/_snapshot/_all"))).entrySet()) {
             String repoName = repo.getKey();
@@ -540,7 +574,16 @@ public abstract class ESRestTestCase extends ESTestCase {
                 // All other repo types we really don't have a chance of being able to iterate properly, sadly.
                 Request listRequest = new Request("GET", "/_snapshot/" + repoName + "/_all");
                 listRequest.addParameter("ignore_unavailable", "true");
-                List<?> snapshots = (List<?>) entityAsMap(adminClient.performRequest(listRequest)).get("snapshots");
+
+                Map<?, ?> response = entityAsMap(adminClient.performRequest(listRequest));
+                Map<?, ?> oneRepoResponse;
+                if (response.containsKey("responses")) {
+                    oneRepoResponse = ((Map<?,?>)((List<?>) response.get("responses")).get(0));
+                } else {
+                    oneRepoResponse = response;
+                }
+
+                List<?> snapshots = (List<?>) oneRepoResponse.get("snapshots");
                 for (Object snapshot : snapshots) {
                     Map<?, ?> snapshotInfo = (Map<?, ?>) snapshot;
                     String name = (String) snapshotInfo.get("snapshot");
@@ -626,7 +669,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         waitForPendingTasks(adminClient(), taskName -> taskName.startsWith("xpack/rollup/job") == false);
     }
 
-    private static void deleteAllPolicies() throws IOException {
+    private static void deleteAllILMPolicies() throws IOException {
         Map<String, Object> policies;
 
         try {
@@ -646,6 +689,29 @@ public abstract class ESRestTestCase extends ESTestCase {
 
         for (String policyName : policies.keySet()) {
             adminClient().performRequest(new Request("DELETE", "/_ilm/policy/" + policyName));
+        }
+    }
+
+    private static void deleteAllSLMPolicies() throws IOException {
+        Map<String, Object> policies;
+
+        try {
+            Response response = adminClient().performRequest(new Request("GET", "/_slm/policy"));
+            policies = entityAsMap(response);
+        } catch (ResponseException e) {
+            if (RestStatus.METHOD_NOT_ALLOWED.getStatus() == e.getResponse().getStatusLine().getStatusCode()) {
+                // If bad request returned, SLM is not enabled.
+                return;
+            }
+            throw e;
+        }
+
+        if (policies == null || policies.isEmpty()) {
+            return;
+        }
+
+        for (String policyName : policies.keySet()) {
+            adminClient().performRequest(new Request("DELETE", "/_slm/policy/" + policyName));
         }
     }
 
@@ -935,6 +1001,9 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (name.startsWith(".watch") || name.startsWith(".triggered_watches")) {
             return true;
         }
+        if (name.startsWith(".data-frame-")) {
+            return true;
+        }
         if (name.startsWith(".ml-")) {
             return true;
         }
@@ -943,6 +1012,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         case ".watches":
         case "logstash-index-template":
         case "security_audit_log":
+        case ".slm-history":
             return true;
         default:
             return false;

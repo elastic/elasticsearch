@@ -19,8 +19,10 @@
 
 package org.elasticsearch.action.admin.cluster.tasks;
 
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.InternalTestCluster;
 
 import java.util.Arrays;
 
@@ -30,9 +32,9 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_WR
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY_ALLOW_DELETE;
 
-@ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class PendingTasksBlocksIT extends ESIntegTestCase {
-    public void testPendingTasksWithBlocks() {
+
+    public void testPendingTasksWithIndexBlocks() {
         createIndex("test");
         ensureGreen("test");
 
@@ -41,19 +43,56 @@ public class PendingTasksBlocksIT extends ESIntegTestCase {
             SETTING_READ_ONLY_ALLOW_DELETE)) {
             try {
                 enableIndexBlock("test", blockSetting);
-                PendingClusterTasksResponse response = client().admin().cluster().preparePendingClusterTasks().execute().actionGet();
+                PendingClusterTasksResponse response = client().admin().cluster().preparePendingClusterTasks().get();
                 assertNotNull(response.getPendingTasks());
             } finally {
                 disableIndexBlock("test", blockSetting);
             }
         }
+    }
+
+    public void testPendingTasksWithClusterReadOnlyBlock() {
+        if (randomBoolean()) {
+            createIndex("test");
+            ensureGreen("test");
+        }
 
         try {
             setClusterReadOnly(true);
-            PendingClusterTasksResponse response = client().admin().cluster().preparePendingClusterTasks().execute().actionGet();
+            PendingClusterTasksResponse response = client().admin().cluster().preparePendingClusterTasks().get();
             assertNotNull(response.getPendingTasks());
         } finally {
             setClusterReadOnly(false);
         }
     }
+
+    public void testPendingTasksWithClusterNotRecoveredBlock() throws Exception {
+        if (randomBoolean()) {
+            createIndex("test");
+            ensureGreen("test");
+        }
+
+        // restart the cluster but prevent it from performing state recovery
+        final int nodeCount = client().admin().cluster().prepareNodesInfo("data:true", "master:true").get().getNodes().size();
+        internalCluster().fullRestart(new InternalTestCluster.RestartCallback() {
+            @Override
+            public Settings onNodeStopped(String nodeName) {
+                return Settings.builder()
+                    .put(GatewayService.RECOVER_AFTER_NODES_SETTING.getKey(), nodeCount + 1)
+                    .build();
+            }
+
+            @Override
+            public boolean validateClusterForming() {
+                return false;
+            }
+        });
+
+        assertNotNull(client().admin().cluster().preparePendingClusterTasks().get().getPendingTasks());
+
+        // starting one more node allows the cluster to recover
+        internalCluster().startNode();
+        ensureGreen();
+    }
+
 }

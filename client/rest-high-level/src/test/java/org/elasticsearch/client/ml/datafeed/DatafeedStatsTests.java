@@ -50,7 +50,8 @@ public class DatafeedStatsTests extends AbstractXContentTestCase<DatafeedStats> 
                 attributes);
         }
         String assignmentReason = randomBoolean() ? randomAlphaOfLength(10) : null;
-        return new DatafeedStats(datafeedId, datafeedState, nodeAttributes, assignmentReason);
+        DatafeedTimingStats timingStats = DatafeedTimingStatsTests.createRandomInstance();
+        return new DatafeedStats(datafeedId, datafeedState, nodeAttributes, assignmentReason, timingStats);
     }
 
     @Override

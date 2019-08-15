@@ -1,0 +1,103 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ml-stop-datafeed]]
+=== Stop {dfeeds} API
+
+[subs="attributes"]
+++++
+<titleabbrev>Stop {dfeeds}</titleabbrev>
+++++
+
+Stops one or more {dfeeds}.
+
+[[ml-stop-datafeed-request]]
+==== {api-request-title}
+
+`POST _ml/datafeeds/<feed_id>/_stop` +
+
+`POST _ml/datafeeds/<feed_id>,<feed_id>/_stop` +
+
+`POST _ml/datafeeds/_all/_stop`
+
+[[ml-stop-datafeed-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `manage_ml` or
+`manage` cluster privileges to use this API. See
+{stack-ov}/security-privileges.html[Security privileges].
+
+[[ml-stop-datafeed-desc]]
+==== {api-description-title}
+
+A {dfeed} that is stopped ceases to retrieve data from {es}.
+A {dfeed} can be started and stopped multiple times throughout its lifecycle.
+
+You can stop multiple {dfeeds} in a single API request by using a
+comma-separated list of {dfeeds} or a wildcard expression. You can close all
+{dfeeds} by using `_all` or by specifying `*` as the `<feed_id>`.
+
+[[ml-stop-datafeed-path-parms]]
+==== {api-path-parms-title}
+
+`<feed_id>`::
+  (Required, string) Identifier for the {dfeed}. It can be a {dfeed} identifier
+  or a wildcard expression.
+
+[[ml-stop-datafeed-query-parms]]
+==== {api-query-parms-title}
+
+`allow_no_datafeeds`::
+  (Optional, boolean) Specifies what to do when the request:
++
+--
+* Contains wildcard expressions and there are no {datafeeds} that match.
+* Contains the `_all` string or no identifiers and there are no matches.
+* Contains wildcard expressions and there are only partial matches. 
+
+The default value is `true`, which returns an empty `datafeeds` array when
+there are no matches and the subset of results when there are partial matches.
+If this parameter is `false`, the request returns a `404` status code when there
+are no matches or only partial matches.
+--
+
+[[ml-stop-datafeed-request-body]]
+==== {api-request-body-title}
+
+`force`::
+  (Optional, boolean) If true, the {dfeed} is stopped forcefully.
+
+`timeout`::
+  (Optional, time) Controls the amount of time to wait until a {dfeed} stops.
+  The default value is 20 seconds.
+
+[[ml-stop-datafeed-response-codes]]
+==== {api-response-codes-title}
+
+`404` (Missing resources)::
+  If `allow_no_datafeeds` is `false`, this code indicates that there are no
+  resources that match the request or only partial matches for the request.
+
+[[ml-stop-datafeed-example]]
+==== {api-examples-title}
+
+The following example stops the `datafeed-total-requests` {dfeed}:
+
+[source,js]
+--------------------------------------------------
+POST _ml/datafeeds/datafeed-total-requests/_stop
+{
+  "timeout": "30s"
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[skip:setup:server_metrics_startdf]
+
+When the {dfeed} stops, you receive the following results:
+
+[source,js]
+----
+{
+  "stopped": true
+}
+----
+// TESTRESPONSE

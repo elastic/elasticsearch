@@ -10,6 +10,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.type.InvalidMappedField;
+import org.elasticsearch.xpack.sql.type.KeywordEsField;
 import org.elasticsearch.xpack.sql.type.TypesTests;
 
 import java.util.ArrayList;
@@ -164,8 +165,6 @@ public class IndexResolverTests extends ESTestCase {
                 ((InvalidMappedField) esField).errorMessage());
     }
 
-
-
     public void testSeparateSameMappingDifferentIndices() throws Exception {
         Map<String, EsField> oneMapping = TypesTests.loadMapping("mapping-basic.json", true);
         Map<String, EsField> sameMapping = TypesTests.loadMapping("mapping-basic.json", true);
@@ -190,6 +189,26 @@ public class IndexResolverTests extends ESTestCase {
         assertEquals(2, indices.size());
         assertEqualsMaps(basicMapping, indices.get(0).mapping());
         assertEqualsMaps(incompatible, indices.get(1).mapping());
+    }
+
+    // covers the scenario described in https://github.com/elastic/elasticsearch/issues/43876
+    public void testMultipleCompatibleIndicesWithDifferentFields() {
+        int indicesCount = randomIntBetween(2, 15);
+        EsIndex[] expectedIndices = new EsIndex[indicesCount];
+        
+        // each index will have one field with different name than all others
+        for (int i = 0; i < indicesCount; i++) {
+            Map<String, EsField> mapping = new HashMap<>(1);
+            String fieldName = "field" + (i + 1);
+            mapping.put(fieldName, new KeywordEsField(fieldName));
+            expectedIndices[i] = new EsIndex("index" + (i + 1), mapping);
+        }
+        
+        List<EsIndex> actualIndices = separate(expectedIndices);
+        assertEquals(indicesCount, actualIndices.size());
+        for (int i = 0; i < indicesCount; i++) {
+            assertEqualsMaps(expectedIndices[i].mapping(), actualIndices.get(i).mapping());
+        }
     }
 
     public static IndexResolution merge(EsIndex... indices) {

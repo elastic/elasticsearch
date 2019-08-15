@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.notification;
 
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureString;
@@ -12,10 +13,10 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.watcher.notification.NotificationService;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.util.Arrays;
 import java.util.Collections;
@@ -245,6 +246,11 @@ public class NotificationServiceTests extends ESTestCase {
             @Override
             public InputStream getFile(String setting) throws GeneralSecurityException {
                 return null;
+            }
+
+            @Override
+            public byte[] getSHA256Digest(String setting) throws GeneralSecurityException {
+                return MessageDigests.sha256().digest(new String(secureSettingsMap.get(setting)).getBytes(StandardCharsets.UTF_8));
             }
 
             @Override

@@ -388,7 +388,7 @@ public class IngestService implements ClusterStateApplier {
     static String getProcessorName(Processor processor){
         // conditionals are implemented as wrappers around the real processor, so get the real processor for the correct type for the name
         if(processor instanceof ConditionalProcessor){
-            processor = ((ConditionalProcessor) processor).getProcessor();
+            processor = ((ConditionalProcessor) processor).getInnerProcessor();
         }
         StringBuilder sb = new StringBuilder(5);
         sb.append(processor.getType());
@@ -559,6 +559,41 @@ public class IngestService implements ClusterStateApplier {
                 ExceptionsHelper.rethrowAndSuppress(exceptions);
             }
         }
+    }
+
+    /**
+     * Gets all the Processors of the given type from within a Pipeline.
+     * @param pipelineId the pipeline to inspect
+     * @param clazz the Processor class to look for
+     * @return True if the pipeline contains an instance of the Processor class passed in
+     */
+    public<P extends Processor> List<P> getProcessorsInPipeline(String pipelineId, Class<P> clazz) {
+        Pipeline pipeline = getPipeline(pipelineId);
+        if (pipeline == null) {
+            throw new IllegalArgumentException("pipeline with id [" + pipelineId + "] does not exist");
+        }
+
+        List<P> processors = new ArrayList<>();
+        for (Processor processor: pipeline.flattenAllProcessors()) {
+            if (clazz.isAssignableFrom(processor.getClass())) {
+                processors.add(clazz.cast(processor));
+            }
+
+            while (processor instanceof WrappingProcessor) {
+                WrappingProcessor wrappingProcessor = (WrappingProcessor) processor;
+                if (clazz.isAssignableFrom(wrappingProcessor.getInnerProcessor().getClass())) {
+                    processors.add(clazz.cast(wrappingProcessor.getInnerProcessor()));
+                }
+                processor = wrappingProcessor.getInnerProcessor();
+                // break in the case of self referencing processors in the event a processor author creates a
+                // wrapping processor that has its inner processor refer to itself.
+                if (wrappingProcessor == processor) {
+                    break;
+                }
+            }
+        }
+
+        return processors;
     }
 
     private static Pipeline substitutePipeline(String id, ElasticsearchParseException e) {

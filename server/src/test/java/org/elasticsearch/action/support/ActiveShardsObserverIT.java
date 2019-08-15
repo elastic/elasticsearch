@@ -118,7 +118,7 @@ public class ActiveShardsObserverIT extends ESIntegTestCase {
                        .get()
                        .isShardsAcknowledged());
         waitForIndexCreationToComplete(indexName);
-        if (client().admin().indices().prepareExists(indexName).get().isExists()) {
+        if (indexExists(indexName)) {
             client().admin().indices().prepareDelete(indexName).get();
         }
 

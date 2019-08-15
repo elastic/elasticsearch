@@ -90,20 +90,20 @@ policy definition.
 
 * Hot
   - <<ilm-set-priority-action,Set Priority>>
-  - <<ilm-rollover-action,Rollover>>
   - <<ilm-unfollow-action,Unfollow>>
+  - <<ilm-rollover-action,Rollover>>
 * Warm
   - <<ilm-set-priority-action,Set Priority>>
-  - <<ilm-allocate-action,Allocate>>
-  - <<ilm-readonly-action,Read-Only>>
-  - <<ilm-forcemerge-action,Force Merge>>
-  - <<ilm-shrink-action,Shrink>>
   - <<ilm-unfollow-action,Unfollow>>
+  - <<ilm-readonly-action,Read-Only>>
+  - <<ilm-allocate-action,Allocate>>
+  - <<ilm-shrink-action,Shrink>>
+  - <<ilm-forcemerge-action,Force Merge>>
 * Cold
   - <<ilm-set-priority-action,Set Priority>>
+  - <<ilm-unfollow-action,Unfollow>>
   - <<ilm-allocate-action,Allocate>>
   - <<ilm-freeze-action,Freeze>>
-  - <<ilm-unfollow-action,Unfollow>>
 * Delete
   - <<ilm-delete-action,Delete>>
 
@@ -120,9 +120,9 @@ configuring allocation rules is optional. When configuring allocation rules,
 setting number of replicas is optional. Although this action can be treated as
 two separate index settings updates, both can be configured at once.
 
-Read more about index replicas <<getting-started-shards-and-replicas,here>>.
-Read more about shard allocation filtering in
-the <<shard-allocation-filtering,Shard allocation filtering documentation>>.
+For more information about how {es} uses replicas for scaling, see
+<<scalability>>. See <<shard-allocation-filtering>> for more information about
+controlling where Elasticsearch allocates shards of a particular index.
 
 [[ilm-allocate-options]]
 .Allocate Options

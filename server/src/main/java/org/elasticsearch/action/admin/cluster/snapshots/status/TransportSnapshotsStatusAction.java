@@ -24,6 +24,7 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -32,16 +33,17 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.snapshots.Snapshot;
-import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -61,17 +63,16 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
 
     private final SnapshotsService snapshotsService;
 
-    private final TransportNodesSnapshotsStatus transportNodesSnapshotsStatus;
+    private final NodeClient client;
 
     @Inject
     public TransportSnapshotsStatusAction(TransportService transportService, ClusterService clusterService,
-                                          ThreadPool threadPool, SnapshotsService snapshotsService,
-                                          TransportNodesSnapshotsStatus transportNodesSnapshotsStatus,
+                                          ThreadPool threadPool, SnapshotsService snapshotsService, NodeClient client,
                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(SnapshotsStatusAction.NAME, transportService, clusterService, threadPool, actionFilters,
               SnapshotsStatusRequest::new, indexNameExpressionResolver);
         this.snapshotsService = snapshotsService;
-        this.transportNodesSnapshotsStatus = transportNodesSnapshotsStatus;
+        this.client = client;
     }
 
     @Override
@@ -85,12 +86,12 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
     }
 
     @Override
-    protected SnapshotsStatusResponse newResponse() {
-        return new SnapshotsStatusResponse();
+    protected SnapshotsStatusResponse read(StreamInput in) throws IOException {
+        return new SnapshotsStatusResponse(in);
     }
 
     @Override
-    protected void masterOperation(final SnapshotsStatusRequest request,
+    protected void masterOperation(Task task, final SnapshotsStatusRequest request,
                                    final ClusterState state,
                                    final ActionListener<SnapshotsStatusResponse> listener) throws Exception {
         List<SnapshotsInProgress.Entry> currentSnapshots =
@@ -119,7 +120,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
             TransportNodesSnapshotsStatus.Request nodesRequest =
                 new TransportNodesSnapshotsStatus.Request(nodesIds.toArray(new String[nodesIds.size()]))
                     .snapshots(snapshots).timeout(request.masterNodeTimeout());
-            transportNodesSnapshotsStatus.execute(nodesRequest,
+            client.executeLocally(TransportNodesSnapshotsStatus.TYPE, nodesRequest,
                 ActionListener.map(
                     listener, nodeSnapshotStatuses ->
                         buildResponse(request, snapshotsService.currentSnapshots(request.repository(), Arrays.asList(request.snapshots())),
@@ -186,7 +187,8 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                     shardStatusBuilder.add(shardStatus);
                 }
                 builder.add(new SnapshotStatus(entry.snapshot(), entry.state(),
-                    Collections.unmodifiableList(shardStatusBuilder), entry.includeGlobalState()));
+                    Collections.unmodifiableList(shardStatusBuilder), entry.includeGlobalState(), entry.startTime(),
+                    Math.max(threadPool.absoluteTimeInMillis() - entry.startTime(), 0L)));
             }
         }
         // Now add snapshots on disk that are not currently running
@@ -194,7 +196,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
         if (Strings.hasText(repositoryName) && request.snapshots() != null && request.snapshots().length > 0) {
             final Set<String> requestedSnapshotNames = Sets.newHashSet(request.snapshots());
             final RepositoryData repositoryData = snapshotsService.getRepositoryData(repositoryName);
-            final Map<String, SnapshotId> matchedSnapshotIds = repositoryData.getAllSnapshotIds().stream()
+            final Map<String, SnapshotId> matchedSnapshotIds = repositoryData.getSnapshotIds().stream()
                 .filter(s -> requestedSnapshotNames.contains(s.getName()))
                 .collect(Collectors.toMap(SnapshotId::getName, Function.identity()));
             for (final String snapshotName : request.snapshots()) {
@@ -213,8 +215,6 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                     } else {
                         throw new SnapshotMissingException(repositoryName, snapshotName);
                     }
-                } else if (repositoryData.getIncompatibleSnapshotIds().contains(snapshotId)) {
-                    throw new SnapshotException(repositoryName, snapshotName, "cannot get the status for an incompatible snapshot");
                 }
                 SnapshotInfo snapshotInfo = snapshotsService.snapshot(repositoryName, snapshotId);
                 List<SnapshotIndexShardStatus> shardStatusBuilder = new ArrayList<>();
@@ -239,8 +239,10 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                         default:
                             throw new IllegalArgumentException("Unknown snapshot state " + snapshotInfo.state());
                     }
+                    final long startTime = snapshotInfo.startTime();
                     builder.add(new SnapshotStatus(new Snapshot(repositoryName, snapshotId), state,
-                        Collections.unmodifiableList(shardStatusBuilder), snapshotInfo.includeGlobalState()));
+                        Collections.unmodifiableList(shardStatusBuilder), snapshotInfo.includeGlobalState(),
+                        startTime, snapshotInfo.endTime() - startTime));
                 }
             }
         }

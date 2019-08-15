@@ -32,6 +32,7 @@ import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
@@ -61,8 +62,8 @@ import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.Arrays;
 import java.util.Map;
@@ -81,7 +82,6 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         return false;
     }
 
-    @TestLogging("org.elasticsearch.index.store:DEBUG")
     public void testCreateShrinkIndexToN() {
 
         assumeFalse("https://github.com/elastic/elasticsearch/issues/34080", Constants.WINDOWS);
@@ -555,5 +555,44 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put(
             EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), (String)null
         )).get();
+    }
+
+    public void testShrinkThenSplitWithFailedNode() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        final String shrinkNode = internalCluster().startDataOnlyNode();
+
+        final int shardCount = between(2, 5);
+        prepareCreate("original").setSettings(Settings.builder().put(indexSettings())
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, shardCount)).get();
+        client().admin().indices().prepareFlush("original").get();
+        ensureGreen();
+        client().admin().indices().prepareUpdateSettings("original")
+            .setSettings(Settings.builder()
+                .put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(), shrinkNode)
+                .put(IndexMetaData.SETTING_BLOCKS_WRITE, true)).get();
+        ensureGreen();
+
+        assertAcked(client().admin().indices().prepareResizeIndex("original", "shrunk").setSettings(Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .putNull(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey())
+            .build()).setResizeType(ResizeType.SHRINK).get());
+        ensureGreen();
+
+        final int nodeCount = cluster().size();
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(shrinkNode));
+        ensureStableCluster(nodeCount - 1);
+
+        // demonstrate that the index.routing.allocation.initial_recovery setting from the shrink doesn't carry over into the split index,
+        // because this would cause the shrink to fail as the initial_recovery node is no longer present.
+
+        logger.info("--> executing split");
+        assertAcked(client().admin().indices().prepareResizeIndex("shrunk", "splitagain").setSettings(Settings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, shardCount)
+                .putNull(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey())
+                .build()).setResizeType(ResizeType.SPLIT));
+        ensureGreen("splitagain");
     }
 }

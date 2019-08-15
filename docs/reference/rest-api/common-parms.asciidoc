@@ -1,0 +1,140 @@
+
+tag::bytes[]
+`bytes`::
+(Optional, <<byte-units,byte size units>>) Unit used to display byte values.
+end::bytes[]
+
+tag::cat-h[]
+`h`::
+(Optional, string) Comma-separated list of column names to display.
+end::cat-h[]
+
+tag::flat-settings[]
+`flat_settings`::
+(Optional, boolean) If `true`, returns settings in flat format. Defaults to
+`false`.
+end::flat-settings[]
+
+tag::help[]
+`help`::
+(Optional, boolean) If `true`, the response returns help information. Defaults
+to `false`.
+end::help[]
+
+tag::http-format[]
+`format`::
+(Optional, string) Short version of the
+https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html[HTTP accept header].
+Valid values include JSON, YAML, etc.
+end::http-format[]
+
+tag::include-unloaded-segments[]
+`include_unloaded_segments`::
+(Optional, boolean) If `true`, the response includes information from segments
+that are **not** loaded into memory. Defaults to `false`.
+end::include-unloaded-segments[]
+
+tag::index[]
+`{index}`::
+(Optional, string) Comma-separated list or wildcard expression of index names
+used to limit the request.
+end::index[]
+
+tag::local[]
+`local`::
+(Optional, boolean) If `true`, the request retrieves information from the local
+node only. Defaults to `false`, which means information is retrieved from
+the master node.
+end::local[]
+
+tag::name[]
+`{name}`::
+(Optional, string) Comma-separated list of alias names to return.
+end::name[]
+
+tag::node-id[]
+`{node_id}`::
+(Optional, string) Comma-separated list of node IDs or names used to limit
+returned information.
+end::node-id[]
+
+tag::cat-s[]
+`s`::
+(Optional, string) Comma-separated list of column names or column aliases used
+to sort the response.
+end::cat-s[]
+
+tag::cat-v[]
+`v`::
+(Optional, boolean) If `true`, the response includes column headings. Defaults
+to `false`.
+end::cat-v[]
+
+tag::doc-pipeline[]
+`pipeline`::
+(Optional, string) ID of the pipeline to use to preprocess incoming documents.
+end::doc-pipeline[]
+
+tag::doc-refresh[]
+`refresh`::
+(Optional, enum) If `true`, {es} refreshes the affected shards to make this
+operation visible to search, if `wait_for` then wait for a refresh to make
+this operation visible to search, if `false` do nothing with refreshes.
+Valid values: `true`, `false`, `wait_for`. Default: `false`.
+end::doc-refresh[]
+
+tag::doc-seq-no[]
+`if_seq_no`::
+(Optional, integer) Only perform the operation if the document has this
+sequence number. See <<optimistic-concurrency-control-index>>.
+end::doc-seq-no[]
+
+tag::doc-primary-term[]
+`if_primary_term`::
+(Optional, integer) Only perform the operation if the document has
+this primary term. See <<optimistic-concurrency-control-index>>.
+end::doc-primary-term[]
+
+tag::doc-routing[]
+`routing`::
+(Optional, string) Target the specified primary shard.
+end::doc-routing[]
+
+tag::doc-version[]
+`version`::
+(Optional, integer) Explicit version number for concurrency control.
+The specified version must match the current version of the document for the
+request to succeed.
+end::doc-version[]
+
+tag::doc-version-type[]
+`version_type`::
+(Optional, enum) Specific version type: `internal`, `external`,
+`external_gte`, `force`.
+end::doc-version-type[]
+
+tag::doc-wait-for-active-shards[]
+`wait_for_active_shards`::
+(Optional, string) The number of shard copies that must be active before
+proceeding with the operation. Set to `all` or any positive integer up
+to the total number of shards in the index (`number_of_replicas+1`).
+Default: 1, the primary shard.
+end::doc-wait-for-active-shards[]
+
+tag::timeoutparms[]
+
+tag::timeout[]
+`timeout`::
+(Optional, <<time-units, time units>>) Specifies the period of time to wait for
+a response. If no response is received before the timeout expires, the request
+fails and returns an error. Defaults to `30s`.
+end::timeout[]
+
+tag::master-timeout[]
+`master_timeout`::
+(Optional, <<time-units, time units>>) Specifies the period of time to wait for
+a connection to the master node. If no response is received before the timeout
+expires, the request fails and returns an error. Defaults to `30s`.
+end::master-timeout[]
+
+end::timeoutparms[]

@@ -42,6 +42,7 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 
 public class ESTestCaseTests extends ESTestCase {
 
@@ -180,5 +181,22 @@ public class ESTestCaseTests extends ESTestCase {
          */
         Supplier<Object> usuallyNull = () -> usually() ? null : randomInt();
         assertNotNull(randomValueOtherThan(null, usuallyNull));
+    }
+
+    public void testWorkerSystemProperty() {
+        assumeTrue("requires running tests with Gradle", System.getProperty("tests.gradle") != null);
+
+        assertThat(ESTestCase.TEST_WORKER_VM_ID, not(equals(ESTestCase.DEFAULT_TEST_WORKER_ID)));
+    }
+
+    public void testBasePortGradle() {
+        assumeTrue("requires running tests with Gradle", System.getProperty("tests.gradle") != null);
+        // Gradle worker IDs are 1 based
+        assertNotEquals(10300, ESTestCase.getBasePort());
+    }
+
+    public void testBasePortIDE() {
+        assumeTrue("requires running tests without Gradle", System.getProperty("tests.gradle") == null);
+        assertEquals(10300, ESTestCase.getBasePort());
     }
 }

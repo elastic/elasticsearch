@@ -78,7 +78,7 @@ public class OpenIdConnectPrepareAuthenticationRequest extends ActionRequest {
     }
 
     public OpenIdConnectPrepareAuthenticationRequest(StreamInput in) throws IOException {
-        super.readFrom(in);
+        super(in);
         realmName = in.readOptionalString();
         issuer = in.readOptionalString();
         loginHint = in.readOptionalString();
@@ -106,11 +106,6 @@ public class OpenIdConnectPrepareAuthenticationRequest extends ActionRequest {
         out.writeOptionalString(loginHint);
         out.writeOptionalString(state);
         out.writeOptionalString(nonce);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     public String toString() {

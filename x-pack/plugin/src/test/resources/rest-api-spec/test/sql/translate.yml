@@ -20,10 +20,9 @@
         size: 1000
         _source:
           includes:
+            - int
             - str
           excludes: []
-        docvalue_fields:
-          - field: int
         sort:
           - int:
               order: asc

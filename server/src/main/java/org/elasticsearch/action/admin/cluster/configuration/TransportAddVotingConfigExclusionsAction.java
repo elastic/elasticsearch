@@ -40,6 +40,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportService;
@@ -68,17 +69,12 @@ public class TransportAddVotingConfigExclusionsAction extends TransportMasterNod
     }
 
     @Override
-    protected AddVotingConfigExclusionsResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     protected AddVotingConfigExclusionsResponse read(StreamInput in) throws IOException {
         return new AddVotingConfigExclusionsResponse(in);
     }
 
     @Override
-    protected void masterOperation(AddVotingConfigExclusionsRequest request, ClusterState state,
+    protected void masterOperation(Task task, AddVotingConfigExclusionsRequest request, ClusterState state,
                                    ActionListener<AddVotingConfigExclusionsResponse> listener) throws Exception {
 
         resolveVotingConfigExclusionsAndCheckMaximum(request, state); // throws IAE if no nodes matched or maximum exceeded

@@ -142,7 +142,7 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
             newPrimary.getHistoryUUID(), Stream.concat(secondBulk.stream(), existingOps.stream()).collect(Collectors.toList()),
             seqno, newPrimary, logger);
         final long newPrimaryTerm = newPrimary.getOperationPrimaryTerm();
-        final long globalCheckpoint = newPrimary.getGlobalCheckpoint();
+        final long globalCheckpoint = newPrimary.getLastKnownGlobalCheckpoint();
         final List<Translog.Operation> appliedOperations = Stream.concat(
             secondBulk.stream().map(op -> rewriteOperationWithPrimaryTerm(op, newPrimaryTerm)),
             existingOps.stream().filter(op -> op.seqNo() > globalCheckpoint).map(op -> rewriteOperationWithPrimaryTerm(op, oldPrimaryTerm))

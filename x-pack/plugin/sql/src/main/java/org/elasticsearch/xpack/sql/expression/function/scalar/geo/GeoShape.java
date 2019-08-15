@@ -17,19 +17,21 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.geo.geometry.Circle;
-import org.elasticsearch.geo.geometry.Geometry;
-import org.elasticsearch.geo.geometry.GeometryCollection;
-import org.elasticsearch.geo.geometry.GeometryVisitor;
-import org.elasticsearch.geo.geometry.Line;
-import org.elasticsearch.geo.geometry.LinearRing;
-import org.elasticsearch.geo.geometry.MultiLine;
-import org.elasticsearch.geo.geometry.MultiPoint;
-import org.elasticsearch.geo.geometry.MultiPolygon;
-import org.elasticsearch.geo.geometry.Point;
-import org.elasticsearch.geo.geometry.Polygon;
-import org.elasticsearch.geo.geometry.Rectangle;
-import org.elasticsearch.geo.utils.WellKnownText;
+import org.elasticsearch.geometry.Circle;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.GeometryCollection;
+import org.elasticsearch.geometry.GeometryVisitor;
+import org.elasticsearch.geometry.Line;
+import org.elasticsearch.geometry.LinearRing;
+import org.elasticsearch.geometry.MultiLine;
+import org.elasticsearch.geometry.MultiPoint;
+import org.elasticsearch.geometry.MultiPolygon;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.Polygon;
+import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.geometry.utils.StandardValidator;
+import org.elasticsearch.geometry.utils.GeometryValidator;
+import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
 import java.io.IOException;
@@ -49,12 +51,14 @@ public class GeoShape implements ToXContentFragment, NamedWriteable {
 
     private final Geometry shape;
 
+    private static final GeometryValidator validator = new StandardValidator(true);
+
     private static final GeometryParser GEOMETRY_PARSER = new GeometryParser(true, true, true);
 
-    private static final WellKnownText WKT_PARSER = new WellKnownText();
+    private static final WellKnownText WKT_PARSER = new WellKnownText(true, validator);
 
     public GeoShape(double lon, double lat) {
-        shape = new Point(lat, lon);
+        shape = new Point(lon, lat);
     }
 
     public GeoShape(Object value) throws IOException {
@@ -97,7 +101,7 @@ public class GeoShape implements ToXContentFragment, NamedWriteable {
         return shape.visit(new GeometryVisitor<Point, RuntimeException>() {
             @Override
             public Point visit(Circle circle) {
-                return new Point(circle.getLat(), circle.getLon(), circle.hasAlt() ? circle.getAlt() : Double.NaN);
+                return new Point(circle.getX(), circle.getY(), circle.hasZ() ? circle.getZ() : Double.NaN);
             }
 
             @Override
@@ -111,7 +115,7 @@ public class GeoShape implements ToXContentFragment, NamedWriteable {
             @Override
             public Point visit(Line line) {
                 if (line.length() > 0) {
-                    return new Point(line.getLat(0), line.getLon(0), line.hasAlt() ? line.getAlt(0) :  Double.NaN);
+                    return new Point(line.getX(0), line.getY(0), line.hasZ() ? line.getZ(0) :  Double.NaN);
                 }
                 return null;
             }
@@ -148,24 +152,24 @@ public class GeoShape implements ToXContentFragment, NamedWriteable {
 
             @Override
             public Point visit(Rectangle rectangle) {
-                return new Point(rectangle.getMinLat(), rectangle.getMinLon(), rectangle.getMinAlt());
+                return new Point(rectangle.getMinX(), rectangle.getMinY(), rectangle.getMinZ());
             }
         });
     }
 
     public Double getX() {
         Point firstPoint = firstPoint();
-        return firstPoint != null ? firstPoint.getLon() : null;
+        return firstPoint != null ? firstPoint.getX() : null;
     }
 
     public Double getY() {
         Point firstPoint = firstPoint();
-        return firstPoint != null ? firstPoint.getLat() : null;
+        return firstPoint != null ? firstPoint.getY() : null;
     }
 
     public Double getZ() {
         Point firstPoint = firstPoint();
-        return firstPoint != null && firstPoint.hasAlt() ? firstPoint.getAlt() : null;
+        return firstPoint != null && firstPoint.hasZ() ? firstPoint.getZ() : null;
     }
 
     public String getGeometryType() {
@@ -179,10 +183,10 @@ public class GeoShape implements ToXContentFragment, NamedWriteable {
         if (shape2.shape instanceof Point == false) {
             throw new SqlIllegalArgumentException("distance calculation is only supported for points; received [{}]", shape2);
         }
-        double srcLat = ((Point) shape1.shape).getLat();
-        double srcLon = ((Point) shape1.shape).getLon();
-        double dstLat = ((Point) shape2.shape).getLat();
-        double dstLon = ((Point) shape2.shape).getLon();
+        double srcLat = ((Point) shape1.shape).getY();
+        double srcLon = ((Point) shape1.shape).getX();
+        double dstLat = ((Point) shape2.shape).getY();
+        double dstLon = ((Point) shape2.shape).getX();
         return GeoUtils.arcDistance(srcLat, srcLon, dstLat, dstLon);
     }
 

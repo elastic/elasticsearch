@@ -15,6 +15,8 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.dataframe.DeleteDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.GetDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.GetDataFrameTransformResponse;
 import org.elasticsearch.client.dataframe.GetDataFrameTransformStatsRequest;
 import org.elasticsearch.client.dataframe.GetDataFrameTransformStatsResponse;
 import org.elasticsearch.client.dataframe.PutDataFrameTransformRequest;
@@ -22,7 +24,9 @@ import org.elasticsearch.client.dataframe.StartDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.StartDataFrameTransformResponse;
 import org.elasticsearch.client.dataframe.StopDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.StopDataFrameTransformResponse;
+import org.elasticsearch.client.dataframe.UpdateDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig;
+import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfigUpdate;
 import org.elasticsearch.client.dataframe.transforms.DestConfig;
 import org.elasticsearch.client.dataframe.transforms.QueryConfig;
 import org.elasticsearch.client.dataframe.transforms.SourceConfig;
@@ -57,6 +61,7 @@ import java.time.ZoneId;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -64,8 +69,6 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.core.Is.is;
 
 abstract class DataFrameIntegTestCase extends ESRestTestCase {
-
-    protected static final String REVIEWS_INDEX_NAME = "data_frame_reviews";
 
     private Map<String, DataFrameTransformConfig> transformConfigs = new HashMap<>();
 
@@ -120,6 +123,11 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
         return restClient.dataFrame().getDataFrameTransformStats(new GetDataFrameTransformStatsRequest(id), RequestOptions.DEFAULT);
     }
 
+    protected GetDataFrameTransformResponse getDataFrameTransform(String id) throws IOException {
+        RestHighLevelClient restClient = new TestRestHighLevelClient();
+        return restClient.dataFrame().getDataFrameTransform(new GetDataFrameTransformRequest(id), RequestOptions.DEFAULT);
+    }
+
     protected void waitUntilCheckpoint(String id, long checkpoint) throws Exception {
         waitUntilCheckpoint(id, checkpoint, TimeValue.timeValueSeconds(30));
     }
@@ -127,9 +135,10 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
     protected void waitUntilCheckpoint(String id, long checkpoint, TimeValue waitTime) throws Exception {
         assertBusy(() ->
             assertEquals(checkpoint, getDataFrameTransformStats(id)
-                .getTransformsStateAndStats()
+                .getTransformsStats()
                 .get(0)
-                .getTransformState()
+                .getCheckpointingInfo()
+                .getLast()
                 .getCheckpoint()),
             waitTime.getMillis(),
             TimeUnit.MILLISECONDS);
@@ -137,25 +146,21 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
 
     protected DateHistogramGroupSource createDateHistogramGroupSourceWithFixedInterval(String field,
                                                                                        DateHistogramInterval interval,
-                                                                                       ZoneId zone,
-                                                                                       String format) {
+                                                                                       ZoneId zone) {
         DateHistogramGroupSource.Builder builder = DateHistogramGroupSource.builder()
             .setField(field)
             .setInterval(new DateHistogramGroupSource.FixedInterval(interval))
-            .setTimeZone(zone)
-            .setFormat(format);
+            .setTimeZone(zone);
         return builder.build();
     }
 
     protected DateHistogramGroupSource createDateHistogramGroupSourceWithCalendarInterval(String field,
                                                                                           DateHistogramInterval interval,
-                                                                                          ZoneId zone,
-                                                                                          String format) {
+                                                                                          ZoneId zone) {
         DateHistogramGroupSource.Builder builder = DateHistogramGroupSource.builder()
             .setField(field)
             .setInterval(new DateHistogramGroupSource.CalendarInterval(interval))
-            .setTimeZone(zone)
-            .setFormat(format);
+            .setTimeZone(zone);
         return builder.build();
     }
 
@@ -198,23 +203,42 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
         return createTransformConfig(id, groups, aggregations, destinationIndex, QueryBuilders.matchAllQuery(), sourceIndices);
     }
 
+    protected DataFrameTransformConfig.Builder createTransformConfigBuilder(String id,
+                                                                            Map<String, SingleGroupSource> groups,
+                                                                            AggregatorFactories.Builder aggregations,
+                                                                            String destinationIndex,
+                                                                            QueryBuilder queryBuilder,
+                                                                            String... sourceIndices) throws Exception {
+        return DataFrameTransformConfig.builder()
+            .setId(id)
+            .setSource(SourceConfig.builder().setIndex(sourceIndices).setQueryConfig(createQueryConfig(queryBuilder)).build())
+            .setDest(DestConfig.builder().setIndex(destinationIndex).build())
+            .setFrequency(TimeValue.timeValueSeconds(10))
+            .setPivotConfig(createPivotConfig(groups, aggregations))
+            .setDescription("Test data frame transform config id: " + id);
+    }
+
     protected DataFrameTransformConfig createTransformConfig(String id,
                                                              Map<String, SingleGroupSource> groups,
                                                              AggregatorFactories.Builder aggregations,
                                                              String destinationIndex,
                                                              QueryBuilder queryBuilder,
                                                              String... sourceIndices) throws Exception {
-        return DataFrameTransformConfig.builder()
-            .setId(id)
-            .setSource(SourceConfig.builder().setIndex(sourceIndices).setQueryConfig(createQueryConfig(queryBuilder)).build())
-            .setDest(new DestConfig(destinationIndex))
-            .setPivotConfig(createPivotConfig(groups, aggregations))
-            .setDescription("Test data frame transform config id: " + id)
-            .build();
+        return createTransformConfigBuilder(id, groups, aggregations, destinationIndex, queryBuilder, sourceIndices).build();
     }
 
-    protected void createReviewsIndex() throws Exception {
-        final int numDocs = 1000;
+    protected void bulkIndexDocs(BulkRequest request) throws Exception {
+        RestHighLevelClient restClient = new TestRestHighLevelClient();
+        BulkResponse response = restClient.bulk(request, RequestOptions.DEFAULT);
+        assertThat(response.buildFailureMessage(), response.hasFailures(), is(false));
+    }
+
+    protected void updateConfig(String id, DataFrameTransformConfigUpdate update) throws Exception {
+        RestHighLevelClient restClient = new TestRestHighLevelClient();
+        restClient.dataFrame().updateDataFrameTransform(new UpdateDataFrameTransformRequest(update, id), RequestOptions.DEFAULT);
+    }
+
+    protected void createReviewsIndex(String indexName, int numDocs) throws Exception {
         RestHighLevelClient restClient = new TestRestHighLevelClient();
 
         // create mapping
@@ -241,12 +265,12 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
             }
             builder.endObject();
             CreateIndexResponse response =
-                restClient.indices().create(new CreateIndexRequest(REVIEWS_INDEX_NAME).mapping(builder), RequestOptions.DEFAULT);
+                restClient.indices().create(new CreateIndexRequest(indexName).mapping(builder), RequestOptions.DEFAULT);
             assertThat(response.isAcknowledged(), is(true));
         }
 
         // create index
-        BulkRequest bulk = new BulkRequest(REVIEWS_INDEX_NAME);
+        BulkRequest bulk = new BulkRequest(indexName);
         int day = 10;
         for (int i = 0; i < numDocs; i++) {
             long user = i % 28;
@@ -256,7 +280,7 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
             int min = 10 + (i % 49);
             int sec = 10 + (i % 49);
 
-            String date_string = "2017-01-" + day + "T" + hour + ":" + min + ":" + sec + "Z";
+            String date_string = "2017-01-" + (day < 10 ? "0" + day : day) + "T" + hour + ":" + min + ":" + sec + "Z";
 
             StringBuilder sourceBuilder = new StringBuilder();
             sourceBuilder.append("{\"user_id\":\"")
@@ -277,13 +301,13 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
             if (i % 50 == 0) {
                 BulkResponse response = restClient.bulk(bulk, RequestOptions.DEFAULT);
                 assertThat(response.buildFailureMessage(), response.hasFailures(), is(false));
-                bulk = new BulkRequest(REVIEWS_INDEX_NAME);
-                day += 1;
+                bulk = new BulkRequest(indexName);
+                day = (day + 1) % 28;
             }
         }
         BulkResponse response = restClient.bulk(bulk, RequestOptions.DEFAULT);
         assertThat(response.buildFailureMessage(), response.hasFailures(), is(false));
-        restClient.indices().refresh(new RefreshRequest(REVIEWS_INDEX_NAME), RequestOptions.DEFAULT);
+        restClient.indices().refresh(new RefreshRequest(indexName), RequestOptions.DEFAULT);
     }
 
     protected Map<String, Object> toLazy(ToXContent parsedObject) throws Exception {
@@ -324,9 +348,11 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
             .build();
     }
 
-    private class TestRestHighLevelClient extends RestHighLevelClient {
+    protected static class TestRestHighLevelClient extends RestHighLevelClient {
+        private static final List<NamedXContentRegistry.Entry> X_CONTENT_ENTRIES =
+            new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents();
         TestRestHighLevelClient() {
-            super(client(), restClient -> {}, Collections.emptyList());
+            super(client(), restClient -> {}, X_CONTENT_ENTRIES);
         }
     }
 }

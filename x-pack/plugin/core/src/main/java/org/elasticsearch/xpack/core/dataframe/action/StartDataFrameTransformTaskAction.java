@@ -6,13 +6,12 @@
 
 package org.elasticsearch.xpack.core.dataframe.action;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.Task;
@@ -23,23 +22,13 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Objects;
 
-public class StartDataFrameTransformTaskAction extends Action<StartDataFrameTransformTaskAction.Response> {
+public class StartDataFrameTransformTaskAction extends ActionType<StartDataFrameTransformTaskAction.Response> {
 
     public static final StartDataFrameTransformTaskAction INSTANCE = new StartDataFrameTransformTaskAction();
     public static final String NAME = "cluster:admin/data_frame/start_task";
 
     private StartDataFrameTransformTaskAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, StartDataFrameTransformTaskAction.Response::new);
     }
 
     public static class Request extends BaseTasksRequest<Request> {

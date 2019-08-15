@@ -17,8 +17,6 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
-import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequestBuilder;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequestBuilder;
@@ -122,31 +120,15 @@ public class MockClientBuilder {
         return this;
     }
 
-    @SuppressWarnings({ "rawtypes", "unchecked" })
-    public MockClientBuilder addIndicesExistsResponse(String index, boolean exists) throws InterruptedException, ExecutionException {
-        ActionFuture actionFuture = mock(ActionFuture.class);
-        ArgumentCaptor<IndicesExistsRequest> requestCaptor = ArgumentCaptor.forClass(IndicesExistsRequest.class);
-
-        when(indicesAdminClient.exists(requestCaptor.capture())).thenReturn(actionFuture);
-        doAnswer(invocation -> {
-            IndicesExistsRequest request = (IndicesExistsRequest) invocation.getArguments()[0];
-            return request.indices()[0].equals(index) ? actionFuture : null;
-        }).when(indicesAdminClient).exists(any(IndicesExistsRequest.class));
-        when(actionFuture.get()).thenReturn(new IndicesExistsResponse(exists));
-        when(actionFuture.actionGet()).thenReturn(new IndicesExistsResponse(exists));
-        return this;
-    }
-
     @SuppressWarnings({ "unchecked" })
     public MockClientBuilder addIndicesDeleteResponse(String index, boolean exists, boolean exception,
             ActionListener<AcknowledgedResponse> actionListener) throws InterruptedException, ExecutionException, IOException {
-        AcknowledgedResponse response = DeleteIndexAction.INSTANCE.newResponse();
         StreamInput si = mock(StreamInput.class);
         // this looks complicated but Mockito can't mock the final method
         // DeleteIndexResponse.isAcknowledged() and the only way to create
         // one with a true response is reading from a stream.
         when(si.readByte()).thenReturn((byte) 0x01);
-        response.readFrom(si);
+        AcknowledgedResponse response = DeleteIndexAction.INSTANCE.getResponseReader().read(si);
 
         doAnswer(invocation -> {
             DeleteIndexRequest deleteIndexRequest = (DeleteIndexRequest) invocation.getArguments()[0];
@@ -169,6 +151,7 @@ public class MockClientBuilder {
         return this;
     }
 
+    @SuppressWarnings("unchecked")
     public MockClientBuilder get(GetResponse response) {
         doAnswer(new Answer<Void>() {
             @Override
@@ -400,6 +383,7 @@ public class MockClientBuilder {
         return this;
     }
 
+    @SuppressWarnings("unchecked")
     public MockClientBuilder preparePutMapping(AcknowledgedResponse response, String type) {
         PutMappingRequestBuilder requestBuilder = mock(PutMappingRequestBuilder.class);
         when(requestBuilder.setType(eq(type))).thenReturn(requestBuilder);
@@ -418,6 +402,7 @@ public class MockClientBuilder {
         return this;
     }
 
+    @SuppressWarnings("unchecked")
     public MockClientBuilder prepareGetMapping(GetMappingsResponse response) {
         GetMappingsRequestBuilder builder = mock(GetMappingsRequestBuilder.class);
 
@@ -435,6 +420,7 @@ public class MockClientBuilder {
         return this;
     }
 
+    @SuppressWarnings("unchecked")
     public MockClientBuilder putTemplate(ArgumentCaptor<PutIndexTemplateRequest> requestCaptor) {
         doAnswer(new Answer<Void>() {
             @Override

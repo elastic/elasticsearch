@@ -34,7 +34,6 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -51,7 +50,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-@TestLogging(value = "org.elasticsearch.indices.IndicesRequestCache:TRACE,org.elasticsearch.index.engine.Engine:DEBUG")
 public class IndicesRequestCacheIT extends ESIntegTestCase {
 
     // One of the primary purposes of the query cache is to cache aggs results

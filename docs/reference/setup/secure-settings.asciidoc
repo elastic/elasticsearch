@@ -7,8 +7,12 @@ keystore and the `elasticsearch-keystore` tool to manage the settings in the key
 
 NOTE: All commands here should be run as the user which will run Elasticsearch.
 
-NOTE: Only some settings are designed to be read from the keystore. See
-documentation for each setting to see if it is supported as part of the keystore.
+IMPORTANT: Only some settings are designed to be read from the keystore. However,
+the keystore has no validation to block unsupported settings.
+Adding unsupported settings to the keystore will cause {es}
+Additional unsupported settings being added to the keystore will cause Elasticsearch
+to fail to start. See documentation for each setting to see if it is supported
+as part of the keystore.
 
 NOTE: All the modifications to the keystore take affect only after restarting
 Elasticsearch.

@@ -9,7 +9,6 @@ import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.junit.After;
@@ -19,7 +18,6 @@ import java.io.IOException;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.is;
 
-@TestLogging("org.elasticsearch.client:TRACE,tracer:TRACE")
 @AwaitsFix(bugUrl = "flaky tests")
 public class MonitoringWithWatcherRestIT extends ESRestTestCase {
 

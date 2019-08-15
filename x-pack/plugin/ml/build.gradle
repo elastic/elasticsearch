@@ -31,6 +31,7 @@ configurations {
                 substitute module("org.elasticsearch.ml:ml-cpp") with project(":ml-cpp")
             }
         }
+        resolutionStrategy.cacheChangingModulesFor 2, 'hours'
     }
 }
 
@@ -44,9 +45,6 @@ bundlePlugin {
     // they get combined into the top level NOTICES file we ship
     exclude 'platform/licenses/**'
 }
-
-compileJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
-compileTestJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
 
 dependencies {
     compileOnly project(':modules:lang-painless:spi')
@@ -62,7 +60,9 @@ dependencies {
     compile project(':libs:elasticsearch-grok')
     compile "com.ibm.icu:icu4j:${versions.icu4j}"
     compile "net.sf.supercsv:super-csv:${versions.supercsv}"
-    nativeBundle "org.elasticsearch.ml:ml-cpp:${project.version}@zip"
+    nativeBundle("org.elasticsearch.ml:ml-cpp:${project.version}@zip") {
+      changing = true
+    }
     testCompile 'org.ini4j:ini4j:0.5.2'
 }
 

@@ -65,16 +65,16 @@ public class DataFrameTransformCheckpoint implements Writeable, ToXContentObject
         ConstructingObjectParser<DataFrameTransformCheckpoint, Void> parser = new ConstructingObjectParser<>(NAME,
                 lenient, args -> {
                     String id = (String) args[0];
-                    Long timestamp = (Long) args[1];
-                    Long checkpoint = (Long) args[2];
+                    long timestamp = (Long) args[1];
+                    long checkpoint = (Long) args[2];
 
                     @SuppressWarnings("unchecked")
                     Map<String, long[]> checkpoints = (Map<String, long[]>) args[3];
 
-                    Long timestamp_checkpoint = (Long) args[4];
+                    Long timeUpperBound = (Long) args[4];
 
                     // ignored, only for internal storage: String docType = (String) args[5];
-                    return new DataFrameTransformCheckpoint(id, timestamp, checkpoint, checkpoints, timestamp_checkpoint);
+                    return new DataFrameTransformCheckpoint(id, timestamp, checkpoint, checkpoints, timeUpperBound);
                 });
 
         parser.declareString(constructorArg(), DataFrameField.ID);
@@ -108,13 +108,13 @@ public class DataFrameTransformCheckpoint implements Writeable, ToXContentObject
         return parser;
     }
 
-    public DataFrameTransformCheckpoint(String transformId, Long timestamp, Long checkpoint, Map<String, long[]> checkpoints,
+    public DataFrameTransformCheckpoint(String transformId, long timestamp, long checkpoint, Map<String, long[]> checkpoints,
             Long timeUpperBound) {
-        this.transformId = transformId;
-        this.timestampMillis = timestamp.longValue();
+        this.transformId = Objects.requireNonNull(transformId);
+        this.timestampMillis = timestamp;
         this.checkpoint = checkpoint;
         this.indicesCheckpoints = Collections.unmodifiableMap(checkpoints);
-        this.timeUpperBoundMillis = timeUpperBound == null ? 0 : timeUpperBound.longValue();
+        this.timeUpperBoundMillis = timeUpperBound == null ? 0 : timeUpperBound;
     }
 
     public DataFrameTransformCheckpoint(StreamInput in) throws IOException {
@@ -279,18 +279,16 @@ public class DataFrameTransformCheckpoint implements Writeable, ToXContentObject
             throw new IllegalArgumentException("old checkpoint is newer than new checkpoint");
         }
 
-        // all old indices must be contained in the new ones but not vice versa
-        if (newCheckpoint.indicesCheckpoints.keySet().containsAll(oldCheckpoint.indicesCheckpoints.keySet()) == false) {
-            return -1L;
-        }
-
         // get the sum of of shard checkpoints
         // note: we require shard checkpoints to strictly increase and never decrease
         long oldCheckPointSum = 0;
         long newCheckPointSum = 0;
 
-        for (long[] v : oldCheckpoint.indicesCheckpoints.values()) {
-            oldCheckPointSum += Arrays.stream(v).sum();
+        for (Entry<String, long[]> entry : oldCheckpoint.indicesCheckpoints.entrySet()) {
+            // ignore entries that aren't part of newCheckpoint, e.g. deleted indices
+            if (newCheckpoint.indicesCheckpoints.containsKey(entry.getKey())) {
+                oldCheckPointSum += Arrays.stream(entry.getValue()).sum();
+            }
         }
 
         for (long[] v : newCheckpoint.indicesCheckpoints.values()) {

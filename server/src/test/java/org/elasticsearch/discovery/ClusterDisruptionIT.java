@@ -52,7 +52,7 @@ import org.elasticsearch.test.disruption.NetworkDisruption.NetworkDisconnect;
 import org.elasticsearch.test.disruption.NetworkDisruption.NetworkLinkDisruptionType;
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
-import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -84,7 +84,6 @@ import static org.hamcrest.Matchers.not;
 /**
  * Tests various cluster operations (e.g., indexing) during disruptions.
  */
-@TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE")
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
 
@@ -106,10 +105,11 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
      * <p>
      * This test is a superset of tests run in the Jepsen test suite, with the exception of versioned updates
      */
-    @TestLogging("_root:DEBUG,org.elasticsearch.action.bulk:TRACE,org.elasticsearch.action.get:TRACE," +
+    @TestIssueLogging(value = "_root:DEBUG,org.elasticsearch.action.bulk:TRACE,org.elasticsearch.action.get:TRACE," +
         "org.elasticsearch.discovery:TRACE,org.elasticsearch.action.support.replication:TRACE," +
         "org.elasticsearch.cluster.service:TRACE,org.elasticsearch.indices.recovery:TRACE," +
-        "org.elasticsearch.indices.cluster:TRACE,org.elasticsearch.index.shard:TRACE")
+        "org.elasticsearch.indices.cluster:TRACE,org.elasticsearch.index.shard:TRACE",
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/41068")
     public void testAckedIndexing() throws Exception {
 
         final int seconds = !(TEST_NIGHTLY && rarely()) ? 1 : 5;
@@ -459,7 +459,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         });
         internalCluster().restartNode(masterNode1, InternalTestCluster.EMPTY_CALLBACK);
         ensureYellow();
-        assertFalse(client().admin().indices().prepareExists(idxName).get().isExists());
+        assertFalse(indexExists(idxName));
     }
 
     public void testRestartNodeWhileIndexing() throws Exception {
@@ -507,4 +507,5 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                 ackedDocs, everyItem(isIn(docs)));
         }
     }
+
 }

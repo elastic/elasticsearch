@@ -19,6 +19,7 @@
 
 package org.elasticsearch.repositories.gcs;
 
+import com.google.api.gax.paging.Page;
 import com.google.cloud.BatchResult;
 import com.google.cloud.ReadChannel;
 import com.google.cloud.WriteChannel;
@@ -163,18 +164,6 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     }
 
     /**
-     * Returns true if the blob exists in the specific bucket
-     *
-     * @param blobName name of the blob
-     * @return true iff the blob exists
-     */
-    boolean blobExists(String blobName) throws IOException {
-        final BlobId blobId = BlobId.of(bucketName, blobName);
-        final Blob blob = SocketAccess.doPrivilegedIOException(() -> client().get(blobId));
-        return blob != null;
-    }
-
-    /**
      * Returns an {@link java.io.InputStream} for the given blob name
      *
      * @param blobName name of the blob
@@ -304,6 +293,23 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         if (deleted == false) {
             throw new NoSuchFileException("Blob [" + blobName + "] does not exist");
         }
+    }
+
+    /**
+     * Deletes the given path and all its children.
+     *
+     * @param pathStr Name of path to delete
+     */
+    void deleteDirectory(String pathStr) throws IOException {
+        SocketAccess.doPrivilegedVoidIOException(() -> {
+            Page<Blob> page = client().get(bucketName).list(BlobListOption.prefix(pathStr));
+            do {
+                final Collection<String> blobsToDelete = new ArrayList<>();
+                page.getValues().forEach(b -> blobsToDelete.add(b.getName()));
+                deleteBlobsIgnoringIfNotExists(blobsToDelete);
+                page = page.getNextPage();
+            } while (page != null);
+        });
     }
 
     /**

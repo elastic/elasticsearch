@@ -281,13 +281,6 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
                 e.getMessage());
     }
 
-    @Override
-    protected boolean isCacheable(TermsQueryBuilder queryBuilder) {
-        // even though we use a terms lookup here we do this during rewrite and that means we are cacheable on toQuery
-        // that's why we return true here all the time
-        return super.isCacheable(queryBuilder);
-    }
-
     public void testSerializationFailsUnlessFetched() throws IOException {
         QueryBuilder builder = new TermsQueryBuilder(STRING_FIELD_NAME, randomTermsLookup());
         QueryBuilder termsQueryBuilder = Rewriteable.rewrite(builder, createShardContext());

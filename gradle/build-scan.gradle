@@ -1,0 +1,52 @@
+import nebula.plugin.info.scm.ScmInfoExtension
+import org.elasticsearch.gradle.OS
+
+buildScan {
+    def jenkinsUrl = System.getenv('JENKINS_URL') ? new URL(System.getenv('JENKINS_URL')) : null
+
+    tag OS.current().name()
+
+    // Accept Gradle ToS when project property org.elasticsearch.acceptScanTOS=true or this is an Elastic CI build
+    if (jenkinsUrl?.host?.endsWith('elastic.co') || Boolean.valueOf(project.findProperty('org.elasticsearch.acceptScanTOS') ?: "false")) {
+        termsOfServiceUrl = 'https://gradle.com/terms-of-service'
+        termsOfServiceAgree = 'yes'
+    }
+
+    // Jenkins-specific build scan metadata
+    if (jenkinsUrl) {
+        tag 'CI'
+        tag System.getenv('JOB_NAME')
+        link 'Jenkins Build', System.getenv('BUILD_URL')
+        System.getenv('NODE_LABELS').split(' ').each {
+            value 'Jenkins Worker Label', it
+        }
+
+        def isPrBuild = System.getenv('ROOT_BUILD_CAUSE_GHPRBCAUSE') != null
+
+        // Capture changes included in this CI build except for pull request builds
+        if (System.getenv('GIT_COMMIT') && !isPrBuild) {
+            background {
+                def changes = "git diff --name-only ${System.getenv('GIT_PREVIOUS_COMMIT')}..${System.getenv('GIT_COMMIT')}".execute().text.trim()
+                value 'Git Changes', changes
+            }
+        }
+
+        // Add SCM information
+        if (isPrBuild) {
+            value 'Git Commit ID', System.getenv('ghprbActualCommit')
+            value 'Git Branch', System.getenv('ghprbTargetBranch')
+            tag System.getenv('ghprbTargetBranch')
+            tag "pr/${System.getenv('ghprbPullId')}"
+            link 'Source', "https://github.com/elastic/elasticsearch/tree/${System.getenv('ghprbActualCommit')}"
+            link 'Pull Request', System.getenv('ghprbPullLink')
+        } else {
+            def branch = System.getenv('GIT_BRANCH').split('/').last()
+            value 'Git Commit ID', System.getenv('GIT_COMMIT')
+            value 'Git Branch', branch
+            tag branch
+            link 'Source', "https://github.com/elastic/elasticsearch/tree/${System.getenv('GIT_COMMIT')}"
+        }
+    } else {
+        tag 'LOCAL'
+    }
+}

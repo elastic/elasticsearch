@@ -10,7 +10,6 @@ import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -38,8 +37,7 @@ public class RestSqlQueryAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestSqlQueryAction.class));
 
-    public RestSqlQueryAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestSqlQueryAction(RestController controller) {
         // TODO: remove deprecated endpoint in 8.0.0
         controller.registerWithDeprecatedHandler(
                 GET, Protocol.SQL_QUERY_REST_ENDPOINT, this,
@@ -57,7 +55,7 @@ public class RestSqlQueryAction extends BaseRestHandler {
         try (XContentParser parser = request.contentOrSourceParamParser()) {
             sqlRequest = SqlQueryRequest.fromXContent(parser);
         }
-            
+
         /*
          * Since we support {@link TextFormat} <strong>and</strong>
          * {@link XContent} outputs we can't use {@link RestToXContentListener}
@@ -95,7 +93,7 @@ public class RestSqlQueryAction extends BaseRestHandler {
             return channel -> client.execute(SqlQueryAction.INSTANCE, sqlRequest, new RestResponseListener<SqlQueryResponse>(channel) {
                 @Override
                 public RestResponse buildResponse(SqlQueryResponse response) throws Exception {
-                    XContentBuilder builder = XContentBuilder.builder(xContentType.xContent());
+                    XContentBuilder builder = channel.newBuilder(request.getXContentType(), xContentType, true);
                     response.toXContent(builder, request);
                     return new BytesRestResponse(RestStatus.OK, builder);
                 }
@@ -110,7 +108,7 @@ public class RestSqlQueryAction extends BaseRestHandler {
             throw new IllegalArgumentException("Invalid use of [columnar] argument: cannot be used in combination with "
                     + "txt, csv or tsv formats");
         }
-        
+
         long startNanos = System.nanoTime();
         return channel -> client.execute(SqlQueryAction.INSTANCE, sqlRequest, new RestResponseListener<SqlQueryResponse>(channel) {
             @Override

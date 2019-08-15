@@ -23,7 +23,30 @@ another processor that renames a field. The <<cluster-state,cluster state>> then
 the configured pipelines.
 
 To use a pipeline, simply specify the `pipeline` parameter on an index or bulk request. This
-way, the ingest node knows which pipeline to use. For example:
+way, the ingest node knows which pipeline to use. 
+
+For example:
+Create a pipeline
+
+[source,js]
+--------------------------------------------------
+PUT _ingest/pipeline/my_pipeline_id
+{
+  "description" : "describe pipeline",
+  "processors" : [
+    {
+      "set" : {
+        "field": "foo",
+        "value": "new"
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// CONSOLE
+// TEST
+
+Index with defined pipeline
 
 [source,js]
 --------------------------------------------------
@@ -33,7 +56,27 @@ PUT my-index/_doc/my-id?pipeline=my_pipeline_id
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[catch:bad_request]
+// TEST[continued]
+
+Response：
+[source,js]
+--------------------------------------------------
+{
+  "_index" : "my-index",
+  "_type" : "_doc",
+  "_id" : "my-id",
+  "_version" : 1,
+  "result" : "created",
+  "_shards" : {
+    "total" : 2,
+    "successful" : 2,
+    "failed" : 0
+  },
+  "_seq_no" : 0,
+  "_primary_term" : 1
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"successful" : 2/"successful" : 1/]
 
 An index may also declare a <<dynamic-index-settings,default pipeline>> that will be used in the
 absence of the `pipeline` parameter.

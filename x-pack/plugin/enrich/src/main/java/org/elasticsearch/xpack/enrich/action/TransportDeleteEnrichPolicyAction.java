@@ -26,6 +26,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.AbstractEnrichProcessor;
+import org.elasticsearch.xpack.enrich.EnrichPolicyLocks;
 import org.elasticsearch.xpack.enrich.EnrichStore;
 
 import java.io.IOException;
@@ -34,6 +35,7 @@ import java.util.List;
 
 public class TransportDeleteEnrichPolicyAction extends TransportMasterNodeAction<DeleteEnrichPolicyAction.Request, AcknowledgedResponse> {
 
+    private final EnrichPolicyLocks enrichPolicyLocks;
     private final IngestService ingestService;
 
     @Inject
@@ -42,9 +44,11 @@ public class TransportDeleteEnrichPolicyAction extends TransportMasterNodeAction
                                              ThreadPool threadPool,
                                              ActionFilters actionFilters,
                                              IndexNameExpressionResolver indexNameExpressionResolver,
+                                             EnrichPolicyLocks enrichPolicyLocks,
                                              IngestService ingestService) {
         super(DeleteEnrichPolicyAction.NAME, transportService, clusterService, threadPool, actionFilters,
             DeleteEnrichPolicyAction.Request::new, indexNameExpressionResolver);
+        this.enrichPolicyLocks = enrichPolicyLocks;
         this.ingestService = ingestService;
     }
 
@@ -65,6 +69,7 @@ public class TransportDeleteEnrichPolicyAction extends TransportMasterNodeAction
     @Override
     protected void masterOperation(Task task, DeleteEnrichPolicyAction.Request request, ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) throws Exception {
+        enrichPolicyLocks.lockPolicy(request.getName());
         List<PipelineConfiguration> pipelines = IngestService.getPipelines(state);
         EnrichPolicy policy = EnrichStore.getPolicy(request.getName(), state);
         List<String> pipelinesWithProcessors = new ArrayList<>();
@@ -80,6 +85,7 @@ public class TransportDeleteEnrichPolicyAction extends TransportMasterNodeAction
         }
 
         if (pipelinesWithProcessors.isEmpty() == false) {
+            enrichPolicyLocks.releasePolicy(request.getName());
             listener.onFailure(
                 new ElasticsearchStatusException("Could not delete policy [{}] because a pipeline is referencing it {}",
                     RestStatus.CONFLICT, request.getName(), pipelinesWithProcessors));
@@ -87,6 +93,7 @@ public class TransportDeleteEnrichPolicyAction extends TransportMasterNodeAction
         }
 
         EnrichStore.deletePolicy(request.getName(), clusterService, e -> {
+            enrichPolicyLocks.releasePolicy(request.getName());
            if (e == null) {
                listener.onResponse(new AcknowledgedResponse(true));
            } else {

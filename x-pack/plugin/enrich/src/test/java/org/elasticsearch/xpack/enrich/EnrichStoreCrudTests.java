@@ -3,31 +3,22 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
-import java.util.Collection;
-import java.util.Collections;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.enrich.EnrichPolicyTests.randomEnrichPolicy;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class EnrichStoreTests extends ESSingleNodeTestCase {
-
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singletonList(LocalStateEnrich.class);
-    }
+public class EnrichStoreCrudTests extends AbstractEnrichTestCase {
 
     public void testCrud() throws Exception {
         EnrichPolicy policy = randomEnrichPolicy(XContentType.JSON);
@@ -136,30 +127,5 @@ public class EnrichStoreTests extends ESSingleNodeTestCase {
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         Map<String, EnrichPolicy> policies = EnrichStore.getPolicies(clusterService.state());
         assertTrue(policies.isEmpty());
-    }
-
-    private AtomicReference<Exception> saveEnrichPolicy(String name, EnrichPolicy policy,
-                                                        ClusterService clusterService) throws InterruptedException {
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<Exception> error = new AtomicReference<>();
-        EnrichStore.putPolicy(name, policy, clusterService, e -> {
-            error.set(e);
-            latch.countDown();
-        });
-        latch.await();
-        return error;
-    }
-
-    private void deleteEnrichPolicy(String name, ClusterService clusterService) throws Exception {
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<Exception> error = new AtomicReference<>();
-        EnrichStore.deletePolicy(name, clusterService, e -> {
-            error.set(e);
-            latch.countDown();
-        });
-        latch.await();
-        if (error.get() != null){
-            throw error.get();
-        }
     }
 }

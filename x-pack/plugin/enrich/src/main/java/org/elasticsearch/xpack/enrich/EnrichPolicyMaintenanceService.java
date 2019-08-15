@@ -137,7 +137,7 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
             .indicesOptions(IndicesOptions.lenientExpand());
         // Check that no enrich policies are being executed
         final EnrichPolicyLocks.EnrichPolicyExecutionState executionState = enrichPolicyLocks.captureExecutionState();
-        if (executionState.arePoliciesInFlight == false) {
+        if (executionState.isAnyPolicyInFlight() == false) {
             client.admin().indices().getIndex(indices, new ActionListener<GetIndexResponse>() {
                 @Override
                 public void onResponse(GetIndexResponse getIndexResponse) {

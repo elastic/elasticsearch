@@ -19,19 +19,23 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
  * state of any policy executions in flight. This execution state can be captured and then later be used to verify that no policy
  * executions have started in the time between the first state capturing.
  */
-class EnrichPolicyLocks {
+public class EnrichPolicyLocks {
 
     /**
      * A snapshot in time detailing if any policy executions are in flight and total number of local executions that
      * have been kicked off since the node has started
      */
-    static class EnrichPolicyExecutionState {
-        final boolean arePoliciesInFlight;
+    public static class EnrichPolicyExecutionState {
+        final boolean anyPolicyInFlight;
         final long executions;
 
-        EnrichPolicyExecutionState(boolean arePoliciesInFlight, long executions) {
-            this.arePoliciesInFlight = arePoliciesInFlight;
+        EnrichPolicyExecutionState(boolean anyPolicyInFlight, long executions) {
+            this.anyPolicyInFlight = anyPolicyInFlight;
             this.executions = executions;
+        }
+
+        public boolean isAnyPolicyInFlight() {
+            return anyPolicyInFlight;
         }
     }
 
@@ -54,19 +58,19 @@ class EnrichPolicyLocks {
     private final AtomicLong policyRunCounter = new AtomicLong(0L);
 
     /**
-     * Locks a policy for execution. If the policy is currently executing, this method will immediately throw without waiting.
-     * This method only blocks if another thread is currently capturing the current policy execution state.
+     * Locks a policy to prevent concurrent execution. If the policy is currently executing, this method will immediately
+     * throw without waiting. This method only blocks if another thread is currently capturing the current policy execution state.
      * @param policyName The policy name to lock for execution
      * @throws EsRejectedExecutionException if the policy is locked already or if the maximum number of concurrent policy executions
      *                                      has been reached
      */
-    void lockPolicy(String policyName) {
+    public void lockPolicy(String policyName) {
         currentStateLock.readLock().lock();
         try {
             Semaphore runLock = policyLocks.computeIfAbsent(policyName, (name) -> new Semaphore(1));
             boolean acquired = runLock.tryAcquire();
             if (acquired == false) {
-                throw new EsRejectedExecutionException("Policy execution failed. Policy execution for [" + policyName +
+                throw new EsRejectedExecutionException("Could not obtain lock because policy execution for ["  + policyName +
                     "] is already in progress.");
             }
             policyRunCounter.incrementAndGet();
@@ -80,7 +84,7 @@ class EnrichPolicyLocks {
      * currently starting its execution and returns an appropriate state.
      * @return The current state of in-flight policy executions
      */
-    EnrichPolicyExecutionState captureExecutionState() {
+    public EnrichPolicyExecutionState captureExecutionState() {
         if (currentStateLock.writeLock().tryLock()) {
             try {
                 long revision = policyRunCounter.get();
@@ -101,7 +105,7 @@ class EnrichPolicyLocks {
      */
     boolean isSameState(EnrichPolicyExecutionState previousState) {
         EnrichPolicyExecutionState currentState = captureExecutionState();
-        return currentState.arePoliciesInFlight == previousState.arePoliciesInFlight &&
+        return currentState.anyPolicyInFlight == previousState.anyPolicyInFlight &&
             currentState.executions == previousState.executions;
     }
 
@@ -109,7 +113,7 @@ class EnrichPolicyLocks {
      * Releases the lock for a given policy name, allowing it to be executed.
      * @param policyName The policy to release.
      */
-    void releasePolicy(String policyName) {
+    public void releasePolicy(String policyName) {
         currentStateLock.readLock().lock();
         try {
             policyLocks.remove(policyName);

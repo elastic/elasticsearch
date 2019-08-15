@@ -127,7 +127,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         firstTaskComplete.await();
 
         // Validate exception from second run
-        assertThat(expected.getMessage(), containsString("Policy execution failed. Policy execution for [" + testPolicyName +
+        assertThat(expected.getMessage(), containsString("Could not obtain lock because policy execution for [" + testPolicyName +
             "] is already in progress."));
 
         // Ensure that the lock from the previous run has been cleared

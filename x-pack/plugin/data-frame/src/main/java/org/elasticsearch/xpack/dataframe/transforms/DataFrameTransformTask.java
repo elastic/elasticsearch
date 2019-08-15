@@ -21,6 +21,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -834,7 +835,18 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                                     onStop();
                                     transformTask.shutdown();
                                 }
-                                next.run();
+                                transformsConfigManager.deleteOldTransformStoredDocuments(transformId, ActionListener.wrap(
+                                    nil -> {
+                                        logger.trace("[{}] deleted old transform stats and state document", transformId);
+                                        next.run();
+                                    },
+                                    e -> {
+                                        String msg = LoggerMessageFormat.format("[{}] failed deleting old transform configurations.",
+                                            transformId);
+                                        logger.warn(msg, e);
+                                        next.run();
+                                    }
+                                ));
                             },
                             statsExc -> {
                                 logger.error("Updating stats of transform [" + transformConfig.getId() + "] failed", statsExc);

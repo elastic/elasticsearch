@@ -36,8 +36,10 @@ public final class DataFrameInternalIndex {
      * Please list changes, increase the version if you are 1st in this release cycle
      *
      * version 1 (7.2): initial
-     * version 2 (7.4): cleanup, add config::version, config::create_time, checkpoint::timestamp, checkpoint::time_upper_bound
-     *
+     * version 2 (7.4): cleanup, add config::version, config::create_time, checkpoint::timestamp, checkpoint::time_upper_bound,
+     *                  progress::docs_processed, progress::docs_indexed,
+     *                  stats::exponential_avg_checkpoint_duration_ms, stats::exponential_avg_documents_indexed,
+     *                  stats::exponential_avg_documents_processed
      */
 
     // constants for the index
@@ -69,7 +71,7 @@ public final class DataFrameInternalIndex {
 
     public static IndexTemplateMetaData getIndexTemplateMetaData() throws IOException {
         IndexTemplateMetaData dataFrameTemplate = IndexTemplateMetaData.builder(LATEST_INDEX_VERSIONED_NAME)
-                .patterns(Collections.singletonList(LATEST_INDEX_VERSIONED_NAME))
+                .patterns(Collections.singletonList(INDEX_NAME_PATTERN))
                 .version(Version.CURRENT.id)
                 .settings(Settings.builder()
                         // the configurations are expected to be small

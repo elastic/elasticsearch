@@ -9,15 +9,18 @@ package org.elasticsearch.xpack.dataframe.persistence;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
@@ -36,8 +39,11 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.index.reindex.ScrollableHitSource;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.action.util.ExpandedIdsMatcher;
@@ -152,6 +158,60 @@ public class DataFrameTransformsConfigManager {
             // this leaves a dup behind in the old index, see dup handling on the top
             putTransformConfiguration(transformConfig, DocWriteRequest.OpType.CREATE, null, listener);
         }
+    }
+
+    /**
+     * This deletes configuration documents that match the given transformId that are contained in old index versions.
+     *
+     * @param transformId The configuration ID potentially referencing configurations stored in the old indices
+     * @param listener listener to alert on completion
+     */
+    public void deleteOldTransformConfigurations(String transformId, ActionListener<Void> listener) {
+        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(DataFrameInternalIndex.INDEX_NAME_PATTERN)
+            .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.boolQuery()
+                .mustNot(QueryBuilders.termQuery("_index", DataFrameInternalIndex.LATEST_INDEX_NAME))
+                .filter(QueryBuilders.termQuery("_id", DataFrameTransformConfig.documentId(transformId)))))
+            .setIndicesOptions(IndicesOptions.lenientExpandOpen());
+
+        executeAsyncWithOrigin(client, DATA_FRAME_ORIGIN, DeleteByQueryAction.INSTANCE, deleteByQueryRequest, ActionListener.wrap(
+            response -> {
+                if ((response.getBulkFailures().isEmpty() && response.getSearchFailures().isEmpty()) == false) {
+                    Tuple<RestStatus, Throwable> statusAndReason = getStatusAndReason(response);
+                    listener.onFailure(
+                        new ElasticsearchStatusException(statusAndReason.v2().getMessage(), statusAndReason.v1(), statusAndReason.v2()));
+                    return;
+                }
+                listener.onResponse(null);
+            },
+            listener::onFailure
+        ));
+    }
+
+    /**
+     * This deletes stored state/stats documents for the given transformId that are contained in old index versions.
+     *
+     * @param transformId The transform ID referenced by the documents
+     * @param listener listener to alert on completion
+     */
+    public void deleteOldTransformStoredDocuments(String transformId, ActionListener<Void> listener) {
+        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(DataFrameInternalIndex.INDEX_NAME_PATTERN)
+            .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.boolQuery()
+                .mustNot(QueryBuilders.termQuery("_index", DataFrameInternalIndex.LATEST_INDEX_NAME))
+                .filter(QueryBuilders.termQuery("_id", DataFrameTransformStoredDoc.documentId(transformId)))))
+            .setIndicesOptions(IndicesOptions.lenientExpandOpen());
+
+        executeAsyncWithOrigin(client, DATA_FRAME_ORIGIN, DeleteByQueryAction.INSTANCE, deleteByQueryRequest, ActionListener.wrap(
+            response -> {
+                if ((response.getBulkFailures().isEmpty() && response.getSearchFailures().isEmpty()) == false) {
+                    Tuple<RestStatus, Throwable> statusAndReason = getStatusAndReason(response);
+                    listener.onFailure(
+                        new ElasticsearchStatusException(statusAndReason.v2().getMessage(), statusAndReason.v1(), statusAndReason.v2()));
+                    return;
+                }
+                listener.onResponse(null);
+            },
+            listener::onFailure
+        ));
     }
 
     private void putTransformConfiguration(DataFrameTransformConfig transformConfig,
@@ -512,6 +572,28 @@ public class DataFrameTransformsConfigManager {
             }
         }
         return QueryBuilders.constantScoreQuery(queryBuilder);
+    }
+
+    private static Tuple<RestStatus, Throwable> getStatusAndReason(final BulkByScrollResponse response) {
+        RestStatus status = RestStatus.OK;
+        Throwable reason = new Exception("Unknown error");
+        //Getting the max RestStatus is sort of arbitrary, would the user care about 5xx over 4xx?
+        //Unsure of a better way to return an appropriate and possibly actionable cause to the user.
+        for (BulkItemResponse.Failure failure : response.getBulkFailures()) {
+            if (failure.getStatus().getStatus() > status.getStatus()) {
+                status = failure.getStatus();
+                reason = failure.getCause();
+            }
+        }
+
+        for (ScrollableHitSource.SearchFailure failure : response.getSearchFailures()) {
+            RestStatus failureStatus = org.elasticsearch.ExceptionsHelper.status(failure.getReason());
+            if (failureStatus.getStatus() > status.getStatus()) {
+                status = failureStatus;
+                reason = failure.getReason();
+            }
+        }
+        return new Tuple<>(status, reason);
     }
 
     public static class SeqNoPrimaryTermAndIndex {

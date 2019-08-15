@@ -140,16 +140,19 @@ public abstract class PackageTestCase extends PackagingTestCase {
         assumeThat(distribution().hasJdk, is(true));
 
         final Result readlink = sh.run("readlink /usr/bin/java");
-        assertThat(readlink.exitCode, equalTo(0));
-        final Result unlink = sh.run("unlink /usr/bin/java");
-        assertThat(unlink.exitCode, equalTo(0));
+        boolean unlinked = false;
+        try {
+            sh.run("unlink /usr/bin/java");
+            unlinked = true;
 
-        startElasticsearch(sh);
-        runElasticsearchTests();
-        stopElasticsearch(sh);
-
-        final Result ln = sh.run("ln -sf " + readlink.stdout + " /usr/bin/java");
-        assertThat(ln.exitCode, equalTo(0));
+            startElasticsearch(sh);
+            runElasticsearchTests();
+            stopElasticsearch(sh);
+        } finally {
+            if (unlinked) {
+                sh.run("ln -sf " + readlink.stdout + " /usr/bin/java");
+            }
+        }
     }
 
     public void test42BundledJdkRemoved() throws Exception {

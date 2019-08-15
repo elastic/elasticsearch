@@ -131,6 +131,8 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
                 }
             }
 
+            // Wait for green so the close does not fail in the edge case of coinciding with a shard recovery that hasn't fully synced yet
+            ensureGreen();
             logger.info("-->  close indices {}", closeIndices);
             assertAcked(client().admin().indices().prepareClose(closeIndices.toArray(new String[closeIndices.size()])));
         }
@@ -195,6 +197,8 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
             int iterationToRestore = randomIntBetween(0, iterationCount - 1);
             logger.info("-->  performing restore of the iteration {}", iterationToRestore);
 
+            // Wait for green so the close does not fail in the edge case of coinciding with a shard recovery that hasn't fully synced yet
+            ensureGreen();
             logger.info("-->  close index");
             assertAcked(client().admin().indices().prepareClose(indexName));
 

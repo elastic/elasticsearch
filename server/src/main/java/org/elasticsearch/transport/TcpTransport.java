@@ -134,7 +134,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         this.threadPool = threadPool;
         this.pageCacheRecycler = pageCacheRecycler;
         this.networkService = networkService;
-        TransportLogger transportLogger = new TransportLogger();
         String nodeName = Node.NODE_NAME_SETTING.get(settings);
         final Settings defaultFeatures = TransportSettings.DEFAULT_FEATURES_SETTING.get(settings);
         String[] features;
@@ -151,7 +150,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
         BigArrays bigArrays = new BigArrays(pageCacheRecycler, circuitBreakerService, CircuitBreaker.IN_FLIGHT_REQUESTS);
 
-        this.outboundHandler = new OutboundHandler(nodeName, version, threadPool, bigArrays, transportLogger);
+        this.outboundHandler = new OutboundHandler(nodeName, version, threadPool, bigArrays);
         this.handshaker = new TransportHandshaker(version, threadPool,
             (node, channel, requestId, v) -> outboundHandler.sendRequest(node, channel, requestId,
                 TransportHandshaker.HANDSHAKE_ACTION_NAME, new TransportHandshaker.HandshakeRequest(version),
@@ -160,7 +159,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 TransportHandshaker.HANDSHAKE_ACTION_NAME, response, false, true));
         InboundMessage.Reader reader = new InboundMessage.Reader(version, namedWriteableRegistry, threadPool.getThreadContext());
         this.keepAlive = new TransportKeepAlive(threadPool, this.outboundHandler::sendBytes);
-        this.inboundHandler = new InboundHandler(threadPool, outboundHandler, reader, circuitBreakerService, transportLogger, handshaker,
+        this.inboundHandler = new InboundHandler(threadPool, outboundHandler, reader, circuitBreakerService, handshaker,
             keepAlive);
     }
 

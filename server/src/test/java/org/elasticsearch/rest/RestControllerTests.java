@@ -112,7 +112,7 @@ public class RestControllerTests extends ESTestCase {
         restHeaders.put("header.3", Collections.singletonList("false"));
         RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(restHeaders).build();
         final RestController spyRestController = spy(restController);
-        when(spyRestController.getAllHandlers(fakeRequest))
+        when(spyRestController.getAllHandlers(null, fakeRequest.rawPath()))
             .thenReturn(new Iterator<MethodHandlers>() {
                 @Override
                 public boolean hasNext() {

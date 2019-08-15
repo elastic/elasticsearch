@@ -7,19 +7,15 @@
 package org.elasticsearch.xpack.ilm.action;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ilm.action.DeleteLifecycleAction;
 
-import java.io.IOException;
-
 public class RestDeleteLifecycleAction extends BaseRestHandler {
 
-    public RestDeleteLifecycleAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestDeleteLifecycleAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.DELETE, "/_ilm/policy/{name}", this);
     }
 
@@ -29,7 +25,7 @@ public class RestDeleteLifecycleAction extends BaseRestHandler {
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
+    protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
         String lifecycleName = restRequest.param("name");
         DeleteLifecycleAction.Request deleteLifecycleRequest = new DeleteLifecycleAction.Request(lifecycleName);
         deleteLifecycleRequest.timeout(restRequest.paramAsTime("timeout", deleteLifecycleRequest.timeout()));

@@ -7,15 +7,6 @@
           "path": "/_script/painless/_context",
           "methods": ["GET"],
           "parts": {}
-        },
-        {
-          "path": "/_scripts/painless/_context",
-          "methods": ["GET"],
-          "parts": {},
-          "deprecated":{
-            "version":"8.0.0",
-            "description":"The path is now singular"
-          }
         }
       ]
     },

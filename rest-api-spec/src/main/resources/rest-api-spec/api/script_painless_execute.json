@@ -13,17 +13,6 @@
             "GET",
             "POST"
           ]
-        },
-        {
-          "path":"/_scripts/painless/_execute",
-          "methods":[
-            "GET",
-            "POST"
-          ],
-          "deprecated":{
-            "version":"8.0.0",
-            "description":"The path is now singular"
-          }
         }
       ]
     },

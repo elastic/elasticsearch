@@ -552,7 +552,7 @@ See <<security-api-has-privileges>>.
 [role="exclude",id="xpack-commands"]
 === X-Pack commands
 
-See <<commands>>. 
+See <<commands>>.
 
 [role="exclude",id="ml-api-definitions"]
 === Machine learning API definitions
@@ -598,7 +598,7 @@ See <<faster-prefix-queries>>.
 === Set up {xpack}
 
 {xpack} is an Elastic Stack extension that provides security, alerting,
-monitoring, reporting, machine learning, and many other capabilities. By default, 
+monitoring, reporting, machine learning, and many other capabilities. By default,
 when you install {es}, {xpack} is installed.
 
 [role="exclude",id="setup-xpack-client"]
@@ -620,12 +620,12 @@ without any configuration, if the total number of hits is not tracked.
 [role="exclude",id="xpack-api"]
 === X-Pack APIs
 
-{es} {xpack} APIs are now documented in <<rest-apis, REST APIs>>. 
+{es} {xpack} APIs are now documented in <<rest-apis, REST APIs>>.
 
 [role="exclude",id="ml-calendar-resource"]]
 === Calendar resources
 
-See <<ml-get-calendar>> and 
+See <<ml-get-calendar>> and
 {stack-ov}/ml-calendars.html[Calendars and scheduled events].
 
 [role="exclude",id="ml-filter-resource"]
@@ -637,7 +637,7 @@ See <<ml-get-filter>> and
 [role="exclude",id="ml-event-resource"]
 === Scheduled event resources
 
-See <<ml-get-calendar-event>> and 
+See <<ml-get-calendar-event>> and
 {stack-ov}/ml-calendars.html[Calendars and scheduled events].
 
 [role="exclude",id="index-apis"]
@@ -783,3 +783,47 @@ See <<snapshots-repositories>>.
 [role="exclude",id="_snapshot"]
 === Snapshot
 See <<snapshots-take-snapshot>>.
+
+[role="exclude",id="getting-started-explore"]
+=== Exploring your cluster
+See <<cat>>.
+
+[role="exclude",id="getting-started-cluster-health"]
+=== Cluster health
+See <<cat-health>>.
+
+[role="exclude", id="getting-started-list-indices"]
+=== List all indices
+See <<cat-indices>>.
+
+[role="exclude", id="getting-started-create-index"]
+=== Create an index
+See <<indices-create-index>>.
+
+[role="exclude", id="getting-started-query-document"]
+=== Index and query a document
+See <<getting-started-index>>.
+
+[role="exclude", id="getting-started-delete-index"]
+=== Delete an index
+See <<indices-delete-index>>.
+
+[role="exclude", id="getting-started-modify-data"]
+== Modifying your data
+See <<docs-update>>.
+
+[role="exclude", id="indexing-replacing-documents"]
+=== Indexing/replacing documents
+See <<docs-index_>>.
+
+[role="exclude", id="getting-started-explore-data"]
+=== Exploring your data
+See <<getting-started-search>>.
+
+[role="exclude", id="getting-started-search-API"]
+=== Search API
+See <<getting-started-search>>.
+
+[role="exclude", id="getting-started-conclusion"]
+=== Conclusion
+See <<getting-started-next-steps>>.

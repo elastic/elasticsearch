@@ -31,7 +31,6 @@ import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.SimpleChecksAdapter;
 import org.elasticsearch.painless.WriterConstants;
 import org.elasticsearch.painless.lookup.PainlessLookup;
-import org.elasticsearch.painless.node.SFunction.FunctionReserved;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Label;
@@ -53,7 +52,6 @@ import java.util.Objects;
 import java.util.Set;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.painless.WriterConstants.BASE_INTERFACE_TYPE;
 import static org.elasticsearch.painless.WriterConstants.BITSET_TYPE;
 import static org.elasticsearch.painless.WriterConstants.BOOTSTRAP_METHOD_ERROR_TYPE;
@@ -82,41 +80,9 @@ import static org.elasticsearch.painless.WriterConstants.STRING_TYPE;
  */
 public final class SSource extends AStatement {
 
-    /**
-     * Tracks derived arguments and the loop counter.  Must be given to any source of input
-     * prior to beginning the analysis phase so that reserved variables
-     * are known ahead of time to assign appropriate slots without
-     * being wasteful.
-     */
-    public interface Reserved {
-        void markUsedVariable(String name);
-        Set<String> getUsedVariables();
-        void addUsedVariables(FunctionReserved reserved);
-    }
-
-    public static final class MainMethodReserved implements Reserved {
-        private final Set<String> usedVariables = new HashSet<>();
-
-        @Override
-        public void markUsedVariable(String name) {
-            usedVariables.add(name);
-        }
-
-        @Override
-        public Set<String> getUsedVariables() {
-            return unmodifiableSet(usedVariables);
-        }
-
-        @Override
-        public void addUsedVariables(FunctionReserved reserved) {
-            usedVariables.addAll(reserved.getUsedVariables());
-        }
-    }
-
     private final ScriptClassInfo scriptClassInfo;
     private final String name;
     private final Printer debugStream;
-    private final MainMethodReserved reserved;
     private final List<SFunction> functions;
     private final Globals globals;
     private final List<AStatement> statements;
@@ -124,20 +90,21 @@ public final class SSource extends AStatement {
     private CompilerSettings settings;
 
     private Locals mainMethod;
+    private final Set<String> extractedVariables;
     private final List<org.objectweb.asm.commons.Method> getMethods;
     private byte[] bytes;
 
     public SSource(ScriptClassInfo scriptClassInfo, String name, String sourceText, Printer debugStream,
-            MainMethodReserved reserved, Location location, List<SFunction> functions, List<AStatement> statements) {
+            Location location, List<SFunction> functions, List<AStatement> statements) {
         super(location);
         this.scriptClassInfo = Objects.requireNonNull(scriptClassInfo);
         this.name = Objects.requireNonNull(name);
         this.debugStream = debugStream;
-        this.reserved = Objects.requireNonNull(reserved);
         this.functions = Collections.unmodifiableList(functions);
         this.statements = Collections.unmodifiableList(statements);
         this.globals = new Globals(new BitSet(sourceText.length()));
 
+        this.extractedVariables = new HashSet<>();
         this.getMethods = new ArrayList<>();
     }
 
@@ -155,9 +122,16 @@ public final class SSource extends AStatement {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        // we should never be extracting from a function, as functions are top-level!
-        throw new IllegalStateException("Illegal tree structure.");
+    public void extractVariables(Set<String> variables) {
+        for (SFunction function : functions) {
+            function.extractVariables(null);
+        }
+
+        for (AStatement statement : statements) {
+            statement.extractVariables(variables);
+        }
+
+        extractedVariables.addAll(variables);
     }
 
     public void analyze(PainlessLookup painlessLookup) {
@@ -197,7 +171,7 @@ public final class SSource extends AStatement {
             String name = method.getName().substring(3);
             name = Character.toLowerCase(name.charAt(0)) + name.substring(1);
 
-            if (reserved.getUsedVariables().contains(name)) {
+            if (extractedVariables.contains(name)) {
                 Class<?> rtn = scriptClassInfo.getGetReturns().get(get);
                 mainMethod.addVariable(new Location("getter [" + name + "]", 0), rtn, name, true);
                 getMethods.add(method);
@@ -374,7 +348,7 @@ public final class SSource extends AStatement {
             name = Character.toLowerCase(name.charAt(0)) + name.substring(1);
             MethodWriter ifaceMethod = new MethodWriter(Opcodes.ACC_PUBLIC, needsMethod, visitor, globals.getStatements(), settings);
             ifaceMethod.visitCode();
-            ifaceMethod.push(reserved.getUsedVariables().contains(name));
+            ifaceMethod.push(extractedVariables.contains(name));
             ifaceMethod.returnValue();
             ifaceMethod.endMethod();
         }

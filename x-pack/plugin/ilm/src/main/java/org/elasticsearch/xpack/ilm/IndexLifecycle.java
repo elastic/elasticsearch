@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -107,6 +108,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.core.ClientHelper.INDEX_LIFECYCLE_ORIGIN;
 
 public class IndexLifecycle extends Plugin implements ActionPlugin {
     private final SetOnce<IndexLifecycleService> indexLifecycleInitialisationService = new SetOnce<>();
@@ -147,7 +149,8 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
                 getClock(), System::currentTimeMillis, xContentRegistry));
         SnapshotLifecycleTemplateRegistry templateRegistry = new SnapshotLifecycleTemplateRegistry(settings, clusterService, threadPool,
             client, xContentRegistry);
-        snapshotHistoryStore.set(new SnapshotHistoryStore(settings, client, getClock().getZone()));
+        snapshotHistoryStore.set(new SnapshotHistoryStore(settings, new OriginSettingClient(client, INDEX_LIFECYCLE_ORIGIN),
+            getClock().getZone()));
         snapshotLifecycleService.set(new SnapshotLifecycleService(settings,
             () -> new SnapshotLifecycleTask(client, clusterService, snapshotHistoryStore.get()), clusterService, getClock()));
         return Arrays.asList(indexLifecycleInitialisationService.get(), snapshotLifecycleService.get(), snapshotHistoryStore.get());
@@ -190,21 +193,21 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
             return emptyList();
         }
         return Arrays.asList(
-                new RestPutLifecycleAction(settings, restController),
-                new RestGetLifecycleAction(settings, restController),
-                new RestDeleteLifecycleAction(settings, restController),
-                new RestExplainLifecycleAction(settings, restController),
-                new RestRemoveIndexLifecyclePolicyAction(settings, restController),
-                new RestMoveToStepAction(settings, restController),
-                new RestRetryAction(settings, restController),
-                new RestStopAction(settings, restController),
-                new RestStartILMAction(settings, restController),
-                new RestGetStatusAction(settings, restController),
+                new RestPutLifecycleAction(restController),
+                new RestGetLifecycleAction(restController),
+                new RestDeleteLifecycleAction(restController),
+                new RestExplainLifecycleAction(restController),
+                new RestRemoveIndexLifecyclePolicyAction(restController),
+                new RestMoveToStepAction(restController),
+                new RestRetryAction(restController),
+                new RestStopAction(restController),
+                new RestStartILMAction(restController),
+                new RestGetStatusAction(restController),
                 // Snapshot lifecycle actions
-                new RestPutSnapshotLifecycleAction(settings, restController),
-                new RestDeleteSnapshotLifecycleAction(settings, restController),
-                new RestGetSnapshotLifecycleAction(settings, restController),
-                new RestExecuteSnapshotLifecycleAction(settings, restController)
+                new RestPutSnapshotLifecycleAction(restController),
+                new RestDeleteSnapshotLifecycleAction(restController),
+                new RestGetSnapshotLifecycleAction(restController),
+                new RestExecuteSnapshotLifecycleAction(restController)
             );
     }
 

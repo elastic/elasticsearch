@@ -139,6 +139,25 @@ public class PackageTests extends PackagingTestCase {
         assertRunsWithJavaHome();
     }
 
+    public void test33RunsIfJavaNotOnPath() throws Exception {
+        assumeThat(distribution().hasJdk, is(true));
+
+        final Result readlink = sh.run("readlink /usr/bin/java");
+        boolean unlinked = false;
+        try {
+            sh.run("unlink /usr/bin/java");
+            unlinked = true;
+
+            startElasticsearch(sh);
+            runElasticsearchTests();
+            stopElasticsearch(sh);
+        } finally {
+            if (unlinked) {
+                sh.run("ln -sf " + readlink.stdout.trim() + " /usr/bin/java");
+            }
+        }
+    }
+
     public void test42BundledJdkRemoved() throws Exception {
         assumeThat(installation, is(notNullValue()));
         assumeThat(distribution().hasJdk, is(true));

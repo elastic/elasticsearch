@@ -1,5 +1,8 @@
 [[cat-templates]]
-=== cat templates
+=== cat templates API
+++++
+<titleabbrev>cat templates</titleabbrev>
+++++
 
 Returns information about <<indices-templates,index templates>> in a cluster.
 You can use index templates to apply <<index-modules-settings,index settings>>

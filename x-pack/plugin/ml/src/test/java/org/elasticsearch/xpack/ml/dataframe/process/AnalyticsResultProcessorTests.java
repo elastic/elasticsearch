@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.dataframe.process;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.dataframe.process.results.RowResults;
 import org.junit.Before;
 import org.mockito.InOrder;
@@ -25,12 +26,13 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
 
     private static final String JOB_ID = "analytics-result-processor-tests";
 
-    private AnalyticsProcess process;
+    private AnalyticsProcess<AnalyticsResult> process;
     private DataFrameRowsJoiner dataFrameRowsJoiner;
     private int progressPercent;
 
 
     @Before
+    @SuppressWarnings("unchecked")
     public void setUpMocks() {
         process = mock(AnalyticsProcess.class);
         dataFrameRowsJoiner = mock(DataFrameRowsJoiner.class);

@@ -1,5 +1,8 @@
 [[cat-recovery]]
-=== cat recovery
+=== cat recovery API
+++++
+<titleabbrev>cat recovery</titleabbrev>
+++++
 
 Returns information about ongoing and completed index shard recoveries, similar
 to the <<indices-recovery, indices recovery>> API.

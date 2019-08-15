@@ -488,7 +488,9 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
 
         // Clean up SLM policies before trying to wipe snapshots so that no new ones get started by SLM after wiping
-        deleteAllSLMPolicies();
+        if (nodeVersions.first().onOrAfter(Version.V_7_4_0)) { // SLM was introduced in version 7.4
+            deleteAllSLMPolicies();
+        }
 
         SetOnce<Map<String, List<Map<?,?>>>> inProgressSnapshots = new SetOnce<>();
         if (waitForAllSnapshotsWiped()) {

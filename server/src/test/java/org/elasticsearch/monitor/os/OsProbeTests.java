@@ -286,7 +286,20 @@ public class OsProbeTests extends ESTestCase {
         return buildStubOsProbe(areCgroupStatsAvailable, hierarchy, procSelfCgroupLines);
     }
 
-    private static OsProbe buildStubOsProbe(final boolean areCgroupStatsAvailable, final String hierarchy, List<String> procSelfCgroupLines) {
+    /**
+     * Builds a test instance of OsProbe. Methods that ordinarily read from the filesystem are overridden to return values based upon
+     * the arguments to this method.
+     *
+     * @param areCgroupStatsAvailable whether or not cgroup data is available. Normally OsProbe establishes this for itself.
+     * @param hierarchy a mock value used to generate a cgroup hierarchy.
+     * @param procSelfCgroupLines the lines that will be used as the content of <code>/proc/self/cgroup</code>
+     * @return a test instance
+     */
+    private static OsProbe buildStubOsProbe(
+        final boolean areCgroupStatsAvailable,
+        final String hierarchy,
+        List<String> procSelfCgroupLines
+    ) {
         return new OsProbe() {
             @Override
             List<String> readProcSelfCgroup() {

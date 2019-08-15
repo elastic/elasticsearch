@@ -1,5 +1,6 @@
+[chapter]
 [[modules-cross-cluster-search]]
-== {ccs-cap}
+= Search across clusters
 
 The _{ccs}_ feature allows any node to act as a federated client across
 multiple clusters. A {ccs} node won't join the remote cluster, instead
@@ -8,7 +9,7 @@ federated search requests. For details on communication and compatibility
 between different clusters, see <<modules-remote-clusters>>.
 
 [float]
-=== Using {ccs}
+== Using {ccs}
 
 {ccs-cap} requires <<modules-remote-clusters,configuring remote clusters>>.
 
@@ -185,7 +186,7 @@ cluster alias:
 // TESTRESPONSE[s/"_score": 2/"_score": "$body.hits.hits.1._score"/]
 
 [float]
-=== Skipping disconnected clusters
+== Skipping disconnected clusters
 
 By default, all remote clusters that are searched via {ccs} need to be
 available when the search request is executed. Otherwise, the whole request
@@ -281,7 +282,7 @@ GET /cluster_one:twitter,cluster_two:twitter,twitter/_search <1>
 
 [float]
 [[ccs-reduction]]
-=== {ccs-cap} reduction phase
+== {ccs-cap} reduction phase
 
 {ccs-cap} (CCS) requests can be executed in two ways:
 

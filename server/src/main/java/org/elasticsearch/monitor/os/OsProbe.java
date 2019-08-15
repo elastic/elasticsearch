@@ -512,14 +512,14 @@ public class OsProbe {
 
                 final String cpuAcctControlGroup = controllerMap.get("cpuacct");
                 if (cpuAcctControlGroup == null) {
-                    logger.debug("no [cpuacct] data found in control group stats");
+                    logger.debug("no [cpuacct] data found in cgroup stats");
                     return null;
                 }
                 final long cgroupCpuAcctUsageNanos = getCgroupCpuAcctUsageNanos(cpuAcctControlGroup);
 
                 final String cpuControlGroup = controllerMap.get("cpu");
                 if (cpuControlGroup == null) {
-                    logger.debug("no [cpu] data found in control group stats");
+                    logger.debug("no [cpu] data found in cgroup stats");
                     return null;
                 }
                 final long cgroupCpuAcctCpuCfsPeriodMicros = getCgroupCpuAcctCpuCfsPeriodMicros(cpuControlGroup);
@@ -528,7 +528,7 @@ public class OsProbe {
 
                 final String memoryControlGroup = controllerMap.get("memory");
                 if (memoryControlGroup == null) {
-                    logger.debug("no [memory] data found in control group stats");
+                    logger.debug("no [memory] data found in cgroup stats");
                     return null;
                 }
                 final String cgroupMemoryLimitInBytes = getCgroupMemoryLimitInBytes(memoryControlGroup);

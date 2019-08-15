@@ -28,7 +28,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
@@ -41,7 +41,7 @@ abstract class ESElasticsearchCliTestCase extends ESTestCase {
     void runTest(
             final int expectedStatus,
             final boolean expectedInit,
-            final Consumer<String> outputConsumer,
+            final BiConsumer<String, String> outputConsumer,
             final InitConsumer initConsumer,
             final String... args) throws Exception {
         final MockTerminal terminal = new MockTerminal();
@@ -69,7 +69,7 @@ abstract class ESElasticsearchCliTestCase extends ESTestCase {
             }, terminal);
             assertThat(status, equalTo(expectedStatus));
             assertThat(init.get(), equalTo(expectedInit));
-            outputConsumer.accept(terminal.getOutput());
+            outputConsumer.accept(terminal.getOutput(), terminal.getErrorOutput());
         } catch (Exception e) {
             // if an unexpected exception is thrown, we log
             // terminal output to aid debugging

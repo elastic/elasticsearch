@@ -89,40 +89,69 @@ bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInfo unreleased
         commandLine = ['git', 'fetch', '--all']
     }
 
-    String buildMetadataKey = "bwc_refspec_${project.path.substring(1)}"
-    task checkoutBwcBranch(type: LoggedExec) {
-        String refspec = System.getProperty("tests.bwc.refspec.${bwcBranch}", buildMetadata.get(buildMetadataKey, "${remote}/${bwcBranch}"))
+    Closure execGit = {   Action<ExecSpec> action ->
+        new ByteArrayOutputStream().withStream { os ->
+            ExecResult result = project.exec { spec ->
+                workingDir = checkoutDir
+                standardOutput os
+                action.execute(spec)
+            }
+            result.assertNormalExitValue()
+            return os.toString().trim()
+        }
+    }
+    task checkoutBwcBranch() {
         dependsOn fetchLatest
-        workingDir = checkoutDir
-        commandLine = ['git', 'checkout', refspec]
-        doFirst {
-            println "Checking out elasticsearch ${refspec} for branch ${bwcBranch}"
+        doLast {
+            String refspec = System.getProperty("tests.bwc.refspec.${bwcBranch}", "${remote}/${bwcBranch}")
+            if (System.getProperty("tests.bwc.checkout.align") != null) {
+                /*
+                    We use a time based approach to make the bwc versions built deterministic and compatible with the current hash.
+                    Most of the time we want to test against latest, but when running delayed exhaustive tests or wanting
+                    reproducible builds we want this to be deterministic by using a hash that was the latest when the current
+                    commit was made.
+
+                    This approach doesn't work with merge commits as these can introduce commits in the chronological order
+                    after the fact e.x. a merge done today can add commits dated with yesterday so the result will no longer be
+                    deterministic.
+
+                    We don't use merge commits, but for additional safety we check that no such commits exist in the time period
+                    we are interested in.
+
+                    Timestamps are at seconds resolution. rev-parse --before and --after are inclusive w.r.t the second
+                    passed as input. This means the results might not be deterministic in the current second, but this
+                    should not matter in practice.
+                */
+                String timeOfCurrent = execGit { spec ->
+                    spec.commandLine 'git', 'show', '--no-patch', '--no-notes', "--pretty='%cD'"
+                    spec.workingDir project.rootDir
+                }
+                logger.lifecycle("Commit date of current: {}", timeOfCurrent)
+                String mergeCommits = execGit { spec ->
+                    spec.commandLine "git", "rev-list", refspec, "--after", timeOfCurrent, "--merges"
+                }
+                if (mergeCommits.isEmpty() == false) {
+                    throw new IllegalStateException(
+                            "Found the following merge commits which prevent determining bwc commits: " + mergeCommits
+                    )
+                }
+                refspec = execGit { spec ->
+                    spec.commandLine "git", "rev-list", refspec, "-n", "1", "--before", timeOfCurrent, "--date-order"
+                }
+            }
+
+            logger.lifecycle("Checkout hash for ${project.path} is ${refspec}")
+            LoggedExec.exec(project) { spec ->
+                spec.workingDir = checkoutDir
+                spec.commandLine "git", "checkout", refspec
+            }
         }
     }
 
-    File buildMetadataFile = project.file("build/${project.name}/build_metadata")
-    task writeBuildMetadata(type: LoggedExec) {
-        dependsOn checkoutBwcBranch
-        workingDir = checkoutDir
-        commandLine = ['git', 'rev-parse', 'HEAD']
-        ignoreExitValue = true
-        ByteArrayOutputStream output = new ByteArrayOutputStream()
-        standardOutput = output
-        doLast {
-            if (execResult.exitValue != 0) {
-                output.toString('UTF-8').eachLine { line -> logger.error(line) }
-                execResult.assertNormalExitValue()
-            }
-            project.mkdir(buildMetadataFile.parent)
-            String commit = output.toString('UTF-8')
-            buildMetadataFile.setText("${buildMetadataKey}=${commit}", 'UTF-8')
-            println "Checked out elasticsearch commit ${commit}"
-        }
-    }
 
     Closure createRunBwcGradleTask = { name, extraConfig ->
         return tasks.create(name: "$name", type: LoggedExec) {
-            dependsOn checkoutBwcBranch, writeBuildMetadata
+            dependsOn checkoutBwcBranch
             spoolOutput = true
             workingDir = checkoutDir
             doFirst {

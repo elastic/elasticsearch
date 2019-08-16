@@ -100,7 +100,7 @@ teardown:
         transform_id: "airline-transform-start-stop"
   - match: { count: 1 }
   - match: { transforms.0.id: "airline-transform-start-stop" }
-  - match: { transforms.0.task_state: "started" }
+  - match: { transforms.0.state: "/started|indexing/" }
 
   - do:
       data_frame.stop_data_frame_transform:
@@ -113,7 +113,7 @@ teardown:
         transform_id: "airline-transform-start-stop"
   - match: { count: 1 }
   - match: { transforms.0.id: "airline-transform-start-stop" }
-  - match: { transforms.0.task_state: "stopped" }
+  - match: { transforms.0.state: "stopped" }
 
   - do:
       data_frame.start_data_frame_transform:
@@ -125,7 +125,7 @@ teardown:
         transform_id: "airline-transform-start-stop"
   - match: { count: 1 }
   - match: { transforms.0.id: "airline-transform-start-stop" }
-  - match: { transforms.0.task_state: "started" }
+  - match: { transforms.0.state: "/started|indexing/" }
 ---
 "Test start/stop/start continuous transform":
   - do:
@@ -157,7 +157,7 @@ teardown:
         transform_id: "airline-transform-start-stop-continuous"
   - match: { count: 1 }
   - match: { transforms.0.id: "airline-transform-start-stop-continuous" }
-  - match: { transforms.0.task_state: "started" }
+  - match: { transforms.0.state: "/started|indexing/" }
 
   - do:
       data_frame.stop_data_frame_transform:
@@ -170,7 +170,7 @@ teardown:
         transform_id: "airline-transform-start-stop-continuous"
   - match: { count: 1 }
   - match: { transforms.0.id: "airline-transform-start-stop-continuous" }
-  - match: { transforms.0.task_state: "stopped" }
+  - match: { transforms.0.state: "stopped" }
 
   - do:
       data_frame.start_data_frame_transform:
@@ -182,7 +182,7 @@ teardown:
         transform_id: "airline-transform-start-stop-continuous"
   - match: { count: 1 }
   - match: { transforms.0.id: "airline-transform-start-stop-continuous" }
-  - match: { transforms.0.task_state: "started" }
+  - match: { transforms.0.state: "/started|indexing/" }
 
   - do:
       data_frame.stop_data_frame_transform:
@@ -244,14 +244,14 @@ teardown:
         transform_id: "airline-transform-start-stop"
   - match: { count: 1 }
   - match: { transforms.0.id: "airline-transform-start-stop" }
-  - match: { transforms.0.task_state: "started" }
+  - match: { transforms.0.state: "/started|indexing/" }
 
   - do:
       data_frame.get_data_frame_transform_stats:
         transform_id: "airline-transform-start-later"
   - match: { count: 1 }
   - match: { transforms.0.id: "airline-transform-start-later" }
-  - match: { transforms.0.task_state: "stopped" }
+  - match: { transforms.0.state: "stopped" }
 
   - do:
       data_frame.start_data_frame_transform:
@@ -270,7 +270,7 @@ teardown:
         transform_id: "airline-transform-start-later"
   - match: { count: 1 }
   - match: { transforms.0.id: "airline-transform-start-later" }
-  - match: { transforms.0.task_state: "started" }
+  - match: { transforms.0.state: "/started|indexing/" }
 
   - do:
       data_frame.stop_data_frame_transform:
@@ -316,8 +316,8 @@ teardown:
       data_frame.get_data_frame_transform_stats:
         transform_id: "*"
   - match: { count: 2 }
-  - match: { transforms.0.task_state: "stopped" }
-  - match: { transforms.1.task_state: "stopped" }
+  - match: { transforms.0.state: "stopped" }
+  - match: { transforms.1.state: "stopped" }
 
   - do:
       data_frame.delete_data_frame_transform:

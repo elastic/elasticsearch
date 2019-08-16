@@ -1000,7 +1000,7 @@ POST /_security/saml/logout
 // CONSOLE
 // TEST[skip:handled in IT]
 +
-If the SAML realm is configured accordingly and the IdP supports it, this request will trigger a SAML
+If the SAML realm is configured accordingly and the IdP supports it (see <<saml-logout>>), this request will trigger a SAML
 SP-initiated Single Logout. In this case, the response will include a `redirect`
 parameter indicating where the user needs to be redirected at the IdP in order to complete the logout.
 . Alternatively, the IdP might initiate the Single Logout flow at some point. In order to handle this, 

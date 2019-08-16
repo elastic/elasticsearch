@@ -21,16 +21,15 @@ package org.elasticsearch.common.settings;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
-import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.KeyStoreAwareCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
 
 import java.nio.file.Path;
-import java.util.Arrays;
 
-public abstract class BaseKeyStoreCommand extends EnvironmentAwareCommand {
+public abstract class BaseKeyStoreCommand extends KeyStoreAwareCommand {
 
     private KeyStoreWrapper keyStore;
     private SecureString keyStorePassword;
@@ -80,30 +79,6 @@ public abstract class BaseKeyStoreCommand extends EnvironmentAwareCommand {
 
     protected SecureString getKeyStorePassword() {
         return keyStorePassword;
-    }
-
-    /**
-     * Reads the keystore password from the {@link Terminal}, prompting for verification where applicable and returns it as a
-     * {@link SecureString}.
-     *
-     * @param terminal         the terminal to use for user inputs
-     * @param withVerification whether the user should be prompted for password verification
-     * @return a SecureString with the password the user entered
-     * @throws UserException If the user is prompted for verification and enters a different password
-     */
-    static SecureString readPassword(Terminal terminal, boolean withVerification) throws UserException {
-        final char[] passwordArray;
-        if (withVerification) {
-            passwordArray = terminal.readSecret("Enter new password for the elasticsearch keystore (empty for no password): ");
-            char[] passwordVerification = terminal.readSecret("Enter same password again: ");
-            if (Arrays.equals(passwordArray, passwordVerification) == false) {
-                throw new UserException(ExitCodes.DATA_ERROR, "Passwords are not equal, exiting.");
-            }
-            Arrays.fill(passwordVerification, '\u0000');
-        } else {
-            passwordArray = terminal.readSecret("Enter password for the elasticsearch keystore : ");
-        }
-        return new SecureString(passwordArray);
     }
 
     /**

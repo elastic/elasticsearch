@@ -163,13 +163,13 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
         assertSecureString("foo", "secret value 2", password);
     }
 
-    public void testStdinSystemTerminal() throws Exception {
+    public void testStdinSystemTerminalNoException() throws Exception {
         String password = "keystorepassword";
         KeyStoreWrapper.create().save(env.configFile(), password.toCharArray());
         String input = password + "\nbar\n";
         InputStream in = new ByteArrayInputStream(input.getBytes(Charset.defaultCharset()));
         Terminal term = new TestSystemTerminal(in);
-        execute(term, "--stdin", "foo");
+        execute(term, newCommand(), "--stdin", "foo");
     }
 
     public void testMissingSettingName() throws Exception {

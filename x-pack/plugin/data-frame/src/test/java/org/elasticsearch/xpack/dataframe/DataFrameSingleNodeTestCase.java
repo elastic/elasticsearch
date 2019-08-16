@@ -63,6 +63,7 @@ public abstract class DataFrameSingleNodeTestCase extends ESSingleNodeTestCase {
             }
         }, e -> {
             if (onException == null) {
+                logger.error("got unexpected exception", e);
                 fail("got unexpected exception: " + e.getMessage());
             } else {
                 onException.accept(e);
@@ -70,7 +71,7 @@ public abstract class DataFrameSingleNodeTestCase extends ESSingleNodeTestCase {
         }), latch);
 
         function.accept(listener);
-        latch.await(10, TimeUnit.SECONDS);
+        assertTrue("timed out after 20s", latch.await(20, TimeUnit.SECONDS));
     }
 
 }

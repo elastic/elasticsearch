@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.core.ml.action.DeleteFilterAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteForecastAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteModelSnapshotAction;
+import org.elasticsearch.xpack.core.ml.action.EstimateMemoryUsageAction;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
 import org.elasticsearch.xpack.core.ml.action.FindFileStructureAction;
@@ -137,6 +138,7 @@ import org.elasticsearch.xpack.ml.action.TransportDeleteFilterAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteForecastAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteJobAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteModelSnapshotAction;
+import org.elasticsearch.xpack.ml.action.TransportEstimateMemoryUsageAction;
 import org.elasticsearch.xpack.ml.action.TransportEvaluateDataFrameAction;
 import org.elasticsearch.xpack.ml.action.TransportFinalizeJobExecutionAction;
 import org.elasticsearch.xpack.ml.action.TransportFindFileStructureAction;
@@ -191,6 +193,10 @@ import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
 import org.elasticsearch.xpack.ml.dataframe.process.AnalyticsProcessFactory;
 import org.elasticsearch.xpack.ml.dataframe.process.AnalyticsProcessManager;
+import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
+import org.elasticsearch.xpack.ml.dataframe.process.MemoryUsageEstimationProcessManager;
+import org.elasticsearch.xpack.ml.dataframe.process.results.MemoryUsageEstimationResult;
+import org.elasticsearch.xpack.ml.dataframe.process.NativeMemoryUsageEstimationProcessFactory;
 import org.elasticsearch.xpack.ml.dataframe.process.NativeAnalyticsProcessFactory;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.JobManagerHolder;
@@ -238,6 +244,7 @@ import org.elasticsearch.xpack.ml.rest.datafeeds.RestStartDatafeedAction;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestStopDatafeedAction;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestUpdateDatafeedAction;
 import org.elasticsearch.xpack.ml.rest.dataframe.RestDeleteDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.ml.rest.dataframe.RestEstimateMemoryUsageAction;
 import org.elasticsearch.xpack.ml.rest.dataframe.RestEvaluateDataFrameAction;
 import org.elasticsearch.xpack.ml.rest.dataframe.RestGetDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.ml.rest.dataframe.RestGetDataFrameAnalyticsStatsAction;
@@ -489,7 +496,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         MlController mlController;
         AutodetectProcessFactory autodetectProcessFactory;
         NormalizerProcessFactory normalizerProcessFactory;
-        AnalyticsProcessFactory analyticsProcessFactory;
+        AnalyticsProcessFactory<AnalyticsResult> analyticsProcessFactory;
+        AnalyticsProcessFactory<MemoryUsageEstimationResult> memoryEstimationProcessFactory;
         if (MachineLearningField.AUTODETECT_PROCESS.get(settings)) {
             try {
                 NativeController nativeController = NativeController.makeNativeController(clusterService.getNodeName(), environment);
@@ -501,6 +509,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                     clusterService);
                 normalizerProcessFactory = new NativeNormalizerProcessFactory(environment, nativeController, clusterService);
                 analyticsProcessFactory = new NativeAnalyticsProcessFactory(environment, nativeController, clusterService);
+                memoryEstimationProcessFactory =
+                    new NativeMemoryUsageEstimationProcessFactory(environment, nativeController, clusterService);
                 mlController = nativeController;
             } catch (IOException e) {
                 // The low level cause of failure from the named pipe helper's perspective is almost never the real root cause, so
@@ -519,6 +529,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
             // factor of 1.0 makes renormalization a no-op
             normalizerProcessFactory = (jobId, quantilesState, bucketSpan, executorService) -> new MultiplyingNormalizerProcess(1.0);
             analyticsProcessFactory = (jobId, analyticsProcessConfig, executorService, onProcessCrash) -> null;
+            memoryEstimationProcessFactory = (jobId, analyticsProcessConfig, executorService, onProcessCrash) -> null;
         }
         NormalizerFactory normalizerFactory = new NormalizerFactory(normalizerProcessFactory,
                 threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME));
@@ -542,6 +553,9 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
 
         // Data frame analytics components
         AnalyticsProcessManager analyticsProcessManager = new AnalyticsProcessManager(client, threadPool, analyticsProcessFactory);
+        MemoryUsageEstimationProcessManager memoryEstimationProcessManager =
+            new MemoryUsageEstimationProcessManager(
+                threadPool.generic(), threadPool.executor(MachineLearning.JOB_COMMS_THREAD_POOL_NAME), memoryEstimationProcessFactory);
         DataFrameAnalyticsConfigProvider dataFrameAnalyticsConfigProvider = new DataFrameAnalyticsConfigProvider(client);
         assert client instanceof NodeClient;
         DataFrameAnalyticsManager dataFrameAnalyticsManager = new DataFrameAnalyticsManager((NodeClient) client,
@@ -580,6 +594,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 new MlAssignmentNotifier(settings, auditor, threadPool, client, clusterService),
                 memoryTracker,
                 analyticsProcessManager,
+                memoryEstimationProcessManager,
                 dataFrameAnalyticsConfigProvider,
                 nativeStorageProvider
         );
@@ -611,59 +626,60 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
             return emptyList();
         }
         return Arrays.asList(
-            new RestGetJobsAction(settings, restController),
-            new RestGetJobStatsAction(settings, restController),
-            new RestMlInfoAction(settings, restController),
-            new RestPutJobAction(settings, restController),
-            new RestPostJobUpdateAction(settings, restController),
-            new RestDeleteJobAction(settings, restController),
-            new RestOpenJobAction(settings, restController),
-            new RestGetFiltersAction(settings, restController),
-            new RestPutFilterAction(settings, restController),
-            new RestUpdateFilterAction(settings, restController),
-            new RestDeleteFilterAction(settings, restController),
-            new RestGetInfluencersAction(settings, restController),
-            new RestGetRecordsAction(settings, restController),
-            new RestGetBucketsAction(settings, restController),
-            new RestGetOverallBucketsAction(settings, restController),
-            new RestPostDataAction(settings, restController),
-            new RestCloseJobAction(settings, restController),
-            new RestFlushJobAction(settings, restController),
-            new RestValidateDetectorAction(settings, restController),
-            new RestValidateJobConfigAction(settings, restController),
-            new RestGetCategoriesAction(settings, restController),
-            new RestGetModelSnapshotsAction(settings, restController),
-            new RestRevertModelSnapshotAction(settings, restController),
-            new RestUpdateModelSnapshotAction(settings, restController),
-            new RestGetDatafeedsAction(settings, restController),
-            new RestGetDatafeedStatsAction(settings, restController),
-            new RestPutDatafeedAction(settings, restController),
-            new RestUpdateDatafeedAction(settings, restController),
-            new RestDeleteDatafeedAction(settings, restController),
-            new RestPreviewDatafeedAction(settings, restController),
-            new RestStartDatafeedAction(settings, restController),
-            new RestStopDatafeedAction(settings, restController),
-            new RestDeleteModelSnapshotAction(settings, restController),
-            new RestDeleteExpiredDataAction(settings, restController),
-            new RestForecastJobAction(settings, restController),
-            new RestDeleteForecastAction(settings, restController),
-            new RestGetCalendarsAction(settings, restController),
-            new RestPutCalendarAction(settings, restController),
-            new RestDeleteCalendarAction(settings, restController),
-            new RestDeleteCalendarEventAction(settings, restController),
-            new RestDeleteCalendarJobAction(settings, restController),
-            new RestPutCalendarJobAction(settings, restController),
-            new RestGetCalendarEventsAction(settings, restController),
-            new RestPostCalendarEventAction(settings, restController),
-            new RestFindFileStructureAction(settings, restController),
-            new RestSetUpgradeModeAction(settings, restController),
-            new RestGetDataFrameAnalyticsAction(settings, restController),
-            new RestGetDataFrameAnalyticsStatsAction(settings, restController),
-            new RestPutDataFrameAnalyticsAction(settings, restController),
-            new RestDeleteDataFrameAnalyticsAction(settings, restController),
-            new RestStartDataFrameAnalyticsAction(settings, restController),
-            new RestStopDataFrameAnalyticsAction(settings, restController),
-            new RestEvaluateDataFrameAction(settings, restController)
+            new RestGetJobsAction(restController),
+            new RestGetJobStatsAction(restController),
+            new RestMlInfoAction(restController),
+            new RestPutJobAction(restController),
+            new RestPostJobUpdateAction(restController),
+            new RestDeleteJobAction(restController),
+            new RestOpenJobAction(restController),
+            new RestGetFiltersAction(restController),
+            new RestPutFilterAction(restController),
+            new RestUpdateFilterAction(restController),
+            new RestDeleteFilterAction(restController),
+            new RestGetInfluencersAction(restController),
+            new RestGetRecordsAction(restController),
+            new RestGetBucketsAction(restController),
+            new RestGetOverallBucketsAction(restController),
+            new RestPostDataAction(restController),
+            new RestCloseJobAction(restController),
+            new RestFlushJobAction(restController),
+            new RestValidateDetectorAction(restController),
+            new RestValidateJobConfigAction(restController),
+            new RestGetCategoriesAction(restController),
+            new RestGetModelSnapshotsAction(restController),
+            new RestRevertModelSnapshotAction(restController),
+            new RestUpdateModelSnapshotAction(restController),
+            new RestGetDatafeedsAction(restController),
+            new RestGetDatafeedStatsAction(restController),
+            new RestPutDatafeedAction(restController),
+            new RestUpdateDatafeedAction(restController),
+            new RestDeleteDatafeedAction(restController),
+            new RestPreviewDatafeedAction(restController),
+            new RestStartDatafeedAction(restController),
+            new RestStopDatafeedAction(restController),
+            new RestDeleteModelSnapshotAction(restController),
+            new RestDeleteExpiredDataAction(restController),
+            new RestForecastJobAction(restController),
+            new RestDeleteForecastAction(restController),
+            new RestGetCalendarsAction(restController),
+            new RestPutCalendarAction(restController),
+            new RestDeleteCalendarAction(restController),
+            new RestDeleteCalendarEventAction(restController),
+            new RestDeleteCalendarJobAction(restController),
+            new RestPutCalendarJobAction(restController),
+            new RestGetCalendarEventsAction(restController),
+            new RestPostCalendarEventAction(restController),
+            new RestFindFileStructureAction(restController),
+            new RestSetUpgradeModeAction(restController),
+            new RestGetDataFrameAnalyticsAction(restController),
+            new RestGetDataFrameAnalyticsStatsAction(restController),
+            new RestPutDataFrameAnalyticsAction(restController),
+            new RestDeleteDataFrameAnalyticsAction(restController),
+            new RestStartDataFrameAnalyticsAction(restController),
+            new RestStopDataFrameAnalyticsAction(restController),
+            new RestEvaluateDataFrameAction(restController),
+            new RestEstimateMemoryUsageAction(restController)
         );
     }
 
@@ -734,6 +750,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 new ActionHandler<>(StartDataFrameAnalyticsAction.INSTANCE, TransportStartDataFrameAnalyticsAction.class),
                 new ActionHandler<>(StopDataFrameAnalyticsAction.INSTANCE, TransportStopDataFrameAnalyticsAction.class),
                 new ActionHandler<>(EvaluateDataFrameAction.INSTANCE, TransportEvaluateDataFrameAction.class),
+                new ActionHandler<>(EstimateMemoryUsageAction.INSTANCE, TransportEstimateMemoryUsageAction.class),
                 usageAction,
                 infoAction);
     }

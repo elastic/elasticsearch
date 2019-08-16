@@ -152,18 +152,6 @@ public class CompositeAggregationCursor implements Cursor {
         });
     }
 
-    static Page process(SearchResponse response, SearchSourceBuilder source, Function<byte[], CompositeAggsRowSet> makeRowSet,
-            boolean includeFrozen, String... indices) throws Exception {
-        boolean hasAfterKey = updateCompositeAfterKey(response, source);
-        byte[] queryAsBytes = hasAfterKey ? serializeQuery(source) : null;
-        CompositeAggsRowSet rowSet = makeRowSet.apply(queryAsBytes);
-
-        Cursor next = rowSet.remainingData() == 0 ? Cursor.EMPTY : new CompositeAggregationCursor(queryAsBytes, rowSet.extractors(),
-                rowSet.mask(), rowSet.remainingData(), includeFrozen, indices);
-
-        return new Page(rowSet, next);
-    }
-
     static void handle(SearchResponse response, SearchSourceBuilder source, Function<byte[], CompositeAggsRowSet> makeRowSet,
             Runnable retry, Consumer<Page> onPage, Consumer<Exception> onFailure,
             Schema schema, boolean includeFrozen, String[] indices) {
@@ -193,7 +181,7 @@ public class CompositeAggregationCursor implements Cursor {
         }
         // no results
         else {
-            onPage.accept(Page.end(Rows.empty(schema)));
+            onPage.accept(Page.last(Rows.empty(schema)));
         }
     }
     

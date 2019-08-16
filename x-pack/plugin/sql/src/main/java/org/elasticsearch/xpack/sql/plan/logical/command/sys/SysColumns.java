@@ -104,7 +104,7 @@ public class SysColumns extends Command {
 
         // bail-out early if the catalog is present but differs
         if (Strings.hasText(catalog) && cluster.equals(catalog) == false) {
-            listener.onResponse(Page.end(Rows.empty(output)));
+            listener.onResponse(Page.last(Rows.empty(output)));
             return;
         }
 

@@ -91,11 +91,13 @@ public class ScrollCursor implements Cursor {
     }
     @Override
     public void nextPage(Configuration cfg, Client client, NamedWriteableRegistry registry, ActionListener<Page> listener) {
-        log.trace("About to execute scroll query {}", scrollId);
+        if (log.isTraceEnabled()) {
+            log.trace("About to execute scroll query {}", scrollId);
+        }
 
         SearchScrollRequest request = new SearchScrollRequest(scrollId).scroll(cfg.pageTimeout());
         client.searchScroll(request, wrap(response -> {
-            handle(response, () -> new SearchHitRowSet(extractors, mask, limit, response), 
+            handle(response, () -> new SearchHitRowSet(extractors, mask, limit, response),
                     p -> listener.onResponse(p),
                     p -> clear(cfg, client, wrap(success -> listener.onResponse(p), listener::onFailure)),
                     Schema.EMPTY);
@@ -119,7 +121,7 @@ public class ScrollCursor implements Cursor {
 
             if (nextScrollData == null) {
                 // no more data, let's clean the scroll before continuing
-                clearScroll.accept(Page.end(rowSet));
+                clearScroll.accept(Page.last(rowSet));
             } else {
                 Cursor next = new ScrollCursor(nextScrollData.v1(), rowSet.extractors(), rowSet.mask(), nextScrollData.v2());
                 onPage.accept(new Page(rowSet, next));
@@ -127,7 +129,7 @@ public class ScrollCursor implements Cursor {
         }
         // no-hits
         else {
-            clearScroll.accept(Page.end(Rows.empty(schema)));
+            clearScroll.accept(Page.last(Rows.empty(schema)));
         }
     }
 

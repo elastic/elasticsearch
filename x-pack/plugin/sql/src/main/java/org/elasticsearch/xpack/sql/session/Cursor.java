@@ -32,7 +32,7 @@ public interface Cursor extends NamedWriteable {
             return next;
         }
 
-        public static Page end(RowSet rowSet) {
+        public static Page last(RowSet rowSet) {
             return new Page(rowSet, EMPTY);
         }
     }

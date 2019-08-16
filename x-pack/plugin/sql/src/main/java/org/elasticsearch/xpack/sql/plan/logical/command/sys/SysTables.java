@@ -85,7 +85,7 @@ public class SysTables extends Command {
                 Object[] enumeration = new Object[10];
                 // send only the cluster, everything else null
                 enumeration[0] = cluster;
-                listener.onResponse(Page.end(Rows.singleton(output(), enumeration)));
+                listener.onResponse(Page.last(Rows.singleton(output(), enumeration)));
                 return;
             }
         }
@@ -122,7 +122,7 @@ public class SysTables extends Command {
 
         // if the catalog doesn't match, don't return any results
         if (cRegex != null && !Pattern.matches(cRegex, cluster)) {
-            listener.onResponse(Page.end(Rows.empty(output())));
+            listener.onResponse(Page.last(Rows.empty(output())));
             return;
         }
 

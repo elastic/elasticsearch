@@ -303,10 +303,10 @@ public class Querier {
                 for (int i = mask.nextSetBit(0); i >= 0; i = mask.nextSetBit(i + 1)) {
                     values[index++] = extractors.get(i).extract(implicitGroup);
                 }
-                listener.onResponse(Page.end(Rows.singleton(schema, values)));
+                listener.onResponse(Page.last(Rows.singleton(schema, values)));
 
             } else if (buckets.isEmpty()) {
-                listener.onResponse(Page.end(Rows.empty(schema)));
+                listener.onResponse(Page.last(Rows.empty(schema)));
 
             } else {
                 throw new SqlIllegalArgumentException("Too many groups returned by the implicit group; expected 1, received {}",

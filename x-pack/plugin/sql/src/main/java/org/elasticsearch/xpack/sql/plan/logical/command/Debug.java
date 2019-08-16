@@ -135,7 +135,7 @@ public class Debug extends Command {
             }
         }
 
-        listener.onResponse(Page.end(Rows.singleton(output(), planString)));
+        listener.onResponse(Page.last(Rows.singleton(output(), planString)));
     }
 
     @Override

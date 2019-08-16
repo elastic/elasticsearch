@@ -27,7 +27,7 @@ public class EmptyExecutable implements Executable {
 
     @Override
     public void execute(SqlSession session, ActionListener<Page> listener) {
-        listener.onResponse(Page.end(Rows.empty(output)));
+        listener.onResponse(Page.last(Rows.empty(output)));
     }
 
     @Override

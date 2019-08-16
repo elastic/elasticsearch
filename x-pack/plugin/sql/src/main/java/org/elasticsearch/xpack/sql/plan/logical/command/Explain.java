@@ -88,7 +88,7 @@ public class Explain extends Command {
     public void execute(SqlSession session, ActionListener<Page> listener) {
 
         if (type == Type.PARSED) {
-            listener.onResponse(Page.end(Rows.singleton(output(), formatPlan(format, plan))));
+            listener.onResponse(Page.last(Rows.singleton(output(), formatPlan(format, plan))));
             return;
         }
 
@@ -96,7 +96,7 @@ public class Explain extends Command {
         session.analyzedPlan(plan, verify, wrap(analyzedPlan -> {
 
             if (type == Type.ANALYZED) {
-                listener.onResponse(Page.end(Rows.singleton(output(), formatPlan(format, analyzedPlan))));
+                listener.onResponse(Page.last(Rows.singleton(output(), formatPlan(format, analyzedPlan))));
                 return;
             }
 
@@ -105,24 +105,24 @@ public class Explain extends Command {
             if (verify) {
                 session.optimizedPlan(analyzedPlan, wrap(optimizedPlan -> {
                     if (type == Type.OPTIMIZED) {
-                        listener.onResponse(Page.end(Rows.singleton(output(), formatPlan(format, optimizedPlan))));
+                        listener.onResponse(Page.last(Rows.singleton(output(), formatPlan(format, optimizedPlan))));
                         return;
                     }
 
                     PhysicalPlan mappedPlan = planner.mapPlan(optimizedPlan, verify);
                     if (type == Type.MAPPED) {
-                        listener.onResponse(Page.end(Rows.singleton(output(), formatPlan(format, mappedPlan))));
+                        listener.onResponse(Page.last(Rows.singleton(output(), formatPlan(format, mappedPlan))));
                         return;
                     }
 
                     PhysicalPlan executablePlan = planner.foldPlan(mappedPlan, verify);
                     if (type == Type.EXECUTABLE) {
-                        listener.onResponse(Page.end(Rows.singleton(output(), formatPlan(format, executablePlan))));
+                        listener.onResponse(Page.last(Rows.singleton(output(), formatPlan(format, executablePlan))));
                         return;
                     }
 
                     // Type.All
-                    listener.onResponse(Page.end(
+                    listener.onResponse(Page.last(
                             Rows.singleton(output(), printPlans(format, plan, analyzedPlan, optimizedPlan, mappedPlan, executablePlan))));
                 }, listener::onFailure));
             }
@@ -133,14 +133,14 @@ public class Explain extends Command {
                 if (session.verifier().verifyFailures(analyzedPlan).isEmpty()) {
                     session.optimizedPlan(analyzedPlan, wrap(optimizedPlan -> {
                         if (type == Type.OPTIMIZED) {
-                            listener.onResponse(Page.end(Rows.singleton(output(), formatPlan(format, optimizedPlan))));
+                            listener.onResponse(Page.last(Rows.singleton(output(), formatPlan(format, optimizedPlan))));
                             return;
                         }
 
                         PhysicalPlan mappedPlan = planner.mapPlan(optimizedPlan, verify);
 
                         if (type == Type.MAPPED) {
-                            listener.onResponse(Page.end(Rows.singleton(output(), formatPlan(format, mappedPlan))));
+                            listener.onResponse(Page.last(Rows.singleton(output(), formatPlan(format, mappedPlan))));
                             return;
                         }
 
@@ -148,30 +148,30 @@ public class Explain extends Command {
                             PhysicalPlan executablePlan = planner.foldPlan(mappedPlan, verify);
 
                             if (type == Type.EXECUTABLE) {
-                                listener.onResponse(Page.end(Rows.singleton(output(), formatPlan(format, executablePlan))));
+                                listener.onResponse(Page.last(Rows.singleton(output(), formatPlan(format, executablePlan))));
                                 return;
                             }
 
-                            listener.onResponse(Page.end(Rows.singleton(output(),
+                            listener.onResponse(Page.last(Rows.singleton(output(),
                                     printPlans(format, plan, analyzedPlan, optimizedPlan, mappedPlan, executablePlan))));
                             return;
                         }
                         // mapped failed
                         if (type != Type.ALL) {
-                            listener.onResponse(Page.end(Rows.singleton(output(), formatPlan(format, mappedPlan))));
+                            listener.onResponse(Page.last(Rows.singleton(output(), formatPlan(format, mappedPlan))));
                             return;
                         }
 
                         listener.onResponse(Page
-                                .end(Rows.singleton(output(), printPlans(format, plan, analyzedPlan, optimizedPlan, mappedPlan, null))));
+                                .last(Rows.singleton(output(), printPlans(format, plan, analyzedPlan, optimizedPlan, mappedPlan, null))));
                     }, listener::onFailure));
                     // cannot continue
                 } else {
                     if (type != Type.ALL) {
-                        listener.onResponse(Page.end(Rows.singleton(output(), formatPlan(format, analyzedPlan))));
+                        listener.onResponse(Page.last(Rows.singleton(output(), formatPlan(format, analyzedPlan))));
                     }
                     else {
-                        listener.onResponse(Page.end(Rows.singleton(output(), printPlans(format, plan, analyzedPlan, null, null, null))));
+                        listener.onResponse(Page.last(Rows.singleton(output(), printPlans(format, plan, analyzedPlan, null, null, null))));
                     }
                 }
             }

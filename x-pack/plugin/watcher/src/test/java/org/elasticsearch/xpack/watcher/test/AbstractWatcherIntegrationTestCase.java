@@ -538,9 +538,11 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
             WatcherStatsResponse watcherStatsResponse = watcherClient().prepareWatcherStats().get();
             assertThat(watcherStatsResponse.hasFailures(), is(false));
             List<Tuple<String, WatcherState>> currentStatesFromStatsRequest = watcherStatsResponse.getNodes().stream()
-                    .map(response -> Tuple.tuple(response.getNode().getName(), response.getWatcherState()))
-                    .collect(Collectors.toList());
+                    .map(response -> Tuple.tuple(response.getNode().getName() + " (" + response.getThreadPoolQueueSize() + ")",
+                        response.getWatcherState())).collect(Collectors.toList());
             List<WatcherState> states = currentStatesFromStatsRequest.stream().map(Tuple::v2).collect(Collectors.toList());
+
+
 
             logger.info("waiting to stop watcher, current states {}", currentStatesFromStatsRequest);
 
@@ -566,7 +568,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
             }
 
             throw new AssertionError("unexpected state, retrying with next run");
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     public static class NoopEmailService extends EmailService {

@@ -222,7 +222,7 @@ public class TransportStopDataFrameTransformAction extends TransportTasksAction<
                             taskState.getReason()),
                         RestStatus.CONFLICT));
 
-                    // If all the remaining tasks are flagged as failed, do not wait for another ClusterState update.
+                    // If all the tasks are now flagged as failed, do not wait for another ClusterState update.
                     // Return to the caller as soon as possible
                     return persistentTasksCustomMetaData.tasks().stream().allMatch(p -> exceptions.containsKey(p.getId()));
                 }

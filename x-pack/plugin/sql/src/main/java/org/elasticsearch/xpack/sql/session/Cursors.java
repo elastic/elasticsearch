@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractors;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
 import org.elasticsearch.xpack.sql.expression.literal.Literals;
 import org.elasticsearch.xpack.sql.plugin.TextFormatterCursor;
+import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.io.ByteArrayOutputStream;
 import java.io.OutputStream;
@@ -66,7 +67,7 @@ public final class Cursors {
      */
     public static String encodeToString(Version version, Cursor info) {
         if (info == Cursor.EMPTY) {
-            return "";
+            return StringUtils.EMPTY;
         }
         try (ByteArrayOutputStream os = new ByteArrayOutputStream()) {
             try (OutputStream base64 = Base64.getEncoder().wrap(os); StreamOutput out = new OutputStreamStreamOutput(base64)) {

@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -58,7 +59,7 @@ public class SnapshotHistoryStore {
             return;
         }
         logger.trace("about to index snapshot history item in index [{}]: [{}]", SLM_HISTORY_ALIAS, item);
-        bootstrap(client, clusterService, () -> {
+        ensureHistoryIndex(client, clusterService.state(), ActionListener.wrap(createdIndex -> {
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                 item.toXContent(builder, ToXContent.EMPTY_PARAMS);
                 IndexRequest request = new IndexRequest(SLM_HISTORY_ALIAS)
@@ -74,38 +75,54 @@ public class SnapshotHistoryStore {
                 logger.error(new ParameterizedMessage("failed to index snapshot history item in index [{}]: [{}]",
                     SLM_HISTORY_ALIAS, item), exception);
             }
-        });
+        }, ex -> logger.error(new ParameterizedMessage("failed to ensure SLM history index exists, not indexing history item [{}]",
+            item, ex))));
     }
 
-    private static void bootstrap(Client client, ClusterService clusterService, Runnable onBootstrapped) {
-        ClusterState state = clusterService.state();
-        boolean aliasExists = state.metaData().hasAlias(SLM_HISTORY_ALIAS);
+    /**
+     * Checks if the SLM history index exists, and if not, creates it.
+     *
+     * @param client  The client to use to create the index if needed
+     * @param state   The current cluster state, to determine if the alias exists
+     * @param andThen Called after the index has been created. `onResponse` called with `true` if the index was created,
+     *                `false` if it already existed.
+     */
+    private static void ensureHistoryIndex(Client client, ClusterState state, ActionListener<Boolean> andThen) {
+        AliasOrIndex slmHistory = state.metaData().getAliasAndIndexLookup().get(SLM_HISTORY_INDEX_PREFIX);
 
-        if (aliasExists) {
-            // Assume everything is fine
-            onBootstrapped.run();
-            return;
+        if (slmHistory == null) {
+            // No alias or index exists with the expected name, so create it
+            client.admin().indices().prepareCreate(SLM_HISTORY_INDEX_PREFIX + "000001")
+                .setWaitForActiveShards(1)
+                .addAlias(new Alias(SLM_HISTORY_ALIAS)
+                    .writeIndex(true))
+                .execute(new ActionListener<>() {
+                    @Override
+                    public void onResponse(CreateIndexResponse response) {
+                        andThen.onResponse(true);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        andThen.onFailure(e);
+                    }
+                });
+        } else if (slmHistory.isAlias() && slmHistory instanceof AliasOrIndex.Alias) {
+            if (((AliasOrIndex.Alias) slmHistory).getWriteIndex() != null) {
+                // The alias exists and has a write index, so we're good
+                andThen.onResponse(false);
+            } else {
+                // The alias does not have a write index, so we can't index into it
+                andThen.onFailure(new IllegalStateException("SLM history alias [" + SLM_HISTORY_ALIAS + "does not have a write index"));
+            }
+        } else if (slmHistory.isAlias() == false) {
+            // This is not an alias, error out
+            andThen.onFailure(new IllegalStateException("SLM history alias [" + SLM_HISTORY_ALIAS +
+                "] already exists as concrete index"));
+        } else {
+            logger.error("unexpected IndexOrAlias for [{}]: [{}]", SLM_HISTORY_ALIAS, slmHistory);
+            // (slmHistory.isAlias() == true) but (slmHistory instanceof Alias == false)?
+            assert false : SLM_HISTORY_ALIAS + " cannot be both an alias and not an alias simultaneously";
         }
-
-        if (state.metaData().hasIndex(SLM_HISTORY_ALIAS)) {
-            logger.error("SLM history alias already exists as concrete index");
-            return;
-        }
-
-        client.admin().indices().prepareCreate(SLM_HISTORY_INDEX_PREFIX + "000001")
-            .setWaitForActiveShards(1)
-            .addAlias(new Alias(SLM_HISTORY_ALIAS)
-                .writeIndex(true))
-            .execute(new ActionListener<>() {
-                @Override
-                public void onResponse(CreateIndexResponse response) {
-                    onBootstrapped.run();
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    logger.error("failed to bootstrap SLM history index", e);
-                }
-            });
     }
 }

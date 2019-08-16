@@ -9,7 +9,6 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.protocol.xpack.frozen.FreezeRequest;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -18,8 +17,8 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
 
 public final class RestFreezeIndexAction extends BaseRestHandler {
-    public RestFreezeIndexAction(Settings settings, RestController controller) {
-        super(settings);
+
+    public RestFreezeIndexAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.POST, "/{index}/_freeze", this);
         controller.registerHandler(RestRequest.Method.POST, "/{index}/_unfreeze", this);
     }

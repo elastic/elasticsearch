@@ -1,18 +1,24 @@
 {
-  "xpack.info": {
-    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/info-api.html",
-    "stability": "stable",
-    "methods": [ "GET" ],
-    "url": {
-      "paths": [ "/_xpack" ],
-      "parts": {},
-      "params": {
-        "categories": {
-          "type": "list",
-          "description" : "Comma-separated list of info categories. Can be any of: build, license, features"
-        }
-      }
+  "xpack.info":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/info-api.html"
     },
-    "body": null
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_xpack",
+          "methods":[
+            "GET"
+          ]
+        }
+      ]
+    },
+    "params":{
+      "categories":{
+        "type":"list",
+        "description":"Comma-separated list of info categories. Can be any of: build, license, features"
+      }
+    }
   }
 }

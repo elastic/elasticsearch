@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.MockSearchService;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -45,6 +46,12 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class ReindexFailoverIT extends ReindexTestCase {
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+            .put(SearchService.KEEPALIVE_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1)).build();
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -103,7 +110,7 @@ public class ReindexFailoverIT extends ReindexTestCase {
         String nodeName = nodeIdToName.get(nodeId);
 
         logger.info("--> restarting node: " + nodeName);
-        ensureGreen(ReindexTask.REINDEX_INDEX);
+        ensureGreen(ReindexIndexClient.REINDEX_INDEX);
         internalCluster().restartNode(nodeName, new InternalTestCluster.RestartCallback());
 
         ensureYellow("dest");

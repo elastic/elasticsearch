@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -39,41 +37,32 @@ public class ReindexJobState implements Task.Status, PersistentTaskState {
     public static final String NAME = ReindexTask.NAME;
 
     public static final ConstructingObjectParser<ReindexJobState, Void> PARSER =
-        new ConstructingObjectParser<>(NAME, a -> new ReindexJobState((String) a[0], (BulkByScrollResponse) a[1],
-            (ElasticsearchException) a[2]));
+        new ConstructingObjectParser<>(NAME, a -> new ReindexJobState((String) a[0], (String) a[1]));
 
     private static String EPHEMERAL_TASK_ID = "ephemeral_task_id";
-    private static String REINDEX_RESPONSE = "reindex_response";
-    private static String REINDEX_EXCEPTION = "reindex_exception";
+    private static String STATUS = "status";
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(),  new ParseField(EPHEMERAL_TASK_ID));
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> BulkByScrollResponse.fromXContent(p),
-            new ParseField(REINDEX_RESPONSE));
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> ElasticsearchException.fromXContent(p),
-            new ParseField(REINDEX_EXCEPTION));
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField(STATUS));
     }
 
     private final TaskId ephemeralTaskId;
-    private final BulkByScrollResponse reindexResponse;
-    private final ElasticsearchException jobException;
+    private final Status status;
 
-    private ReindexJobState(String ephemeralTaskId, BulkByScrollResponse reindexResponse, ElasticsearchException jobException) {
-        this(new TaskId(ephemeralTaskId), reindexResponse, jobException);
+    private ReindexJobState(String ephemeralTaskId, String status) {
+        this(new TaskId(ephemeralTaskId), Status.valueOf(status));
     }
 
-    ReindexJobState(TaskId ephemeralTaskId, @Nullable BulkByScrollResponse reindexResponse,
-                    @Nullable ElasticsearchException jobException) {
+    ReindexJobState(TaskId ephemeralTaskId, Status status) {
+        assert status != null : "Status cannot be null";
         this.ephemeralTaskId = ephemeralTaskId;
-        assert (reindexResponse == null) || (jobException == null) : "Either response or exception must be null";
-        this.reindexResponse = reindexResponse;
-        this.jobException = jobException;
+        this.status = status;
     }
 
     public ReindexJobState(StreamInput in) throws IOException {
         ephemeralTaskId = TaskId.readFromStream(in);
-        reindexResponse = in.readOptionalWriteable(BulkByScrollResponse::new);
-        jobException = in.readException();
+        status = in.readEnum(Status.class);
     }
 
     @Override
@@ -84,35 +73,23 @@ public class ReindexJobState implements Task.Status, PersistentTaskState {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         ephemeralTaskId.writeTo(out);
-        out.writeOptionalWriteable(reindexResponse);
-        out.writeException(jobException);
+        out.writeEnum(status);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(EPHEMERAL_TASK_ID, ephemeralTaskId.toString());
-        if (reindexResponse != null) {
-            builder.field(REINDEX_RESPONSE);
-            builder.startObject();
-            reindexResponse.toXContent(builder, params);
-            builder.endObject();
-        }
-        if (jobException != null) {
-            builder.field(REINDEX_EXCEPTION);
-            builder.startObject();
-            jobException.toXContent(builder, params);
-            builder.endObject();
-        }
+        builder.field(STATUS, status);
         return builder.endObject();
     }
 
-    public BulkByScrollResponse getReindexResponse() {
-        return reindexResponse;
+    public boolean isDone() {
+        return status != Status.STARTED;
     }
 
-    public ElasticsearchException getJobException() {
-        return jobException;
+    public Status getStatus() {
+        return status;
     }
 
     public TaskId getEphemeralTaskId() {
@@ -121,5 +98,12 @@ public class ReindexJobState implements Task.Status, PersistentTaskState {
 
     public static ReindexJobState fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
+    }
+
+    public enum Status {
+        STARTED,
+        FAILED_TO_READ_FROM_REINDEX_INDEX,
+        FAILED_TO_WRITE_TO_REINDEX_INDEX,
+        DONE
     }
 }

@@ -70,12 +70,13 @@ A watch has the following fields:
                       for this is 5 seconds. This default can be changed in the
                       config file with the setting
                       `xpack.watcher.throttle.period.default_period`. If
-                      provided, the `throttle_period_in_millis` value overrides
-                      this parameter.
+                      provided, this value overrides the
+                      `throttle_period_in_millis` value.
 
 | `throttle_period_in_millis` | Minimum time in milliseconds between actions
-                                being run. Defaults to `5000`. If provided, this
-                                value overrides the `throttle_period` value.
+                                being run. Defaults to `5000`. If provided, the
+                                `throttle_period`` value overrides this
+                                parameter.
 
 |======
 

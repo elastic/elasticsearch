@@ -14,8 +14,6 @@ import java.util.Set;
 
 /**
  * A Weight that caps scores of the wrapped query to a maximum value
- *
- * @lucene.internal
  */
 public abstract class CappedScoreWeight extends Weight {
 

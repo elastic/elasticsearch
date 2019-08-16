@@ -19,13 +19,13 @@
 
 package org.elasticsearch.client.dataframe.transforms;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class DataFrameTransformProgress {
@@ -33,42 +33,65 @@ public class DataFrameTransformProgress {
     public static final ParseField TOTAL_DOCS = new ParseField("total_docs");
     public static final ParseField DOCS_REMAINING = new ParseField("docs_remaining");
     public static final ParseField PERCENT_COMPLETE = new ParseField("percent_complete");
+    public static final ParseField DOCS_PROCESSED = new ParseField("docs_processed");
+    public static final ParseField DOCS_INDEXED = new ParseField("docs_indexed");
 
     public static final ConstructingObjectParser<DataFrameTransformProgress, Void> PARSER = new ConstructingObjectParser<>(
         "data_frame_transform_progress",
         true,
-        a -> new DataFrameTransformProgress((Long) a[0], (Long)a[1], (Double)a[2]));
+        a -> new DataFrameTransformProgress((Long) a[0], (Long)a[1], (Double)a[2], (Long)a[3], (Long)a[4]));
 
     static {
-        PARSER.declareLong(constructorArg(), TOTAL_DOCS);
+        PARSER.declareLong(optionalConstructorArg(), TOTAL_DOCS);
         PARSER.declareLong(optionalConstructorArg(), DOCS_REMAINING);
         PARSER.declareDouble(optionalConstructorArg(), PERCENT_COMPLETE);
+        PARSER.declareLong(optionalConstructorArg(), DOCS_PROCESSED);
+        PARSER.declareLong(optionalConstructorArg(), DOCS_INDEXED);
     }
 
     public static DataFrameTransformProgress fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    private final long totalDocs;
-    private final long remainingDocs;
-    private final double percentComplete;
+    private final Long totalDocs;
+    private final Long remainingDocs;
+    private final Double percentComplete;
+    private final long documentsProcessed;
+    private final long documentsIndexed;
 
-    public DataFrameTransformProgress(long totalDocs, Long remainingDocs, double percentComplete) {
+    public DataFrameTransformProgress(Long totalDocs,
+                                      Long remainingDocs,
+                                      Double percentComplete,
+                                      Long documentsProcessed,
+                                      Long documentsIndexed) {
         this.totalDocs = totalDocs;
         this.remainingDocs = remainingDocs == null ? totalDocs : remainingDocs;
         this.percentComplete = percentComplete;
+        this.documentsProcessed = documentsProcessed == null ? 0 : documentsProcessed;
+        this.documentsIndexed = documentsIndexed == null ? 0 : documentsIndexed;
     }
 
-    public double getPercentComplete() {
+    @Nullable
+    public Double getPercentComplete() {
         return percentComplete;
     }
 
-    public long getTotalDocs() {
+    @Nullable
+    public Long getTotalDocs() {
         return totalDocs;
     }
 
-    public long getRemainingDocs() {
+    @Nullable
+    public Long getRemainingDocs() {
         return remainingDocs;
+    }
+
+    public long getDocumentsProcessed() {
+        return documentsProcessed;
+    }
+
+    public long getDocumentsIndexed() {
+        return documentsIndexed;
     }
 
     @Override
@@ -84,11 +107,13 @@ public class DataFrameTransformProgress {
         DataFrameTransformProgress that = (DataFrameTransformProgress) other;
         return Objects.equals(this.remainingDocs, that.remainingDocs)
             && Objects.equals(this.totalDocs, that.totalDocs)
-            && Objects.equals(this.percentComplete, that.percentComplete);
+            && Objects.equals(this.percentComplete, that.percentComplete)
+            && Objects.equals(this.documentsIndexed, that.documentsIndexed)
+            && Objects.equals(this.documentsProcessed, that.documentsProcessed);
     }
 
     @Override
     public int hashCode(){
-        return Objects.hash(remainingDocs, totalDocs, percentComplete);
+        return Objects.hash(remainingDocs, totalDocs, percentComplete, documentsIndexed, documentsProcessed);
     }
 }

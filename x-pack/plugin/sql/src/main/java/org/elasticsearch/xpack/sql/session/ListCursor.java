@@ -4,16 +4,14 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.sql.execution.search;
+package org.elasticsearch.xpack.sql.session;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.sql.session.Configuration;
-import org.elasticsearch.xpack.sql.session.Cursor;
-import org.elasticsearch.xpack.sql.session.RowSet;
+import org.elasticsearch.xpack.sql.type.Schema;
 
 import java.io.IOException;
 import java.util.List;
@@ -21,7 +19,7 @@ import java.util.Objects;
 
 import static java.util.Collections.emptyList;
 
-public class PagingListCursor implements Cursor {
+public class ListCursor implements Cursor {
 
     public static final String NAME = "p";
 
@@ -29,14 +27,14 @@ public class PagingListCursor implements Cursor {
     private final int columnCount;
     private final int pageSize;
 
-    PagingListCursor(List<List<?>> data, int columnCount, int pageSize) {
+    public ListCursor(List<List<?>> data, int pageSize, int columnCount) {
         this.data = data;
         this.columnCount = columnCount;
         this.pageSize = pageSize;
     }
 
     @SuppressWarnings("unchecked")
-    public PagingListCursor(StreamInput in) throws IOException {
+    public ListCursor(StreamInput in) throws IOException {
         data = (List<List<?>>) in.readGenericValue();
         columnCount = in.readVInt();
         pageSize = in.readVInt();
@@ -66,11 +64,27 @@ public class PagingListCursor implements Cursor {
         return pageSize;
     }
 
-    @Override
-    public void nextPage(Configuration cfg, Client client, NamedWriteableRegistry registry, ActionListener<RowSet> listener) {
-        // the check is really a safety measure since the page initialization handles it already (by returning an empty cursor)
+    public static Page of(Schema schema, List<List<?>> data, int pageSize) {
+        return of(schema, data, pageSize, schema.size());
+    }
+
+    // NB: private since the columnCount is for public cases inferred by the columnCount
+    // only on the next-page the schema becomes null however that's an internal detail hence
+    // why this method is not exposed
+    private static Page of(Schema schema, List<List<?>> data, int pageSize, int columnCount) {
         List<List<?>> nextData = data.size() > pageSize ? data.subList(pageSize, data.size()) : emptyList();
-        listener.onResponse(new PagingListRowSet(nextData, columnCount, pageSize));
+        Cursor next = nextData.isEmpty()
+                ? Cursor.EMPTY
+                : new ListCursor(nextData, pageSize, columnCount);
+        List<List<?>> currData = data.isEmpty() || pageSize == 0
+                ? emptyList()
+                : data.size() == pageSize ? data : data.subList(0, Math.min(pageSize, data.size()));
+        return new Page(new ListRowSet(schema, currData, columnCount), next);
+    }
+    
+    @Override
+    public void nextPage(Configuration cfg, Client client, NamedWriteableRegistry registry, ActionListener<Page> listener) {
+        listener.onResponse(of(Schema.EMPTY, data, pageSize, columnCount));
     }
 
     @Override
@@ -93,7 +107,7 @@ public class PagingListCursor implements Cursor {
             return false;
         }
 
-        PagingListCursor other = (PagingListCursor) obj;
+        ListCursor other = (ListCursor) obj;
         return Objects.equals(pageSize, other.pageSize)
                 && Objects.equals(columnCount, other.columnCount)
                 && Objects.equals(data, other.data);

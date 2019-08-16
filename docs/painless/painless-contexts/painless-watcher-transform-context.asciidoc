@@ -18,7 +18,7 @@ The standard <<painless-api-reference-shared, Painless API>> is available.
 
 *Example*
 
-[source,Painless]
+[source,js]
 ----
 POST _watcher/watch/_execute
 {
@@ -75,6 +75,8 @@ POST _watcher/watch/_execute
   }
 }
 ----
+// CONSOLE
+// TEST[skip: requires setup from other pages]
 
 <1> The Java Stream API is used in the transform. This API allows manipulation of
 the elements of the list in a pipeline.
@@ -86,7 +88,7 @@ the elements of the list in a pipeline.
 The following action transform changes each value in the mod_log action into a `String`.
 This transform does not change the values in the unmod_log action.
 
-[source,Painless]
+[source,js]
 ----
 POST _watcher/watch/_execute
 {
@@ -140,6 +142,8 @@ POST _watcher/watch/_execute
   }
 }
 ----
+// CONSOLE
+// TEST[skip: requires setup from other pages]
 
 This example uses the streaming API in a very similar manner. The differences below are
 subtle and worth calling out.

@@ -199,4 +199,9 @@ public class ReindexBasicTests extends ReindexTestCase {
         assertThat(response, matcher().created(0).slices(hasSize(0)));
     }
 
+    public void testEmptyIndex() {
+        createIndex("source");
+        reindex().source("source").destination("dest").get();
+        assertEquals(0, client().admin().indices().prepareGetIndex().addIndices("dest*").get().getIndices().length);
+    }
 }

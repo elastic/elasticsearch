@@ -2,8 +2,8 @@
 [[security-api-saml-prepare-authentication]]
 === SAML prepare authentication API
 
-Creates a SAML authentication request as a URL string, based on the
-configuration of the respective SAML realm in {es}. 
+Creates a SAML authentication request as a URL string, based on the configuration of the respective SAML realm in {es} when using a custom web application other than {kib}.
+If you are using {kib}, please see the {stack-ov}/saml-guide.html[SAML guide]
 
 [[security-api-saml-prepare-authentication-request]]
 ==== {api-request-title}
@@ -13,13 +13,17 @@ configuration of the respective SAML realm in {es}.
 [[security-api-saml-prepare-authentication-desc]]
 ==== {api-description-title}
 
-This API returns a URL that contains a URL pointing to the SAML Identity
+This API returns a URL pointing to the SAML Identity
 Provider. You can use the URL to redirect the browser of the user in order to
-continue the authentication process. The URL contains a single parameter named `SAMLRequest`, which contains a SAML Authentication request that is deflated and
+continue the authentication process. The URL includes a single parameter named `SAMLRequest`,
+which contains a SAML Authentication request that is deflated and
 Base64 encoded. If the configuration dictates that SAML authentication requests
 should be signed, the URL has two extra parameters named `SigAlg` and
 `Signature`. These parameters contain the algorithm used for the signature and
 the signature value itself.
+It also returns a random string that uniquely identifies this SAML Authentication request. The
+caller of this API needs to store this identifier as it needs to used in a following step of
+the authentication process (see <<security-api-saml-authenticate,SAML authenticate API>>).
 
 {es} exposes all the necessary SAML related functionality via the SAML APIs.
 These APIs are used internally by {kib} in order to provide SAML based
@@ -45,7 +49,7 @@ clients. See also <<security-api-saml-authenticate,SAML authenticate API>>,
 ==== {api-response-body-title}  
 
 `id`::
-  (string) An identifier for the SAML Request to be stored by the caller
+  (string) A unique identifier for the SAML Request to be stored by the caller
   of the API.
 
 `realm`::

@@ -2,7 +2,8 @@
 [[security-api-saml-logout]]
 === SAML logout API
 
-Submits a request to invalidate an access token and refresh token.
+Submits a request to invalidate an access token and refresh token when using a custom web application other than {kib}.
+If you are using {kib}, please see the {stack-ov}/saml-guide.html[SAML guide]
 
 [[security-api-saml-logout-request]]
 ==== {api-request-title}
@@ -64,7 +65,7 @@ POST /_security/saml/logout
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:handled in IT]
+// TEST[skip:can't test this without a valid SAML Response]
 
 The API returns the following response:
 

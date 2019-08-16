@@ -2,7 +2,8 @@
 [[security-api-saml-invalidate]]
 === SAML invalidate API
 
-Submits a SAML LogoutRequest message to {es} for consumption. 
+Submits a SAML LogoutRequest message to {es} for consumption when using a custom web application other than {kib}.
+If you are using {kib}, please see the {stack-ov}/saml-guide.html[SAML guide]
 
 [[security-api-saml-invalidate-request]]
 ==== {api-request-title}
@@ -38,8 +39,9 @@ and <<security-api-saml-logout,SAML logout API>>.
   parameter named `SAMLRequest` that contains a SAML logout request that is
   deflated and Base64 encoded. If the SAML IdP has signed the logout request, 
   the URL should include two extra parameters named `SigAlg` and `Signature`
-  that contain the algorithm used for the signature and the signature value
-  itself.
+  that contain the algorithm used for the signature and the signature value itself.
+In order for {es} to be able to verify the IdP's signature, the value of the queryString field must be an exact match to the string provided by the browser.
+The client application must not attempt to parse or process the string in any way.
 
 `realm`::
   (Optional, string) The name of the SAML realm in {es} the configuration. You must specify

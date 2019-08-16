@@ -37,6 +37,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableList;
 
@@ -262,6 +263,14 @@ public final class InternalBinaryRange
                     InternalAggregations.reduce(Arrays.asList(aggs[i]), reduceContext)));
         }
         return new InternalBinaryRange(name, format, keyed, buckets, pipelineAggregators(), metaData);
+    }
+
+    @Override
+    protected Bucket reduceBucket(List<Bucket> buckets, ReduceContext context) {
+        assert buckets.size() > 0;
+        List<InternalAggregations> aggregationsList = buckets.stream().map(bucket -> bucket.aggregations).collect(Collectors.toList());
+        final InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);
+        return createBucket(aggs, buckets.get(0));
     }
 
     @Override

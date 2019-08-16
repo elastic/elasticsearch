@@ -36,6 +36,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -179,6 +180,19 @@ public class CollectionUtils {
                 ensureNoSelfReferences(convert(o), o, ancestors, messageHint);
             }
             ancestors.remove(originalReference);
+        }
+    }
+
+    /**
+     * Returns an unmodifiable copy of the given map.
+     * @param map Map to copy
+     * @return unmodifiable copy of the map
+     */
+    public static <R,T> Map<R, T> copyMap(Map<R, T> map) {
+        if (map.isEmpty()) {
+            return Collections.emptyMap();
+        } else {
+            return Collections.unmodifiableMap(new HashMap<>(map));
         }
     }
 

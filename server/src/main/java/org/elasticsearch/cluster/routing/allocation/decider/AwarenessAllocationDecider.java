@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -194,6 +195,16 @@ public class AwarenessAllocationDecider extends AllocationDecider {
                         numberOfAttributes,
                         currentNodeCount,
                         maximumNodeCount);
+            }
+
+            if ((shardCount % numberOfAttributes) != 0 && currentNodeCount == maximumNodeCount) {
+                for (ObjectCursor<String> cursor : nodesPerAttribute.keys()) {
+                    if (shardPerAttribute.get(cursor.value) == 0) {
+                        return allocation.decision(Decision.NO, NAME,
+                            "there are too many copies of the shard allocated to nodes with attribute [%s=%s], but the awareness attribute [%s] has not allocated",
+                            awarenessAttribute, node.node().getAttributes().get(awarenessAttribute), cursor.value);
+                    }
+                }
             }
         }
 

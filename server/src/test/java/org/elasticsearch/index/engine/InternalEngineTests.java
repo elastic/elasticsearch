@@ -4788,12 +4788,10 @@ public class InternalEngineTests extends EngineTestCase {
         IOUtils.close(engine, store);
         final IndexSettings indexSettings = new IndexSettings(defaultSettings.getIndexMetaData(), defaultSettings.getNodeSettings(),
             defaultSettings.getScopedSettings());
-        Settings.Builder settings = Settings.builder().put(indexSettings.getSettings());
-        if (defaultSettings.isSoftDeleteEnabled() == false) {
-            settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), randomFrom("-1", "100micros", "30m"));
-            settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), randomFrom("-1", "512b", "1gb"));
-        }
-        IndexMetaData.Builder builder = IndexMetaData.builder(indexSettings.getIndexMetaData()).settings(settings);
+        IndexMetaData.Builder builder = IndexMetaData.builder(indexSettings.getIndexMetaData())
+            .settings(Settings.builder().put(indexSettings.getSettings())
+                .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), randomFrom("-1", "100micros", "30m"))
+                .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), randomFrom("-1", "512b", "1gb")));
         indexSettings.updateIndexMetaData(builder.build());
 
         final Path translogPath = createTempDir();

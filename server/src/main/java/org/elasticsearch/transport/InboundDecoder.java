@@ -20,6 +20,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -28,9 +29,12 @@ import java.io.IOException;
 
 public class InboundDecoder {
 
+    private static final ReleasableBytesReference END = new ReleasableBytesReference(BytesArray.EMPTY, () -> {});
+
     private final InboundAggregator aggregator;
     private TransportDecompressor decompressor;
     private int networkMessageSize = -1;
+    private int bytesConsumed = 0;
 
     public InboundDecoder(InboundAggregator aggregator) {
         this.aggregator = aggregator;
@@ -47,13 +51,22 @@ public class InboundDecoder {
                 releasable.close();
                 return 6;
             } else {
-                networkMessageSize = expectedLength;
                 if (releasable.getReference().length() < TcpHeader.HEADER_SIZE) {
                     releasable.close();
-                    return 6;
+                    return 0;
                 } else {
-
+                    networkMessageSize = expectedLength;
+                    Header header = parseHeader(releasable.getReference());
+                    aggregator.headerReceived(header);
                 }
+            }
+        } else {
+            bytesConsumed += Math.max(releasable.getReference().length(), networkMessageSize - bytesConsumed);
+            if (bytesConsumed == networkMessageSize) {
+                aggregator.contentReceived(releasable);
+            } else {
+                ReleasableBytesReference sliced = releasable;
+                aggregator.contentReceived(sliced);
             }
         }
 

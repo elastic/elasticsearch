@@ -829,9 +829,6 @@ GET /bank/_search
 // CONSOLE
 // TEST[continued]
 
-[[getting-started-search]]
-=== Executing Searches
-
 Now that we have seen a few of the basic search parameters, let's dig in some more into the Query DSL. Let's first take a look at the returned document fields. By default, the full JSON document is returned as part of all searches. This is referred to as the source (`_source` field in the search hits). If we don't want the entire source document returned, we have the ability to request only a few fields from within source to be returned.
 
 This example shows how to return two fields, `account_number` and `balance` (inside of `_source`), from the search:

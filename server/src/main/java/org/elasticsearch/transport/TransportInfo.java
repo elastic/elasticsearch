@@ -97,7 +97,7 @@ public class TransportInfo implements Writeable, ToXContentFragment {
         static final String PROFILES = "profiles";
     }
 
-    private String getPublishAddressString(String propertyName, TransportAddress publishAddress){
+    private String formatPublishAddressString(String propertyName, TransportAddress publishAddress){
         String publishAddressString = publishAddress.toString();
         String hostString = publishAddress.address().getHostString();
         if (InetAddresses.isInetAddress(hostString) == false) {
@@ -118,14 +118,14 @@ public class TransportInfo implements Writeable, ToXContentFragment {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.TRANSPORT);
         builder.array(Fields.BOUND_ADDRESS, (Object[]) address.boundAddresses());
-        builder.field(Fields.PUBLISH_ADDRESS, getPublishAddressString("transport.publish_address", address.publishAddress()));
+        builder.field(Fields.PUBLISH_ADDRESS, formatPublishAddressString("transport.publish_address", address.publishAddress()));
         builder.startObject(Fields.PROFILES);
         if (profileAddresses != null && profileAddresses.size() > 0) {
             for (Map.Entry<String, BoundTransportAddress> entry : profileAddresses.entrySet()) {
                 builder.startObject(entry.getKey());
                 builder.array(Fields.BOUND_ADDRESS, (Object[]) entry.getValue().boundAddresses());
                 String propertyName = "transport." + entry.getKey() + ".publish_address";
-                builder.field(Fields.PUBLISH_ADDRESS, getPublishAddressString(propertyName, entry.getValue().publishAddress()));
+                builder.field(Fields.PUBLISH_ADDRESS, formatPublishAddressString(propertyName, entry.getValue().publishAddress()));
                 builder.endObject();
             }
         }

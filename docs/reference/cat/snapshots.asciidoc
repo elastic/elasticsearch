@@ -1,5 +1,8 @@
 [[cat-snapshots]]
-=== cat snapshots
+=== cat snapshots API
+++++
+<titleabbrev>cat snapshots</titleabbrev>
+++++
 
 Returns information about the <<modules-snapshots,snapshots>> stored in one or
 more repositories. A snapshot is a backup of an index or running {es} cluster.

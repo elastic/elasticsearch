@@ -59,6 +59,9 @@ testClusters.integTest {
   extraConfigFile 'hunspell/en_US/en_US.dic', project(":server").file('src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.dic')
   // Whitelist reindexing from the local node so we can test it.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
+
+  // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
+  systemProperty 'es.transport.cname_in_publish_address', 'true'
 }
 
 // build the cluster with all plugins

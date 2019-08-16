@@ -63,6 +63,7 @@ public abstract class DataFrameSingleNodeTestCase extends ESSingleNodeTestCase {
             }
         }, e -> {
             if (onException == null) {
+                logger.error("got unexpected exception", e);
                 fail("got unexpected exception: " + e.getMessage());
             } else {
                 onException.accept(e);

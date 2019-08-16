@@ -24,6 +24,7 @@ import org.gradle.api.GradleException;
 import org.gradle.api.logging.Logger;
 import org.gradle.internal.jvm.Jvm;
 
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -31,6 +32,7 @@ import java.io.UncheckedIOException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -68,8 +70,8 @@ public class ReaperService {
     public void registerCommand(String serviceId, String... command) {
         ensureReaperStarted();
 
-        try {
-            Files.writeString(getCmdFile(serviceId), String.join(" ", command));
+        try (FileWriter writer = new FileWriter(getCmdFile(serviceId).toFile())) {
+            writer.write(String.join(" ", command));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -143,7 +145,7 @@ public class ReaperService {
 
             if (matcher.matches()) {
                 String path = matcher.group(1);
-                return Path.of(
+                return Paths.get(
                     OS.<String>conditional()
                         .onWindows(() -> path.substring(1))
                         .onUnix(() -> path)

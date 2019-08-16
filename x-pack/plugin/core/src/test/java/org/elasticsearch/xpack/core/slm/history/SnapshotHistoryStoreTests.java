@@ -18,15 +18,12 @@ import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.junit.After;
 import org.junit.Before;
 
-import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING;
-import static org.elasticsearch.xpack.core.slm.history.SnapshotHistoryStore.getHistoryIndexNameForTime;
-import static org.elasticsearch.xpack.core.slm.history.SnapshotLifecycleTemplateRegistry.INDEX_TEMPLATE_VERSION;
+import static org.elasticsearch.xpack.core.slm.history.SnapshotHistoryStore.SLM_HISTORY_ALIAS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.core.IsEqual.equalTo;
@@ -41,7 +38,7 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
     public void setup() {
         threadPool = new TestThreadPool(this.getClass().getName());
         client = new SnapshotLifecycleTemplateRegistryTests.VerifyingClient(threadPool);
-        historyStore = new SnapshotHistoryStore(Settings.EMPTY, client, ZoneOffset.UTC);
+        historyStore = new SnapshotHistoryStore(Settings.EMPTY, client, null);
     }
 
     @After
@@ -53,7 +50,7 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
 
     public void testNoActionIfDisabled() {
         Settings settings = Settings.builder().put(SLM_HISTORY_INDEX_ENABLED_SETTING.getKey(), false).build();
-        SnapshotHistoryStore disabledHistoryStore = new SnapshotHistoryStore(settings, client, ZoneOffset.UTC);
+        SnapshotHistoryStore disabledHistoryStore = new SnapshotHistoryStore(settings, client, null);
         String policyId = randomAlphaOfLength(5);
         SnapshotLifecyclePolicy policy = randomSnapshotLifecyclePolicy(policyId);
         final long timestamp = randomNonNegativeLong();
@@ -84,7 +81,7 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
                 assertThat(action, instanceOf(IndexAction.class));
                 assertThat(request, instanceOf(IndexRequest.class));
                 IndexRequest indexRequest = (IndexRequest) request;
-                assertEquals(getHistoryIndexNameForTime(Instant.ofEpochMilli(timestamp).atZone(ZoneOffset.UTC)), indexRequest.index());
+                assertEquals(SLM_HISTORY_ALIAS, indexRequest.index());
                 final String indexedDocument = indexRequest.source().utf8ToString();
                 assertThat(indexedDocument, containsString(policy.getId()));
                 assertThat(indexedDocument, containsString(policy.getRepository()));
@@ -119,7 +116,7 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
                 assertThat(action, instanceOf(IndexAction.class));
                 assertThat(request, instanceOf(IndexRequest.class));
                 IndexRequest indexRequest = (IndexRequest) request;
-                assertEquals(getHistoryIndexNameForTime(Instant.ofEpochMilli(timestamp).atZone(ZoneOffset.UTC)), indexRequest.index());
+                assertEquals(SLM_HISTORY_ALIAS, indexRequest.index());
                 final String indexedDocument = indexRequest.source().utf8ToString();
                 assertThat(indexedDocument, containsString(policy.getId()));
                 assertThat(indexedDocument, containsString(policy.getRepository()));
@@ -160,19 +157,6 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
                 assertThat(indexedDocument, containsString(v.toString()));
             }
         });
-    }
-
-
-    public void testIndexNameGeneration() {
-        String indexTemplateVersion = INDEX_TEMPLATE_VERSION;
-        assertThat(getHistoryIndexNameForTime(Instant.ofEpochMilli((long) 0).atZone(ZoneOffset.UTC)),
-            equalTo(".slm-history-"+ indexTemplateVersion +"-1970.01"));
-        assertThat(getHistoryIndexNameForTime(Instant.ofEpochMilli(100000000000L).atZone(ZoneOffset.UTC)),
-            equalTo(".slm-history-" + indexTemplateVersion + "-1973.03"));
-        assertThat(getHistoryIndexNameForTime(Instant.ofEpochMilli(1416582852000L).atZone(ZoneOffset.UTC)),
-            equalTo(".slm-history-" + indexTemplateVersion + "-2014.11"));
-        assertThat(getHistoryIndexNameForTime(Instant.ofEpochMilli(2833165811000L).atZone(ZoneOffset.UTC)),
-            equalTo(".slm-history-" + indexTemplateVersion + "-2059.10"));
     }
 
     public static SnapshotLifecyclePolicy randomSnapshotLifecyclePolicy(String id) {

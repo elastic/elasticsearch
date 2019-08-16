@@ -84,6 +84,7 @@ public class DataFrameTaskFailedStateIT extends DataFrameRestTestCase {
         assertThat(XContentMapValues.extractValue("reason", fullState), is(nullValue()));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/45609")
     public void testForceStartFailedTransform() throws Exception {
         String transformId = "test-force-start-failed-transform";
         createReviewsIndex(REVIEWS_INDEX_NAME, 10);

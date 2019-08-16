@@ -35,6 +35,7 @@ import org.elasticsearch.client.ml.DeleteFilterRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
+import org.elasticsearch.client.ml.EstimateMemoryUsageRequest;
 import org.elasticsearch.client.ml.EvaluateDataFrameRequest;
 import org.elasticsearch.client.ml.FindFileStructureRequest;
 import org.elasticsearch.client.ml.FindFileStructureRequestTests;
@@ -792,6 +793,17 @@ public class MLRequestConvertersTests extends ESTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
             EvaluateDataFrameRequest parsedRequest = EvaluateDataFrameRequest.fromXContent(parser);
             assertThat(parsedRequest, equalTo(evaluateRequest));
+        }
+    }
+
+    public void testEstimateMemoryUsage() throws IOException {
+        EstimateMemoryUsageRequest estimateRequest = new EstimateMemoryUsageRequest(randomDataFrameAnalyticsConfig());
+        Request request = MLRequestConverters.estimateMemoryUsage(estimateRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_ml/data_frame/analytics/_estimate_memory_usage", request.getEndpoint());
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
+            EstimateMemoryUsageRequest parsedRequest = EstimateMemoryUsageRequest.fromXContent(parser);
+            assertThat(parsedRequest, equalTo(estimateRequest));
         }
     }
 

@@ -1,7 +1,10 @@
 import nebula.plugin.info.scm.ScmInfoExtension
+import org.elasticsearch.gradle.OS
 
 buildScan {
     def jenkinsUrl = System.getenv('JENKINS_URL') ? new URL(System.getenv('JENKINS_URL')) : null
+
+    tag OS.current().name()
 
     // Accept Gradle ToS when project property org.elasticsearch.acceptScanTOS=true or this is an Elastic CI build
     if (jenkinsUrl?.host?.endsWith('elastic.co') || Boolean.valueOf(project.findProperty('org.elasticsearch.acceptScanTOS') ?: "false")) {

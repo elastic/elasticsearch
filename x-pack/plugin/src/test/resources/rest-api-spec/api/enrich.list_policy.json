@@ -2,13 +2,13 @@
   "enrich.list_policy": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/enrich-list-policy.html",
     "stability" : "stable",
-    "methods": [ "GET" ],
     "url": {
-      "path": "/_enrich/policy",
-      "paths": ["/_enrich/policy"],
-      "parts": {},
-      "params": {}
-    },
-    "body": null
+      "paths": [
+        {
+          "path": "/_enrich/policy",
+          "methods": [ "GET" ]
+        }
+      ]
+    }
   }
 }

@@ -26,14 +26,14 @@ import java.util.ArrayList;
 
 public class InboundAggregator {
 
-    private InboundDecoder.Header currentHeader;
+    private Header currentHeader;
     private final ArrayList<ReleasableBytesReference> content = new ArrayList<>();
 
     public void pingReceived(BytesReference ping) {
         assert ping.length() == 6;
     }
 
-    public void headerReceived(InboundDecoder.Header header) {
+    public void headerReceived(Header header) {
         if (currentHeader != null) {
             // Handle error
         }

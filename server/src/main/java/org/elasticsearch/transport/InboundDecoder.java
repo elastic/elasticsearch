@@ -27,7 +27,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.PageCacheRecycler;
 
 import java.io.IOException;
-import java.util.Map;
 
 public class InboundDecoder {
 
@@ -73,10 +72,10 @@ public class InboundDecoder {
                 }
             }
         } else {
-            int bytesToConsume = Math.max(releasable.getReference().length(), networkMessageSize - bytesConsumed);
+            int bytesToConsume = Math.min(releasable.getReference().length(), networkMessageSize - bytesConsumed);
             bytesConsumed += bytesToConsume;
             ReleasableBytesReference content;
-            if (bytesConsumed == networkMessageSize) {
+            if (isDone()) {
                 BytesReference sliced = releasable.getReference().slice(0, releasable.getReference().length() - bytesToConsume);
                 content = new ReleasableBytesReference(sliced, releasable.getReleasable());
             } else {
@@ -92,9 +91,19 @@ public class InboundDecoder {
             } else {
                 aggregator.contentReceived(content);
             }
-        }
+            if (isDone()) {
+                decompressor = null;
+                networkMessageSize = -1;
+                bytesConsumed = 0;
+                aggregator.contentReceived(END);
+            }
 
-        return releasable.getReference().length();
+            return bytesToConsume;
+        }
+    }
+
+    private boolean isDone() {
+        return bytesConsumed == networkMessageSize;
     }
 
     private Header parseHeader(BytesReference bytesReference) throws IOException {
@@ -110,26 +119,4 @@ public class InboundDecoder {
         return networkMessageSize == -1;
     }
 
-    public static class Header {
-
-        private final Version version;
-        private final long requestId;
-        private final byte status;
-        private Map<String, String> headers;
-        private String action;
-
-        private Header(long requestId, byte status, Version version) {
-            this.version = version;
-            this.requestId = requestId;
-            this.status = status;
-        }
-
-        private boolean isCompressed() {
-            return TransportStatus.isCompress(status);
-        }
-
-        private boolean fullyParsed() {
-            return headers != null;
-        }
-    }
 }

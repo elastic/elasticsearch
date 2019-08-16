@@ -35,16 +35,16 @@ public class InboundDecoderTests extends ESTestCase {
 
     public void testThing() throws IOException {
         String action = "test-request";
-        boolean isCompressed = randomBoolean();
+        boolean isCompressed = true;
         long requestId = randomNonNegativeLong();
         OutboundMessage.Request request = new OutboundMessage.Request(threadPool.getThreadContext(),
-            new TestRequest("requestValue"), version, action, requestId, false, isCompressed);
+            new TestRequest(randomAlphaOfLength(100)), version, action, requestId, false, isCompressed);
         final BytesReference bytes = request.serialize(new BytesStreamOutput());
 
         InboundAggregator aggregator = mock(InboundAggregator.class);
         InboundDecoder decoder = new InboundDecoder(aggregator);
         int bytesConsumed = decoder.handle(new ReleasableBytesReference(bytes, releasable));
-        verify(aggregator).headerReceived(any(InboundDecoder.Header.class));
+        verify(aggregator).headerReceived(any(Header.class));
         assertEquals(TcpHeader.HEADER_SIZE, bytesConsumed);
 
         final BytesReference bytes2 = bytes.slice(bytesConsumed, bytes.length() - bytesConsumed);

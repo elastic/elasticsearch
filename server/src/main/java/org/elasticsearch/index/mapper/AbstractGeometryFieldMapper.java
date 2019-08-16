@@ -43,6 +43,7 @@ import org.elasticsearch.index.query.QueryShardException;
 import java.io.IOException;
 import java.text.ParseException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -94,8 +95,13 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
      * interface representing a query builder that generates a query from the given shape
      */
     public interface QueryProcessor {
+        Query process(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context);
 
-        Query process(Geometry shape, String fieldName, SpatialStrategy strategy, ShapeRelation relation, QueryShardContext context);
+        @Deprecated
+        default Query process(Geometry shape, String fieldName, SpatialStrategy strategy, ShapeRelation relation,
+                              QueryShardContext context) {
+            return process(shape, fieldName, relation, context);
+        }
     }
 
     public abstract static class Builder<T extends Builder, Y extends AbstractGeometryFieldMapper>
@@ -193,61 +199,73 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         }
     }
 
+    protected static final String DEPRECATED_PARAMETERS_KEY = "deprecated_parameters";
+
     public static class TypeParser implements Mapper.TypeParser {
+        protected boolean parseXContentParameters(String name, Map.Entry<String, Object> entry, Map<String, Object> params)
+                throws MapperParsingException {
+            if (DeprecatedParameters.parse(name, entry.getKey(), entry.getValue(),
+                (DeprecatedParameters)params.get(DEPRECATED_PARAMETERS_KEY))) {
+                return true;
+            }
+            return false;
+        }
+
+        protected Builder newBuilder(String name, Map<String, Object> params) {
+            if (params.containsKey(DEPRECATED_PARAMETERS_KEY)) {
+                return new LegacyGeoShapeFieldMapper.Builder(name, (DeprecatedParameters)params.get(DEPRECATED_PARAMETERS_KEY));
+            }
+            return new GeoShapeFieldMapper.Builder(name);
+        }
 
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            Boolean coerce = null;
-            Boolean ignoreZ = null;
-            Boolean ignoreMalformed = null;
-            Orientation orientation = null;
-            DeprecatedParameters deprecatedParameters = new DeprecatedParameters();
-            boolean parsedDeprecatedParams = false;
+            Map<String, Object> params = new HashMap<>();
+            boolean parsedDeprecatedParameters = false;
+            params.put(DEPRECATED_PARAMETERS_KEY, new DeprecatedParameters());
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
-                if (DeprecatedParameters.parse(name, fieldName, fieldNode, deprecatedParameters)) {
-                    parsedDeprecatedParams = true;
+                if (parseXContentParameters(name, entry, params)) {
+                    parsedDeprecatedParameters = true;
                     iterator.remove();
                 } else if (Names.ORIENTATION.match(fieldName, LoggingDeprecationHandler.INSTANCE)) {
-                    orientation = ShapeBuilder.Orientation.fromString(fieldNode.toString());
+                    params.put(Names.ORIENTATION.getPreferredName(), ShapeBuilder.Orientation.fromString(fieldNode.toString()));
                     iterator.remove();
                 } else if (IGNORE_MALFORMED.equals(fieldName)) {
-                    ignoreMalformed = XContentMapValues.nodeBooleanValue(fieldNode, name + ".ignore_malformed");
+                    params.put(IGNORE_MALFORMED, XContentMapValues.nodeBooleanValue(fieldNode, name + ".ignore_malformed"));
                     iterator.remove();
                 } else if (Names.COERCE.match(fieldName, LoggingDeprecationHandler.INSTANCE)) {
-                    coerce = XContentMapValues.nodeBooleanValue(fieldNode, name + "." + Names.COERCE.getPreferredName());
+                    params.put(Names.COERCE.getPreferredName(),
+                        XContentMapValues.nodeBooleanValue(fieldNode, name + "." + Names.COERCE.getPreferredName()));
                     iterator.remove();
                 } else if (GeoPointFieldMapper.Names.IGNORE_Z_VALUE.getPreferredName().equals(fieldName)) {
-                    ignoreZ = XContentMapValues.nodeBooleanValue(fieldNode,
-                        name + "." + GeoPointFieldMapper.Names.IGNORE_Z_VALUE.getPreferredName());
+                    params.put(GeoPointFieldMapper.Names.IGNORE_Z_VALUE.getPreferredName(),
+                        XContentMapValues.nodeBooleanValue(fieldNode,
+                            name + "." + GeoPointFieldMapper.Names.IGNORE_Z_VALUE.getPreferredName()));
                     iterator.remove();
                 }
             }
-            final Builder builder;
-            if (parsedDeprecatedParams || parserContext.indexVersionCreated().before(Version.V_6_6_0)) {
-                // Legacy index-based shape
-                builder = new LegacyGeoShapeFieldMapper.Builder(name, deprecatedParameters);
-            } else {
-                // BKD-based shape
-                builder = new GeoShapeFieldMapper.Builder(name);
+            if (parserContext.indexVersionCreated().onOrAfter(Version.V_6_6_0) && parsedDeprecatedParameters == false) {
+                params.remove(DEPRECATED_PARAMETERS_KEY);
+            }
+            Builder builder = newBuilder(name, params);
+
+            if (params.containsKey(Names.COERCE.getPreferredName())) {
+                builder.coerce((Boolean)params.get(Names.COERCE.getPreferredName()));
             }
 
-            if (coerce != null) {
-                builder.coerce(coerce);
+            if (params.containsKey(GeoPointFieldMapper.Names.IGNORE_Z_VALUE.getPreferredName())) {
+                builder.ignoreZValue((Boolean)params.get(GeoPointFieldMapper.Names.IGNORE_Z_VALUE.getPreferredName()));
             }
 
-            if (ignoreZ != null) {
-                builder.ignoreZValue(ignoreZ);
+            if (params.containsKey(IGNORE_MALFORMED)) {
+                builder.ignoreMalformed((Boolean)params.get(IGNORE_MALFORMED));
             }
 
-            if (ignoreMalformed != null) {
-                builder.ignoreMalformed(ignoreMalformed);
-            }
-
-            if (orientation != null) {
-                builder.orientation(orientation);
+            if (params.containsKey(Names.ORIENTATION.getPreferredName())) {
+                builder.orientation((Orientation)params.get(Names.ORIENTATION.getPreferredName()));
             }
 
             return builder;
@@ -302,7 +320,8 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
 
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
-            throw new QueryShardException(context, "Geo fields do not support exact searching, use dedicated geo queries instead");
+            throw new QueryShardException(context,
+                "Geometry fields do not support exact searching, use dedicated geometry queries instead");
         }
 
         public void setGeometryIndexer(Indexer<Parsed, Processed> geometryIndexer) {
@@ -361,10 +380,11 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
 
     @Override
     protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+        throw new UnsupportedOperationException("Parsing is implemented in parse(), this method should NEVER be called");
     }
 
     @Override
-    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
+    public void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         builder.field("type", contentType());
         AbstractGeometryFieldType ft = (AbstractGeometryFieldType)fieldType();
         if (includeDefaults || ft.orientation() != Defaults.ORIENTATION.value()) {

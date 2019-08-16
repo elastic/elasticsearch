@@ -2941,7 +2941,8 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::put-data-frame-analytics-analyzed-fields
 
             // tag::put-data-frame-analytics-config
-            DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder("my-analytics-config") // <1>
+            DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder()
+                .setId("my-analytics-config") // <1>
                 .setSource(sourceConfig) // <2>
                 .setDest(destConfig) // <3>
                 .setAnalysis(outlierDetection) // <4>
@@ -3624,7 +3625,8 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
     }
 
     private static final DataFrameAnalyticsConfig DF_ANALYTICS_CONFIG =
-        DataFrameAnalyticsConfig.builder("my-analytics-config")
+        DataFrameAnalyticsConfig.builder()
+            .setId("my-analytics-config")
             .setSource(DataFrameAnalyticsSource.builder()
                 .setIndex("put-test-source-index")
                 .build())

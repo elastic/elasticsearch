@@ -5,46 +5,22 @@
  */
 package org.elasticsearch.xpack.ml.dataframe.process;
 
-import org.elasticsearch.xpack.ml.process.AbstractNativeProcess;
-import org.elasticsearch.xpack.ml.process.ProcessResultsParser;
+import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 
-import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Path;
-import java.util.Iterator;
 import java.util.List;
 import java.util.function.Consumer;
 
-public class NativeAnalyticsProcess extends AbstractNativeProcess implements AnalyticsProcess {
+public class NativeAnalyticsProcess extends AbstractNativeAnalyticsProcess<AnalyticsResult> {
 
     private static final String NAME = "analytics";
 
-    private final ProcessResultsParser<AnalyticsResult> resultsParser = new ProcessResultsParser<>(AnalyticsResult.PARSER);
-
-    protected NativeAnalyticsProcess(String jobId, InputStream logStream, OutputStream processInStream, InputStream processOutStream,
-                                     OutputStream processRestoreStream, int numberOfFields, List<Path> filesToDelete,
-                                     Consumer<String> onProcessCrash) {
-        super(jobId, logStream, processInStream, processOutStream, processRestoreStream, numberOfFields, filesToDelete, onProcessCrash);
-    }
-
-    @Override
-    public String getName() {
-        return NAME;
-    }
-
-    @Override
-    public void persistState() {
-        // Nothing to persist
-    }
-
-    @Override
-    public void writeEndOfDataMessage() throws IOException {
-        new AnalyticsControlMessageWriter(recordWriter(), numberOfFields()).writeEndOfData();
-    }
-
-    @Override
-    public Iterator<AnalyticsResult> readAnalyticsResults() {
-        return resultsParser.parseResults(processOutStream());
+    protected NativeAnalyticsProcess(String jobId, InputStream logStream, OutputStream processInStream,
+                                     InputStream processOutStream, OutputStream processRestoreStream, int numberOfFields,
+                                     List<Path> filesToDelete, Consumer<String> onProcessCrash) {
+        super(NAME, AnalyticsResult.PARSER, jobId, logStream, processInStream, processOutStream, processRestoreStream, numberOfFields,
+            filesToDelete, onProcessCrash);
     }
 }

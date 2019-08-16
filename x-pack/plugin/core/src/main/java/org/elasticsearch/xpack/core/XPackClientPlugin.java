@@ -96,6 +96,7 @@ import org.elasticsearch.xpack.core.ml.action.DeleteFilterAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteForecastAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteModelSnapshotAction;
+import org.elasticsearch.xpack.core.ml.action.EstimateMemoryUsageAction;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
 import org.elasticsearch.xpack.core.ml.action.FindFileStructureAction;
@@ -208,6 +209,7 @@ import org.elasticsearch.xpack.core.slm.action.DeleteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.core.slm.action.ExecuteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.core.slm.action.GetSnapshotLifecycleAction;
 import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
+import org.elasticsearch.xpack.core.spatial.SpatialFeatureSetUsage;
 import org.elasticsearch.xpack.core.sql.SqlFeatureSetUsage;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.action.GetCertificateInfoAction;
@@ -347,6 +349,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 StartDataFrameAnalyticsAction.INSTANCE,
                 StopDataFrameAnalyticsAction.INSTANCE,
                 EvaluateDataFrameAction.INSTANCE,
+                EstimateMemoryUsageAction.INSTANCE,
                 // security
                 ClearRealmCacheAction.INSTANCE,
                 ClearRolesCacheAction.INSTANCE,
@@ -539,7 +542,9 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 // Voting Only Node
                 new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.VOTING_ONLY, VotingOnlyNodeFeatureSetUsage::new),
                 // Frozen indices
-                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.FROZEN_INDICES, FrozenIndicesFeatureSetUsage::new)
+                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.FROZEN_INDICES, FrozenIndicesFeatureSetUsage::new),
+                // Spatial
+                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.SPATIAL, SpatialFeatureSetUsage::new)
         );
     }
 

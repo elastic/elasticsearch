@@ -72,6 +72,7 @@ import org.elasticsearch.xpack.core.ml.action.DeleteFilterAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteForecastAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteModelSnapshotAction;
+import org.elasticsearch.xpack.core.ml.action.EstimateMemoryUsageAction;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
 import org.elasticsearch.xpack.core.ml.action.FindFileStructureAction;
@@ -136,6 +137,7 @@ import org.elasticsearch.xpack.ml.action.TransportDeleteFilterAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteForecastAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteJobAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteModelSnapshotAction;
+import org.elasticsearch.xpack.ml.action.TransportEstimateMemoryUsageAction;
 import org.elasticsearch.xpack.ml.action.TransportEvaluateDataFrameAction;
 import org.elasticsearch.xpack.ml.action.TransportFinalizeJobExecutionAction;
 import org.elasticsearch.xpack.ml.action.TransportFindFileStructureAction;
@@ -190,6 +192,10 @@ import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
 import org.elasticsearch.xpack.ml.dataframe.process.AnalyticsProcessFactory;
 import org.elasticsearch.xpack.ml.dataframe.process.AnalyticsProcessManager;
+import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
+import org.elasticsearch.xpack.ml.dataframe.process.MemoryUsageEstimationProcessManager;
+import org.elasticsearch.xpack.ml.dataframe.process.results.MemoryUsageEstimationResult;
+import org.elasticsearch.xpack.ml.dataframe.process.NativeMemoryUsageEstimationProcessFactory;
 import org.elasticsearch.xpack.ml.dataframe.process.NativeAnalyticsProcessFactory;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.JobManagerHolder;
@@ -235,6 +241,7 @@ import org.elasticsearch.xpack.ml.rest.datafeeds.RestStartDatafeedAction;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestStopDatafeedAction;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestUpdateDatafeedAction;
 import org.elasticsearch.xpack.ml.rest.dataframe.RestDeleteDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.ml.rest.dataframe.RestEstimateMemoryUsageAction;
 import org.elasticsearch.xpack.ml.rest.dataframe.RestEvaluateDataFrameAction;
 import org.elasticsearch.xpack.ml.rest.dataframe.RestGetDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.ml.rest.dataframe.RestGetDataFrameAnalyticsStatsAction;
@@ -487,7 +494,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
 
         AutodetectProcessFactory autodetectProcessFactory;
         NormalizerProcessFactory normalizerProcessFactory;
-        AnalyticsProcessFactory analyticsProcessFactory;
+        AnalyticsProcessFactory<AnalyticsResult> analyticsProcessFactory;
+        AnalyticsProcessFactory<MemoryUsageEstimationResult> memoryEstimationProcessFactory;
         if (MachineLearningField.AUTODETECT_PROCESS.get(settings) && MachineLearningFeatureSet.isRunningOnMlPlatform(true)) {
             try {
                 NativeController nativeController = NativeControllerHolder.getNativeController(clusterService.getNodeName(), environment);
@@ -503,6 +511,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                     clusterService);
                 normalizerProcessFactory = new NativeNormalizerProcessFactory(environment, nativeController, clusterService);
                 analyticsProcessFactory = new NativeAnalyticsProcessFactory(environment, nativeController, clusterService);
+                memoryEstimationProcessFactory =
+                    new NativeMemoryUsageEstimationProcessFactory(environment, nativeController, clusterService);
             } catch (IOException e) {
                 // The low level cause of failure from the named pipe helper's perspective is almost never the real root cause, so
                 // only log this at the lowest level of detail.  It's almost always "file not found" on a named pipe we expect to be
@@ -519,6 +529,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
             // factor of 1.0 makes renormalization a no-op
             normalizerProcessFactory = (jobId, quantilesState, bucketSpan, executorService) -> new MultiplyingNormalizerProcess(1.0);
             analyticsProcessFactory = (jobId, analyticsProcessConfig, executorService, onProcessCrash) -> null;
+            memoryEstimationProcessFactory = (jobId, analyticsProcessConfig, executorService, onProcessCrash) -> null;
         }
         NormalizerFactory normalizerFactory = new NormalizerFactory(normalizerProcessFactory,
                 threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME));
@@ -542,6 +553,9 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
 
         // Data frame analytics components
         AnalyticsProcessManager analyticsProcessManager = new AnalyticsProcessManager(client, threadPool, analyticsProcessFactory);
+        MemoryUsageEstimationProcessManager memoryEstimationProcessManager =
+            new MemoryUsageEstimationProcessManager(
+                threadPool.generic(), threadPool.executor(MachineLearning.JOB_COMMS_THREAD_POOL_NAME), memoryEstimationProcessFactory);
         DataFrameAnalyticsConfigProvider dataFrameAnalyticsConfigProvider = new DataFrameAnalyticsConfigProvider(client);
         assert client instanceof NodeClient;
         DataFrameAnalyticsManager dataFrameAnalyticsManager = new DataFrameAnalyticsManager((NodeClient) client,
@@ -579,6 +593,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 new MlAssignmentNotifier(settings, auditor, threadPool, client, clusterService),
                 memoryTracker,
                 analyticsProcessManager,
+                memoryEstimationProcessManager,
                 dataFrameAnalyticsConfigProvider,
                 nativeStorageProvider
         );
@@ -676,7 +691,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
             new RestDeleteDataFrameAnalyticsAction(restController),
             new RestStartDataFrameAnalyticsAction(restController),
             new RestStopDataFrameAnalyticsAction(restController),
-            new RestEvaluateDataFrameAction(restController)
+            new RestEvaluateDataFrameAction(restController),
+            new RestEstimateMemoryUsageAction(restController)
         );
     }
 
@@ -742,7 +758,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 new ActionHandler<>(DeleteDataFrameAnalyticsAction.INSTANCE, TransportDeleteDataFrameAnalyticsAction.class),
                 new ActionHandler<>(StartDataFrameAnalyticsAction.INSTANCE, TransportStartDataFrameAnalyticsAction.class),
                 new ActionHandler<>(StopDataFrameAnalyticsAction.INSTANCE, TransportStopDataFrameAnalyticsAction.class),
-                new ActionHandler<>(EvaluateDataFrameAction.INSTANCE, TransportEvaluateDataFrameAction.class)
+                new ActionHandler<>(EvaluateDataFrameAction.INSTANCE, TransportEvaluateDataFrameAction.class),
+                new ActionHandler<>(EstimateMemoryUsageAction.INSTANCE, TransportEstimateMemoryUsageAction.class)
             );
     }
 

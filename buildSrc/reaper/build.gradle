@@ -1,3 +1,5 @@
+apply plugin: 'java'
+
 jar {
     archiveName = "${project.name}.jar"
     manifest {

@@ -48,7 +48,6 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
@@ -153,9 +152,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
             usageService.addRestHandler((BaseRestHandler) handler);
         }
         final RestHandler maybeWrappedHandler = handlerWrapper.apply(handler);
-        handlers.insertOrUpdate(path, new MethodHandlers(path, maybeWrappedHandler, method), (mHandlers, newMHandler) -> {
-            return mHandlers.addMethods(maybeWrappedHandler, method);
-        });
+        handlers.insertOrUpdate(path, new MethodHandlers(path, maybeWrappedHandler, method),
+            (mHandlers, newMHandler) -> mHandlers.addMethods(maybeWrappedHandler, method));
     }
 
     @Override
@@ -198,22 +196,19 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
     }
 
-    /**
-     * Dispatch the request, if possible, returning true if a response was sent or false otherwise.
-     */
-    private boolean dispatchRequest(RestRequest request, RestChannel channel, RestHandler handler) throws Exception {
+    private void dispatchRequest(RestRequest request, RestChannel channel, RestHandler handler) throws Exception {
         final int contentLength = request.content().length();
         if (contentLength > 0) {
             final XContentType xContentType = request.getXContentType();
             if (xContentType == null) {
                 sendContentTypeErrorMessage(request.getAllHeaderValues("Content-Type"), channel);
-                return true;
+                return;
             }
-                if (handler.supportsContentStream() && xContentType != XContentType.JSON && xContentType != XContentType.SMILE) {
-                    channel.sendResponse(BytesRestResponse.createSimpleErrorResponse(channel, RestStatus.NOT_ACCEPTABLE,
-                        "Content-Type [" + xContentType + "] does not support stream parsing. Use JSON or SMILE instead"));
-                    return true;
-                }
+            if (handler.supportsContentStream() && xContentType != XContentType.JSON && xContentType != XContentType.SMILE) {
+                channel.sendResponse(BytesRestResponse.createSimpleErrorResponse(channel, RestStatus.NOT_ACCEPTABLE,
+                    "Content-Type [" + xContentType + "] does not support stream parsing. Use JSON or SMILE instead"));
+                return;
+            }
         }
         RestChannel responseChannel = channel;
         try {
@@ -228,7 +223,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
         } catch (Exception e) {
             responseChannel.sendResponse(new BytesRestResponse(responseChannel, e));
         }
-        return true;
     }
 
     private boolean handleNoHandlerFound(String rawPath, RestRequest.Method method, String uri, RestChannel channel) {
@@ -297,7 +291,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
                   if (handleNoHandlerFound(rawPath, requestMethod, uri, channel)) {
                       return;
                   }
-                } else if (dispatchRequest(request, channel, handler)) {
+                } else {
+                    dispatchRequest(request, channel, handler);
                     return;
                 }
             }
@@ -402,8 +397,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
     private Set<RestRequest.Method> getValidHandlerMethodSet(String rawPath) {
         Set<RestRequest.Method> validMethods = new HashSet<>();
         Iterator<MethodHandlers> allHandlers = getAllHandlers(null, rawPath);
-        for (Iterator<MethodHandlers> it = allHandlers; it.hasNext(); ) {
-            Optional.ofNullable(it.next()).map(mh -> validMethods.addAll(mh.getValidMethods()));
+        while (allHandlers.hasNext()) {
+            final MethodHandlers methodHandlers = allHandlers.next();
+            if (methodHandlers != null) {
+                validMethods.addAll(methodHandlers.getValidMethods());
+            }
         }
         return validMethods;
     }

@@ -1,0 +1,16 @@
+{
+  "ml.estimate_memory_usage": {
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/estimate-memory-usage-dfanalytics.html",
+    "stability": "experimental",
+    "methods": [ "POST" ],
+    "url": {
+      "path": "/_ml/data_frame/analytics/_estimate_memory_usage",
+      "paths": [ "/_ml/data_frame/analytics/_estimate_memory_usage" ],
+      "parts": {}
+    },
+    "body": {
+      "description" : "Memory usage estimation definition",
+      "required" : true
+    }
+  }
+}

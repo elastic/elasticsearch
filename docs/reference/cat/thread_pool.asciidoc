@@ -1,5 +1,8 @@
 [[cat-thread-pool]]
-=== cat thread pool
+=== cat thread pool API
+++++
+<titleabbrev>cat thread pool</titleabbrev>
+++++
 
 Returns thread pool statistics for each node in a cluster. Returned information
 includes all <<modules-threadpool,built-in thread pools>> and custom thread

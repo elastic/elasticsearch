@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.dataframe.integration;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
@@ -31,6 +32,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.oneOf;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/45664")
 public class DataFrameTaskFailedStateIT extends DataFrameRestTestCase {
 
     private final List<String> failureTransforms = new ArrayList<>();
@@ -57,7 +59,6 @@ public class DataFrameTaskFailedStateIT extends DataFrameRestTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/45664")
     public void testForceStopFailedTransform() throws Exception {
         String transformId = "test-force-stop-failed-transform";
         createReviewsIndex(REVIEWS_INDEX_NAME, 10);
@@ -89,7 +90,6 @@ public class DataFrameTaskFailedStateIT extends DataFrameRestTestCase {
         assertThat(XContentMapValues.extractValue("reason", fullState), is(nullValue()));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/45664")
     public void testForceStartFailedTransform() throws Exception {
         String transformId = "test-force-start-failed-transform";
         createReviewsIndex(REVIEWS_INDEX_NAME, 10);

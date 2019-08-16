@@ -103,6 +103,7 @@ public class MockTerminal extends Terminal {
     /** Wipes the input and output. */
     public void reset() {
         stdoutBuffer.reset();
+        stderrBuffer.reset();
         textIndex = 0;
         textInput.clear();
         secretIndex = 0;

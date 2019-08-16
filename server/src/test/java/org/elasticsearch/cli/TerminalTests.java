@@ -41,7 +41,25 @@ public class TerminalTests extends ESTestCase {
         assertPrinted(terminal, Terminal.Verbosity.VERBOSE, "text");
     }
 
-    // TODO: test error verbosity
+    public void testErrorVerbosity() throws Exception {
+        MockTerminal terminal = new MockTerminal();
+        terminal.setVerbosity(Terminal.Verbosity.SILENT);
+        assertErrorPrinted(terminal, Terminal.Verbosity.SILENT, "text");
+        assertErrorNotPrinted(terminal, Terminal.Verbosity.NORMAL, "text");
+        assertErrorNotPrinted(terminal, Terminal.Verbosity.VERBOSE, "text");
+
+        terminal = new MockTerminal();
+        assertErrorPrinted(terminal, Terminal.Verbosity.SILENT, "text");
+        assertErrorPrinted(terminal, Terminal.Verbosity.NORMAL, "text");
+        assertErrorNotPrinted(terminal, Terminal.Verbosity.VERBOSE, "text");
+
+        terminal = new MockTerminal();
+        terminal.setVerbosity(Terminal.Verbosity.VERBOSE);
+        assertErrorPrinted(terminal, Terminal.Verbosity.SILENT, "text");
+        assertErrorPrinted(terminal, Terminal.Verbosity.NORMAL, "text");
+        assertErrorPrinted(terminal, Terminal.Verbosity.VERBOSE, "text");
+    }
+
 
     public void testEscaping() throws Exception {
         MockTerminal terminal = new MockTerminal();
@@ -90,7 +108,17 @@ public class TerminalTests extends ESTestCase {
         assertTrue(output, output.isEmpty());
     }
 
-    // TODO: assertErrorPrinted
+    private void assertErrorPrinted(MockTerminal logTerminal, Terminal.Verbosity verbosity, String text) throws Exception {
+        logTerminal.errorPrintln(verbosity, text);
+        String output = logTerminal.getErrorOutput();
+        assertTrue(output, output.contains(text));
+        logTerminal.reset();
+    }
 
-    // TODO: assertErrorNotPrinted
+    private void assertErrorNotPrinted(MockTerminal logTerminal, Terminal.Verbosity verbosity, String text) throws Exception {
+        logTerminal.errorPrintln(verbosity, text);
+        String output = logTerminal.getErrorOutput();
+        assertTrue(output, output.isEmpty());
+    }
+
 }

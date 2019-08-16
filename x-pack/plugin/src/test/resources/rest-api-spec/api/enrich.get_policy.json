@@ -2,18 +2,23 @@
   "enrich.get_policy": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/enrich-get-policy.html",
     "stability" : "stable",
-    "methods": [ "GET" ],
     "url": {
-      "paths": ["/_enrich/policy/{name}", "/_enrich/policy/"],
-      "parts": {
-        "name": {
-          "type" : "string",
-          "description" : "The name of the enrich policy"
+      "paths": [
+        {
+          "path": "/_enrich/policy/{name}",
+          "methods": [ "GET" ],
+          "parts": {
+            "name": {
+              "type" : "string",
+              "description" : "The name of the enrich policy"
+            }
+          }
+        },
+        {
+          "path": "/_enrich/policy/",
+          "methods": [ "GET" ]
         }
-      },
-      "params": {
-      }
-    },
-    "body": null
+      ]
+    }
   }
 }

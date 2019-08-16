@@ -139,7 +139,7 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
                     QueryBuilder organicQuery = (QueryBuilder) a[0];
                     @SuppressWarnings("unchecked")
                     List<String> ids = (List<String>) a[1];
-                    return new PinnedQueryBuilder(organicQuery, ids.toArray(String[]::new));
+                    return new PinnedQueryBuilder(organicQuery, ids.toArray(new String[0]));
                 }
              );
     static {
@@ -165,7 +165,7 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
     protected QueryBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
         QueryBuilder newOrganicQuery = organicQuery.rewrite(queryShardContext);
         if (newOrganicQuery != organicQuery) {
-            PinnedQueryBuilder result = new PinnedQueryBuilder(newOrganicQuery, ids.toArray(String[]::new));
+            PinnedQueryBuilder result = new PinnedQueryBuilder(newOrganicQuery, ids.toArray(new String[0]));
             result.boost(this.boost);
             return result;
         }

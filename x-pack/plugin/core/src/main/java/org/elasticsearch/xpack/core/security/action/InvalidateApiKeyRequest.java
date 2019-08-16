@@ -131,6 +131,13 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
         return new InvalidateApiKeyRequest(null, null, null, name, ownedByAuthenticatedUser);
     }
 
+    /**
+     * Creates invalidate api key request to invalidate api keys owned by the current authenticated user.
+     */
+    public static InvalidateApiKeyRequest forOwnedApiKeys() {
+        return new InvalidateApiKeyRequest(null, null, null, null, true);
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;

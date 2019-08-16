@@ -5,11 +5,13 @@
  */
 package org.elasticsearch.xpack.sql.execution.search;
 
+import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractor;
-import org.elasticsearch.xpack.sql.session.Cursor;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -29,18 +31,19 @@ import java.util.Set;
 class SearchHitRowSet extends ResultRowSet<HitExtractor> {
     private final SearchHit[] hits;
     private final Map<SearchHit, Map<String, SearchHit[]>> flatInnerHits = new HashMap<>();
-    private final Cursor cursor;
     private final Set<String> innerHits = new LinkedHashSet<>();
     private final String innerHit;
 
     private final int size;
     private final int[] indexPerLevel;
+    private final Tuple<String, Integer> nextScrollData;
+
     private int row = 0;
 
-    SearchHitRowSet(List<HitExtractor> exts, BitSet mask, SearchHit[] hits, int limit, String scrollId) {
+    SearchHitRowSet(List<HitExtractor> exts, BitSet mask, int limit, SearchResponse response) {
         super(exts, mask);
 
-        this.hits = hits;
+        this.hits = response.getHits().getHits();
 
          // Since the results might contain nested docs, the iteration is similar to that of Aggregation
          // namely it discovers the nested docs and then, for iteration, increments the deepest level first
@@ -81,24 +84,30 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
         indexPerLevel = new int[maxDepth + 1];
         this.innerHit = innerHit;
 
+        String scrollId = response.getScrollId();
+        
         if (scrollId == null) {
             /* SearchResponse can contain a null scroll when you start a
              * scroll but all results fit in the first page. */
-            cursor = Cursor.EMPTY;
+            nextScrollData = null;
         } else {
+            TotalHits totalHits = response.getHits().getTotalHits();
+            
             // compute remaining limit (only if the limit is specified - that is, positive).
             int remainingLimit = limit < 0 ? limit : limit - size;
             // if the computed limit is zero, or the size is zero it means either there's nothing left or the limit has been reached
-            if (size == 0 || remainingLimit == 0) {
-                cursor = Cursor.EMPTY;
+            if (size == 0 || remainingLimit == 0
+                // or the scroll has ended
+                || totalHits != null && totalHits.value == hits.length) {
+                nextScrollData = null;
             } else {
-                cursor = new ScrollCursor(scrollId, extractors(), mask, remainingLimit);
+                nextScrollData = new Tuple<>(scrollId, remainingLimit);
             }
         }
     }
     
     protected boolean isLimitReached() {
-        return cursor == Cursor.EMPTY;
+        return nextScrollData == null;
     }
 
     @Override
@@ -131,8 +140,8 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
             int endOfPath = entry.getKey().lastIndexOf('_');
             if (endOfPath >= 0 && entry.getKey().substring(0, endOfPath).equals(path)) {
                 SearchHit[] h = entry.getValue().getHits();
-                for (int i = 0; i < h.length; i++) {
-                    lhm.put(h[i].getNestedIdentity().getOffset(), h[i]);
+                for (SearchHit element : h) {
+                    lhm.put(element.getNestedIdentity().getOffset(), element);
                 }
             }
         }
@@ -146,7 +155,7 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
     }
     
     private class NestedHitOffsetComparator implements Comparator<SearchHit> {
-        @Override
+    @Override
         public int compare(SearchHit sh1, SearchHit sh2) {
             if (sh1 == null && sh2 == null) {
                 return 0;
@@ -210,8 +219,7 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
         return size;
     }
 
-    @Override
-    public Cursor nextPageCursor() {
-        return cursor;
+    Tuple<String, Integer> nextScrollData() {
+        return nextScrollData;
     }
 }

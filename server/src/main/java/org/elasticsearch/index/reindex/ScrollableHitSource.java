@@ -106,7 +106,11 @@ public abstract class ScrollableHitSource {
                 isEmpty(indices()) ? "all indices" : indices());
         }
 
-        restartNoLogging(TimeValue.ZERO, createRetryListener(this::restart, this::restart));
+        // todo: we never restart the original request, since if this fails, we probably want fast feedback. But when we add
+        // resume from seqNo, we should do retry on that original request, so this needs some care at that time.
+        // So far, rejections (429) still lead to retries, since they always did.
+        restartNoLogging(TimeValue.ZERO, createRetryListenerNoRestart(this::restart));
+
     }
 
     private void restart(RejectAwareActionListener<Response> searchListener) {
@@ -144,20 +148,24 @@ public abstract class ScrollableHitSource {
                 countRetries(restartHandler), countRetries(retryScrollHandler),
                 ActionListener.wrap(this::onResponse, fail));
         } else {
-            return new RetryListener(logger, threadPool, backoffPolicy,
-                countRetries(restartHandler), countRetries(retryScrollHandler),
-                ActionListener.wrap(this::onResponse, fail)) {
-                @Override
-                public void onResponse(Response response) {
-                    ScrollableHitSource.this.onResponse(response);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    fail.accept(e);
-                }
-            };
+            return createRetryListenerNoRestart(retryScrollHandler);
         }
+    }
+
+    private RetryListener createRetryListenerNoRestart(Consumer<RejectAwareActionListener<Response>> retryScrollHandler) {
+        return new RetryListener(logger, threadPool, backoffPolicy,
+            x -> { throw new UnsupportedOperationException(); }, countRetries(retryScrollHandler),
+            ActionListener.wrap(this::onResponse, fail)) {
+            @Override
+            public void onResponse(Response response) {
+                ScrollableHitSource.this.onResponse(response);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail.accept(e);
+            }
+        };
     }
 
     private Consumer<RejectAwareActionListener<Response>> countRetries(Consumer<RejectAwareActionListener<Response>> retryHandler) {

@@ -20,6 +20,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainListenableActionFuture;
@@ -103,10 +104,12 @@ public class ReindexResilientSearchIT extends ReindexTestCase {
             assertThat(Stream.of(indicesStatsResponse.getIndex("test").getShards())
                     .mapToLong(shardStat -> shardStat.getStats().search.getTotal().getScrollCurrent()).sum(),
                 Matchers.equalTo((long) shardCount));
+            // wait for all initial search to complete, since we do not retry those.
+            assertThat(client().admin().cluster().prepareListTasks().setActions(SearchAction.NAME).get().getTasks(), Matchers.empty());
         }, 30, TimeUnit.SECONDS);
 
         for (int i = 0; i < randomIntBetween(1,5); ++i) {
-            // todo: replace following two lines with below once search
+            // todo: replace following two lines with below once search fails on RED every time.
             internalCluster().restartRandomDataNode();
             ensureGreen();
 //            internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {

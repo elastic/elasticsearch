@@ -123,7 +123,7 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
 
         hitSource.start();
         for (int retry = 0; retry < randomIntBetween(0, maxFailures); ++retry) {
-            failSearch(client, SearchAction.INSTANCE, 0);
+            client.fail(SearchAction.INSTANCE, new EsRejectedExecutionException());
             client.awaitOperation();
             ++expectedSearchRetries;
             validateSeqNoCondition(client, seqNo);

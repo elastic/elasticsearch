@@ -21,6 +21,9 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.search.sort.SortOrder;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -124,6 +127,15 @@ public class ReindexFailureTests extends ReindexTestCase {
             }
         }
         assumeFalse("Wasn't able to trigger a reindex failure in " + attempt + " attempts.", true);
+    }
+
+    public void testTimelyResponseOnBadSearchRequest() throws Exception {
+        indexDocs(2);
+        ReindexRequestBuilder badReindex = reindex().source("source").destination("dest");
+        badReindex.source().addSort("_seq_no", SortOrder.ASC).addSort("nonexisting", SortOrder.ASC);
+        SearchPhaseExecutionException e =
+            expectThrows(SearchPhaseExecutionException.class,() -> badReindex.get(TimeValue.timeValueSeconds(30)));
+        assertThat(e.getCause().getMessage(), containsString("nonexisting"));
     }
 
     private void indexDocs(int count) throws Exception {

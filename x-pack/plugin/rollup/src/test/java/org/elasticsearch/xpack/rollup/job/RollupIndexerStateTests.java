@@ -40,10 +40,13 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
+import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
@@ -163,15 +166,24 @@ public class RollupIndexerStateTests extends ESTestCase {
         final Function<SearchRequest, SearchResponse> searchFunction;
         final Function<BulkRequest, BulkResponse> bulkFunction;
         final Consumer<Exception> failureConsumer;
+        final BiConsumer<IndexerState, Map<String, Object>> saveStateCheck;
         private CountDownLatch latch;
 
         NonEmptyRollupIndexer(Executor executor, RollupJob job, AtomicReference<IndexerState> initialState,
                               Map<String, Object> initialPosition, Function<SearchRequest, SearchResponse> searchFunction,
                               Function<BulkRequest, BulkResponse> bulkFunction, Consumer<Exception> failureConsumer) {
+            this(executor, job, initialState, initialPosition, searchFunction, bulkFunction, failureConsumer, (i, m) -> {});
+        }
+
+        NonEmptyRollupIndexer(Executor executor, RollupJob job, AtomicReference<IndexerState> initialState,
+                              Map<String, Object> initialPosition, Function<SearchRequest, SearchResponse> searchFunction,
+                              Function<BulkRequest, BulkResponse> bulkFunction, Consumer<Exception> failureConsumer,
+                              BiConsumer<IndexerState, Map<String, Object>> saveStateCheck) {
             super(executor, job, initialState, initialPosition);
             this.searchFunction = searchFunction;
             this.bulkFunction = bulkFunction;
             this.failureConsumer = failureConsumer;
+            this.saveStateCheck = saveStateCheck;
         }
 
         private CountDownLatch newLatch(int count) {
@@ -209,6 +221,7 @@ public class RollupIndexerStateTests extends ESTestCase {
         @Override
         protected void doSaveState(IndexerState state, Map<String, Object> position, Runnable next) {
             assert state == IndexerState.STARTED || state == IndexerState.INDEXING || state == IndexerState.STOPPED;
+            saveStateCheck.accept(state, position);
             next.run();
         }
 
@@ -758,6 +771,9 @@ public class RollupIndexerStateTests extends ESTestCase {
 
         Consumer<Exception> failureConsumer = e -> {
             assertThat(e.getMessage(), equalTo("Could not identify key in agg [foo]"));
+        };
+
+        BiConsumer<IndexerState, Map<String, Object>> doSaveStateCheck = (indexerState, position) -> {
             isFinished.set(true);
         };
 
@@ -765,7 +781,7 @@ public class RollupIndexerStateTests extends ESTestCase {
         try {
 
             NonEmptyRollupIndexer indexer = new NonEmptyRollupIndexer(executor, job, state, null,
-                searchFunction, bulkFunction, failureConsumer);
+                searchFunction, bulkFunction, failureConsumer, doSaveStateCheck);
             final CountDownLatch latch = indexer.newLatch(1);
             indexer.start();
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));

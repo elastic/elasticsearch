@@ -338,13 +338,13 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
     @Override
     public synchronized void triggered(Event event) {
-        if (getIndexer() == null) {
-            logger.warn("Data frame task [{}] triggered with an unintialized indexer", getTransformId());
+        // Ignore if event is not for this job
+        if (event.getJobName().equals(schedulerJobName()) == false)  {
             return;
         }
 
-        // Ignore if event is not for this job
-        if (event.getJobName().equals(schedulerJobName()) == false)  {
+        if (getIndexer() == null) {
+            logger.warn("Data frame task [{}] triggered with an unintialized indexer", getTransformId());
             return;
         }
 

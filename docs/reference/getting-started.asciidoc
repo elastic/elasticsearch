@@ -185,7 +185,7 @@ packages on Linux, install using Homebrew on macOS, or install using the MSI
 package installer on Windows. See <<install-elasticsearch>> for more information.
 
 [[getting-started-index]]
-=== Index some documents
+== Index some documents
 
 Once you have a cluster up and running, you're ready to index some data.
 There are a variety of ingest options for {es}, but in the end they all
@@ -267,7 +267,7 @@ and shows the original source fields that were indexed.
 
 [float]
 [[getting-started-batch-processing]]
-==== Batch processing
+=== Batch processing
 
 In addition to being able to index, update, and delete individual documents, Elasticsearch also provides the ability to perform any of the above operations in batches using the {ref}/docs-bulk.html[`_bulk` API]. This functionality is important in that it provides a very efficient mechanism to do multiple operations as fast as possible with as few network roundtrips as possible.
 
@@ -300,7 +300,7 @@ Note above that for the delete action, there is no corresponding source document
 The Bulk API does not fail due to failures in one of the actions. If a single action fails for whatever reason, it will continue to process the remainder of the actions after it. When the bulk API returns, it will provide a status for each action (in the same order it was sent in) so that you can check if a specific action failed or not.
 
 [float]
-==== Sample dataset
+=== Sample dataset
 
 Now that we've gotten a glimpse of the basics, let's try to work on a more realistic dataset. I've prepared a sample of fictitious JSON documents of customer bank account information. Each document has the following schema:
 
@@ -358,7 +358,7 @@ yellow open   bank  l7sSYV2cQXmu6_4rJWVIww   5   1       1000            0    12
 Which means that we just successfully bulk indexed 1000 documents into the bank index.
 
 [[getting-started-search]]
-=== Start searching
+== Start searching
 
 Now let's start with some simple searches. There are two basic ways to run searches: one is by sending search parameters through the {ref}/search-uri-request.html[REST request URI] and the other by sending them through the {ref}/search-request-body.html[REST request body]. The request body method allows you to be more expressive and also to define your searches in a more readable JSON format. We'll try one example of the request URI method but for the remainder of this tutorial, we will exclusively be using the request body method.
 
@@ -501,7 +501,7 @@ It is important to understand that once you get your search results back, Elasti
 
 [float]
 [[getting-started-query-lang]]
-==== Introducing the Query Language
+=== Introducing the Query Language
 
 Elasticsearch provides a JSON-style domain-specific language that you can use to execute queries. This is referred to as the {ref}/query-dsl.html[Query DSL]. The query language is quite comprehensive and can be intimidating at first glance but the best way to actually learn it is to start with a few basic examples.
 
@@ -724,7 +724,7 @@ GET /bank/_search
 
 [float]
 [[getting-started-filters]]
-==== Executing filters
+=== Executing filters
 
 In the previous section, we skipped over a little detail called the document score (`_score` field in the search results). The score is a numeric value that is a relative measure of how well the document matches the search query that we specified. The higher the score, the more relevant the document is, the lower the score, the less relevant the document is.
 
@@ -761,7 +761,7 @@ Dissecting the above, the bool query contains a `match_all` query (the query par
 In addition to the `match_all`, `match`, `bool`, and `range` queries, there are a lot of other query types that are available and we won't go into them here. Since we already have a basic understanding of how they work, it shouldn't be too difficult to apply this knowledge in learning and experimenting with the other query types.
 
 [[getting-started-aggregations]]
-=== Analyze results with aggregations
+== Analyze results with aggregations
 
 Aggregations provide the ability to group and extract statistics from your data. The easiest way to think about aggregations is by roughly equating it to the SQL GROUP BY and the SQL aggregate functions. In Elasticsearch, you have the ability to execute searches returning hits and at the same time return aggregated results separate from the hits all in one response. This is very powerful and efficient in the sense that you can run queries and multiple aggregations and get the results back of both (or either) operations in one shot avoiding network roundtrips using a concise and simplified API.
 
@@ -965,7 +965,7 @@ GET /bank/_search
 There are many other aggregations capabilities that we won't go into detail here. The {ref}/search-aggregations.html[aggregations reference guide] is a great starting point if you want to do further experimentation.
 
 [[getting-started-next-steps]]
-=== Where to go from here
+== Where to go from here
 
 Now that you've set up a cluster, indexed some documents, and run some
 searches and aggregations, you might want to:

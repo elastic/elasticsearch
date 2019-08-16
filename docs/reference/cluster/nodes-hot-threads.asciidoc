@@ -50,6 +50,6 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=node-id]
 include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 `type`::
-		(Optional, ) The type to sample. Available options are `block`, `cpu`, and 
+		(Optional, string) The type to sample. Available options are `block`, `cpu`, and 
 		`wait`. Defaults to `cpu`.
 

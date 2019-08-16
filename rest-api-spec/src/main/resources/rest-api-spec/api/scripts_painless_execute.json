@@ -1,17 +1,24 @@
 {
-  "scripts_painless_execute": {
-    "documentation": "https://www.elastic.co/guide/en/elasticsearch/painless/master/painless-execute-api.html",
-    "stability" : "experimental",
-    "methods": ["GET", "POST"],
-    "url": {
-      "paths": ["/_scripts/painless/_execute"],
-      "parts": {
-      },
-      "params": {
-      }
+  "scripts_painless_execute":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/painless/master/painless-execute-api.html",
+      "description":"Allows an arbitrary script to be executed and a result to be returned"
     },
-    "body": {
-      "description": "The script to execute"
+    "stability":"experimental",
+    "url":{
+      "paths":[
+        {
+          "path":"/_scripts/painless/_execute",
+          "methods":[
+            "GET",
+            "POST"
+          ]
+        }
+      ]
+    },
+    "params":{},
+    "body":{
+      "description":"The script to execute"
     }
   }
 }

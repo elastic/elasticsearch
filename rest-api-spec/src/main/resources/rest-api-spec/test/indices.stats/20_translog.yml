@@ -105,6 +105,7 @@
   - do:
       indices.stats:
         metric: [ translog ]
+  # after flushing we have one empty translog file while an empty index before flushing has two empty translog files.
   - lt: { indices.test.primaries.translog.size_in_bytes: $creation_size }
   - match: { indices.test.primaries.translog.operations: 0 }
   - lt: { indices.test.primaries.translog.uncommitted_size_in_bytes: $creation_size }

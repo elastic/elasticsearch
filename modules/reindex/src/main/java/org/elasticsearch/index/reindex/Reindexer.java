@@ -128,7 +128,8 @@ public class Reindexer {
             return null;
         }
 
-        searchRequest.source().sort(SeqNoFieldMapper.NAME);
+        // use unmapped_type to ensure that sorting works when index is newly created without mappings
+        searchRequest.source().sort(new FieldSortBuilder(SeqNoFieldMapper.NAME).unmappedType("long"));
         return SeqNoFieldMapper.NAME;
     }
 

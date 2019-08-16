@@ -35,7 +35,6 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.SortedNumericDVIndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ObjectMapper;
-import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -316,12 +315,6 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             if (unmappedType != null) {
                 fieldType = context.getMapperService().unmappedFieldType(unmappedType);
             } else {
-                // todo: this should like be handled differently. If we end up doing this or something similar, the version should
-                // be changed to 6_5 in a 7.x backport.
-                if (SeqNoFieldMapper.NAME.equals(fieldName) && context.indexVersionCreated().onOrAfter(Version.V_7_0_0)) {
-                    // only for empty indices, since otherwise the mapping must exist
-                    return new SortFieldAndFormat(new SortField(fieldName, SortField.Type.LONG), DocValueFormat.BINARY);
-                }
                 throw new QueryShardException(context, "No mapping found for [" + fieldName + "] in order to sort on");
             }
         }

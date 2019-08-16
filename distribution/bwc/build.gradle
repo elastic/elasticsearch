@@ -42,7 +42,7 @@ bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInfo unreleased
 
     File checkoutDir = file("${buildDir}/bwc/checkout-${bwcBranch}")
 
-    final String remote = System.getProperty("tests.bwc.remote", "elastic")
+    final String remote = System.getProperty("bwc.remote", "elastic")
 
     boolean gitFetchLatest
     final String gitFetchLatestProperty = System.getProperty("tests.bwc.git_fetch_latest", "true")
@@ -103,8 +103,8 @@ bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInfo unreleased
     task checkoutBwcBranch() {
         dependsOn fetchLatest
         doLast {
-            String refspec = System.getProperty("tests.bwc.refspec.${bwcBranch}", "${remote}/${bwcBranch}")
-            if (System.getProperty("tests.bwc.checkout.align") != null) {
+            String refspec = System.getProperty("bwc.refspec.${bwcBranch}") ?: System.getProperty("tests.bwc.refspec.${bwcBranch}") ?: "${remote}/${bwcBranch}"
+            if (System.getProperty("bwc.checkout.align") != null || System.getProperty("tests.bwc.checkout.align") != null) {
                 /*
                     We use a time based approach to make the bwc versions built deterministic and compatible with the current hash.
                     Most of the time we want to test against latest, but when running delayed exhaustive tests or wanting

@@ -26,7 +26,6 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -52,8 +51,7 @@ public final class RestReloadSecureSettingsAction extends BaseRestHandler {
             new ParseField("secure_settings_password"));
     }
 
-    public RestReloadSecureSettingsAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestReloadSecureSettingsAction(RestController controller) {
         controller.registerHandler(POST, "/_nodes/reload_secure_settings", this);
         controller.registerHandler(POST, "/_nodes/{nodeId}/reload_secure_settings", this);
     }
@@ -73,7 +71,7 @@ public final class RestReloadSecureSettingsAction extends BaseRestHandler {
             .setNodesIds(nodesIds);
         request.withContentOrSourceParamParserOrNull(parser -> {
             if (parser != null) {
-                final NodesReloadSecureSettingsRequest nodesRequest = PARSER.parse(parser, null);
+                final NodesReloadSecureSettingsRequest nodesRequest = nodesRequestBuilder.request();
                 nodesRequestBuilder.setSecureStorePassword(nodesRequest.getSecureSettingsPassword());
             }
         });

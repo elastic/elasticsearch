@@ -57,6 +57,7 @@ public class DataFrameTaskFailedStateIT extends DataFrameRestTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/45664")
     public void testForceStopFailedTransform() throws Exception {
         String transformId = "test-force-stop-failed-transform";
         createReviewsIndex(REVIEWS_INDEX_NAME, 10);

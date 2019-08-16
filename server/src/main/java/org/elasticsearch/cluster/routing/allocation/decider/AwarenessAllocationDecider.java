@@ -197,7 +197,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
                         maximumNodeCount);
             }
 
-            if ((shardCount % numberOfAttributes) != 0 && currentNodeCount == maximumNodeCount) {
+            if (currentNodeCount == maximumNodeCount && (shardCount % numberOfAttributes) != 0) {
                 for (ObjectCursor<String> cursor : nodesPerAttribute.keys()) {
                     if (shardPerAttribute.get(cursor.value) == 0) {
                         return allocation.decision(Decision.NO, NAME,

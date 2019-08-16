@@ -17,7 +17,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.enrich.EnrichProcessorFactory.EnrichSpecification;
-import org.elasticsearch.xpack.enrich.action.CoordinatorProxyAction;
+import org.elasticsearch.xpack.enrich.action.EnrichCoordinatorProxyAction;
 
 import java.util.List;
 import java.util.Map;
@@ -152,7 +152,7 @@ public final class ExactMatchProcessor extends AbstractEnrichProcessor {
 
     private static BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> createSearchRunner(Client client) {
         return (req, handler) -> {
-            client.execute(CoordinatorProxyAction.INSTANCE, req, ActionListener.wrap(
+            client.execute(EnrichCoordinatorProxyAction.INSTANCE, req, ActionListener.wrap(
                 resp -> {
                     handler.accept(resp, null);
                 },

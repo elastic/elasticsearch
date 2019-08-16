@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.core.dataframe.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
@@ -34,24 +35,40 @@ public class StartDataFrameTransformTaskAction extends ActionType<StartDataFrame
     public static class Request extends BaseTasksRequest<Request> {
 
         private final String id;
+        private final boolean force;
 
-        public Request(String id) {
+        public Request(String id, boolean force) {
             this.id = ExceptionsHelper.requireNonNull(id, DataFrameField.ID.getPreferredName());
+            this.force = force;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             id = in.readString();
+            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+                force = in.readBoolean();
+            } else {
+                // The behavior before V_7_4_0 was that this flag did not exist,
+                // assuming previous checks allowed this task to be started.
+                force = true;
+            }
         }
 
         public String getId() {
             return id;
         }
 
+        public boolean isForce() {
+            return force;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(id);
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                out.writeBoolean(force);
+            }
         }
 
         @Override
@@ -66,7 +83,7 @@ public class StartDataFrameTransformTaskAction extends ActionType<StartDataFrame
 
         @Override
         public int hashCode() {
-            return Objects.hash(id);
+            return Objects.hash(id, force);
         }
 
         @Override
@@ -78,7 +95,7 @@ public class StartDataFrameTransformTaskAction extends ActionType<StartDataFrame
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(id, other.id);
+            return Objects.equals(id, other.id) && force == other.force;
         }
     }
 

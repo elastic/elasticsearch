@@ -184,141 +184,32 @@ you can  run {es} in a Docker container, install {es} using the DEB or RPM
 packages on Linux, install using Homebrew on macOS, or install using the MSI
 package installer on Windows. See <<install-elasticsearch>> for more information.
 
-[[getting-started-explore]]
-== Exploring Your Cluster
+[[getting-started-index]]
+=== Index some documents
 
-[float]
-=== The REST API
+Once you have a cluster up and running, you're ready to index some data.
+There are a variety of ingest options for {es}, but in the end they all
+do the same thing: put JSON documents into an {es} index.
 
-Now that we have our node (and cluster) up and running, the next step is to understand how to communicate with it. Fortunately, Elasticsearch provides a very comprehensive and powerful REST API that you can use to interact with your cluster. Among the few things that can be done with the API are as follows:
-
-* Check your cluster, node, and index health, status, and statistics
-* Administer your cluster, node, and index data and metadata
-* Perform CRUD (Create, Read, Update, and Delete) and search operations against your indexes
-* Execute advanced search operations such as paging, sorting, filtering, scripting, aggregations, and many others
-
-[[getting-started-cluster-health]]
-=== Cluster Health
-
-Let's start with a basic health check, which we can use to see how our cluster is doing. We'll be using curl to do this but you can use any tool that allows you to make HTTP/REST calls. Let's assume that we are still on the same node where we started Elasticsearch on and open another command shell window.
-
-To check the cluster health, we will be using the {ref}/cat.html[`_cat` API]. You can
-run the command below in {kibana-ref}/console-kibana.html[Kibana's Console]
-by clicking "VIEW IN CONSOLE" or with `curl` by clicking the "COPY AS CURL"
-link below and pasting it into a terminal.
+You can do this directly with a simple POST request that identifies
+the index you want to add the document to and specifies one or more
+`"field": "value"` pairs in the request body:
 
 [source,js]
 --------------------------------------------------
-GET /_cat/health?v
---------------------------------------------------
-// CONSOLE
-
-And the response:
-
-[source,txt]
---------------------------------------------------
-epoch      timestamp cluster       status node.total node.data shards pri relo init unassign pending_tasks max_task_wait_time active_shards_percent
-1475247709 17:01:49  elasticsearch green           1         1      0   0    0    0        0             0                  -                100.0%
---------------------------------------------------
-// TESTRESPONSE[s/1475247709 17:01:49  elasticsearch/\\d+ \\d+:\\d+:\\d+ integTest/]
-// TESTRESPONSE[s/0             0                  -/0             \\d+                  -/]
-// TESTRESPONSE[non_json]
-
-We can see that our cluster named "elasticsearch" is up with a green status.
-
-Whenever we ask for the cluster health, we either get green, yellow, or red.
-
-    * Green - everything is good (cluster is fully functional)
-    * Yellow - all data is available but some replicas are not yet allocated (cluster is fully functional)
-    * Red - some data is not available for whatever reason (cluster is partially functional)
-
-**Note:** When a cluster is red, it will continue to serve search requests from the available shards but you will likely need to fix it ASAP since there are unassigned shards.
-
-Also from the above response, we can see a total of 1 node and that we have 0 shards since we have no data in it yet. Note that since we are using the default cluster name (elasticsearch) and since Elasticsearch uses unicast network discovery by default to find other nodes on the same machine, it is possible that you could accidentally start up more than one node on your computer and have them all join a single cluster. In this scenario, you may see more than 1 node in the above response.
-
-We can also get a list of nodes in our cluster as follows:
-
-[source,js]
---------------------------------------------------
-GET /_cat/nodes?v
---------------------------------------------------
-// CONSOLE
-
-And the response:
-
-[source,txt]
---------------------------------------------------
-ip        heap.percent ram.percent cpu load_1m load_5m load_15m node.role master name
-127.0.0.1           10           5   5    4.46                  dim       *      PB2SGZY
---------------------------------------------------
-// TESTRESPONSE[s/10           5   5    4.46/\\d+ \\d+ \\d+ (\\d+\\.\\d+)? (\\d+\\.\\d+)? (\\d+\.\\d+)?/]
-// TESTRESPONSE[s/dim/.+/ s/[*]/[*]/ s/PB2SGZY/.+/ non_json]
-
-Here, we can see our one node named "PB2SGZY", which is the single node that is currently in our cluster.
-
-[[getting-started-list-indices]]
-=== List All Indices
-
-Now let's take a peek at our indices:
-
-[source,js]
---------------------------------------------------
-GET /_cat/indices?v
---------------------------------------------------
-// CONSOLE
-
-And the response:
-
-[source,txt]
---------------------------------------------------
-health status index uuid pri rep docs.count docs.deleted store.size pri.store.size
---------------------------------------------------
-// TESTRESPONSE[non_json]
-
-Which simply means we have no indices yet in the cluster.
-
-[[getting-started-create-index]]
-=== Create an Index
-
-Now let's create an index named "customer" and then list all the indexes again:
-
-[source,js]
---------------------------------------------------
-PUT /customer?pretty
-GET /_cat/indices?v
---------------------------------------------------
-// CONSOLE
-
-The first command creates the index named "customer" using the PUT verb. We simply append `pretty` to the end of the call to tell it to pretty-print the JSON response (if any).
-
-And the response:
-
-[source,txt]
---------------------------------------------------
-health status index    uuid                   pri rep docs.count docs.deleted store.size pri.store.size
-yellow open   customer 95SQ4TSUT7mWBT7VNHH67A   1   1          0            0       260b           260b
---------------------------------------------------
-// TESTRESPONSE[s/95SQ4TSUT7mWBT7VNHH67A/.+/ s/260b/\\d+\\.?\\d?k?b/ non_json]
-
-The results of the second command tells us that we now have one index named customer and it has one primary shard and one replica (the defaults) and it contains zero documents in it.
-
-You might also notice that the customer index has a yellow health tagged to it. Recall from our previous discussion that yellow means that some replicas are not (yet) allocated. The reason this happens for this index is because Elasticsearch by default created one replica for this index. Since we only have one node running at the moment, that one replica cannot yet be allocated (for high availability) until a later point in time when another node joins the cluster. Once that replica gets allocated onto a second node, the health status for this index will turn to green.
-
-[[getting-started-query-document]]
-=== Index and Query a Document
-
-Let's now put something into our customer index. We'll index a simple customer document into the customer index, with an ID of 1 as follows:
-
-[source,js]
---------------------------------------------------
-PUT /customer/_doc/1?pretty
+PUT /customer/_doc/1
 {
   "name": "John Doe"
 }
 --------------------------------------------------
 // CONSOLE
 
-And the response:
+This request automatically creates the _customer_ index if it doesn't already
+exist, adds a new document that has an ID of `1`, and stores and
+indexes the _name_ field.
+
+Since this is a new document, the response shows that the result of the
+operation was that version 1 of the document was created:
 
 [source,js]
 --------------------------------------------------
@@ -330,29 +221,30 @@ And the response:
   "result" : "created",
   "_shards" : {
     "total" : 2,
-    "successful" : 1,
+    "successful" : 2,
     "failed" : 0
   },
-  "_seq_no" : 0,
-  "_primary_term" : 1
+  "_seq_no" : 26,
+  "_primary_term" : 4
 }
 --------------------------------------------------
-// TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
+// TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/]
+// TESTRESPONSE[s/"successful" : \d+/"successful" : $body._shards.successful/]
+// TESTRESPONSE[s/"_primary_term" : \d+/"_primary_term" : $body._primary_term/]
 
-From the above, we can see that a new customer document was successfully created inside the customer index. The document also has an internal id of 1 which we specified at index time.
 
-It is important to note that Elasticsearch does not require you to explicitly create an index first before you can index documents into it. In the previous example, Elasticsearch will automatically create the customer index if it didn't already exist beforehand.
-
-Let's now retrieve that document that we just indexed:
+The new document is available immediately from any node in the cluster.
+You can retrieve it with a GET request that specifies its document ID:
 
 [source,js]
 --------------------------------------------------
-GET /customer/_doc/1?pretty
+GET /customer/_doc/1
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
 
-And the response:
+The response indicates that a document with the specified ID was found
+and shows the original source fields that were indexed.
 
 [source,js]
 --------------------------------------------------
@@ -361,188 +253,21 @@ And the response:
   "_type" : "_doc",
   "_id" : "1",
   "_version" : 1,
-  "_seq_no" : 25,
-  "_primary_term" : 1,
+  "_seq_no" : 26,
+  "_primary_term" : 4,
   "found" : true,
-  "_source" : { "name": "John Doe" }
+  "_source" : {
+    "name": "John Doe"
+  }
 }
 --------------------------------------------------
-// TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
+// TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/ ]
+// TESTRESPONSE[s/"_primary_term" : \d+/"_primary_term" : $body._primary_term/]
 
-Nothing out of the ordinary here other than a field, `found`, stating that we found a document with the requested ID 1 and another field, `_source`, which returns the full JSON document that we indexed from the previous step.
-
-[[getting-started-delete-index]]
-=== Delete an Index
-
-Now let's delete the index that we just created and then list all the indexes again:
-
-[source,js]
---------------------------------------------------
-DELETE /customer?pretty
-GET /_cat/indices?v
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-And the response:
-
-[source,txt]
---------------------------------------------------
-health status index uuid pri rep docs.count docs.deleted store.size pri.store.size
---------------------------------------------------
-// TESTRESPONSE[non_json]
-
-Which means that the index was deleted successfully and we are now back to where we started with nothing in our cluster.
-
-Before we move on, let's take a closer look again at some of the API commands that we have learned so far:
-
-[source,js]
---------------------------------------------------
-PUT /customer
-PUT /customer/_doc/1
-{
-  "name": "John Doe"
-}
-GET /customer/_doc/1
-DELETE /customer
---------------------------------------------------
-// CONSOLE
-
-If we study the above commands carefully, we can actually see a pattern of how we access data in Elasticsearch. That pattern can be summarized as follows:
-
-[source,js]
---------------------------------------------------
-<HTTP Verb> /<Index>/<Endpoint>/<ID>
---------------------------------------------------
-// NOTCONSOLE
-
-This REST access pattern is so pervasive throughout all the API commands that if you can simply remember it, you will have a good head start at mastering Elasticsearch.
-
-[[getting-started-modify-data]]
-== Modifying Your Data
-
-Elasticsearch provides data manipulation and search capabilities in near real time. By default, you can expect a one second delay (refresh interval) from the time you index/update/delete your data until the time that it appears in your search results. This is an important distinction from other platforms like SQL wherein data is immediately available after a transaction is completed.
 
 [float]
-[[indexing-replacing-documents]]
-=== Indexing/Replacing Documents
-
-We've previously seen how we can index a single document. Let's recall that command again:
-
-[source,js]
---------------------------------------------------
-PUT /customer/_doc/1?pretty
-{
-  "name": "John Doe"
-}
---------------------------------------------------
-// CONSOLE
-
-Again, the above will index the specified document into the customer index, with the ID of 1. If we then executed the above command again with a different (or same) document, Elasticsearch will replace (i.e. reindex) a new document on top of the existing one with the ID of 1:
-
-[source,js]
---------------------------------------------------
-PUT /customer/_doc/1?pretty
-{
-  "name": "Jane Doe"
-}
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-The above changes the name of the document with the ID of 1 from "John Doe" to "Jane Doe". If, on the other hand, we use a different ID, a new document will be indexed and the existing document(s) already in the index remains untouched.
-
-[source,js]
---------------------------------------------------
-PUT /customer/_doc/2?pretty
-{
-  "name": "Jane Doe"
-}
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-The above indexes a new document with an ID of 2.
-
-When indexing, the ID part is optional. If not specified, Elasticsearch will generate a random ID and then use it to index the document. The actual ID Elasticsearch generates (or whatever we specified explicitly in the previous examples) is returned as part of the index API call.
-
-This example shows how to index a document without an explicit ID:
-
-[source,js]
---------------------------------------------------
-POST /customer/_doc?pretty
-{
-  "name": "Jane Doe"
-}
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-Note that in the above case, we are using the `POST` verb instead of PUT since we didn't specify an ID.
-
-[[getting-started-update-documents]]
-=== Updating Documents
-
-In addition to being able to index and replace documents, we can also update documents. Note though that Elasticsearch does not actually do in-place updates under the hood. Whenever we do an update, Elasticsearch deletes the old document and then indexes a new document with the update applied to it in one shot.
-
-This example shows how to update our previous document (ID of 1) by changing the name field to "Jane Doe":
-
-[source,js]
---------------------------------------------------
-POST /customer/_update/1?pretty
-{
-  "doc": { "name": "Jane Doe" }
-}
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-This example shows how to update our previous document (ID of 1) by changing the name field to "Jane Doe" and at the same time add an age field to it:
-
-[source,js]
---------------------------------------------------
-POST /customer/_update/1?pretty
-{
-  "doc": { "name": "Jane Doe", "age": 20 }
-}
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-Updates can also be performed by using simple scripts. This example uses a script to increment the age by 5:
-
-[source,js]
---------------------------------------------------
-POST /customer/_update/1?pretty
-{
-  "script" : "ctx._source.age += 5"
-}
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-In the above example, `ctx._source` refers to the current source document that is about to be updated.
-
-Elasticsearch provides the ability to update multiple documents given a query condition (like an `SQL UPDATE-WHERE` statement). See {ref}/docs-update-by-query.html[`docs-update-by-query` API]
-
-[[getting-started-delete-documents]]
-=== Deleting Documents
-
-Deleting a document is fairly straightforward. This example shows how to delete our previous customer with the ID of 2:
-
-[source,js]
---------------------------------------------------
-DELETE /customer/_doc/2?pretty
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-See the {ref}/docs-delete-by-query.html[`_delete_by_query` API] to delete all documents matching a specific query.
-It is worth noting that it is much more efficient to delete a whole index
-instead of deleting all documents with the Delete By Query API.
-
 [[getting-started-batch-processing]]
-=== Batch Processing
+==== Batch processing
 
 In addition to being able to index, update, and delete individual documents, Elasticsearch also provides the ability to perform any of the above operations in batches using the {ref}/docs-bulk.html[`_bulk` API]. This functionality is important in that it provides a very efficient mechanism to do multiple operations as fast as possible with as few network roundtrips as possible.
 
@@ -562,7 +287,7 @@ This example updates the first document (ID of 1) and then deletes the second do
 
 [source,sh]
 --------------------------------------------------
-POST /customer/_bulk?pretty
+POST /customer/_bulk
 {"update":{"_id":"1"}}
 {"doc": { "name": "John Doe becomes Jane Doe" } }
 {"delete":{"_id":"2"}}
@@ -574,11 +299,8 @@ Note above that for the delete action, there is no corresponding source document
 
 The Bulk API does not fail due to failures in one of the actions. If a single action fails for whatever reason, it will continue to process the remainder of the actions after it. When the bulk API returns, it will provide a status for each action (in the same order it was sent in) so that you can check if a specific action failed or not.
 
-[[getting-started-explore-data]]
-== Exploring Your Data
-
 [float]
-=== Sample Dataset
+==== Sample dataset
 
 Now that we've gotten a glimpse of the basics, let's try to work on a more realistic dataset. I've prepared a sample of fictitious JSON documents of customer bank account information. Each document has the following schema:
 
@@ -601,9 +323,6 @@ Now that we've gotten a glimpse of the basics, let's try to work on a more reali
 // NOTCONSOLE
 
 For the curious, this data was generated using http://www.json-generator.com/[`www.json-generator.com/`], so please ignore the actual values and semantics of the data as these are all randomly generated.
-
-[float]
-=== Loading the Sample Dataset
 
 You can download the sample dataset (accounts.json) from https://github.com/elastic/elasticsearch/blob/master/docs/src/test/resources/accounts.json?raw=true[here]. Extract it to our current directory and let's load it into our cluster as follows:
 
@@ -638,8 +357,8 @@ yellow open   bank  l7sSYV2cQXmu6_4rJWVIww   5   1       1000            0    12
 
 Which means that we just successfully bulk indexed 1000 documents into the bank index.
 
-[[getting-started-search-API]]
-=== The Search API
+[[getting-started-search]]
+=== Start searching
 
 Now let's start with some simple searches. There are two basic ways to run searches: one is by sending search parameters through the {ref}/search-uri-request.html[REST request URI] and the other by sending them through the {ref}/search-request-body.html[REST request body]. The request body method allows you to be more expressive and also to define your searches in a more readable JSON format. We'll try one example of the request URI method but for the remainder of this tutorial, we will exclusively be using the request body method.
 
@@ -780,8 +499,9 @@ to clutter the docs with it:
 
 It is important to understand that once you get your search results back, Elasticsearch is completely done with the request and does not maintain any kind of server-side resources or open cursors into your results. This is in stark contrast to many other platforms such as SQL wherein you may initially get a partial subset of your query results up-front and then you have to continuously go back to the server if you want to fetch (or page through) the rest of the results using some kind of stateful server-side cursor.
 
+[float]
 [[getting-started-query-lang]]
-=== Introducing the Query Language
+==== Introducing the Query Language
 
 Elasticsearch provides a JSON-style domain-specific language that you can use to execute queries. This is referred to as the {ref}/query-dsl.html[Query DSL]. The query language is quite comprehensive and can be intimidating at first glance but the best way to actually learn it is to start with a few basic examples.
 
@@ -844,9 +564,6 @@ GET /bank/_search
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
-
-[[getting-started-search]]
-=== Executing Searches
 
 Now that we have seen a few of the basic search parameters, let's dig in some more into the Query DSL. Let's first take a look at the returned document fields. By default, the full JSON document is returned as part of all searches. This is referred to as the source (`_source` field in the search hits). If we don't want the entire source document returned, we have the ability to request only a few fields from within source to be returned.
 
@@ -1005,8 +722,9 @@ GET /bank/_search
 // CONSOLE
 // TEST[continued]
 
+[float]
 [[getting-started-filters]]
-=== Executing Filters
+==== Executing filters
 
 In the previous section, we skipped over a little detail called the document score (`_score` field in the search results). The score is a numeric value that is a relative measure of how well the document matches the search query that we specified. The higher the score, the more relevant the document is, the lower the score, the less relevant the document is.
 
@@ -1043,7 +761,7 @@ Dissecting the above, the bool query contains a `match_all` query (the query par
 In addition to the `match_all`, `match`, `bool`, and `range` queries, there are a lot of other query types that are available and we won't go into them here. Since we already have a basic understanding of how they work, it shouldn't be too difficult to apply this knowledge in learning and experimenting with the other query types.
 
 [[getting-started-aggregations]]
-=== Executing Aggregations
+=== Analyze results with aggregations
 
 Aggregations provide the ability to group and extract statistics from your data. The easiest way to think about aggregations is by roughly equating it to the SQL GROUP BY and the SQL aggregate functions. In Elasticsearch, you have the ability to execute searches returning hits and at the same time return aggregated results separate from the hits all in one response. This is very powerful and efficient in the sense that you can run queries and multiple aggregations and get the results back of both (or either) operations in one shot avoiding network roundtrips using a concise and simplified API.
 
@@ -1246,7 +964,20 @@ GET /bank/_search
 
 There are many other aggregations capabilities that we won't go into detail here. The {ref}/search-aggregations.html[aggregations reference guide] is a great starting point if you want to do further experimentation.
 
-[[getting-started-conclusion]]
-== Conclusion
+[[getting-started-next-steps]]
+=== Where to go from here
 
-Elasticsearch is both a simple and complex product. We've so far learned the basics of what it is, how to look inside of it, and how to work with it using some of the REST APIs. Hopefully this tutorial has given you a better understanding of what Elasticsearch is and more importantly, inspired you to further experiment with the rest of its great features!
+Now that you've set up a cluster, indexed some documents, and run some
+searches and aggregations, you might want to:
+
+* {stack-gs}/get-started-elastic-stack.html#install-kibana[Dive in to the Elastic
+Stack Tutorial] to install Kibana, Logstash, and Beats and
+set up a basic system monitoring solution.
+
+* {kibana-ref}/add-sample-data.html[Load one of the sample data sets into Kibana]
+to see how you can use {es} and Kibana together to visualize your data.
+
+* Try out one of the Elastic search solutions:
+** https://swiftype.com/documentation/site-search/crawler-quick-start[Site Search]
+** https://swiftype.com/documentation/app-search/getting-started[App Search]
+** https://swiftype.com/documentation/enterprise-search/getting-started[Enterprise Search]

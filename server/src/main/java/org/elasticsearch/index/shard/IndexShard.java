@@ -92,6 +92,7 @@ import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.engine.RefreshFailedEngineException;
+import org.elasticsearch.index.engine.SafeCommitInfo;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
@@ -336,7 +337,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 UNASSIGNED_SEQ_NO,
                 globalCheckpointListeners::globalCheckpointUpdated,
                 threadPool::absoluteTimeInMillis,
-                (retentionLeases, listener) -> retentionLeaseSyncer.sync(shardId, retentionLeases, listener));
+                (retentionLeases, listener) -> retentionLeaseSyncer.sync(shardId, retentionLeases, listener),
+                this::getSafeCommitInfo);
 
         // the query cache is a node-level thing, however we want the most popular filters
         // to be computed on a per-shard basis
@@ -1434,10 +1436,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             assert newSafeCommit.isPresent() : "no safe commit found after local recovery";
             return newSafeCommit.get().localCheckpoint + 1;
         } catch (Exception e) {
-            if (Assertions.ENABLED) {
-                throw new AssertionError(
-                    "failed to find the safe commit after recovering shard locally up to global checkpoint " + globalCheckpoint, e);
-            }
             logger.debug(new ParameterizedMessage(
                 "failed to find the safe commit after recovering shard locally up to global checkpoint {}", globalCheckpoint), e);
             return UNASSIGNED_SEQ_NO;
@@ -2614,6 +2612,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void removePeerRecoveryRetentionLease(String nodeId, ActionListener<ReplicationResponse> listener) {
         assert assertPrimaryMode();
         replicationTracker.removePeerRecoveryRetentionLease(nodeId, listener);
+    }
+
+    private SafeCommitInfo getSafeCommitInfo() {
+        final Engine engine = getEngineOrNull();
+        return engine == null ? SafeCommitInfo.EMPTY : engine.getSafeCommitInfo();
     }
 
     class ShardEventListener implements Engine.EventListener {

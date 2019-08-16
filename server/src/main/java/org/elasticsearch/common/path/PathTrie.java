@@ -19,12 +19,9 @@
 
 package org.elasticsearch.common.path;
 
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.function.BiFunction;
@@ -352,40 +349,22 @@ public class PathTrie<T> {
      * of parameters.
      */
     public Iterator<T> retrieveAll(String path, Supplier<Map<String, String>> paramSupplier) {
-        return new PathTrieIterator<>(this, path, paramSupplier);
-    }
+        return new Iterator<>() {
 
-    private static class PathTrieIterator<T> implements Iterator<T> {
+            private int mode;
 
-        private final List<TrieMatchingMode> modes;
-        private final Supplier<Map<String, String>> paramSupplier;
-        private final PathTrie<T> trie;
-        private final String path;
-
-        PathTrieIterator(PathTrie<T> trie, String path, Supplier<Map<String, String>> paramSupplier) {
-            this.path = path;
-            this.trie = trie;
-            this.paramSupplier = paramSupplier;
-            this.modes = new ArrayList<>(Arrays.asList(TrieMatchingMode.EXPLICIT_NODES_ONLY,
-                TrieMatchingMode.WILDCARD_ROOT_NODES_ALLOWED,
-                TrieMatchingMode.WILDCARD_LEAF_NODES_ALLOWED,
-                TrieMatchingMode.WILDCARD_NODES_ALLOWED));
-            assert TrieMatchingMode.values().length == 4 : "missing trie matching mode";
-        }
-
-        @Override
-        public boolean hasNext() {
-            return modes.isEmpty() == false;
-        }
-
-        @Override
-        public T next() {
-            if (modes.isEmpty()) {
-                throw new NoSuchElementException("called next() without validating hasNext()! no more modes available");
+            @Override
+            public boolean hasNext() {
+                return mode < TrieMatchingMode.values().length;
             }
-            TrieMatchingMode mode = modes.remove(0);
-            Map<String, String> params = paramSupplier.get();
-            return trie.retrieve(path, params, mode);
-        }
+
+            @Override
+            public T next() {
+                if (hasNext() == false) {
+                    throw new NoSuchElementException("called next() without validating hasNext()! no more modes available");
+                }
+                return retrieve(path, paramSupplier.get(), TrieMatchingMode.values()[mode++]);
+            }
+        };
     }
 }

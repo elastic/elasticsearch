@@ -22,7 +22,6 @@ package org.elasticsearch.rest.action.document;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.RestRequest;
@@ -43,7 +42,7 @@ public class RestUpdateActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        action = new RestUpdateAction(Settings.EMPTY, controller());
+        action = new RestUpdateAction(controller());
     }
 
     public void testTypeInPath() {

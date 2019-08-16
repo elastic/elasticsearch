@@ -20,6 +20,9 @@ name of the restored index as well as some of its settings. There is a great
 deal of flexibility in how the snapshot and restore functionality can be used.
 // end::restore-intro[]
 
+You can automate your snapshot backup and restore process by using
+<<getting-started-snapshot-lifecycle-management, snapshot lifecycle management>>.
+
 // tag::backup-warning[]
 WARNING: You cannot back up an Elasticsearch cluster by simply taking a copy of
 the data directories of all of its nodes. Elasticsearch may be making changes to
@@ -124,7 +127,7 @@ which returns:
 -----------------------------------
 // TESTRESPONSE
 
-To retrieve information about multiple repositories, specify a comma-delimited 
+To retrieve information about multiple repositories, specify a comma-delimited
 list of repositories. You can also use the * wildcard when
 specifying repository names. For example, the following request retrieves
 information about all of the snapshot repositories that start with `repo` or
@@ -216,8 +219,8 @@ The following settings are supported:
 [horizontal]
 `location`:: Location of the snapshots. Mandatory.
 `compress`:: Turns on compression of the snapshot files. Compression is applied only to metadata files (index mapping and settings). Data files are not compressed. Defaults to `true`.
-`chunk_size`:: Big files can be broken down into chunks during snapshotting if needed. The chunk size can be specified in bytes or by
- using size value notation, i.e. 1g, 10m, 5k. Defaults to `null` (unlimited chunk size).
+`chunk_size`:: Big files can be broken down into chunks during snapshotting if needed. Specify the chunk size as a value and
+unit, for example: `1GB`, `10MB`, `5KB`, `500B`. Defaults to `null` (unlimited chunk size).
 `max_restore_bytes_per_sec`:: Throttles per node restore rate. Defaults to `40mb` per second.
 `max_snapshot_bytes_per_sec`:: Throttles per node snapshot rate. Defaults to `40mb` per second.
 `readonly`:: Makes repository read-only.  Defaults to `false`.

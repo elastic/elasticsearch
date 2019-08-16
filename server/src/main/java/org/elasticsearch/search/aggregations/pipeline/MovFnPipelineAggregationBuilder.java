@@ -101,7 +101,7 @@ public class MovFnPipelineAggregationBuilder extends AbstractPipelineAggregation
         format = in.readOptionalString();
         gapPolicy = GapPolicy.readFrom(in);
         window = in.readInt();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO change this after backport
+        if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
             shift = in.readInt();
         } else {
             shift = 0;
@@ -115,7 +115,7 @@ public class MovFnPipelineAggregationBuilder extends AbstractPipelineAggregation
         out.writeOptionalString(format);
         gapPolicy.writeTo(out);
         out.writeInt(window);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO change this after backport
+        if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
             out.writeInt(shift);
         }
     }

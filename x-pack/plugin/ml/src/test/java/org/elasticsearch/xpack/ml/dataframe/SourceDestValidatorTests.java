@@ -63,7 +63,8 @@ public class SourceDestValidatorTests extends ESTestCase {
     }
 
     public void testCheck_GivenSimpleSourceIndexAndValidDestIndex() {
-        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder("test")
+        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
+            .setId("test")
             .setSource(createSource("source-1"))
             .setDest(new DataFrameAnalyticsDest("dest", null))
             .setAnalysis(new OutlierDetection())
@@ -74,7 +75,8 @@ public class SourceDestValidatorTests extends ESTestCase {
     }
 
     public void testCheck_GivenMissingConcreteSourceIndex() {
-        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder("test")
+        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
+            .setId("test")
             .setSource(createSource("missing"))
             .setDest(new DataFrameAnalyticsDest("dest", null))
             .setAnalysis(new OutlierDetection())
@@ -88,7 +90,8 @@ public class SourceDestValidatorTests extends ESTestCase {
     }
 
     public void testCheck_GivenMissingWildcardSourceIndex() {
-        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder("test")
+        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
+            .setId("test")
             .setSource(createSource("missing*"))
             .setDest(new DataFrameAnalyticsDest("dest", null))
             .setAnalysis(new OutlierDetection())
@@ -102,7 +105,8 @@ public class SourceDestValidatorTests extends ESTestCase {
     }
 
     public void testCheck_GivenDestIndexSameAsSourceIndex() {
-        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder("test")
+        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
+            .setId("test")
             .setSource(createSource("source-1"))
             .setDest(new DataFrameAnalyticsDest("source-1", null))
             .setAnalysis(new OutlierDetection())
@@ -116,7 +120,8 @@ public class SourceDestValidatorTests extends ESTestCase {
     }
 
     public void testCheck_GivenDestIndexMatchesSourceIndex() {
-        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder("test")
+        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
+            .setId("test")
             .setSource(createSource("source-*"))
             .setDest(new DataFrameAnalyticsDest(SOURCE_2, null))
             .setAnalysis(new OutlierDetection())
@@ -130,7 +135,8 @@ public class SourceDestValidatorTests extends ESTestCase {
     }
 
     public void testCheck_GivenDestIndexMatchesOneOfSourceIndices() {
-        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder("test")
+        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
+            .setId("test")
             .setSource(createSource("source-1,source-*"))
             .setDest(new DataFrameAnalyticsDest(SOURCE_2, null))
             .setAnalysis(new OutlierDetection())
@@ -144,7 +150,8 @@ public class SourceDestValidatorTests extends ESTestCase {
     }
 
     public void testCheck_GivenDestIndexIsAliasThatMatchesMultipleIndices() {
-        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder("test")
+        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
+            .setId("test")
             .setSource(createSource(SOURCE_1))
             .setDest(new DataFrameAnalyticsDest("dest-alias", null))
             .setAnalysis(new OutlierDetection())
@@ -159,7 +166,8 @@ public class SourceDestValidatorTests extends ESTestCase {
     }
 
     public void testCheck_GivenDestIndexIsAliasThatIsIncludedInSource() {
-        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder("test")
+        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
+            .setId("test")
             .setSource(createSource("source-1"))
             .setDest(new DataFrameAnalyticsDest("source-1-alias", null))
             .setAnalysis(new OutlierDetection())

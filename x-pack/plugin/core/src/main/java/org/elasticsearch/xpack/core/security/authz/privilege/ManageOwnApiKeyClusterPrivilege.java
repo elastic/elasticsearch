@@ -26,11 +26,10 @@ import java.util.function.Predicate;
 public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
     public static final ManageOwnApiKeyClusterPrivilege INSTANCE = new ManageOwnApiKeyClusterPrivilege();
     private static final Predicate<String> ACTION_PREDICATE = Automatons.predicate("cluster:admin/xpack/security/api_key/*");
-    private final String name;
+    private static final String PRIVILEGE_NAME = "manage_own_api_key";
     private final BiPredicate<TransportRequest, Authentication> requestAuthnPredicate;
 
     private ManageOwnApiKeyClusterPrivilege() {
-        this.name = "manage_own_api_key";
         this.requestAuthnPredicate = (request, authentication) -> {
             if (request instanceof CreateApiKeyRequest) {
                 return true;
@@ -52,8 +51,8 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
             return true;
         } else {
             /*
-             * TODO ygaikwad we need to think on how we can propagate appropriate error message to the end user when username, realm name
-             *   is missing. This is similar to the problem of propagating proper error messages in case of access denied.
+             * TODO bizybot we need to think on how we can propagate appropriate error message to the end user when username, realm name
+             *   is missing. This is similar to the problem of propagating right error messages in case of access denied.
              */
             String authenticatedUserPrincipal = authentication.getUser().principal();
             String authenticatedUserRealm = authentication.getAuthenticatedBy().getName();
@@ -65,7 +64,6 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
     }
 
     private boolean isCurrentAuthenticationUsingSameApiKeyIdFromRequest(Authentication authentication, String apiKeyId) {
-        // TODO ygaikwad replace with constants after merging other change
         if (authentication.getAuthenticatedBy().getType().equals("_es_api_key")) {
             // API key id from authentication must match the id from request
             String authenticatedApiKeyId = (String) authentication.getMetadata().get("_security_api_key_id");
@@ -78,7 +76,7 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
 
     @Override
     public String name() {
-        return name;
+        return PRIVILEGE_NAME;
     }
 
     @Override

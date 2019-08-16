@@ -48,6 +48,10 @@ public final class TransportInvalidateApiKeyAction extends HandledTransportActio
         if (request.ownedByAuthenticatedUser()) {
             assert username == null;
             assert realm == null;
+            if (authentication.getAuthenticatedBy().getType().equals(ApiKeyService.API_KEY_REALM_TYPE)) {
+                throw new IllegalArgumentException(
+                    "failed to invalidate owned API keys for a user authenticated by API key as they cannot own any API keys");
+            }
             // restrict username and realm to current authenticated user.
             username = authentication.getUser().principal();
             realm = authentication.getAuthenticatedBy().getName();

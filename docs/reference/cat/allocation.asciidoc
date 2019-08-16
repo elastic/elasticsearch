@@ -1,5 +1,9 @@
 [[cat-allocation]]
-=== cat allocation
+=== cat allocation API
+++++
+<titleabbrev>cat allocation</titleabbrev>
+++++
+
 
 Provides a snapshot of the number of shards allocated to each data node
 and their disk space.

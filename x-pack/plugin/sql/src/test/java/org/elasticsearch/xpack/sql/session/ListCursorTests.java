@@ -3,21 +3,22 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.execution.search;
+package org.elasticsearch.xpack.sql.session;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.session.Cursors;
+import org.elasticsearch.xpack.sql.session.ListCursor;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-public class PagingListCursorTests extends AbstractWireSerializingTestCase<PagingListCursor> {
-    public static PagingListCursor randomPagingListCursor() {
+public class ListCursorTests extends AbstractWireSerializingTestCase<ListCursor> {
+    public static ListCursor randomPagingListCursor() {
         int size = between(1, 20);
         int depth = between(1, 20);
 
@@ -26,14 +27,14 @@ public class PagingListCursorTests extends AbstractWireSerializingTestCase<Pagin
             values.add(Arrays.asList(randomArray(depth, s -> new Object[depth], () -> randomByte())));
         }
 
-        return new PagingListCursor(values, depth, between(1, 20));
+        return new ListCursor(values, between(1, 20), depth);
     }
 
     @Override
-    protected PagingListCursor mutateInstance(PagingListCursor instance) throws IOException {
-        return new PagingListCursor(instance.data(), 
-                instance.columnCount(),
-                randomValueOtherThan(instance.pageSize(), () -> between(1, 20)));
+    protected ListCursor mutateInstance(ListCursor instance) throws IOException {
+        return new ListCursor(instance.data(), 
+                randomValueOtherThan(instance.pageSize(), () -> between(1, 20)),
+                instance.columnCount());
     }
 
     @Override
@@ -42,22 +43,22 @@ public class PagingListCursorTests extends AbstractWireSerializingTestCase<Pagin
     }
 
     @Override
-    protected PagingListCursor createTestInstance() {
+    protected ListCursor createTestInstance() {
         return randomPagingListCursor();
     }
 
     @Override
-    protected Reader<PagingListCursor> instanceReader() {
-        return PagingListCursor::new;
+    protected Reader<ListCursor> instanceReader() {
+        return ListCursor::new;
     }
 
     @Override
-    protected PagingListCursor copyInstance(PagingListCursor instance, Version version) throws IOException {
+    protected ListCursor copyInstance(ListCursor instance, Version version) throws IOException {
         /* Randomly choose between internal protocol round trip and String based
          * round trips used to toXContent. */
         if (randomBoolean()) {
             return super.copyInstance(instance, version);
         }
-        return (PagingListCursor) Cursors.decodeFromString(Cursors.encodeToString(version, instance));
+        return (ListCursor) Cursors.decodeFromString(Cursors.encodeToString(version, instance));
     }
 }

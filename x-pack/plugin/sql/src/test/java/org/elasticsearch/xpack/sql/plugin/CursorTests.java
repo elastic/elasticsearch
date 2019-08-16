@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.execution.search;
+package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -15,7 +15,8 @@ import org.elasticsearch.xpack.sql.SqlException;
 import org.elasticsearch.xpack.sql.TestUtils;
 import org.elasticsearch.xpack.sql.action.BasicFormatter;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
-import org.elasticsearch.xpack.sql.plugin.TextFormatterCursor;
+import org.elasticsearch.xpack.sql.execution.search.ScrollCursor;
+import org.elasticsearch.xpack.sql.execution.search.ScrollCursorTests;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.session.Cursor;
@@ -29,8 +30,6 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.action.support.PlainActionFuture.newFuture;
-import static org.elasticsearch.xpack.sql.action.BasicFormatter.FormatOption.CLI;
-import static org.elasticsearch.xpack.sql.action.BasicFormatter.FormatOption.TEXT;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -82,8 +81,8 @@ public class CursorTests extends ESTestCase {
                 () -> {
                     SqlQueryResponse response = createRandomSqlResponse();
                     if (response.columns() != null && response.rows() != null) {
-                        return TextFormatterCursor.wrap(ScrollCursorTests.randomScrollCursor(),
-                            new BasicFormatter(response.columns(), response.rows(), CLI));
+                        return new TextFormatterCursor(ScrollCursorTests.randomScrollCursor(),
+                            new BasicFormatter(response.columns(), response.rows(), BasicFormatter.FormatOption.CLI));
                     } else {
                         return ScrollCursorTests.randomScrollCursor();
                     }
@@ -91,8 +90,8 @@ public class CursorTests extends ESTestCase {
                 () -> {
                     SqlQueryResponse response = createRandomSqlResponse();
                     if (response.columns() != null && response.rows() != null) {
-                        return TextFormatterCursor.wrap(ScrollCursorTests.randomScrollCursor(),
-                            new BasicFormatter(response.columns(), response.rows(), TEXT));
+                        return new TextFormatterCursor(ScrollCursorTests.randomScrollCursor(),
+                            new BasicFormatter(response.columns(), response.rows(), BasicFormatter.FormatOption.TEXT));
                     } else {
                         return ScrollCursorTests.randomScrollCursor();
                     }

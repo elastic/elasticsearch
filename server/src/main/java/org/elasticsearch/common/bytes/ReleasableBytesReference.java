@@ -16,6 +16,10 @@ public class ReleasableBytesReference implements Releasable {
         return reference;
     }
 
+    public Releasable getReleasable() {
+        return releasable;
+    }
+
     @Override
     public void close() {
         releasable.close();

@@ -39,7 +39,7 @@ public class InboundDecoderTests extends ESTestCase {
         long requestId = randomNonNegativeLong();
         OutboundMessage.Request request = new OutboundMessage.Request(threadPool.getThreadContext(),
             new TestRequest("requestValue"), version, action, requestId, false, isCompressed);
-        BytesReference bytes = request.serialize(new BytesStreamOutput());
+        final BytesReference bytes = request.serialize(new BytesStreamOutput());
 
         InboundAggregator aggregator = mock(InboundAggregator.class);
         InboundDecoder decoder = new InboundDecoder(aggregator);
@@ -47,8 +47,9 @@ public class InboundDecoderTests extends ESTestCase {
         verify(aggregator).headerReceived(any(InboundDecoder.Header.class));
         assertEquals(TcpHeader.HEADER_SIZE, bytesConsumed);
 
-        bytes = bytes.slice(bytesConsumed, bytes.length() - bytesConsumed);
-        int bytesConsumed2 = decoder.handle(new ReleasableBytesReference(bytes, releasable));
+        final BytesReference bytes2 = bytes.slice(bytesConsumed, bytes.length() - bytesConsumed);
+        int bytesConsumed2 = decoder.handle(new ReleasableBytesReference(bytes2, releasable));
+        assertEquals(bytes.length() - TcpHeader.HEADER_SIZE, bytesConsumed2);
         verify(aggregator).contentReceived(any(ReleasableBytesReference.class));
     }
 

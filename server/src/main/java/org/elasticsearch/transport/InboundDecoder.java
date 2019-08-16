@@ -24,20 +24,28 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.util.PageCacheRecycler;
 
 import java.io.IOException;
+import java.util.Map;
 
 public class InboundDecoder {
 
     private static final ReleasableBytesReference END = new ReleasableBytesReference(BytesArray.EMPTY, () -> {});
 
     private final InboundAggregator aggregator;
+    private final PageCacheRecycler recycler;
     private TransportDecompressor decompressor;
     private int networkMessageSize = -1;
     private int bytesConsumed = 0;
 
     public InboundDecoder(InboundAggregator aggregator) {
+        this(aggregator, PageCacheRecycler.NON_RECYCLING_INSTANCE);
+    }
+
+    public InboundDecoder(InboundAggregator aggregator, PageCacheRecycler recycler) {
         this.aggregator = aggregator;
+        this.recycler = recycler;
     }
 
     public int handle(ReleasableBytesReference releasable) throws IOException {
@@ -57,16 +65,32 @@ public class InboundDecoder {
                 } else {
                     networkMessageSize = expectedLength;
                     Header header = parseHeader(releasable.getReference());
+                    if (header.isCompressed()) {
+                        decompressor = new TransportDecompressor(recycler);
+                    }
                     aggregator.headerReceived(header);
+                    return TcpHeader.HEADER_SIZE;
                 }
             }
         } else {
-            bytesConsumed += Math.max(releasable.getReference().length(), networkMessageSize - bytesConsumed);
+            int bytesToConsume = Math.max(releasable.getReference().length(), networkMessageSize - bytesConsumed);
+            bytesConsumed += bytesToConsume;
+            ReleasableBytesReference content;
             if (bytesConsumed == networkMessageSize) {
-                aggregator.contentReceived(releasable);
+                BytesReference sliced = releasable.getReference().slice(0, releasable.getReference().length() - bytesToConsume);
+                content = new ReleasableBytesReference(sliced, releasable.getReleasable());
             } else {
-                ReleasableBytesReference sliced = releasable;
-                aggregator.contentReceived(sliced);
+                content = releasable;
+            }
+            if (decompressor != null) {
+                decompressor.decompress(content.getReference());
+                releasable.close();
+                ReleasableBytesReference decompressed;
+                while ((decompressed = decompressor.pollDecompressedPage()) != null) {
+                    aggregator.contentReceived(decompressed);
+                }
+            } else {
+                aggregator.contentReceived(content);
             }
         }
 
@@ -91,11 +115,21 @@ public class InboundDecoder {
         private final Version version;
         private final long requestId;
         private final byte status;
+        private Map<String, String> headers;
+        private String action;
 
         private Header(long requestId, byte status, Version version) {
             this.version = version;
             this.requestId = requestId;
             this.status = status;
+        }
+
+        private boolean isCompressed() {
+            return TransportStatus.isCompress(status);
+        }
+
+        private boolean fullyParsed() {
+            return headers != null;
         }
     }
 }

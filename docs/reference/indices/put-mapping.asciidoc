@@ -57,7 +57,7 @@ PUT /twitter-1,twitter-2/_mapping <1>
 [float]
 ==== Updating field mappings
 
-// tag::put-field-mapping-exceptions
+// tag::put-field-mapping-exceptions[]
 
 You can't change the mapping of an existing field, with the following
 exceptions:
@@ -73,7 +73,7 @@ indexed. If you need to change the mapping of a field, create a new index with
 the correct mappings and <<docs-reindex,reindex>> your data into that index. If
 you only want to rename a field, consider adding an <<alias, `alias`>> field.
 
-// end::field-mapping-exceptions
+// end::put-field-mapping-exceptions[]
 
 For example:
 

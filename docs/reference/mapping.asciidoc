@@ -177,7 +177,7 @@ PUT /my-index/_mapping
 [[update-mapping]]
 === Update the mapping of a field
 
-include::docs/reference/indices/put-mapping.asciidoc[tag=put-field-mapping-exceptions]
+include::{docdir}/indices/put-mapping.asciidoc[tag=put-field-mapping-exceptions]
 
 [float]
 [[view-mapping]]

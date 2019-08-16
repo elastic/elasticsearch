@@ -25,8 +25,8 @@ import java.util.Arrays;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
-import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.KeyStoreAwareCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
@@ -34,7 +34,7 @@ import org.elasticsearch.env.Environment;
 /**
  * A sub-command for the keystore cli to create a new keystore.
  */
-class CreateKeyStoreCommand extends EnvironmentAwareCommand {
+class CreateKeyStoreCommand extends KeyStoreAwareCommand {
 
     private final OptionSpec<Void> passwordOption;
 
@@ -46,7 +46,7 @@ class CreateKeyStoreCommand extends EnvironmentAwareCommand {
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         try (SecureString password = options.has(passwordOption) ?
-            BaseKeyStoreCommand.readPassword(terminal, true) : new SecureString(new char[0])) {
+            readPassword(terminal, true) : new SecureString(new char[0])) {
             Path keystoreFile = KeyStoreWrapper.keystorePath(env.configFile());
             if (Files.exists(keystoreFile)) {
                 if (terminal.promptYesNo("An elasticsearch keystore already exists. Overwrite?", false) == false) {

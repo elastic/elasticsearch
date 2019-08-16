@@ -67,6 +67,7 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -99,7 +100,7 @@ import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
  * <li>On the master node the {@link #createSnapshot(CreateSnapshotRequest, ActionListener)} is called and makes sure that
  * no snapshot is currently running and registers the new snapshot in cluster state</li>
  * <li>When cluster state is updated
- * the {@link #beginSnapshot(ClusterState, SnapshotsInProgress.Entry, boolean, ActionListener)} method kicks in and initializes
+ * the {@link #beginSnapshot(SnapshotsInProgress.Entry, boolean, ActionListener)} method kicks in and initializes
  * the snapshot in the repository and then populates list of shards that needs to be snapshotted in cluster state</li>
  * <li>Each data node is watching for these shards and when new shards scheduled for snapshotting appear in the cluster state, data nodes
  * start processing them through {@link SnapshotShardsService#processIndexShardSnapshots(SnapshotsInProgress)} method</li>
@@ -303,7 +304,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 if (newSnapshot != null) {
                     final Snapshot current = newSnapshot.snapshot();
                     assert initializingSnapshots.contains(current);
-                    beginSnapshot(newState, newSnapshot, request.partial(), new ActionListener<>() {
+                    beginSnapshot(newSnapshot, request.partial(), new ActionListener<>() {
                         @Override
                         public void onResponse(final Snapshot snapshot) {
                             initializingSnapshots.remove(snapshot);
@@ -372,14 +373,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * <p>
      * Creates snapshot in repository and updates snapshot metadata record with list of shards that needs to be processed.
      *
-     * @param clusterState               cluster state
      * @param snapshot                   snapshot meta data
      * @param partial                    allow partial snapshots
      * @param userCreateSnapshotListener listener
      */
-    private void beginSnapshot(final ClusterState clusterState,
-                               final SnapshotsInProgress.Entry snapshot,
-                               final boolean partial,
+    private void beginSnapshot(final SnapshotsInProgress.Entry snapshot, final boolean partial,
                                final ActionListener<Snapshot> userCreateSnapshotListener) {
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new AbstractRunnable() {
 
@@ -392,17 +390,16 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 assert initializingSnapshots.contains(snapshot.snapshot());
                 Repository repository = repositoriesService.repository(snapshot.snapshot().getRepository());
 
-                MetaData metaData = clusterState.metaData();
-                if (!snapshot.includeGlobalState()) {
-                    // Remove global state from the cluster state
-                    MetaData.Builder builder = MetaData.builder();
-                    for (IndexId index : snapshot.indices()) {
-                        builder.put(metaData.index(index.getName()), false);
-                    }
-                    metaData = builder.build();
+                final String snapshotName = snapshot.snapshot().getSnapshotId().getName();
+                if (repository.isReadOnly()) {
+                    throw new RepositoryException(repository.getMetadata().name(), "cannot create snapshot in a readonly repository");
                 }
-
-                repository.initializeSnapshot(snapshot.snapshot().getSnapshotId(), snapshot.indices(), metaData);
+                // check if the snapshot name already exists in the repository
+                final RepositoryData repositoryData = repository.getRepositoryData();
+                if (repositoryData.getSnapshotIds().stream().anyMatch(s -> s.getName().equals(snapshotName))) {
+                    throw new InvalidSnapshotNameException(
+                        repository.getMetadata().name(), snapshotName, "snapshot with the same name already exists");
+                }
                 snapshotCreated = true;
 
                 logger.info("snapshot [{}] started", snapshot.snapshot());
@@ -541,6 +538,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         private void cleanupAfterError(Exception exception) {
             if(snapshotCreated) {
                 try {
+                    // TODO: Get the metadata from cluster state update to be safe?
+                    final MetaData metaData = metaDataForSnapshot(snapshot);
+
                     repositoriesService.repository(snapshot.snapshot().getRepository())
                                        .finalizeSnapshot(snapshot.snapshot().getSnapshotId(),
                                                          snapshot.indices(),
@@ -550,6 +550,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                                          Collections.emptyList(),
                                                          snapshot.getRepositoryStateId(),
                                                          snapshot.includeGlobalState(),
+                                                         metaData,
                                                          snapshot.userMetadata());
                 } catch (Exception inner) {
                     inner.addSuppressed(exception);
@@ -559,7 +560,19 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
             userCreateSnapshotListener.onFailure(e);
         }
+    }
 
+    private MetaData metaDataForSnapshot(final SnapshotsInProgress.Entry snapshot) {
+        MetaData metaData = clusterService.state().metaData();
+        if (!snapshot.includeGlobalState()) {
+            // Remove global state from the cluster state
+            MetaData.Builder builder = MetaData.builder();
+            for (IndexId index : snapshot.indices()) {
+                builder.put(metaData.index(index.getName()), false);
+            }
+            metaData = builder.build();
+        }
+        return metaData;
     }
 
     private static SnapshotInfo inProgressSnapshot(SnapshotsInProgress.Entry entry) {
@@ -982,6 +995,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     unmodifiableList(shardFailures),
                     entry.getRepositoryStateId(),
                     entry.includeGlobalState(),
+                    metaDataForSnapshot(entry),
                     entry.userMetadata());
                 removeSnapshotFromClusterState(snapshot, snapshotInfo, null);
                 logger.info("snapshot [{}] completed with state [{}]", snapshot, snapshotInfo.state());

@@ -41,6 +41,7 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -73,7 +74,9 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
     }
 
     @Override
-    public void initializeSnapshot(SnapshotId snapshotId, List<IndexId> indices, MetaData metaData) {
+    public SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, List<IndexId> indices, long startTime, String failure, int totalShards,
+        List<SnapshotShardFailure> shardFailures, long repositoryStateId, boolean includeGlobalState, MetaData metaData,
+        Map<String, Object> userMetadata) {
         // we process the index metadata at snapshot time. This means if somebody tries to restore
         // a _source only snapshot with a plain repository it will be just fine since we already set the
         // required engine, that the index is read-only and the mapping to a default mapping
@@ -100,7 +103,8 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                 indexMetadataBuilder.settingsVersion(1 + indexMetadataBuilder.settingsVersion());
                 builder.put(indexMetadataBuilder);
             }
-            super.initializeSnapshot(snapshotId, indices, builder.build());
+            return super.finalizeSnapshot(snapshotId, indices, startTime, failure, totalShards, shardFailures, repositoryStateId,
+                includeGlobalState, builder.build(), userMetadata);
         } catch (IOException ex) {
             throw new UncheckedIOException(ex);
         }

@@ -120,15 +120,7 @@
  *
  * <h3>Initializing a Snapshot in the Repository</h3>
  *
- * <p>Creating a snapshot in the repository starts with a call to {@link org.elasticsearch.repositories.Repository#initializeSnapshot} which
- * the blob store repository implements via the following actions:</p>
- * <ol>
- * <li>Verify that no snapshot by the requested name exists.</li>
- * <li>Write a blob containing the cluster metadata to the root of the blob store repository at {@code /meta-${snapshot-uuid}.dat}</li>
- * <li>Write the metadata for each index to a blob in that index's directory at
- * {@code /indices/${index-snapshot-uuid}/meta-${snapshot-uuid}.dat}</li>
- * </ol>
- * TODO: This behavior is problematic, adjust these docs once https://github.com/elastic/elasticsearch/issues/41581 is fixed
+ * TODO: Adjust these docs for https://github.com/elastic/elasticsearch/issues/41581
  *
  * <h3>Writing Shard Data (Segments)</h3>
  *

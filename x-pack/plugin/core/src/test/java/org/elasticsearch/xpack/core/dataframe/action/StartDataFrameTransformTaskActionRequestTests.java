@@ -13,7 +13,7 @@ public class StartDataFrameTransformTaskActionRequestTests extends
         AbstractWireSerializingTestCase<StartDataFrameTransformTaskAction.Request> {
     @Override
     protected StartDataFrameTransformTaskAction.Request createTestInstance() {
-        return new StartDataFrameTransformTaskAction.Request(randomAlphaOfLength(4));
+        return new StartDataFrameTransformTaskAction.Request(randomAlphaOfLength(4), randomBoolean());
     }
 
     @Override

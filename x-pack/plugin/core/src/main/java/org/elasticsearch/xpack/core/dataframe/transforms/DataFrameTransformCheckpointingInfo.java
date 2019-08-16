@@ -101,7 +101,7 @@ public class DataFrameTransformCheckpointingInfo implements Writeable, ToXConten
         last = new DataFrameTransformCheckpointStats(in);
         next = new DataFrameTransformCheckpointStats(in);
         operationsBehind = in.readLong();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
             changesLastDetectedAt = in.readOptionalInstant();
         }
     }
@@ -149,7 +149,7 @@ public class DataFrameTransformCheckpointingInfo implements Writeable, ToXConten
         last.writeTo(out);
         next.writeTo(out);
         out.writeLong(operationsBehind);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
             out.writeOptionalInstant(changesLastDetectedAt);
         }
     }

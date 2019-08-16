@@ -37,9 +37,13 @@ public class DataFrameTaskFailedStateIT extends DataFrameRestTestCase {
     @Before
     public void setClusterSettings() throws IOException {
         // Make sure we never retry on failure to speed up the test
+        // Set logging level to trace
+        // see: https://github.com/elastic/elasticsearch/issues/45562
         Request addFailureRetrySetting = new Request("PUT", "/_cluster/settings");
         addFailureRetrySetting.setJsonEntity(
-            "{\"persistent\": {\"xpack.data_frame.num_transform_failure_retries\": \"" + 0 + "\"}}");
+            "{\"transient\": {\"xpack.data_frame.num_transform_failure_retries\": \"" + 0 + "\"," +
+                "\"logger.org.elasticsearch.action.bulk\": \"info\"," + // reduces bulk failure spam
+                "\"logger.org.elasticsearch.xpack.dataframe\": \"trace\"}}");
         client().performRequest(addFailureRetrySetting);
     }
 
@@ -84,7 +88,6 @@ public class DataFrameTaskFailedStateIT extends DataFrameRestTestCase {
         assertThat(XContentMapValues.extractValue("reason", fullState), is(nullValue()));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/45609")
     public void testForceStartFailedTransform() throws Exception {
         String transformId = "test-force-start-failed-transform";
         createReviewsIndex(REVIEWS_INDEX_NAME, 10);
@@ -100,13 +103,16 @@ public class DataFrameTaskFailedStateIT extends DataFrameRestTestCase {
         // Verify we have failed for the expected reason
         assertThat(XContentMapValues.extractValue("reason", fullState), equalTo(failureReason));
 
+        final String expectedFailure = "Unable to start data frame transform [test-force-start-failed-transform] " +
+            "as it is in a failed state with failure: [" + failureReason +
+            "]. Use force start to restart data frame transform once error is resolved.";
         // Verify that we cannot start the transform when the task is in a failed state
-        ResponseException ex = expectThrows(ResponseException.class, () -> startDataframeTransform(transformId, false));
-        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.CONFLICT.getStatus()));
-        assertThat(XContentMapValues.extractValue("error.reason", entityAsMap(ex.getResponse())),
-            equalTo("Unable to start data frame transform [test-force-start-failed-transform] as it is in a failed state with failure: [" +
-                failureReason +
-                "]. Use force start to restart data frame transform once error is resolved."));
+        assertBusy(() -> {
+            ResponseException ex = expectThrows(ResponseException.class, () -> startDataframeTransform(transformId, false));
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.CONFLICT.getStatus()));
+            assertThat(XContentMapValues.extractValue("error.reason", entityAsMap(ex.getResponse())),
+                equalTo(expectedFailure));
+        }, 60, TimeUnit.SECONDS);
 
         // Correct the failure by deleting the destination index
         deleteIndex(dataFrameIndex);

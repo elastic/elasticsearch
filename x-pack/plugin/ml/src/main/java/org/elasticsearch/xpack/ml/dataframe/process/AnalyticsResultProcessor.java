@@ -9,6 +9,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.dataframe.process.results.RowResults;
 
 import java.util.Iterator;
@@ -53,7 +54,7 @@ public class AnalyticsResultProcessor {
         }
     }
 
-    public void process(AnalyticsProcess process) {
+    public void process(AnalyticsProcess<AnalyticsResult> process) {
         // TODO When java 9 features can be used, we will not need the local variable here
         try (DataFrameRowsJoiner resultsJoiner = dataFrameRowsJoiner) {
             Iterator<AnalyticsResult> iterator = process.readAnalyticsResults();

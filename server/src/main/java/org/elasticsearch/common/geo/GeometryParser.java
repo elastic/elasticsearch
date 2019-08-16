@@ -23,10 +23,10 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.geo.geometry.Geometry;
-import org.elasticsearch.geo.utils.StandardValidator;
-import org.elasticsearch.geo.utils.GeometryValidator;
-import org.elasticsearch.geo.utils.WellKnownText;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.utils.StandardValidator;
+import org.elasticsearch.geometry.utils.GeometryValidator;
+import org.elasticsearch.geometry.utils.WellKnownText;
 
 import java.io.IOException;
 import java.text.ParseException;

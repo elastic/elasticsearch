@@ -57,3 +57,11 @@ The client method `termVector`, deprecated in 2.0, has been removed. The method
 
 The constructor `AbstractLifecycleComponent(Settings settings)`, deprecated in 6.7
 has been removed. The parameterless constructor should be used instead.
+
+[float]
+==== Changes to Geometry classes
+
+Geometry classes used to represent geo values in SQL have been moved from the
+`org.elasticsearch.geo.geometry` package to the `org.elasticsearch.geometry`
+package and the order of the constructor parameters has changed from `lat`, `lon`
+to `lon`, `lat`.

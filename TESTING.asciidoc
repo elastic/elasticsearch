@@ -76,27 +76,20 @@ In order to set an Elasticsearch setting, provide a setting with the following p
 
 === Test case filtering.
 
-- `tests.class` is a class-filtering shell-like glob pattern,
-- `tests.method` is a method-filtering glob pattern.
+You can run a single test, provided that you specify the Gradle project.  See the documentation on
+https://docs.gradle.org/current/userguide/userguide_single.html#simple_name_pattern[simple name pattern filtering].
 
-Run a single test case (variants)
+Run a single test case in the `server` project:
 
 ----------------------------------------------------------
-./gradlew test -Dtests.class=org.elasticsearch.package.ClassName
-./gradlew test "-Dtests.class=*.ClassName"
+./gradlew :server:test --tests org.elasticsearch.package.ClassName
 ----------------------------------------------------------
 
-Run all tests in a package and its sub-packages
+Run all tests in a package and its sub-packages:
 
 ----------------------------------------------------
-./gradlew test "-Dtests.class=org.elasticsearch.package.*"
+./gradlew :server:test --tests 'org.elasticsearch.package.*'
 ----------------------------------------------------
-
-Run any test methods that contain 'esi' (like: ...r*esi*ze...)
-
--------------------------------
-./gradlew test "-Dtests.method=*esi*"
--------------------------------
 
 Run all tests that are waiting for a bugfix (disabled by default)
 
@@ -118,7 +111,7 @@ Every test repetition will have a different method seed
 (derived from a single random master seed).
 
 --------------------------------------------------
-./gradlew test -Dtests.iters=N -Dtests.class=*.ClassName
+./gradlew :server:test -Dtests.iters=N --tests org.elasticsearch.package.ClassName
 --------------------------------------------------
 
 === Repeats _all_ tests of ClassName N times.
@@ -127,7 +120,7 @@ Every test repetition will have exactly the same master (0xdead) and
 method-level (0xbeef) seed.
 
 ------------------------------------------------------------------------
-./gradlew test -Dtests.iters=N -Dtests.class=*.ClassName -Dtests.seed=DEAD:BEEF
+./gradlew :server:test -Dtests.iters=N -Dtests.seed=DEAD:BEEF --tests org.elasticsearch.package.ClassName
 ------------------------------------------------------------------------
 
 === Repeats a given test N times
@@ -137,14 +130,14 @@ ie: testFoo[0], testFoo[1], etc... so using testmethod or tests.method
 ending in a glob is necessary to ensure iterations are run).
 
 -------------------------------------------------------------------------
-./gradlew test -Dtests.iters=N -Dtests.class=*.ClassName -Dtests.method=mytest*
+./gradlew :server:test -Dtests.iters=N --tests org.elasticsearch.package.ClassName.methodName
 -------------------------------------------------------------------------
 
 Repeats N times but skips any tests after the first failure or M initial failures.
 
 -------------------------------------------------------------
-./gradlew test -Dtests.iters=N -Dtests.failfast=true -Dtestcase=...
-./gradlew test -Dtests.iters=N -Dtests.maxfailures=M -Dtestcase=...
+./gradlew test -Dtests.iters=N -Dtests.failfast=true ...
+./gradlew test -Dtests.iters=N -Dtests.maxfailures=M ...
 -------------------------------------------------------------
 
 === Test groups.
@@ -175,7 +168,7 @@ systemProp.tests.jvms=8
 ----------------------------
 
 Its difficult to pick the "right" number here. Hypercores don't count for CPU
-intensive tests and you should leave some slack for JVM-interal threads like
+intensive tests and you should leave some slack for JVM-internal threads like
 the garbage collector. And you have to have enough RAM to handle each JVM.
 
 === Test compatibility.

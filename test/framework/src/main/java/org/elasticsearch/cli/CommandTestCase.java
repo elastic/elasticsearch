@@ -30,9 +30,6 @@ public abstract class CommandTestCase extends ESTestCase {
     /** The terminal that execute uses. */
     protected final MockTerminal terminal = new MockTerminal();
 
-    /** The last command that was executed. */
-    protected Command command;
-
     @Before
     public void resetTerminal() {
         terminal.reset();
@@ -43,15 +40,12 @@ public abstract class CommandTestCase extends ESTestCase {
     protected abstract Command newCommand();
 
     /**
-     * Runs the command with the given args.
+     * Runs a command with the given args.
      *
      * Output can be found in {@link #terminal}.
-     * The command created can be found in {@link #command}.
      */
     public String execute(String... args) throws Exception {
-        command = newCommand();
-        command.mainWithoutErrorHandling(args, terminal);
-        return terminal.getOutput();
+        return execute(newCommand(), args);
     }
 
     /**
@@ -60,8 +54,7 @@ public abstract class CommandTestCase extends ESTestCase {
      * Output can be found in {@link #terminal}.
      */
     public String execute(Command command, String... args) throws Exception {
-        this.command = command;
-        this.command.mainWithoutErrorHandling(args, terminal);
+        command.mainWithoutErrorHandling(args, terminal);
         return terminal.getOutput();
     }
 }

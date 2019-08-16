@@ -513,7 +513,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             logToProcessStdout("Installing " + modules.size() + "modules");
             for (File module : modules) {
                 Path destination = distroDir.resolve("modules").resolve(module.getName().replace(".zip", "")
-                    .replace("-" + getVersion(), ""));
+                    .replace("-" + getVersion(), "")
+                    .replace("-SNAPSHOT", ""));
 
                 // only install modules that are not already bundled with the integ-test distribution
                 if (Files.exists(destination) == false) {

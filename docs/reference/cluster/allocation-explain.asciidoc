@@ -61,6 +61,16 @@ it finds by sending an empty body for the request.
 [[cluster-allocation-explain-api-examples]]
 ==== {api-examples-title}
 
+
+//////
+[source,js]	
+--------------------------------------------------	
+PUT /myindex	
+--------------------------------------------------	
+// CONSOLE	
+// TESTSETUP
+//////
+
 [source,js]
 --------------------------------------------------
 GET /_cluster/allocation/explain

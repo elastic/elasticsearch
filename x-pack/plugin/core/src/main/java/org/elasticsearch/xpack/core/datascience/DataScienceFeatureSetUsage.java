@@ -25,11 +25,6 @@ public class DataScienceFeatureSetUsage extends XPackFeatureSet.Usage {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-    }
-
-    @Override
     public int hashCode() {
         return Objects.hash(available, enabled);
     }

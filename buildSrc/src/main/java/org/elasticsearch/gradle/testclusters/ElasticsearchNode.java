@@ -188,6 +188,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
         ElasticsearchDistribution distro = container.getByName(distroName);
         distro.setVersion(version);
+        setDistributionType(distro, testDistribution);
         distributions.add(distro);
     }
 
@@ -218,15 +219,19 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         checkFrozen();
         this.testDistribution = testDistribution;
         for (ElasticsearchDistribution distribution : distributions) {
-            if (testDistribution == TestDistribution.INTEG_TEST) {
-                distribution.setType(ElasticsearchDistribution.Type.INTEG_TEST_ZIP);
+            setDistributionType(distribution, testDistribution);
+        }
+    }
+
+    private void setDistributionType(ElasticsearchDistribution distribution, TestDistribution testDistribution) {
+        if (testDistribution == TestDistribution.INTEG_TEST) {
+            distribution.setType(ElasticsearchDistribution.Type.INTEG_TEST_ZIP);
+        } else {
+            distribution.setType(ElasticsearchDistribution.Type.ARCHIVE);
+            if (testDistribution == TestDistribution.DEFAULT) {
+                distribution.setFlavor(ElasticsearchDistribution.Flavor.DEFAULT);
             } else {
-                distribution.setType(ElasticsearchDistribution.Type.ARCHIVE);
-                if (testDistribution == TestDistribution.DEFAULT) {
-                    distribution.setFlavor(ElasticsearchDistribution.Flavor.DEFAULT);
-                } else {
-                    distribution.setFlavor(ElasticsearchDistribution.Flavor.OSS);
-                }
+                distribution.setFlavor(ElasticsearchDistribution.Flavor.OSS);
             }
         }
     }

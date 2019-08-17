@@ -287,7 +287,7 @@ This example updates the first document (ID of 1) and then deletes the second do
 
 [source,sh]
 --------------------------------------------------
-POST /customer/_bulk
+POST /customer/_doc/_bulk
 {"update":{"_id":"1"}}
 {"doc": { "name": "John Doe becomes Jane Doe" } }
 {"delete":{"_id":"2"}}
@@ -328,7 +328,7 @@ You can download the sample dataset (accounts.json) from https://github.com/elas
 
 [source,sh]
 --------------------------------------------------
-curl -H "Content-Type: application/json" -XPOST "localhost:9200/bank/_bulk?pretty&refresh" --data-binary "@accounts.json"
+curl -H "Content-Type: application/json" -XPOST "localhost:9200/bank/_doc/_bulk?pretty&refresh" --data-binary "@accounts.json"
 curl "localhost:9200/_cat/indices?v"
 --------------------------------------------------
 // NOTCONSOLE
@@ -352,7 +352,7 @@ And the response:
 health status index uuid                   pri rep docs.count docs.deleted store.size pri.store.size
 green open   bank  l7sSYV2cQXmu6_4rJWVIww   5   1       1000            0    128.6kb        128.6kb
 --------------------------------------------------
-// TESTRESPONSE[s/128.6kb/\\d+(\\.\\d+)?[mk]?b/]
+// TESTRESPONSE[s/green/\\d+/s/128.6kb/\\d+(\\.\\d+)?[mk]?b/]
 // TESTRESPONSE[s/l7sSYV2cQXmu6_4rJWVIww/.+/ non_json]
 
 Which means that we just successfully bulk indexed 1000 documents into the bank index.

@@ -390,10 +390,7 @@ And the response (partially shown):
     "failed" : 0
   },
   "hits" : {
-    "total" : {
-        "value": 1000,
-        "relation": "eq"
-    },
+    "total" : 1000,
     "max_score" : null,
     "hits" : [ {
       "_index" : "bank",

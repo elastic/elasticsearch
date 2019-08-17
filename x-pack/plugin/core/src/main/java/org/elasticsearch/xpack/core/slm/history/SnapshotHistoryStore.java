@@ -76,7 +76,7 @@ public class SnapshotHistoryStore {
                     SLM_HISTORY_ALIAS, item), exception);
             }
         }, ex -> logger.error(new ParameterizedMessage("failed to ensure SLM history index exists, not indexing history item [{}]",
-            item, ex))));
+            item), ex)));
     }
 
     /**
@@ -87,8 +87,8 @@ public class SnapshotHistoryStore {
      * @param andThen Called after the index has been created. `onResponse` called with `true` if the index was created,
      *                `false` if it already existed.
      */
-    private static void ensureHistoryIndex(Client client, ClusterState state, ActionListener<Boolean> andThen) {
-        AliasOrIndex slmHistory = state.metaData().getAliasAndIndexLookup().get(SLM_HISTORY_INDEX_PREFIX);
+    static void ensureHistoryIndex(Client client, ClusterState state, ActionListener<Boolean> andThen) {
+        AliasOrIndex slmHistory = state.metaData().getAliasAndIndexLookup().get(SLM_HISTORY_ALIAS);
 
         if (slmHistory == null) {
             // No alias or index exists with the expected name, so create it

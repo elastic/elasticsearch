@@ -1242,10 +1242,11 @@ public class RestHighLevelClient implements Closeable {
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public final void mtermvectorsAsync(MultiTermVectorsRequest request, RequestOptions options,
-            ActionListener<MultiTermVectorsResponse> listener) {
-        performRequestAsyncAndParseEntity(
+    public final Cancellable mtermvectorsAsync(MultiTermVectorsRequest request, RequestOptions options,
+                                               ActionListener<MultiTermVectorsResponse> listener) {
+        return performRequestAsyncAndParseEntity(
             request, RequestConverters::mtermVectors, options, MultiTermVectorsResponse::fromXContent, listener, emptySet());
     }
 
@@ -1281,11 +1282,12 @@ public class RestHighLevelClient implements Closeable {
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/multi-search-template.html">Multi Search Template API
      * on elastic.co</a>.
+     * @return cancellable that may be used to cancel the request
      */
-    public final void msearchTemplateAsync(MultiSearchTemplateRequest multiSearchTemplateRequest,
-                                           RequestOptions options,
-                                           ActionListener<MultiSearchTemplateResponse> listener) {
-        performRequestAsyncAndParseEntity(multiSearchTemplateRequest, RequestConverters::multiSearchTemplate,
+    public final Cancellable msearchTemplateAsync(MultiSearchTemplateRequest multiSearchTemplateRequest,
+                                                  RequestOptions options,
+                                                  ActionListener<MultiSearchTemplateResponse> listener) {
+        return performRequestAsyncAndParseEntity(multiSearchTemplateRequest, RequestConverters::multiSearchTemplate,
             options, MultiSearchTemplateResponse::fromXContext, listener, emptySet());
     }
 
@@ -1296,9 +1298,12 @@ public class RestHighLevelClient implements Closeable {
      * @param rankEvalRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public final void rankEvalAsync(RankEvalRequest rankEvalRequest, RequestOptions options,  ActionListener<RankEvalResponse> listener) {
-        performRequestAsyncAndParseEntity(rankEvalRequest, RequestConverters::rankEval, options,  RankEvalResponse::fromXContent, listener,
+    public final Cancellable rankEvalAsync(RankEvalRequest rankEvalRequest, RequestOptions options,
+                                           ActionListener<RankEvalResponse> listener) {
+        return performRequestAsyncAndParseEntity(rankEvalRequest, RequestConverters::rankEval, options,
+            RankEvalResponse::fromXContent, listener,
                 emptySet());
     }
 
@@ -1336,10 +1341,11 @@ public class RestHighLevelClient implements Closeable {
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void getScriptAsync(GetStoredScriptRequest request, RequestOptions options,
-                               ActionListener<GetStoredScriptResponse> listener) {
-        performRequestAsyncAndParseEntity(request, RequestConverters::getScript, options,
+    public Cancellable getScriptAsync(GetStoredScriptRequest request, RequestOptions options,
+                                      ActionListener<GetStoredScriptResponse> listener) {
+        return performRequestAsyncAndParseEntity(request, RequestConverters::getScript, options,
             GetStoredScriptResponse::fromXContent, listener, emptySet());
     }
 
@@ -1363,10 +1369,11 @@ public class RestHighLevelClient implements Closeable {
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void deleteScriptAsync(DeleteStoredScriptRequest request, RequestOptions options,
-                                  ActionListener<AcknowledgedResponse> listener) {
-        performRequestAsyncAndParseEntity(request, RequestConverters::deleteScript, options,
+    public Cancellable deleteScriptAsync(DeleteStoredScriptRequest request, RequestOptions options,
+                                         ActionListener<AcknowledgedResponse> listener) {
+        return performRequestAsyncAndParseEntity(request, RequestConverters::deleteScript, options,
             AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 
@@ -1391,10 +1398,11 @@ public class RestHighLevelClient implements Closeable {
      * @param putStoredScriptRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void putScriptAsync(PutStoredScriptRequest putStoredScriptRequest, RequestOptions options,
-                               ActionListener<AcknowledgedResponse> listener) {
-        performRequestAsyncAndParseEntity(putStoredScriptRequest, RequestConverters::putScript, options,
+    public Cancellable putScriptAsync(PutStoredScriptRequest putStoredScriptRequest, RequestOptions options,
+                                      ActionListener<AcknowledgedResponse> listener) {
+        return performRequestAsyncAndParseEntity(putStoredScriptRequest, RequestConverters::putScript, options,
             AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 
@@ -1405,10 +1413,11 @@ public class RestHighLevelClient implements Closeable {
      * @param fieldCapabilitiesRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public final void fieldCapsAsync(FieldCapabilitiesRequest fieldCapabilitiesRequest, RequestOptions options,
-                                     ActionListener<FieldCapabilitiesResponse> listener) {
-        performRequestAsyncAndParseEntity(fieldCapabilitiesRequest, RequestConverters::fieldCaps, options,
+    public final Cancellable fieldCapsAsync(FieldCapabilitiesRequest fieldCapabilitiesRequest, RequestOptions options,
+                                            ActionListener<FieldCapabilitiesResponse> listener) {
+        return performRequestAsyncAndParseEntity(fieldCapabilitiesRequest, RequestConverters::fieldCaps, options,
             FieldCapabilitiesResponse::fromXContent, listener, emptySet());
     }
 

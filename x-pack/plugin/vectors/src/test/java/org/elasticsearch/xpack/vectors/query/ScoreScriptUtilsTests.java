@@ -7,9 +7,14 @@
 package org.elasticsearch.xpack.vectors.query;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
+import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.xpack.vectors.mapper.VectorEncoderDecoder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.vectors.query.ScoreScriptUtils.DotProduct;
 import org.elasticsearch.xpack.vectors.query.ScoreScriptUtils.CosineSimilarity;
+import org.elasticsearch.xpack.vectors.query.ScoreScriptUtils.L1Norm;
+import org.elasticsearch.xpack.vectors.query.ScoreScriptUtils.L2Norm;
 import org.elasticsearch.xpack.vectors.query.ScoreScriptUtils.DotProductSparse;
 import org.elasticsearch.xpack.vectors.query.ScoreScriptUtils.CosineSimilaritySparse;
 import org.elasticsearch.xpack.vectors.query.ScoreScriptUtils.L1NormSparse;
@@ -21,9 +26,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.vectors.mapper.VectorEncoderDecoderTests.mockEncodeDenseVector;
-import static org.elasticsearch.xpack.vectors.query.ScoreScriptUtils.dotProduct;
-import static org.elasticsearch.xpack.vectors.query.ScoreScriptUtils.l1norm;
-import static org.elasticsearch.xpack.vectors.query.ScoreScriptUtils.l2norm;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
@@ -36,41 +38,47 @@ public class ScoreScriptUtilsTests extends ESTestCase {
         BytesRef encodedDocVector =  mockEncodeDenseVector(docVector);
         VectorScriptDocValues.DenseVectorScriptDocValues dvs = mock(VectorScriptDocValues.DenseVectorScriptDocValues.class);
         when(dvs.getEncodedValue()).thenReturn(encodedDocVector);
+        ScoreScript scoreScript = mock(ScoreScript.class);
+        when(scoreScript._getIndexVersion()).thenReturn(Version.CURRENT);
+
         List<Number> queryVector = Arrays.asList(0.5, 111.3, -13.0, 14.8, -156.0);
 
         // test dotProduct
-        double result = dotProduct(queryVector, dvs);
+        DotProduct dotProduct = new DotProduct(scoreScript);
+        double result = dotProduct.dotProduct(queryVector, dvs);
         assertEquals("dotProduct result is not equal to the expected value!", 65425.626, result, 0.001);
 
         // test cosineSimilarity
-        CosineSimilarity cosineSimilarity = new CosineSimilarity(queryVector);
+        CosineSimilarity cosineSimilarity = new CosineSimilarity(scoreScript, queryVector);
         double result2 = cosineSimilarity.cosineSimilarity(dvs);
         assertEquals("cosineSimilarity result is not equal to the expected value!", 0.790, result2, 0.001);
 
         // test l1Norm
-        double result3 = l1norm(queryVector, dvs);
+        L1Norm l1norm = new L1Norm(scoreScript);
+        double result3 = l1norm.l1norm(queryVector, dvs);
         assertEquals("l1norm result is not equal to the expected value!", 485.184, result3, 0.001);
 
         // test l2norm
-        double result4 = l2norm(queryVector, dvs);
+        L2Norm l2norm = new L2Norm(scoreScript);
+        double result4 = l2norm.l2norm(queryVector, dvs);
         assertEquals("l2norm result is not equal to the expected value!", 301.361, result4, 0.001);
 
         // test dotProduct fails when queryVector has wrong number of dims
         List<Number> invalidQueryVector = Arrays.asList(0.5, 111.3);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> dotProduct(invalidQueryVector, dvs));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> dotProduct.dotProduct(invalidQueryVector, dvs));
         assertThat(e.getMessage(), containsString("dimensions of the query vector [2] is different from the documents' vectors [5]"));
 
         // test cosineSimilarity fails when queryVector has wrong number of dims
-        CosineSimilarity cosineSimilarity2 = new CosineSimilarity(invalidQueryVector);
+        CosineSimilarity cosineSimilarity2 = new CosineSimilarity(scoreScript, invalidQueryVector);
         e = expectThrows(IllegalArgumentException.class, () -> cosineSimilarity2.cosineSimilarity(dvs));
         assertThat(e.getMessage(), containsString("dimensions of the query vector [2] is different from the documents' vectors [5]"));
 
         // test l1norm fails when queryVector has wrong number of dims
-        e = expectThrows(IllegalArgumentException.class, () -> l1norm(invalidQueryVector, dvs));
+        e = expectThrows(IllegalArgumentException.class, () -> l1norm.l1norm(invalidQueryVector, dvs));
         assertThat(e.getMessage(), containsString("dimensions of the query vector [2] is different from the documents' vectors [5]"));
 
         // test l2norm fails when queryVector has wrong number of dims
-        e = expectThrows(IllegalArgumentException.class, () -> l2norm(invalidQueryVector, dvs));
+        e = expectThrows(IllegalArgumentException.class, () -> l2norm.l2norm(invalidQueryVector, dvs));
         assertThat(e.getMessage(), containsString("dimensions of the query vector [2] is different from the documents' vectors [5]"));
     }
 
@@ -80,6 +88,9 @@ public class ScoreScriptUtilsTests extends ESTestCase {
         BytesRef encodedDocVector = VectorEncoderDecoder.encodeSparseVector(docVectorDims, docVectorValues, docVectorDims.length);
         VectorScriptDocValues.SparseVectorScriptDocValues dvs = mock(VectorScriptDocValues.SparseVectorScriptDocValues.class);
         when(dvs.getEncodedValue()).thenReturn(encodedDocVector);
+        ScoreScript scoreScript = mock(ScoreScript.class);
+        when(scoreScript._getIndexVersion()).thenReturn(Version.CURRENT);
+
         Map<String, Number> queryVector = new HashMap<String, Number>() {{
             put("2", 0.5);
             put("10", 111.3);
@@ -89,22 +100,22 @@ public class ScoreScriptUtilsTests extends ESTestCase {
         }};
 
         // test dotProduct
-        DotProductSparse docProductSparse = new DotProductSparse(queryVector);
+        DotProductSparse docProductSparse = new DotProductSparse(scoreScript, queryVector);
         double result = docProductSparse.dotProductSparse(dvs);
         assertEquals("dotProductSparse result is not equal to the expected value!", 65425.626, result, 0.001);
 
         // test cosineSimilarity
-        CosineSimilaritySparse cosineSimilaritySparse = new CosineSimilaritySparse(queryVector);
+        CosineSimilaritySparse cosineSimilaritySparse = new CosineSimilaritySparse(scoreScript, queryVector);
         double result2 = cosineSimilaritySparse.cosineSimilaritySparse(dvs);
         assertEquals("cosineSimilaritySparse result is not equal to the expected value!", 0.790, result2, 0.001);
 
         // test l1norm
-        L1NormSparse l1Norm = new L1NormSparse(queryVector);
+        L1NormSparse l1Norm = new L1NormSparse(scoreScript, queryVector);
         double result3 = l1Norm.l1normSparse(dvs);
         assertEquals("l1normSparse result is not equal to the expected value!", 485.184, result3, 0.001);
 
         // test l2norm
-        L2NormSparse l2Norm = new L2NormSparse(queryVector);
+        L2NormSparse l2Norm = new L2NormSparse(scoreScript, queryVector);
         double result4 = l2Norm.l2normSparse(dvs);
         assertEquals("l2normSparse result is not equal to the expected value!", 301.361, result4, 0.001);
     }
@@ -116,6 +127,8 @@ public class ScoreScriptUtilsTests extends ESTestCase {
         BytesRef encodedDocVector = VectorEncoderDecoder.encodeSparseVector(docVectorDims, docVectorValues, docVectorDims.length);
         VectorScriptDocValues.SparseVectorScriptDocValues dvs = mock(VectorScriptDocValues.SparseVectorScriptDocValues.class);
         when(dvs.getEncodedValue()).thenReturn(encodedDocVector);
+        ScoreScript scoreScript = mock(ScoreScript.class);
+        when(scoreScript._getIndexVersion()).thenReturn(Version.CURRENT);
         Map<String, Number> queryVector = new HashMap<String, Number>() {{
             put("2", 0.5);
             put("10", 111.3);
@@ -126,22 +139,22 @@ public class ScoreScriptUtilsTests extends ESTestCase {
         }};
 
         // test dotProduct
-        DotProductSparse docProductSparse = new DotProductSparse(queryVector);
+        DotProductSparse docProductSparse = new DotProductSparse(scoreScript, queryVector);
         double result = docProductSparse.dotProductSparse(dvs);
         assertEquals("dotProductSparse result is not equal to the expected value!", 65425.626, result, 0.001);
 
         // test cosineSimilarity
-        CosineSimilaritySparse cosineSimilaritySparse = new CosineSimilaritySparse(queryVector);
+        CosineSimilaritySparse cosineSimilaritySparse = new CosineSimilaritySparse(scoreScript, queryVector);
         double result2 = cosineSimilaritySparse.cosineSimilaritySparse(dvs);
         assertEquals("cosineSimilaritySparse result is not equal to the expected value!", 0.786, result2, 0.001);
 
         // test l1norm
-        L1NormSparse l1Norm = new L1NormSparse(queryVector);
+        L1NormSparse l1Norm = new L1NormSparse(scoreScript, queryVector);
         double result3 = l1Norm.l1normSparse(dvs);
         assertEquals("l1normSparse result is not equal to the expected value!", 517.184, result3, 0.001);
 
         // test l2norm
-        L2NormSparse l2Norm = new L2NormSparse(queryVector);
+        L2NormSparse l2Norm = new L2NormSparse(scoreScript, queryVector);
         double result4 = l2Norm.l2normSparse(dvs);
         assertEquals("l2normSparse result is not equal to the expected value!", 302.277, result4, 0.001);
     }
@@ -153,6 +166,8 @@ public class ScoreScriptUtilsTests extends ESTestCase {
         BytesRef encodedDocVector = VectorEncoderDecoder.encodeSparseVector(docVectorDims, docVectorValues, docVectorDims.length);
         VectorScriptDocValues.SparseVectorScriptDocValues dvs = mock(VectorScriptDocValues.SparseVectorScriptDocValues.class);
         when(dvs.getEncodedValue()).thenReturn(encodedDocVector);
+        ScoreScript scoreScript = mock(ScoreScript.class);
+        when(scoreScript._getIndexVersion()).thenReturn(Version.CURRENT);
         Map<String, Number> queryVector = new HashMap<String, Number>() {{
             put("2", 0.5);
             put("10", 111.3);
@@ -163,22 +178,22 @@ public class ScoreScriptUtilsTests extends ESTestCase {
         }};
 
         // test dotProduct
-        DotProductSparse docProductSparse = new DotProductSparse(queryVector);
+        DotProductSparse docProductSparse = new DotProductSparse(scoreScript, queryVector);
         double result = docProductSparse.dotProductSparse(dvs);
         assertEquals("dotProductSparse result is not equal to the expected value!", 65425.626, result, 0.001);
 
         // test cosineSimilarity
-        CosineSimilaritySparse cosineSimilaritySparse = new CosineSimilaritySparse(queryVector);
+        CosineSimilaritySparse cosineSimilaritySparse = new CosineSimilaritySparse(scoreScript, queryVector);
         double result2 = cosineSimilaritySparse.cosineSimilaritySparse(dvs);
         assertEquals("cosineSimilaritySparse result is not equal to the expected value!", 0.786, result2, 0.001);
 
         // test l1norm
-        L1NormSparse l1Norm = new L1NormSparse(queryVector);
+        L1NormSparse l1Norm = new L1NormSparse(scoreScript, queryVector);
         double result3 = l1Norm.l1normSparse(dvs);
         assertEquals("l1normSparse result is not equal to the expected value!", 517.184, result3, 0.001);
 
         // test l2norm
-        L2NormSparse l2Norm = new L2NormSparse(queryVector);
+        L2NormSparse l2Norm = new L2NormSparse(scoreScript, queryVector);
         double result4 = l2Norm.l2normSparse(dvs);
         assertEquals("l2normSparse result is not equal to the expected value!", 302.277, result4, 0.001);
     }

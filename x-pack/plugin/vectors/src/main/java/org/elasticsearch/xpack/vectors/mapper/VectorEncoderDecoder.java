@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.vectors.mapper;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.InPlaceMergeSorter;
+import org.elasticsearch.Version;
 
 // static utility functions for encoding and decoding dense_vector and sparse_vector fields
 public final class VectorEncoderDecoder {
@@ -66,15 +67,23 @@ public final class VectorEncoderDecoder {
 
     /**
      * Decodes the first part of BytesRef into sparse vector dimensions
+     * @param indexVersion - index version
      * @param vectorBR - sparse vector encoded in BytesRef
      */
-    public static int[] decodeSparseVectorDims(BytesRef vectorBR) {
+    public static int[] decodeSparseVectorDims(Version indexVersion, BytesRef vectorBR) {
         if (vectorBR == null) {
             throw new IllegalArgumentException("A document doesn't have a value for a vector field!");
         }
-        int dimCount = (vectorBR.length - INT_BYTES) / (INT_BYTES + SHORT_BYTES);
+        int dimCount;
+        int offset;
+        if (indexVersion.onOrAfter(Version.V_7_4_0)) {
+            dimCount = (vectorBR.length - INT_BYTES) / (INT_BYTES + SHORT_BYTES);
+            offset = vectorBR.offset + INT_BYTES; // first 4 bytes are allocated for vector length
+        } else {
+            dimCount = (vectorBR.length) / (INT_BYTES + SHORT_BYTES);
+            offset = vectorBR.offset;
+        }
         int[] dims = new int[dimCount];
-        int offset = vectorBR.offset + INT_BYTES; // first 4 bytes are allocated for vector length
         for (int dim = 0; dim < dimCount; dim++) {
             dims[dim] = ((vectorBR.bytes[offset] & 0xFF) << 8) | (vectorBR.bytes[offset+1] & 0xFF);
             offset += SHORT_BYTES;
@@ -84,14 +93,22 @@ public final class VectorEncoderDecoder {
 
     /**
      * Decodes the second part of the BytesRef into sparse vector values
+     * @param indexVersion - index version
      * @param vectorBR - sparse vector encoded in BytesRef
      */
-    public static float[] decodeSparseVector(BytesRef vectorBR) {
+    public static float[] decodeSparseVector(Version indexVersion, BytesRef vectorBR) {
         if (vectorBR == null) {
             throw new IllegalArgumentException("A document doesn't have a value for a vector field!");
         }
-        int dimCount = (vectorBR.length - INT_BYTES) / (INT_BYTES + SHORT_BYTES);
-        int offset =  vectorBR.offset + INT_BYTES + SHORT_BYTES * dimCount; //calculate the offset from where values are encoded
+        int dimCount;
+        int offset;
+        if (indexVersion.onOrAfter(Version.V_7_4_0)) {
+            dimCount = (vectorBR.length - INT_BYTES) / (INT_BYTES + SHORT_BYTES);
+            offset =  vectorBR.offset + INT_BYTES + SHORT_BYTES * dimCount;
+        } else {
+            dimCount = (vectorBR.length) / (INT_BYTES + SHORT_BYTES);
+            offset =  vectorBR.offset + SHORT_BYTES * dimCount;
+        }
         float[] vector = new float[dimCount];
         for (int dim = 0; dim < dimCount; dim++) {
             int intValue = ((vectorBR.bytes[offset] & 0xFF) << 24)   |
@@ -163,15 +180,23 @@ public final class VectorEncoderDecoder {
 
     /**
      * Decodes a BytesRef into an array of floats
+     * @param indexVersion - index Version
      * @param vectorBR - dense vector encoded in BytesRef
      */
-    public static float[] decodeDenseVector(BytesRef vectorBR) {
+    public static float[] decodeDenseVector(Version indexVersion, BytesRef vectorBR) {
         if (vectorBR == null) {
             throw new IllegalArgumentException("A document doesn't have a value for a vector field!");
         }
-        int dimCount = (vectorBR.length - INT_BYTES) / INT_BYTES;
+        int dimCount;
+        int offset;
+        if (indexVersion.onOrAfter(Version.V_7_4_0)) {
+            dimCount = (vectorBR.length - INT_BYTES) / INT_BYTES;
+            offset = vectorBR.offset + INT_BYTES; // first 4 bytes are allocated for vector length
+        } else {
+            dimCount = vectorBR.length/ INT_BYTES;
+            offset = vectorBR.offset;
+        }
         float[] vector = new float[dimCount];
-        int offset = vectorBR.offset + INT_BYTES; // first 4 bytes are allocated for vector length
         for (int dim = 0; dim < dimCount; dim++) {
             int intValue = ((vectorBR.bytes[offset++] & 0xFF) << 24)   |
                 ((vectorBR.bytes[offset++] & 0xFF) << 16) |
@@ -183,18 +208,29 @@ public final class VectorEncoderDecoder {
     }
 
     /**
-     * Decodes first 4 bytes of BytesRef into a vector magnitude
+     * Calculates vector magnitude either by
+     * decoding first 4 bytes of BytesRef into a vector magnitude or calculating it
+     * @param indexVersion - index Version
      * @param vectorBR - vector encoded in BytesRef
+     * @param vector - float vector
      */
-    public static float decodeVectorMagnitude(BytesRef vectorBR) {
+    public static float getVectorMagnitude(Version indexVersion, BytesRef vectorBR, float[] vector) {
         if (vectorBR == null) {
             throw new IllegalArgumentException("A document doesn't have a value for a vector field!");
         }
-        int vectorMagnitudeIntValue = ((vectorBR.bytes[0] & 0xFF) << 24)   |
-            ((vectorBR.bytes[1] & 0xFF) << 16) |
-            ((vectorBR.bytes[2] & 0xFF) <<  8) |
-            (vectorBR.bytes[3] & 0xFF);
-        float vectorMagnitude = Float.intBitsToFloat(vectorMagnitudeIntValue);
-        return vectorMagnitude;
+        if (indexVersion.onOrAfter(Version.V_7_4_0)) { // decode vector magnitude
+            int vectorMagnitudeIntValue = ((vectorBR.bytes[0] & 0xFF) << 24)   |
+                ((vectorBR.bytes[1] & 0xFF) << 16) |
+                ((vectorBR.bytes[2] & 0xFF) <<  8) |
+                (vectorBR.bytes[3] & 0xFF);
+            float vectorMagnitude = Float.intBitsToFloat(vectorMagnitudeIntValue);
+            return vectorMagnitude;
+        } else { // calculate vector magnitude
+            double dotProduct = 0f;
+            for (int dim = 0; dim < vector.length; dim++) {
+                dotProduct += (double) vector[dim] * vector[dim];
+            }
+            return (float) Math.sqrt(dotProduct);
+        }
     }
 }

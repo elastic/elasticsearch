@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.vectors.mapper;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -63,6 +64,7 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testDefaults() throws Exception {
+        Version indexVersion = Version.CURRENT;
         int[] indexedDims = {65535, 50, 2};
         float[] indexedValues = {0.5f, 1800f, -34567.11f};
         ParsedDocument doc1 = mapper.parse(new SourceToParse("test-index", "_doc", "1", BytesReference
@@ -90,21 +92,21 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
 
         // assert that after decoded magnitude, dims and values are equal to expected
         BytesRef vectorBR = fields[0].binaryValue();
-        float decodedMagnitude = VectorEncoderDecoder.decodeVectorMagnitude(vectorBR);
-        assertEquals(expectedMagnitude, decodedMagnitude, 0.001f);
-        int[] decodedDims = VectorEncoderDecoder.decodeSparseVectorDims(vectorBR);
+        int[] decodedDims = VectorEncoderDecoder.decodeSparseVectorDims(indexVersion, vectorBR);
         assertArrayEquals(
             "Decoded sparse vector dimensions are not equal to the indexed ones.",
             expectedDims,
             decodedDims
         );
-        float[] decodedValues = VectorEncoderDecoder.decodeSparseVector(vectorBR);
+        float[] decodedValues = VectorEncoderDecoder.decodeSparseVector(indexVersion, vectorBR);
         assertArrayEquals(
             "Decoded sparse vector values are not equal to the indexed ones.",
             expectedValues,
             decodedValues,
             0.001f
         );
+        float decodedMagnitude = VectorEncoderDecoder.getVectorMagnitude(indexVersion, vectorBR, decodedValues);
+        assertEquals(expectedMagnitude, decodedMagnitude, 0.001f);
     }
 
     public void testDimensionNumberValidation() {

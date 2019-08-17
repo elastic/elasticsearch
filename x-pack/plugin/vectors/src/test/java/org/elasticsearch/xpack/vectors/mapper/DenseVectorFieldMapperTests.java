@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.vectors.mapper;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -55,6 +56,7 @@ public class DenseVectorFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testDefaults() throws Exception {
+        Version indexVersion = Version.CURRENT;
         IndexService indexService = createIndex("test-index");
         DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
         String mapping = Strings.toString(XContentFactory.jsonBuilder()
@@ -85,8 +87,8 @@ public class DenseVectorFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(fields[0], instanceOf(BinaryDocValuesField.class));
         // assert that after decoding the indexed value is equal to expected
         BytesRef vectorBR = fields[0].binaryValue();
-        float[] decodedValues = VectorEncoderDecoder.decodeDenseVector(vectorBR);
-        float decodedMagnitude = VectorEncoderDecoder.decodeVectorMagnitude(vectorBR);
+        float[] decodedValues = VectorEncoderDecoder.decodeDenseVector(indexVersion, vectorBR);
+        float decodedMagnitude = VectorEncoderDecoder.getVectorMagnitude(indexVersion, vectorBR, decodedValues);
         assertEquals(expectedMagnitude, decodedMagnitude, 0.001f);
         assertArrayEquals(
             "Decoded dense vector values is not equal to the indexed one.",

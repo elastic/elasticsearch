@@ -398,13 +398,15 @@ And the response (partially shown):
       "_id" : "0",
       "_score" : null,
       "_source" : {"account_number":0,"balance":16623,"firstname":"Bradshaw","lastname":"Mckenzie","age":29,"gender":"F","address":"244 Columbus Place","employer":"Euron","email":"bradshawmckenzie@euron.com","city":"Hobucken","state":"CO"}
-    }, {
+      "sort" : [0]
+    }, 
+    {
       "_index" : "bank",
       "_type" : "_doc",
       "_id" : "1",
-      "sort": [1],
       "_score" : null,
       "_source" : {"account_number":1,"balance":39225,"firstname":"Amber","lastname":"Duke","age":32,"gender":"M","address":"880 Holmes Lane","employer":"Pyrami","email":"amberduke@pyrami.com","city":"Brogan","state":"IL"}
+      "sort": [1],
     }, ...
     ]
   }

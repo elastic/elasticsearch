@@ -108,9 +108,10 @@ public final class IndicesClient {
      * @param deleteIndexRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void deleteAsync(DeleteIndexRequest deleteIndexRequest, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(deleteIndexRequest, IndicesRequestConverters::deleteIndex, options,
+    public Cancellable deleteAsync(DeleteIndexRequest deleteIndexRequest, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(deleteIndexRequest, IndicesRequestConverters::deleteIndex, options,
             AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 
@@ -136,11 +137,12 @@ public final class IndicesClient {
      * @param createIndexRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void createAsync(CreateIndexRequest createIndexRequest,
-                            RequestOptions options,
-                            ActionListener<CreateIndexResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(createIndexRequest, IndicesRequestConverters::createIndex, options,
+    public Cancellable createAsync(CreateIndexRequest createIndexRequest,
+                                   RequestOptions options,
+                                   ActionListener<CreateIndexResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(createIndexRequest, IndicesRequestConverters::createIndex, options,
             CreateIndexResponse::fromXContent, listener, emptySet());
     }
 
@@ -177,12 +179,13 @@ public final class IndicesClient {
      * @deprecated This method uses an old request object which still refers to types, a deprecated feature. The
      * method {@link #createAsync(CreateIndexRequest, RequestOptions, ActionListener)} should be used instead,
      * which accepts a new request object.
+     * @return cancellable that may be used to cancel the request
      */
     @Deprecated
-    public void createAsync(org.elasticsearch.action.admin.indices.create.CreateIndexRequest createIndexRequest,
-                            RequestOptions options,
-                            ActionListener<org.elasticsearch.action.admin.indices.create.CreateIndexResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(createIndexRequest,
+    public Cancellable createAsync(org.elasticsearch.action.admin.indices.create.CreateIndexRequest createIndexRequest,
+                                   RequestOptions options,
+                                   ActionListener<org.elasticsearch.action.admin.indices.create.CreateIndexResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(createIndexRequest,
             IndicesRequestConverters::createIndex, options,
             org.elasticsearch.action.admin.indices.create.CreateIndexResponse::fromXContent, listener, emptySet());
     }
@@ -208,10 +211,11 @@ public final class IndicesClient {
      * @param putMappingRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void putMappingAsync(PutMappingRequest putMappingRequest, RequestOptions options,
-                                ActionListener<AcknowledgedResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(putMappingRequest, IndicesRequestConverters::putMapping, options,
+    public Cancellable putMappingAsync(PutMappingRequest putMappingRequest, RequestOptions options,
+                                       ActionListener<AcknowledgedResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(putMappingRequest, IndicesRequestConverters::putMapping, options,
             AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 
@@ -245,12 +249,13 @@ public final class IndicesClient {
      * @deprecated This method uses an old request object which still refers to types, a deprecated feature. The
      * method {@link #putMappingAsync(PutMappingRequest, RequestOptions, ActionListener)} should be used instead,
      * which accepts a new request object.
+     * @return cancellable that may be used to cancel the request
      */
     @Deprecated
-    public void putMappingAsync(org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest putMappingRequest,
-                                RequestOptions options,
-                                ActionListener<AcknowledgedResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(putMappingRequest, IndicesRequestConverters::putMapping, options,
+    public Cancellable putMappingAsync(org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest putMappingRequest,
+                                       RequestOptions options,
+                                       ActionListener<AcknowledgedResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(putMappingRequest, IndicesRequestConverters::putMapping, options,
             AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 
@@ -278,10 +283,11 @@ public final class IndicesClient {
      * @param getMappingsRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void getMappingAsync(GetMappingsRequest getMappingsRequest, RequestOptions options,
-                                ActionListener<GetMappingsResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(getMappingsRequest,
+    public Cancellable getMappingAsync(GetMappingsRequest getMappingsRequest, RequestOptions options,
+                                       ActionListener<GetMappingsResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(getMappingsRequest,
             IndicesRequestConverters::getMappings,
             options,
             GetMappingsResponse::fromXContent,
@@ -324,12 +330,13 @@ public final class IndicesClient {
      * @deprecated This method uses old request and response objects which still refer to types, a deprecated feature.
      * The method {@link #getMapping(GetMappingsRequest, RequestOptions)} should be used instead, which accepts a new
      * request object.
+     * @return cancellable that may be used to cancel the request
      */
     @Deprecated
-    public void getMappingAsync(org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest getMappingsRequest,
-                                RequestOptions options,
-                                ActionListener<org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(getMappingsRequest,
+    public Cancellable getMappingAsync(org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest getMappingsRequest,
+                                       RequestOptions options,
+                                       ActionListener<org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(getMappingsRequest,
             IndicesRequestConverters::getMappings,
             options,
             org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse::fromXContent,
@@ -369,12 +376,13 @@ public final class IndicesClient {
      * @deprecated This method uses old request and response objects which still refer to types, a deprecated feature.
      * The method {@link #getFieldMappingAsync(GetFieldMappingsRequest, RequestOptions, ActionListener)} should be
      * used instead, which accepts a new request object.
+     * @return cancellable that may be used to cancel the request
      */
     @Deprecated
-    public void getFieldMappingAsync(org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest getFieldMappingsRequest,
-            RequestOptions options,
-            ActionListener<org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(getFieldMappingsRequest, IndicesRequestConverters::getFieldMapping, options,
+    public Cancellable getFieldMappingAsync(org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest getFieldMappingsRequest,
+                                            RequestOptions options,
+                                            ActionListener<org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(getFieldMappingsRequest, IndicesRequestConverters::getFieldMapping, options,
             org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse::fromXContent, listener, emptySet());
     }
 
@@ -401,10 +409,11 @@ public final class IndicesClient {
      * @param getFieldMappingsRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void getFieldMappingAsync(GetFieldMappingsRequest getFieldMappingsRequest,
-            RequestOptions options, ActionListener<GetFieldMappingsResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(getFieldMappingsRequest, IndicesRequestConverters::getFieldMapping, options,
+    public Cancellable getFieldMappingAsync(GetFieldMappingsRequest getFieldMappingsRequest,
+                                            RequestOptions options, ActionListener<GetFieldMappingsResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(getFieldMappingsRequest, IndicesRequestConverters::getFieldMapping, options,
             GetFieldMappingsResponse::fromXContent, listener, emptySet());
     }
 
@@ -429,10 +438,11 @@ public final class IndicesClient {
      * @param indicesAliasesRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void updateAliasesAsync(IndicesAliasesRequest indicesAliasesRequest, RequestOptions options,
-                                   ActionListener<AcknowledgedResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(indicesAliasesRequest, IndicesRequestConverters::updateAliases, options,
+    public Cancellable updateAliasesAsync(IndicesAliasesRequest indicesAliasesRequest, RequestOptions options,
+                                          ActionListener<AcknowledgedResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(indicesAliasesRequest, IndicesRequestConverters::updateAliases, options,
             AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 
@@ -457,9 +467,10 @@ public final class IndicesClient {
      * @param openIndexRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void openAsync(OpenIndexRequest openIndexRequest, RequestOptions options, ActionListener<OpenIndexResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(openIndexRequest, IndicesRequestConverters::openIndex, options,
+    public Cancellable openAsync(OpenIndexRequest openIndexRequest, RequestOptions options, ActionListener<OpenIndexResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(openIndexRequest, IndicesRequestConverters::openIndex, options,
                 OpenIndexResponse::fromXContent, listener, emptySet());
     }
 
@@ -484,9 +495,10 @@ public final class IndicesClient {
      * @param closeIndexRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void closeAsync(CloseIndexRequest closeIndexRequest, RequestOptions options, ActionListener<CloseIndexResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(closeIndexRequest, IndicesRequestConverters::closeIndex, options,
+    public Cancellable closeAsync(CloseIndexRequest closeIndexRequest, RequestOptions options, ActionListener<CloseIndexResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(closeIndexRequest, IndicesRequestConverters::closeIndex, options,
             CloseIndexResponse::fromXContent, listener, emptySet());
     }
 
@@ -512,9 +524,10 @@ public final class IndicesClient {
      * @param getAliasesRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void existsAliasAsync(GetAliasesRequest getAliasesRequest, RequestOptions options, ActionListener<Boolean> listener) {
-        restHighLevelClient.performRequestAsync(getAliasesRequest, IndicesRequestConverters::existsAlias, options,
+    public Cancellable existsAliasAsync(GetAliasesRequest getAliasesRequest, RequestOptions options, ActionListener<Boolean> listener) {
+        return restHighLevelClient.performRequestAsync(getAliasesRequest, IndicesRequestConverters::existsAlias, options,
                 RestHighLevelClient::convertExistsResponse, listener, emptySet());
     }
 
@@ -537,9 +550,10 @@ public final class IndicesClient {
      * @param refreshRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void refreshAsync(RefreshRequest refreshRequest, RequestOptions options, ActionListener<RefreshResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(refreshRequest, IndicesRequestConverters::refresh, options,
+    public Cancellable refreshAsync(RefreshRequest refreshRequest, RequestOptions options, ActionListener<RefreshResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(refreshRequest, IndicesRequestConverters::refresh, options,
                 RefreshResponse::fromXContent, listener, emptySet());
     }
 
@@ -562,9 +576,10 @@ public final class IndicesClient {
      * @param flushRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void flushAsync(FlushRequest flushRequest, RequestOptions options, ActionListener<FlushResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(flushRequest, IndicesRequestConverters::flush, options,
+    public Cancellable flushAsync(FlushRequest flushRequest, RequestOptions options, ActionListener<FlushResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(flushRequest, IndicesRequestConverters::flush, options,
                 FlushResponse::fromXContent, listener, emptySet());
     }
 
@@ -589,10 +604,11 @@ public final class IndicesClient {
      * @param syncedFlushRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void flushSyncedAsync(SyncedFlushRequest syncedFlushRequest, RequestOptions options,
-                                 ActionListener<SyncedFlushResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(syncedFlushRequest, IndicesRequestConverters::flushSynced, options,
+    public Cancellable flushSyncedAsync(SyncedFlushRequest syncedFlushRequest, RequestOptions options,
+                                        ActionListener<SyncedFlushResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(syncedFlushRequest, IndicesRequestConverters::flushSynced, options,
                 SyncedFlushResponse::fromXContent, listener, emptySet());
     }
 
@@ -617,10 +633,11 @@ public final class IndicesClient {
      * @param getSettingsRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void getSettingsAsync(GetSettingsRequest getSettingsRequest, RequestOptions options,
-                                 ActionListener<GetSettingsResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(getSettingsRequest, IndicesRequestConverters::getSettings, options,
+    public Cancellable getSettingsAsync(GetSettingsRequest getSettingsRequest, RequestOptions options,
+                                        ActionListener<GetSettingsResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(getSettingsRequest, IndicesRequestConverters::getSettings, options,
             GetSettingsResponse::fromXContent, listener, emptySet());
     }
 
@@ -645,10 +662,11 @@ public final class IndicesClient {
      * @param getIndexRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void getAsync(GetIndexRequest getIndexRequest, RequestOptions options,
-                         ActionListener<GetIndexResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(getIndexRequest, IndicesRequestConverters::getIndex, options,
+    public Cancellable getAsync(GetIndexRequest getIndexRequest, RequestOptions options,
+                                ActionListener<GetIndexResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(getIndexRequest, IndicesRequestConverters::getIndex, options,
             GetIndexResponse::fromXContent, listener, emptySet());
     }
 
@@ -679,11 +697,12 @@ public final class IndicesClient {
      * @param listener the listener to be notified upon request completion
      * @deprecated This method uses an old request object which still refers to types, a deprecated feature. The method
      * {@link #getAsync(GetIndexRequest, RequestOptions, ActionListener)} should be used instead, which accepts a new request object.
+     * @return cancellable that may be used to cancel the request
      */
     @Deprecated
-    public void getAsync(org.elasticsearch.action.admin.indices.get.GetIndexRequest getIndexRequest, RequestOptions options,
-            ActionListener<org.elasticsearch.action.admin.indices.get.GetIndexResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(getIndexRequest, IndicesRequestConverters::getIndex, options,
+    public Cancellable getAsync(org.elasticsearch.action.admin.indices.get.GetIndexRequest getIndexRequest, RequestOptions options,
+                                ActionListener<org.elasticsearch.action.admin.indices.get.GetIndexResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(getIndexRequest, IndicesRequestConverters::getIndex, options,
                 org.elasticsearch.action.admin.indices.get.GetIndexResponse::fromXContent, listener, emptySet());
     }
 
@@ -724,10 +743,11 @@ public final class IndicesClient {
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      * @deprecated use {@link #forcemergeAsync(ForceMergeRequest, RequestOptions, ActionListener)} instead
+     * @return cancellable that may be used to cancel the request
      */
     @Deprecated
-    public void forceMergeAsync(ForceMergeRequest forceMergeRequest, RequestOptions options, ActionListener<ForceMergeResponse> listener) {
-        forcemergeAsync(forceMergeRequest, options, listener);
+    public Cancellable forceMergeAsync(ForceMergeRequest forceMergeRequest, RequestOptions options, ActionListener<ForceMergeResponse> listener) {
+        return forcemergeAsync(forceMergeRequest, options, listener);
     }
 
     /**
@@ -737,9 +757,10 @@ public final class IndicesClient {
      * @param forceMergeRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void forcemergeAsync(ForceMergeRequest forceMergeRequest, RequestOptions options, ActionListener<ForceMergeResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(forceMergeRequest, IndicesRequestConverters::forceMerge, options,
+    public Cancellable forcemergeAsync(ForceMergeRequest forceMergeRequest, RequestOptions options, ActionListener<ForceMergeResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(forceMergeRequest, IndicesRequestConverters::forceMerge, options,
                 ForceMergeResponse::fromXContent, listener, emptySet());
     }
 
@@ -765,10 +786,11 @@ public final class IndicesClient {
      * @param clearIndicesCacheRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void clearCacheAsync(ClearIndicesCacheRequest clearIndicesCacheRequest, RequestOptions options,
-                                ActionListener<ClearIndicesCacheResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(clearIndicesCacheRequest, IndicesRequestConverters::clearCache, options,
+    public Cancellable clearCacheAsync(ClearIndicesCacheRequest clearIndicesCacheRequest, RequestOptions options,
+                                       ActionListener<ClearIndicesCacheResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(clearIndicesCacheRequest, IndicesRequestConverters::clearCache, options,
                 ClearIndicesCacheResponse::fromXContent, listener, emptySet());
     }
 
@@ -798,9 +820,10 @@ public final class IndicesClient {
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void existsAsync(GetIndexRequest request, RequestOptions options, ActionListener<Boolean> listener) {
-        restHighLevelClient.performRequestAsync(
+    public Cancellable existsAsync(GetIndexRequest request, RequestOptions options, ActionListener<Boolean> listener) {
+        return restHighLevelClient.performRequestAsync(
                 request,
                 IndicesRequestConverters::indicesExist,
                 options,
@@ -841,11 +864,12 @@ public final class IndicesClient {
      * @param listener the listener to be notified upon request completion
      * @deprecated This method uses an old request object which still refers to types, a deprecated feature. The method
      * {@link #existsAsync(GetIndexRequest, RequestOptions, ActionListener)} should be used instead, which accepts a new request object.
+     * @return cancellable that may be used to cancel the request
      */
     @Deprecated
-    public void existsAsync(org.elasticsearch.action.admin.indices.get.GetIndexRequest request, RequestOptions options,
-            ActionListener<Boolean> listener) {
-        restHighLevelClient.performRequestAsync(
+    public Cancellable existsAsync(org.elasticsearch.action.admin.indices.get.GetIndexRequest request, RequestOptions options,
+                                   ActionListener<Boolean> listener) {
+        return restHighLevelClient.performRequestAsync(
                 request,
                 IndicesRequestConverters::indicesExist,
                 options,
@@ -876,9 +900,10 @@ public final class IndicesClient {
      * @param resizeRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void shrinkAsync(ResizeRequest resizeRequest, RequestOptions options, ActionListener<ResizeResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(resizeRequest, IndicesRequestConverters::shrink, options,
+    public Cancellable shrinkAsync(ResizeRequest resizeRequest, RequestOptions options, ActionListener<ResizeResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(resizeRequest, IndicesRequestConverters::shrink, options,
                 ResizeResponse::fromXContent, listener, emptySet());
     }
 
@@ -903,9 +928,10 @@ public final class IndicesClient {
      * @param resizeRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void splitAsync(ResizeRequest resizeRequest, RequestOptions options, ActionListener<ResizeResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(resizeRequest, IndicesRequestConverters::split, options,
+    public Cancellable splitAsync(ResizeRequest resizeRequest, RequestOptions options, ActionListener<ResizeResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(resizeRequest, IndicesRequestConverters::split, options,
                 ResizeResponse::fromXContent, listener, emptySet());
     }
 
@@ -930,9 +956,10 @@ public final class IndicesClient {
      * @param resizeRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void cloneAsync(ResizeRequest resizeRequest, RequestOptions options, ActionListener<ResizeResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(resizeRequest, IndicesRequestConverters::clone, options,
+    public Cancellable cloneAsync(ResizeRequest resizeRequest, RequestOptions options, ActionListener<ResizeResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(resizeRequest, IndicesRequestConverters::clone, options,
             ResizeResponse::fromXContent, listener, emptySet());
     }
 
@@ -957,9 +984,10 @@ public final class IndicesClient {
      * @param rolloverRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void rolloverAsync(RolloverRequest rolloverRequest, RequestOptions options, ActionListener<RolloverResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(rolloverRequest, IndicesRequestConverters::rollover, options,
+    public Cancellable rolloverAsync(RolloverRequest rolloverRequest, RequestOptions options, ActionListener<RolloverResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(rolloverRequest, IndicesRequestConverters::rollover, options,
                 RolloverResponse::fromXContent, listener, emptySet());
     }
 
@@ -995,11 +1023,12 @@ public final class IndicesClient {
      * @deprecated This method uses deprecated request and response objects.
      * The method {@link #rolloverAsync(RolloverRequest, RequestOptions, ActionListener)} should be used instead, which
      * accepts a new request object.
+     * @return cancellable that may be used to cancel the request
      */
     @Deprecated
-    public void rolloverAsync(org.elasticsearch.action.admin.indices.rollover.RolloverRequest rolloverRequest,
-            RequestOptions options, ActionListener<org.elasticsearch.action.admin.indices.rollover.RolloverResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(rolloverRequest, IndicesRequestConverters::rollover, options,
+    public Cancellable rolloverAsync(org.elasticsearch.action.admin.indices.rollover.RolloverRequest rolloverRequest,
+                                     RequestOptions options, ActionListener<org.elasticsearch.action.admin.indices.rollover.RolloverResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(rolloverRequest, IndicesRequestConverters::rollover, options,
             org.elasticsearch.action.admin.indices.rollover.RolloverResponse::fromXContent, listener, emptySet());
     }
 
@@ -1024,9 +1053,10 @@ public final class IndicesClient {
      * @param getAliasesRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void getAliasAsync(GetAliasesRequest getAliasesRequest, RequestOptions options, ActionListener<GetAliasesResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(getAliasesRequest, IndicesRequestConverters::getAlias, options,
+    public Cancellable getAliasAsync(GetAliasesRequest getAliasesRequest, RequestOptions options, ActionListener<GetAliasesResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(getAliasesRequest, IndicesRequestConverters::getAlias, options,
                 GetAliasesResponse::fromXContent, listener, singleton(RestStatus.NOT_FOUND.getStatus()));
     }
 
@@ -1051,10 +1081,11 @@ public final class IndicesClient {
      * @param updateSettingsRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void putSettingsAsync(UpdateSettingsRequest updateSettingsRequest, RequestOptions options,
-                                 ActionListener<AcknowledgedResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(updateSettingsRequest, IndicesRequestConverters::indexPutSettings, options,
+    public Cancellable putSettingsAsync(UpdateSettingsRequest updateSettingsRequest, RequestOptions options,
+                                        ActionListener<AcknowledgedResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(updateSettingsRequest, IndicesRequestConverters::indexPutSettings, options,
             AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 
@@ -1088,11 +1119,12 @@ public final class IndicesClient {
      * @deprecated This old form of request allows types in mappings.
      * Use {@link #putTemplateAsync(PutIndexTemplateRequest, RequestOptions, ActionListener)}
      * instead which introduces a new request object without types.
+     * @return cancellable that may be used to cancel the request
      */
     @Deprecated
-    public void putTemplateAsync(org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest putIndexTemplateRequest,
-            RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(putIndexTemplateRequest, IndicesRequestConverters::putTemplate, options,
+    public Cancellable putTemplateAsync(org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest putIndexTemplateRequest,
+                                        RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(putIndexTemplateRequest, IndicesRequestConverters::putTemplate, options,
             AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 
@@ -1120,10 +1152,11 @@ public final class IndicesClient {
      * @param putIndexTemplateRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void putTemplateAsync(PutIndexTemplateRequest putIndexTemplateRequest,
-            RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(putIndexTemplateRequest, IndicesRequestConverters::putTemplate, options,
+    public Cancellable putTemplateAsync(PutIndexTemplateRequest putIndexTemplateRequest,
+                                        RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(putIndexTemplateRequest, IndicesRequestConverters::putTemplate, options,
             AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 
@@ -1150,10 +1183,11 @@ public final class IndicesClient {
      * @param validateQueryRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void validateQueryAsync(ValidateQueryRequest validateQueryRequest, RequestOptions options,
-                                   ActionListener<ValidateQueryResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(validateQueryRequest, IndicesRequestConverters::validateQuery, options,
+    public Cancellable validateQueryAsync(ValidateQueryRequest validateQueryRequest, RequestOptions options,
+                                          ActionListener<ValidateQueryResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(validateQueryRequest, IndicesRequestConverters::validateQuery, options,
             ValidateQueryResponse::fromXContent, listener, emptySet());
     }
 
@@ -1203,11 +1237,12 @@ public final class IndicesClient {
      * @param listener the listener to be notified upon request completion
      * @deprecated This method uses an old response object which still refers to types, a deprecated feature. Use
      * {@link #getIndexTemplateAsync(GetIndexTemplatesRequest, RequestOptions, ActionListener)} instead which returns a new response object
+     * @return cancellable that may be used to cancel the request
      */
     @Deprecated
-    public void getTemplateAsync(GetIndexTemplatesRequest getIndexTemplatesRequest, RequestOptions options,
-                                 ActionListener<org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(getIndexTemplatesRequest,
+    public Cancellable getTemplateAsync(GetIndexTemplatesRequest getIndexTemplatesRequest, RequestOptions options,
+                                        ActionListener<org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(getIndexTemplatesRequest,
             IndicesRequestConverters::getTemplatesWithDocumentTypes,
             options, org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse::fromXContent, listener, emptySet());
     }
@@ -1242,17 +1277,16 @@ public final class IndicesClient {
 
     /**
      * Uses the Index Templates API to determine if index templates exist
-     *
      * @param indexTemplatesExistRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion. The listener will be called with the value {@code true}
-     *                 if any index templates in the request exist, false otherwise
+     * @return cancellable that may be used to cancel the request
      */
-    public void existsTemplateAsync(IndexTemplatesExistRequest indexTemplatesExistRequest,
-                                    RequestOptions options,
-                                    ActionListener<Boolean> listener) {
+    public Cancellable existsTemplateAsync(IndexTemplatesExistRequest indexTemplatesExistRequest,
+                                           RequestOptions options,
+                                           ActionListener<Boolean> listener) {
 
-        restHighLevelClient.performRequestAsync(indexTemplatesExistRequest, IndicesRequestConverters::templatesExist, options,
+        return restHighLevelClient.performRequestAsync(indexTemplatesExistRequest, IndicesRequestConverters::templatesExist, options,
             RestHighLevelClient::convertExistsResponse, listener, emptySet());
     }
 
@@ -1273,14 +1307,14 @@ public final class IndicesClient {
      * Asynchronously calls the analyze API
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-analyze.html">Analyze API on elastic.co</a>
-     *
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void analyzeAsync(AnalyzeRequest request, RequestOptions options,
-                             ActionListener<AnalyzeResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, IndicesRequestConverters::analyze, options,
+    public Cancellable analyzeAsync(AnalyzeRequest request, RequestOptions options,
+                                    ActionListener<AnalyzeResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request, IndicesRequestConverters::analyze, options,
             AnalyzeResponse::fromXContent, listener, emptySet());
     }
 
@@ -1297,13 +1331,13 @@ public final class IndicesClient {
 
     /**
      * Asynchronously calls the _freeze API
-     *
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void freezeAsync(FreezeIndexRequest request, RequestOptions options, ActionListener<ShardsAcknowledgedResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, IndicesRequestConverters::freezeIndex, options,
+    public Cancellable freezeAsync(FreezeIndexRequest request, RequestOptions options, ActionListener<ShardsAcknowledgedResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request, IndicesRequestConverters::freezeIndex, options,
             ShardsAcknowledgedResponse::fromXContent, listener, emptySet());
     }
 
@@ -1320,13 +1354,13 @@ public final class IndicesClient {
 
     /**
      * Asynchronously calls the _unfreeze API
-     *
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void unfreezeAsync(UnfreezeIndexRequest request, RequestOptions options, ActionListener<ShardsAcknowledgedResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, IndicesRequestConverters::unfreezeIndex, options,
+    public Cancellable unfreezeAsync(UnfreezeIndexRequest request, RequestOptions options, ActionListener<ShardsAcknowledgedResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request, IndicesRequestConverters::unfreezeIndex, options,
             ShardsAcknowledgedResponse::fromXContent, listener, emptySet());
     }
 
@@ -1348,14 +1382,14 @@ public final class IndicesClient {
      * Asynchronously delete an index template using the Index Templates API
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-templates.html"> Index Templates API
      * on elastic.co</a>
-     *
      * @param request  the request
      * @param options  the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void deleteTemplateAsync(DeleteIndexTemplateRequest request, RequestOptions options,
-                                    ActionListener<AcknowledgedResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, IndicesRequestConverters::deleteTemplate,
+    public Cancellable deleteTemplateAsync(DeleteIndexTemplateRequest request, RequestOptions options,
+                                           ActionListener<AcknowledgedResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request, IndicesRequestConverters::deleteTemplate,
             options, AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 
@@ -1372,14 +1406,14 @@ public final class IndicesClient {
 
     /**
      * Asynchronously calls the _reload_search_analyzers API
-     *
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void reloadAnalyzersAsync(ReloadAnalyzersRequest request, RequestOptions options,
-            ActionListener<ReloadAnalyzersResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, IndicesRequestConverters::reloadAnalyzers, options,
+    public Cancellable reloadAnalyzersAsync(ReloadAnalyzersRequest request, RequestOptions options,
+                                            ActionListener<ReloadAnalyzersResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request, IndicesRequestConverters::reloadAnalyzers, options,
                 ReloadAnalyzersResponse::fromXContent, listener, emptySet());
     }
 }

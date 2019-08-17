@@ -127,8 +127,10 @@ public final class IngestClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable deletePipelineAsync(DeletePipelineRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity( request, IngestRequestConverters::deletePipeline, options,
+    public Cancellable deletePipelineAsync(DeletePipelineRequest request, RequestOptions options,
+                                           ActionListener<AcknowledgedResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity( request,
+            IngestRequestConverters::deletePipeline, options,
             AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 

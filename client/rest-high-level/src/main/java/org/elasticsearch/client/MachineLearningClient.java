@@ -537,7 +537,8 @@ public final class MachineLearningClient {
      * @param listener Listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable deleteForecastAsync(DeleteForecastRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
+    public Cancellable deleteForecastAsync(DeleteForecastRequest request, RequestOptions options,
+                                           ActionListener<AcknowledgedResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(request,
                 MLRequestConverters::deleteForecast,
                 options,
@@ -576,7 +577,7 @@ public final class MachineLearningClient {
      * @param request The request to delete the model snapshot
      * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener Listener to be notified upon request completion
-     * @return
+     * @return cancellable that may be used to cancel the request
      */
     public Cancellable deleteModelSnapshotAsync(DeleteModelSnapshotRequest request, RequestOptions options,
                                                 ActionListener<AcknowledgedResponse> listener) {
@@ -658,7 +659,7 @@ public final class MachineLearningClient {
      * @param request The request containing the {@link org.elasticsearch.client.ml.datafeed.DatafeedConfig} settings
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener Listener to be notified upon request completion
-     * @return
+     * @return cancellable that may be used to cancel the request
      */
     public Cancellable putDatafeedAsync(PutDatafeedRequest request, RequestOptions options, ActionListener<PutDatafeedResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(request,
@@ -701,7 +702,8 @@ public final class MachineLearningClient {
      * @param listener Listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable updateDatafeedAsync(UpdateDatafeedRequest request, RequestOptions options, ActionListener<PutDatafeedResponse> listener) {
+    public Cancellable updateDatafeedAsync(UpdateDatafeedRequest request, RequestOptions options,
+                                           ActionListener<PutDatafeedResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(request,
             MLRequestConverters::updateDatafeed,
             options,
@@ -743,7 +745,8 @@ public final class MachineLearningClient {
      * @param listener Listener to be notified with {@link GetDatafeedResponse} upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable getDatafeedAsync(GetDatafeedRequest request, RequestOptions options, ActionListener<GetDatafeedResponse> listener) {
+    public Cancellable getDatafeedAsync(GetDatafeedRequest request, RequestOptions options,
+                                        ActionListener<GetDatafeedResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(request,
                 MLRequestConverters::getDatafeed,
                 options,
@@ -784,7 +787,8 @@ public final class MachineLearningClient {
      * @param listener Listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable deleteDatafeedAsync(DeleteDatafeedRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
+    public Cancellable deleteDatafeedAsync(DeleteDatafeedRequest request, RequestOptions options,
+                                           ActionListener<AcknowledgedResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(request,
                 MLRequestConverters::deleteDatafeed,
                 options,
@@ -825,7 +829,8 @@ public final class MachineLearningClient {
      * @param listener Listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable startDatafeedAsync(StartDatafeedRequest request, RequestOptions options, ActionListener<StartDatafeedResponse> listener) {
+    public Cancellable startDatafeedAsync(StartDatafeedRequest request, RequestOptions options,
+                                          ActionListener<StartDatafeedResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(request,
             MLRequestConverters::startDatafeed,
             options,
@@ -866,7 +871,8 @@ public final class MachineLearningClient {
      * @param listener Listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable stopDatafeedAsync(StopDatafeedRequest request, RequestOptions options, ActionListener<StopDatafeedResponse> listener) {
+    public Cancellable stopDatafeedAsync(StopDatafeedRequest request, RequestOptions options,
+                                         ActionListener<StopDatafeedResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(request,
             MLRequestConverters::stopDatafeed,
             options,
@@ -1068,7 +1074,8 @@ public final class MachineLearningClient {
      * @param listener Listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable getCategoriesAsync(GetCategoriesRequest request, RequestOptions options, ActionListener<GetCategoriesResponse> listener) {
+    public Cancellable getCategoriesAsync(GetCategoriesRequest request, RequestOptions options,
+                                          ActionListener<GetCategoriesResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(request,
                 MLRequestConverters::getCategories,
                 options,
@@ -1310,7 +1317,8 @@ public final class MachineLearningClient {
      * @param listener Listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable getCalendarsAsync(GetCalendarsRequest request, RequestOptions options, ActionListener<GetCalendarsResponse> listener) {
+    public Cancellable getCalendarsAsync(GetCalendarsRequest request, RequestOptions options,
+                                         ActionListener<GetCalendarsResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(request,
                 MLRequestConverters::getCalendars,
                 options,
@@ -1432,7 +1440,8 @@ public final class MachineLearningClient {
      * @param listener Listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable putCalendarJobAsync(PutCalendarJobRequest request, RequestOptions options, ActionListener<PutCalendarResponse> listener) {
+    public Cancellable putCalendarJobAsync(PutCalendarJobRequest request, RequestOptions options,
+                                           ActionListener<PutCalendarResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(request,
             MLRequestConverters::putCalendarJob,
             options,
@@ -1516,7 +1525,8 @@ public final class MachineLearningClient {
      * @param listener Listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable deleteCalendarAsync(DeleteCalendarRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
+    public Cancellable deleteCalendarAsync(DeleteCalendarRequest request, RequestOptions options,
+                                           ActionListener<AcknowledgedResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(request,
                 MLRequestConverters::deleteCalendar,
                 options,
@@ -1803,7 +1813,8 @@ public final class MachineLearningClient {
      * @param listener Listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable deleteFilterAsync(DeleteFilterRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
+    public Cancellable deleteFilterAsync(DeleteFilterRequest request, RequestOptions options,
+                                         ActionListener<AcknowledgedResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(request,
             MLRequestConverters::deleteFilter,
             options,
@@ -1923,7 +1934,8 @@ public final class MachineLearningClient {
      * @param listener Listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable setUpgradeModeAsync(SetUpgradeModeRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
+    public Cancellable setUpgradeModeAsync(SetUpgradeModeRequest request, RequestOptions options,
+                                           ActionListener<AcknowledgedResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(request,
             MLRequestConverters::setUpgradeMode,
             options,

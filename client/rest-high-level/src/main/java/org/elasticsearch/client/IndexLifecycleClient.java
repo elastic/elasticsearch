@@ -138,7 +138,8 @@ public class IndexLifecycleClient {
      */
     public Cancellable deleteLifecyclePolicyAsync(DeleteLifecyclePolicyRequest request, RequestOptions options,
                                                   ActionListener<AcknowledgedResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::deleteLifecyclePolicy, options,
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request, IndexLifecycleRequestConverters::deleteLifecyclePolicy, options,
             AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 
@@ -168,7 +169,8 @@ public class IndexLifecycleClient {
      */
     public Cancellable removeIndexLifecyclePolicyAsync(RemoveIndexLifecyclePolicyRequest request, RequestOptions options,
                                                        ActionListener<RemoveIndexLifecyclePolicyResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::removeIndexLifecyclePolicy, options,
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request, IndexLifecycleRequestConverters::removeIndexLifecyclePolicy, options,
                 RemoveIndexLifecyclePolicyResponse::fromXContent, listener, emptySet());
     }
 
@@ -239,7 +241,8 @@ public class IndexLifecycleClient {
      */
     public Cancellable lifecycleManagementStatusAsync(LifecycleManagementStatusRequest request, RequestOptions options,
                                                       ActionListener<LifecycleManagementStatusResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::lifecycleManagementStatus, options,
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request, IndexLifecycleRequestConverters::lifecycleManagementStatus, options,
             LifecycleManagementStatusResponse::fromXContent, listener, emptySet());
     }
 
@@ -417,9 +420,10 @@ public class IndexLifecycleClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable deleteSnapshotLifecyclePolicyAsync(DeleteSnapshotLifecyclePolicyRequest request, RequestOptions options,
-                                                          ActionListener<AcknowledgedResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::deleteSnapshotLifecyclePolicy,
+    public Cancellable deleteSnapshotLifecyclePolicyAsync(DeleteSnapshotLifecyclePolicyRequest request,
+                                          RequestOptions options,ActionListener<AcknowledgedResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request, IndexLifecycleRequestConverters::deleteSnapshotLifecyclePolicy,
             options, AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 
@@ -453,9 +457,11 @@ public class IndexLifecycleClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable executeSnapshotLifecyclePolicyAsync(ExecuteSnapshotLifecyclePolicyRequest request, RequestOptions options,
-                                                           ActionListener<ExecuteSnapshotLifecyclePolicyResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::executeSnapshotLifecyclePolicy,
+    public Cancellable executeSnapshotLifecyclePolicyAsync(
+        ExecuteSnapshotLifecyclePolicyRequest request, RequestOptions options,
+        ActionListener<ExecuteSnapshotLifecyclePolicyResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request, IndexLifecycleRequestConverters::executeSnapshotLifecyclePolicy,
             options, ExecuteSnapshotLifecyclePolicyResponse::fromXContent, listener, emptySet());
     }
 }

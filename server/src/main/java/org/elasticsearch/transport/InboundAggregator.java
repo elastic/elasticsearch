@@ -20,14 +20,25 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.lease.Releasables;
 
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 public class InboundAggregator {
 
+    private final BiConsumer<Header, StreamInput> messageConsumer;
+    private final ArrayList<ReleasableBytesReference> contentAggregation = new ArrayList<>();
     private Header currentHeader;
-    private final ArrayList<ReleasableBytesReference> content = new ArrayList<>();
+
+    public InboundAggregator(BiConsumer<Header, StreamInput> messageConsumer) {
+        this.messageConsumer = messageConsumer;
+    }
 
     public void pingReceived(BytesReference ping) {
         assert ping.length() == 6;
@@ -41,7 +52,26 @@ public class InboundAggregator {
         currentHeader = header;
     }
 
-    public void contentReceived(ReleasableBytesReference content) {
-
+    public void contentReceived(ReleasableBytesReference content) throws IOException {
+        if (currentHeader == null) {
+            // handle error
+        } else if (content.getReference().length() != 0) {
+            contentAggregation.add(content);
+        } else {
+            currentHeader = null;
+            BytesReference[] references = new BytesReference[contentAggregation.size()];
+            int i = 0;
+            for (ReleasableBytesReference reference : contentAggregation) {
+                references[i++] = reference.getReference();
+            }
+            CompositeBytesReference compositeBytesReference = new CompositeBytesReference(references);
+            try (StreamInput input = compositeBytesReference.streamInput()) {
+                currentHeader.finishParsing(input);
+                messageConsumer.accept(currentHeader, input);
+            } finally {
+                Releasables.close(contentAggregation);
+                currentHeader = null;
+            }
+        }
     }
 }

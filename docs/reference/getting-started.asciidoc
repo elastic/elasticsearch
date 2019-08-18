@@ -405,7 +405,7 @@ And the response (partially shown):
       "_type" : "_doc",
       "_id" : "1",
       "_source" : {"account_number":1,"balance":39225,"firstname":"Amber","lastname":"Duke","age":32,"gender":"M","address":"880 Holmes Lane","employer":"Pyrami","email":"amberduke@pyrami.com","city":"Brogan","state":"IL"},
-      "sort": [1]
+      "sort": [1],
       "_score" : null
     }, ...
     ]

@@ -1,15 +1,67 @@
 [[indices-get-field-mapping]]
-=== Get Field Mapping
+=== Get field mapping API
+++++
+<titleabbrev>Get field mapping</titleabbrev>
+++++
 
-The get field mapping API allows you to retrieve mapping definitions for one or more fields.
-This is useful when you do not need the complete type mapping returned by
-the <<indices-get-mapping>> API.
+Retrieves <<mapping,mapping definitions>> for one or more fields. This is useful
+if you don't need the <<indices-get-mapping,complete mapping>> of an index or
+your index contains a large number of fields.
 
-For example, consider the following mapping:
+[source,js]
+----
+GET /twitter/_mapping/field/user
+----
+// CONSOLE
+
+
+[[get-field-mapping-api-request]]
+==== {api-request-title}
+
+`GET /_mapping/field/{field}`
+
+`GET /{index}/_mapping/field/{field}`
+
+
+[[get-field-mapping-api-path-params]]
+==== {api-path-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
+
+`{field}`::
+(Optional, string) Comma-separated list or wildcard expression of fields used to
+limit returned information.
+
+
+[[get-field-mapping-api-query-params]]
+==== {api-query-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+
+`include_defaults`::
+(Optional, boolean) If `true`, the response includes default mapping values.
+Defaults to `false`.
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
+
+
+[[get-field-mapping-api-example]]
+==== {api-examples-title}
+
+[[get-field-mapping-api-basic-ex]]
+===== Example with index setup
+
+You can provide field mappings when creating a new index. The following
+<<indices-create-index, create index>> API creates the `publications` index with
+several field mappings.
 
 [source,js]
 --------------------------------------------------
-PUT publications
+PUT /publications
 {
     "mappings": {
         "properties": {
@@ -37,7 +89,7 @@ GET publications/_mapping/field/title
 --------------------------------------------------
 // CONSOLE
 
-For which the response is:
+The API returns the following response:
 
 [source,js]
 --------------------------------------------------
@@ -58,8 +110,8 @@ For which the response is:
 --------------------------------------------------
 // TESTRESPONSE
 
-[float]
-==== Multiple Indices and Fields
+[[get-field-mapping-api-multi-index-ex]]
+===== Multiple indices and fields
 
 The get field mapping API can be used to get the mapping of multiple fields from more than one index
 with a single call. General usage of the API follows the
@@ -80,8 +132,8 @@ GET /_all/_mapping/field/*.id
 // TEST[setup:twitter]
 // TEST[s/^/PUT kimchy\nPUT book\n/]
 
-[float]
-==== Specifying fields
+[[get-field-mapping-api-specific-fields-ex]]
+===== Specifying fields
 
 The get mapping api allows you to specify a comma-separated list of fields.
 
@@ -167,11 +219,3 @@ returns:
 --------------------------------------------------
 // TESTRESPONSE
 
-[float]
-==== Other options
-
-[horizontal]
-`include_defaults`::
-
-    adding `include_defaults=true` to the query string will cause the response
-    to include default values, which are normally suppressed.

@@ -237,7 +237,7 @@ public class QueryPhase implements SearchPhase {
                     // Add a tiebreak on _doc in order to be able to search
                     // the leaves in any order. This is needed since we reorder
                     // the leaves based on the minimum value in each segment.
-                    newSortFields[newSortFields.length-1] = SortField.FIELD_SCORE;
+                    newSortFields[newSortFields.length-1] = SortField.FIELD_DOC;
                     newFormats[newSortFields.length-1] = DocValueFormat.RAW;
                     System.arraycopy(oldSortFields, 0, newSortFields, 1, oldSortFields.length);
                     System.arraycopy(oldFormats, 0, newFormats, 1, oldFormats.length);
@@ -444,18 +444,18 @@ public class QueryPhase implements SearchPhase {
      */
     static CheckedConsumer<List<LeafReaderContext>, IOException> createLeafSorter(SortField sortField) {
         return leaves -> {
-            long[] minValues = new long[leaves.size()];
+            long[] sortValues = new long[leaves.size()];
             long missingValue = (long) sortField.getMissingValue();
             for (LeafReaderContext ctx : leaves) {
                 PointValues values = ctx.reader().getPointValues(sortField.getField());
                 if (values == null) {
-                    minValues[ctx.ord] = (long) sortField.getMissingValue();
+                    sortValues[ctx.ord] = missingValue;
                 } else {
-                    byte[] minValue = values.getMinPackedValue();
-                    minValues[ctx.ord] = minValue == null ? missingValue : LongPoint.decodeDimension(minValue, 0);
+                    byte[] sortValue = sortField.getReverse() ? values.getMaxPackedValue(): values.getMinPackedValue();
+                    sortValues[ctx.ord] = sortValue == null ? missingValue : LongPoint.decodeDimension(sortValue, 0);
                 }
             }
-            Comparator<LeafReaderContext> comparator = Comparator.comparingLong(l -> minValues[l.ord]);
+            Comparator<LeafReaderContext> comparator = Comparator.comparingLong(l -> sortValues[l.ord]);
             if (sortField.getReverse()) {
                 comparator = comparator.reversed();
             }

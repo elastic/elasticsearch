@@ -128,7 +128,7 @@ public abstract class InternalMappedRareTerms<A extends InternalRareTerms<A, B>,
 
         final List<B> rare = new ArrayList<>();
         for (List<B> sameTermBuckets : buckets.values()) {
-            final B b = sameTermBuckets.get(0).reduce(sameTermBuckets, reduceContext);
+            final B b = reduceBucket(sameTermBuckets, reduceContext);
             if ((b.getDocCount() <= maxDocCount && containsTerm(filter, b) == false)) {
                 rare.add(b);
                 reduceContext.consumeBucketsAndMaybeBreak(1);

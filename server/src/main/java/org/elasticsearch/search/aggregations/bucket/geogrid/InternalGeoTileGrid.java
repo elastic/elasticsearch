@@ -58,6 +58,11 @@ public class InternalGeoTileGrid extends InternalGeoGrid<InternalGeoTileGridBuck
     }
 
     @Override
+    InternalGeoTileGridBucket createBucket(long hashAsLong, long docCount, InternalAggregations aggregations) {
+        return new InternalGeoTileGridBucket(hashAsLong, docCount, aggregations);
+    }
+
+    @Override
     Reader getBucketReader() {
         return InternalGeoTileGridBucket::new;
     }

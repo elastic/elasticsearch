@@ -18,6 +18,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.action.SqlQueryAction;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.session.Configuration;
+import org.elasticsearch.xpack.sql.session.Cursor.Page;
 import org.elasticsearch.xpack.sql.session.Cursors;
 import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
@@ -71,20 +73,26 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
         // The configuration is always created however when dealing with the next page, only the timeouts are relevant
         // the rest having default values (since the query is already created)
         Configuration cfg = new Configuration(request.zoneId(), request.fetchSize(), request.requestTimeout(), request.pageTimeout(),
-                request.filter(), request.mode(), request.clientId(), username, clusterName, request.fieldMultiValueLeniency(), 
+                request.filter(), request.mode(), request.clientId(), username, clusterName, request.fieldMultiValueLeniency(),
                 request.indexIncludeFrozen());
 
         if (Strings.hasText(request.cursor()) == false) {
             planExecutor.sql(cfg, request.query(), request.params(),
-                    wrap(rowSet -> listener.onResponse(createResponse(request, rowSet)), listener::onFailure));
+                    wrap(p -> listener.onResponse(createResponseWithSchema(request, p)), listener::onFailure));
         } else {
             planExecutor.nextPage(cfg, Cursors.decodeFromString(request.cursor()),
-                    wrap(rowSet -> listener.onResponse(createResponse(request.mode(), request.columnar(), rowSet, null)),
+                    wrap(p -> listener.onResponse(createResponse(request.mode(), request.columnar(), null, p)),
                             listener::onFailure));
         }
     }
 
-    static SqlQueryResponse createResponse(SqlQueryRequest request, SchemaRowSet rowSet) {
+    static SqlQueryResponse createResponseWithSchema(SqlQueryRequest request, Page page) {
+        RowSet rset = page.rowSet();
+        if ((rset instanceof SchemaRowSet) == false) {
+            throw new SqlIllegalArgumentException("No schema found inside {}", rset.getClass());
+        }
+        SchemaRowSet rowSet = (SchemaRowSet) rset;
+
         List<ColumnInfo> columns = new ArrayList<>(rowSet.columnCount());
         for (Schema.Entry entry : rowSet.schema()) {
             if (Mode.isDriver(request.mode())) {
@@ -94,22 +102,22 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
             }
         }
         columns = unmodifiableList(columns);
-        return createResponse(request.mode(), request.columnar(), rowSet, columns);
+        return createResponse(request.mode(), request.columnar(), columns, page);
     }
 
-    static SqlQueryResponse createResponse(Mode mode, boolean columnar, RowSet rowSet, List<ColumnInfo> columns) {
+    static SqlQueryResponse createResponse(Mode mode, boolean columnar, List<ColumnInfo> header, Page page) {
         List<List<Object>> rows = new ArrayList<>();
-        rowSet.forEachRow(rowView -> {
+        page.rowSet().forEachRow(rowView -> {
             List<Object> row = new ArrayList<>(rowView.columnCount());
             rowView.forEachColumn(row::add);
             rows.add(unmodifiableList(row));
         });
 
         return new SqlQueryResponse(
-                Cursors.encodeToString(Version.CURRENT, rowSet.nextPageCursor()),
+                Cursors.encodeToString(Version.CURRENT, page.next()),
                 mode,
                 columnar,
-                columns,
+                header,
                 rows);
     }
 }

@@ -137,7 +137,10 @@ The API returns the following results:
         "index_failures" : 0,
         "search_time_in_ms" : 52,
         "search_total" : 2,
-        "search_failures" : 0
+        "search_failures" : 0,
+        "exponential_avg_checkpoint_duration_ms" : 77,
+        "exponential_avg_documents_indexed" : 2,
+        "exponential_avg_documents_processed" : 12
       },
       "checkpointing" : {
         "last" : {
@@ -156,10 +159,10 @@ The API returns the following results:
             }
           },
           "checkpoint_progress" : {
-            "total_docs" : 1900883,
-            "docs_remaining" : 1722762,
-            "percent_complete" : 9.370434687458408
+            "documents_processed": 100,
+            "documents_indexed": 1
           },
+          "changes_last_detected_at": 1561740629170,
           "timestamp_millis" : 1561740629172,
           "time_upper_bound_millis" : 1561740569172
         },

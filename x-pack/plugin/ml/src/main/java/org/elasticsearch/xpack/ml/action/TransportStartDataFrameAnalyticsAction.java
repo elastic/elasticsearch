@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.xpack.core.ml.action.EstimateMemoryUsageAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
@@ -169,11 +170,36 @@ public class TransportStartDataFrameAnalyticsAction
         );
 
         // Tell the job tracker to refresh the memory requirement for this job and all other jobs that have persistent tasks
+        ActionListener<EstimateMemoryUsageAction.Response> estimateMemoryUsageListener = ActionListener.wrap(
+            estimateMemoryUsageResponse -> {
+                // Validate that model memory limit is sufficient to run the analysis
+                if (configHolder.get().getModelMemoryLimit()
+                    .compareTo(estimateMemoryUsageResponse.getExpectedMemoryUsageWithOnePartition()) < 0) {
+                    ElasticsearchStatusException e =
+                        ExceptionsHelper.badRequestException(
+                            "Cannot start because the configured model memory limit [{}] is lower than the expected memory usage [{}]",
+                            configHolder.get().getModelMemoryLimit(), estimateMemoryUsageResponse.getExpectedMemoryUsageWithOnePartition());
+                    listener.onFailure(e);
+                    return;
+                }
+                // Refresh memory requirement for jobs
+                memoryTracker.addDataFrameAnalyticsJobMemoryAndRefreshAllOthers(
+                    request.getId(), configHolder.get().getModelMemoryLimit().getBytes(), memoryRequirementRefreshListener);
+            },
+            listener::onFailure
+        );
+
+        // Perform memory usage estimation for this config
         ActionListener<DataFrameAnalyticsConfig> configListener = ActionListener.wrap(
             config -> {
                 configHolder.set(config);
-                memoryTracker.addDataFrameAnalyticsJobMemoryAndRefreshAllOthers(
-                    request.getId(), config.getModelMemoryLimit().getBytes(), memoryRequirementRefreshListener);
+                EstimateMemoryUsageAction.Request estimateMemoryUsageRequest = new EstimateMemoryUsageAction.Request(config);
+                ClientHelper.executeAsyncWithOrigin(
+                    client,
+                    ClientHelper.ML_ORIGIN,
+                    EstimateMemoryUsageAction.INSTANCE,
+                    estimateMemoryUsageRequest,
+                    estimateMemoryUsageListener);
             },
             listener::onFailure
         );

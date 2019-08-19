@@ -1270,8 +1270,8 @@ at the OpenID Connect Provider
 
 `rp.redirect_uri`::
 The Redirect URI within {kib}. Typically this is the
-"api/security/v1/oidc" endpoint of your Kibana server. For example,
-`https://kibana.example.com/api/security/v1/oidc`.
+"api/security/v1/oidc" or "api/security/v1/oidc/implicit" (for the implicit flow) endpoint of your Kibana server.
+For example, `https://kibana.example.com/api/security/v1/oidc`.
 
 `rp.response_type`::
 OAuth 2.0 Response Type value that determines the authorization

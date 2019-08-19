@@ -39,13 +39,20 @@ pertain to retrieving api keys:
 
 `realm_name`::
 (Optional, string) The name of an authentication realm. This parameter cannot be
-used with either `id` or `name`.
+used with either `id` or `name` or when `owner` flag is set to `true`.
 
 `username`::
 (Optional, string) The username of a user. This parameter cannot be used with
-either `id` or `name`.
+either `id` or `name` or when `owner` flag is set to `true`.
 
-NOTE: While all parameters are optional, at least one of them is required.
+`owner`::
+((Optional, boolean) A boolean flag that can be used to query API keys owned
+by the currently authenticated user. Defaults to false. If this parameter is set to
+`true` then `realm_name` or `username` parameters cannot be specified as
+they default to the authenticated users name and realm name.
+
+NOTE: While all parameters are optional, at least one of them is required when `owner`
+flag is set to `false`.
 
 [[security-api-get-api-key-example]]
 ==== {api-examples-title}
@@ -110,6 +117,25 @@ The following example retrieves all API keys for the user `myuser` in all realms
 [source,js]
 --------------------------------------------------
 GET /_security/api_key?username=myuser
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+The following example retrieves the API key identified by the specified `id` if
+it is owned by the currently authenticated user:
+
+[source,js]
+--------------------------------------------------
+GET /_security/api_key?id=VuaCfGcBCdbkQm-e5aOx&owner=true
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+The following example retrieves all API keys owned by the currently authenticated user:
+
+[source,js]
+--------------------------------------------------
+GET /_security/api_key?owner=true
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]

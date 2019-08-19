@@ -57,6 +57,13 @@ https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html[HTTP accept header].
 Valid values include JSON, YAML, etc.
 end::http-format[]
 
+tag::include-type-name[]
+`include_type_name`::
+deprecated:[7.0.0, Mapping types have been deprecated. See <<removal-of-types>>.
+(Optional, boolean) If `true`, a mapping type is expected in the body of
+mappings. Defaults to `false`.
+end::include-type-name[]
+
 tag::index-ignore-unavailable[]
 `ignore_unavailable`::
 (Optional, boolean) If `true`, missing or closed indices are not included in the

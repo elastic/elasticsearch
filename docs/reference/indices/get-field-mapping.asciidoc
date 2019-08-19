@@ -56,8 +56,8 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
 ===== Example with index setup
 
 You can provide field mappings when creating a new index. The following
-<<indices-create-index, create index>> API creates the `publications` index with
-several field mappings.
+<<indices-create-index, create index>> API request creates the `publications`
+index with several field mappings.
 
 [source,js]
 --------------------------------------------------

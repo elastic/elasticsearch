@@ -61,7 +61,7 @@ public class SslIntegrationTests extends SecurityIntegTestCase {
     }
 
     public void testThatConnectionToHTTPWorks() throws Exception {
-        Settings.Builder builder = Settings.builder();
+        Settings.Builder builder = Settings.builder().put("xpack.security.http.ssl.enabled", true);
         addSSLSettingsForPEMFiles(
             builder, "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.pem",
             "testclient",

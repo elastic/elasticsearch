@@ -110,6 +110,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         secureSettings.setString("xpack.security.transport.ssl.keystore.secure_password", "testnode");
         final Settings settings = Settings.builder()
             .put("path.home", createTempDir())
+            .put("xpack.security.transport.ssl.enabled", true)
             .put("xpack.security.transport.ssl.keystore.path", keystorePath)
             .setSecureSettings(secureSettings)
             .build();
@@ -166,6 +167,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         secureSettings.setString("xpack.security.transport.ssl.secure_key_passphrase", "testnode");
         final Settings settings = Settings.builder()
             .put("path.home", createTempDir())
+            .put("xpack.security.transport.ssl.enabled", true)
             .put("xpack.security.transport.ssl.key", keyPath)
             .put("xpack.security.transport.ssl.certificate", certPath)
             .putList("xpack.security.transport.ssl.certificate_authorities", certPath.toString())
@@ -222,10 +224,10 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
             updatedTruststorePath);
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.security.transport.ssl.truststore.secure_password", "testnode");
-        Settings settings = Settings.builder()
+        final Settings settings = baseKeystoreSettings(tempDir, secureSettings)
+            .put("xpack.security.transport.ssl.enabled", true)
             .put("xpack.security.transport.ssl.truststore.path", trustStorePath)
             .put("path.home", createTempDir())
-            .setSecureSettings(secureSettings)
             .build();
         Environment env = TestEnvironment.newEnvironment(settings);
         // Create the MockWebServer once for both pre and post checks
@@ -273,7 +275,8 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"), serverCertPath);
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"), serverKeyPath);
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_updated.crt"), updatedCert);
-        Settings settings = Settings.builder()
+        Settings settings = baseKeystoreSettings(tempDir, null)
+            .put("xpack.security.transport.ssl.enabled", true)
             .putList("xpack.security.transport.ssl.certificate_authorities", serverCertPath.toString())
             .put("path.home", createTempDir())
             .build();
@@ -322,6 +325,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.security.transport.ssl.keystore.secure_password", "testnode");
         Settings settings = Settings.builder()
+            .put("xpack.security.transport.ssl.enabled", true)
             .put("xpack.security.transport.ssl.keystore.path", keystorePath)
             .setSecureSettings(secureSettings)
             .put("path.home", createTempDir())
@@ -372,6 +376,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.security.transport.ssl.secure_key_passphrase", "testnode");
         Settings settings = Settings.builder()
+            .put("xpack.security.transport.ssl.enabled", true)
             .put("xpack.security.transport.ssl.key", keyPath)
             .put("xpack.security.transport.ssl.certificate", certPath)
             .putList("xpack.security.transport.ssl.certificate_authorities", certPath.toString(), clientCertPath.toString())
@@ -419,10 +424,10 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks"), trustStorePath);
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.security.transport.ssl.truststore.secure_password", "testnode");
-        Settings settings = Settings.builder()
+        Settings settings = baseKeystoreSettings(tempDir, secureSettings)
+            .put("xpack.security.transport.ssl.enabled", true)
             .put("xpack.security.transport.ssl.truststore.path", trustStorePath)
             .put("path.home", createTempDir())
-            .setSecureSettings(secureSettings)
             .build();
         Environment env = TestEnvironment.newEnvironment(settings);
         final SSLService sslService = new SSLService(settings, env);
@@ -463,7 +468,8 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         Path tempDir = createTempDir();
         Path clientCertPath = tempDir.resolve("testclient.crt");
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt"), clientCertPath);
-        Settings settings = Settings.builder()
+        Settings settings = baseKeystoreSettings(tempDir, null)
+            .put("xpack.security.transport.ssl.enabled", true)
             .putList("xpack.security.transport.ssl.certificate_authorities", clientCertPath.toString())
             .put("path.home", createTempDir())
             .build();
@@ -499,6 +505,20 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         assertNotNull(exceptionRef.get());
         assertThat(exceptionRef.get(), throwableWithMessage(containsString("failed to initialize SSL TrustManager")));
         assertThat(sslService.sslContextHolder(config).sslContext(), sameInstance(context));
+    }
+
+    private Settings.Builder baseKeystoreSettings(Path tempDir, MockSecureSettings secureSettings) throws IOException {
+        final Path keystorePath = tempDir.resolve("testclient.jks");
+        Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks"), keystorePath);
+
+        if (secureSettings == null) {
+            secureSettings = new MockSecureSettings();
+        }
+        secureSettings.setString("xpack.security.transport.ssl.keystore.secure_password", "testnode");
+
+        return Settings.builder()
+            .put("xpack.security.transport.ssl.keystore.path", keystorePath.toString())
+            .setSecureSettings(secureSettings);
     }
 
     private void validateSSLConfigurationIsReloaded(Settings settings, Environment env, Consumer<SSLContext> preChecks,

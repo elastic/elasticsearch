@@ -29,7 +29,6 @@ import java.util.Collections;
 import java.util.Locale;
 
 import static org.hamcrest.Matchers.arrayContaining;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -49,6 +48,7 @@ public class SecurityNetty4HttpServerTransportTests extends ESTestCase {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.security.http.ssl.secure_key_passphrase", "testnode");
         Settings settings = Settings.builder()
+            .put("xpack.security.http.ssl.enabled", true)
             .put("xpack.security.http.ssl.key", testnodeKey)
             .put("xpack.security.http.ssl.certificate", testnodeCert)
             .put("path.home", createTempDir())
@@ -147,24 +147,11 @@ public class SecurityNetty4HttpServerTransportTests extends ESTestCase {
         assertThat(customEngine.getEnabledProtocols(), not(equalTo(defaultEngine.getEnabledProtocols())));
     }
 
-    public void testThatExceptionIsThrownWhenConfiguredWithoutSslKey() throws Exception {
-        Settings settings = Settings.builder()
-            .put("xpack.security.http.ssl.certificate_authorities", testnodeCert)
-            .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true)
-            .put("path.home", createTempDir())
-            .build();
-        env = TestEnvironment.newEnvironment(settings);
-        sslService = new SSLService(settings, env);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> new SecurityNetty4HttpServerTransport(settings, new NetworkService(Collections.emptyList()), mock(BigArrays.class),
-                        mock(IPFilter.class), sslService, mock(ThreadPool.class), xContentRegistry(), new NullDispatcher()));
-        assertThat(e.getMessage(), containsString("key must be provided"));
-    }
-
     public void testNoExceptionWhenConfiguredWithoutSslKeySSLDisabled() throws Exception {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.security.http.ssl.secure_key_passphrase", "testnode");
         Settings settings = Settings.builder()
+            .put("xpack.security.http.ssl.enabled", false)
             .put("xpack.security.http.ssl.key", testnodeKey)
             .put("xpack.security.http.ssl.certificate", testnodeCert)
             .setSecureSettings(secureSettings)

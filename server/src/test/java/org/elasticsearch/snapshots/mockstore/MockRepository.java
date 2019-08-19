@@ -38,6 +38,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -362,7 +363,7 @@ public class MockRepository extends FsRepository {
             public void writeBlobAtomic(final String blobName, final InputStream inputStream, final long blobSize,
                                         final boolean failIfAlreadyExists) throws IOException {
                 final Random random = RandomizedContext.current().getRandom();
-                if (blobName.startsWith("index-") && blockOnWriteIndexFile) {
+                if (blobName.startsWith(BlobStoreRepository.INDEX_FILE_PREFIX) && blockOnWriteIndexFile) {
                     blockExecutionAndFail(blobName);
                 }
                 if ((delegate() instanceof FsBlobContainer) && (random.nextBoolean())) {

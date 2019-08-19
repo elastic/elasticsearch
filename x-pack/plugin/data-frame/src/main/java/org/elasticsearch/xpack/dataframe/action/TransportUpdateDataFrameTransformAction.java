@@ -138,12 +138,12 @@ public class TransportUpdateDataFrameTransformAction extends TransportMasterNode
     private void handlePrivsResponse(String username,
                                      Request request,
                                      DataFrameTransformConfig config,
-                                     DataFrameTransformsConfigManager.SeqNoPrimaryTermAndIndex seqNoPrimaryTermPair,
+                                     DataFrameTransformsConfigManager.SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex,
                                      ClusterState clusterState,
                                      HasPrivilegesResponse privilegesResponse,
                                      ActionListener<Response> listener) {
         if (privilegesResponse.isCompleteMatch()) {
-            updateDataFrame(request, config, seqNoPrimaryTermPair, clusterState, listener);
+            updateDataFrame(request, config, seqNoPrimaryTermAndIndex, clusterState, listener);
         } else {
             List<String> indices = privilegesResponse.getIndexPrivileges()
                 .stream()
@@ -161,7 +161,7 @@ public class TransportUpdateDataFrameTransformAction extends TransportMasterNode
     private void validateAndUpdateDataFrame(Request request,
                                             ClusterState clusterState,
                                             DataFrameTransformConfig config,
-                                            DataFrameTransformsConfigManager.SeqNoPrimaryTermAndIndex seqNoPrimaryTermPair,
+                                            DataFrameTransformsConfigManager.SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex,
                                             ActionListener<Response> listener) {
         try {
             SourceDestValidator.validate(config, clusterState, indexNameExpressionResolver, request.isDeferValidation());
@@ -176,17 +176,17 @@ public class TransportUpdateDataFrameTransformAction extends TransportMasterNode
             final String username = securityContext.getUser().principal();
             HasPrivilegesRequest privRequest = buildPrivilegeCheck(config, indexNameExpressionResolver, clusterState, username);
             ActionListener<HasPrivilegesResponse> privResponseListener = ActionListener.wrap(
-                r -> handlePrivsResponse(username, request, config, seqNoPrimaryTermPair, clusterState, r, listener),
+                r -> handlePrivsResponse(username, request, config, seqNoPrimaryTermAndIndex, clusterState, r, listener),
                 listener::onFailure);
 
             client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
         } else { // No security enabled, just create the transform
-            updateDataFrame(request, config, seqNoPrimaryTermPair, clusterState, listener);
+            updateDataFrame(request, config, seqNoPrimaryTermAndIndex, clusterState, listener);
         }
     }
     private void updateDataFrame(Request request,
                                  DataFrameTransformConfig config,
-                                 DataFrameTransformsConfigManager.SeqNoPrimaryTermAndIndex seqNoPrimaryTermPair,
+                                 DataFrameTransformsConfigManager.SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex,
                                  ClusterState clusterState,
                                  ActionListener<Response> listener) {
 
@@ -217,7 +217,7 @@ public class TransportUpdateDataFrameTransformAction extends TransportMasterNode
         // <2> Update our transform
         ActionListener<Void> createDestinationListener = ActionListener.wrap(
             createDestResponse -> dataFrameTransformsConfigManager.updateTransformConfiguration(config,
-                seqNoPrimaryTermPair,
+                seqNoPrimaryTermAndIndex,
                 putTransformConfigurationListener),
             listener::onFailure
         );

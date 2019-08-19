@@ -106,10 +106,11 @@ public abstract class AbstractTransportGetResourcesAction<Resource extends ToXCo
                              XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(
                                  xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)) {
                             Resource resource = parse(parser);
+                            String id = extractIdFromResource(resource);
                             // Do not include a resource with the same ID twice
-                            if (foundResourceIds.contains(extractIdFromResource(resource)) == false) {
+                            if (foundResourceIds.contains(id) == false) {
                                 docs.add(resource);
-                                foundResourceIds.add(extractIdFromResource(resource));
+                                foundResourceIds.add(id);
                             }
                         } catch (IOException e) {
                             this.onFailure(e);

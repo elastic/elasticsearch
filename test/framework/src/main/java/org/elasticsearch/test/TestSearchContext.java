@@ -102,11 +102,20 @@ public class TestSearchContext extends SearchContext {
     }
 
     public TestSearchContext(QueryShardContext queryShardContext, IndexShard indexShard) {
+        this(queryShardContext, indexShard, null);
+    }
+
+    public TestSearchContext(QueryShardContext queryShardContext, IndexShard indexShard, ContextIndexSearcher searcher) {
         this.bigArrays = null;
         this.indexService = null;
         this.fixedBitSetFilterCache = null;
         this.indexShard = indexShard;
         this.queryShardContext = queryShardContext;
+        this.searcher = searcher;
+    }
+
+    public void setSearcher(ContextIndexSearcher searcher) {
+        this.searcher = searcher;
     }
 
     @Override

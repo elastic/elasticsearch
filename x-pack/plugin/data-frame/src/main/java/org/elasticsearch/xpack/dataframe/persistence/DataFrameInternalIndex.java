@@ -71,7 +71,7 @@ public final class DataFrameInternalIndex {
 
     public static IndexTemplateMetaData getIndexTemplateMetaData() throws IOException {
         IndexTemplateMetaData dataFrameTemplate = IndexTemplateMetaData.builder(LATEST_INDEX_VERSIONED_NAME)
-                .patterns(Collections.singletonList(INDEX_NAME_PATTERN))
+                .patterns(Collections.singletonList(LATEST_INDEX_VERSIONED_NAME))
                 .version(Version.CURRENT.id)
                 .settings(Settings.builder()
                         // the configurations are expected to be small
@@ -128,7 +128,7 @@ public final class DataFrameInternalIndex {
         return builder;
     }
 
-    private static XContentBuilder mappings() throws IOException {
+    public static XContentBuilder mappings() throws IOException {
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
 
@@ -245,7 +245,7 @@ public final class DataFrameInternalIndex {
             // .startObject("checkpointing").field(ENABLED, false).endObject();
     }
 
-    private static XContentBuilder addDataFrameTransformsConfigMappings(XContentBuilder builder) throws IOException {
+    public static XContentBuilder addDataFrameTransformsConfigMappings(XContentBuilder builder) throws IOException {
         return builder
             .startObject(DataFrameField.ID.getPreferredName())
                 .field(TYPE, KEYWORD)

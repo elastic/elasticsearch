@@ -166,7 +166,7 @@ public class DataFrameTransformsConfigManager {
      * @param transformId The configuration ID potentially referencing configurations stored in the old indices
      * @param listener listener to alert on completion
      */
-    public void deleteOldTransformConfigurations(String transformId, ActionListener<Void> listener) {
+    public void deleteOldTransformConfigurations(String transformId, ActionListener<Boolean> listener) {
         DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(DataFrameInternalIndex.INDEX_NAME_PATTERN)
             .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.boolQuery()
                 .mustNot(QueryBuilders.termQuery("_index", DataFrameInternalIndex.LATEST_INDEX_NAME))
@@ -181,7 +181,7 @@ public class DataFrameTransformsConfigManager {
                         new ElasticsearchStatusException(statusAndReason.v2().getMessage(), statusAndReason.v1(), statusAndReason.v2()));
                     return;
                 }
-                listener.onResponse(null);
+                listener.onResponse(true);
             },
             listener::onFailure
         ));
@@ -193,7 +193,7 @@ public class DataFrameTransformsConfigManager {
      * @param transformId The transform ID referenced by the documents
      * @param listener listener to alert on completion
      */
-    public void deleteOldTransformStoredDocuments(String transformId, ActionListener<Void> listener) {
+    public void deleteOldTransformStoredDocuments(String transformId, ActionListener<Boolean> listener) {
         DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(DataFrameInternalIndex.INDEX_NAME_PATTERN)
             .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.boolQuery()
                 .mustNot(QueryBuilders.termQuery("_index", DataFrameInternalIndex.LATEST_INDEX_NAME))
@@ -208,7 +208,7 @@ public class DataFrameTransformsConfigManager {
                         new ElasticsearchStatusException(statusAndReason.v2().getMessage(), statusAndReason.v1(), statusAndReason.v2()));
                     return;
                 }
-                listener.onResponse(null);
+                listener.onResponse(true);
             },
             listener::onFailure
         ));

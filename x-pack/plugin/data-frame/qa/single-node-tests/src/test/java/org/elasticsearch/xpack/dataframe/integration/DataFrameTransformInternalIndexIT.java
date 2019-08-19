@@ -17,7 +17,10 @@ import org.elasticsearch.client.dataframe.GetDataFrameTransformResponse;
 import org.elasticsearch.client.dataframe.UpdateDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.UpdateDataFrameTransformResponse;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfigUpdate;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.common.settings.Settings;
@@ -31,6 +34,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Collections;
 
+import static org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex.addDataFrameTransformsConfigMappings;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -44,6 +48,17 @@ public class DataFrameTransformInternalIndexIT extends ESRestTestCase {
 
     public void testUpdateDeletesOldTransformConfig() throws Exception {
         TestRestHighLevelClient client = new TestRestHighLevelClient();
+        // The mapping does not need to actually be the "OLD" mapping, we are testing that the old doc gets deleted, and the new one
+        // created.
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            builder.startObject();
+            builder.startObject("properties");
+            builder.startObject(DataFrameField.INDEX_DOC_TYPE.getPreferredName()).field("type", "keyword").endObject();
+            addDataFrameTransformsConfigMappings(builder);
+            builder.endObject();
+            builder.endObject();
+            client.indices().create(new CreateIndexRequest(OLD_INDEX).mapping(builder), RequestOptions.DEFAULT);
+        }
         String transformIndex = "transform-index-deletes-old";
         createSourceIndex(transformIndex);
         String transformId = "transform-update-deletes-old-transform-config";

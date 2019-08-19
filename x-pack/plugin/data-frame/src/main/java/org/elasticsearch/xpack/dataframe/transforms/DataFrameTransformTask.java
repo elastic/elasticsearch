@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.dataframe.transforms.pivot.AggregationResultUtils
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -593,6 +594,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         private volatile boolean auditBulkFailures = true;
         // Keeps track of the last exception that was written to our audit, keeps us from spamming the audit index
         private volatile String lastAuditedExceptionMessage = null;
+        private final AtomicBoolean oldStatsCleanedUp = new AtomicBoolean(false);
 
         ClientDataFrameIndexer(String transformId,
                                DataFrameTransformsConfigManager transformsConfigManager,
@@ -835,18 +837,23 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                                     onStop();
                                     transformTask.shutdown();
                                 }
-                                transformsConfigManager.deleteOldTransformStoredDocuments(transformId, ActionListener.wrap(
-                                    nil -> {
-                                        logger.trace("[{}] deleted old transform stats and state document", transformId);
-                                        next.run();
-                                    },
-                                    e -> {
-                                        String msg = LoggerMessageFormat.format("[{}] failed deleting old transform configurations.",
-                                            transformId);
-                                        logger.warn(msg, e);
-                                        next.run();
-                                    }
-                                ));
+                                // Only do this clean up once, if it succeeded, no reason to do the query again.
+                                if (oldStatsCleanedUp.compareAndExchange(false, true) == false) {
+                                    transformsConfigManager.deleteOldTransformStoredDocuments(transformId, ActionListener.wrap(
+                                        nil -> {
+                                            logger.trace("[{}] deleted old transform stats and state document", transformId);
+                                            next.run();
+                                        },
+                                        e -> {
+                                            String msg = LoggerMessageFormat.format("[{}] failed deleting old transform configurations.",
+                                                transformId);
+                                            logger.warn(msg, e);
+                                            // If we have failed, we should attempt the clean up again later
+                                            oldStatsCleanedUp.set(false);
+                                            next.run();
+                                        }
+                                    ));
+                                }
                             },
                             statsExc -> {
                                 logger.error("Updating stats of transform [" + transformConfig.getId() + "] failed", statsExc);

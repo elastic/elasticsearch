@@ -81,11 +81,6 @@ public class LongRareTerms extends InternalMappedRareTerms<LongRareTerms, LongRa
         }
 
         @Override
-        Bucket newBucket(long docCount, InternalAggregations aggs) {
-            return new Bucket(term, docCount, aggs, format);
-        }
-
-        @Override
         protected final XContentBuilder keyToXContent(XContentBuilder builder) throws IOException {
             builder.field(CommonFields.KEY.getPreferredName(), term);
             if (format != DocValueFormat.RAW) {
@@ -152,5 +147,10 @@ public class LongRareTerms extends InternalMappedRareTerms<LongRareTerms, LongRa
     @Override
     public void addToFilter(SetBackedScalingCuckooFilter filter, LongRareTerms.Bucket bucket) {
         filter.add((long) bucket.getKey());
+    }
+
+    @Override
+    Bucket createBucket(long docCount, InternalAggregations aggs, LongRareTerms.Bucket prototype) {
+        return new Bucket(prototype.term, docCount, aggs, format);
     }
 }

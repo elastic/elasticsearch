@@ -14,8 +14,6 @@ import java.util.Set;
 
 /**
  * A Weight that caps scores of the wrapped query to a maximum value
- *
- * @lucene.internal
  */
 public abstract class CappedScoreWeight extends Weight {
 
@@ -36,7 +34,7 @@ public abstract class CappedScoreWeight extends Weight {
     @Override
     public boolean isCacheable(LeafReaderContext ctx) {
         return innerWeight.isCacheable(ctx);
-    }    
+    }
 
     @Override
     public Scorer scorer(LeafReaderContext context) throws IOException {

@@ -40,6 +40,8 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 
+include::{docdir}/rest-api/common-parms.asciidoc[tag=include-type-name]
+
 include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
 `include_defaults`::

@@ -62,6 +62,7 @@ class RestIntegTestTask extends DefaultTask {
         boolean usesTestclusters = project.plugins.hasPlugin(TestClustersPlugin.class)
         if (usesTestclusters == false) {
             clusterConfig = project.extensions.create("${name}Cluster", ClusterConfiguration.class, project)
+            runner.outputs.doNotCacheIf("Caching is disabled when using ClusterFormationTasks", { true })
         } else {
             project.testClusters {
                 "$name" {

@@ -43,6 +43,7 @@ public class DataFrameTaskFailedStateIT extends DataFrameRestTestCase {
         addFailureRetrySetting.setJsonEntity(
             "{\"transient\": {\"xpack.data_frame.num_transform_failure_retries\": \"" + 0 + "\"," +
                 "\"logger.org.elasticsearch.action.bulk\": \"info\"," + // reduces bulk failure spam
+                "\"logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer\": \"trace\"," +
                 "\"logger.org.elasticsearch.xpack.dataframe\": \"trace\"}}");
         client().performRequest(addFailureRetrySetting);
     }

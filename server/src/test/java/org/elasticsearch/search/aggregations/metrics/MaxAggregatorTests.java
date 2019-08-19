@@ -883,4 +883,97 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         indexReader.close();
         directory.close();
     }
+
+    /**
+     * Make sure that an aggregation not using a script does get cached.
+     */
+    public void testCacheAggregation() throws IOException {
+        Directory directory = newDirectory();
+        RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
+        final int numDocs = 10;
+        for (int i = 0; i < numDocs; i++) {
+            indexWriter.addDocument(singleton(new NumericDocValuesField("value", i + 1)));
+        }
+        indexWriter.close();
+
+        Directory unmappedDirectory = newDirectory();
+        RandomIndexWriter unmappedIndexWriter = new RandomIndexWriter(random(), unmappedDirectory);
+        unmappedIndexWriter.close();
+
+        IndexReader indexReader = DirectoryReader.open(directory);
+        IndexReader unamappedIndexReader = DirectoryReader.open(unmappedDirectory);
+        MultiReader multiReader = new MultiReader(indexReader, unamappedIndexReader);
+        IndexSearcher indexSearcher = newSearcher(multiReader, true, true);
+
+
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
+        fieldType.setName("value");
+        MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("max")
+            .field("value");
+
+        MaxAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
+        aggregator.preCollection();
+        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        aggregator.postCollection();
+
+        InternalMax max = (InternalMax) aggregator.buildAggregation(0L);
+
+        assertEquals(10.0, max.getValue(), 0);
+        assertEquals("max", max.getName());
+        assertTrue(AggregationInspectionHelper.hasValue(max));
+
+        // Test that an aggregation not using a script does get cached
+        assertTrue(aggregator.context().getQueryShardContext().isCacheable());
+
+        multiReader.close();
+        directory.close();
+        unmappedDirectory.close();
+    }
+
+    /**
+     * Make sure that an aggregation using a script does not get cached.
+     */
+    public void testDontCacheScripts() throws IOException {
+        Directory directory = newDirectory();
+        RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
+        final int numDocs = 10;
+        for (int i = 0; i < numDocs; i++) {
+            indexWriter.addDocument(singleton(new NumericDocValuesField("value", i + 1)));
+        }
+        indexWriter.close();
+
+        Directory unmappedDirectory = newDirectory();
+        RandomIndexWriter unmappedIndexWriter = new RandomIndexWriter(random(), unmappedDirectory);
+        unmappedIndexWriter.close();
+
+        IndexReader indexReader = DirectoryReader.open(directory);
+        IndexReader unamappedIndexReader = DirectoryReader.open(unmappedDirectory);
+        MultiReader multiReader = new MultiReader(indexReader, unamappedIndexReader);
+        IndexSearcher indexSearcher = newSearcher(multiReader, true, true);
+
+
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
+        fieldType.setName("value");
+        MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("max")
+            .field("value")
+            .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT, Collections.emptyMap()));
+
+        MaxAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
+        aggregator.preCollection();
+        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        aggregator.postCollection();
+
+        InternalMax max = (InternalMax) aggregator.buildAggregation(0L);
+
+        assertEquals(10.0, max.getValue(), 0);
+        assertEquals("max", max.getName());
+        assertTrue(AggregationInspectionHelper.hasValue(max));
+
+        // Test that an aggregation using a script does not get cached
+        assertFalse(aggregator.context().getQueryShardContext().isCacheable());
+
+        multiReader.close();
+        directory.close();
+        unmappedDirectory.close();
+    }
 }

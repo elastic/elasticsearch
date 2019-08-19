@@ -28,19 +28,11 @@
                   source: throw new IllegalArgumentException("Cats!")
           dest:
             index:   dest
-  - match: {created: 0}
-  - match: {updated: 0}
-  - match: {version_conflicts: 0}
-  - match: {batches: 0}
-  - match: {failures.0.shard: 0}
-  - match: {failures.0.index:  source}
-  - is_true: failures.0.node
-  # TODO: Changed the message because of exception serialization
-  - match: {failures.0.reason.type:   exception}
-  # TODO: Changed the message because of exception serialization
-  - match: {failures.0.reason.reason: "Elasticsearch exception [type=script_exception, reason=runtime error]"}
-  # TODO: Changed the message because of exception serialization
-  - match: {failures.0.reason.caused_by.type:   exception}
-  # TODO: Changed the message because of exception serialization
-  - match: {failures.0.reason.caused_by.reason: "Elasticsearch exception [type=illegal_argument_exception, reason=Cats!]"}
-  - gte: { took: 0 }
+  # TODO: revisit this once we keep original type.
+  - match: {error.root_cause.0.type: exception}
+  # TODO: revisit this once we keep original reason message.
+  - match: {error.root_cause.0.reason: "Elasticsearch exception [type=search_phase_execution_exception, reason=Partial shards failure]"}
+  - match: {error.root_cause.0.phase: query}
+  - match: {error.type: status_exception}
+  - match: {error.reason: "Elasticsearch exception [type=search_phase_execution_exception, reason=Partial shards failure]"}
+  # TODO: we kind of change the response format here, but we never documented this so OK?

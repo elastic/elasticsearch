@@ -36,6 +36,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
@@ -46,13 +47,15 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.ToLongFunction;
 
 import static java.util.Objects.requireNonNull;
+import static org.elasticsearch.common.util.CollectionUtils.isEmpty;
 
 /**
  * A scrollable source of results. Pumps data out into the passed onResponse consumer. Same data may come out several times in case
- * of failures during searching (though not yet). Once the onResponse consumer is done, it should call AsyncResponse.isDone(time) to receive
- * more data (only receives one response at a time).
+ * of failures during searching. Once the onResponse consumer is done, it should call AsyncResponse.isDone(time) to receive more data
+ * (only receives one response at a time).
  */
 public abstract class ScrollableHitSource {
     private final AtomicReference<String> scrollId = new AtomicReference<>();
@@ -60,38 +63,126 @@ public abstract class ScrollableHitSource {
     protected final Logger logger;
     protected final BackoffPolicy backoffPolicy;
     protected final ThreadPool threadPool;
-    protected final Runnable countSearchRetry;
+    private final Runnable countSearchRetry;
     private final Consumer<AsyncResponse> onResponse;
-    protected final Consumer<Exception> fail;
+    private final Consumer<Exception> fail;
+    private final ToLongFunction<Hit> restartFromValueFunction;
+    private long restartFromValue = Long.MIN_VALUE; // need refinement if we support descending.
 
     public ScrollableHitSource(Logger logger, BackoffPolicy backoffPolicy, ThreadPool threadPool, Runnable countSearchRetry,
-                               Consumer<AsyncResponse> onResponse, Consumer<Exception> fail) {
+                               Consumer<AsyncResponse> onResponse, Consumer<Exception> fail, String restartFromField) {
         this.logger = logger;
         this.backoffPolicy = backoffPolicy;
         this.threadPool = threadPool;
         this.countSearchRetry = countSearchRetry;
         this.onResponse = onResponse;
         this.fail = fail;
+        if (restartFromField != null) {
+            if (SeqNoFieldMapper.NAME.equals(restartFromField)) {
+                restartFromValueFunction = Hit::getSeqNo;
+            } else {
+                restartFromValueFunction = hit -> Long.MIN_VALUE;
+                // todo: non-seqno field support.
+                // need to extract field, either from source or by asking for it explicitly.
+                // also we need to handle missing values.
+                // hit -> ((Number) hit.field(restartFromField).getValue()).longValue();
+            }
+        } else {
+            restartFromValueFunction = hit -> Long.MIN_VALUE;
+        }
+    }
+
+    public final long restartFromValue() {
+        return restartFromValue;
+    }
+
+    public final void restartFromValue(long restartFromValue) {
+        this.restartFromValue = restartFromValue;
     }
 
     public final void start() {
-        doStart(createRetryListener(this::doStart));
+        if (logger.isDebugEnabled()) {
+            logger.debug("executing initial scroll against {}",
+                isEmpty(indices()) ? "all indices" : indices());
+        }
+
+        // todo: we never restart the original request, since if this fails, we probably want fast feedback. But when we add
+        // resume from seqNo, we should do retry on that original request, so this needs some care at that time.
+        // So far, rejections (429) still lead to retries, since they always did.
+        restartNoLogging(TimeValue.ZERO, createRetryListenerNoRestart(this::restart));
+
     }
 
-    private RetryListener createRetryListener(Consumer<RejectAwareActionListener<Response>> retryHandler) {
-        Consumer<RejectAwareActionListener<Response>> countingRetryHandler = listener -> {
-            countSearchRetry.run();
-            retryHandler.accept(listener);
+    private void restart(RejectAwareActionListener<Response> searchListener) {
+        restart(TimeValue.ZERO, searchListener);
+    }
+
+    private void restart(TimeValue extraKeepAlive, RejectAwareActionListener<Response> searchListener) {
+        if (logger.isDebugEnabled()) {
+            logger.debug("restarting search against {} from resume marker {}",
+                isEmpty(indices()) ? "all indices" : indices(), restartFromValue());
+        }
+        restartNoLogging(extraKeepAlive, searchListener);
+    }
+
+    private void restartNoLogging(TimeValue extraKeepAlive, RejectAwareActionListener<Response> searchListener) {
+        String scrollId = this.scrollId.get();
+        if (scrollId != null) {
+            // we do not bother waiting for the scroll to be cleared, yet at least. We could implement a policy to
+            // not have more than x old scrolls outstanding and wait for their timeout before continuing (we know the timeout).
+            // A flaky connection could in principle lead to many scrolls within the timeout window, so could be worth pursuing.
+            clearScroll(scrollId, () -> {});
+            this.scrollId.set(null);
+        }
+        if (restartFromValue == Long.MIN_VALUE) {
+            doStart(extraKeepAlive, searchListener);
+        } else {
+            doRestart(extraKeepAlive, restartFromValue, searchListener);
+        }
+    }
+
+    private RetryListener createRetryListener(Consumer<RejectAwareActionListener<Response>> restartHandler,
+                                              Consumer<RejectAwareActionListener<Response>> retryScrollHandler) {
+        if (canRestart()) {
+            return new RetryListener(logger, threadPool, backoffPolicy,
+                countRetries(restartHandler), countRetries(retryScrollHandler),
+                ActionListener.wrap(this::onResponse, fail));
+        } else {
+            return createRetryListenerNoRestart(retryScrollHandler);
+        }
+    }
+
+    private RetryListener createRetryListenerNoRestart(Consumer<RejectAwareActionListener<Response>> retryScrollHandler) {
+        return new RetryListener(logger, threadPool, backoffPolicy,
+            x -> { throw new UnsupportedOperationException(); }, countRetries(retryScrollHandler),
+            ActionListener.wrap(this::onResponse, fail)) {
+            @Override
+            public void onResponse(Response response) {
+                ScrollableHitSource.this.onResponse(response);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail.accept(e);
+            }
         };
-        return new RetryListener(logger, threadPool, backoffPolicy, countingRetryHandler,
-            ActionListener.wrap(this::onResponse, fail));
+    }
+
+    private Consumer<RejectAwareActionListener<Response>> countRetries(Consumer<RejectAwareActionListener<Response>> retryHandler) {
+        return listener -> {
+                countSearchRetry.run();
+                retryHandler.accept(listener);
+            };
     }
 
     // package private for tests.
     final void startNextScroll(TimeValue extraKeepAlive) {
-        startNextScroll(extraKeepAlive, createRetryListener(listener -> startNextScroll(extraKeepAlive, listener)));
+        startNextScroll(extraKeepAlive, createRetryListener(listener -> restart(extraKeepAlive, listener),
+            listener -> startNextScroll(extraKeepAlive, listener)
+        ));
     }
     private void startNextScroll(TimeValue extraKeepAlive, RejectAwareActionListener<Response> searchListener) {
+        assert scrollId.get() != null;
         doStartNextScroll(scrollId.get(), extraKeepAlive, searchListener);
     }
 
@@ -108,9 +199,19 @@ public abstract class ScrollableHitSource {
             @Override
             public void done(TimeValue extraKeepAlive) {
                 assert alreadyDone.compareAndSet(false, true);
+                restartFromValue = extractRestartFromValue(response, restartFromValue);
                 startNextScroll(extraKeepAlive);
             }
         });
+    }
+
+    private long extractRestartFromValue(Response response, long defaultValue) {
+        List<? extends Hit> hits = response.hits;
+        if (hits.size() != 0) {
+            return restartFromValueFunction.applyAsLong(hits.get(hits.size() - 1));
+        } else {
+            return defaultValue;
+        }
     }
 
     public final void close(Runnable onCompletion) {
@@ -123,10 +224,13 @@ public abstract class ScrollableHitSource {
     }
 
     // following is the SPI to be implemented.
-    protected abstract void doStart(RejectAwareActionListener<Response> searchListener);
+    protected abstract void doStart(TimeValue extraKeepAlive, RejectAwareActionListener<Response> searchListener);
+    protected abstract void doRestart(TimeValue extraKeepAlive, long restartFromValue, RejectAwareActionListener<Response> searchListener);
 
     protected abstract void doStartNextScroll(String scrollId, TimeValue extraKeepAlive,
                                               RejectAwareActionListener<Response> searchListener);
+    protected abstract boolean canRestart();
+    protected abstract String[] indices();
 
     /**
      * Called to clear a scroll id.

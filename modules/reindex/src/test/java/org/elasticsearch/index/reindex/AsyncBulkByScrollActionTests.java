@@ -216,7 +216,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         ClientScrollableHitSource hitSource = new ClientScrollableHitSource(logger, buildTestBackoffPolicy(),
             threadPool,
             testTask.getWorkerState()::countSearchRetry, r -> fail(), ExceptionsHelper::reThrowIfNotNull,
-            new ParentTaskAssigningClient(client, localNode, testTask), testRequest.getSearchRequest());
+            new ParentTaskAssigningClient(client, localNode, testTask), testRequest.getSearchRequest(), null);
         hitSource.setScroll(scrollId());
         hitSource.startNextScroll(TimeValue.timeValueSeconds(0));
         assertBusy(() -> assertEquals(client.scrollsToReject + 1, client.scrollAttempts.get()));
@@ -240,7 +240,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 ClientScrollableHitSource hitSource = new ClientScrollableHitSource(logger, buildTestBackoffPolicy(),
                     threadPool,
                     testTask.getWorkerState()::countSearchRetry, r -> fail(), validingOnFail,
-                    new ParentTaskAssigningClient(client, localNode, testTask), testRequest.getSearchRequest());
+                    new ParentTaskAssigningClient(client, localNode, testTask), testRequest.getSearchRequest(), null);
                 hitSource.setScroll(scrollId());
                 hitSource.startNextScroll(TimeValue.timeValueSeconds(0));
                 assertBusy(() -> assertEquals(testRequest.getMaxRetries() + 1, client.scrollAttempts.get()));
@@ -733,7 +733,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         extends AbstractAsyncBulkByScrollAction<DummyAbstractBulkByScrollRequest, DummyTransportAsyncBulkByScrollAction> {
         DummyAsyncBulkByScrollAction() {
             super(testTask, randomBoolean(), randomBoolean(), AsyncBulkByScrollActionTests.this.logger,
-                new ParentTaskAssigningClient(client, localNode, testTask), client.threadPool(), testRequest, listener, null, null);
+                new ParentTaskAssigningClient(client, localNode, testTask), client.threadPool(), testRequest, listener,
+                null, null, null);
         }
 
         @Override

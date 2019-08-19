@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.client.Client;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -42,7 +43,11 @@ public abstract class ReindexTestCase extends ESIntegTestCase {
     }
 
     protected ReindexRequestBuilder reindex() {
-        return new ReindexRequestBuilder(client(), ReindexAction.INSTANCE);
+        return reindex(client());
+    }
+
+    protected ReindexRequestBuilder reindex(Client client) {
+        return new ReindexRequestBuilder(client, ReindexAction.INSTANCE);
     }
 
     protected UpdateByQueryRequestBuilder updateByQuery() {

@@ -298,7 +298,7 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
                            Long previousCheckpoint,
                            ActionListener<StartDataFrameTransformTaskAction.Response> listener) {
         buildTask.initializeIndexer(indexerBuilder);
-        buildTask.setNumFailureRetries(numFailureRetries).start(previousCheckpoint, listener);
+        buildTask.setNumFailureRetries(numFailureRetries).start(previousCheckpoint, false, listener);
     }
 
     private void setNumFailureRetries(int numFailureRetries) {

@@ -16,7 +16,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 public class GetEnrichPolicyAction extends ActionType<GetEnrichPolicyAction.Response> {
 
@@ -30,6 +34,8 @@ public class GetEnrichPolicyAction extends ActionType<GetEnrichPolicyAction.Resp
     public static class Request extends MasterNodeReadRequest<Request> {
 
         private String name;
+
+        public Request() { }
 
         public Request(String name) {
             this.name = name;
@@ -75,34 +81,43 @@ public class GetEnrichPolicyAction extends ActionType<GetEnrichPolicyAction.Resp
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private final EnrichPolicy policy;
+        private final List<EnrichPolicy.NamedPolicy> policies;
 
-        public Response(EnrichPolicy policy) {
-            this.policy = Objects.requireNonNull(policy, "policy cannot be null");
+        public Response(Map<String, EnrichPolicy> policies) {
+            Objects.requireNonNull(policies, "policies cannot be null");
+            // use a treemap to guarantee ordering in the set, then transform it to the list of named policies
+            this.policies = new TreeMap<>(policies).entrySet().stream()
+                .map(entry -> new EnrichPolicy.NamedPolicy(entry.getKey(), entry.getValue())).collect(Collectors.toList());
         }
 
         public Response(StreamInput in) throws IOException {
-            policy = new EnrichPolicy(in);
+            policies = in.readList(EnrichPolicy.NamedPolicy::new);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            policy.writeTo(out);
+            out.writeList(policies);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             {
-                policy.toXContent(builder, params);
+                builder.startArray("policies");
+                {
+                    for (EnrichPolicy.NamedPolicy policy: policies) {
+                        policy.toXContent(builder, params);
+                    }
+                }
+                builder.endArray();
             }
             builder.endObject();
 
             return builder;
         }
 
-        public EnrichPolicy getPolicy() {
-            return policy;
+        public List<EnrichPolicy.NamedPolicy> getPolicies() {
+            return policies;
         }
 
         @Override
@@ -110,12 +125,12 @@ public class GetEnrichPolicyAction extends ActionType<GetEnrichPolicyAction.Resp
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Response response = (Response) o;
-            return policy.equals(response.policy);
+            return policies.equals(response.policies);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(policy);
+            return Objects.hash(policies);
         }
     }
 }

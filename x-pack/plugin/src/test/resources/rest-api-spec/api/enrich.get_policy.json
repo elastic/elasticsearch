@@ -13,6 +13,10 @@
               "description" : "The name of the enrich policy"
             }
           }
+        },
+        {
+          "path": "/_enrich/policy",
+          "methods": [ "GET" ]
         }
       ]
     }

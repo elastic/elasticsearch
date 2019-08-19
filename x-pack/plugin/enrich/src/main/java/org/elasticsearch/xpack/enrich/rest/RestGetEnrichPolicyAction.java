@@ -18,6 +18,7 @@ public class RestGetEnrichPolicyAction extends BaseRestHandler {
 
     public RestGetEnrichPolicyAction(final RestController controller) {
         controller.registerHandler(RestRequest.Method.GET, "/_enrich/policy/{name}", this);
+        controller.registerHandler(RestRequest.Method.GET, "/_enrich/policy", this);
     }
 
     @Override

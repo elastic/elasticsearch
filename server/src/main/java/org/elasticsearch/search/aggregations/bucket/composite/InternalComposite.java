@@ -158,7 +158,7 @@ public class InternalComposite
         while (pq.size() > 0) {
             BucketIterator bucketIt = pq.poll();
             if (lastBucket != null && bucketIt.current.compareKey(lastBucket) != 0) {
-                InternalBucket reduceBucket = buckets.get(0).reduce(buckets, reduceContext);
+                InternalBucket reduceBucket = reduceBucket(buckets, reduceContext);
                 buckets.clear();
                 reduceContext.consumeBucketsAndMaybeBreak(1);
                 result.add(reduceBucket);
@@ -173,12 +173,25 @@ public class InternalComposite
             }
         }
         if (buckets.size() > 0) {
-            InternalBucket reduceBucket = buckets.get(0).reduce(buckets, reduceContext);
+            InternalBucket reduceBucket = reduceBucket(buckets, reduceContext);
             reduceContext.consumeBucketsAndMaybeBreak(1);
             result.add(reduceBucket);
         }
         final CompositeKey lastKey = result.size() > 0 ? result.get(result.size()-1).getRawKey() : null;
         return new InternalComposite(name, size, sourceNames, formats, result, lastKey, reverseMuls, pipelineAggregators(), metaData);
+    }
+
+    @Override
+    protected InternalBucket reduceBucket(List<InternalBucket> buckets, ReduceContext context) {
+        assert buckets.size() > 0;
+        List<InternalAggregations> aggregations = new ArrayList<>(buckets.size());
+        long docCount = 0;
+        for (InternalBucket bucket : buckets) {
+            docCount += bucket.docCount;
+            aggregations.add(bucket.aggregations);
+        }
+        InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);
+        return new InternalBucket(sourceNames, formats, buckets.get(0).key, reverseMuls, docCount, aggs);
     }
 
     @Override
@@ -306,17 +319,6 @@ public class InternalComposite
         @Override
         public Aggregations getAggregations() {
             return aggregations;
-        }
-
-        InternalBucket reduce(List<InternalBucket> buckets, ReduceContext reduceContext) {
-            List<InternalAggregations> aggregations = new ArrayList<>(buckets.size());
-            long docCount = 0;
-            for (InternalBucket bucket : buckets) {
-                docCount += bucket.docCount;
-                aggregations.add(bucket.aggregations);
-            }
-            InternalAggregations aggs = InternalAggregations.reduce(aggregations, reduceContext);
-            return new InternalBucket(sourceNames, formats, key, reverseMuls, docCount, aggs);
         }
 
         @Override

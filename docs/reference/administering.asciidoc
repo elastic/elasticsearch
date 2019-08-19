@@ -8,5 +8,8 @@ many APIs and features that are designed to help you manage your Elasticsearch
 cluster.
 
 --
+:leveloffset: +1
+include::ccr/index.asciidoc[]
+:leveloffset: -1
 
 include::administering/backup-cluster.asciidoc[]

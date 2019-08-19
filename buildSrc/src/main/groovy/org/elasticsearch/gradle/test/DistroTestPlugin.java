@@ -118,6 +118,7 @@ public class DistroTestPlugin implements Plugin<Project> {
             for (ElasticsearchDistribution distribution : distributions) {
                 String destructiveTaskName = destructiveDistroTestTaskName(distribution);
                 Platform platform = distribution.getPlatform();
+                // this condition ensures windows boxes get windows distributions, and linux boxes get linux distributions
                 if (isWindows(vmProject) == (platform == Platform.WINDOWS)) {
                     TaskProvider<GradleDistroTestTask> vmTask =
                         configureVMWrapperTask(vmProject, distribution.getName() + " distribution", destructiveTaskName, vmDependencies);

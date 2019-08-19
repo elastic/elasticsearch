@@ -507,16 +507,14 @@ public class SnapshotResiliencyTests extends ESTestCase {
         TestClusterNode masterNode =
             testClusterNodes.currentMaster(testClusterNodes.nodes.values().iterator().next().clusterService.state());
 
-        final AtomicBoolean documentCountVerified = new AtomicBoolean();
-
         final StepListener<CreateSnapshotResponse> createSnapshotResponseStepListener = new StepListener<>();
 
         continueOrDie(createRepoAndIndex(masterNode, repoName, index, shards), createIndexResponse -> {
             final AtomicBoolean initiatedSnapshot = new AtomicBoolean(false);
             for (int i = 0; i < documents; ++i) {
                 masterNode.client.bulk(
-                    new BulkRequest().add(new IndexRequest(index).source(Map.of("foo" + i, "bar", "num", i))).setRefreshPolicy(
-                        WriteRequest.RefreshPolicy.IMMEDIATE),
+                    new BulkRequest().add(new IndexRequest(index).source(Map.of("foo" + i, "bar", "num", i)))
+                        .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE),
                     assertNoFailureListener(
                         bulkResponse -> {
                             assertFalse("Failures in bulkresponse: " + bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
@@ -534,8 +532,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         continueOrDie(createSnapshotResponseStepListener, createSnapshotResponse -> masterNode.client.admin().cluster().restoreSnapshot(
             new RestoreSnapshotRequest(repoName, snapshotName)
-                .renamePattern(index).renameReplacement(restoredIndex).waitForCompletion(true),
-            restoreSnapshotResponseStepListener));
+                .renamePattern(index).renameReplacement(restoredIndex).waitForCompletion(true), restoreSnapshotResponseStepListener));
 
         final StepListener<SearchResponse> searchResponseStepListener = new StepListener<>();
 
@@ -546,9 +543,12 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 searchResponseStepListener);
         });
 
+        final AtomicBoolean documentCountVerified = new AtomicBoolean();
+
         continueOrDie(searchResponseStepListener, r -> {
             final long hitCount = r.getHits().getTotalHits().value;
             assertThat(
+                "Documents were restored but the restored index mapping was older than some documents and misses some of their fields",
                 (int) hitCount + 1,
                 lessThanOrEqualTo(((Map<?, ?>) masterNode.clusterService.state().metaData().index(restoredIndex).mapping()
                     .sourceAsMap().get("properties")).size())
@@ -560,7 +560,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         assertNotNull(createSnapshotResponseStepListener.result());
         assertNotNull(restoreSnapshotResponseStepListener.result());
-        assertTrue(documentCountVerified.get());
         SnapshotsInProgress finalSnapshotsInProgress = masterNode.clusterService.state().custom(SnapshotsInProgress.TYPE);
         assertFalse(finalSnapshotsInProgress.entries().stream().anyMatch(entry -> entry.state().completed() == false));
         final Repository repository = masterNode.repositoriesService.repository(repoName);

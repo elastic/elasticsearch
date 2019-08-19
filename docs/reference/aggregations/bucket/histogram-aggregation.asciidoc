@@ -143,7 +143,7 @@ the first bucket you'll get will be the one with `100` as its key. This is confu
 to get those buckets between `0 - 100`.
 
 With `extended_bounds` setting, you now can "force" the histogram aggregation to start building buckets on a specific
-`min` values and also keep on building buckets up to a `max` value (even if there are no documents anymore). Using
+`min` value and also keep on building buckets up to a `max` value (even if there are no documents anymore). Using
 `extended_bounds` only makes sense when `min_doc_count` is 0 (the empty buckets will never be returned if `min_doc_count`
 is greater than 0).
 

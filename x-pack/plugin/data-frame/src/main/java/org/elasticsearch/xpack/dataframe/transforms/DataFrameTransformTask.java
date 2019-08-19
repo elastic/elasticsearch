@@ -319,23 +319,48 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
      * @param shouldStopAtCheckpoint whether or not we should stop at the next checkpoint or not
      * @param shouldStopAtCheckpointListener the listener to return to when we have persisted the updated value to cluster state.
      */
-    public void setShouldStopAtCheckpoint(boolean shouldStopAtCheckpoint, ActionListener<Void> shouldStopAtCheckpointListener) {
-        DataFrameTransformState state = getState();
-        if (state.shouldStopAtCheckpoint() != shouldStopAtCheckpoint && state.getTaskState() != DataFrameTransformTaskState.FAILED) {
-            state.setShouldStopAtCheckoint(shouldStopAtCheckpoint);
-            persistStateToClusterState(state, ActionListener.wrap(
-                r -> {
-                    this.shouldStopAtCheckpoint = shouldStopAtCheckpoint;
-                    if (shouldStopAtCheckpoint) {
-                        stateReason.set("Transform is stopping at next checkpoint.");
+    public synchronized void setShouldStopAtCheckpoint(boolean shouldStopAtCheckpoint,
+                                                       ActionListener<Void> shouldStopAtCheckpointListener) {
+        logger.debug("[{}] attempted to set task to stop at checkpoint with state [{}]", getTransformId(), getState());
+        if (this.shouldStopAtCheckpoint == shouldStopAtCheckpoint ||
+            taskState.get() == DataFrameTransformTaskState.STARTED == false ||
+            getIndexer() == null ||
+            getIndexer().getState() == IndexerState.STOPPED ||
+            getIndexer().getState() == IndexerState.STOPPING) {
+        }
+        if (this.shouldStopAtCheckpoint != shouldStopAtCheckpoint
+            && taskState.get() != DataFrameTransformTaskState.FAILED
+            && getIndexer() != null
+            && getIndexer().getState() != IndexerState.STOPPED) {
+            this.shouldStopAtCheckpoint = shouldStopAtCheckpoint;
+            DataFrameTransformState state = new DataFrameTransformState(
+                taskState.get(),
+                indexer.get().getState(),
+                indexer.get().getPosition(),
+                currentCheckpoint.get(),
+                stateReason.get(),
+                getIndexer().getProgress(),
+                null, //Node attributes
+                shouldStopAtCheckpoint);
+            getIndexer().transformsConfigManager.putOrUpdateTransformStoredDoc(
+                new DataFrameTransformStoredDoc(getTransformId(), state, getStats()),
+                ActionListener.wrap(
+                    r -> {
+                        // for auto stop shutdown the task
+                        shouldStopAtCheckpointListener.onResponse(null);
+                    },
+                    statsExc -> {
+                        logger.error("Updating stats of transform [" + getTransformId() + "] failed", statsExc);
+                        shouldStopAtCheckpointListener.onFailure(statsExc);
                     }
-                    shouldStopAtCheckpointListener.onResponse(null);
-                },
-                shouldStopAtCheckpointListener::onFailure
-            ));
+                ));
         } else {
             shouldStopAtCheckpointListener.onResponse(null);
         }
+    }
+
+    public synchronized void setShouldStopAtCheckpoint(boolean shouldStopAtCheckpoint) {
+        this.shouldStopAtCheckpoint = shouldStopAtCheckpoint;
     }
 
     public synchronized void stop(boolean force) {
@@ -473,19 +498,20 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         // We should not keep retrying. Either the task will be stopped, or started
         // If it is started again, it is registered again.
         deregisterSchedulerJob();
+        shouldStopAtCheckpoint = false;
         DataFrameTransformState newState = new DataFrameTransformState(
             DataFrameTransformTaskState.FAILED,
             getIndexer() == null ? initialIndexerState : getIndexer().getState(),
             getIndexer() == null ? initialPosition : getIndexer().getPosition(),
             currentCheckpoint.get(),
             reason,
-            getIndexer() == null ? null : getIndexer().getProgress());
+            getIndexer() == null ? null : getIndexer().getProgress(),
+            null,
+            false);
 
         // The idea of stopping at the next checkpoint is no longer valid. Since a failed task could potentially START again,
         // we should set this flag to false.
         // The end user should see that the task is in a failed state, and attempt to stop it again but with force=true
-        newState.setShouldStopAtCheckoint(false);
-        shouldStopAtCheckpoint = false;
         taskState.set(DataFrameTransformTaskState.FAILED);
         stateReason.set(reason);
         // Even though the indexer information is persisted to an index, we still need DataFrameTransformTaskState in the clusterstate

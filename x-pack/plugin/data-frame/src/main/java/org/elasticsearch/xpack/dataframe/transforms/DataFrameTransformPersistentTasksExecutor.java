@@ -127,8 +127,6 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
         if (transformPTaskState != null && transformPTaskState.getTaskState() == DataFrameTransformTaskState.FAILED) {
             return;
         }
-        // TODO should be obviated in 8.x with DataFrameTransformTaskState::STOPPING
-        final boolean shouldStopAtCheckpoint = transformPTaskState != null && transformPTaskState.shouldStopAtCheckpoint();
 
         final DataFrameTransformTask.ClientDataFrameIndexerBuilder indexerBuilder =
             new DataFrameTransformTask.ClientDataFrameIndexerBuilder(transformId)
@@ -196,7 +194,6 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
                 logger.trace("[{}] initializing state and stats: [{}]", transformId, stateAndStats.toString());
                 DataFrameTransformState transformState = stateAndStats.getTransformState();
                 // TODO should be obviated in 8.x with DataFrameTransformTaskState::STOPPING
-                transformState.setShouldStopAtCheckoint(shouldStopAtCheckpoint);
                 indexerBuilder.setInitialStats(stateAndStats.getTransformStats())
                     .setInitialPosition(stateAndStats.getTransformState().getPosition())
                     .setProgress(stateAndStats.getTransformState().getProgress())
@@ -207,6 +204,7 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
                     stateAndStats.getTransformState().getPosition());
 
                 stateHolder.set(transformState);
+                buildTask.setShouldStopAtCheckpoint(transformState.shouldStopAtNextCheckpoint());
                 final long lastCheckpoint = stateHolder.get().getCheckpoint();
 
                 if (lastCheckpoint == 0) {

@@ -44,7 +44,7 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
     private NodeAttributes node;
 
     // TODO: 8.x this needs to be deprecated and we move towards a STOPPING TASK_STATE
-    private boolean shouldStopAtCheckpoint;
+    private final boolean shouldStopAtNextCheckpoint;
 
     public static final ParseField TASK_STATE = new ParseField("task_state");
     public static final ParseField INDEXER_STATE = new ParseField("indexer_state");
@@ -56,6 +56,7 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
     public static final ParseField REASON = new ParseField("reason");
     public static final ParseField PROGRESS = new ParseField("progress");
     public static final ParseField NODE = new ParseField("node");
+    public static final ParseField SHOULD_STOP_AT_NEXT_CHECKPOINT = new ParseField("should_stop_at_checkpoint");
 
 
     @SuppressWarnings("unchecked")
@@ -76,8 +77,16 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
                 String reason = (String) args[5];
                 DataFrameTransformProgress progress = (DataFrameTransformProgress) args[6];
                 NodeAttributes node = (NodeAttributes) args[7];
+                boolean shouldStopAtNextCheckpoint = args[8] == null ? false : (boolean)args[8];
 
-                return new DataFrameTransformState(taskState, indexerState, dataFrameIndexerPosition, checkpoint, reason, progress, node);
+                return new DataFrameTransformState(taskState,
+                    indexerState,
+                    dataFrameIndexerPosition,
+                    checkpoint,
+                    reason,
+                    progress,
+                    node,
+                    shouldStopAtNextCheckpoint);
             });
 
     static {
@@ -89,6 +98,7 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
         PARSER.declareString(optionalConstructorArg(), REASON);
         PARSER.declareField(optionalConstructorArg(), DataFrameTransformProgress.PARSER::apply, PROGRESS, ValueType.OBJECT);
         PARSER.declareField(optionalConstructorArg(), NodeAttributes.PARSER::apply, NODE, ValueType.OBJECT);
+        PARSER.declareBoolean(optionalConstructorArg(), SHOULD_STOP_AT_NEXT_CHECKPOINT);
     }
 
     public DataFrameTransformState(DataFrameTransformTaskState taskState,
@@ -98,7 +108,7 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
                                    @Nullable String reason,
                                    @Nullable DataFrameTransformProgress progress,
                                    @Nullable NodeAttributes node,
-                                   boolean shouldStopAtCheckpoint) {
+                                   boolean shouldStopAtNextCheckpoint) {
         this.taskState = taskState;
         this.indexerState = indexerState;
         this.position = position;
@@ -106,7 +116,7 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
         this.reason = reason;
         this.progress = progress;
         this.node = node;
-        this.shouldStopAtCheckpoint = shouldStopAtCheckpoint;
+        this.shouldStopAtNextCheckpoint = shouldStopAtNextCheckpoint;
     }
 
     public DataFrameTransformState(DataFrameTransformTaskState taskState,
@@ -146,7 +156,9 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
             node = null;
         }
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            shouldStopAtCheckpoint = in.readBoolean();
+            shouldStopAtNextCheckpoint = in.readBoolean();
+        } else {
+            shouldStopAtNextCheckpoint = false;
         }
     }
 
@@ -183,12 +195,8 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
         return this;
     }
 
-    public boolean shouldStopAtCheckpoint() {
-        return shouldStopAtCheckpoint;
-    }
-
-    public void setShouldStopAtCheckoint(boolean shouldStopAtCheckpoint) {
-        this.shouldStopAtCheckpoint = shouldStopAtCheckpoint;
+    public boolean shouldStopAtNextCheckpoint() {
+        return shouldStopAtNextCheckpoint;
     }
 
     public static DataFrameTransformState fromXContent(XContentParser parser) {
@@ -217,6 +225,7 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
         if (node != null) {
             builder.field(NODE.getPreferredName(), node);
         }
+        builder.field(SHOULD_STOP_AT_NEXT_CHECKPOINT.getPreferredName(), shouldStopAtNextCheckpoint);
         builder.endObject();
         return builder;
     }
@@ -242,7 +251,7 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
             out.writeOptionalWriteable(node);
         }
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeBoolean(shouldStopAtCheckpoint);
+            out.writeBoolean(shouldStopAtNextCheckpoint);
         }
     }
 
@@ -264,12 +273,13 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
             this.checkpoint == that.checkpoint &&
             Objects.equals(this.reason, that.reason) &&
             Objects.equals(this.progress, that.progress) &&
+            Objects.equals(this.shouldStopAtNextCheckpoint, that.shouldStopAtNextCheckpoint) &&
             Objects.equals(this.node, that.node);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(taskState, indexerState, position, checkpoint, reason, progress, node);
+        return Objects.hash(taskState, indexerState, position, checkpoint, reason, progress, node, shouldStopAtNextCheckpoint);
     }
 
     @Override

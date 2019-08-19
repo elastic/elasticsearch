@@ -18,12 +18,12 @@ import java.util.Date;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class AuditMessage extends AbstractAuditMessage {
+public class AnomalyDetectionAuditMessage extends AbstractAuditMessage {
 
-    public static final ConstructingObjectParser<AuditMessage, Void> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<AnomalyDetectionAuditMessage, Void> PARSER = new ConstructingObjectParser<>(
         "ml_audit_message",
         true,
-        a -> new AuditMessage((String)a[0], (String)a[1], (Level)a[2], (Date)a[3], (String)a[4]));
+        a -> new AnomalyDetectionAuditMessage((String)a[0], (String)a[1], (Level)a[2], (Date)a[3], (String)a[4]));
 
     static {
         PARSER.declareString(optionalConstructorArg(), Job.ID);
@@ -41,11 +41,11 @@ public class AuditMessage extends AbstractAuditMessage {
         PARSER.declareString(optionalConstructorArg(), NODE_NAME);
     }
 
-    public AuditMessage(String resourceId, String message, Level level, String nodeName) {
+    public AnomalyDetectionAuditMessage(String resourceId, String message, Level level, String nodeName) {
         super(resourceId, message, level, nodeName);
     }
 
-    protected AuditMessage(String resourceId, String message, Level level, Date timestamp, String nodeName) {
+    protected AnomalyDetectionAuditMessage(String resourceId, String message, Level level, Date timestamp, String nodeName) {
         super(resourceId, message, level, timestamp, nodeName);
     }
 
@@ -54,11 +54,11 @@ public class AuditMessage extends AbstractAuditMessage {
         return Job.ID.getPreferredName();
     }
 
-    public static AbstractBuilder<AuditMessage> builder() {
-        return new AbstractBuilder<AuditMessage>() {
+    public static AbstractBuilder<AnomalyDetectionAuditMessage> builder() {
+        return new AbstractBuilder<AnomalyDetectionAuditMessage>() {
             @Override
-            protected AuditMessage newMessage(Level level, String resourceId, String message, String nodeName) {
-                return new AuditMessage(resourceId, message, level, nodeName);
+            protected AnomalyDetectionAuditMessage newMessage(Level level, String resourceId, String message, String nodeName) {
+                return new AnomalyDetectionAuditMessage(resourceId, message, level, nodeName);
             }
         };
     }

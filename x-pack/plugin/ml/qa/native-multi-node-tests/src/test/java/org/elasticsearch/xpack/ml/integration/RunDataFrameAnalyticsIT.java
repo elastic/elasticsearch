@@ -476,7 +476,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(
             exception.getMessage(),
-            startsWith("Cannot start data frame analytics [" + id + "] because the configured memory limit [" + modelMemoryLimit
-                + "] is smaller than the expected memory usage"));
+            startsWith("Cannot start because the configured model memory limit [" + modelMemoryLimit +
+                "] is lower than the expected memory usage"));
     }
 }

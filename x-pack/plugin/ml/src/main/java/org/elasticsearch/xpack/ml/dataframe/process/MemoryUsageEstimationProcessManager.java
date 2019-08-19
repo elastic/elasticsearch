@@ -69,7 +69,7 @@ public class MemoryUsageEstimationProcessManager {
                 dataSummary.cols,
                 // For memory estimation the model memory limit here should be set high enough not to trigger an error when C++ code
                 // compares the limit to the result of estimation.
-                new ByteSizeValue(1, ByteSizeUnit.TB),
+                new ByteSizeValue(1, ByteSizeUnit.PB),
                 1,
                 "",
                 categoricalFields,

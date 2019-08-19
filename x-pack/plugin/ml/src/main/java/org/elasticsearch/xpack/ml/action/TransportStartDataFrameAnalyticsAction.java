@@ -176,10 +176,9 @@ public class TransportStartDataFrameAnalyticsAction
                 if (configHolder.get().getModelMemoryLimit()
                     .compareTo(estimateMemoryUsageResponse.getExpectedMemoryUsageWithOnePartition()) < 0) {
                     ElasticsearchStatusException e =
-                        new ElasticsearchStatusException(
-                            "Cannot start data frame analytics [" + request.getId() + "] because the configured memory limit [" +
-                                configHolder.get().getModelMemoryLimit() + "] is smaller than the expected memory usage [" +
-                                estimateMemoryUsageResponse.getExpectedMemoryUsageWithOnePartition() + "].", RestStatus.BAD_REQUEST);
+                        ExceptionsHelper.badRequestException(
+                            "Cannot start because the configured model memory limit [{}] is lower than the expected memory usage [{}].",
+                            configHolder.get().getModelMemoryLimit(), estimateMemoryUsageResponse.getExpectedMemoryUsageWithOnePartition());
                     listener.onFailure(e);
                     return;
                 }

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.planner;
 
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
@@ -56,6 +57,7 @@ import org.elasticsearch.xpack.sql.util.DateUtils;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
+import java.time.ZonedDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
@@ -64,6 +66,8 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation.E;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation.PI;
+import static org.elasticsearch.xpack.sql.planner.QueryTranslator.DATE_FORMAT;
+import static org.elasticsearch.xpack.sql.planner.QueryTranslator.TIME_FORMAT;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.instanceOf;
@@ -129,6 +133,56 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("int", tq.term());
         assertEquals(5, tq.value());
     }
+    
+    public void testTermEqualityForDate() {
+        LogicalPlan p = plan("SELECT some.string FROM test WHERE date = 5");
+        assertTrue(p instanceof Project);
+        p = ((Project) p).child();
+        assertTrue(p instanceof Filter);
+        Expression condition = ((Filter) p).condition();
+        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        Query query = translation.query;
+        assertTrue(query instanceof TermQuery);
+        TermQuery tq = (TermQuery) query;
+        assertEquals("date", tq.term());
+        assertEquals(5, tq.value());
+    }
+    
+    public void testTermEqualityForDateWithLiteralDate() {
+        LogicalPlan p = plan("SELECT some.string FROM test WHERE date = CAST('2019-08-08T12:34:56' AS DATETIME)");
+        assertTrue(p instanceof Project);
+        p = ((Project) p).child();
+        assertTrue(p instanceof Filter);
+        Expression condition = ((Filter) p).condition();
+        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        Query query = translation.query;
+        assertTrue(query instanceof RangeQuery);
+        RangeQuery rq = (RangeQuery) query;
+        assertEquals("date", rq.field());
+        assertEquals("2019-08-08T12:34:56.000Z", rq.upper());
+        assertEquals("2019-08-08T12:34:56.000Z", rq.lower());
+        assertTrue(rq.includeLower());
+        assertTrue(rq.includeUpper());
+        assertEquals(DATE_FORMAT, rq.format());
+    }
+    
+    public void testTermEqualityForDateWithLiteralTime() {
+        LogicalPlan p = plan("SELECT some.string FROM test WHERE date = CAST('12:34:56' AS TIME)");
+        assertTrue(p instanceof Project);
+        p = ((Project) p).child();
+        assertTrue(p instanceof Filter);
+        Expression condition = ((Filter) p).condition();
+        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        Query query = translation.query;
+        assertTrue(query instanceof RangeQuery);
+        RangeQuery rq = (RangeQuery) query;
+        assertEquals("date", rq.field());
+        assertEquals("12:34:56.000", rq.upper());
+        assertEquals("12:34:56.000", rq.lower());
+        assertTrue(rq.includeLower());
+        assertTrue(rq.includeUpper());
+        assertEquals(TIME_FORMAT, rq.format());
+    }
 
     public void testComparisonAgainstColumns() {
         LogicalPlan p = plan("SELECT some.string FROM test WHERE date > int");
@@ -179,7 +233,63 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue(query instanceof RangeQuery);
         RangeQuery rq = (RangeQuery) query;
         assertEquals("date", rq.field());
-        assertEquals(DateUtils.asDateTime("1969-05-13T12:34:56Z"), rq.lower());
+        assertEquals("1969-05-13T12:34:56.000Z", rq.lower());
+    }
+    
+    public void testDateRangeWithCurrentTimestamp() {
+        testDateRangeWithCurrentFunctions("CURRENT_TIMESTAMP()", DATE_FORMAT, TestUtils.TEST_CFG.now());
+    }
+    
+    public void testDateRangeWithCurrentDate() {
+        testDateRangeWithCurrentFunctions("CURRENT_DATE()", DATE_FORMAT, DateUtils.asDateOnly(TestUtils.TEST_CFG.now()));
+    }
+    
+    public void testDateRangeWithToday() {
+        testDateRangeWithCurrentFunctions("TODAY()", DATE_FORMAT, DateUtils.asDateOnly(TestUtils.TEST_CFG.now()));
+    }
+    
+    public void testDateRangeWithNow() {
+        testDateRangeWithCurrentFunctions("NOW()", DATE_FORMAT, TestUtils.TEST_CFG.now());
+    }
+    
+    public void testDateRangeWithCurrentTime() {
+        testDateRangeWithCurrentFunctions("CURRENT_TIME()", TIME_FORMAT, TestUtils.TEST_CFG.now());
+    }
+    
+    private void testDateRangeWithCurrentFunctions(String function, String pattern, ZonedDateTime now) {
+        String operator = randomFrom(new String[] {">", ">=", "<", "<=", "=", "!="});
+        LogicalPlan p = plan("SELECT some.string FROM test WHERE date" + operator + function);
+        assertTrue(p instanceof Project);
+        p = ((Project) p).child();
+        assertTrue(p instanceof Filter);
+        Expression condition = ((Filter) p).condition();
+        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        Query query = translation.query;
+        RangeQuery rq;
+        
+        if (operator.equals("!=")) {
+            assertTrue(query instanceof NotQuery);
+            NotQuery nq = (NotQuery) query;
+            assertTrue(nq.child() instanceof RangeQuery);
+            rq = (RangeQuery) nq.child();
+        } else {
+            assertTrue(query instanceof RangeQuery);
+            rq = (RangeQuery) query;
+        }
+        assertEquals("date", rq.field());
+        
+        if (operator.contains("<") || operator.equals("=") || operator.equals("!=")) { 
+            assertEquals(DateFormatter.forPattern(pattern).format(now.withNano(DateUtils.getNanoPrecision(null, now.getNano()))),
+                    rq.upper());
+        }
+        if (operator.contains(">") || operator.equals("=") || operator.equals("!=")) {
+            assertEquals(DateFormatter.forPattern(pattern).format(now.withNano(DateUtils.getNanoPrecision(null, now.getNano()))),
+                    rq.lower());
+        }
+
+        assertEquals(operator.equals("=") || operator.equals("!=") || operator.equals("<="), rq.includeUpper());
+        assertEquals(operator.equals("=") || operator.equals("!=") || operator.equals(">="), rq.includeLower());
+        assertEquals(pattern, rq.format());
     }
 
     public void testLikeOnInexact() {

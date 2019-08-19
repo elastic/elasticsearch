@@ -53,6 +53,7 @@ public final class DataFrameInternalIndex {
 
     // data types
     public static final String FLOAT = "float";
+    public static final String DOUBLE = "double";
     public static final String LONG = "long";
     public static final String KEYWORD = "keyword";
 
@@ -172,6 +173,12 @@ public final class DataFrameInternalIndex {
                             .startObject(DataFrameTransformProgress.PERCENT_COMPLETE)
                                 .field(TYPE, FLOAT)
                             .endObject()
+                            .startObject(DataFrameTransformProgress.DOCS_INDEXED.getPreferredName())
+                                .field(TYPE, LONG)
+                            .endObject()
+                            .startObject(DataFrameTransformProgress.DOCS_PROCESSED.getPreferredName())
+                                .field(TYPE, LONG)
+                            .endObject()
                         .endObject()
                     .endObject()
                 .endObject()
@@ -207,6 +214,15 @@ public final class DataFrameInternalIndex {
                     .endObject()
                      .startObject(DataFrameIndexerTransformStats.INDEX_FAILURES.getPreferredName())
                         .field(TYPE, LONG)
+                    .endObject()
+                    .startObject(DataFrameIndexerTransformStats.EXPONENTIAL_AVG_CHECKPOINT_DURATION_MS.getPreferredName())
+                        .field(TYPE, DOUBLE)
+                    .endObject()
+                    .startObject(DataFrameIndexerTransformStats.EXPONENTIAL_AVG_DOCUMENTS_INDEXED.getPreferredName())
+                        .field(TYPE, DOUBLE)
+                    .endObject()
+                    .startObject(DataFrameIndexerTransformStats.EXPONENTIAL_AVG_DOCUMENTS_PROCESSED.getPreferredName())
+                        .field(TYPE, DOUBLE)
                     .endObject()
                 .endObject()
             .endObject()

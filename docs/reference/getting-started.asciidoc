@@ -381,7 +381,7 @@ And the response (partially shown):
 [source,js]
 --------------------------------------------------
 {
-  "took" : 6,
+  "took" : 63,
   "timed_out" : false,
   "_shards" : {
     "total" : 5,
@@ -392,56 +392,26 @@ And the response (partially shown):
   "hits" : {
     "total" : 1000,
     "max_score" : null,
-    "hits" : [ 
-      {
-        "_index" : "bank",
-        "_type" : "_doc",
-        "_id" : "0",
-        "_score" : null,
-        "_source" : {
-          "account_number" : 0,
-          "balance" : 16623,
-          "firstname" : "Bradshaw",
-          "lastname" : "Mckenzie",
-          "age" : 29,
-          "gender" : "F",
-          "address" : "244 Columbus Place",
-          "employer" : "Euron",
-          "email" : "bradshawmckenzie@euron.com",
-          "city" : "Hobucken",
-          "state" : "CO"
-        },
-        "sort" : [
-          0
-        ]
-      },
-      {
-        "_index" : "bank",
-        "_type" : "_doc",
-        "_id" : "1",
-        "_score" : null,
-        "_source" : {
-          "account_number" : 1,
-          "balance" : 39225,
-          "firstname" : "Amber",
-          "lastname" : "Duke",
-          "age" : 32,
-          "gender" : "M",
-          "address" : "880 Holmes Lane",
-          "employer" : "Pyrami",
-          "email" : "amberduke@pyrami.com",
-          "city" : "Brogan",
-          "state" : "IL"
-        },
-        "sort" : [
-          1
-        ]
-      }, ...
+    "hits" : [ {
+      "_index" : "bank",
+      "_type" : "_doc",
+      "_id" : "0",
+      "sort": [0],
+      "_score" : null,
+      "_source" : {"account_number":0,"balance":16623,"firstname":"Bradshaw","lastname":"Mckenzie","age":29,"gender":"F","address":"244 Columbus Place","employer":"Euron","email":"bradshawmckenzie@euron.com","city":"Hobucken","state":"CO"}
+    }, {
+      "_index" : "bank",
+      "_type" : "_doc",
+      "_id" : "1",
+      "sort": [1],
+      "_score" : null,
+      "_source" : {"account_number":1,"balance":39225,"firstname":"Amber","lastname":"Duke","age":32,"gender":"M","address":"880 Holmes Lane","employer":"Pyrami","email":"amberduke@pyrami.com","city":"Brogan","state":"IL"}
+    }, ...
     ]
   }
 }
 --------------------------------------------------
-// TESTRESPONSE[s/"took" : 6/"took" : $body.took/]
+// TESTRESPONSE[s/"took" : 63/"took" : $body.took/]
 // TESTRESPONSE[s/\.\.\./$body.hits.hits.2, $body.hits.hits.3, $body.hits.hits.4, $body.hits.hits.5, $body.hits.hits.6, $body.hits.hits.7, $body.hits.hits.8, $body.hits.hits.9/]
 
 As for the response, we see the following parts:

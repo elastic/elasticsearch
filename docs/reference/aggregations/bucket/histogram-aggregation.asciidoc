@@ -184,7 +184,7 @@ the `order` setting. Supports the same `order` functionality as the <<search-agg
 
 ==== Offset
 
-By default the bucket keys start with 0 and then continue in even spaced steps of `interval`, e.g. if the interval is 10 the first buckets
+By default the bucket keys start with 0 and then continue in even spaced steps of `interval`, e.g. if the interval is 10, the first three buckets
 (assuming there is data inside them) will be [0 - 9], [10-19], [20-29]. The bucket boundaries can be shifted by using the `offset` option.
 
 This can be best illustrated with an example. If there are 10 documents with values ranging from 5 to 14, using interval `10` will result in

@@ -1,3 +1,10 @@
+[[release-notes-7.3.1]]
+== {es} version 7.3.1
+
+Also see <<breaking-changes-7.3,Breaking changes in 7.3>>.
+
+coming[7.3.1]
+
 [[release-notes-7.3.0]]
 == {es} version 7.3.0
 

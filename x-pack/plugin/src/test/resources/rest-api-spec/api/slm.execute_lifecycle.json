@@ -1,20 +1,25 @@
 {
-  "slm.execute_lifecycle": {
-    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/slm-api.html",
-    "stability": "stable",
-    "methods": [ "PUT" ],
-    "url": {
-      "path": "/_slm/policy/{policy_id}/_execute",
-      "paths": ["/_slm/policy/{policy_id}/_execute"],
-      "parts": {
-        "policy_id": {
-          "type" : "string",
-          "description" : "The id of the snapshot lifecycle policy to be executed"
-        }
-      },
-      "params": {
-      }
+  "slm.execute_lifecycle":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/slm-api.html"
     },
-    "body": null
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_slm/policy/{policy_id}/_execute",
+          "methods":[
+            "PUT"
+          ],
+          "parts":{
+            "policy_id":{
+              "type":"string",
+              "description":"The id of the snapshot lifecycle policy to be executed"
+            }
+          }
+        }
+      ]
+    },
+    "params":{}
   }
 }

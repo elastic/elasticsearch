@@ -43,16 +43,15 @@ forecast. For more information about this property, see <<ml-job-resource>>.
 ==== {api-request-body-title}
 
 `duration`::
-  (Optional, time units) A period of time that indicates how far into the future
-  to forecast. For example, `30d` corresponds to 30 days. The default value is 1
-  day. The forecast starts at the last record that was processed. For more
-  information about time units, see <<time-units>>.
+  (Optional, <<time-units, time units>>) A period of time that indicates how far 
+  into the future to forecast. For example, `30d` corresponds to 30 days. The 
+  default value is 1 day. The forecast starts at the last record that was 
+  processed.
 
 `expires_in`::
-  (Optional, time units) The period of time that forecast results are retained.
+  (Optional, <<time-units, time units>>) The period of time that forecast results are retained.
   After a forecast expires, the results are deleted. The default value is 14 days.
   If set to a value of `0`, the forecast is never automatically deleted.
-  For more information about time units, see <<time-units>>.
 
 [[ml-forecast-example]]
 ==== {api-examples-title}

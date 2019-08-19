@@ -24,7 +24,6 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -37,8 +36,8 @@ public class RestRolloverIndexAction extends BaseRestHandler {
         LogManager.getLogger(RestRolloverIndexAction.class));
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in rollover " +
         "index requests is deprecated. The parameter will be removed in the next major version.";
-    public RestRolloverIndexAction(Settings settings, RestController controller) {
-        super(settings);
+
+    public RestRolloverIndexAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.POST, "/{index}/_rollover", this);
         controller.registerHandler(RestRequest.Method.POST, "/{index}/_rollover/{new_index}", this);
     }

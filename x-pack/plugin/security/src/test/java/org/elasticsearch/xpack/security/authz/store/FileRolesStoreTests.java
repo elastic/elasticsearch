@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.permission.RunAsPermission;
-import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 
 import java.io.BufferedWriter;
@@ -74,7 +74,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(role, notNullValue());
         assertThat(role.names(), equalTo(new String[] { "role1" }));
         assertThat(role.cluster(), notNullValue());
-        assertThat(role.cluster().privilege(), is(ClusterPrivilege.ALL));
+        assertTrue(role.cluster().implies(ClusterPrivilegeResolver.ALL.buildPermission(ClusterPermission.builder()).build()));
         assertThat(role.indices(), notNullValue());
         assertThat(role.indices().groups(), notNullValue());
         assertThat(role.indices().groups().length, is(2));
@@ -102,7 +102,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(role, notNullValue());
         assertThat(role.names(), equalTo(new String[] { "role1.ab" }));
         assertThat(role.cluster(), notNullValue());
-        assertThat(role.cluster().privilege(), is(ClusterPrivilege.ALL));
+        assertTrue(role.cluster().implies(ClusterPrivilegeResolver.ALL.buildPermission(ClusterPermission.builder()).build()));
         assertThat(role.indices(), notNullValue());
         assertThat(role.indices().groups(), notNullValue());
         assertThat(role.indices().groups().length, is(0));
@@ -114,7 +114,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(role, notNullValue());
         assertThat(role.names(), equalTo(new String[] { "role2" }));
         assertThat(role.cluster(), notNullValue());
-        assertTrue(Operations.sameLanguage(role.cluster().privilege().getAutomaton(), ClusterPrivilege.ALL.getAutomaton()));
+        assertTrue(role.cluster().implies(ClusterPrivilegeResolver.ALL.buildPermission(ClusterPermission.builder()).build()));
         assertThat(role.indices(), notNullValue());
         assertThat(role.indices(), is(IndicesPermission.NONE));
         assertThat(role.runAs(), is(RunAsPermission.NONE));
@@ -125,7 +125,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(role, notNullValue());
         assertThat(role.names(), equalTo(new String[] { "role3" }));
         assertThat(role.cluster(), notNullValue());
-        assertThat(role.cluster(), is(ClusterPermission.SimpleClusterPermission.NONE));
+        assertThat(role.cluster(), is(ClusterPermission.NONE));
         assertThat(role.indices(), notNullValue());
         assertThat(role.indices().groups(), notNullValue());
         assertThat(role.indices().groups().length, is(1));
@@ -149,7 +149,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(role, notNullValue());
         assertThat(role.names(), equalTo(new String[] { "role_run_as" }));
         assertThat(role.cluster(), notNullValue());
-        assertThat(role.cluster(), is(ClusterPermission.SimpleClusterPermission.NONE));
+        assertThat(role.cluster(), is(ClusterPermission.NONE));
         assertThat(role.indices(), is(IndicesPermission.NONE));
         assertThat(role.runAs(), notNullValue());
         assertThat(role.runAs().check("user1"), is(true));
@@ -162,7 +162,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(role, notNullValue());
         assertThat(role.names(), equalTo(new String[] { "role_run_as1" }));
         assertThat(role.cluster(), notNullValue());
-        assertThat(role.cluster(), is(ClusterPermission.SimpleClusterPermission.NONE));
+        assertThat(role.cluster(), is(ClusterPermission.NONE));
         assertThat(role.indices(), is(IndicesPermission.NONE));
         assertThat(role.runAs(), notNullValue());
         assertThat(role.runAs().check("user1"), is(true));
@@ -175,7 +175,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(role, notNullValue());
         assertThat(role.names(), equalTo(new String[] { "role_fields" }));
         assertThat(role.cluster(), notNullValue());
-        assertThat(role.cluster(), is(ClusterPermission.SimpleClusterPermission.NONE));
+        assertThat(role.cluster(), is(ClusterPermission.NONE));
         assertThat(role.runAs(), is(RunAsPermission.NONE));
         assertThat(role.indices(), notNullValue());
         assertThat(role.indices().groups(), notNullValue());
@@ -197,7 +197,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(role, notNullValue());
         assertThat(role.names(), equalTo(new String[] { "role_query" }));
         assertThat(role.cluster(), notNullValue());
-        assertThat(role.cluster(), is(ClusterPermission.SimpleClusterPermission.NONE));
+        assertThat(role.cluster(), is(ClusterPermission.NONE));
         assertThat(role.runAs(), is(RunAsPermission.NONE));
         assertThat(role.indices(), notNullValue());
         assertThat(role.indices().groups(), notNullValue());
@@ -218,7 +218,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(role, notNullValue());
         assertThat(role.names(), equalTo(new String[] { "role_query_fields" }));
         assertThat(role.cluster(), notNullValue());
-        assertThat(role.cluster(), is(ClusterPermission.SimpleClusterPermission.NONE));
+        assertThat(role.cluster(), is(ClusterPermission.NONE));
         assertThat(role.runAs(), is(RunAsPermission.NONE));
         assertThat(role.indices(), notNullValue());
         assertThat(role.indices().groups(), notNullValue());

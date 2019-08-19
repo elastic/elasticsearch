@@ -83,8 +83,8 @@ when there are no matches or only partial matches.
   which has not responded to its initial close request.
 
 `timeout`::
-  (Optional, time units) Controls the time to wait until a job has closed.
-  The default value is 30 minutes.
+  (Optional, <<time-units, time units>>) Controls the time to wait until a job 
+  has closed. The default value is 30 minutes.
 
 [[ml-close-job-response-codes]]
 ==== {api-response-codes-title}

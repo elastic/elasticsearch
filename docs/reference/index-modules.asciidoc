@@ -166,8 +166,10 @@ specific index module:
     allow writes and metadata changes.
 
 `index.blocks.read_only_allow_delete`::
-    Identical to `index.blocks.read_only` but allows deleting the index to free
-     up resources.
+
+    Similar to `index.blocks.read_only` but also allows deleting the index to
+    free up resources. The <<disk-allocator,disk-based shard allocator>> may
+    add and remove this block automatically.
 
 `index.blocks.read`::
 

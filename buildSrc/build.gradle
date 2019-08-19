@@ -66,9 +66,11 @@ if (JavaVersion.current() < JavaVersion.VERSION_11) {
   throw new GradleException('At least Java 11 is required to build elasticsearch gradle tools')
 }
 
-// Keep compatibility with Java 8 for external users of build-tools that haven't migrated to Java 11
-targetCompatibility = '11'
-sourceCompatibility = '11'
+allprojects {
+  apply plugin: 'java'
+  targetCompatibility = '11'
+  sourceCompatibility = '11'
+}
 
 sourceSets {
     // We have a few classes that need to be compiled for older java versions
@@ -134,6 +136,10 @@ if (project == rootProject) {
       mavenLocal()
     }
   }
+  dependencies {
+    // add this so the runtime classpath so Gradle will properly track it as a build runtime classpath input
+    runtimeOnly project('reaper')
+  }
   // only run tests as build-tools
   test.enabled = false
 }
@@ -163,9 +169,11 @@ if (project != rootProject) {
 
   configurations {
     distribution
+    reaper
   }
 
   dependencies {
+    reaper project('reaper')
     distribution project(':distribution:archives:windows-zip')
     distribution project(':distribution:archives:oss-windows-zip')
     distribution project(':distribution:archives:darwin-tar')
@@ -177,6 +185,9 @@ if (project != rootProject) {
   // for external projects we want to remove the marker file indicating we are running the Elasticsearch project
   processResources {
       exclude 'buildSrc.marker'
+      into('META-INF') {
+          from configurations.reaper
+      }
   }
 
   String localDownloads = "${rootProject.buildDir}/local-downloads"

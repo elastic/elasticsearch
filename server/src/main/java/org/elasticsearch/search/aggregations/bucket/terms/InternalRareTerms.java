@@ -91,19 +91,6 @@ public abstract class InternalRareTerms<A extends InternalRareTerms<A, B>, B ext
             return aggregations;
         }
 
-        abstract B newBucket(long docCount, InternalAggregations aggs);
-
-        public B reduce(List<B> buckets, ReduceContext context) {
-            long docCount = 0;
-            List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());
-            for (B bucket : buckets) {
-                docCount += bucket.docCount;
-                aggregationsList.add(bucket.aggregations);
-            }
-            InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);
-            return newBucket(docCount, aggs);
-        }
-
         @Override
         public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
@@ -169,6 +156,21 @@ public abstract class InternalRareTerms<A extends InternalRareTerms<A, B>, B ext
     @Override
     public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         throw new UnsupportedOperationException();
+    }
+
+    abstract B createBucket(long docCount, InternalAggregations aggs, B prototype);
+
+    @Override
+    protected B reduceBucket(List<B> buckets, ReduceContext context) {
+        assert buckets.size() > 0;
+        long docCount = 0;
+        List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());
+        for (B bucket : buckets) {
+            docCount += bucket.docCount;
+            aggregationsList.add(bucket.aggregations);
+        }
+        InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);
+        return createBucket(docCount, aggs, buckets.get(0));
     }
 
     protected abstract A createWithFilter(String name, List<B> buckets, SetBackedScalingCuckooFilter filter);

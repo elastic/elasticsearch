@@ -78,6 +78,7 @@ import org.gradle.authentication.http.HttpHeaderAuthentication
 import org.gradle.external.javadoc.CoreJavadocOptions
 import org.gradle.internal.jvm.Jvm
 import org.gradle.language.base.plugins.LifecycleBasePlugin
+import org.gradle.process.CommandLineArgumentProvider
 import org.gradle.process.ExecResult
 import org.gradle.process.ExecSpec
 import org.gradle.util.GradleVersion
@@ -834,10 +835,9 @@ class BuildPlugin implements Plugin<Project> {
 
                 test.jvmArgs "-Xmx${System.getProperty('tests.heap.size', '512m')}",
                         "-Xms${System.getProperty('tests.heap.size', '512m')}",
-                        '-XX:+HeapDumpOnOutOfMemoryError',
-                        "-XX:HeapDumpPath=$heapdumpDir",
                         '--illegal-access=warn'
 
+                test.jvmArgumentProviders.add({ ['-XX:+HeapDumpOnOutOfMemoryError', "-XX:HeapDumpPath=$heapdumpDir"] } as CommandLineArgumentProvider)
 
                 if (System.getProperty('tests.jvm.argline')) {
                     test.jvmArgs System.getProperty('tests.jvm.argline').split(" ")
@@ -848,8 +848,7 @@ class BuildPlugin implements Plugin<Project> {
                 }
 
                 // we use './temp' since this is per JVM and tests are forbidden from writing to CWD
-                test.systemProperties 'gradle.dist.lib': new File(project.class.location.toURI()).parent,
-                        'java.io.tmpdir': './temp',
+                test.systemProperties 'java.io.tmpdir': './temp',
                         'java.awt.headless': 'true',
                         'tests.gradle': 'true',
                         'tests.artifact': project.name,
@@ -865,6 +864,7 @@ class BuildPlugin implements Plugin<Project> {
                 }
 
                 // don't track these as inputs since they contain absolute paths and break cache relocatability
+                nonInputProperties.systemProperty('gradle.dist.lib', new File(project.class.location.toURI()).parent)
                 nonInputProperties.systemProperty('gradle.worker.jar', "${project.gradle.getGradleUserHomeDir()}/caches/${project.gradle.gradleVersion}/workerMain/gradle-worker.jar")
                 nonInputProperties.systemProperty('gradle.user.home', project.gradle.getGradleUserHomeDir())
 
@@ -880,6 +880,9 @@ class BuildPlugin implements Plugin<Project> {
 
                 // TODO: remove this once ctx isn't added to update script params in 7.0
                 test.systemProperty 'es.scripting.update.ctx_in_params', 'false'
+
+                // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
+                test.systemProperty 'es.transport.cname_in_publish_address', 'true'
 
                 test.testLogging { TestLoggingContainer logging ->
                     logging.showExceptions = true

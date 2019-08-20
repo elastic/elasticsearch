@@ -121,6 +121,12 @@ public class Regression implements Evaluation {
     @Override
     public void evaluate(SearchResponse searchResponse, ActionListener<List<EvaluationMetricResult>> listener) {
         List<EvaluationMetricResult> results = new ArrayList<>(metrics.size());
+        if (searchResponse.getHits().getTotalHits().value == 0) {
+            listener.onFailure(ExceptionsHelper.badRequestException("No documents found containing both [{}, {}] fields",
+                actualField,
+                predictedField));
+            return;
+        }
         for (RegressionMetric metric : metrics) {
             results.add(metric.evaluate(searchResponse.getAggregations()));
         }

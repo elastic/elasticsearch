@@ -82,11 +82,6 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
         }
 
         @Override
-        Bucket newBucket(long docCount, InternalAggregations aggs, long docCountError) {
-            return new Bucket(term, docCount, aggs, showDocCountError, docCountError, format);
-        }
-
-        @Override
         protected final XContentBuilder keyToXContent(XContentBuilder builder) throws IOException {
             builder.field(CommonFields.KEY.getPreferredName(), term);
             if (format != DocValueFormat.RAW) {
@@ -156,6 +151,11 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
             }
         }
         return super.doReduce(aggregations, reduceContext);
+    }
+
+    @Override
+    Bucket createBucket(long docCount, InternalAggregations aggs, long docCountError, LongTerms.Bucket prototype) {
+        return new Bucket(prototype.term, docCount, aggs, prototype.showDocCountError, docCountError, format);
     }
 
     /**

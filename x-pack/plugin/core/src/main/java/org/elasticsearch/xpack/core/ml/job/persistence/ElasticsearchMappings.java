@@ -58,7 +58,7 @@ import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
 import org.elasticsearch.xpack.core.ml.job.results.ReservedFieldNames;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
-import org.elasticsearch.xpack.core.ml.notifications.AuditMessage;
+import org.elasticsearch.xpack.core.ml.notifications.AnomalyDetectionAuditMessage;
 import org.elasticsearch.xpack.core.ml.utils.ExponentialAverageCalculationContext;
 
 import java.io.IOException;
@@ -1122,10 +1122,10 @@ public class ElasticsearchMappings {
                 .startObject(Job.ID.getPreferredName())
                     .field(TYPE, KEYWORD)
                 .endObject()
-                .startObject(AuditMessage.LEVEL.getPreferredName())
+                .startObject(AnomalyDetectionAuditMessage.LEVEL.getPreferredName())
                    .field(TYPE, KEYWORD)
                 .endObject()
-                .startObject(AuditMessage.MESSAGE.getPreferredName())
+                .startObject(AnomalyDetectionAuditMessage.MESSAGE.getPreferredName())
                     .field(TYPE, TEXT)
                     .startObject(FIELDS)
                         .startObject(RAW)
@@ -1133,10 +1133,10 @@ public class ElasticsearchMappings {
                         .endObject()
                     .endObject()
                 .endObject()
-                .startObject(AuditMessage.TIMESTAMP.getPreferredName())
+                .startObject(AnomalyDetectionAuditMessage.TIMESTAMP.getPreferredName())
                     .field(TYPE, DATE)
                 .endObject()
-                .startObject(AuditMessage.NODE_NAME.getPreferredName())
+                .startObject(AnomalyDetectionAuditMessage.NODE_NAME.getPreferredName())
                     .field(TYPE, KEYWORD)
                 .endObject()
         .endObject()

@@ -110,7 +110,7 @@ public class RestSqlQueryAction extends BaseRestHandler {
                     final String data = textFormat.format(request, response);
 
                     restResponse = new BytesRestResponse(RestStatus.OK, textFormat.contentType(request),
-                            data.getBytes(StandardCharsets.UTF_8));
+                        data.getBytes(StandardCharsets.UTF_8));
 
                     if (response.hasCursor()) {
                         restResponse.addHeader("Cursor", response.cursor());

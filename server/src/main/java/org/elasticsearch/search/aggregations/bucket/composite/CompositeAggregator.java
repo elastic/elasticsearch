@@ -299,6 +299,20 @@ final class CompositeAggregator extends BucketsAggregator {
                 reverseMul
             );
 
+        } else if (config.valuesSource() instanceof CellIdSource) {
+            final CellIdSource cis = (CellIdSource) config.valuesSource();
+            return new GeohashValuesSource(
+                bigArrays,
+                config.fieldType(),
+                cis::longValues,
+                LongUnaryOperator.identity(),
+                config.format(),
+                config.missingBucket(),
+                size,
+                reverseMul,
+                cis.precision(),
+                cis.encoder()
+            );
         } else if (config.valuesSource() instanceof ValuesSource.Numeric) {
             final ValuesSource.Numeric vs = (ValuesSource.Numeric) config.valuesSource();
             if (vs.isFloatingPoint()) {

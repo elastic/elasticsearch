@@ -51,6 +51,17 @@ public class CompositeAggregationBuilderTests extends BaseAggregationTestCase<Co
         return histo;
     }
 
+    private GeoHashGridValuesSourceBuilder randomGeoHashGridValuesSourceBuilder() {
+        GeoHashGridValuesSourceBuilder geoHash = new GeoHashGridValuesSourceBuilder(randomAlphaOfLengthBetween(5, 10));
+        if (randomBoolean()) {
+            geoHash.precision(randomIntBetween(1, 12));
+        }
+        if (randomBoolean()) {
+            geoHash.shardSize(randomIntBetween(0, 10_000));
+        }
+        return geoHash;
+    }
+
     private TermsValuesSourceBuilder randomTermsSourceBuilder() {
         TermsValuesSourceBuilder terms = new TermsValuesSourceBuilder(randomAlphaOfLengthBetween(5, 10));
         if (randomBoolean()) {
@@ -84,7 +95,7 @@ public class CompositeAggregationBuilderTests extends BaseAggregationTestCase<Co
         int numSources = randomIntBetween(1, 10);
         List<CompositeValuesSourceBuilder<?>> sources = new ArrayList<>();
         for (int i = 0; i < numSources; i++) {
-            int type = randomIntBetween(0, 2);
+            int type = randomIntBetween(0, 3);
             switch (type) {
                 case 0:
                     sources.add(randomTermsSourceBuilder());
@@ -94,6 +105,9 @@ public class CompositeAggregationBuilderTests extends BaseAggregationTestCase<Co
                     break;
                 case 2:
                     sources.add(randomHistogramSourceBuilder());
+                    break;
+                case 3:
+                    sources.add(randomGeoHashGridValuesSourceBuilder());
                     break;
                 default:
                     throw new AssertionError("wrong branch");

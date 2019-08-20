@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -67,6 +68,8 @@ public class CompositeValuesSourceParserHelper {
             code = 1;
         } else if (builder.getClass() == HistogramValuesSourceBuilder.class) {
             code = 2;
+        } else if (builder.getClass() == GeoHashGridValuesSourceBuilder.class && out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            code = 3;
         } else {
             throw new IOException("invalid builder type: " + builder.getClass().getSimpleName());
         }
@@ -83,6 +86,8 @@ public class CompositeValuesSourceParserHelper {
                 return new DateHistogramValuesSourceBuilder(in);
             case 2:
                 return new HistogramValuesSourceBuilder(in);
+            case 3:
+                return new GeoHashGridValuesSourceBuilder(in);
             default:
                 throw new IOException("Invalid code " + code);
         }
@@ -111,6 +116,9 @@ public class CompositeValuesSourceParserHelper {
                 break;
             case HistogramValuesSourceBuilder.TYPE:
                 builder = HistogramValuesSourceBuilder.parse(name, parser);
+                break;
+            case GeoHashGridValuesSourceBuilder.TYPE:
+                builder = GeoHashGridValuesSourceBuilder.parse(name, parser);
                 break;
             default:
                 throw new ParsingException(parser.getTokenLocation(), "invalid source type: " + type);

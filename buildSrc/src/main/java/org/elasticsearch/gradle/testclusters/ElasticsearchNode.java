@@ -861,6 +861,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     private void createWorkingDir(Path distroExtractDir) throws IOException {
         syncWithLinks(distroExtractDir, distroDir);
+        // Start configuration from scratch in case of a restart
+        project.delete(configFile.getParent());
         Files.createDirectories(configFile.getParent());
         Files.createDirectories(confPathRepo);
         Files.createDirectories(confPathData);

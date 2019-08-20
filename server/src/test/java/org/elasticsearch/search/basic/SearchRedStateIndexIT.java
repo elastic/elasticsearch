@@ -115,7 +115,8 @@ public class SearchRedStateIndexIT extends ESIntegTestCase {
                 @Override
                 public void run() {
                     while (stop.get() == false) {
-                        verify(() -> client().prepareSearch("test").setQuery(new RangeQueryBuilder("field1").gte(0)).setSize(100).setAllowPartialSearchResults(false).get());
+                        verify(() -> client().prepareSearch("test").setQuery(new RangeQueryBuilder("field1").gte(0))
+                            .setSize(100).setAllowPartialSearchResults(false).get());
                         verify(() -> client().prepareSearch("test").setSize(100).setAllowPartialSearchResults(false).get());
                     }
                 }

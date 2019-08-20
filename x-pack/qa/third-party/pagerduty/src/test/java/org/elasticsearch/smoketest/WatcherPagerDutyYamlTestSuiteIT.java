@@ -71,6 +71,6 @@ public class WatcherPagerDutyYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
             } catch (IOException e) {
                 throw new AssertionError(e);
             }
-        }, 30, TimeUnit.SECONDS);
+        }, 60, TimeUnit.SECONDS);
     }
 }

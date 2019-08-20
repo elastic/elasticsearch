@@ -41,12 +41,12 @@ import java.util.concurrent.atomic.AtomicInteger;
  * This is because the enrich processor executes asynchronously and a bulk request could easily overload
  * the search tp.
  */
-public class CoordinatorProxyAction extends ActionType<SearchResponse> {
+public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
 
-    public static final CoordinatorProxyAction INSTANCE = new CoordinatorProxyAction();
+    public static final EnrichCoordinatorProxyAction INSTANCE = new EnrichCoordinatorProxyAction();
     public static final String NAME = "indices:data/read/xpack/enrich/coordinate_lookups";
 
-    private CoordinatorProxyAction() {
+    private EnrichCoordinatorProxyAction() {
         super(NAME, SearchResponse::new);
     }
 

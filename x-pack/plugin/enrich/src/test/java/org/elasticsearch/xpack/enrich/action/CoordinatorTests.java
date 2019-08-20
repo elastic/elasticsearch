@@ -37,7 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.xpack.enrich.action.CoordinatorProxyAction.Coordinator;
+import static org.elasticsearch.xpack.enrich.action.EnrichCoordinatorProxyAction.Coordinator;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;

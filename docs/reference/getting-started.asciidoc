@@ -135,8 +135,8 @@ Windows:
 The additional nodes are assigned unique IDs. Because you're running all three
 nodes locally, they automatically join the cluster with the first node.
 
-. Use the `cat health` API to verify that your three-node cluster is up running.
-The `cat` APIs return information about your cluster and indices in a
+. Use the cat health API to verify that your three-node cluster is up running.
+The cat APIs return information about your cluster and indices in a
 format that's easier to read than raw JSON.
 +
 You can interact directly with your cluster by submitting HTTP requests to
@@ -155,8 +155,8 @@ GET /_cat/health?v
 --------------------------------------------------
 // CONSOLE
 +
-The response should indicate that the status of the _elasticsearch_ cluster
-is _green_ and it has three nodes:
+The response should indicate that the status of the `elasticsearch` cluster
+is `green` and it has three nodes:
 +
 [source,txt]
 --------------------------------------------------
@@ -204,7 +204,7 @@ PUT /customer/_doc/1
 --------------------------------------------------
 // CONSOLE
 
-This request automatically creates the _customer_ index if it doesn't already
+This request automatically creates the `customer` index if it doesn't already
 exist, adds a new document that has an ID of `1`, and stores and
 indexes the _name_ field.
 
@@ -269,7 +269,7 @@ and shows the original source fields that were indexed.
 === Indexing documents in bulk
 
 If you have a lot of documents to index, you can submit them in batches with
-the {ref}/docs-bulk.html[`_bulk` API]. Using `_bulk` to batch document
+the {ref}/docs-bulk.html[bulk API]. Using bulk to batch document
 operations is significantly faster than submitting requests individually as it minimizes network roundtrips. 
 
 The optimal batch size depends a number of factors: the document size and complexity, the indexing and search load, and the resources available to your cluster. A good place to start is with batches of 1,000 to 5,000 documents
@@ -278,7 +278,7 @@ to find the sweet spot.
 
 To get some data into {es} that you can start searching and analyzing:
 
-. Download the https://github.com/elastic/elasticsearch/blob/master/docs/src/test/resources/accounts.json?raw=true[accounts.json] sample data set. The documents in this randomly-generated data set represent user accounts with the following information:
+. Download the https://github.com/elastic/elasticsearch/blob/master/docs/src/test/resources/accounts.json?raw=true[`accounts.json`] sample data set. The documents in this randomly-generated data set represent user accounts with the following information:
 +
 [source,js]
 --------------------------------------------------
@@ -298,7 +298,7 @@ To get some data into {es} that you can start searching and analyzing:
 --------------------------------------------------
 // NOTCONSOLE
 
-. Index the account data into the _bank_ index with the following `_bulk` request:
+. Index the account data into the `bank` index with the following `_bulk` request:
 +
 [source,sh]
 --------------------------------------------------

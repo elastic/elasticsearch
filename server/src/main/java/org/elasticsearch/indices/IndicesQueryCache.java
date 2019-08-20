@@ -26,6 +26,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.LRUQueryCache;
+import org.apache.lucene.search.Matches;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
@@ -54,14 +55,14 @@ public class IndicesQueryCache implements QueryCache, Closeable {
 
     private static final Logger logger = LogManager.getLogger(IndicesQueryCache.class);
 
-    public static final Setting<ByteSizeValue> INDICES_CACHE_QUERY_SIZE_SETTING = 
+    public static final Setting<ByteSizeValue> INDICES_CACHE_QUERY_SIZE_SETTING =
             Setting.memorySizeSetting("indices.queries.cache.size", "10%", Property.NodeScope);
     // mostly a way to prevent queries from being the main source of memory usage
     // of the cache
-    public static final Setting<Integer> INDICES_CACHE_QUERY_COUNT_SETTING = 
+    public static final Setting<Integer> INDICES_CACHE_QUERY_COUNT_SETTING =
             Setting.intSetting("indices.queries.cache.count", 10_000, 1, Property.NodeScope);
     // enables caching on all segments instead of only the larger ones, for testing only
-    public static final Setting<Boolean> INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING = 
+    public static final Setting<Boolean> INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING =
             Setting.boolSetting("indices.queries.cache.all_segments", false, Property.NodeScope);
 
     private final LRUQueryCache cache;
@@ -143,6 +144,12 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         public Explanation explain(LeafReaderContext context, int doc) throws IOException {
             shardKeyMap.add(context.reader());
             return in.explain(context, doc);
+        }
+
+        @Override
+        public Matches matches(LeafReaderContext context, int doc) throws IOException {
+            shardKeyMap.add(context.reader());
+            return in.matches(context, doc);
         }
 
         @Override

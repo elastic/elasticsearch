@@ -41,6 +41,7 @@ import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.wrapperQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MatchedQueriesIT extends ESIntegTestCase {
@@ -106,8 +107,7 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.getId().equals("1")) {
                 assertThat(hit.getMatchedQueries().size(), equalTo(2));
-                assertThat(hit.getMatchedQueries(), contains("name"));
-                assertThat(hit.getMatchedQueries(), contains("title"));
+                assertThat(hit.getMatchedQueries(), containsInAnyOrder("name", "title"));
             } else if (hit.getId().equals("2") || hit.getId().equals("3")) {
                 assertThat(hit.getMatchedQueries().size(), equalTo(1));
                 assertThat(hit.getMatchedQueries(), contains("name"));
@@ -126,8 +126,7 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.getId().equals("1")) {
                 assertThat(hit.getMatchedQueries().size(), equalTo(2));
-                assertThat(hit.getMatchedQueries(), contains("name"));
-                assertThat(hit.getMatchedQueries(), contains("title"));
+                assertThat(hit.getMatchedQueries(), containsInAnyOrder("name", "title"));
             } else if (hit.getId().equals("2") || hit.getId().equals("3")) {
                 assertThat(hit.getMatchedQueries().size(), equalTo(1));
                 assertThat(hit.getMatchedQueries(), contains("name"));
@@ -153,8 +152,7 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.getId().equals("1") || hit.getId().equals("2") || hit.getId().equals("3")) {
                 assertThat(hit.getMatchedQueries().size(), equalTo(2));
-                assertThat(hit.getMatchedQueries(), contains("name"));
-                assertThat(hit.getMatchedQueries(), contains("title"));
+                assertThat(hit.getMatchedQueries(), containsInAnyOrder("name", "title"));
             } else {
                 fail("Unexpected document returned with id " + hit.getId());
             }
@@ -167,8 +165,7 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.getId().equals("1") || hit.getId().equals("2") || hit.getId().equals("3")) {
                 assertThat(hit.getMatchedQueries().size(), equalTo(2));
-                assertThat(hit.getMatchedQueries(), contains("name"));
-                assertThat(hit.getMatchedQueries(), contains("title"));
+                assertThat(hit.getMatchedQueries(), containsInAnyOrder("name", "title"));
             } else {
                 fail("Unexpected document returned with id " + hit.getId());
             }

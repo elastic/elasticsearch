@@ -18,7 +18,8 @@
  */
 package org.elasticsearch.search.fetch.subphase;
 
-import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Matches;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
@@ -34,15 +35,12 @@ public final class MatchedQueriesFetchSubPhase implements FetchSubPhase {
     @Override
     public void hitExecute(SearchContext context, HitContext hitContext) throws IOException {
 
-        if (context.parsedQuery() == null || context.parsedQuery().matchNamedQueries() == false) {
+        if ((context.parsedQuery() == null || context.parsedQuery().matchNamedQueries() == false) && (
+            context.parsedPostFilter() == null || context.parsedPostFilter().matchNamedQueries() == false)) {
             return;
         }
 
-        // Post-filters?
-
-        Query q = context.parsedQuery().query();
-        IndexSearcher searcher = new IndexSearcher(hitContext.reader());
-        Weight w = searcher.createWeight(searcher.rewrite(q), ScoreMode.COMPLETE_NO_SCORES, 1);
+        Weight w = getWeight(context, hitContext);
         Matches m = w.matches(hitContext.readerContext(), hitContext.docId());
 
         if (m == null) {
@@ -53,6 +51,23 @@ public final class MatchedQueriesFetchSubPhase implements FetchSubPhase {
             hitContext.hit().addMatchedQuery(nm.getName());
         }
 
+    }
+
+    private Weight getWeight(SearchContext context, HitContext hitContext) throws IOException {
+        if (hitContext.cache().containsKey("weight")) {
+            return (Weight) hitContext.cache().get("weight");
+        }
+        Query q = context.parsedQuery().query();
+        // If the query has a named post filter then we need to include that as well
+        if (context.parsedPostFilter() != null && context.parsedPostFilter().matchNamedQueries()) {
+            q = new BooleanQuery.Builder()
+                .add(q, BooleanClause.Occur.MUST)
+                .add(context.parsedPostFilter().query(), BooleanClause.Occur.FILTER)
+                .build();
+        }
+        Weight w = context.searcher().createWeight(context.searcher().rewrite(q), ScoreMode.COMPLETE_NO_SCORES, 1);
+        hitContext.cache().put("weight", w);
+        return w;
     }
 
 }

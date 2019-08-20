@@ -89,7 +89,7 @@ be specified unless soft deletes is disabled as they will be ignored.
 `index.translog.retention.age`::
 
 When soft deletes is disabled (enabled by default in 7.0 or later),
-`index.translog.retention.age` controls the maximum duration for which of translog
+`index.translog.retention.age` controls the maximum duration for which translog
 files to keep. Keeping more translog files increases the chance of performing an
 operation based sync when recovering replicas. If the translog files are not sufficient,
 replica recovery will fall back to a file based sync. Defaults to `12h`

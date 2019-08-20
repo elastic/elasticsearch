@@ -28,6 +28,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
@@ -83,12 +84,13 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             return null;
         };
 
-        return new AbstractSearchAsyncAction<SearchPhaseResult>("test", null, null, nodeIdToConnection,
+        return new AbstractSearchAsyncAction<SearchPhaseResult>("test", logger, null, nodeIdToConnection,
                 Collections.singletonMap("foo", new AliasFilter(new MatchAllQueryBuilder())), Collections.singletonMap("foo", 2.0f),
                 Collections.singletonMap("name", Sets.newHashSet("bar", "baz")), null, request, listener,
                 new GroupShardsIterator<>(
-                    Collections.singletonList(
-                        new SearchShardIterator(null, null, Collections.emptyList(), null)
+                    List.of(
+                        new SearchShardIterator(null, new ShardId("test", "testUUID", 0), Collections.emptyList(), null),
+                        new SearchShardIterator(null, new ShardId("test", "testUUID", 0), Collections.emptyList(), null)
                     )
                 ), timeProvider, 0, null,
                 results, request.getMaxConcurrentShardRequests(),
@@ -237,6 +239,26 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         assertEquals(0, searchPhaseExecutionException.getSuppressed().length);
         assertEquals(nodeLookups, resolvedNodes);
         assertEquals(requestIds, releasedContexts);
+    }
+
+    public void testOnShardNotAvailableDisallowPartialFailures() {
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(false);
+        AtomicReference<Exception> exception = new AtomicReference<>();
+        ActionListener<SearchResponse> listener = ActionListener.wrap(response -> fail("onResponse should not be called"), exception::set);
+        InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> phaseResults = new InitialSearchPhase.ArraySearchPhaseResults<>(10);
+        AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(searchRequest, phaseResults, listener, false, new AtomicLong());
+        ShardId shardId = new ShardId("test", "testuuid", randomInt(10));
+        // IllegalIndexShardStateException is considered a shard not available exception
+        action.onShardFailure(0, null, null, new SearchShardIterator(null, shardId, Collections.emptyList(), null),
+            new IllegalIndexShardStateException(null, null, "shard failure"));
+        assertThat(exception.get(), instanceOf(SearchPhaseExecutionException.class));
+        SearchPhaseExecutionException searchPhaseExecutionException = (SearchPhaseExecutionException)exception.get();
+        assertEquals("All shard copies failed for " + shardId
+                + ". Consider using `allow_partial_search_results` setting to bypass this error.",
+            searchPhaseExecutionException.getMessage());
+        assertEquals("test", searchPhaseExecutionException.getPhaseName());
+        assertEquals(0, searchPhaseExecutionException.shardFailures().length);
+        assertEquals(0, searchPhaseExecutionException.getSuppressed().length);
     }
 
     private static InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> phaseResults(Set<Long> requestIds,

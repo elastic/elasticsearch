@@ -226,6 +226,11 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                     }
 
                     @Override
+                    void onPhaseFailure(SearchPhase phase, String msg, Throwable cause) {
+
+                    }
+
+                    @Override
                     void onShardSuccess(final SearchPhaseResult result) {
 
                     }

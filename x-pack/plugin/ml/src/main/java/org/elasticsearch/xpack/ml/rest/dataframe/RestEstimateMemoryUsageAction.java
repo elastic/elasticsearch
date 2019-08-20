@@ -11,6 +11,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.EstimateMemoryUsageAction;
+import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
@@ -30,8 +31,8 @@ public class RestEstimateMemoryUsageAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        EstimateMemoryUsageAction.Request request =
-            EstimateMemoryUsageAction.Request.parseRequest(restRequest.contentOrSourceParamParser());
+        PutDataFrameAnalyticsAction.Request request =
+            PutDataFrameAnalyticsAction.Request.parseRequestForMemoryEstimation(restRequest.contentOrSourceParamParser());
         return channel -> client.execute(EstimateMemoryUsageAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

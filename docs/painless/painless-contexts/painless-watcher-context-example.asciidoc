@@ -100,7 +100,7 @@ POST _watcher/watch/_execute
 }
 ----
 // CONSOLE
-// TEST[skip: requires setup from other pages]
+// TEST[setup:seats]
 
 The following example shows the use of metadata and transforming dates into a readable format.
 
@@ -158,4 +158,4 @@ POST _watcher/watch/_execute
 }
 ----
 // CONSOLE
-// TEST[skip: requires setup from other pages]
+// TEST[setup:seats]

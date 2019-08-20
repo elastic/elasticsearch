@@ -17,6 +17,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.EstimateMemoryUsageAction;
+import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractorFactory;
@@ -30,7 +31,7 @@ import java.util.Optional;
  * Redirects to a different node if the current node is *not* an ML node.
  */
 public class TransportEstimateMemoryUsageAction
-    extends HandledTransportAction<EstimateMemoryUsageAction.Request, EstimateMemoryUsageAction.Response> {
+    extends HandledTransportAction<PutDataFrameAnalyticsAction.Request, EstimateMemoryUsageAction.Response> {
 
     private final TransportService transportService;
     private final ClusterService clusterService;
@@ -43,7 +44,7 @@ public class TransportEstimateMemoryUsageAction
                                               ClusterService clusterService,
                                               NodeClient client,
                                               MemoryUsageEstimationProcessManager processManager) {
-        super(EstimateMemoryUsageAction.NAME, transportService, actionFilters, EstimateMemoryUsageAction.Request::new);
+        super(EstimateMemoryUsageAction.NAME, transportService, actionFilters, PutDataFrameAnalyticsAction.Request::new);
         this.transportService = transportService;
         this.clusterService = Objects.requireNonNull(clusterService);
         this.client = Objects.requireNonNull(client);
@@ -52,7 +53,7 @@ public class TransportEstimateMemoryUsageAction
 
     @Override
     protected void doExecute(Task task,
-                             EstimateMemoryUsageAction.Request request,
+                             PutDataFrameAnalyticsAction.Request request,
                              ActionListener<EstimateMemoryUsageAction.Response> listener) {
         DiscoveryNode localNode = clusterService.localNode();
         if (MachineLearning.isMlNode(localNode)) {
@@ -75,7 +76,7 @@ public class TransportEstimateMemoryUsageAction
      * the ML node.
      */
     private void doEstimateMemoryUsage(String taskId,
-                                       EstimateMemoryUsageAction.Request request,
+                                       PutDataFrameAnalyticsAction.Request request,
                                        ActionListener<EstimateMemoryUsageAction.Response> listener) {
         DataFrameDataExtractorFactory.createForSourceIndices(
             client,
@@ -103,7 +104,7 @@ public class TransportEstimateMemoryUsageAction
     /**
      * Finds the first available ML node in the cluster and redirects the request to this node.
      */
-    private void redirectToMlNode(EstimateMemoryUsageAction.Request request,
+    private void redirectToMlNode(PutDataFrameAnalyticsAction.Request request,
                                   ActionListener<EstimateMemoryUsageAction.Response> listener) {
         Optional<DiscoveryNode> node = findMlNode(clusterService.state());
         if (node.isPresent()) {

@@ -27,6 +27,7 @@ import org.elasticsearch.mocksocket.MockHttpServer;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 
 import java.io.IOException;
 import java.net.ConnectException;
@@ -224,6 +225,7 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
         }
     }
 
+    @Ignore("https://github.com/elastic/elasticsearch/issues/45577")
     public void testCancelAsyncRequests() throws Exception {
         int numRequests = randomIntBetween(5, 20);
         final CountDownLatch latch = new CountDownLatch(numRequests);
@@ -232,9 +234,7 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
         for (int i = 0; i < numRequests; i++) {
             waitForCancelHandler.reset();
             final String method = RestClientTestUtil.randomHttpMethod(getRandom());
-            //we don't test status codes that are subject to retries as they interfere with hosts being stopped
-            final int statusCode = randomBoolean() ? randomOkStatusCode(getRandom()) : randomErrorNoRetryStatusCode(getRandom());
-            Cancellable cancellable = restClient.performRequestAsync(new Request(method, "/" + statusCode), new ResponseListener() {
+            Cancellable cancellable = restClient.performRequestAsync(new Request(method, "/wait"), new ResponseListener() {
                 @Override
                 public void onSuccess(Response response) {
                     responses.add(response);

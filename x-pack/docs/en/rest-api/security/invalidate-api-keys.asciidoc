@@ -47,7 +47,7 @@ used with either `id` or `name` or when `owner` flag is set to `true`.
 either `id` or `name` or when `owner` flag is set to `true`.
 
 `owner`::
-((Optional, boolean) A boolean flag that can be used to query API keys owned
+(Optional, boolean) A boolean flag that can be used to query API keys owned
 by the currently authenticated user. Defaults to false. If this parameter is set to
 `true` then `realm_name` or `username` parameters cannot be specified as
 they default to the authenticated users name and realm name.
@@ -157,7 +157,6 @@ DELETE /_security/api_key
 }
 --------------------------------------------------
 // CONSOLE
-// TEST
 
 The following example invalidates all API keys owned by the currently authenticated
  user immediately:

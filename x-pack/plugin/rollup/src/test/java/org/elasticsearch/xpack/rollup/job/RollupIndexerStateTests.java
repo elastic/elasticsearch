@@ -944,7 +944,7 @@ public class RollupIndexerStateTests extends ESTestCase {
             assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
             assertThat(indexer.getState(), equalTo(IndexerState.INDEXING));
             latch.countDown();
-            ESTestCase.awaitBusy(() -> isFinished.get());
+            assertBusy(() -> assertTrue(isFinished.get()));
 
             // Despite failure in bulk, we should move back to STARTED and wait to try again on next trigger
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));

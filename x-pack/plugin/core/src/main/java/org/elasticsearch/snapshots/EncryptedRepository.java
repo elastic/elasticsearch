@@ -17,20 +17,24 @@
  * under the License.
  */
 
-package org.elasticsearch.repositories;
+package org.elasticsearch.snapshots;
 
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
+import java.io.IOException;
 import java.util.function.Function;
 
 public class EncryptedRepository extends BlobStoreRepository {
 
-    private static final Setting<String> DELEGATE_TYPE = new Setting<>("delegate_type", "", Function.identity(), Setting.Property
-            .NodeScope);
+    private static final Setting<String> DELEGATE_TYPE = new Setting<>("delegate_type", "", Function.identity(),
+            Setting.Property.NodeScope);
 
     private BlobStoreRepository delegatedRepository;
 
@@ -41,12 +45,29 @@ public class EncryptedRepository extends BlobStoreRepository {
 
     @Override
     protected BlobStore createBlobStore() throws Exception {
-        // TODO
-        return null;
+        return new EncryptedBlobStoreDecorator(this.delegatedRepository.blobStore());
+    }
+
+    @Override
+    protected void doStart() {
+        this.delegatedRepository.start();
+        super.doStart();
+    }
+
+    @Override
+    protected void doStop() {
+        super.doStop();
+        this.delegatedRepository.stop();
+    }
+
+    @Override
+    protected void doClose() {
+        super.doClose();
+        this.delegatedRepository.close();
     }
 
     /**
-     * Returns a new source only repository factory
+     * Returns a new encrypted repository factory
      */
     public static Repository.Factory newRepositoryFactory() {
         return new Repository.Factory() {
@@ -71,5 +92,25 @@ public class EncryptedRepository extends BlobStoreRepository {
                 return new EncryptedRepository((BlobStoreRepository)delegatedRepository);
             }
         };
+    }
+
+    private static class EncryptedBlobStoreDecorator implements BlobStore {
+
+        private final BlobStore delegatedBlobStore;
+
+        EncryptedBlobStoreDecorator(BlobStore blobStore) {
+            this.delegatedBlobStore = blobStore;
+        }
+
+        @Override
+        public void close() throws IOException {
+            this.delegatedBlobStore.close();
+        }
+
+        @Override
+        public BlobContainer blobContainer(BlobPath path) {
+            return this.delegatedBlobStore.blobContainer(path);
+        }
+
     }
 }

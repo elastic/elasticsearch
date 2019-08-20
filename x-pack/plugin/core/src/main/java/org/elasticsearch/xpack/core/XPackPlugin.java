@@ -50,6 +50,7 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.snapshots.EncryptedRepository;
 import org.elasticsearch.snapshots.SourceOnlySnapshotRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -76,7 +77,6 @@ import java.security.PrivilegedAction;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -313,7 +313,8 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
     @Override
     public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
                                                            ThreadPool threadPool) {
-        return Collections.singletonMap("source", SourceOnlySnapshotRepository.newRepositoryFactory());
+        return Map.of("source", SourceOnlySnapshotRepository.newRepositoryFactory(),
+                "encrypted", EncryptedRepository.newRepositoryFactory());
     }
 
     @Override

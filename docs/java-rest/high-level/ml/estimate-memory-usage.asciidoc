@@ -1,6 +1,6 @@
 --
 :api: estimate-memory-usage
-:request: EstimateMemoryUsageRequest
+:request: PutDataFrameAnalyticsRequest
 :response: EstimateMemoryUsageResponse
 --
 [id="{upid}-{api}"]

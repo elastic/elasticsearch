@@ -465,7 +465,7 @@ to clutter the docs with it:
     "failed" : 0
   },
   "hits" : {
-    "total" : {
+    "total" : 1000,
        "value": 1000,
        "relation": "eq"
     },

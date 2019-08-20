@@ -1381,6 +1381,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(statsResponse.getTaskFailures(), hasSize(0));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/45741")
     public void testStartDataFrameAnalyticsConfig() throws Exception {
         String sourceIndex = "start-test-source-index";
         String destIndex = "start-test-dest-index";
@@ -1689,6 +1690,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         highLevelClient().indices().create(new CreateIndexRequest(indexName).mapping(mapping), RequestOptions.DEFAULT);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/45741")
     public void testEstimateMemoryUsage() throws IOException {
         String indexName = "estimate-test-index";
         createIndex(indexName, mappingForClassification());

@@ -468,7 +468,6 @@ to clutter the docs with it:
     "total" : 1000,
        "value": 1000,
        "relation": "eq"
-    },
     "max_score": null,
     "hits" : [ {
       "_index" : "bank",

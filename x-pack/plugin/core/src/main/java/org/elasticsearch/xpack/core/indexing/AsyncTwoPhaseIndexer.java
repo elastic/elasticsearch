@@ -160,10 +160,8 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                         } else {
                             finishAndSetState();
                         }
-                    }, e -> {
-                        finishAndSetState();
-                        onFailure(e);
-                    }));
+                    },
+                    this::finishWithFailure));
                 });
                 logger.debug("Beginning to index [" + getJobId() + "], state: [" + currentState + "]");
                 return true;
@@ -250,8 +248,9 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     /**
      * Called when a failure occurs in an async job causing the execution to stop.
      *
-     * @param exc
-     *            The exception
+     * This is called before the internal state changes from the state in which the failure occurred.
+     *
+     * @param exc The exception
      */
     protected abstract void onFailure(Exception exc);
 
@@ -279,12 +278,19 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
 
     private void finishWithSearchFailure(Exception exc) {
         stats.incrementSearchFailures();
-        doSaveState(finishAndSetState(), position.get(), () -> onFailure(exc));
+        onFailure(exc);
+        doSaveState(finishAndSetState(), position.get(), () -> {});
     }
 
     private void finishWithIndexingFailure(Exception exc) {
         stats.incrementIndexingFailures();
-        doSaveState(finishAndSetState(), position.get(), () -> onFailure(exc));
+        onFailure(exc);
+        doSaveState(finishAndSetState(), position.get(), () -> {});
+    }
+
+    private void finishWithFailure(Exception exc) {
+        onFailure(exc);
+        finishAndSetState();
     }
 
     private IndexerState finishAndSetState() {
@@ -390,8 +396,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                     ActionListener<SearchResponse> listener = ActionListener.wrap(this::onSearchResponse, this::finishWithSearchFailure);
                     nextSearch(listener);
                 } catch (Exception e) {
-                    finishAndSetState();
-                    onFailure(e);
+                    finishWithFailure(e);
                 }
             }
         } catch (Exception e) {

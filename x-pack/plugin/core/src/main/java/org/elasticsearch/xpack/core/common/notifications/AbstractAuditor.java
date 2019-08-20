@@ -21,20 +21,20 @@ import java.util.Objects;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
-public class Auditor<T extends AbstractAuditMessage> {
+public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
 
-    private static final Logger logger = LogManager.getLogger(Auditor.class);
+    private static final Logger logger = LogManager.getLogger(AbstractAuditor.class);
     private final Client client;
     private final String nodeName;
     private final String auditIndex;
     private final String executionOrigin;
     private final AbstractAuditMessage.AbstractBuilder<T> messageBuilder;
 
-    public Auditor(Client client,
-                   String nodeName,
-                   String auditIndex,
-                   String executionOrigin,
-                   AbstractAuditMessage.AbstractBuilder<T> messageBuilder) {
+    public AbstractAuditor(Client client,
+                           String nodeName,
+                           String auditIndex,
+                           String executionOrigin,
+                           AbstractAuditMessage.AbstractBuilder<T> messageBuilder) {
         this.client = Objects.requireNonNull(client);
         this.nodeName = Objects.requireNonNull(nodeName);
         this.auditIndex = auditIndex;

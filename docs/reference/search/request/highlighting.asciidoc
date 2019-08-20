@@ -175,7 +175,7 @@ snippets: `simple` or `span`. Only valid for the `plain` highlighter.
 Defaults to `span`.
 
 `simple`::: Breaks up text into same-sized fragments.
-`span`::: Breaks up text into same-sized fragments, but tried to avoid
+`span`::: Breaks up text into same-sized fragments, but tries to avoid
 breaking up text between highlighted terms. This is helpful when you're
 querying for phrases. Default.
 

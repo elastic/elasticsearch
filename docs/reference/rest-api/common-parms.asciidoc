@@ -57,6 +57,12 @@ https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html[HTTP accept header].
 Valid values include JSON, YAML, etc.
 end::http-format[]
 
+tag::include-defaults[]
+`include_defaults`::
+(Optional, string) If `true`, return all default settings in the response.
+Defaults to `false`.
+end::include-defaults[]
+
 tag::include-type-name[]
 `include_type_name`::
 deprecated:[7.0.0, Mapping types have been deprecated. See <<removal-of-types>>.]

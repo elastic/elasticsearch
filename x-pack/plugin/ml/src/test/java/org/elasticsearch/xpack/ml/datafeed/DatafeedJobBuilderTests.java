@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.junit.Before;
 
 import java.util.Collections;
@@ -44,7 +44,7 @@ import static org.mockito.Mockito.when;
 public class DatafeedJobBuilderTests extends ESTestCase {
 
     private Client client;
-    private Auditor auditor;
+    private AnomalyDetectionAuditor auditor;
     private Consumer<Exception> taskHandler;
     private JobResultsProvider jobResultsProvider;
     private JobConfigProvider jobConfigProvider;
@@ -61,7 +61,7 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(client.settings()).thenReturn(Settings.EMPTY);
-        auditor = mock(Auditor.class);
+        auditor = mock(AnomalyDetectionAuditor.class);
         taskHandler = mock(Consumer.class);
         jobResultsPersister = mock(JobResultsPersister.class);
 

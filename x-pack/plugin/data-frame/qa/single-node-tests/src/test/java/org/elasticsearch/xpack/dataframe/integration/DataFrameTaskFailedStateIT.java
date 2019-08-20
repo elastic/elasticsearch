@@ -43,6 +43,7 @@ public class DataFrameTaskFailedStateIT extends DataFrameRestTestCase {
         addFailureRetrySetting.setJsonEntity(
             "{\"transient\": {\"xpack.data_frame.num_transform_failure_retries\": \"" + 0 + "\"," +
                 "\"logger.org.elasticsearch.action.bulk\": \"info\"," + // reduces bulk failure spam
+                "\"logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer\": \"trace\"," +
                 "\"logger.org.elasticsearch.xpack.dataframe\": \"trace\"}}");
         client().performRequest(addFailureRetrySetting);
     }
@@ -88,7 +89,6 @@ public class DataFrameTaskFailedStateIT extends DataFrameRestTestCase {
         assertThat(XContentMapValues.extractValue("reason", fullState), is(nullValue()));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/45664")
     public void testForceStartFailedTransform() throws Exception {
         String transformId = "test-force-start-failed-transform";
         createReviewsIndex(REVIEWS_INDEX_NAME, 10);

@@ -44,7 +44,6 @@ import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteJobResponse;
 import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
-import org.elasticsearch.client.ml.EstimateMemoryUsageRequest;
 import org.elasticsearch.client.ml.EstimateMemoryUsageResponse;
 import org.elasticsearch.client.ml.EvaluateDataFrameRequest;
 import org.elasticsearch.client.ml.EvaluateDataFrameResponse;
@@ -1382,6 +1381,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(statsResponse.getTaskFailures(), hasSize(0));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/45741")
     public void testStartDataFrameAnalyticsConfig() throws Exception {
         String sourceIndex = "start-test-source-index";
         String destIndex = "start-test-dest-index";
@@ -1690,6 +1690,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         highLevelClient().indices().create(new CreateIndexRequest(indexName).mapping(mapping), RequestOptions.DEFAULT);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/45741")
     public void testEstimateMemoryUsage() throws IOException {
         String indexName = "estimate-test-index";
         createIndex(indexName, mappingForClassification());
@@ -1701,8 +1702,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         highLevelClient().bulk(bulk1, RequestOptions.DEFAULT);
 
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
-        EstimateMemoryUsageRequest estimateMemoryUsageRequest =
-            new EstimateMemoryUsageRequest(
+        PutDataFrameAnalyticsRequest estimateMemoryUsageRequest =
+            new PutDataFrameAnalyticsRequest(
                 DataFrameAnalyticsConfig.builder()
                     .setSource(DataFrameAnalyticsSource.builder().setIndex(indexName).build())
                     .setAnalysis(OutlierDetection.createDefault())

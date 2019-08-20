@@ -1,3 +1,4 @@
+import org.elasticsearch.gradle.test.GradleDistroTestTask
 
 String boxId = project.properties.get('vagrant.windows-2016.id')
 if (boxId != null) {
@@ -5,7 +6,8 @@ if (boxId != null) {
     hostEnv 'VAGRANT_WINDOWS_2016_BOX', boxId
   }
 } else {
-  tasks.named('distroTest').configure {
-    onlyIf { true }
+  // box id was not supplied, so disable the distro tests
+  tasks.withType(GradleDistroTestTask).configureEach {
+    onlyIf { false }
   }
 }

@@ -51,6 +51,11 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class SnapshotLifecycleIT extends ESRestTestCase {
 
+    @Override
+    protected boolean waitForAllSnapshotsWiped() {
+        return true;
+    }
+
     public void testMissingRepo() throws Exception {
         SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy("test-policy", "snap",
             "*/1 * * * * ?", "missing-repo", Collections.emptyMap(), SnapshotRetentionConfiguration.EMPTY);
@@ -135,16 +140,6 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
 
         Request delReq = new Request("DELETE", "/_slm/policy/" + policyName);
         assertOK(client().performRequest(delReq));
-
-        // It's possible there could have been a snapshot in progress when the
-        // policy is deleted, so wait for it to be finished
-        assertBusy(() -> {
-            try {
-                assertThat(wipeSnapshots().size(), equalTo(0));
-            } catch (ResponseException e) {
-                fail(EntityUtils.toString(e.getResponse().getEntity()));
-            }
-        });
     }
 
     @SuppressWarnings("unchecked")
@@ -191,9 +186,6 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
             assertThat(snapsFailed, greaterThanOrEqualTo(1));
             assertThat(totalFailed, greaterThanOrEqualTo(1));
         });
-
-        Request delReq = new Request("DELETE", "/_slm/policy/" + policyName);
-        assertOK(client().performRequest(delReq));
     }
 
     @SuppressWarnings("unchecked")
@@ -248,20 +240,6 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
                 assertThat(totalTaken, equalTo(1));
             });
         }
-
-
-        Request delReq = new Request("DELETE", "/_slm/policy/" + policyName);
-        assertOK(client().performRequest(delReq));
-
-        // It's possible there could have been a snapshot in progress when the
-        // policy is deleted, so wait for it to be finished
-        assertBusy(() -> {
-            try {
-                assertThat(wipeSnapshots().size(), equalTo(0));
-            } catch (ResponseException e) {
-                fail(EntityUtils.toString(e.getResponse().getEntity()));
-            }
-        });
     }
 
     @SuppressWarnings("unchecked")
@@ -347,19 +325,6 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
                 assertThat(totalDeleted, equalTo(1));
             }, 60, TimeUnit.SECONDS);
 
-
-            Request delReq = new Request("DELETE", "/_slm/policy/" + policyName);
-            assertOK(client().performRequest(delReq));
-
-            // It's possible there could have been a snapshot in progress when the
-            // policy is deleted, so wait for it to be finished
-            assertBusy(() -> {
-                try {
-                    assertThat(wipeSnapshots().size(), equalTo(0));
-                } catch (ResponseException e) {
-                    fail(EntityUtils.toString(e.getResponse().getEntity()));
-                }
-            });
         } finally {
             // Unset retention
             ClusterUpdateSettingsRequest unsetRequest = new ClusterUpdateSettingsRequest();
@@ -424,15 +389,6 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
             // Cancel the snapshot since it is not going to complete quickly
             assertOK(client().performRequest(new Request("DELETE", "/_snapshot/" + repoId + "/" + snapshotName)));
         }
-
-        Request delReq = new Request("DELETE", "/_slm/policy/" + policyName);
-        assertOK(client().performRequest(delReq));
-
-        // It's possible there could have been a snapshot in progress when the
-        // policy is deleted, so wait for it to be finished
-        assertBusy(() -> {
-            assertThat(wipeSnapshots().size(), equalTo(0));
-        });
     }
 
     @SuppressWarnings("unchecked")

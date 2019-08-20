@@ -350,8 +350,9 @@ And the response:
 [source,txt]
 --------------------------------------------------
 health status index uuid                   pri rep docs.count docs.deleted store.size pri.store.size
-yellow open   bank  l7sSYV2cQXmu6_4rJWVIww   5   1       1000            0    128.6kb        128.6kb
+green open   bank  l7sSYV2cQXmu6_4rJWVIww   5   1       1000            0    128.6kb        128.6kb
 --------------------------------------------------
+// TESTRESPONSE[s/green/.+]
 // TESTRESPONSE[s/128.6kb/\\d+(\\.\\d+)?[mk]?b/]
 // TESTRESPONSE[s/l7sSYV2cQXmu6_4rJWVIww/.+/ non_json]
 

@@ -800,7 +800,6 @@ And the response (partially shown):
   },
   "hits" : {
      "total" : 1000,
-     },
     "max_score" : null,
     "hits" : [ ]
   },

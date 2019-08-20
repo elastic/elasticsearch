@@ -550,19 +550,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
         ConfigurableClusterPrivilege ccp1 = new MockConfigurableClusterPrivilege() {
             @Override
             public ClusterPermission.Builder buildPermission(ClusterPermission.Builder builder) {
-                builder.add(this, ((ActionClusterPrivilege) ClusterPrivilegeResolver.MANAGE_SECURITY).getAllowedActionPatterns(),
-                    Set.of(), new ClusterPermission.PermissionCheckPredicate<TransportRequest>() {
-
-                        @Override
-                        public boolean test(TransportRequest r) {
-                            return r == request1;
-                        }
-
-                        @Override
-                        public boolean implies(ClusterPermission.PermissionCheckPredicate<TransportRequest> permissionCheckPredicate) {
-                            return this.equals(permissionCheckPredicate);
-                        }
-                    });
+                builder.add(this, ((ActionClusterPrivilege) ClusterPrivilegeResolver.MANAGE_SECURITY).getAllowedActionPatterns(), Set.of(),
+                    req -> req == request1);
                 return builder;
             }
         };
@@ -593,18 +582,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             @Override
             public ClusterPermission.Builder buildPermission(ClusterPermission.Builder builder) {
                 builder.add(this, ((ActionClusterPrivilege) ClusterPrivilegeResolver.MANAGE_SECURITY).getAllowedActionPatterns(),
-                    Set.of(), new ClusterPermission.PermissionCheckPredicate<TransportRequest>() {
-
-                        @Override
-                        public boolean test(TransportRequest r) {
-                            return r == request2;
-                        }
-
-                        @Override
-                        public boolean implies(ClusterPermission.PermissionCheckPredicate<TransportRequest> permissionCheckPredicate) {
-                            return this.equals(permissionCheckPredicate);
-                        }
-                    });
+                    Set.of(), req -> req == request2);
                 return builder;
             }
         };

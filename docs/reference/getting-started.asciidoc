@@ -22,7 +22,7 @@ how {es} works. If you're already familiar with {es} and want to see how it work
 with the rest of the stack, you might want to jump to the
 {stack-gs}/get-started-elastic-stack.html[Elastic Stack
 Tutorial] to see how to set up a system monitoring solution with {es}, {kib},
-{beats},  and {ls}.
+{beats}, and {ls}.
 
 TIP: The fastest way to get started with {es} is to
 https://www.elastic.co/cloud/elasticsearch-service/signup[start a free 14-day
@@ -273,12 +273,12 @@ the {ref}/docs-bulk.html[`_bulk` API]. Using `_bulk` to batch document
 operations is significantly faster than submitting requests individually as it minimizes network roundtrips. 
 
 The optimal batch size depends a number of factors: the document size and complexity, the indexing and search load, and the resources available to your cluster. A good place to start is with batches of 1,000 to 5,000 documents
-and a total payload between 5MB and 15MB. From there, you can do some
-testing to find the sweet spot.
+and a total payload between 5MB and 15MB. From there, you can experiment
+to find the sweet spot.
 
 To get some data into {es} that you can start searching and analyzing:
 
-. Download the https://github.com/elastic/elasticsearch/blob/master/docs/src/test/resources/accounts.json?raw=true[accounts.json] sample data set. The  documents in this randomly-generated data set represent user accounts with the following information:
+. Download the https://github.com/elastic/elasticsearch/blob/master/docs/src/test/resources/accounts.json?raw=true[accounts.json] sample data set. The documents in this randomly-generated data set represent user accounts with the following information:
 +
 [source,js]
 --------------------------------------------------
@@ -319,7 +319,7 @@ GET /_cat/indices?v
 // TEST[setup:bank]
 ////
 +
-The response indicates that 1000 documents were indexed successfully.
+The response indicates that 1,000 documents were indexed successfully.
 +
 [source,txt]
 --------------------------------------------------

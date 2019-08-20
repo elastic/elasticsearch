@@ -165,5 +165,4 @@ The minimum number of sides is `4` and the maximum is `1000`.
 | 1.00                     | 1000.0   | 141
 | 1.00                     | 10000.0  | 445
 | 1.00                     | 100000.0 | 1000
-include::common-options.asciidoc[]
 |======

@@ -153,7 +153,8 @@ public class RSquared implements RegressionMetric {
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            return value == value;
+            Result other = (Result)o;
+            return value == other.value;
         }
 
         @Override

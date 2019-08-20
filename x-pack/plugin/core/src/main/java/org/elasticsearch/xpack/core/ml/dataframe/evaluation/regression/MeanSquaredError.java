@@ -142,7 +142,8 @@ public class MeanSquaredError implements RegressionMetric {
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            return error == error;
+            Result other = (Result)o;
+            return error == other.error;
         }
 
         @Override

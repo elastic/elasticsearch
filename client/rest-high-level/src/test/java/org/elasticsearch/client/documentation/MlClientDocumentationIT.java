@@ -48,7 +48,6 @@ import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteJobResponse;
 import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
-import org.elasticsearch.client.ml.EstimateMemoryUsageRequest;
 import org.elasticsearch.client.ml.EstimateMemoryUsageResponse;
 import org.elasticsearch.client.ml.EvaluateDataFrameRequest;
 import org.elasticsearch.client.ml.EvaluateDataFrameResponse;
@@ -3282,7 +3281,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setSource(DataFrameAnalyticsSource.builder().setIndex("estimate-test-source-index").build())
                 .setAnalysis(OutlierDetection.createDefault())
                 .build();
-            EstimateMemoryUsageRequest request = new EstimateMemoryUsageRequest(config); // <1>
+            PutDataFrameAnalyticsRequest request = new PutDataFrameAnalyticsRequest(config); // <1>
             // end::estimate-memory-usage-request
 
             // tag::estimate-memory-usage-execute
@@ -3305,7 +3304,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setSource(DataFrameAnalyticsSource.builder().setIndex("estimate-test-source-index").build())
                 .setAnalysis(OutlierDetection.createDefault())
                 .build();
-            EstimateMemoryUsageRequest request = new EstimateMemoryUsageRequest(config);
+            PutDataFrameAnalyticsRequest request = new PutDataFrameAnalyticsRequest(config);
             // tag::estimate-memory-usage-execute-listener
             ActionListener<EstimateMemoryUsageResponse> listener = new ActionListener<>() {
                 @Override

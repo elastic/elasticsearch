@@ -328,8 +328,7 @@
             index           \s+
             filter          \s+
             routing.index   \s+
-            routing.search  \s+
-            is_write_index
+            routing.search
             \n
             test_1          \s+
             test            \s+

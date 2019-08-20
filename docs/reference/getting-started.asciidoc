@@ -799,7 +799,7 @@ And the response (partially shown):
     "failed": 0
   },
   "hits" : {
-     "total" : {
+     "total" : 1000,
         "value": 1000,
         "relation": "eq"
      },

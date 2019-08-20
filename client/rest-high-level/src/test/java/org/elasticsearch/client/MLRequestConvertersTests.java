@@ -782,6 +782,7 @@ public class MLRequestConvertersTests extends ESTestCase {
         EvaluateDataFrameRequest evaluateRequest =
             new EvaluateDataFrameRequest(
                 Arrays.asList(generateRandomStringArray(1, 10, false, false)),
+                null,
                 new BinarySoftClassification(
                     randomAlphaOfLengthBetween(1, 10),
                     randomAlphaOfLengthBetween(1, 10),

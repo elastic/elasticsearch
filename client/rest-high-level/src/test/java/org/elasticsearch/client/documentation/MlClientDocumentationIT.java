@@ -177,7 +177,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.tasks.TaskId;
-import org.hamcrest.CoreMatchers;
 import org.junit.After;
 
 import java.io.IOException;
@@ -3192,6 +3191,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::evaluate-data-frame-request
             EvaluateDataFrameRequest request = new EvaluateDataFrameRequest( // <1>
                 indexName, // <2>
+                null,
                 new BinarySoftClassification( // <3>
                     "label", // <4>
                     "p", // <5>
@@ -3220,14 +3220,15 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 metrics.stream().map(m -> m.getMetricName()).collect(Collectors.toList()),
                 containsInAnyOrder(PrecisionMetric.NAME, RecallMetric.NAME, ConfusionMatrixMetric.NAME, AucRocMetric.NAME));
             assertThat(precision, closeTo(0.6, 1e-9));
-            assertThat(confusionMatrix.getTruePositives(), CoreMatchers.equalTo(2L));  // docs #8 and #9
-            assertThat(confusionMatrix.getFalsePositives(), CoreMatchers.equalTo(1L));  // doc #4
-            assertThat(confusionMatrix.getTrueNegatives(), CoreMatchers.equalTo(4L));  // docs #0, #1, #2 and #3
-            assertThat(confusionMatrix.getFalseNegatives(), CoreMatchers.equalTo(3L));  // docs #5, #6 and #7
+            assertThat(confusionMatrix.getTruePositives(), equalTo(2L));  // docs #8 and #9
+            assertThat(confusionMatrix.getFalsePositives(), equalTo(1L));  // doc #4
+            assertThat(confusionMatrix.getTrueNegatives(), equalTo(4L));  // docs #0, #1, #2 and #3
+            assertThat(confusionMatrix.getFalseNegatives(), equalTo(3L));  // docs #5, #6 and #7
         }
         {
             EvaluateDataFrameRequest request = new EvaluateDataFrameRequest(
                 indexName,
+                null,
                 new BinarySoftClassification(
                     "label",
                     "p",

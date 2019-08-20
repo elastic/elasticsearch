@@ -51,7 +51,7 @@ public class TransportExecuteSnapshotLifecycleAction
     }
     @Override
     protected String executor() {
-        return ThreadPool.Names.SNAPSHOT;
+        return ThreadPool.Names.GENERIC;
     }
 
     @Override

@@ -206,7 +206,7 @@ PUT /customer/_doc/1
 
 This request automatically creates the `customer` index if it doesn't already
 exist, adds a new document that has an ID of `1`, and stores and
-indexes the _name_ field.
+indexes the `name` field.
 
 Since this is a new document, the response shows that the result of the
 operation was that version 1 of the document was created:

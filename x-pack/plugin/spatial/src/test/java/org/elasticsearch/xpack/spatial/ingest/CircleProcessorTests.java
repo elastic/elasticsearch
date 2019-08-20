@@ -14,6 +14,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.geometry.Circle;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
@@ -30,9 +32,25 @@ import java.util.Map;
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class CircleProcessorTests extends ESTestCase {
     private static final WellKnownText WKT = new WellKnownText(true, new GeographyValidator(true));
+
+    public void testNumSides() {
+        double radiusDistanceMeters = randomDoubleBetween(0.01, 6371000, true);
+        CircleProcessor processor = new CircleProcessor("tag", "field", "field", false, radiusDistanceMeters);
+
+        // radius is same as error distance
+        assertThat(processor.numSides(radiusDistanceMeters), equalTo(4));
+        // radius is much smaller than error distance
+        assertThat(processor.numSides(0), equalTo(4));
+        // radius is much larger than error distance
+        assertThat(processor.numSides(Math.pow(radiusDistanceMeters, 100)), equalTo(1000));
+        // radius is 5 times longer than error distance
+        assertThat(processor.numSides(5*radiusDistanceMeters), equalTo(10));
+
+    }
 
     public void testFieldNotFound() throws Exception {
         CircleProcessor processor = new CircleProcessor("tag", "field", "field", false, 10);
@@ -73,7 +91,8 @@ public class CircleProcessorTests extends ESTestCase {
         circleMap.put("coordinates", List.of(circle.getLon(), circle.getLat()));
         circleMap.put("radius", circle.getRadiusMeters() + "m");
         map.put("field", circleMap);
-        Polygon expectedPoly = CircleProcessor.createRegularPolygon(circle.getLat(), circle.getLon(), circle.getRadiusMeters(), 10);
+        Geometry expectedPoly = CircleProcessor.createRegularPolygon(circle.getLat(), circle.getLon(), circle.getRadiusMeters(), 4);
+        assertThat(expectedPoly, instanceOf(Polygon.class));
         IngestDocument ingestDocument = new IngestDocument(map, Collections.emptyMap());
         CircleProcessor processor = new CircleProcessor("tag", "field", "field", false, 10);
         processor.execute(ingestDocument);
@@ -85,13 +104,35 @@ public class CircleProcessorTests extends ESTestCase {
         assertThat(polyMap, equalTo(expected.v2()));
     }
 
+    @SuppressWarnings("unchecked")
+    public void testJsonAcrossDateline() throws IOException {
+        Circle circle = new Circle(179.999746, 67.1726, 1000);
+        HashMap<String, Object> map = new HashMap<>();
+        HashMap<String, Object> circleMap = new HashMap<>();
+        circleMap.put("type", "Circle");
+        circleMap.put("coordinates", List.of(circle.getLon(), circle.getLat()));
+        circleMap.put("radius", circle.getRadiusMeters() + "m");
+        map.put("field", circleMap);
+        Geometry expectedPoly = CircleProcessor.createRegularPolygon(circle.getLat(), circle.getLon(), circle.getRadiusMeters(), 1000);
+        assertThat(expectedPoly, instanceOf(MultiPolygon.class));
+        IngestDocument ingestDocument = new IngestDocument(map, Collections.emptyMap());
+        CircleProcessor processor = new CircleProcessor("tag", "field", "field", false, 0.002);
+        processor.execute(ingestDocument);
+        Map<String, Object> polyMap = (Map<String, Object>) ingestDocument.getFieldValue("field", Map.class);
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        GeoJson.toXContent(expectedPoly, builder, ToXContent.EMPTY_PARAMS);
+        Tuple<XContentType, Map<String, Object>> expected = XContentHelper.convertToMap(BytesReference.bytes(builder),
+            true, XContentType.JSON);
+        assertThat(polyMap, equalTo(expected.v2()));
+    }
+
     public void testWKT() {
-        Circle circle = new Circle(101.0, 0.0, 10);
+        Circle circle = new Circle(101.0, 0.0, 2);
         HashMap<String, Object> map = new HashMap<>();
         map.put("field", WKT.toWKT(circle));
-        Polygon expectedPoly = CircleProcessor.createRegularPolygon(circle.getLat(), circle.getLon(), circle.getRadiusMeters(), 10);
+        Geometry expectedPoly = CircleProcessor.createRegularPolygon(circle.getLat(), circle.getLon(), circle.getRadiusMeters(), 4);
         IngestDocument ingestDocument = new IngestDocument(map, Collections.emptyMap());
-        CircleProcessor processor = new CircleProcessor("tag", "field", "field",false, 10);
+        CircleProcessor processor = new CircleProcessor("tag", "field", "field",false, 2);
         processor.execute(ingestDocument);
         String polyString = ingestDocument.getFieldValue("field", String.class);
         assertThat(polyString, equalTo(WKT.toWKT(expectedPoly)));

@@ -21,6 +21,7 @@ import org.elasticsearch.common.xcontent.support.MapXContentParser;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.LinearRing;
+import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.ingest.AbstractProcessor;
@@ -28,6 +29,9 @@ import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -37,24 +41,19 @@ public final class CircleProcessor extends AbstractProcessor {
     public static final String TYPE = "circle";
     static final GeometryParser PARSER = new GeometryParser(true, true, true);
     static final int MINIMUM_NUMBER_OF_SIDES = 4;
-    static final int MAXIMUM_NUMBER_OF_SIDES = 10000;
+    static final int MAXIMUM_NUMBER_OF_SIDES = 1000;
 
     private final String field;
     private final String targetField;
     private final boolean ignoreMissing;
-    private final int numSides;
+    private final double errorDistanceMeters;
 
-    CircleProcessor(String tag, String field, String targetField, boolean ignoreMissing, int numSides) {
+    CircleProcessor(String tag, String field, String targetField, boolean ignoreMissing, double errorDistanceMeters) {
         super(tag);
         this.field = field;
         this.targetField = targetField;
         this.ignoreMissing = ignoreMissing;
-        if (numSides >= MINIMUM_NUMBER_OF_SIDES && numSides <= MAXIMUM_NUMBER_OF_SIDES) {
-            this.numSides = numSides;
-        } else {
-            throw new IllegalArgumentException(
-                "field [number_of_sides] must be >= " + MINIMUM_NUMBER_OF_SIDES + " and <= " + MAXIMUM_NUMBER_OF_SIDES);
-        }
+        this.errorDistanceMeters = errorDistanceMeters;
     }
 
 
@@ -89,12 +88,13 @@ public final class CircleProcessor extends AbstractProcessor {
             Geometry geometry = geometryFormat.fromXContent(parser);
             if (ShapeType.CIRCLE.equals(geometry.type())) {
                 Circle circle = (Circle) geometry;
-                Polygon polygon = createRegularPolygon(circle.getLat(), circle.getLon(), circle.getRadiusMeters(), numSides);
+                int numSides = numSides(circle.getRadiusMeters());
+                Geometry polygonizedCircle = createRegularPolygon(circle.getLat(), circle.getLon(), circle.getRadiusMeters(), numSides);
                 XContentBuilder newValueBuilder = XContentFactory.jsonBuilder().startObject().field("val");
-                geometryFormat.toXContent(polygon, newValueBuilder, ToXContent.EMPTY_PARAMS);
+                geometryFormat.toXContent(polygonizedCircle, newValueBuilder, ToXContent.EMPTY_PARAMS);
                 newValueBuilder.endObject();
                 Map<String, Object> newObj = XContentHelper.convertToMap(
-                    BytesReference.bytes(newValueBuilder), false, XContentType.JSON).v2();
+                    BytesReference.bytes(newValueBuilder), true, XContentType.JSON).v2();
                 ingestDocument.setFieldValue(targetField, newObj.get("val"));
             } else {
                 throw new IllegalArgumentException("found [" + geometry.type() + "] instead of circle");
@@ -119,18 +119,30 @@ public final class CircleProcessor extends AbstractProcessor {
         return targetField;
     }
 
-    int numSides() {
-        return numSides;
+    double errorDistanceMeters() {
+        return errorDistanceMeters;
     }
 
-    /** Makes an n-gon, centered at the provided lat/lon, and each vertex approximately
-     *  radiusMeters away from the center.
+    int numSides(double radiusMeters) {
+        int val = (int) Math.ceil(2 * Math.PI / Math.acos(1 - errorDistanceMeters / radiusMeters));
+        return Math.min(MAXIMUM_NUMBER_OF_SIDES, Math.max(MINIMUM_NUMBER_OF_SIDES, val));
+    }
+
+    /**
+     * Makes an n-gon, centered at the provided lat/lon, and each vertex approximately
+     * radiusMeters away from the center.
      *
-     * Do not invoke me across the dateline or a pole!! */
-    static Polygon createRegularPolygon(double centerLat, double centerLon, double radiusMeters, int gons) {
-        double[][] result = new double[2][];
-        result[0] = new double[gons+1];
-        result[1] = new double[gons+1];
+     * Do not invoke me around a pole!!
+     *
+     * Adapted from from org.apache.lucene.geo.GeoTestUtil
+     * */
+    static Geometry createRegularPolygon(double centerLat, double centerLon, double radiusMeters, int gons) {
+        List<Double> xCoord = new ArrayList<>(gons);
+        List<Double> yCoord = new ArrayList<>(gons);
+        // lists for coordinates of semi-circle that is on other side of the dateline from the radius.
+        // if empty, then circle does not cross the dateline
+        List<Double> antiXCoord = new ArrayList<>();
+        List<Double> antiYCoord = new ArrayList<>();
         for(int i=0;i<gons;i++) {
             double angle = 360.0-i*(360.0/gons);
             double x = Math.cos(SloppyMath.toRadians(angle));
@@ -141,17 +153,27 @@ public final class CircleProcessor extends AbstractProcessor {
 
             // Iterate out along one spoke until we hone in on the point that's nearly exactly radiusMeters from the center:
             while (true) {
-                // TODO: we could in fact cross a pole?  Just do what surpriseMePolygon does?
                 double lat = centerLat + y * factor;
                 GeoUtils.checkLatitude(lat);
                 double lon = centerLon + x * factor;
+                boolean crosses = lon > 180 || lon < -180;
+                if (lon > 180) {
+                    lon = lon - 360;
+                } else if (lon < -180) {
+                    lon = 360 - lon;
+                }
                 GeoUtils.checkLongitude(lon);
                 double distanceMeters = SloppyMath.haversinMeters(centerLat, centerLon, lat, lon);
 
                 if (Math.abs(distanceMeters - radiusMeters) < 0.1) {
                     // Within 10 cm: close enough!
-                    result[0][i] = lat;
-                    result[1][i] = lon;
+                    if (crosses) {
+                        antiXCoord.add(lon);
+                        antiYCoord.add(lat);
+                    } else {
+                        xCoord.add(lon);
+                        yCoord.add(lat);
+                    }
                     break;
                 }
 
@@ -173,22 +195,45 @@ public final class CircleProcessor extends AbstractProcessor {
             }
         }
 
-        // close poly
-        result[0][gons] = result[0][0];
-        result[1][gons] = result[1][0];
+        // close polygon
+        xCoord.add(xCoord.get(0));
+        yCoord.add(yCoord.get(0));
 
-        return new Polygon(new LinearRing(result[0], result[1]));
+        double[] xCoordArray = new double[xCoord.size()];
+        double[] yCoordArray = new double[yCoord.size()];
+        for (int i = 0; i < xCoord.size(); i++) {
+            xCoordArray[i] = xCoord.get(i);
+            yCoordArray[i] = yCoord.get(i);
+        }
+
+        Polygon circle = new Polygon(new LinearRing(xCoordArray, yCoordArray));
+
+        if (antiXCoord.isEmpty()) {
+            return circle;
+        } else {
+            // close polygon
+            antiXCoord.add(antiXCoord.get(0));
+            antiYCoord.add(antiYCoord.get(0));
+            double[] antiXCoordArray = new double[antiXCoord.size()];
+            double[] antiYCoordArray = new double[antiYCoord.size()];
+            for (int i = 0; i < antiXCoord.size(); i++) {
+                antiXCoordArray[i] = antiXCoord.get(i);
+                antiYCoordArray[i] = antiYCoord.get(i);
+            }
+            Polygon antiCircle = new Polygon(new LinearRing(antiXCoordArray, antiYCoordArray));
+            return new MultiPolygon(Arrays.asList(circle, antiCircle));
+        }
     }
 
     public static final class Factory implements Processor.Factory {
-        static final int DEFAULT_NUMBER_OF_SIDES = 150;
 
         public CircleProcessor create(Map<String, Processor.Factory> registry, String processorTag, Map<String, Object> config) {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field", field);
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
-            int numSides = ConfigurationUtils.readIntProperty(TYPE, processorTag, config, "number_of_sides", DEFAULT_NUMBER_OF_SIDES);
-            return new CircleProcessor(processorTag, field, targetField, ignoreMissing, numSides);
+            double radiusDistanceMeters = Math.abs(ConfigurationUtils.readDoubleProperty(TYPE, processorTag, config,
+                "error_distance_in_meters"));
+            return new CircleProcessor(processorTag, field, targetField, ignoreMissing, radiusDistanceMeters);
         }
     }
 }

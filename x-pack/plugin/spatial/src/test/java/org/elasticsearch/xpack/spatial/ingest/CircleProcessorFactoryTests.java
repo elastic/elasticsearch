@@ -27,12 +27,13 @@ public class CircleProcessorFactoryTests extends ESTestCase {
     public void testCreate() {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "field1");
+        config.put("error_distance_in_meters", 0.002);
         String processorTag = randomAlphaOfLength(10);
         CircleProcessor processor = factory.create(null, processorTag, config);
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.field(), equalTo("field1"));
         assertThat(processor.targetField(), equalTo("field1"));
-        assertThat(processor.numSides(), equalTo(CircleProcessor.Factory.DEFAULT_NUMBER_OF_SIDES));
+        assertThat(processor.errorDistanceMeters(), equalTo(0.002));
     }
 
     public void testCreateMissingField() {
@@ -46,31 +47,20 @@ public class CircleProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "field1");
         config.put("target_field", "other");
+        config.put("error_distance_in_meters", 0.002);
         String processorTag = randomAlphaOfLength(10);
         CircleProcessor processor = factory.create(null, processorTag, config);
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.field(), equalTo("field1"));
         assertThat(processor.targetField(), equalTo("other"));
-        assertThat(processor.numSides(), equalTo(CircleProcessor.Factory.DEFAULT_NUMBER_OF_SIDES));
+        assertThat(processor.errorDistanceMeters(), equalTo(0.002));
     }
 
-    public void testCreateWithNumSidesDefined() {
+    public void testCreateWithNoErrorDistanceDefined() {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "field1");
-        config.put("number_of_sides", 10);
         String processorTag = randomAlphaOfLength(10);
-        CircleProcessor processor = factory.create(null, processorTag, config);
-        assertThat(processor.getTag(), equalTo(processorTag));
-        assertThat(processor.field(), equalTo("field1"));
-        assertThat(processor.targetField(), equalTo("field1"));
-        assertThat(processor.numSides(), equalTo(10));
-    }
-
-    public void testCreateWithInvalidNumSidesDefined() {
-        Map<String, Object> config = new HashMap<>();
-        config.put("field", "field1");
-        config.put("number_of_sides", randomFrom(CircleProcessor.MINIMUM_NUMBER_OF_SIDES - 1, CircleProcessor.MAXIMUM_NUMBER_OF_SIDES + 1));
-        String processorTag = randomAlphaOfLength(10);
-        Exception e = expectThrows(Exception.class, () -> factory.create(null, processorTag, config));
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, processorTag, config));
+        assertThat(e.getMessage(), equalTo("[error_distance_in_meters] required property is missing"));
     }
 }

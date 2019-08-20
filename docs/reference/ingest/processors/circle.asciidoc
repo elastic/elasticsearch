@@ -8,11 +8,11 @@ Converts circle definitions of shapes to regular polygons which approximate them
 .Circle Processor Options
 [options="header"]
 |======
-| Name               | Required  | Default  | Description
-| `field`            | yes       | -        | The string-valued field to trim whitespace from
-| `target_field`     | no        | `field`  | The field to assign the polygon shape to, by default `field` is updated in-place
-| `ignore_missing`   | no        | `false`  | If `true` and `field` does not exist, the processor quietly exits without modifying the document
-| `number_of_sides`  | no        | 150      | The number of sides for the n-gon polygon approximation of the circle
+| Name                        | Required  | Default  | Description
+| `field`                     | yes       | -        | The string-valued field to trim whitespace from
+| `target_field`              | no        | `field`  | The field to assign the polygon shape to, by default `field` is updated in-place
+| `ignore_missing`            | no        | `false`  | If `true` and `field` does not exist, the processor quietly exits without modifying the document
+| `error_distance_in_meters`  | no        | -        | The difference between the resulting inscribed distance from center to side and the circle's radius
 include::common-options.asciidoc[]
 |======
 
@@ -36,7 +36,7 @@ PUT _ingest/pipeline/polygonize_circles
       {
         "circle": {
           "field": "circle",
-          "number_of_sides": 5
+          "error_distance_in_meters": 28.0
         }
       }
     ]
@@ -78,7 +78,7 @@ The response from the above index request:
   "_seq_no": 22,
   "_primary_term": 1,
   "_source": {
-    "circle": "polygon ((10.0 30.000365257263184, 9.99965715469059 30.000111397193788, 9.999786428278805 29.999706043744222, 10.000213571721195 29.999706043744222, 10.00034284530941 30.000111397193788, 10.0 30.000365257263184))",
+    "circle": "polygon ((30.000365257263184 10.0, 30.000111397193788 9.99965715469059, 29.999706043744222 9.999786428278805, 29.999706043744222 10.000213571721195, 30.000111397193788 10.00034284530941, 30.000365257263184 10.0))"
   }
 }
 --------------------------------------------------
@@ -120,12 +120,12 @@ The response from the above index request:
     "circle": {
       "coordinates": [
         [
-          [10.0, 30.000365257263184],
-          [9.99965715469059,  30.000111397193788],
-          [9.999786428278805,  29.999706043744222],
-          [10.000213571721195, 29.999706043744222],
-          [10.00034284530941, 30.000111397193788],
-          [10.0, 30.000365257263184]
+          [30.000365257263184, 10.0],
+          [30.000111397193788, 9.99965715469059],
+          [29.999706043744222, 9.999786428278805],
+          [29.999706043744222, 10.000213571721195],
+          [30.000111397193788, 10.00034284530941],
+          [30.000365257263184, 10.0]
         ]
       ],
       "type": "polygon"
@@ -135,3 +135,35 @@ The response from the above index request:
 --------------------------------------------------
 // TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term": 1/"_primary_term" : $body._primary_term/]
 
+
+==== Notes on Accuracy
+
+Accuracy of the polygon that represents the circle is defined as `error_distance_in_meters`. The smaller this
+difference is, the closer to a perfect circle the polygon is.
+
+Below is a table that aims to help capture how the radius of the circle affects the resulting number of sides
+of the polygon given different inputs.
+
+The minimum number of sides is `4` and the maximum is `1000`.
+
+[[circle-processor-accuracy]]
+.Circle Processor Accuracy
+[options="header"]
+|======
+| error_distance_in_meters | radius   | number of sides of polygon
+| 0.01                     | 0.001    | 4
+| 0.01                     | 0.1      | 14
+| 0.01                     | 1.0      | 45
+| 0.01                     | 10.0     | 141
+| 0.01                     | 100.0    | 445
+| 0.01                     | 1000.0   | 1000
+| 1.00                     | 0.001    | 4
+| 1.00                     | 0.1      | 4
+| 1.00                     | 1.0      | 4
+| 1.00                     | 10.0     | 14
+| 1.00                     | 100.0    | 45
+| 1.00                     | 1000.0   | 141
+| 1.00                     | 10000.0  | 445
+| 1.00                     | 100000.0 | 1000
+include::common-options.asciidoc[]
+|======

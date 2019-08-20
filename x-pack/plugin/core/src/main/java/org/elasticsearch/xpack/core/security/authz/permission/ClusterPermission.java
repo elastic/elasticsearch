@@ -152,11 +152,11 @@ public class ClusterPermission {
     }
 
     // Automaton based permission check
-    private static class AutomatonPermissionCheck implements PermissionCheck {
+    public static class AutomatonPermissionCheck implements PermissionCheck {
         private final Automaton automaton;
         private final Predicate<String> actionPredicate;
 
-        AutomatonPermissionCheck(final Automaton automaton) {
+        public AutomatonPermissionCheck(final Automaton automaton) {
             this.automaton = automaton;
             this.actionPredicate = Automatons.predicate(automaton);
         }

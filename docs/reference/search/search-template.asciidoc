@@ -298,7 +298,8 @@ The `params` would look like:
 // NOTCONSOLE
 <1> All three of these elements are optional.
 
-We could write the query as:
+When written as a query, the template would include invalid JSON, such as
+_section_ markers like `{{#line_no}}`.
 
 [source,js]
 ------------------------------------------
@@ -307,51 +308,38 @@ We could write the query as:
     "bool": {
       "must": {
         "match": {
-          "line": "{{text}}" <1>
+          "line": "{{text}}"
         }
       },
       "filter": {
-        {{#line_no}} <2>
+        {{#line_no}}
           "range": {
             "line_no": {
-              {{#start}} <3>
-                "gte": "{{start}}" <4>
-                {{#end}},{{/end}} <5>
-              {{/start}} <3>
-              {{#end}} <6>
-                "lte": "{{end}}" <7>
-              {{/end}} <6>
+              {{#start}}
+                "gte": "{{start}}"
+                {{#end}},{{/end}}
+              {{/start}}
+              {{#end}}
+                "lte": "{{end}}"
+              {{/end}}
             }
           }
-        {{/line_no}} <2>
+        {{/line_no}}
       }
     }
   }
 }
 ------------------------------------------
 // NOTCONSOLE
-<1> Fill in the value of param `text`
-<2> Include the `range` filter only if `line_no` is specified
-<3> Include the `gte` clause only if `line_no.start` is specified
-<4> Fill in the value of param `line_no.start`
-<5> Add a comma after the `gte` clause only if `line_no.start`
-    AND `line_no.end` are specified
-<6> Include the `lte` clause only if `line_no.end` is specified
-<7> Fill in the value of param `line_no.end`
 
-[NOTE]
-==================================
-As written above, this template is not valid JSON because it includes the
-_section_ markers like `{{#line_no}}`.  For this reason, the template should
-either be stored in {es} (see <<pre-registered-templates>>) or, when used
-via the REST API, should be written as a string:
+Because search templates cannot include invalid JSON, you must pass the query
+as a string instead:
 
 [source,js]
 --------------------
 "source": "{\"query\":{\"bool\":{\"must\":{\"match\":{\"line\":\"{{text}}\"}},\"filter\":{{{#line_no}}\"range\":{\"line_no\":{{{#start}}\"gte\":\"{{start}}\"{{#end}},{{/end}}{{/start}}{{#end}}\"lte\":\"{{end}}\"{{/end}}}}{{/line_no}}}}}}"
 --------------------
 // NOTCONSOLE
-==================================
 
 
 [float]

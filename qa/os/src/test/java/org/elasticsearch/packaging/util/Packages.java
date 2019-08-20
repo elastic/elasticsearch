@@ -19,6 +19,8 @@
 
 package org.elasticsearch.packaging.util;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.elasticsearch.packaging.util.Shell.Result;
 
 import java.io.IOException;
@@ -38,7 +40,6 @@ import static org.elasticsearch.packaging.util.FileMatcher.p660;
 import static org.elasticsearch.packaging.util.FileMatcher.p750;
 import static org.elasticsearch.packaging.util.FileMatcher.p755;
 import static org.elasticsearch.packaging.util.FileUtils.getCurrentVersion;
-import static org.elasticsearch.packaging.util.FileUtils.getDistributionFile;
 import static org.elasticsearch.packaging.util.Platforms.isSysVInit;
 import static org.elasticsearch.packaging.util.Platforms.isSystemd;
 import static org.elasticsearch.packaging.util.ServerUtils.waitForElasticsearch;
@@ -50,6 +51,8 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class Packages {
+
+    private static final Log logger = LogFactory.getLog(Packages.class);
 
     public static final Path SYSVINIT_SCRIPT = Paths.get("/etc/init.d/elasticsearch");
     public static final Path SYSTEMD_SERVICE = Paths.get("/usr/lib/systemd/system/elasticsearch.service");
@@ -81,6 +84,7 @@ public class Packages {
         final Shell sh = new Shell();
         final Result result;
 
+        logger.info("Package type: " + distribution.packaging);
         if (distribution.packaging == Distribution.Packaging.RPM) {
             result = sh.runIgnoreExitCode("rpm -qe " + distribution.flavor.name);
         } else {
@@ -91,18 +95,14 @@ public class Packages {
     }
 
     public static Installation install(Distribution distribution) throws IOException {
-        return install(distribution, getCurrentVersion());
-    }
-
-    public static Installation install(Distribution distribution, String version) throws IOException {
         Shell sh = new Shell();
         String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
         if (distribution.hasJdk == false) {
             sh.getEnv().put("JAVA_HOME", systemJavaHome);
         }
-        final Result result = runInstallCommand(distribution, version, sh);
+        final Result result = runInstallCommand(distribution, sh);
         if (result.exitCode != 0) {
-            throw new RuntimeException("Installing distribution " + distribution + " version " + version + " failed: " + result);
+            throw new RuntimeException("Installing distribution " + distribution + " failed: " + result);
         }
 
         Installation installation = Installation.ofPackage(distribution.packaging);
@@ -114,8 +114,8 @@ public class Packages {
         return installation;
     }
 
-    public static Result runInstallCommand(Distribution distribution, String version, Shell sh) {
-        final Path distributionFile = getDistributionFile(distribution, version);
+    public static Result runInstallCommand(Distribution distribution, Shell sh) {
+        final Path distributionFile = distribution.path;
 
         if (Platforms.isRPM()) {
             return sh.runIgnoreExitCode("rpm -i " + distributionFile);

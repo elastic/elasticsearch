@@ -180,6 +180,7 @@ Spanish::
 
 http://snowball.tartarus.org/algorithms/spanish/stemmer.html[`spanish`],
 http://www.ercim.eu/publication/ws-proceedings/CLEF2/savoy.pdf[*`light_spanish`*]
+https://issues.apache.org/jira/browse/LUCENE-8936[`minimal_spanish`]
 
 Swedish::
 

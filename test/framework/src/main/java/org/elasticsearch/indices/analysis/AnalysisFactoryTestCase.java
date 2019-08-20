@@ -152,6 +152,7 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         entry("soraninormalization", MovedToAnalysisCommon.class),
         entry("soranistem", MovedToAnalysisCommon.class),
         entry("spanishlightstem", MovedToAnalysisCommon.class),
+        entry("spanishminimalstem", MovedToAnalysisCommon.class),
         entry("stemmeroverride", MovedToAnalysisCommon.class),
         entry("stop", StopTokenFilterFactory.class),
         entry("swedishlightstem", MovedToAnalysisCommon.class),

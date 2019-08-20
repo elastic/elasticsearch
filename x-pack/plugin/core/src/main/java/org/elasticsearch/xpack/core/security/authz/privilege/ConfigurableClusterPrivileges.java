@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -15,9 +17,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.ApplicationPrivilegesRequest;
-import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege.Category;
 import org.elasticsearch.xpack.core.security.support.Automatons;
@@ -31,7 +31,6 @@ import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 
 /**
@@ -127,26 +126,12 @@ public final class ConfigurableClusterPrivileges {
      * of applications (identified by a wildcard-aware application-name).
      */
     public static class ManageApplicationPrivileges implements ConfigurableClusterPrivilege {
-
-        private static final Predicate<String> ACTION_PREDICATE = Automatons.predicate("cluster:admin/xpack/security/privilege/*");
         public static final String WRITEABLE_NAME = "manage-application-privileges";
 
         private final Set<String> applicationNames;
-        private final Predicate<String> applicationPredicate;
-        private final BiPredicate<TransportRequest, Authentication> requestAuthnPredicate;
 
         public ManageApplicationPrivileges(Set<String> applicationNames) {
             this.applicationNames = Collections.unmodifiableSet(applicationNames);
-            this.applicationPredicate = Automatons.predicate(applicationNames);
-            this.requestAuthnPredicate = (request, authn) -> {
-                if (request instanceof ApplicationPrivilegesRequest) {
-                    final ApplicationPrivilegesRequest privRequest = (ApplicationPrivilegesRequest) request;
-                    final Collection<String> requestApplicationNames = privRequest.getApplicationNames();
-                    return requestApplicationNames.isEmpty() ? this.applicationNames.contains("*")
-                        : requestApplicationNames.stream().allMatch(application -> applicationPredicate.test(application));
-                }
-                return false;
-            };
         }
 
         @Override
@@ -217,12 +202,46 @@ public final class ConfigurableClusterPrivileges {
 
         @Override
         public ClusterPermission.Builder buildPermission(final ClusterPermission.Builder builder) {
-            return builder.add(this, ACTION_PREDICATE, requestAuthnPredicate);
+            return builder.add(this, Set.of("cluster:admin/xpack/security/privilege/*"), Set.of(),
+                new RequestPermissionCheckPredicate(applicationNames));
         }
 
         private interface Fields {
             ParseField MANAGE = new ParseField("manage");
             ParseField APPLICATIONS = new ParseField("applications");
+        }
+
+        private static class RequestPermissionCheckPredicate<TransportRequest>
+            implements ClusterPermission.PermissionCheckPredicate<TransportRequest> {
+            private final Automaton applicationNamesAutomaton;
+            private final Set<String> applicationNames;
+            private final Predicate<String> applicationPredicate;
+
+            RequestPermissionCheckPredicate(Set<String> applicationNames) {
+                this.applicationNamesAutomaton = Automatons.patterns(applicationNames);
+                this.applicationNames = applicationNames;
+                this.applicationPredicate = Automatons.predicate(applicationNamesAutomaton);
+            }
+
+            @Override
+            public boolean implies(ClusterPermission.PermissionCheckPredicate<TransportRequest> otherPermissionCheckPredicate) {
+                if (otherPermissionCheckPredicate instanceof RequestPermissionCheckPredicate) {
+                    return Operations.subsetOf(((RequestPermissionCheckPredicate) otherPermissionCheckPredicate).applicationNamesAutomaton,
+                        this.applicationNamesAutomaton);
+                }
+                return false;
+            }
+
+            @Override
+            public boolean test(TransportRequest transportRequest) {
+                if (transportRequest instanceof ApplicationPrivilegesRequest) {
+                    final ApplicationPrivilegesRequest privRequest = (ApplicationPrivilegesRequest) transportRequest;
+                    final Collection<String> requestApplicationNames = privRequest.getApplicationNames();
+                    return requestApplicationNames.isEmpty() ? this.applicationNames.contains("*")
+                        : requestApplicationNames.stream().allMatch(application -> applicationPredicate.test(application));
+                }
+                return false;
+            }
         }
     }
 }

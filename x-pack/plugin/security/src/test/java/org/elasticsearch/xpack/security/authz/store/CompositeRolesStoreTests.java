@@ -51,7 +51,6 @@ import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
-import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -551,9 +550,19 @@ public class CompositeRolesStoreTests extends ESTestCase {
         ConfigurableClusterPrivilege ccp1 = new MockConfigurableClusterPrivilege() {
             @Override
             public ClusterPermission.Builder buildPermission(ClusterPermission.Builder builder) {
-                Predicate<String> predicate1 =
-                    Automatons.predicate(((ActionClusterPrivilege) ClusterPrivilegeResolver.MANAGE_SECURITY).getAllowedActionPatterns());
-                builder.add(this, predicate1, (req, authn) -> req == request1);
+                builder.add(this, ((ActionClusterPrivilege) ClusterPrivilegeResolver.MANAGE_SECURITY).getAllowedActionPatterns(),
+                    Set.of(), new ClusterPermission.PermissionCheckPredicate<TransportRequest>() {
+
+                        @Override
+                        public boolean test(TransportRequest r) {
+                            return r == request1;
+                        }
+
+                        @Override
+                        public boolean implies(ClusterPermission.PermissionCheckPredicate<TransportRequest> permissionCheckPredicate) {
+                            return this.equals(permissionCheckPredicate);
+                        }
+                    });
                 return builder;
             }
         };
@@ -583,9 +592,19 @@ public class CompositeRolesStoreTests extends ESTestCase {
         ConfigurableClusterPrivilege ccp2 = new MockConfigurableClusterPrivilege() {
             @Override
             public ClusterPermission.Builder buildPermission(ClusterPermission.Builder builder) {
-                Predicate<String> predicate2 =
-                    Automatons.predicate(((ActionClusterPrivilege) ClusterPrivilegeResolver.MANAGE_SECURITY).getAllowedActionPatterns());
-                builder.add(this, predicate2, (req, authn) -> req == request2);
+                builder.add(this, ((ActionClusterPrivilege) ClusterPrivilegeResolver.MANAGE_SECURITY).getAllowedActionPatterns(),
+                    Set.of(), new ClusterPermission.PermissionCheckPredicate<TransportRequest>() {
+
+                        @Override
+                        public boolean test(TransportRequest r) {
+                            return r == request2;
+                        }
+
+                        @Override
+                        public boolean implies(ClusterPermission.PermissionCheckPredicate<TransportRequest> permissionCheckPredicate) {
+                            return this.equals(permissionCheckPredicate);
+                        }
+                    });
                 return builder;
             }
         };

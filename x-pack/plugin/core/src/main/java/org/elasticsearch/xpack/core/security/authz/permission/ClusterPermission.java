@@ -16,7 +16,6 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 
 /**
@@ -93,10 +92,21 @@ public class ClusterPermission {
             return this;
         }
 
-        public Builder add(final ClusterPrivilege clusterPrivilege, final Predicate<String> actionPredicate,
-                           final BiPredicate<TransportRequest, Authentication> requestAuthnPredicate) {
-            return add(clusterPrivilege, new ActionRequestAuthenticationPredicatePermissionCheck(clusterPrivilege,
-                actionPredicate, requestAuthnPredicate));
+        public Builder add(final ClusterPrivilege clusterPrivilege, final Set<String> allowedActionPatterns,
+                           final Set<String> excludeActionPatterns, final PermissionCheckPredicate<TransportRequest> requestPredicate) {
+            return add(clusterPrivilege, allowedActionPatterns, excludeActionPatterns, requestPredicate,
+                new AllowAllPermissionCheckPredicate());
+        }
+
+        public Builder add(final ClusterPrivilege clusterPrivilege, final Set<String> allowedActionPatterns,
+                           final Set<String> excludeActionPatterns, final PermissionCheckPredicate<TransportRequest> requestPredicate,
+                           final PermissionCheckPredicate<Authentication> authenticationPredicate) {
+            final Automaton allowedAutomaton = Automatons.patterns(allowedActionPatterns);
+            final Automaton excludedAutomaton = Automatons.patterns(excludeActionPatterns);
+            final Automaton actionAutomaton = Automatons.minusAndMinimize(allowedAutomaton, excludedAutomaton);
+
+            return add(clusterPrivilege, new ActionRequestAuthenticationBasedPermissionCheck(actionAutomaton, requestPredicate,
+                authenticationPredicate));
         }
 
         public Builder add(final ClusterPrivilege clusterPrivilege, final PermissionCheck permissionCheck) {
@@ -117,6 +127,35 @@ public class ClusterPermission {
                 checks.addAll(this.permissionChecks);
             }
             return new ClusterPermission(this.clusterPrivileges, checks);
+        }
+    }
+
+    /**
+     * A {@link Predicate} which also can determine if the other {@link PermissionCheckPredicate}
+     * is implied by it.
+     */
+    public interface PermissionCheckPredicate<T> extends Predicate<T> {
+        /**
+         * Checks whether specified {@link PermissionCheckPredicate} is implied by this {@link PermissionCheckPredicate}.<br>
+         * This is important method to be considered during implementation as it compares {@link PermissionCheckPredicate}s.
+         * If {@code permissionCheckPredicate.implies(otherPermissionCheckPredicate)}, that means all the operations allowed
+         * by {@code otherPermissionCheckPredicate} are also allowed by {@code permissionCheckPredicate}.
+         *
+         * @param otherPermissionCheckPredicate {@link PermissionCheckPredicate}
+         * @return {@code true} if the specified permission check predicate is implied by this
+         * {@link PermissionCheckPredicate} else returns {@code false}
+         */
+        boolean implies(PermissionCheckPredicate<T> otherPermissionCheckPredicate);
+    }
+
+    private static final class AllowAllPermissionCheckPredicate<T> implements PermissionCheckPredicate<T> {
+        @Override
+        public boolean implies(PermissionCheckPredicate<T> otherPermissionCheckPredicate) {
+            return true;
+        }
+        @Override
+        public boolean test(T t) {
+            return true;
         }
     }
 
@@ -174,30 +213,33 @@ public class ClusterPermission {
     }
 
     // action, request and authentication based permission check
-    private static class ActionRequestAuthenticationPredicatePermissionCheck implements PermissionCheck {
-        private final ClusterPrivilege clusterPrivilege;
-        final Predicate<String> actionPredicate;
-        final BiPredicate<TransportRequest, Authentication> requestAuthnPredicate;
+    private static class ActionRequestAuthenticationBasedPermissionCheck extends AutomatonPermissionCheck {
+        private final PermissionCheckPredicate<TransportRequest> requestPredicate;
+        private final PermissionCheckPredicate<Authentication> authenticationPredicate;
 
-        ActionRequestAuthenticationPredicatePermissionCheck(final ClusterPrivilege clusterPrivilege,
-                                                            final Predicate<String> actionPredicate,
-                                                            final BiPredicate<TransportRequest, Authentication> requestAuthnPredicate) {
-            this.clusterPrivilege = clusterPrivilege;
-            this.actionPredicate = actionPredicate;
-            this.requestAuthnPredicate = requestAuthnPredicate;
+        ActionRequestAuthenticationBasedPermissionCheck(final Automaton automaton,
+                                          final PermissionCheckPredicate<TransportRequest> requestPredicate,
+                                          final PermissionCheckPredicate<Authentication> authenticationPredicate) {
+            super(automaton);
+            this.requestPredicate = requestPredicate;
+            this.authenticationPredicate = authenticationPredicate;
         }
 
         @Override
         public boolean check(final String action, final TransportRequest request, final Authentication authentication) {
-            return actionPredicate.test(action) && requestAuthnPredicate.test(request, authentication);
+            return super.check(action, request, authentication) && requestPredicate.test(request) && authenticationPredicate.test(
+                authentication);
         }
 
         @Override
         public boolean implies(final PermissionCheck permissionCheck) {
-            if (permissionCheck instanceof ActionRequestAuthenticationPredicatePermissionCheck) {
-                final ActionRequestAuthenticationPredicatePermissionCheck otherCheck =
-                    (ActionRequestAuthenticationPredicatePermissionCheck) permissionCheck;
-                return this.clusterPrivilege.equals(otherCheck.clusterPrivilege);
+            if (super.implies(permissionCheck)) {
+                if (permissionCheck instanceof ActionRequestAuthenticationBasedPermissionCheck) {
+                    final ActionRequestAuthenticationBasedPermissionCheck otherCheck =
+                        (ActionRequestAuthenticationBasedPermissionCheck) permissionCheck;
+                    return this.requestPredicate.implies(otherCheck.requestPredicate) &&
+                        this.authenticationPredicate.implies(otherCheck.authenticationPredicate);
+                }
             }
             return false;
         }

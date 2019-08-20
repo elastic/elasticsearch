@@ -4,8 +4,7 @@
     "stability" : "stable",
     "methods": [ "GET" ],
     "url": {
-      "path": "/_enrich/policy/{name}",
-      "paths": ["/_enrich/policy/{name}"],
+      "paths": ["/_enrich/policy/{name}", "/_enrich/policy/"],
       "parts": {
         "name": {
           "type" : "string",

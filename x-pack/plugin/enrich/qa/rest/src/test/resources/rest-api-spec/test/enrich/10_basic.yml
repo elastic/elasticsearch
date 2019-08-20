@@ -19,13 +19,15 @@
   - do:
       enrich.get_policy:
         name: policy-crud
-  - match: { type: exact_match }
-  - match: { indices: ["bar*"] }
-  - match: { match_field: baz }
-  - match: { enrich_fields: ["a", "b"] }
+  - length: { policies: 1 }
+  - match: { policies.0.name: policy-crud }
+  - match: { policies.0.type: exact_match }
+  - match: { policies.0.indices: ["bar*"] }
+  - match: { policies.0.match_field: baz }
+  - match: { policies.0.enrich_fields: ["a", "b"] }
 
   - do:
-      enrich.list_policy: {}
+      enrich.get_policy: {}
   - length: { policies: 1 }
   - match: { policies.0.name: policy-crud }
   - match: { policies.0.type: exact_match }

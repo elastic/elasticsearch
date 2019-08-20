@@ -45,10 +45,13 @@ public class EnrichIT extends ESRestHighLevelClientTestCase {
         Response getPolicyResponse = highLevelClient().getLowLevelClient().performRequest(getPolicyRequest);
         assertThat(getPolicyResponse.getHttpResponse().getStatusLine().getStatusCode(), equalTo(200));
         Map<String, Object> responseBody = toMap(getPolicyResponse);
-        assertThat(responseBody.get("type"), equalTo(putPolicyRequest.getType()));
-        assertThat(responseBody.get("indices"), equalTo(putPolicyRequest.getIndices()));
-        assertThat(responseBody.get("match_field"), equalTo(putPolicyRequest.getMatchField()));
-        assertThat(responseBody.get("enrich_fields"), equalTo(putPolicyRequest.getEnrichFields()));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> responsePolicies = (List<Map<String, Object>>) responseBody.get("policies");
+        assertThat(responsePolicies.size(), equalTo(1));
+        assertThat(responsePolicies.get(0).get("type"), equalTo(putPolicyRequest.getType()));
+        assertThat(responsePolicies.get(0).get("indices"), equalTo(putPolicyRequest.getIndices()));
+        assertThat(responsePolicies.get(0).get("match_field"), equalTo(putPolicyRequest.getMatchField()));
+        assertThat(responsePolicies.get(0).get("enrich_fields"), equalTo(putPolicyRequest.getEnrichFields()));
     }
 
     private static Map<String, Object> toMap(Response response) throws IOException {

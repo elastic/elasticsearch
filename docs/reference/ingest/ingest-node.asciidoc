@@ -967,7 +967,6 @@ Also there are several APIs in order to manage and execute enrich policies:
 * <<get-policy-api,Get policy api>>.
 * <<delete-policy-api,Delete policy api>>.
 * <<execute-policy-api,Execute policy api>>.
-* <<list-policies-api,List policies api>>.
 
 If security is enabled then the user managing enrich policies will need to have
 the `enrich_user` builtin role. Also the user will need to have read privileges
@@ -1008,7 +1007,7 @@ Response:
 
 The get policy api allows a policy to be retrieved by id.
 
-Request"
+Request:
 
 [source,js]
 --------------------------------------------------
@@ -1022,18 +1021,27 @@ Response:
 [source,js]
 --------------------------------------------------
 {
-    "type": "exact_match",
-    "indices": ["users"],
-    "match_field": "email",
-    "enrich_fields": ["first_name", "last_name", "address", "city", "zip", "state"]
+    "policies": [
+        {
+            "name" : "my-policy",
+            "type" : "exact_match",
+            "indices" : ["users"],
+            "match_field" : "email",
+            "enrich_fields" : [
+                "first_name",
+                "last_name",
+                "address",
+                "city",
+                "zip",
+                "state"
+            ]
+        }
+    ]
 }
 --------------------------------------------------
 // TESTRESPONSE
 
-[[list-policies-api]]
-==== List Policies API
-
-The list policies api allows all policies to be returned.
+The get policy api allows all policies to be returned.
 
 Request:
 

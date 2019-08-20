@@ -23,6 +23,8 @@ import org.elasticsearch.xpack.core.enrich.action.GetEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.EnrichStore;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Map;
 
 public class TransportGetEnrichPolicyAction extends TransportMasterNodeReadAction<GetEnrichPolicyAction.Request,
     GetEnrichPolicyAction.Response> {
@@ -55,11 +57,18 @@ public class TransportGetEnrichPolicyAction extends TransportMasterNodeReadActio
     protected void masterOperation(GetEnrichPolicyAction.Request request,
                                    ClusterState state,
                                    ActionListener<GetEnrichPolicyAction.Response> listener) throws Exception {
-        final EnrichPolicy policy = EnrichStore.getPolicy(request.getName(), state);
-        if (policy == null) {
-            throw new ResourceNotFoundException("Policy [{}] was not found", request.getName());
+        Map<String, EnrichPolicy> policies;
+        if (request.getName() == null || request.getName().isEmpty()) {
+            policies = EnrichStore.getPolicies(state);
+        } else {
+            EnrichPolicy policy = EnrichStore.getPolicy(request.getName(), state);
+            if (policy == null) {
+                throw new ResourceNotFoundException("Policy [{}] was not found", request.getName());
+            }
+            policies = Collections.singletonMap(request.getName(), policy);
+
         }
-        listener.onResponse(new GetEnrichPolicyAction.Response(policy));
+        listener.onResponse(new GetEnrichPolicyAction.Response(policies));
     }
 
     @Override

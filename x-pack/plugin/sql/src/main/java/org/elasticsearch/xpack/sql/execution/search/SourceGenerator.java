@@ -76,6 +76,9 @@ public abstract class SourceGenerator {
         // set page size
         if (size != null) {
             int sz = container.limit() > 0 ? Math.min(container.limit(), size) : size;
+            // now take into account the the minimum page (if set)
+            int minSize = container.minPageSize();
+            sz = minSize > 0 ? (Math.max(sz / minSize, 1) * minSize) : sz;
 
             if (source.size() == -1) {
                 source.size(sz);

@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.expression.Order;
+import org.elasticsearch.xpack.sql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.FunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.Functions;
@@ -72,6 +73,7 @@ import org.elasticsearch.xpack.sql.plan.logical.Limit;
 import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.sql.plan.logical.Pivot;
 import org.elasticsearch.xpack.sql.plan.logical.Project;
 import org.elasticsearch.xpack.sql.plan.logical.SubQueryAlias;
 import org.elasticsearch.xpack.sql.plan.logical.UnaryPlan;
@@ -96,6 +98,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.function.Consumer;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.sql.expression.Expressions.equalsAsAttribute;
 import static org.elasticsearch.xpack.sql.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.sql.expression.Literal.TRUE;
@@ -120,6 +123,9 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
     @Override
     protected Iterable<RuleExecutor<LogicalPlan>.Batch> batches() {
+        Batch pivot = new Batch("Pivot Rewrite", Limiter.ONCE,
+                new RewritePivot());
+
         Batch operators = new Batch("Operator Optimization",
                 new PruneDuplicatesInGroupBy(),
                 // combining
@@ -170,9 +176,40 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 CleanAliases.INSTANCE,
                 new SetAsOptimized());
 
-        return Arrays.asList(operators, aggregate, local, label);
+        return Arrays.asList(pivot, operators, aggregate, local, label);
     }
 
+    static class RewritePivot extends OptimizerRule<Pivot> {
+
+        @Override
+        protected LogicalPlan rule(Pivot plan) {
+            // 1. add the IN filter
+            List<Expression> rawValues = new ArrayList<>(plan.values().size());
+            for (NamedExpression namedExpression : plan.values()) {
+                // everything should have resolved to an alias
+                if (namedExpression instanceof Alias) {
+                    rawValues.add(((Alias) namedExpression).child());
+                }
+                // TODO: this should be removed when refactoring NamedExpression
+                else if (namedExpression instanceof Literal) {
+                    rawValues.add(namedExpression);
+                } else {
+                    UnresolvedAttribute attr = new UnresolvedAttribute(namedExpression.source(), namedExpression.name(), null,
+                            "Unexpected alias");
+                    return new Pivot(plan.source(), plan.child(), plan.column(), singletonList(attr), plan.aggregates());
+                }
+            }
+            Filter filter = new Filter(plan.source(), plan.child(), new In(plan.source(), plan.column(), rawValues));
+
+            // 2. create the agg (mark it as pivot through the dedicated agg function)
+            //            Aggregate agg = new Aggregate(plan.source(), filter, plan.groupings(),
+            //                    singletonList(new PivotOf(plan.source(), plan.column(), plan.aggregates(), plan.output())));
+
+            // 3. preserve the output as a projection
+            //Project project = new Project(plan.source(), agg, plan.output());
+            return new Pivot(plan.source(), filter, plan.column(), plan.values(), plan.aggregates());
+        }
+    }
 
     static class PruneDuplicatesInGroupBy extends OptimizerRule<Aggregate> {
 
@@ -1038,7 +1075,14 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 Aggregate a = (Aggregate) child;
                 return new Aggregate(a.source(), a.child(), a.groupings(), combineProjections(project.projections(), a.aggregates()));
             }
-
+            // if the pivot custom columns are not used, convert the project + pivot into a GROUP BY/Aggregate
+            if (child instanceof Pivot) {
+                Pivot p = (Pivot) child;
+                if (project.outputSet().subsetOf(p.groupingSet())) {
+                    return new Aggregate(p.source(), p.child(), new ArrayList<>(project.projections()), project.projections());
+                }
+            }
+            // TODO: add rule for combining Agg/Pivot with underlying project
             return project;
         }
 
@@ -1188,10 +1232,10 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected Expression rule(Expression e) {
-            if (e instanceof Alias) {
-                Alias a = (Alias) e;
-                return a.child().foldable() ? Literal.of(a.name(), a.child()) : a;
-            }
+            //            if (e instanceof Alias) {
+            //                Alias a = (Alias) e;
+            //                return a.child().foldable() ? Literal.of(a.name(), a.child()) : a;
+            //            }
 
             return e.foldable() ? Literal.of(e) : e;
         }
@@ -1968,9 +2012,20 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         private List<Object> extractConstants(List<? extends NamedExpression> named) {
             List<Object> values = new ArrayList<>();
             for (NamedExpression n : named) {
-                if (n.foldable()) {
+                if (n instanceof Alias) {
+                    Alias a = (Alias) n;
+                    if (a.child().foldable()) {
+                        values.add(a.child().fold());
+                    }
+                    // not everything is foldable, bail out early
+                    else {
+                        return values;
+                    }
+                }
+                else if (n.foldable()) {
                     values.add(n.fold());
-                } else {
+                }
+                else {
                     // not everything is foldable, bail-out early
                     return values;
                 }

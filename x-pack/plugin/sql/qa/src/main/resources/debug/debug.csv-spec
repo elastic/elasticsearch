@@ -3,7 +3,8 @@
 //
 
 debug
-SELECT first_name f, last_name l, dep.from_date d FROM test_emp WHERE dep.dep_name = 'Production' ORDER BY f LIMIT 5;
+SELECT * FROM (SELECT languages, gender, salary FROM test_emp) PIVOT (AVG(salary) FOR gender IN ('M', 'F'));
+//SELECT languages FROM (SELECT languages, gender, salary FROM test_emp) PIVOT (AVG(salary) FOR gender IN ('M', 'F'));
 
 f:s                  | l:s                  | d:ts
 

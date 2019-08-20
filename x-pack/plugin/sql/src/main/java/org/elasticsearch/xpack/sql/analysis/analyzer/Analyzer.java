@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.sql.plan.logical.Join;
 import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.sql.plan.logical.Pivot;
 import org.elasticsearch.xpack.sql.plan.logical.Project;
 import org.elasticsearch.xpack.sql.plan.logical.SubQueryAlias;
 import org.elasticsearch.xpack.sql.plan.logical.UnaryPlan;
@@ -418,7 +419,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             return result;
         }
 
-        private List<NamedExpression> expandStar(UnresolvedStar us, List<Attribute> output) {
+        static List<NamedExpression> expandStar(UnresolvedStar us, List<Attribute> output) {
             List<NamedExpression> expanded = new ArrayList<>();
 
             // a qualifier is specified - since this is a star, it should be a CompoundDataType
@@ -459,24 +460,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     }
                 }
             } else {
-                // add only primitives
-                // but filter out multi fields (allow only the top-level value)
-                Set<Attribute> seenMultiFields = new LinkedHashSet<>();
-
-                for (Attribute a : output) {
-                    if (!DataTypes.isUnsupported(a.dataType()) && a.dataType().isPrimitive()) {
-                        if (a instanceof FieldAttribute) {
-                            FieldAttribute fa = (FieldAttribute) a;
-                            // skip nested fields and seen multi-fields
-                            if (!fa.isNested() && !seenMultiFields.contains(fa.parent())) {
-                                expanded.add(a);
-                                seenMultiFields.add(a);
-                            }
-                        } else {
-                            expanded.add(a);
-                        }
-                    }
-                }
+                expanded.addAll(Expressions.onlyPrimitiveFieldAttributes(output));
             }
 
             return expanded;
@@ -953,12 +937,24 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 }
                 return a;
             }
+            if (plan instanceof Pivot) {
+                Pivot p = (Pivot) plan;
+                if (p.childrenResolved()) {
+                    if (hasUnresolvedAliases(p.values())) {
+                        p = new Pivot(p.source(), p.child(), p.column(), assignAliases(p.values()), p.aggregates());
+                    }
+                    if (hasUnresolvedAliases(p.aggregates())) {
+                        p = new Pivot(p.source(), p.child(), p.column(), p.values(), assignAliases(p.aggregates()));
+                    }
+                }
+                return p;
+            }
 
             return plan;
         }
 
         private boolean hasUnresolvedAliases(List<? extends NamedExpression> expressions) {
-            return expressions != null && expressions.stream().anyMatch(e -> e instanceof UnresolvedAlias);
+            return expressions != null && Expressions.anyMatch(expressions, e -> e instanceof UnresolvedAlias);
         }
 
         private List<NamedExpression> assignAliases(List<? extends NamedExpression> exprs) {
@@ -1237,14 +1233,20 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         protected LogicalPlan rule(LogicalPlan plan) {
             if (plan instanceof Project) {
                 Project p = (Project) plan;
-                return new Project(p.source(), p.child(), cleanExpressions(p.projections()));
+                return new Project(p.source(), p.child(), cleanSecondaryAliases(p.projections()));
             }
 
             if (plan instanceof Aggregate) {
                 Aggregate a = (Aggregate) plan;
-                // clean group expressions
-                List<Expression> cleanedGroups = a.groupings().stream().map(CleanAliases::trimAliases).collect(toList());
-                return new Aggregate(a.source(), a.child(), cleanedGroups, cleanExpressions(a.aggregates()));
+                // aliases inside GROUP BY are irellevant so remove all of them
+                // however aggregations are important (ultimately a projection)
+                return new Aggregate(a.source(), a.child(), cleanAllAliases(a.groupings()), cleanSecondaryAliases(a.aggregates()));
+            }
+
+            if (plan instanceof Pivot) {
+                Pivot p = (Pivot) plan;
+                return new Pivot(p.source(), p.child(), trimAliases(p.column()), cleanSecondaryAliases(p.values()),
+                        cleanSecondaryAliases(p.aggregates()));
             }
 
             return plan.transformExpressionsOnly(e -> {
@@ -1255,8 +1257,20 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             });
         }
 
-        private List<NamedExpression> cleanExpressions(List<? extends NamedExpression> args) {
-            return args.stream().map(CleanAliases::trimNonTopLevelAliases).map(NamedExpression.class::cast).collect(toList());
+        private List<NamedExpression> cleanSecondaryAliases(List<? extends NamedExpression> args) {
+            List<NamedExpression> cleaned = new ArrayList<>(args.size());
+            for (NamedExpression ne : args) {
+                cleaned.add((NamedExpression) trimNonTopLevelAliases(ne));
+            }
+            return cleaned;
+        }
+
+        private List<Expression> cleanAllAliases(List<Expression> args) {
+            List<Expression> cleaned = new ArrayList<>(args.size());
+            for (Expression e : args) {
+                cleaned.add(trimAliases(e));
+            }
+            return cleaned;
         }
 
         public static Expression trimNonTopLevelAliases(Expression e) {

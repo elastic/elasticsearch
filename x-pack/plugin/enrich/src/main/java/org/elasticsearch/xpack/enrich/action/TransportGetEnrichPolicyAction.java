@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.core.enrich.action.GetEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.EnrichStore;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Map;
 
 public class TransportGetEnrichPolicyAction extends TransportMasterNodeReadAction<GetEnrichPolicyAction.Request,
@@ -66,7 +65,7 @@ public class TransportGetEnrichPolicyAction extends TransportMasterNodeReadActio
             if (policy == null) {
                 throw new ResourceNotFoundException("Policy [{}] was not found", request.getName());
             }
-            policies = Collections.singletonMap(request.getName(), policy);
+            policies = Map.of(request.getName(), policy);
 
         }
         listener.onResponse(new GetEnrichPolicyAction.Response(policies));

@@ -18,9 +18,9 @@
  */
 package org.elasticsearch.gradle.testclusters;
 
-import org.elasticsearch.gradle.ElasticsearchDistribution;
 import org.elasticsearch.gradle.FileSupplier;
 import org.elasticsearch.gradle.PropertyNormalization;
+import org.elasticsearch.gradle.ReaperService;
 import org.elasticsearch.gradle.http.WaitForHttpResource;
 import org.gradle.api.Named;
 import org.gradle.api.NamedDomainObjectContainer;
@@ -58,22 +58,23 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     private final String clusterName;
     private final NamedDomainObjectContainer<ElasticsearchNode> nodes;
     private final File workingDirBase;
-    private final Function<Integer, ElasticsearchDistribution> distributionFactory;
     private final LinkedHashMap<String, Predicate<TestClusterConfiguration>> waitConditions = new LinkedHashMap<>();
     private final Project project;
+    private final ReaperService reaper;
+    private int nodeIndex  = 0;
 
     public ElasticsearchCluster(String path, String clusterName, Project project,
-                                Function<Integer, ElasticsearchDistribution> distributionFactory, File workingDirBase) {
+                                ReaperService reaper, File workingDirBase) {
         this.path = path;
         this.clusterName = clusterName;
         this.project = project;
-        this.distributionFactory = distributionFactory;
+        this.reaper = reaper;
         this.workingDirBase = workingDirBase;
         this.nodes = project.container(ElasticsearchNode.class);
         this.nodes.add(
             new ElasticsearchNode(
                 path, clusterName + "-0",
-                project, workingDirBase, distributionFactory.apply(0)
+                project, reaper, workingDirBase
                 )
         );
         // configure the cluster name eagerly so nodes know about it
@@ -97,7 +98,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
 
         for (int i = nodes.size() ; i < numberOfNodes; i++) {
             this.nodes.add(new ElasticsearchNode(
-                path, clusterName + "-" + i, project, workingDirBase, distributionFactory.apply(i)
+                path, clusterName + "-" + i, project, reaper, workingDirBase
                 ));
         }
     }
@@ -114,9 +115,18 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         return clusterName;
     }
 
+    public String getPath() {
+        return path;
+    }
+
     @Override
     public void setVersion(String version) {
         nodes.all(each -> each.setVersion(version));
+    }
+
+    @Override
+    public void setVersions(List<String> version) {
+        nodes.all(each -> each.setVersions(version));
     }
 
     @Override
@@ -242,8 +252,8 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         if (nodes.stream().map(ElasticsearchNode::getName).anyMatch( name -> name == null)) {
             nodeNames = null;
         } else {
-            nodeNames = nodes.stream().map(ElasticsearchNode::getName).collect(Collectors.joining(","));
-        };
+            nodeNames = nodes.stream().map(ElasticsearchNode::getName).map(this::safeName).collect(Collectors.joining(","));
+        }
         for (ElasticsearchNode node : nodes) {
             if (nodeNames != null) {
                 // Can only configure master nodes if we have node names defined
@@ -260,6 +270,19 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     @Override
     public void restart() {
         nodes.forEach(ElasticsearchNode::restart);
+    }
+
+    @Override
+    public void goToNextVersion() {
+        nodes.all(ElasticsearchNode::goToNextVersion);
+    }
+
+    public void nextNodeToNextVersion() {
+        if (nodeIndex + 1 > nodes.size()) {
+            throw new TestClustersException("Ran out of nodes to take to the next version");
+        }
+        nodes.getByName(clusterName + "-" + nodeIndex).goToNextVersion();
+        nodeIndex += 1;
     }
 
     @Override
@@ -356,7 +379,6 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
                     nodes.size()
                 );
                 if (httpSslEnabled) {
-
                     getFirstNode().configureHttpWait(wait);
                 }
                 List<Map<String, String>> credentials = getFirstNode().getCredentials();

@@ -107,7 +107,7 @@ thirdPartyAudit {
         'net.jpountz.lz4.LZ4Compressor',
         'net.jpountz.lz4.LZ4Factory',
         'net.jpountz.lz4.LZ4FastDecompressor',
-        'net.jpountz.xxhash.StreamingXXHash32',
+        'net.jpountz.xxhash.XXHash32',
         'net.jpountz.xxhash.XXHashFactory',
         'org.eclipse.jetty.alpn.ALPN$ClientProvider',
         'org.eclipse.jetty.alpn.ALPN$ServerProvider',

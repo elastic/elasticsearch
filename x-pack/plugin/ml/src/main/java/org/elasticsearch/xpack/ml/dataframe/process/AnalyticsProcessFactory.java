@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.dataframe.process;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 
-public interface AnalyticsProcessFactory {
+public interface AnalyticsProcessFactory<ProcessResult> {
 
     /**
      * Create an implementation of {@link AnalyticsProcess}
@@ -19,6 +19,6 @@ public interface AnalyticsProcessFactory {
      * @param onProcessCrash    Callback to execute if the process stops unexpectedly
      * @return The process
      */
-    AnalyticsProcess createAnalyticsProcess(String jobId, AnalyticsProcessConfig analyticsProcessConfig, ExecutorService executorService,
-                                            Consumer<String> onProcessCrash);
+    AnalyticsProcess<ProcessResult> createAnalyticsProcess(String jobId, AnalyticsProcessConfig analyticsProcessConfig,
+                                                           ExecutorService executorService, Consumer<String> onProcessCrash);
 }

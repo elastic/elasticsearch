@@ -24,6 +24,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
+import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
@@ -614,6 +615,14 @@ public final class QueryBuilders {
      * @param name  The shape field name
      * @param shape Shape to use in the filter
      */
+    public static GeoShapeQueryBuilder geoShapeQuery(String name, Geometry shape) throws IOException {
+        return new GeoShapeQueryBuilder(name, shape);
+    }
+
+    /**
+     * @deprecated use {@link #geoShapeQuery(String, Geometry)} instead
+     */
+    @Deprecated
     public static GeoShapeQueryBuilder geoShapeQuery(String name, ShapeBuilder shape) throws IOException {
         return new GeoShapeQueryBuilder(name, shape);
     }
@@ -628,6 +637,16 @@ public final class QueryBuilders {
      * @param name  The shape field name
      * @param shape Shape to use in the filter
      */
+    public static GeoShapeQueryBuilder geoIntersectionQuery(String name, Geometry shape) throws IOException {
+        GeoShapeQueryBuilder builder = geoShapeQuery(name, shape);
+        builder.relation(ShapeRelation.INTERSECTS);
+        return builder;
+    }
+
+    /**
+     * @deprecated use {@link #geoIntersectionQuery(String, Geometry)} instead
+     */
+    @Deprecated
     public static GeoShapeQueryBuilder geoIntersectionQuery(String name, ShapeBuilder shape) throws IOException {
         GeoShapeQueryBuilder builder = geoShapeQuery(name, shape);
         builder.relation(ShapeRelation.INTERSECTS);
@@ -646,6 +665,16 @@ public final class QueryBuilders {
      * @param name  The shape field name
      * @param shape Shape to use in the filter
      */
+    public static GeoShapeQueryBuilder geoWithinQuery(String name, Geometry shape) throws IOException {
+        GeoShapeQueryBuilder builder = geoShapeQuery(name, shape);
+        builder.relation(ShapeRelation.WITHIN);
+        return builder;
+    }
+
+    /**
+     * @deprecated use {@link #geoWithinQuery(String, Geometry)} instead
+     */
+    @Deprecated
     public static GeoShapeQueryBuilder geoWithinQuery(String name, ShapeBuilder shape) throws IOException {
         GeoShapeQueryBuilder builder = geoShapeQuery(name, shape);
         builder.relation(ShapeRelation.WITHIN);
@@ -664,6 +693,16 @@ public final class QueryBuilders {
      * @param name  The shape field name
      * @param shape Shape to use in the filter
      */
+    public static GeoShapeQueryBuilder geoDisjointQuery(String name, Geometry shape) throws IOException {
+        GeoShapeQueryBuilder builder = geoShapeQuery(name, shape);
+        builder.relation(ShapeRelation.DISJOINT);
+        return builder;
+    }
+
+    /**
+     * @deprecated use {@link #geoDisjointQuery(String, Geometry)} instead
+     */
+    @Deprecated
     public static GeoShapeQueryBuilder geoDisjointQuery(String name, ShapeBuilder shape) throws IOException {
         GeoShapeQueryBuilder builder = geoShapeQuery(name, shape);
         builder.relation(ShapeRelation.DISJOINT);

@@ -76,7 +76,7 @@ corresponding endpoints are whitelisted as well.
 
 [[ssl-notification-settings]]
 :ssl-prefix:             xpack.http
-:component:              {watcher}
+:component:              {watcher} HTTP
 :verifies:
 :server!:
 :ssl-context:            watcher
@@ -214,6 +214,15 @@ HTML feature groups>>.
 `xpack.notification.email.html.sanitization.enabled` ::
 Set to `false` to completely disable HTML sanitation. Not recommended.
 Defaults to `true`.
+
+[[ssl-notification-smtp-settings]]
+:ssl-prefix:             xpack.notification.email
+:component:              {watcher} Email
+:verifies:
+:server!:
+:ssl-context:            watcher-email
+
+include::ssl-settings.asciidoc[]
 
 [float]
 [[slack-notification-settings]]

@@ -34,12 +34,20 @@ public class DataFrameTransformProgressTests extends AbstractResponseTestCase<
         if (instance == null) {
             return null;
         }
-        return new DataFrameTransformProgress(instance.getTotalDocs(), instance.getRemainingDocs());
+        return new DataFrameTransformProgress(instance.getTotalDocs(),
+            instance.getRemainingDocs(),
+            instance.getDocumentsProcessed(),
+            instance.getDocumentsIndexed());
     }
 
     public static DataFrameTransformProgress randomDataFrameTransformProgress() {
-        long totalDocs = randomNonNegativeLong();
-        return new DataFrameTransformProgress(totalDocs, randomBoolean() ? null : randomLongBetween(0, totalDocs));
+        Long totalDocs = randomBoolean() ? null : randomNonNegativeLong();
+        Long docsRemaining = totalDocs != null ? randomLongBetween(0, totalDocs) : null;
+        return new DataFrameTransformProgress(
+            totalDocs,
+            docsRemaining,
+            totalDocs != null ? totalDocs - docsRemaining : randomNonNegativeLong(),
+            randomBoolean() ? null : randomNonNegativeLong());
     }
 
     @Override
@@ -56,7 +64,8 @@ public class DataFrameTransformProgressTests extends AbstractResponseTestCase<
     protected void assertInstances(DataFrameTransformProgress serverTestInstance,
                                    org.elasticsearch.client.dataframe.transforms.DataFrameTransformProgress clientInstance) {
         assertThat(serverTestInstance.getTotalDocs(), equalTo(clientInstance.getTotalDocs()));
-        assertThat(serverTestInstance.getRemainingDocs(), equalTo(clientInstance.getRemainingDocs()));
+        assertThat(serverTestInstance.getDocumentsProcessed(), equalTo(clientInstance.getDocumentsProcessed()));
         assertThat(serverTestInstance.getPercentComplete(), equalTo(clientInstance.getPercentComplete()));
+        assertThat(serverTestInstance.getDocumentsIndexed(), equalTo(clientInstance.getDocumentsIndexed()));
     }
 }

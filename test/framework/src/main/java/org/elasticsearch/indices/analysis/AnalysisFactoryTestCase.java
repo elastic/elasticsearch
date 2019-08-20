@@ -168,7 +168,6 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         entry("flattengraph", MovedToAnalysisCommon.class),
         // TODO: these tokenfilters are not yet exposed: useful?
         // suggest stop
-        entry("spanishminimalstem", Void.class),    // TODO expose in ES
         entry("suggeststop", Void.class),
         // capitalizes tokens
         entry("capitalization", Void.class),

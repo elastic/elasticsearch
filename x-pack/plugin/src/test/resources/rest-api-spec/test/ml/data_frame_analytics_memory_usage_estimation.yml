@@ -17,9 +17,8 @@ setup:
   - do:
       ml.estimate_memory_usage:
         body:
-          data_frame_analytics_config:
-            source: { index: "index-source" }
-            analysis: { outlier_detection: {} }
+          source: { index: "index-source" }
+          analysis: { outlier_detection: {} }
   - match: { expected_memory_usage_with_one_partition: "0" }
   - match: { expected_memory_usage_with_max_partitions: "0" }
 
@@ -36,9 +35,8 @@ setup:
   - do:
       ml.estimate_memory_usage:
         body:
-          data_frame_analytics_config:
-            source: { index: "index-source" }
-            analysis: { outlier_detection: {} }
+          source: { index: "index-source" }
+          analysis: { outlier_detection: {} }
   - match: { expected_memory_usage_with_one_partition: "3kb" }
   - match: { expected_memory_usage_with_max_partitions: "3kb" }
 
@@ -52,9 +50,8 @@ setup:
   - do:
       ml.estimate_memory_usage:
         body:
-          data_frame_analytics_config:
-            source: { index: "index-source" }
-            analysis: { outlier_detection: {} }
+          source: { index: "index-source" }
+          analysis: { outlier_detection: {} }
   - match: { expected_memory_usage_with_one_partition: "4kb" }
   - match: { expected_memory_usage_with_max_partitions: "4kb" }
 
@@ -68,8 +65,7 @@ setup:
   - do:
       ml.estimate_memory_usage:
         body:
-          data_frame_analytics_config:
-            source: { index: "index-source" }
-            analysis: { outlier_detection: {} }
+          source: { index: "index-source" }
+          analysis: { outlier_detection: {} }
   - match: { expected_memory_usage_with_one_partition: "6kb" }
   - match: { expected_memory_usage_with_max_partitions: "5kb" }

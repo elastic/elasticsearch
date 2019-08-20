@@ -27,7 +27,7 @@ import org.elasticsearch.xpack.ml.job.persistence.BucketsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
 import java.util.Collections;
 import java.util.Objects;
@@ -39,16 +39,17 @@ public class DatafeedJobBuilder {
 
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
-    private final Auditor auditor;
+    private final AnomalyDetectionAuditor auditor;
     private final Supplier<Long> currentTimeSupplier;
     private final JobConfigProvider jobConfigProvider;
     private final JobResultsProvider jobResultsProvider;
     private final DatafeedConfigProvider datafeedConfigProvider;
     private final JobResultsPersister jobResultsPersister;
 
-    public DatafeedJobBuilder(Client client, NamedXContentRegistry xContentRegistry, Auditor auditor, Supplier<Long> currentTimeSupplier,
-                              JobConfigProvider jobConfigProvider, JobResultsProvider jobResultsProvider,
-                              DatafeedConfigProvider datafeedConfigProvider, JobResultsPersister jobResultsPersister) {
+    public DatafeedJobBuilder(Client client, NamedXContentRegistry xContentRegistry, AnomalyDetectionAuditor auditor,
+                              Supplier<Long> currentTimeSupplier, JobConfigProvider jobConfigProvider,
+                              JobResultsProvider jobResultsProvider, DatafeedConfigProvider datafeedConfigProvider,
+                              JobResultsPersister jobResultsPersister) {
         this.client = client;
         this.xContentRegistry = Objects.requireNonNull(xContentRegistry);
         this.auditor = Objects.requireNonNull(auditor);

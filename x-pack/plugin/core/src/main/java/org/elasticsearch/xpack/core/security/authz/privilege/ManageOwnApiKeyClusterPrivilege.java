@@ -39,6 +39,7 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
 
     private static final class ManageOwnClusterPermissionCheck extends ClusterPermission.AutomatonPermissionCheck {
         public static final ManageOwnClusterPermissionCheck INSTANCE = new ManageOwnClusterPermissionCheck();
+
         private ManageOwnClusterPermissionCheck() {
             super(Automatons.patterns("cluster:admin/xpack/security/api_key/*"));
         }
@@ -54,7 +55,8 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
                         getApiKeyRequest.getRealmName());
                 } else if (request instanceof InvalidateApiKeyRequest) {
                     final InvalidateApiKeyRequest invalidateApiKeyRequest = (InvalidateApiKeyRequest) request;
-                    return checkIfUserIsOwnerOfApiKeys(authentication, invalidateApiKeyRequest.getId(), invalidateApiKeyRequest.getUserName(),
+                    return checkIfUserIsOwnerOfApiKeys(authentication, invalidateApiKeyRequest.getId(),
+                        invalidateApiKeyRequest.getUserName(),
                         invalidateApiKeyRequest.getRealmName());
                 }
             }
@@ -94,4 +96,4 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
             return false;
         }
     }
- }
+}

@@ -584,7 +584,8 @@ public class InnerHitsIT extends ESIntegTestCase {
             assertThat(searchResponse.getHits().getAt(i).getId(), equalTo(String.valueOf(i)));
             assertThat(searchResponse.getHits().getAt(i).getInnerHits().get("nested1").getTotalHits().value, equalTo(1L));
             assertThat(searchResponse.getHits().getAt(i).getInnerHits().get("nested1").getAt(0).getMatchedQueries().size(), equalTo(1));
-            assertThat(searchResponse.getHits().getAt(i).getInnerHits().get("nested1").getAt(0).getMatchedQueries().get(0), equalTo("test3"));
+            assertThat(searchResponse.getHits().getAt(i).getInnerHits().get("nested1").getAt(0).getMatchedQueries().get(0),
+                equalTo("test3"));
         }
     }
 

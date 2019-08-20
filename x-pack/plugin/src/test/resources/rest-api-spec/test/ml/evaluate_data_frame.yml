@@ -602,3 +602,34 @@ setup:
 
   - match: { regression.mean_squared_error.error: 28.67749840974834 }
   - match: { regression.r_squared.value: 0.8551031778603486 }
+---
+"Test regression given missing actual_field":
+  - do:
+      catch: /No documents found containing both \[missing, regression_field_pred\] fields/
+      ml.evaluate_data_frame:
+        body:  >
+          {
+            "index": "utopia",
+            "evaluation": {
+              "regression": {
+                "actual_field": "missing",
+                "predicted_field": "regression_field_pred"
+              }
+            }
+          }
+
+---
+"Test regression given missing predicted_field":
+  - do:
+      catch: /No documents found containing both \[regression_field_act, missing\] fields/
+      ml.evaluate_data_frame:
+        body:  >
+          {
+            "index": "utopia",
+            "evaluation": {
+              "regression": {
+                "actual_field": "regression_field_act",
+                "predicted_field": "missing"
+              }
+            }
+          }

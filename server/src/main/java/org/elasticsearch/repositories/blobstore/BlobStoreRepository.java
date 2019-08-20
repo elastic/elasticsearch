@@ -182,6 +182,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     protected final ChecksumBlobStoreFormat<SnapshotInfo> snapshotFormat;
 
+    private final NamedXContentRegistry namedXContentRegistry;
+
     private final boolean readOnly;
 
     private final ChecksumBlobStoreFormat<BlobStoreIndexShardSnapshot> indexShardSnapshotFormat;
@@ -195,6 +197,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private final SetOnce<BlobStore> blobStore = new SetOnce<>();
 
     private final BlobPath basePath;
+
+    protected BlobStoreRepository(BlobStoreRepository other) {
+        this(other.metadata, other.settings, other.namedXContentRegistry, other.threadPool, other.basePath);
+    }
 
     /**
      * Constructs new BlobStoreRepository
@@ -212,6 +218,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         restoreRateLimiter = getRateLimiter(metadata.settings(), "max_restore_bytes_per_sec", new ByteSizeValue(40, ByteSizeUnit.MB));
         readOnly = metadata.settings().getAsBoolean("readonly", false);
         this.basePath = basePath;
+        this.namedXContentRegistry = namedXContentRegistry;
 
         indexShardSnapshotFormat = new ChecksumBlobStoreFormat<>(SNAPSHOT_CODEC, SNAPSHOT_NAME_FORMAT,
             BlobStoreIndexShardSnapshot::fromXContent, namedXContentRegistry, compress);

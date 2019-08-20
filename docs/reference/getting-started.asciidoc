@@ -22,7 +22,7 @@ how {es} works. If you're already familiar with {es} and want to see how it work
 with the rest of the stack, you might want to jump to the
 {stack-gs}/get-started-elastic-stack.html[Elastic Stack
 Tutorial] to see how to set up a system monitoring solution with {es}, {kib},
-{beats},  and {ls}.
+{beats}, and {ls}.
 
 TIP: The fastest way to get started with {es} is to
 https://www.elastic.co/cloud/elasticsearch-service/signup[start a free 14-day
@@ -135,8 +135,8 @@ Windows:
 The additional nodes are assigned unique IDs. Because you're running all three
 nodes locally, they automatically join the cluster with the first node.
 
-. Use the `cat health` API to verify that your three-node cluster is up running.
-The `cat` APIs return information about your cluster and indices in a
+. Use the cat health API to verify that your three-node cluster is up running.
+The cat APIs return information about your cluster and indices in a
 format that's easier to read than raw JSON.
 +
 You can interact directly with your cluster by submitting HTTP requests to
@@ -155,8 +155,8 @@ GET /_cat/health?v
 --------------------------------------------------
 // CONSOLE
 +
-The response should indicate that the status of the _elasticsearch_ cluster
-is _green_ and it has three nodes:
+The response should indicate that the status of the `elasticsearch` cluster
+is `green` and it has three nodes:
 +
 [source,txt]
 --------------------------------------------------
@@ -191,8 +191,8 @@ Once you have a cluster up and running, you're ready to index some data.
 There are a variety of ingest options for {es}, but in the end they all
 do the same thing: put JSON documents into an {es} index.
 
-You can do this directly with a simple POST request that identifies
-the index you want to add the document to and specifies one or more
+You can do this directly with a simple PUT request that specifies
+the index you want to add the document, a unique document ID, and one or more
 `"field": "value"` pairs in the request body:
 
 [source,js]
@@ -204,9 +204,9 @@ PUT /customer/_doc/1
 --------------------------------------------------
 // CONSOLE
 
-This request automatically creates the _customer_ index if it doesn't already
+This request automatically creates the `customer` index if it doesn't already
 exist, adds a new document that has an ID of `1`, and stores and
-indexes the _name_ field.
+indexes the `name` field.
 
 Since this is a new document, the response shows that the result of the
 operation was that version 1 of the document was created:
@@ -264,46 +264,22 @@ and shows the original source fields that were indexed.
 // TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/ ]
 // TESTRESPONSE[s/"_primary_term" : \d+/"_primary_term" : $body._primary_term/]
 
-
 [float]
 [[getting-started-batch-processing]]
-=== Batch processing
+=== Indexing documents in bulk
 
-In addition to being able to index, update, and delete individual documents, Elasticsearch also provides the ability to perform any of the above operations in batches using the {ref}/docs-bulk.html[`_bulk` API]. This functionality is important in that it provides a very efficient mechanism to do multiple operations as fast as possible with as few network roundtrips as possible.
+If you have a lot of documents to index, you can submit them in batches with
+the {ref}/docs-bulk.html[bulk API]. Using bulk to batch document
+operations is significantly faster than submitting requests individually as it minimizes network roundtrips. 
 
-As a quick example, the following call indexes two documents (ID 1 - John Doe and ID 2 - Jane Doe) in one bulk operation:
+The optimal batch size depends a number of factors: the document size and complexity, the indexing and search load, and the resources available to your cluster. A good place to start is with batches of 1,000 to 5,000 documents
+and a total payload between 5MB and 15MB. From there, you can experiment
+to find the sweet spot.
 
-[source,js]
---------------------------------------------------
-POST /customer/_bulk?pretty
-{"index":{"_id":"1"}}
-{"name": "John Doe" }
-{"index":{"_id":"2"}}
-{"name": "Jane Doe" }
---------------------------------------------------
-// CONSOLE
+To get some data into {es} that you can start searching and analyzing:
 
-This example updates the first document (ID of 1) and then deletes the second document (ID of 2) in one bulk operation:
-
-[source,sh]
---------------------------------------------------
-POST /customer/_bulk
-{"update":{"_id":"1"}}
-{"doc": { "name": "John Doe becomes Jane Doe" } }
-{"delete":{"_id":"2"}}
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-Note above that for the delete action, there is no corresponding source document after it since deletes only require the ID of the document to be deleted.
-
-The Bulk API does not fail due to failures in one of the actions. If a single action fails for whatever reason, it will continue to process the remainder of the actions after it. When the bulk API returns, it will provide a status for each action (in the same order it was sent in) so that you can check if a specific action failed or not.
-
-[float]
-=== Sample dataset
-
-Now that we've gotten a glimpse of the basics, let's try to work on a more realistic dataset. I've prepared a sample of fictitious JSON documents of customer bank account information. Each document has the following schema:
-
+. Download the https://github.com/elastic/elasticsearch/blob/master/docs/src/test/resources/accounts.json?raw=true[`accounts.json`] sample data set. The documents in this randomly-generated data set represent user accounts with the following information:
++
 [source,js]
 --------------------------------------------------
 {
@@ -322,21 +298,19 @@ Now that we've gotten a glimpse of the basics, let's try to work on a more reali
 --------------------------------------------------
 // NOTCONSOLE
 
-For the curious, this data was generated using http://www.json-generator.com/[`www.json-generator.com/`], so please ignore the actual values and semantics of the data as these are all randomly generated.
-
-You can download the sample dataset (accounts.json) from https://github.com/elastic/elasticsearch/blob/master/docs/src/test/resources/accounts.json?raw=true[here]. Extract it to our current directory and let's load it into our cluster as follows:
-
+. Index the account data into the `bank` index with the following `_bulk` request:
++
 [source,sh]
 --------------------------------------------------
 curl -H "Content-Type: application/json" -XPOST "localhost:9200/bank/_bulk?pretty&refresh" --data-binary "@accounts.json"
 curl "localhost:9200/_cat/indices?v"
 --------------------------------------------------
 // NOTCONSOLE
-
++
 ////
 This replicates the above in a document-testing friendly way but isn't visible
 in the docs:
-
++
 [source,js]
 --------------------------------------------------
 GET /_cat/indices?v
@@ -344,9 +318,9 @@ GET /_cat/indices?v
 // CONSOLE
 // TEST[setup:bank]
 ////
-
-And the response:
-
++
+The response indicates that 1,000 documents were indexed successfully.
++
 [source,txt]
 --------------------------------------------------
 health status index uuid                   pri rep docs.count docs.deleted store.size pri.store.size
@@ -354,8 +328,6 @@ yellow open   bank  l7sSYV2cQXmu6_4rJWVIww   5   1       1000            0    12
 --------------------------------------------------
 // TESTRESPONSE[s/128.6kb/\\d+(\\.\\d+)?[mk]?b/]
 // TESTRESPONSE[s/l7sSYV2cQXmu6_4rJWVIww/.+/ non_json]
-
-Which means that we just successfully bulk indexed 1000 documents into the bank index.
 
 [[getting-started-search]]
 == Start searching

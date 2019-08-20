@@ -221,6 +221,7 @@ bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInfo unreleased
         Task bwcTask = createRunBwcGradleTask(buildBwcTaskName(projectName)) {
             inputs.file("${project.buildDir}/refspec")
             outputs.files(projectArtifact)
+            outputs.cacheIf { true }
             args ":${projectDir.replace('/', ':')}:assemble"
             doLast {
                 if (projectArtifact.exists() == false) {

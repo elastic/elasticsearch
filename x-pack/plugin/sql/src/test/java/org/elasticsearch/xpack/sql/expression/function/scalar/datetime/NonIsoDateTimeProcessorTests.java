@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NonIsoDateTimeProcessor.NonIsoDateTimeExtractor;
 
 import java.io.IOException;
@@ -15,7 +15,7 @@ import java.time.ZoneId;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeTestUtils.dateTime;
 import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
 
-public class NonIsoDateTimeProcessorTests extends AbstractWireSerializingTestCase<NonIsoDateTimeProcessor> {
+public class NonIsoDateTimeProcessorTests extends AbstractSqlWireSerializingTestCase<NonIsoDateTimeProcessor> {
     
 
     public static NonIsoDateTimeProcessor randomNonISODateTimeProcessor() {
@@ -36,6 +36,11 @@ public class NonIsoDateTimeProcessorTests extends AbstractWireSerializingTestCas
     protected NonIsoDateTimeProcessor mutateInstance(NonIsoDateTimeProcessor instance) throws IOException {
         NonIsoDateTimeExtractor replaced = randomValueOtherThan(instance.extractor(), () -> randomFrom(NonIsoDateTimeExtractor.values()));
         return new NonIsoDateTimeProcessor(replaced, UTC);
+    }
+
+    @Override
+    protected ZoneId instanceZoneId(NonIsoDateTimeProcessor instance) {
+        return instance.zoneId();
     }
 
     public void testNonISOWeekOfYearInUTC() {

@@ -861,6 +861,30 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals(DataType.DATETIME, field.dataType());
     }
 
+    public void testGroupByHistogramQueryTranslator() {
+        PhysicalPlan p = optimizeAndPlan("SELECT MAX(int) FROM test GROUP BY HISTOGRAM(date, INTERVAL 2 YEARS)");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+        assertEquals(1, eqe.output().size());
+        assertEquals("MAX(int)", eqe.output().get(0).qualifiedName());
+        assertEquals(DataType.INTEGER, eqe.output().get(0).dataType());
+        assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+            containsString("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"value_type\":\"date\",\"order\":\"asc\","
+                    + "\"fixed_interval\":\"62208000000ms\",\"time_zone\":\"Z\"}}}]}"));
+    }
+    
+    public void testGroupByYearQueryTranslator() {
+        PhysicalPlan p = optimizeAndPlan("SELECT YEAR(date) FROM test GROUP BY YEAR(date)");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+        assertEquals(1, eqe.output().size());
+        assertEquals("YEAR(date)", eqe.output().get(0).qualifiedName());
+        assertEquals(DataType.INTEGER, eqe.output().get(0).dataType());
+        assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+            endsWith("\"date_histogram\":{\"field\":\"date\",\"missing_bucket\":true,\"value_type\":\"date\",\"order\":\"asc\","
+                    + "\"fixed_interval\":\"31536000000ms\",\"time_zone\":\"Z\"}}}]}}}"));
+    }
+
     public void testGroupByHistogramWithDate() {
         LogicalPlan p = plan("SELECT MAX(int) FROM test GROUP BY HISTOGRAM(CAST(date AS DATE), INTERVAL 2 MONTHS)");
         assertTrue(p instanceof Aggregate);

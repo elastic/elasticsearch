@@ -1,0 +1,37 @@
+[role="xpack"]
+[testenv="basic"]
+[[query-dsl-pinned-query]]
+=== Pinned Query
+Promotes selected documents to rank higher than those matching a given query.
+This feature is typically used to guide searchers to curated documents that are
+promoted over and above any "organic" matches for a search.  
+The promoted or "pinned" documents are identified using the document IDs stored in
+the <<mapping-id-field,`_id`>> field.
+
+==== Example request
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "query": {
+        "pinned" : {
+            "ids" : ["1", "4", "100"],
+            "organic" : {
+            	"match":{
+            		"description": "iphone"
+            	}
+            }
+        }
+    }
+}    
+--------------------------------------------------
+// CONSOLE
+
+[[pinned-query-top-level-parameters]]
+==== Top-level parameters for `pinned`
+
+`ids`::
+An array of <<mapping-id-field, document IDs>> listed in the order they are to appear in results.
+`organic`::
+Any choice of query used to rank documents which will be ranked below the "pinned" document ids.

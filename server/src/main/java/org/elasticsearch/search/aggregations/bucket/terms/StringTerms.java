@@ -89,11 +89,6 @@ public class StringTerms extends InternalMappedTerms<StringTerms, StringTerms.Bu
         }
 
         @Override
-        Bucket newBucket(long docCount, InternalAggregations aggs, long docCountError) {
-            return new Bucket(termBytes, docCount, aggs, showDocCountError, docCountError, format);
-        }
-
-        @Override
         protected final XContentBuilder keyToXContent(XContentBuilder builder) throws IOException {
             return builder.field(CommonFields.KEY.getPreferredName(), getKeyAsString());
         }
@@ -138,6 +133,11 @@ public class StringTerms extends InternalMappedTerms<StringTerms, StringTerms.Bu
     public Bucket createBucket(InternalAggregations aggregations, Bucket prototype) {
         return new Bucket(prototype.termBytes, prototype.docCount, aggregations, prototype.showDocCountError, prototype.docCountError,
                 prototype.format);
+    }
+
+    @Override
+    Bucket createBucket(long docCount, InternalAggregations aggs, long docCountError, StringTerms.Bucket prototype) {
+        return new Bucket(prototype.termBytes, docCount, aggs, prototype.showDocCountError, docCountError, format);
     }
 
     @Override

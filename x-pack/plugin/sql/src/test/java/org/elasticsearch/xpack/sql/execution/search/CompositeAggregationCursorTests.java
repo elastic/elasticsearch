@@ -5,39 +5,38 @@
  */
 package org.elasticsearch.xpack.sql.execution.search;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.execution.search.extractor.BucketExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.CompositeKeyExtractorTests;
 import org.elasticsearch.xpack.sql.execution.search.extractor.ConstantExtractorTests;
 import org.elasticsearch.xpack.sql.execution.search.extractor.MetricAggExtractorTests;
-import org.elasticsearch.xpack.sql.session.Cursors;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.List;
 import java.util.function.Supplier;
 
-public class CompositeAggregationCursorTests extends AbstractWireSerializingTestCase<CompositeAggregationCursor> {
+public class CompositeAggregationCursorTests extends AbstractSqlWireSerializingTestCase<CompositeAggregationCursor> {
     public static CompositeAggregationCursor randomCompositeCursor() {
         int extractorsSize = between(1, 20);
+        ZoneId id = randomSafeZone();
         List<BucketExtractor> extractors = new ArrayList<>(extractorsSize);
         for (int i = 0; i < extractorsSize; i++) {
-            extractors.add(randomBucketExtractor());
+            extractors.add(randomBucketExtractor(id));
         }
 
         return new CompositeAggregationCursor(new byte[randomInt(256)], extractors, randomBitSet(extractorsSize),
                 randomIntBetween(10, 1024), randomBoolean(), randomAlphaOfLength(5));
     }
 
-    static BucketExtractor randomBucketExtractor() {
+    static BucketExtractor randomBucketExtractor(ZoneId zoneId) {
         List<Supplier<BucketExtractor>> options = new ArrayList<>();
         options.add(ConstantExtractorTests::randomConstantExtractor);
-        options.add(MetricAggExtractorTests::randomMetricAggExtractor);
-        options.add(CompositeKeyExtractorTests::randomCompositeKeyExtractor);
+        options.add(() -> MetricAggExtractorTests.randomMetricAggExtractor(zoneId));
+        options.add(() -> CompositeKeyExtractorTests.randomCompositeKeyExtractor(zoneId));
         return randomFrom(options).get();
     }
 
@@ -51,11 +50,6 @@ public class CompositeAggregationCursorTests extends AbstractWireSerializingTest
     }
 
     @Override
-    protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(Cursors.getNamedWriteables());
-    }
-
-    @Override
     protected CompositeAggregationCursor createTestInstance() {
         return randomCompositeCursor();
     }
@@ -66,13 +60,17 @@ public class CompositeAggregationCursorTests extends AbstractWireSerializingTest
     }
 
     @Override
-    protected CompositeAggregationCursor copyInstance(CompositeAggregationCursor instance, Version version) throws IOException {
-        /* Randomly choose between internal protocol round trip and String based
-         * round trips used to toXContent. */
-        if (randomBoolean()) {
-            return super.copyInstance(instance, version);
+    protected ZoneId instanceZoneId(CompositeAggregationCursor instance) {
+        List<BucketExtractor> extractors = instance.extractors();
+        for (BucketExtractor bucketExtractor : extractors) {
+            ZoneId zoneId = MetricAggExtractorTests.extractZoneId(bucketExtractor);
+            zoneId = zoneId == null ? CompositeKeyExtractorTests.extractZoneId(bucketExtractor) : zoneId;
+
+            if (zoneId != null) {
+                return zoneId;
+            }
         }
-        return (CompositeAggregationCursor) Cursors.decodeFromString(Cursors.encodeToString(version, instance));
+        return randomSafeZone();
     }
 
     static BitSet randomBitSet(int size) {

@@ -80,7 +80,7 @@ public class DataFrameTransformProgress implements Writeable, ToXContentObject {
     }
 
     public DataFrameTransformProgress(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
             this.totalDocs = in.readOptionalLong();
             this.documentsProcessed = in.readVLong();
             this.documentsIndexed = in.readVLong();
@@ -148,7 +148,7 @@ public class DataFrameTransformProgress implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
             out.writeOptionalLong(totalDocs);
             out.writeVLong(documentsProcessed);
             out.writeVLong(documentsIndexed);

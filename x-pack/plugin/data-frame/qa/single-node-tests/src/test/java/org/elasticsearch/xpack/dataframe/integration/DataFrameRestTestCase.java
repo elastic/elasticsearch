@@ -300,8 +300,7 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
 
     void waitForDataFrameStopped(String transformId) throws Exception {
         assertBusy(() -> {
-            assertEquals("stopped", getDataFrameTaskState(transformId));
-            assertEquals("stopped", getDataFrameIndexerState(transformId));
+            assertEquals("stopped", getDataFrameTransformState(transformId));
         }, 15, TimeUnit.SECONDS);
     }
 
@@ -326,19 +325,9 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
         return transformConfigs == null ? Collections.emptyList() : transformConfigs;
     }
 
-    protected static String getDataFrameIndexerState(String transformId) throws IOException {
+    protected static String getDataFrameTransformState(String transformId) throws IOException {
         Map<?, ?> transformStatsAsMap = getDataFrameState(transformId);
-        if (transformStatsAsMap == null) {
-            return null;
-        }
-        String indexerState = (String) XContentMapValues.extractValue("checkpointing.next.indexer_state", transformStatsAsMap);
-        // If the transform is stopped then it might not have an indexer state, but logically that's the same as the indexer being stopped
-        return indexerState == null ? "stopped" : indexerState;
-    }
-
-    protected static String getDataFrameTaskState(String transformId) throws IOException {
-        Map<?, ?> transformStatsAsMap = getDataFrameState(transformId);
-        return transformStatsAsMap == null ? null : (String) XContentMapValues.extractValue("task_state", transformStatsAsMap);
+        return transformStatsAsMap == null ? null : (String) XContentMapValues.extractValue("state", transformStatsAsMap);
     }
 
     protected static Map<?, ?> getDataFrameState(String transformId) throws IOException {
@@ -382,8 +371,8 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
 
         for (Map<String, Object> transformConfig : transformConfigs) {
             String transformId = (String) transformConfig.get("id");
-            String state = getDataFrameIndexerState(transformId);
-            assertEquals("Transform [" + transformId + "] indexer is not in the stopped state", "stopped", state);
+            String state = getDataFrameTransformState(transformId);
+            assertEquals("Transform [" + transformId + "] is not in the stopped state", "stopped", state);
         }
 
         for (Map<String, Object> transformConfig : transformConfigs) {

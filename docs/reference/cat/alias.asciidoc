@@ -1,5 +1,8 @@
 [[cat-alias]]
-=== cat aliases
+=== cat aliases API
+++++
+<titleabbrev>cat aliases</titleabbrev>
+++++
 
 Returns information about currently configured aliases to indices, including
 filter and routing information.

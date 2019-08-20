@@ -6,11 +6,13 @@ You can configure {es} to use Public Key Infrastructure (PKI) certificates to
 authenticate users. This requires clients connecting directly to {es} to
 present X.509 certificates. The certificates must first be accepted for
 authentication on the SSL/TLS layer on {es}. Only then they are optionally
-further validated by a PKI realm. Users might also connect to {kib} and
-present their certificate, but this requires a little
-<<pki-realm-for-proxied-clients,extra configuration>>. On {es}, this
-configuration enables {kib} to act as a proxy for SSL/TLS authentication and
-to submit the client certificates to {es} for further validation by a PKI realm.
+further validated by a PKI realm.
+
+Users might also connect to {kib} and present their certificate, but this
+requires a little <<pki-realm-for-proxied-clients,extra configuration>>. On
+{es}, this configuration enables {kib} to act as a proxy for SSL/TLS
+authentication and to submit the client certificates to {es} for further
+validation by a PKI realm.
 
 For more general information, see {stack-ov}/pki-realm.html[PKI user authentication].
 
@@ -31,9 +33,10 @@ authenticating HTTP traffic using username and password credentials. You can
 also set `xpack.security.transport.ssl.client_authentication` to `optional` to
 allow clients without certificates to authenticate with other credentials.
 
-IMPORTANT: You must enable SSL/TLS and enable client authentication, if you
-only allow PKI authentication for clients connecting directly to {es}, but not
-through {kib}.
+IMPORTANT: You must enable SSL/TLS to use PKI. If a PKI realm does **not**
+support delegation, i.e. only allows for clients connecting directly to {es}
+and not through {kib}, then SSL/TLS client authentication must be enabled as
+well.
 
 . Add a realm configuration for a `pki` realm to `elasticsearch.yml` under the
 `xpack.security.authc.realms.pki` namespace.
@@ -95,14 +98,13 @@ restart for last.
 +
 --
 
-When clients connect directly to {es} and are not proxy-authenticated by
-{kib}, the PKI realm relies on the TLS settings of the node's network
-interface. The realm can be configured to be more restrictive than the
-underlying network connection. That is to say, it is possible to configure the node
-such that some connections are accepted by the network interface but then fail
-to be authenticated by the PKI realm. However, the reverse is not possible. The
-PKI realm cannot authenticate a connection that has been refused by the network
-interface.
+When clients connect directly to {es} and are not proxy-authenticated, the PKI
+realm relies on the TLS settings of the node's network interface. The realm can
+be configured to be more restrictive than the underlying network connection.
+That is to say, it is possible to configure the node such that some connections
+are accepted by the network interface but then fail to be authenticated by the
+PKI realm. However, the reverse is not possible. The PKI realm cannot
+authenticate a connection that has been refused by the network interface.
 
 In particular this means:
 
@@ -253,7 +255,9 @@ connecting directly to {es}. Directly authenticated users, and users that are PK
 authenticated by delegation to {kib} both follow the same
 {stack-ov}/mapping-roles.html[role mapping rules] or
 {stack-ov}/realm-chains.html#authorization_realms[authorization realms
-configurations]. If you use the <<security-role-mapping-apis,role mapping APIs>>,
+configurations].
+
+However, if you use the <<security-role-mapping-apis,role mapping APIs>>,
 you can distinguish between users that are authenticated by delegation and
 users that are authenticated directly. The former have the
 extra fields `pki_delegated_by_user` and `pki_delegated_by_realm` in the user's

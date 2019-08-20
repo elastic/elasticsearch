@@ -41,7 +41,7 @@ import static org.elasticsearch.packaging.util.FileUtils.mv;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public abstract class WindowsServiceTestCase extends PackagingTestCase {
+public class WindowsServiceTests extends PackagingTestCase {
 
     private static final String DEFAULT_ID = "elasticsearch-service-x64";
     private static final String DEFAULT_DISPLAY_NAME = "Elasticsearch " + FileUtils.getCurrentVersion() + " (elasticsearch-service-x64)";
@@ -57,6 +57,7 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
     @BeforeClass
     public static void ensureWindows() {
         assumeTrue(Platforms.WINDOWS);
+        assumeTrue(distribution().hasJdk);
     }
 
     @After

@@ -21,15 +21,12 @@ package org.elasticsearch.packaging.test;
 
 import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
 import org.elasticsearch.packaging.util.Distribution;
-import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Shell;
 import org.junit.Before;
-import org.junit.BeforeClass;
 
 import java.nio.file.Files;
 import java.nio.file.Paths;
 
-import static org.elasticsearch.packaging.util.Cleanup.cleanEverything;
 import static org.elasticsearch.packaging.util.FileUtils.assertPathsDontExist;
 import static org.elasticsearch.packaging.util.FileUtils.assertPathsExist;
 import static org.elasticsearch.packaging.util.Packages.SYSVINIT_SCRIPT;
@@ -46,21 +43,13 @@ import static org.junit.Assume.assumeThat;
 import static org.junit.Assume.assumeTrue;
 
 @TestCaseOrdering(TestCaseOrdering.AlphabeticOrder.class)
-public abstract class DebPreservationTestCase extends PackagingTestCase {
-
-    private static Installation installation;
-
-    protected abstract Distribution distribution();
-
-    @BeforeClass
-    public static void cleanup() throws Exception {
-        installation = null;
-        cleanEverything();
-    }
+public class DebPreservationTests extends PackagingTestCase {
 
     @Before
     public void onlyCompatibleDistributions() {
         assumeTrue("only dpkg platforms", isDPKG());
+        assumeTrue("deb distributions", distribution().packaging == Distribution.Packaging.DEB);
+        assumeTrue("only bundled jdk", distribution().hasJdk);
         assumeTrue("only compatible distributions", distribution().packaging.compatible);
     }
 

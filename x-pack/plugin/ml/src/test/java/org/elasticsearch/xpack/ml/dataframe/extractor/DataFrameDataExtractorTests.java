@@ -346,7 +346,7 @@ public class DataFrameDataExtractorTests extends ESTestCase {
 
         // Third batch should return empty
         rows = dataExtractor.next();
-        assertThat(rows.isEmpty(), is(true));
+        assertThat(rows.isPresent(), is(false));
         assertThat(dataExtractor.hasNext(), is(false));
     }
 
@@ -380,7 +380,7 @@ public class DataFrameDataExtractorTests extends ESTestCase {
 
         // Third batch should return empty
         rows = dataExtractor.next();
-        assertThat(rows.isEmpty(), is(true));
+        assertThat(rows.isPresent(), is(false));
         assertThat(dataExtractor.hasNext(), is(false));
     }
 

@@ -149,7 +149,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
     public void testReduce() {
         List<InternalAggregation> aggs = createInternalAggregations();
         InternalAggregation.ReduceContext context = new InternalAggregation.ReduceContext(null, null, true);
-        SignificantTerms reducedAgg = (SignificantTerms) aggs.get(0).doReduce(aggs, context);
+        SignificantTerms reducedAgg = (SignificantTerms) aggs.get(0).reduce(aggs, context);
         assertThat(reducedAgg.getBuckets().size(), equalTo(2));
         assertThat(reducedAgg.getBuckets().get(0).getSubsetDf(), equalTo(8L));
         assertThat(reducedAgg.getBuckets().get(0).getSubsetSize(), equalTo(16L));

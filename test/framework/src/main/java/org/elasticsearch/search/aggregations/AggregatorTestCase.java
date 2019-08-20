@@ -390,7 +390,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 InternalAggregation.ReduceContext context =
                     new InternalAggregation.ReduceContext(root.context().bigArrays(), getMockScriptService(),
                         reduceBucketConsumer, false);
-                A reduced = (A) aggs.get(0).doReduce(toReduce, context);
+                A reduced = (A) aggs.get(0).reduce(toReduce, context);
                 doAssertReducedMultiBucketConsumer(reduced, reduceBucketConsumer);
                 aggs = new ArrayList<>(aggs.subList(r, toReduceSize));
                 aggs.add(reduced);
@@ -401,7 +401,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 new InternalAggregation.ReduceContext(root.context().bigArrays(), getMockScriptService(), reduceBucketConsumer, true);
 
             @SuppressWarnings("unchecked")
-            A internalAgg = (A) aggs.get(0).doReduce(aggs, context);
+            A internalAgg = (A) aggs.get(0).reduce(aggs, context);
 
             // materialize any parent pipelines
             internalAgg = (A) internalAgg.materializePipelines(internalAgg, context);

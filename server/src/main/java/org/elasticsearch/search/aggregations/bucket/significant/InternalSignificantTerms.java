@@ -194,7 +194,7 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
     public abstract List<B> getBuckets();
 
     @Override
-    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         long globalSubsetSize = 0;
         long globalSupersetSize = 0;
         // Compute the overall result set size and the corpus size using the

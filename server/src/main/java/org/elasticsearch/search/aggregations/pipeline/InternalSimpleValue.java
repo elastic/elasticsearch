@@ -76,7 +76,7 @@ public class InternalSimpleValue extends InternalNumericMetricsAggregation.Singl
     }
 
     @Override
-    public InternalSimpleValue doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalSimpleValue reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         throw new UnsupportedOperationException("Not supported");
     }
 

@@ -144,7 +144,7 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
     }
 
     @Override
-    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         boolean promoteToDouble = false;
         for (InternalAggregation agg : aggregations) {
             if (agg instanceof LongTerms && ((LongTerms) agg).format == DocValueFormat.RAW) {
@@ -157,7 +157,7 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
             }
         }
         if (promoteToDouble == false) {
-            return super.doReduce(aggregations, reduceContext);
+            return super.reduce(aggregations, reduceContext);
         }
         List<InternalAggregation> newAggs = new ArrayList<>(aggregations.size());
         for (InternalAggregation agg : aggregations) {
@@ -168,7 +168,7 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
                 newAggs.add(agg);
             }
         }
-        return newAggs.get(0).doReduce(newAggs, reduceContext);
+        return newAggs.get(0).reduce(newAggs, reduceContext);
     }
 
     @Override

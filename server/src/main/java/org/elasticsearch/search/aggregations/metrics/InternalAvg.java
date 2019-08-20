@@ -87,7 +87,7 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
     }
 
     @Override
-    public InternalAvg doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAvg reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         long count = 0;
         double sum = 0;
         double compensation = 0;

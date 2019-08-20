@@ -23,8 +23,6 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.search.aggregations.metrics.InternalAvg;
-import org.elasticsearch.search.aggregations.metrics.ParsedAvg;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
@@ -95,7 +93,7 @@ public class InternalAvgTests extends InternalAggregationTestCase<InternalAvg> {
             aggregations.add(new InternalAvg("dummy1", value, 1, null, null, null));
         }
         InternalAvg internalAvg = new InternalAvg("dummy2", 0, 0, null, null, null);
-        InternalAvg reduced = internalAvg.doReduce(aggregations, null);
+        InternalAvg reduced = internalAvg.reduce(aggregations, null);
         assertEquals(expected, reduced.getValue(), delta);
     }
 

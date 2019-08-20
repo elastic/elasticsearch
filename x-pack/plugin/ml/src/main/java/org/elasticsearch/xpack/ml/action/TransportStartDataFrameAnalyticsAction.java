@@ -173,8 +173,9 @@ public class TransportStartDataFrameAnalyticsAction
         ActionListener<EstimateMemoryUsageAction.Response> estimateMemoryUsageListener = ActionListener.wrap(
             estimateMemoryUsageResponse -> {
                 // Validate that model memory limit is sufficient to run the analysis
-                if (configHolder.get().getModelMemoryLimit()
-                    .compareTo(estimateMemoryUsageResponse.getExpectedMemoryUsageWithOnePartition()) < 0) {
+                if (estimateMemoryUsageResponse.getExpectedMemoryUsageWithOnePartition() != null &&
+                        configHolder.get().getModelMemoryLimit().compareTo(
+                            estimateMemoryUsageResponse.getExpectedMemoryUsageWithOnePartition()) < 0) {
                     ElasticsearchStatusException e =
                         ExceptionsHelper.badRequestException(
                             "Cannot start because the configured model memory limit [{}] is lower than the expected memory usage [{}]",

@@ -94,19 +94,11 @@ public class ClusterPermission {
 
         public Builder add(final ClusterPrivilege clusterPrivilege, final Set<String> allowedActionPatterns,
                            final Set<String> excludeActionPatterns, final PermissionCheckPredicate<TransportRequest> requestPredicate) {
-            return add(clusterPrivilege, allowedActionPatterns, excludeActionPatterns, requestPredicate,
-                new AllowAllPermissionCheckPredicate());
-        }
-
-        public Builder add(final ClusterPrivilege clusterPrivilege, final Set<String> allowedActionPatterns,
-                           final Set<String> excludeActionPatterns, final PermissionCheckPredicate<TransportRequest> requestPredicate,
-                           final PermissionCheckPredicate<Authentication> authenticationPredicate) {
             final Automaton allowedAutomaton = Automatons.patterns(allowedActionPatterns);
             final Automaton excludedAutomaton = Automatons.patterns(excludeActionPatterns);
             final Automaton actionAutomaton = Automatons.minusAndMinimize(allowedAutomaton, excludedAutomaton);
 
-            return add(clusterPrivilege, new ActionRequestAuthenticationBasedPermissionCheck(actionAutomaton, requestPredicate,
-                authenticationPredicate));
+            return add(clusterPrivilege, new ActionRequestBasedPermissionCheck(actionAutomaton, requestPredicate));
         }
 
         public Builder add(final ClusterPrivilege clusterPrivilege, final PermissionCheck permissionCheck) {
@@ -146,17 +138,6 @@ public class ClusterPermission {
          * {@link PermissionCheckPredicate} else returns {@code false}
          */
         boolean implies(PermissionCheckPredicate<T> otherPermissionCheckPredicate);
-    }
-
-    private static final class AllowAllPermissionCheckPredicate<T> implements PermissionCheckPredicate<T> {
-        @Override
-        public boolean implies(PermissionCheckPredicate<T> otherPermissionCheckPredicate) {
-            return true;
-        }
-        @Override
-        public boolean test(T t) {
-            return true;
-        }
     }
 
     /**
@@ -212,33 +193,28 @@ public class ClusterPermission {
         }
     }
 
-    // action, request and authentication based permission check
-    private static class ActionRequestAuthenticationBasedPermissionCheck extends AutomatonPermissionCheck {
+    // action, request based permission check
+    private static class ActionRequestBasedPermissionCheck extends AutomatonPermissionCheck {
         private final PermissionCheckPredicate<TransportRequest> requestPredicate;
-        private final PermissionCheckPredicate<Authentication> authenticationPredicate;
 
-        ActionRequestAuthenticationBasedPermissionCheck(final Automaton automaton,
-                                          final PermissionCheckPredicate<TransportRequest> requestPredicate,
-                                          final PermissionCheckPredicate<Authentication> authenticationPredicate) {
+        ActionRequestBasedPermissionCheck(final Automaton automaton,
+                                          final PermissionCheckPredicate<TransportRequest> requestPredicate) {
             super(automaton);
             this.requestPredicate = requestPredicate;
-            this.authenticationPredicate = authenticationPredicate;
         }
 
         @Override
         public boolean check(final String action, final TransportRequest request, final Authentication authentication) {
-            return super.check(action, request, authentication) && requestPredicate.test(request) && authenticationPredicate.test(
-                authentication);
+            return super.check(action, request, authentication) && requestPredicate.test(request);
         }
 
         @Override
         public boolean implies(final PermissionCheck permissionCheck) {
             if (super.implies(permissionCheck)) {
-                if (permissionCheck instanceof ActionRequestAuthenticationBasedPermissionCheck) {
-                    final ActionRequestAuthenticationBasedPermissionCheck otherCheck =
-                        (ActionRequestAuthenticationBasedPermissionCheck) permissionCheck;
-                    return this.requestPredicate.implies(otherCheck.requestPredicate) &&
-                        this.authenticationPredicate.implies(otherCheck.authenticationPredicate);
+                if (permissionCheck instanceof ActionRequestBasedPermissionCheck) {
+                    final ActionRequestBasedPermissionCheck otherCheck =
+                        (ActionRequestBasedPermissionCheck) permissionCheck;
+                    return this.requestPredicate.implies(otherCheck.requestPredicate);
                 }
             }
             return false;

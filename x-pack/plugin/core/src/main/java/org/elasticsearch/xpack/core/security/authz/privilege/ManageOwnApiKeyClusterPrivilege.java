@@ -63,11 +63,6 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
             return false;
         }
 
-        @Override
-        public boolean implies(final ClusterPermission.PermissionCheck permissionCheck) {
-            return super.implies(permissionCheck);
-        }
-
         private boolean checkIfUserIsOwnerOfApiKeys(Authentication authentication, String apiKeyId, String username, String realmName) {
             if (isCurrentAuthenticationUsingSameApiKeyIdFromRequest(authentication, apiKeyId)) {
                 return true;

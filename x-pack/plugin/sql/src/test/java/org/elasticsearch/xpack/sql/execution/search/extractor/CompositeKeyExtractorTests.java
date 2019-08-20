@@ -32,7 +32,6 @@ public class CompositeKeyExtractorTests extends AbstractSqlWireSerializingTestCa
         return new CompositeKeyExtractor(randomAlphaOfLength(16), randomFrom(asList(Property.values())), zoneId, randomBoolean());
     }
 
-
     @Override
     protected CompositeKeyExtractor createTestInstance() {
         return randomCompositeKeyExtractor();

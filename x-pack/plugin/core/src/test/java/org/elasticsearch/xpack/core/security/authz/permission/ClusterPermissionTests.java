@@ -8,15 +8,20 @@
 
 package org.elasticsearch.xpack.core.security.authz.permission;
 
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.junit.Before;
 
+import java.io.IOException;
+import java.util.Objects;
 import java.util.Set;
+import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
@@ -45,10 +50,10 @@ public class ClusterPermissionTests extends ESTestCase {
 
         builder = ClusterPrivilegeResolver.MANAGE_SECURITY.buildPermission(builder);
         builder = ClusterPrivilegeResolver.MANAGE_ILM.buildPermission(builder);
-        final ConfigurableClusterPrivileges.ManageApplicationPrivileges mockConfigurableClusterPrivilege1 =
-            new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Set.of("application-1"));
-        final ConfigurableClusterPrivileges.ManageApplicationPrivileges mockConfigurableClusterPrivilege2 =
-            new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Set.of("application-1", "application-2"));
+        final MockConfigurableClusterPrivilege mockConfigurableClusterPrivilege1 =
+            new MockConfigurableClusterPrivilege(r -> r == mockTransportRequest);
+        final MockConfigurableClusterPrivilege mockConfigurableClusterPrivilege2 =
+            new MockConfigurableClusterPrivilege(r -> false);
         builder = mockConfigurableClusterPrivilege1.buildPermission(builder);
         builder = mockConfigurableClusterPrivilege2.buildPermission(builder);
         final ClusterPermission clusterPermission = builder.build();
@@ -67,10 +72,10 @@ public class ClusterPermissionTests extends ESTestCase {
         builder = ClusterPrivilegeResolver.MANAGE_SECURITY.buildPermission(builder);
         builder = ClusterPrivilegeResolver.MANAGE_ILM.buildPermission(builder);
 
-        final ConfigurableClusterPrivileges.ManageApplicationPrivileges mockConfigurableClusterPrivilege1 =
-            new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Set.of("application-1"));
-        final ConfigurableClusterPrivileges.ManageApplicationPrivileges mockConfigurableClusterPrivilege2 =
-            new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Set.of("application-1", "application-2"));
+        final MockConfigurableClusterPrivilege mockConfigurableClusterPrivilege1 =
+            new MockConfigurableClusterPrivilege(r -> r == mockTransportRequest);
+        final MockConfigurableClusterPrivilege mockConfigurableClusterPrivilege2 =
+            new MockConfigurableClusterPrivilege(r -> false);
         builder = mockConfigurableClusterPrivilege1.buildPermission(builder);
         builder = mockConfigurableClusterPrivilege2.buildPermission(builder);
         final ClusterPermission clusterPermission = builder.build();
@@ -131,10 +136,10 @@ public class ClusterPermissionTests extends ESTestCase {
         ClusterPermission.Builder builder = ClusterPermission.builder();
         builder = ClusterPrivilegeResolver.MANAGE_SECURITY.buildPermission(builder);
         builder = ClusterPrivilegeResolver.MANAGE_ILM.buildPermission(builder);
-        final ConfigurableClusterPrivileges.ManageApplicationPrivileges mockConfigurableClusterPrivilege1 =
-            new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Set.of("application-1"));
-        final ConfigurableClusterPrivileges.ManageApplicationPrivileges mockConfigurableClusterPrivilege2 =
-            new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Set.of("application-1", "application-2"));
+        final MockConfigurableClusterPrivilege mockConfigurableClusterPrivilege1 =
+            new MockConfigurableClusterPrivilege(r -> r == mockTransportRequest);
+        final MockConfigurableClusterPrivilege mockConfigurableClusterPrivilege2 =
+            new MockConfigurableClusterPrivilege(r -> false);
         builder = mockConfigurableClusterPrivilege1.buildPermission(builder);
         builder = mockConfigurableClusterPrivilege2.buildPermission(builder);
         final ClusterPermission clusterPermission = builder.build();
@@ -146,8 +151,8 @@ public class ClusterPermissionTests extends ESTestCase {
         ClusterPermission.Builder builder = ClusterPermission.builder();
         builder = ClusterPrivilegeResolver.MANAGE_ML.buildPermission(builder);
         builder = ClusterPrivilegeResolver.MANAGE_ILM.buildPermission(builder);
-        final ConfigurableClusterPrivileges.ManageApplicationPrivileges mockConfigurableClusterPrivilege1 =
-            new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Set.of("application-1"));
+        final MockConfigurableClusterPrivilege mockConfigurableClusterPrivilege1 =
+            new MockConfigurableClusterPrivilege(r -> r == mockTransportRequest);
         builder = mockConfigurableClusterPrivilege1.buildPermission(builder);
         final ClusterPermission clusterPermission = builder.build();
 
@@ -163,16 +168,16 @@ public class ClusterPermissionTests extends ESTestCase {
         ClusterPermission.Builder builder = ClusterPermission.builder();
         builder = ClusterPrivilegeResolver.MANAGE_ML.buildPermission(builder);
         builder = ClusterPrivilegeResolver.MANAGE_ILM.buildPermission(builder);
-        final ConfigurableClusterPrivileges.ManageApplicationPrivileges mockConfigurableClusterPrivilege1 =
-            new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Set.of("application-1"));
+        final MockConfigurableClusterPrivilege mockConfigurableClusterPrivilege1 =
+            new MockConfigurableClusterPrivilege(r -> r == mockTransportRequest);
         builder = mockConfigurableClusterPrivilege1.buildPermission(builder);
         final ClusterPermission clusterPermission = builder.build();
 
         ClusterPermission.Builder builder1 = ClusterPermission.builder();
         builder1 = ClusterPrivilegeResolver.MANAGE_ML.buildPermission(builder1);
         builder1 = mockConfigurableClusterPrivilege1.buildPermission(builder1);
-        final ConfigurableClusterPrivileges.ManageApplicationPrivileges mockConfigurableClusterPrivilege2 =
-            new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Set.of("application-1", "application-2"));
+        final MockConfigurableClusterPrivilege mockConfigurableClusterPrivilege2 =
+            new MockConfigurableClusterPrivilege(r -> false);
         builder1 = mockConfigurableClusterPrivilege2.buildPermission(builder1);
         final ClusterPermission otherClusterPermission = builder1.build();
 
@@ -209,8 +214,8 @@ public class ClusterPermissionTests extends ESTestCase {
         ClusterPermission.Builder builder = ClusterPermission.builder();
         builder = ClusterPrivilegeResolver.MANAGE_ML.buildPermission(builder);
         builder = ClusterPrivilegeResolver.MANAGE_ILM.buildPermission(builder);
-        final ConfigurableClusterPrivileges.ManageApplicationPrivileges mockConfigurableClusterPrivilege1 =
-            new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Set.of("application-1"));
+        final MockConfigurableClusterPrivilege mockConfigurableClusterPrivilege1 =
+            new MockConfigurableClusterPrivilege(r -> r == mockTransportRequest);
         builder = mockConfigurableClusterPrivilege1.buildPermission(builder);
         final ClusterPermission clusterPermission = builder.build();
 
@@ -225,4 +230,59 @@ public class ClusterPermissionTests extends ESTestCase {
         assertThat(allClusterPermission.implies(otherClusterPermission), is(true));
     }
 
+    private static class MockConfigurableClusterPrivilege implements ConfigurableClusterPrivilege {
+        private Predicate<TransportRequest> requestPredicate;
+
+        MockConfigurableClusterPrivilege(Predicate<TransportRequest> requestPredicate) {
+            this.requestPredicate = requestPredicate;
+        }
+
+        @Override
+        public Category getCategory() {
+            return Category.APPLICATION;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return "mock-ccp";
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            final MockConfigurableClusterPrivilege that = (MockConfigurableClusterPrivilege) o;
+            return requestPredicate.equals(that.requestPredicate);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(requestPredicate);
+        }
+
+        @Override
+        public String toString() {
+            return "MockConfigurableClusterPrivilege{" +
+                "requestAuthnPredicate=" + requestPredicate +
+                '}';
+        }
+
+        @Override
+        public ClusterPermission.Builder buildPermission(ClusterPermission.Builder builder) {
+            return builder.add(this, Set.of("cluster:admin/xpack/security/privilege/*"), Set.of(), requestPredicate);
+        }
+    }
 }

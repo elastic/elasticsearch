@@ -93,12 +93,12 @@ public class ClusterPermission {
         }
 
         public Builder add(final ClusterPrivilege clusterPrivilege, final Set<String> allowedActionPatterns,
-                           final Set<String> excludeActionPatterns, final PermissionCheckPredicate<TransportRequest> requestPredicate) {
+                           final Set<String> excludeActionPatterns, final Predicate<TransportRequest> requestPredicate) {
             final Automaton allowedAutomaton = Automatons.patterns(allowedActionPatterns);
             final Automaton excludedAutomaton = Automatons.patterns(excludeActionPatterns);
             final Automaton actionAutomaton = Automatons.minusAndMinimize(allowedAutomaton, excludedAutomaton);
 
-            return add(clusterPrivilege, new ActionRequestBasedPermissionCheck(actionAutomaton, requestPredicate));
+            return add(clusterPrivilege, new ActionRequestBasedPermissionCheck(clusterPrivilege, actionAutomaton, requestPredicate));
         }
 
         public Builder add(final ClusterPrivilege clusterPrivilege, final PermissionCheck permissionCheck) {
@@ -120,24 +120,6 @@ public class ClusterPermission {
             }
             return new ClusterPermission(this.clusterPrivileges, checks);
         }
-    }
-
-    /**
-     * A {@link Predicate} which also can determine if the other {@link PermissionCheckPredicate}
-     * is implied by it.
-     */
-    public interface PermissionCheckPredicate<T> extends Predicate<T> {
-        /**
-         * Checks whether specified {@link PermissionCheckPredicate} is implied by this {@link PermissionCheckPredicate}.<br>
-         * This is important method to be considered during implementation as it compares {@link PermissionCheckPredicate}s.
-         * If {@code permissionCheckPredicate.implies(otherPermissionCheckPredicate)}, that means all the operations allowed
-         * by {@code otherPermissionCheckPredicate} are also allowed by {@code permissionCheckPredicate}.
-         *
-         * @param otherPermissionCheckPredicate {@link PermissionCheckPredicate}
-         * @return {@code true} if the specified permission check predicate is implied by this
-         * {@link PermissionCheckPredicate} else returns {@code false}
-         */
-        boolean implies(PermissionCheckPredicate<T> otherPermissionCheckPredicate);
     }
 
     /**
@@ -195,12 +177,14 @@ public class ClusterPermission {
 
     // action, request based permission check
     private static class ActionRequestBasedPermissionCheck extends AutomatonPermissionCheck {
-        private final PermissionCheckPredicate<TransportRequest> requestPredicate;
+        private final ClusterPrivilege clusterPrivilege;
+        private final Predicate<TransportRequest> requestPredicate;
 
-        ActionRequestBasedPermissionCheck(final Automaton automaton,
-                                          final PermissionCheckPredicate<TransportRequest> requestPredicate) {
+        ActionRequestBasedPermissionCheck(ClusterPrivilege clusterPrivilege, final Automaton automaton,
+                                          final Predicate<TransportRequest> requestPredicate) {
             super(automaton);
             this.requestPredicate = requestPredicate;
+            this.clusterPrivilege = clusterPrivilege;
         }
 
         @Override
@@ -214,7 +198,7 @@ public class ClusterPermission {
                 if (permissionCheck instanceof ActionRequestBasedPermissionCheck) {
                     final ActionRequestBasedPermissionCheck otherCheck =
                         (ActionRequestBasedPermissionCheck) permissionCheck;
-                    return this.requestPredicate.implies(otherCheck.requestPredicate);
+                    return this.clusterPrivilege.equals(otherCheck.clusterPrivilege);
                 }
             }
             return false;

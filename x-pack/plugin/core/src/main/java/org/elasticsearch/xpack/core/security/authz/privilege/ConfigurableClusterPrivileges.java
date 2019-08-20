@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.ApplicationPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege.Category;
@@ -129,9 +130,22 @@ public final class ConfigurableClusterPrivileges {
         public static final String WRITEABLE_NAME = "manage-application-privileges";
 
         private final Set<String> applicationNames;
+        private final Predicate<String> applicationPredicate;
+        private final Predicate<TransportRequest> requestPredicate;
 
         public ManageApplicationPrivileges(Set<String> applicationNames) {
             this.applicationNames = Collections.unmodifiableSet(applicationNames);
+            this.applicationPredicate = Automatons.predicate(applicationNames);
+            this.requestPredicate = request -> {
+                if (request instanceof ApplicationPrivilegesRequest) {
+                    final ApplicationPrivilegesRequest privRequest = (ApplicationPrivilegesRequest) request;
+                    final Collection<String> requestApplicationNames = privRequest.getApplicationNames();
+                    return requestApplicationNames.isEmpty() ? this.applicationNames.contains("*")
+                        : requestApplicationNames.stream().allMatch(application -> applicationPredicate.test(application));
+                }
+                return false;
+            };
+
         }
 
         @Override
@@ -202,46 +216,12 @@ public final class ConfigurableClusterPrivileges {
 
         @Override
         public ClusterPermission.Builder buildPermission(final ClusterPermission.Builder builder) {
-            return builder.add(this, Set.of("cluster:admin/xpack/security/privilege/*"), Set.of(),
-                new RequestPermissionCheckPredicate(applicationNames));
+            return builder.add(this, Set.of("cluster:admin/xpack/security/privilege/*"), Set.of(), requestPredicate);
         }
 
         private interface Fields {
             ParseField MANAGE = new ParseField("manage");
             ParseField APPLICATIONS = new ParseField("applications");
-        }
-
-        private static class RequestPermissionCheckPredicate<TransportRequest>
-            implements ClusterPermission.PermissionCheckPredicate<TransportRequest> {
-            private final Automaton applicationNamesAutomaton;
-            private final Set<String> applicationNames;
-            private final Predicate<String> applicationPredicate;
-
-            RequestPermissionCheckPredicate(Set<String> applicationNames) {
-                this.applicationNamesAutomaton = Automatons.patterns(applicationNames);
-                this.applicationNames = applicationNames;
-                this.applicationPredicate = Automatons.predicate(applicationNamesAutomaton);
-            }
-
-            @Override
-            public boolean implies(ClusterPermission.PermissionCheckPredicate<TransportRequest> otherPermissionCheckPredicate) {
-                if (otherPermissionCheckPredicate instanceof RequestPermissionCheckPredicate) {
-                    return Operations.subsetOf(((RequestPermissionCheckPredicate) otherPermissionCheckPredicate).applicationNamesAutomaton,
-                        this.applicationNamesAutomaton);
-                }
-                return false;
-            }
-
-            @Override
-            public boolean test(TransportRequest transportRequest) {
-                if (transportRequest instanceof ApplicationPrivilegesRequest) {
-                    final ApplicationPrivilegesRequest privRequest = (ApplicationPrivilegesRequest) transportRequest;
-                    final Collection<String> requestApplicationNames = privRequest.getApplicationNames();
-                    return requestApplicationNames.isEmpty() ? this.applicationNames.contains("*")
-                        : requestApplicationNames.stream().allMatch(application -> applicationPredicate.test(application));
-                }
-                return false;
-            }
         }
     }
 }

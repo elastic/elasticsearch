@@ -480,7 +480,8 @@ public class AvgAggregatorTests extends AggregatorTestCase {
                 Document document = new Document();
                 document.add(new SortedNumericDocValuesField("values", i + 2));
                 document.add(new SortedNumericDocValuesField("values", i + 3));
-                iw.addDocument(document);            }
+                iw.addDocument(document);
+            }
         }, avg -> {
             assertEquals((double) (3+4+4+5+5+6+6+7+7+8+8+9+9+10+10+11+11+12+12+13) / 20, avg.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(avg));
@@ -501,7 +502,8 @@ public class AvgAggregatorTests extends AggregatorTestCase {
                 Document document = new Document();
                 document.add(new SortedNumericDocValuesField("values", i + 2));
                 document.add(new SortedNumericDocValuesField("values", i + 3));
-                iw.addDocument(document);            }
+                iw.addDocument(document);
+            }
         }, avg -> {
             assertEquals((double) (2+3+3+4+4+5+5+6+6+7+7+8+8+9+9+10+10+11+11+12) / 20, avg.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(avg));

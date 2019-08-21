@@ -43,6 +43,8 @@ public final class IndexPrivilege extends Privilege {
     private static final Automaton READ_AUTOMATON = patterns("indices:data/read/*");
     private static final Automaton READ_CROSS_CLUSTER_AUTOMATON = patterns("internal:transport/proxy/indices:data/read/*",
             ClusterSearchShardsAction.NAME);
+    private static final Automaton APPEND_ONLY_AUTOMATON = Automatons.minusAndMinimize(patterns("indices:data/write/index*", "indices:data/write/bulk*",
+        PutMappingAction.NAME), patterns("indices:data/write/index[op_type:i]"));
     private static final Automaton CREATE_AUTOMATON = patterns("indices:data/write/index*", "indices:data/write/bulk*",
             PutMappingAction.NAME);
     private static final Automaton INDEX_AUTOMATON =
@@ -68,6 +70,7 @@ public final class IndexPrivilege extends Privilege {
     public static final IndexPrivilege READ_CROSS_CLUSTER =  new IndexPrivilege("read_cross_cluster",  READ_CROSS_CLUSTER_AUTOMATON);
     public static final IndexPrivilege CREATE =              new IndexPrivilege("create",              CREATE_AUTOMATON);
     public static final IndexPrivilege INDEX =               new IndexPrivilege("index",               INDEX_AUTOMATON);
+    public static final IndexPrivilege APPEND_ONLY =         new IndexPrivilege("append_only",         APPEND_ONLY_AUTOMATON);
     public static final IndexPrivilege DELETE =              new IndexPrivilege("delete",              DELETE_AUTOMATON);
     public static final IndexPrivilege WRITE =               new IndexPrivilege("write",               WRITE_AUTOMATON);
     public static final IndexPrivilege MONITOR =             new IndexPrivilege("monitor",             MONITOR_AUTOMATON);
@@ -90,6 +93,7 @@ public final class IndexPrivilege extends Privilege {
             entry("delete", DELETE),
             entry("write", WRITE),
             entry("create", CREATE),
+            entry("append_only", APPEND_ONLY),
             entry("delete_index", DELETE_INDEX),
             entry("view_index_metadata", VIEW_METADATA),
             entry("read_cross_cluster", READ_CROSS_CLUSTER),

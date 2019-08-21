@@ -15,14 +15,14 @@ to reindex or delete old indices, and when a full cluster restart is required.
 
 [cols="<1m,<1m,3",options="header",]
 |====
-|Upgrade from       |Upgrade to         |Supported upgrade type              
-|<5.x               |6.y (where y > x)  |<<reindex-upgrade,Reindex to upgrade>>     
-|5.0-5.5            |6.8                |<<restart-upgrade,Full cluster restart>>   
-|5.6                |6.8                |<<rolling-upgrades,Rolling upgrade>>       
-|6.0-6.7            |6.8                |<<rolling-upgrades,Rolling upgrade>>
-|6.0-6.7            |{version}          |<<restart-upgrade,Full cluster restart>>
-|6.8                |{version}          |<<rolling-upgrades,Rolling upgrade>>
-|7.x                |{version}  (where {version}  > 7.x) |<<rolling-upgrades,Rolling upgrade>>
+|Upgrade from       |Upgrade to     |Supported upgrade type              
+|<5.x               |6.y            |<<reindex-upgrade,Reindex to upgrade>>  (where y > x)
+|5.0-5.5            |6.8            |<<restart-upgrade,Full cluster restart>>   
+|5.6                |6.8            |<<rolling-upgrades,Rolling upgrade>>       
+|6.0-6.7            |6.8            |<<rolling-upgrades,Rolling upgrade>>
+|6.0-6.7            |{version}      |<<restart-upgrade,Full cluster restart>>
+|6.8                |{version}      |<<rolling-upgrades,Rolling upgrade>>
+|7.x                |{version}      |<<rolling-upgrades,Rolling upgrade>> (where {version}  > 7.x)
 |====
 
 {es} can read indices created in the previous major version. If you

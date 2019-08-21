@@ -235,7 +235,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         }
     }
 
-    public void setTaskStateStopped() {
+    public synchronized void setTaskStateStopped() {
         taskState.set(DataFrameTransformTaskState.STOPPED);
     }
 
@@ -256,8 +256,16 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             return;
         }
         if (getIndexer() == null) {
-            listener.onFailure(new ElasticsearchException("Task for transform [{}] not fully initialized. Try again later",
-                getTransformId()));
+            // If our state is failed AND the indexer is null, the user needs to _stop?force=true so that the indexer gets
+            // fully initialized.
+            // If we are NOT failed, then we can assume that `start` was just called early in the process.
+            String msg = taskState.get() == DataFrameTransformTaskState.FAILED ?
+                "It failed during the initialization process; force stop to allow reinitialization." :
+                "Try again later.";
+            listener.onFailure(new ElasticsearchStatusException("Task for transform [{}] not fully initialized. {}",
+                RestStatus.CONFLICT,
+                getTransformId(),
+                msg));
             return;
         }
         final IndexerState newState = getIndexer().start();
@@ -409,6 +417,13 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
     }
 
     synchronized void markAsFailed(String reason, ActionListener<Void> listener) {
+        // If we are already flagged as failed, this probably means that a second trigger started firing while we were attempting to
+        // flag the previously triggered indexer as failed. Exit early as we are already flagged as failed.
+        if (taskState.get() == DataFrameTransformTaskState.FAILED) {
+            logger.warn("[{}] is already failed but encountered new failure; reason [{}] ", getTransformId(), reason);
+            listener.onResponse(null);
+            return;
+        }
         // If the indexer is `STOPPING` this means that `DataFrameTransformTask#stop` was called previously, but something caused
         // the indexer to fail. Since `ClientDataFrameIndexer#doSaveState` will persist the state to the index once the indexer stops,
         // it is probably best to NOT change the internal state of the task and allow the normal stopping logic to continue.
@@ -425,26 +440,13 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             listener.onResponse(null);
             return;
         }
-        // If we are already flagged as failed, this probably means that a second trigger started firing while we were attempting to
-        // flag the previously triggered indexer as failed. Exit early as we are already flagged as failed.
-        if (taskState.get() == DataFrameTransformTaskState.FAILED) {
-            logger.warn("[{}] is already failed but encountered new failure; reason [{}] ", getTransformId(), reason);
-            listener.onResponse(null);
-            return;
-        }
         auditor.error(transform.getId(), reason);
         // We should not keep retrying. Either the task will be stopped, or started
         // If it is started again, it is registered again.
         deregisterSchedulerJob();
-        DataFrameTransformState newState = new DataFrameTransformState(
-            DataFrameTransformTaskState.FAILED,
-            getIndexer() == null ? initialIndexerState : getIndexer().getState(),
-            getIndexer() == null ? initialPosition : getIndexer().getPosition(),
-            currentCheckpoint.get(),
-            reason,
-            getIndexer() == null ? null : getIndexer().getProgress());
         taskState.set(DataFrameTransformTaskState.FAILED);
         stateReason.set(reason);
+        DataFrameTransformState newState = getState();
         // Even though the indexer information is persisted to an index, we still need DataFrameTransformTaskState in the clusterstate
         // This keeps track of STARTED, FAILED, STOPPED
         // This is because a FAILED state could occur because we failed to read the config from the internal index, which would imply that

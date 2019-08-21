@@ -486,13 +486,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             () -> client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap")
                 .execute().actionGet().getSnapshots("test-repo"));
 
-        // TODO: Replace this by repository cleanup endpoint call once that's available
         logger.info("--> Go through a loop of creating and deleting a snapshot to trigger repository cleanup");
-        client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-tmp")
-            .setWaitForCompletion(true)
-            .setIndices("test-idx")
-            .get();
-        client().admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap-tmp").get();
+        client().admin().cluster().prepareCleanupRepository("test-repo").get();
 
         // Subtract four files that will remain in the repository:
         //   (1) index-(N+1)

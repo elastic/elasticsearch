@@ -45,7 +45,7 @@ public class StartDataFrameTransformTaskAction extends ActionType<StartDataFrame
         public Request(StreamInput in) throws IOException {
             super(in);
             id = in.readString();
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
                 force = in.readBoolean();
             } else {
                 // The behavior before V_7_4_0 was that this flag did not exist,
@@ -66,7 +66,7 @@ public class StartDataFrameTransformTaskAction extends ActionType<StartDataFrame
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(id);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
                 out.writeBoolean(force);
             }
         }

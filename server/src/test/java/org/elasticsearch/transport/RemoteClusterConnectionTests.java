@@ -200,7 +200,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     assertTrue(connectionManager.nodeConnected(seedNode));
                     assertTrue(connectionManager.nodeConnected(discoverableNode));
                     assertTrue(connection.assertNoRunningConnections());
-                    PlainTransportFuture<ClusterSearchShardsResponse> futureHandler = transportFuture(ClusterSearchShardsResponse::new);
+                    TransportFuture<ClusterSearchShardsResponse> futureHandler = transportFuture(ClusterSearchShardsResponse::new);
                     TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.BULK)
                         .build();
                     IllegalStateException ise = (IllegalStateException) expectThrows(SendRequestTransportException.class, () -> {
@@ -237,7 +237,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     assertTrue(connectionManager.nodeConnected(seedNode));
                     assertTrue(connectionManager.nodeConnected(discoverableNode));
                     assertTrue(connection.assertNoRunningConnections());
-                    PlainTransportFuture<ClusterSearchShardsResponse> futureHandler = transportFuture(ClusterSearchShardsResponse::new);
+                    TransportFuture<ClusterSearchShardsResponse> futureHandler = transportFuture(ClusterSearchShardsResponse::new);
                     TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.BULK)
                         .build();
                     IllegalStateException ise = (IllegalStateException) expectThrows(SendRequestTransportException.class, () -> {
@@ -247,7 +247,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     }).getCause();
                     assertEquals(ise.getMessage(), "can't select channel size is 0 for types: [RECOVERY, BULK, STATE]");
 
-                    PlainTransportFuture<ClusterSearchShardsResponse> handler = transportFuture(ClusterSearchShardsResponse::new);
+                    TransportFuture<ClusterSearchShardsResponse> handler = transportFuture(ClusterSearchShardsResponse::new);
                     TransportRequestOptions ops = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.REG)
                         .build();
                     service.sendRequest(connection.getConnection(), ClusterSearchShardsAction.NAME, new ClusterSearchShardsRequest(),
@@ -1257,8 +1257,8 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         return stubbableTransport;
     }
 
-    private static <V extends TransportResponse> PlainTransportFuture<V> transportFuture(Writeable.Reader<V> reader) {
-        return new PlainTransportFuture<>(new TransportResponseHandler<>() {
+    private static <V extends TransportResponse> TransportFuture<V> transportFuture(Writeable.Reader<V> reader) {
+        return new TransportFuture<>(new TransportResponseHandler<>() {
             @Override
             public void handleResponse(V response) {
             }

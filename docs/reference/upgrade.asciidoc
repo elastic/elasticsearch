@@ -10,6 +10,21 @@ process so upgrading does not interrupt service. Rolling upgrades are supported:
 * From 5.6 to 6.8
 * From 6.8 to {version}
 
+The following table shows when you can perform a rolling upgrade, when you need
+to reindex or delete old indices, and when a full cluster restart is required.
+
+[cols="<1m,<1m,3",options="header",]
+|====
+|Upgrade from       |Upgrade to         |Supported upgrade type              
+|<5.x               |6.y (where y > x)  |<<reindex-upgrade,Reindex to upgrade>>     
+|5.0-5.5            |6.8                |<<restart-upgrade,Full cluster restart>>   
+|5.6                |6.8                |<<rolling-upgrades,Rolling upgrade>>       
+|6.0-6.7            |6.8                |<<rolling-upgrades,Rolling upgrade>>
+|6.0-6.7            |{version}          |<<restart-upgrade,Full cluster restart>>
+|6.8                |{version}          |<<rolling-upgrades,Rolling upgrade>>
+|7.x                |{version}  (where {version}  > 7.x) |<<rolling-upgrades,Rolling upgrade>>
+|====
+
 {es} can read indices created in the previous major version. If you
 have indices created in 5.x or before, you must reindex or delete them
 before upgrading to {version}. {es} nodes will fail to start if

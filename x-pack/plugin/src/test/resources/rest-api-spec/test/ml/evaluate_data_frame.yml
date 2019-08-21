@@ -5,6 +5,7 @@ setup:
         index: utopia
         body:  >
           {
+            "dataset": "blue",
             "is_outlier": false,
             "is_outlier_int": 0,
             "outlier_score": 0.0,
@@ -19,6 +20,7 @@ setup:
         index: utopia
         body:  >
           {
+            "dataset": "blue",
             "is_outlier": false,
             "is_outlier_int": 0,
             "outlier_score": 0.2,
@@ -33,6 +35,7 @@ setup:
         index: utopia
         body:  >
           {
+            "dataset": "blue",
             "is_outlier": false,
             "is_outlier_int": 0,
             "outlier_score": 0.3,
@@ -47,6 +50,7 @@ setup:
         index: utopia
         body:  >
           {
+            "dataset": "blue",
             "is_outlier": true,
             "is_outlier_int": 1,
             "outlier_score": 0.3,
@@ -61,6 +65,7 @@ setup:
         index: utopia
         body:  >
           {
+            "dataset": "green",
             "is_outlier": true,
             "is_outlier_int": 1,
             "outlier_score": 0.4,
@@ -75,6 +80,7 @@ setup:
         index: utopia
         body:  >
           {
+            "dataset": "green",
             "is_outlier": true,
             "is_outlier_int": 1,
             "outlier_score": 0.5,
@@ -89,6 +95,7 @@ setup:
         index: utopia
         body:  >
           {
+            "dataset": "green",
             "is_outlier": true,
             "is_outlier_int": 1,
             "outlier_score": 0.9,
@@ -103,6 +110,7 @@ setup:
         index: utopia
         body:  >
           {
+            "dataset": "green",
             "is_outlier": true,
             "is_outlier_int": 1,
             "outlier_score": 0.95,
@@ -304,6 +312,33 @@ setup:
             fp: 0
             tn: 3
             fn: 2
+
+---
+"Test binary_soft_classification with query":
+  - do:
+      ml.evaluate_data_frame:
+        body:  >
+          {
+            "index": "utopia",
+            "query": { "bool": { "filter": { "term": { "dataset": "blue" } } } },
+            "evaluation": {
+              "binary_soft_classification": {
+                "actual_field": "is_outlier",
+                "predicted_probability_field": "outlier_score",
+                "metrics": {
+                  "confusion_matrix": { "at": [0.5] }
+                }
+              }
+            }
+          }
+  - match:
+      binary_soft_classification:
+        confusion_matrix:
+          '0.5':
+            tp: 0
+            fp: 0
+            tn: 3
+            fn: 1
 
 ---
 "Test binary_soft_classification default metrics":

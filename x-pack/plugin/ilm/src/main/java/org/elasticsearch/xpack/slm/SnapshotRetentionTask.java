@@ -275,7 +275,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                     }
                 }, e -> {
                     failed.incrementAndGet();
-                    SnapshotHistoryItem result;
+                    final SnapshotHistoryItem result;
                     try {
                         result = SnapshotHistoryItem.deletionFailureRecord(Instant.now().toEpochMilli(),
                             info.snapshotId().getName(), policyId, repo, e);

@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -263,7 +264,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
             List<SnapshotInfo> snapshots = entry.getValue();
             for (SnapshotInfo info : snapshots) {
                 final String policyId = getPolicyId(info);
-                deleteSnapshot(policyId, repo, info, slmStats, ActionListener.wrap(acknowledgedResponse -> {
+                deleteSnapshot(policyId, repo, info.snapshotId(), slmStats, ActionListener.wrap(acknowledgedResponse -> {
                     deleted.incrementAndGet();
                     if (acknowledgedResponse.isAcknowledged()) {
                         historyStore.putAsync(SnapshotHistoryItem.deletionSuccessRecord(Instant.now().toEpochMilli(),
@@ -315,18 +316,18 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
      * @param listener {@link ActionListener#onResponse(Object)} is called if a {@link SnapshotHistoryItem} can be created representing a
      *                  successful or failed deletion call. {@link ActionListener#onFailure(Exception)} is called only if interrupted.
      */
-    void deleteSnapshot(String slmPolicy, String repo, SnapshotInfo snapshot, SnapshotLifecycleStats slmStats,
+    void deleteSnapshot(String slmPolicy, String repo, SnapshotId snapshot, SnapshotLifecycleStats slmStats,
                         ActionListener<AcknowledgedResponse> listener) {
-        logger.info("[{}] snapshot retention deleting snapshot [{}]", repo, snapshot.snapshotId());
+        logger.info("[{}] snapshot retention deleting snapshot [{}]", repo, snapshot);
         CountDownLatch latch = new CountDownLatch(1);
-        client.admin().cluster().prepareDeleteSnapshot(repo, snapshot.snapshotId().getName())
+        client.admin().cluster().prepareDeleteSnapshot(repo, snapshot.getName())
             .execute(new LatchedActionListener<>(new ActionListener<>() {
                 @Override
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                     if (acknowledgedResponse.isAcknowledged()) {
-                        logger.debug("[{}] snapshot [{}] deleted successfully", repo, snapshot.snapshotId());
+                        logger.debug("[{}] snapshot [{}] deleted successfully", repo, snapshot);
                     } else {
-                        logger.warn("[{}] snapshot [{}] delete issued but the request was not acknowledged", repo, snapshot.snapshotId());
+                        logger.warn("[{}] snapshot [{}] delete issued but the request was not acknowledged", repo, snapshot);
                     }
                     listener.onResponse(acknowledgedResponse);
                     slmStats.snapshotDeleted(slmPolicy);
@@ -335,7 +336,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                 @Override
                 public void onFailure(Exception e) {
                     logger.warn(new ParameterizedMessage("[{}] failed to delete snapshot [{}] for retention",
-                        repo, snapshot.snapshotId()), e);
+                        repo, snapshot), e);
                     slmStats.snapshotDeleteFailure(slmPolicy);
                     listener.onFailure(e);
                 }
@@ -346,7 +347,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
             latch.await();
         } catch (InterruptedException e) {
             logger.error(new ParameterizedMessage("[{}] deletion of snapshot [{}] interrupted",
-                repo, snapshot.snapshotId()), e);
+                repo, snapshot), e);
             listener.onFailure(e);
             slmStats.snapshotDeleteFailure(slmPolicy);
         }

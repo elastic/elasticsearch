@@ -162,7 +162,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                 System.currentTimeMillis(), null, System.currentTimeMillis() + 1, 1,
                 Collections.emptyList(), true, Collections.singletonMap("policy", policyId));
 
-            Set<SnapshotInfo> deleted = ConcurrentHashMap.newKeySet();
+            Set<SnapshotId> deleted = ConcurrentHashMap.newKeySet();
             Set<String> deletedSnapshotsInHistory = ConcurrentHashMap.newKeySet();
             CountDownLatch deletionLatch = new CountDownLatch(1);
             CountDownLatch historyLatch = new CountDownLatch(1);
@@ -187,9 +187,9 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                     logger.info("--> retrieving snapshots [{}]", snaps);
                     return Collections.singletonMap(repoId, snaps);
                 },
-                (deletionPolicyId, repo, snapInfo, slmStats, listener) -> {
-                    logger.info("--> deleting {} from repo {}", snapInfo, repo);
-                    deleted.add(snapInfo);
+                (deletionPolicyId, repo, snapId, slmStats, listener) -> {
+                    logger.info("--> deleting {} from repo {}", snapId, repo);
+                    deleted.add(snapId);
                     if (deletionSuccess) {
                         listener.onResponse(new AcknowledgedResponse(true));
                     } else {
@@ -206,7 +206,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
 
             assertThat("something should have been deleted", deleted, not(empty()));
             assertThat("one snapshot should have been deleted", deleted, hasSize(1));
-            assertThat(deleted, contains(eligibleSnapshot));
+            assertThat(deleted, contains(eligibleSnapshot.snapshotId()));
 
             boolean historySuccess = historyLatch.await(10, TimeUnit.SECONDS);
             assertThat("expected history entries for 1 snapshot deletions", historySuccess, equalTo(true));
@@ -278,14 +278,14 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                     logger.info("--> retrieving snapshots [{}]", snaps);
                     return Collections.singletonMap(repoId, snaps);
                 },
-                (deletionPolicyId, repo, snapInfo, slmStats, listener) -> {
-                    logger.info("--> deleting {}", snapInfo.snapshotId());
+                (deletionPolicyId, repo, snapId, slmStats, listener) -> {
+                    logger.info("--> deleting {}", snapId);
                     // Don't pause until snapshot 2
-                    if (snapInfo.snapshotId().equals(snap2.snapshotId())) {
+                    if (snapId.equals(snap2.snapshotId())) {
                         logger.info("--> pausing for 501ms while deleting snap2 to simulate deletion past a threshold");
                         nanos.addAndGet(TimeValue.timeValueMillis(501).nanos());
                     }
-                    deleted.add(snapInfo.snapshotId());
+                    deleted.add(snapId);
                     if (deletionSuccess) {
                         listener.onResponse(new AcknowledgedResponse(true));
                     } else {
@@ -358,7 +358,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
         }
 
         @Override
-        void deleteSnapshot(String policyId, String repo, SnapshotInfo snapshot, SnapshotLifecycleStats slmStats,
+        void deleteSnapshot(String policyId, String repo, SnapshotId snapshot, SnapshotLifecycleStats slmStats,
                             ActionListener<AcknowledgedResponse> listener) {
             deleteRunner.apply(policyId, repo, snapshot, slmStats, listener);
         }
@@ -366,7 +366,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
 
     @FunctionalInterface
     interface DeleteSnapshotMock {
-        void apply(String policyId, String repo, SnapshotInfo snapshot, SnapshotLifecycleStats slmStats,
+        void apply(String policyId, String repo, SnapshotId snapshot, SnapshotLifecycleStats slmStats,
                    ActionListener<AcknowledgedResponse> listener);
     }
 }

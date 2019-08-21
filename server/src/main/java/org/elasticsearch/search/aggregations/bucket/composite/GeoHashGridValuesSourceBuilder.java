@@ -1,3 +1,22 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.elasticsearch.common.ParseField;
@@ -57,7 +76,6 @@ public class GeoHashGridValuesSourceBuilder extends CompositeValuesSourceBuilder
         return this;
     }
 
-
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeInt(precision);
@@ -77,7 +95,7 @@ public class GeoHashGridValuesSourceBuilder extends CompositeValuesSourceBuilder
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), precision);
+        return Objects.hash(super.hashCode(), precision, shardSize);
     }
 
     @Override
@@ -86,9 +104,8 @@ public class GeoHashGridValuesSourceBuilder extends CompositeValuesSourceBuilder
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
         GeoHashGridValuesSourceBuilder other = (GeoHashGridValuesSourceBuilder) obj;
-        return Objects.equals(precision, other.precision);
+        return precision == other.precision && shardSize == other.shardSize;
     }
-
 
     @Override
     protected CompositeValuesSourceConfig innerBuild(SearchContext context, ValuesSourceConfig<?> config) throws IOException {

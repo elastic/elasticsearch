@@ -18,8 +18,9 @@
   - match: { acknowledged: true }
 
   - do:
-     get_script: {}
+     get_script:
+       new_format: true
 
   - length: { $body: 2 }
-  - match: { 1.script: {"lang": "painless", "source": "_score * doc['myParent.weight'].value"} }
-  - match: { foo.script: {"lang": "painless", "source": "_score * 9.9"} }
+  - match: { 1: {"lang": "painless", "source": "_score * doc['myParent.weight'].value"} }
+  - match: { foo: {"lang": "painless", "source": "_score * 9.9"} }

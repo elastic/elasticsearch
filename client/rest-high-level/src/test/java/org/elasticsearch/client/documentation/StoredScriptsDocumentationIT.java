@@ -300,8 +300,8 @@ public class StoredScriptsDocumentationIT extends ESRestHighLevelClientTestCase 
             client.putScript(request, RequestOptions.DEFAULT);
 
             Map<String, Object> script = getAsMap("/_script/id");
-            assertThat(extractValue("id.script.lang", script), equalTo("mustache"));
-            assertThat(extractValue("id.script.source", script), equalTo("{\"query\":{\"match\":{\"title\":\"{{query_string}}\"}}}"));
+            assertThat(extractValue("id.lang", script), equalTo("mustache"));
+            assertThat(extractValue("id.source", script), equalTo("{\"query\":{\"match\":{\"title\":\"{{query_string}}\"}}}"));
         }
     }
 

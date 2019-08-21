@@ -34,7 +34,7 @@ public class GetStoredScriptResponseTests extends AbstractSerializingTestCase<Ge
 
     @Override
     protected GetStoredScriptResponse doParseInstance(XContentParser parser) throws IOException {
-        return GetStoredScriptResponse.fromXContent(parser);
+        return GetStoredScriptResponse.fromXContentPre80(parser);
     }
 
     @Override
@@ -42,7 +42,7 @@ public class GetStoredScriptResponseTests extends AbstractSerializingTestCase<Ge
         Map<String, StoredScriptSource> storedScripts = new HashMap<>();
         storedScripts.put(randomAlphaOfLengthBetween(1, 10), randomScriptSource());
 
-        return new GetStoredScriptResponse(storedScripts);
+        return new GetStoredScriptResponse(storedScripts.keySet().toArray(String[]::new), storedScripts);
     }
 
     @Override

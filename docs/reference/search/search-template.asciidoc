@@ -78,7 +78,7 @@ This template can be retrieved by
 
 [source,js]
 ------------------------------------------
-GET _script/<templateid>
+GET _script/<templateid>?new_format=true
 ------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -88,7 +88,7 @@ which is rendered as:
 [source,js]
 ------------------------------------------
 {
-    "<templatename>" : {
+    "<templateid>" : {
         "lang" : "mustache",
         "source" : "{\"query\":{\"match\":{\"title\":\"{{query_string}}\"}}}",
         "options": {

@@ -71,14 +71,14 @@ public class TransportGetStoredScriptAction extends TransportMasterNodeReadActio
 
         Map<String, StoredScriptSource> storedScripts = scriptService.getStoredScripts(state);
         // If we did not ask for a specific name, then we return all templates
-        if (request.names().length == 0) {
+        if (request.ids().length == 0) {
             results = storedScripts;
         } else {
             results = new HashMap<>();
         }
 
         if (storedScripts != null) {
-            for (String name : request.names()) {
+            for (String name : request.ids()) {
                 if (Regex.isSimpleMatchPattern(name)) {
                     for (Map.Entry<String, StoredScriptSource> entry : storedScripts.entrySet()) {
                         if (Regex.simpleMatch(name, entry.getKey())) {
@@ -91,7 +91,7 @@ public class TransportGetStoredScriptAction extends TransportMasterNodeReadActio
             }
         }
 
-        listener.onResponse(new GetStoredScriptResponse(results));
+        listener.onResponse(new GetStoredScriptResponse(request.ids(), results));
     }
 
     @Override

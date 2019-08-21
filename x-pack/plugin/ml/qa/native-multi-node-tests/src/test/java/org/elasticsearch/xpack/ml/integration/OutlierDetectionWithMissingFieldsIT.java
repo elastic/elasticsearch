@@ -31,7 +31,6 @@ public class OutlierDetectionWithMissingFieldsIT extends MlNativeDataFrameAnalyt
         cleanUp();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/45741")
     public void testMissingFields() throws Exception {
         String sourceIndex = "test-outlier-detection-with-missing-fields";
 

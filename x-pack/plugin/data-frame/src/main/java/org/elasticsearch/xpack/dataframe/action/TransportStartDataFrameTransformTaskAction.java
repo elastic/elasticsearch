@@ -59,7 +59,6 @@ public class TransportStartDataFrameTransformTaskAction extends
     protected void taskOperation(StartDataFrameTransformTaskAction.Request request, DataFrameTransformTask transformTask,
                                  ActionListener<StartDataFrameTransformTaskAction.Response> listener) {
         if (transformTask.getTransformId().equals(request.getId())) {
-            //TODO fix bug as .start where it was failed could result in a null current checkpoint?
             transformTask.start(null, request.isForce(), listener);
         } else {
             listener.onFailure(new RuntimeException("ID of data frame transform task [" + transformTask.getTransformId()

@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.SqlException;
 import org.elasticsearch.xpack.sql.TestUtils;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.Cursors;
+import org.elasticsearch.xpack.sql.session.CursorsTestUtil;
 import org.mockito.ArgumentCaptor;
 
 import java.util.ArrayList;
@@ -102,15 +104,14 @@ public class CursorTests extends ESTestCase {
 
     public void testVersionHandling() {
         Cursor cursor = randomNonEmptyCursor();
-        assertEquals(cursor, Cursors.decodeFromString(Cursors.encodeToString(Version.CURRENT, cursor)));
+        assertEquals(cursor, Cursors.decodeFromString(Cursors.encodeToString(cursor, randomZone())));
 
         Version nextMinorVersion = Version.fromId(Version.CURRENT.id + 10000);
 
-        String encodedWithWrongVersion = Cursors.encodeToString(nextMinorVersion, cursor);
+        String encodedWithWrongVersion = CursorsTestUtil.encodeToString(cursor, nextMinorVersion, randomZone());
         SqlException exception = expectThrows(SqlException.class, () -> Cursors.decodeFromString(encodedWithWrongVersion));
 
-        assertEquals("Unsupported cursor version " + nextMinorVersion, exception.getMessage());
+        assertEquals(LoggerMessageFormat.format("Unsupported cursor version [{}], expected [{}]", nextMinorVersion, Version.CURRENT),
+                exception.getMessage());
     }
-
-
 }

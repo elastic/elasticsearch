@@ -19,63 +19,43 @@
 
 package org.elasticsearch.packaging.test;
 
-import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
 import org.elasticsearch.packaging.util.Distribution;
-import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Shell;
-import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.packaging.util.Cleanup.cleanEverything;
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.assertPathsDontExist;
 import static org.elasticsearch.packaging.util.Packages.SYSTEMD_SERVICE;
 import static org.elasticsearch.packaging.util.Packages.SYSVINIT_SCRIPT;
 import static org.elasticsearch.packaging.util.Packages.assertInstalled;
 import static org.elasticsearch.packaging.util.Packages.assertRemoved;
-import static org.elasticsearch.packaging.util.Packages.install;
+import static org.elasticsearch.packaging.util.Packages.installPackage;
 import static org.elasticsearch.packaging.util.Packages.remove;
 import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallation;
-import static org.elasticsearch.packaging.util.Platforms.isRPM;
 import static org.elasticsearch.packaging.util.Platforms.isSystemd;
-import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.core.Is.is;
-import static org.junit.Assume.assumeThat;
 import static org.junit.Assume.assumeTrue;
 
-@TestCaseOrdering(TestCaseOrdering.AlphabeticOrder.class)
-public abstract class RpmPreservationTestCase extends PackagingTestCase {
-
-    private static Installation installation;
-
-    protected abstract Distribution distribution();
+public class RpmPreservationTests extends PackagingTestCase {
 
     @BeforeClass
-    public static void cleanup() throws Exception {
-        installation = null;
-        cleanEverything();
-    }
-
-    @Before
-    public void onlyCompatibleDistributions() {
-        assumeTrue("only rpm platforms", isRPM());
-        assumeTrue("only compatible distributions", distribution().packaging.compatible);
+    public static void filterDistros() {
+        assumeTrue("only rpm", distribution.packaging == Distribution.Packaging.RPM);
+        assumeTrue("only bundled jdk", distribution().hasJdk);
     }
 
     public void test10Install() throws Exception {
         assertRemoved(distribution());
-        installation = install(distribution());
+        installation = installPackage(distribution());
         assertInstalled(distribution());
         verifyPackageInstallation(installation, distribution(), newShell());
     }
 
     public void test20Remove() throws Exception {
-        assumeThat(installation, is(notNullValue()));
-
         remove(distribution());
 
         // config was removed
@@ -91,7 +71,7 @@ public abstract class RpmPreservationTestCase extends PackagingTestCase {
     public void test30PreserveConfig() throws Exception {
         final Shell sh = new Shell();
 
-        installation = install(distribution());
+        installation = installPackage(distribution());
         assertInstalled(distribution());
         verifyPackageInstallation(installation, distribution(), newShell());
 

@@ -42,6 +42,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.StringJoiner;
+import java.util.regex.Pattern;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.ZipException;
 
@@ -221,20 +222,19 @@ public class FileUtils {
         return getTempDir().resolve("elasticsearch");
     }
 
+    private static final Pattern VERSION_REGEX = Pattern.compile("(\\d+\\.\\d+\\.\\d+(-SNAPSHOT)?)");
     public static String getCurrentVersion() {
-        return slurp(getPackagingArchivesDir().resolve("version"));
-    }
-
-    public static Path getPackagingArchivesDir() {
-        return Paths.get(""); // tests are started in the packaging archives dir, ie the empty relative path
+        // TODO: just load this once
+        String distroFile = System.getProperty("tests.distribution");
+        java.util.regex.Matcher matcher = VERSION_REGEX.matcher(distroFile);
+        if (matcher.find()) {
+            return matcher.group(1);
+        }
+        throw new IllegalStateException("Could not find version in filename: " + distroFile);
     }
 
     public static Path getDistributionFile(Distribution distribution) {
-        return getDistributionFile(distribution, getCurrentVersion());
-    }
-
-    public static Path getDistributionFile(Distribution distribution, String version) {
-        return getPackagingArchivesDir().resolve(distribution.filename(version));
+        return distribution.path;
     }
 
     public static void assertPathsExist(Path... paths) {

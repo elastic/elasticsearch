@@ -28,14 +28,15 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class AuditorTests extends ESTestCase {
-    private Client client;
-    private ArgumentCaptor<IndexRequest> indexRequestCaptor;
+public class AbstractAuditorTests extends ESTestCase {
+
+    private static final String TEST_NODE_NAME = "node_1";
     private static final String TEST_ORIGIN = "test_origin";
     private static final String TEST_INDEX = "test_index";
-    private static final AbstractAuditMessage.AbstractBuilder<AbstractAuditMessageTests.TestAuditMessage> builder = 
-        AbstractAuditMessageTests.TestAuditMessage.newBuilder();
-    
+
+    private Client client;
+    private ArgumentCaptor<IndexRequest> indexRequestCaptor;
+
     @Before
     public void setUpMocks() {
         client = mock(Client.class);
@@ -47,7 +48,7 @@ public class AuditorTests extends ESTestCase {
     }
 
     public void testInfo() throws IOException {
-        Auditor<AbstractAuditMessageTests.TestAuditMessage> auditor = new Auditor<>(client, "node_1", TEST_INDEX, TEST_ORIGIN, builder);
+        AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> auditor = new TestAuditor(client);
         auditor.info("foo", "Here is my info");
 
         verify(client).index(indexRequestCaptor.capture(), any());
@@ -61,7 +62,7 @@ public class AuditorTests extends ESTestCase {
     }
 
     public void testWarning() throws IOException {
-        Auditor<AbstractAuditMessageTests.TestAuditMessage> auditor = new Auditor<>(client, "node_1", TEST_INDEX, TEST_ORIGIN, builder);
+        AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> auditor = new TestAuditor(client);
         auditor.warning("bar", "Here is my warning");
 
         verify(client).index(indexRequestCaptor.capture(), any());
@@ -75,7 +76,7 @@ public class AuditorTests extends ESTestCase {
     }
 
     public void testError() throws IOException {
-        Auditor<AbstractAuditMessageTests.TestAuditMessage> auditor = new Auditor<>(client, "node_1", TEST_INDEX, TEST_ORIGIN, builder);
+        AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> auditor = new TestAuditor(client);
         auditor.error("foobar", "Here is my error");
 
         verify(client).index(indexRequestCaptor.capture(), any());
@@ -92,5 +93,11 @@ public class AuditorTests extends ESTestCase {
         XContentParser parser = XContentFactory.xContent(XContentHelper.xContentType(msg))
             .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, msg.streamInput());
         return AbstractAuditMessageTests.TestAuditMessage.PARSER.apply(parser, null);
+    }
+
+    static class TestAuditor extends AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> {
+        TestAuditor(Client client) {
+            super(client, TEST_NODE_NAME, TEST_INDEX, TEST_ORIGIN, AbstractAuditMessageTests.TestAuditMessage.newBuilder());
+        }
     }
 }

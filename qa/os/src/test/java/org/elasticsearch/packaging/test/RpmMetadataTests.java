@@ -23,36 +23,37 @@ import junit.framework.TestCase;
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.Shell;
+import org.junit.Before;
 
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.packaging.util.Distribution.DEFAULT_RPM;
-import static org.elasticsearch.packaging.util.Distribution.OSS_RPM;
 import static org.elasticsearch.packaging.util.FileUtils.getDistributionFile;
 import static org.junit.Assume.assumeTrue;
 
-public class OssRpmBasicTests extends PackageTestCase {
+public class RpmMetadataTests extends PackagingTestCase {
 
-    @Override
-    protected Distribution distribution() {
-        return Distribution.OSS_RPM;
+    @Before
+    public void filterDistros() {
+        assumeTrue("only rpm", distribution.packaging == Distribution.Packaging.RPM);
     }
 
-    public void test11RpmDependencies() {
+    public void test11Dependencies() {
+        // TODO: rewrite this test to not use a real second distro to try and install
         assumeTrue(Platforms.isRPM());
 
         final Shell sh = new Shell();
 
-        final Shell.Result defaultDeps = sh.run("rpm -qpR " + getDistributionFile(DEFAULT_RPM));
-        final Shell.Result ossDeps = sh.run("rpm -qpR " + getDistributionFile(OSS_RPM));
+        final Shell.Result deps = sh.run("rpm -qpR " + getDistributionFile(distribution()));
 
-        TestCase.assertTrue(Pattern.compile("(?m)^/bin/bash\\s*$").matcher(defaultDeps.stdout).find());
-        TestCase.assertTrue(Pattern.compile("(?m)^/bin/bash\\s*$").matcher(ossDeps.stdout).find());
+        TestCase.assertTrue(Pattern.compile("(?m)^/bin/bash\\s*$").matcher(deps.stdout).find());
 
-        final Shell.Result defaultConflicts = sh.run("rpm -qp --conflicts " + getDistributionFile(DEFAULT_RPM));
-        final Shell.Result ossConflicts = sh.run("rpm -qp --conflicts " + getDistributionFile(OSS_RPM));
+        final Shell.Result conflicts = sh.run("rpm -qp --conflicts " + getDistributionFile(distribution()));
 
-        TestCase.assertTrue(Pattern.compile("(?m)^elasticsearch-oss\\s*$").matcher(defaultConflicts.stdout).find());
-        TestCase.assertTrue(Pattern.compile("(?m)^elasticsearch\\s*$").matcher(ossConflicts.stdout).find());
+        String oppositePackageName = "elasticsearch";
+        if (distribution().isDefault()) {
+            oppositePackageName += "-oss";
+        }
+
+        TestCase.assertTrue(Pattern.compile("(?m)^" + oppositePackageName + "\\s*$").matcher(conflicts.stdout).find());
     }
 }

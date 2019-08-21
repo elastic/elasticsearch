@@ -93,7 +93,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             ext.set("minimumCompilerVersion", minimumCompilerVersion);
             ext.set("minimumRuntimeVersion", minimumRuntimeVersion);
             ext.set("gradleJavaVersion", Jvm.current().getJavaVersion());
-            ext.set("gitRevision", gitRevision(project));
+            ext.set("gitRevision", gitRevision(project.getRootProject().getRootDir()));
             ext.set("buildDate", ZonedDateTime.now(ZoneOffset.UTC));
         });
     }
@@ -204,7 +204,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         return _defaultParallel;
     }
 
-    private String gitRevision(final Project project) {
+    public static String gitRevision(File rootDir) {
         try {
             /*
              * We want to avoid forking another process to run git rev-parse HEAD. Instead, we will read the refs manually. The
@@ -222,7 +222,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
              * In the case of a worktree, we read the gitdir from the plain text .git file. This resolves to a directory from which we read
              * the HEAD file and resolve commondir to the plain git repository.
              */
-            final Path dotGit = project.getRootProject().getRootDir().toPath().resolve(".git");
+            final Path dotGit = rootDir.toPath().resolve(".git");
             final String revision;
             if (Files.exists(dotGit) == false) {
                 return "unknown";
@@ -259,7 +259,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         }
     }
 
-    private String readFirstLine(final Path path) throws IOException {
+    private static String readFirstLine(final Path path) throws IOException {
         return Files.lines(path, StandardCharsets.UTF_8)
             .findFirst()
             .orElseThrow(() -> new IOException("file [" + path + "] is empty"));

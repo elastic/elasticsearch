@@ -276,18 +276,16 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                     }
                 }, e -> {
                     failed.incrementAndGet();
-                    final SnapshotHistoryItem result;
                     try {
-                        result = SnapshotHistoryItem.deletionFailureRecord(Instant.now().toEpochMilli(),
+                        final SnapshotHistoryItem result = SnapshotHistoryItem.deletionFailureRecord(Instant.now().toEpochMilli(),
                             info.snapshotId().getName(), policyId, repo, e);
+                        historyStore.putAsync(result);
                     } catch (IOException ex) {
                         // This shouldn't happen unless there's an issue with serializing the original exception
                         logger.error(new ParameterizedMessage(
                             "failed to record snapshot deletion failure for snapshot lifecycle policy [{}]",
                             policyId), ex);
-                        return;
                     }
-                    historyStore.putAsync(result);
                 }));
                 // Check whether we have exceeded the maximum time allowed to spend deleting
                 // snapshots, if we have, short-circuit the rest of the deletions

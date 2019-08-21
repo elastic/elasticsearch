@@ -44,6 +44,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
@@ -199,13 +200,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     assertTrue(connectionManager.nodeConnected(seedNode));
                     assertTrue(connectionManager.nodeConnected(discoverableNode));
                     assertTrue(connection.assertNoRunningConnections());
-                    PlainTransportFuture<ClusterSearchShardsResponse> futureHandler = new PlainTransportFuture<>(
-                        new FutureTransportResponseHandler<ClusterSearchShardsResponse>() {
-                            @Override
-                            public ClusterSearchShardsResponse read(StreamInput in) throws IOException {
-                                return new ClusterSearchShardsResponse(in);
-                            }
-                        });
+                    PlainTransportFuture<ClusterSearchShardsResponse> futureHandler = transportFuture(ClusterSearchShardsResponse::new);
                     TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.BULK)
                         .build();
                     IllegalStateException ise = (IllegalStateException) expectThrows(SendRequestTransportException.class, () -> {
@@ -242,13 +237,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     assertTrue(connectionManager.nodeConnected(seedNode));
                     assertTrue(connectionManager.nodeConnected(discoverableNode));
                     assertTrue(connection.assertNoRunningConnections());
-                    PlainTransportFuture<ClusterSearchShardsResponse> futureHandler = new PlainTransportFuture<>(
-                        new FutureTransportResponseHandler<ClusterSearchShardsResponse>() {
-                            @Override
-                            public ClusterSearchShardsResponse read(StreamInput in) throws IOException {
-                                return new ClusterSearchShardsResponse(in);
-                            }
-                        });
+                    PlainTransportFuture<ClusterSearchShardsResponse> futureHandler = transportFuture(ClusterSearchShardsResponse::new);
                     TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.BULK)
                         .build();
                     IllegalStateException ise = (IllegalStateException) expectThrows(SendRequestTransportException.class, () -> {
@@ -258,13 +247,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     }).getCause();
                     assertEquals(ise.getMessage(), "can't select channel size is 0 for types: [RECOVERY, BULK, STATE]");
 
-                    PlainTransportFuture<ClusterSearchShardsResponse> handler = new PlainTransportFuture<>(
-                        new FutureTransportResponseHandler<ClusterSearchShardsResponse>() {
-                            @Override
-                            public ClusterSearchShardsResponse read(StreamInput in) throws IOException {
-                                return new ClusterSearchShardsResponse(in);
-                            }
-                        });
+                    PlainTransportFuture<ClusterSearchShardsResponse> handler = transportFuture(ClusterSearchShardsResponse::new);
                     TransportRequestOptions ops = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.REG)
                         .build();
                     service.sendRequest(connection.getConnection(), ClusterSearchShardsAction.NAME, new ClusterSearchShardsRequest(),
@@ -1272,5 +1255,27 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                         })));
         });
         return stubbableTransport;
+    }
+
+    private static <V extends TransportResponse> PlainTransportFuture<V> transportFuture(Writeable.Reader<V> reader) {
+        return new PlainTransportFuture<>(new TransportResponseHandler<>() {
+            @Override
+            public void handleResponse(V response) {
+            }
+
+            @Override
+            public void handleException(final TransportException exp) {
+            }
+
+            @Override
+            public String executor() {
+                return ThreadPool.Names.SAME;
+            }
+
+            @Override
+            public V read(StreamInput in) throws IOException {
+                return reader.read(in);
+            }
+        });
     }
 }

@@ -89,7 +89,7 @@ class S3Repository extends BlobStoreRepository {
     /**
      * Maximum size of files that can be uploaded using a single upload request.
      */
-    static final ByteSizeValue MAX_FILE_SIZE = new ByteSizeValue(5, ByteSizeUnit.GB);
+    static final ByteSizeValue MAX_FILE_SIZE = new ByteSizeValue(2, ByteSizeUnit.GB);
 
     /**
      * Minimum size of parts that can be uploaded using the Multipart Upload API.

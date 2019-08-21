@@ -82,7 +82,7 @@ public class S3BlobStoreContainerTests extends ESBlobStoreContainerTestCase {
 
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
             blobContainer.executeSingleUpload(blobStore, randomAlphaOfLengthBetween(1, 10), null, blobSize));
-        assertEquals("Upload request size [" + blobSize + "] can't be larger than 5gb", e.getMessage());
+        assertEquals("Upload request size [" + blobSize + "] can't be larger than 2gb", e.getMessage());
     }
 
     public void testExecuteSingleUploadBlobSizeLargerThanBufferSize() {

@@ -170,7 +170,7 @@ public class ClusterPermission {
             return actionPredicate.test(action) && doCheck(action, request, authentication);
         }
 
-        public abstract boolean doCheck(String action, TransportRequest request, Authentication authentication);
+        protected abstract boolean doCheck(String action, TransportRequest request, Authentication authentication);
 
         @Override
         public final boolean implies(final PermissionCheck permissionCheck) {
@@ -181,7 +181,7 @@ public class ClusterPermission {
             return false;
         }
 
-        public abstract boolean doImplies(PermissionCheck permissionCheck);
+        protected abstract boolean doImplies(PermissionCheck permissionCheck);
     }
 
     // Automaton based permission check
@@ -192,12 +192,12 @@ public class ClusterPermission {
         }
 
         @Override
-        public boolean doCheck(String action, TransportRequest request, Authentication authentication) {
+        protected boolean doCheck(String action, TransportRequest request, Authentication authentication) {
             return true;
         }
 
         @Override
-        public boolean doImplies(PermissionCheck permissionCheck) {
+        protected boolean doImplies(PermissionCheck permissionCheck) {
             return permissionCheck instanceof AutomatonPermissionCheck;
         }
 
@@ -216,12 +216,12 @@ public class ClusterPermission {
         }
 
         @Override
-        public boolean doCheck(String action, TransportRequest request, Authentication authentication) {
+        protected boolean doCheck(String action, TransportRequest request, Authentication authentication) {
             return requestPredicate.test(request);
         }
 
         @Override
-        public boolean doImplies(final PermissionCheck permissionCheck) {
+        protected boolean doImplies(final PermissionCheck permissionCheck) {
             if (permissionCheck instanceof ActionRequestBasedPermissionCheck) {
                 final ActionRequestBasedPermissionCheck otherCheck =
                     (ActionRequestBasedPermissionCheck) permissionCheck;

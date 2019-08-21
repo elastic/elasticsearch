@@ -45,7 +45,7 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
         }
 
         @Override
-        public boolean doCheck(String action, TransportRequest request, Authentication authentication) {
+        protected boolean doCheck(String action, TransportRequest request, Authentication authentication) {
             if (request instanceof CreateApiKeyRequest) {
                 return true;
             } else if (request instanceof GetApiKeyRequest) {
@@ -62,7 +62,7 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
         }
 
         @Override
-        public boolean doImplies(ClusterPermission.PermissionCheck permissionCheck) {
+        protected boolean doImplies(ClusterPermission.PermissionCheck permissionCheck) {
             return permissionCheck instanceof ManageOwnClusterPermissionCheck;
         }
 

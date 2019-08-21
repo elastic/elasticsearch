@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.enrich;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetRequest;
@@ -140,6 +141,10 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
         }
         BulkResponse bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
         assertThat("Expected no failure, but " + bulkResponse.buildFailureMessage(), bulkResponse.hasFailures(), is(false));
+        int expectedId = 0;
+        for (BulkItemResponse itemResponse : bulkResponse) {
+            assertThat(itemResponse.getId(), equalTo(Integer.toString(expectedId++)));
+        }
 
         for (int i = 0; i < numDocs; i++) {
             GetResponse getResponse = client().get(new GetRequest("my-index", Integer.toString(i))).actionGet();

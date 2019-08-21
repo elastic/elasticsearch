@@ -1457,8 +1457,4 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     protected void doClose() {
         clusterService.removeApplier(this);
     }
-
-    public RepositoriesService getRepositoriesService() {
-        return repositoriesService;
-    }
 }

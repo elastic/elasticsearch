@@ -3289,15 +3289,15 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::estimate-memory-usage-execute
 
             // tag::estimate-memory-usage-response
-            ByteSizeValue expectedMemoryUsageWithOnePartition = response.getExpectedMemoryUsageWithOnePartition(); // <1>
-            ByteSizeValue expectedMemoryUsageWithMaxPartitions = response.getExpectedMemoryUsageWithMaxPartitions(); // <2>
+            ByteSizeValue expectedMemoryWithoutDisk = response.getExpectedMemoryWithoutDisk(); // <1>
+            ByteSizeValue expectedMemoryWithDisk = response.getExpectedMemoryWithDisk(); // <2>
             // end::estimate-memory-usage-response
 
             // We are pretty liberal here as this test does not aim at verifying concrete numbers but rather end-to-end user workflow.
             ByteSizeValue lowerBound = new ByteSizeValue(1, ByteSizeUnit.KB);
             ByteSizeValue upperBound = new ByteSizeValue(1, ByteSizeUnit.GB);
-            assertThat(expectedMemoryUsageWithOnePartition, allOf(greaterThan(lowerBound), lessThan(upperBound)));
-            assertThat(expectedMemoryUsageWithMaxPartitions, allOf(greaterThan(lowerBound), lessThan(upperBound)));
+            assertThat(expectedMemoryWithoutDisk, allOf(greaterThan(lowerBound), lessThan(upperBound)));
+            assertThat(expectedMemoryWithDisk, allOf(greaterThan(lowerBound), lessThan(upperBound)));
         }
         {
             DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder()

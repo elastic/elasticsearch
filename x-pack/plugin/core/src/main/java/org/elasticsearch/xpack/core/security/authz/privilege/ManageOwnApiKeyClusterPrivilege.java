@@ -76,7 +76,10 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
                  */
                 String authenticatedUserPrincipal = authentication.getUser().principal();
                 String authenticatedUserRealm = authentication.getAuthenticatedBy().getName();
-                if (Strings.hasText(username) && Strings.hasText(realmName)) {
+                if (authenticatedUserRealm.equals("_es_api_key")) {
+                    // API key cannot own any other API key so deny access
+                    return false;
+                } else if (Strings.hasText(username) && Strings.hasText(realmName)) {
                     return username.equals(authenticatedUserPrincipal) && realmName.equals(authenticatedUserRealm);
                 }
             }

@@ -390,7 +390,7 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
 
         // Create snapshot repos, one fast and one slow
         initializeRepo(repoId, "1b");
-        initializeRepo(repoId2, "1mb");
+        initializeRepo(repoId2, "10mb");
 
         createSnapshotPolicy(policyName, "snap", "1 2 3 4 5 ?", repoId, indexName, true,
             new SnapshotRetentionConfiguration(TimeValue.timeValueSeconds(0), null, null));
@@ -405,13 +405,14 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
                     "/_snapshot/" + repoId2 + "/" + completedSnapshotName + "/_status"));
                 try (InputStream content = getResp.getEntity().getContent()) {
                     Map<String, Object> snaps = XContentHelper.convertToMap(XContentType.JSON.xContent(), content, true);
+                    logger.info("--> waiting for snapshot {} to be successful, got: {}", completedSnapshotName, snaps);
                     List<Map<String, Object>> snaps2 = (List<Map<String, Object>>) snaps.get("snapshots");
                     assertThat(snaps2.get(0).get("state"), equalTo("SUCCESS"));
                 }
             } catch (NullPointerException | ResponseException e) {
                 fail("unable to retrieve completed snapshot: " + e);
             }
-        });
+        }, 60, TimeUnit.SECONDS);
 
         // Take another snapshot
         final String slowSnapshotName = executePolicy(policyName);

@@ -17,6 +17,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -28,6 +29,9 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter.DatafeedTimingStatsPersister;
 import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedField;
 import org.elasticsearch.xpack.ml.datafeed.extractor.fields.TimeBasedExtractedFields;
 import org.junit.Before;
@@ -71,6 +75,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
     private int scrollSize;
     private long initScrollStartTime;
     private ActionFuture<ClearScrollResponse> clearScrollFuture;
+    private DatafeedTimingStatsReporter timingStatsReporter;
 
     private class TestDataExtractor extends ScrollDataExtractor {
 
@@ -81,7 +86,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
         }
 
         TestDataExtractor(ScrollDataExtractorContext context) {
-            super(client, context);
+            super(client, context, timingStatsReporter);
         }
 
         @Override
@@ -121,6 +126,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
     }
 
     @Before
+    @SuppressWarnings("unchecked")
     public void setUpTests() {
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
@@ -129,9 +135,11 @@ public class ScrollDataExtractorTests extends ESTestCase {
         capturedSearchRequests = new ArrayList<>();
         capturedContinueScrollIds = new ArrayList<>();
         jobId = "test-job";
-        ExtractedField timeField = ExtractedField.newField("time", ExtractedField.ExtractionMethod.DOC_VALUE);
+        ExtractedField timeField = ExtractedField.newField("time", Collections.singleton("date"),
+            ExtractedField.ExtractionMethod.DOC_VALUE);
         extractedFields = new TimeBasedExtractedFields(timeField,
-                Arrays.asList(timeField, ExtractedField.newField("field_1", ExtractedField.ExtractionMethod.DOC_VALUE)));
+                Arrays.asList(timeField, ExtractedField.newField("field_1", Collections.singleton("keyword"),
+                    ExtractedField.ExtractionMethod.DOC_VALUE)));
         indices = Arrays.asList("index-1", "index-2");
         query = QueryBuilders.matchAllQuery();
         scriptFields = Collections.emptyList();
@@ -140,6 +148,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
         clearScrollFuture = mock(ActionFuture.class);
         capturedClearScrollRequests = ArgumentCaptor.forClass(ClearScrollRequest.class);
         when(client.execute(same(ClearScrollAction.INSTANCE), capturedClearScrollRequests.capture())).thenReturn(clearScrollFuture);
+        timingStatsReporter = new DatafeedTimingStatsReporter(new DatafeedTimingStats(jobId), mock(DatafeedTimingStatsPersister.class));
     }
 
     public void testSinglePageExtraction() throws IOException {
@@ -506,6 +515,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
         SearchHits searchHits = new SearchHits(hits.toArray(new SearchHit[0]),
             new TotalHits(hits.size(), TotalHits.Relation.EQUAL_TO), 1);
         when(searchResponse.getHits()).thenReturn(searchHits);
+        when(searchResponse.getTook()).thenReturn(TimeValue.timeValueMillis(randomNonNegativeLong()));
         return searchResponse;
     }
 

@@ -286,3 +286,18 @@ Phoenix        |Americas       |-111.97350500151515
 Chicago        |Americas       |-87.63787407428026
 New York       |Americas       |-73.9900270756334
 ;
+
+selectLargeLat
+SELECT ST_X(ST_WKTToSQL('LINESTRING (200 100, 300 400)')) x;
+
+      x:d
+200.0
+;
+
+selectLargeLon
+SELECT ST_Y(ST_WKTToSQL('LINESTRING (200 100, 300 400)')) y;
+
+      y:d
+100.0
+// end::y
+;

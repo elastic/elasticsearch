@@ -100,7 +100,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     // This is the number of bytes necessary to read the message size
     private static final int BYTES_NEEDED_FOR_MESSAGE_SIZE = TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
-    private static final long NINETY_PER_HEAP_SIZE = (long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.9);
+    private static final long THIRTY_PER_HEAP_SIZE = (long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.3);
     private static final BytesReference EMPTY_BYTES_REFERENCE = new BytesArray(new byte[0]);
 
     // this limit is per-address
@@ -134,7 +134,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         this.threadPool = threadPool;
         this.pageCacheRecycler = pageCacheRecycler;
         this.networkService = networkService;
-        TransportLogger transportLogger = new TransportLogger();
         String nodeName = Node.NODE_NAME_SETTING.get(settings);
         final Settings defaultFeatures = TransportSettings.DEFAULT_FEATURES_SETTING.get(settings);
         String[] features;
@@ -151,16 +150,16 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
         BigArrays bigArrays = new BigArrays(pageCacheRecycler, circuitBreakerService, CircuitBreaker.IN_FLIGHT_REQUESTS);
 
-        this.outboundHandler = new OutboundHandler(nodeName, version, features, threadPool, bigArrays, transportLogger);
+        this.outboundHandler = new OutboundHandler(nodeName, version, threadPool, bigArrays);
         this.handshaker = new TransportHandshaker(version, threadPool,
             (node, channel, requestId, v) -> outboundHandler.sendRequest(node, channel, requestId,
                 TransportHandshaker.HANDSHAKE_ACTION_NAME, new TransportHandshaker.HandshakeRequest(version),
                 TransportRequestOptions.EMPTY, v, false, true),
-            (v, features1, channel, response, requestId) -> outboundHandler.sendResponse(v, features1, channel, requestId,
+            (v, channel, response, requestId) -> outboundHandler.sendResponse(v, channel, requestId,
                 TransportHandshaker.HANDSHAKE_ACTION_NAME, response, false, true));
         InboundMessage.Reader reader = new InboundMessage.Reader(version, namedWriteableRegistry, threadPool.getThreadContext());
         this.keepAlive = new TransportKeepAlive(threadPool, this.outboundHandler::sendBytes);
-        this.inboundHandler = new InboundHandler(threadPool, outboundHandler, reader, circuitBreakerService, transportLogger, handshaker,
+        this.inboundHandler = new InboundHandler(threadPool, outboundHandler, reader, circuitBreakerService, handshaker,
             keepAlive);
     }
 
@@ -756,9 +755,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             throw new StreamCorruptedException("invalid data length: " + messageLength);
         }
 
-        if (messageLength > NINETY_PER_HEAP_SIZE) {
+        if (messageLength > THIRTY_PER_HEAP_SIZE) {
             throw new IllegalArgumentException("transport content length received [" + new ByteSizeValue(messageLength) + "] exceeded ["
-                + new ByteSizeValue(NINETY_PER_HEAP_SIZE) + "]");
+                + new ByteSizeValue(THIRTY_PER_HEAP_SIZE) + "]");
         }
 
         return messageLength;
@@ -871,6 +870,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         public final String profileName;
         public final boolean tcpNoDelay;
         public final boolean tcpKeepAlive;
+        public final int tcpKeepIdle;
+        public final int tcpKeepInterval;
+        public final int tcpKeepCount;
         public final boolean reuseAddress;
         public final ByteSizeValue sendBufferSize;
         public final ByteSizeValue receiveBufferSize;
@@ -884,6 +886,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             this.profileName = profileName;
             isDefaultProfile = TransportSettings.DEFAULT_PROFILE.equals(profileName);
             tcpKeepAlive = TransportSettings.TCP_KEEP_ALIVE_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);
+            tcpKeepIdle = TransportSettings.TCP_KEEP_IDLE_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);
+            tcpKeepInterval = TransportSettings.TCP_KEEP_INTERVAL_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);
+            tcpKeepCount = TransportSettings.TCP_KEEP_COUNT_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);
             tcpNoDelay = TransportSettings.TCP_NO_DELAY_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);
             reuseAddress = TransportSettings.TCP_REUSE_ADDRESS_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);
             sendBufferSize = TransportSettings.TCP_SEND_BUFFER_SIZE_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);

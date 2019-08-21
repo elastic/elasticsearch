@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedJobValidator;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -51,10 +52,11 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlConfigMigrationEligibilityCheck;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedNodeSelector;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -80,7 +82,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     private final PersistentTasksService persistentTasksService;
     private final JobConfigProvider jobConfigProvider;
     private final DatafeedConfigProvider datafeedConfigProvider;
-    private final Auditor auditor;
+    private final AnomalyDetectionAuditor auditor;
     private final MlConfigMigrationEligibilityCheck migrationEligibilityCheck;
     private final NamedXContentRegistry xContentRegistry;
 
@@ -90,9 +92,9 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                                         PersistentTasksService persistentTasksService,
                                         ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                         Client client, JobConfigProvider jobConfigProvider, DatafeedConfigProvider datafeedConfigProvider,
-                                        Auditor auditor, NamedXContentRegistry xContentRegistry) {
-        super(StartDatafeedAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-                StartDatafeedAction.Request::new);
+                                        AnomalyDetectionAuditor auditor, NamedXContentRegistry xContentRegistry) {
+        super(StartDatafeedAction.NAME, transportService, clusterService, threadPool, actionFilters, StartDatafeedAction.Request::new,
+            indexNameExpressionResolver);
         this.licenseState = licenseState;
         this.persistentTasksService = persistentTasksService;
         this.client = client;
@@ -117,7 +119,8 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     }
 
     //Get the deprecation warnings from the parsed query and aggs to audit
-    static void auditDeprecations(DatafeedConfig datafeed, Job job, Auditor auditor, NamedXContentRegistry xContentRegistry) {
+    static void auditDeprecations(DatafeedConfig datafeed, Job job, AnomalyDetectionAuditor auditor,
+                                  NamedXContentRegistry xContentRegistry) {
         List<String> deprecationWarnings = new ArrayList<>();
         deprecationWarnings.addAll(datafeed.getAggDeprecations(xContentRegistry));
         deprecationWarnings.addAll(datafeed.getQueryDeprecations(xContentRegistry));
@@ -139,11 +142,6 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     @Override
     protected AcknowledgedResponse read(StreamInput in) throws IOException {
         return new AcknowledgedResponse(in);
-    }
-
-    @Override
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override
@@ -242,14 +240,22 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         datafeedConfigProvider.getDatafeedConfig(params.getDatafeedId(), datafeedListener);
     }
 
+    /** Creates {@link DataExtractorFactory} solely for the purpose of validation i.e. verifying that it can be created. */
     private void createDataExtractor(Job job, DatafeedConfig datafeed, StartDatafeedAction.DatafeedParams params,
                                      ActionListener<PersistentTasksCustomMetaData.PersistentTask<StartDatafeedAction.DatafeedParams>>
                                              listener) {
-        DataExtractorFactory.create(client, datafeed, job, xContentRegistry, ActionListener.wrap(
-                dataExtractorFactory ->
-                        persistentTasksService.sendStartRequest(MlTasks.datafeedTaskId(params.getDatafeedId()),
-                                MlTasks.DATAFEED_TASK_NAME, params, listener)
-                , listener::onFailure));
+        DataExtractorFactory.create(
+            client,
+            datafeed,
+            job,
+            xContentRegistry,
+            // Fake DatafeedTimingStatsReporter that does not have access to results index
+            new DatafeedTimingStatsReporter(new DatafeedTimingStats(job.getId()), (ts, refreshPolicy) -> {}),
+            ActionListener.wrap(
+                unused ->
+                    persistentTasksService.sendStartRequest(
+                        MlTasks.datafeedTaskId(params.getDatafeedId()), MlTasks.DATAFEED_TASK_NAME, params, listener),
+                listener::onFailure));
     }
 
     @Override

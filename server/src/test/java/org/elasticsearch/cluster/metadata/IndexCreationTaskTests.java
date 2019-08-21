@@ -55,6 +55,7 @@ import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 import org.mockito.ArgumentCaptor;
+import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -71,7 +72,9 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyObject;
+import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.anyMap;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.eq;
@@ -140,14 +143,14 @@ public class IndexCreationTaskTests extends ESTestCase {
 
     public void testApplyDataFromRequest() throws Exception {
         setupRequestAlias(new Alias("alias1"));
-        setupRequestMapping("mapping1", createMapping());
+        setupRequestMapping("type", createMapping());
         reqSettings.put("key1", "value1");
 
         final ClusterState result = executeTask();
 
         assertThat(result.metaData().index("test").getAliases(), hasKey("alias1"));
         assertThat(result.metaData().index("test").getSettings().get("key1"), equalTo("value1"));
-        assertThat(getMappingsFromResponse(), Matchers.hasKey("mapping1"));
+        assertThat(getMappingsFromResponse(), Matchers.hasKey("type"));
     }
 
     public void testInvalidAliasName() throws Exception {
@@ -162,19 +165,19 @@ public class IndexCreationTaskTests extends ESTestCase {
 
         addMatchingTemplate(builder -> builder
                     .putAlias(AliasMetaData.builder("alias1").searchRouting("fromTpl").build())
-                    .putMapping("mapping1", tplMapping)
+                    .putMapping("type", tplMapping)
                     .settings(Settings.builder().put("key1", "tplValue"))
         );
 
         setupRequestAlias(new Alias("alias1").searchRouting("fromReq"));
-        setupRequestMapping("mapping1", reqMapping);
+        setupRequestMapping("type", reqMapping);
         reqSettings.put("key1", "reqValue");
 
         final ClusterState result = executeTask();
 
         assertThat(result.metaData().index("test").getAliases().get("alias1").getSearchRouting(), equalTo("fromReq"));
         assertThat(result.metaData().index("test").getSettings().get("key1"), equalTo("reqValue"));
-        assertThat(getMappingsFromResponse().get("mapping1").toString(), equalTo("{type={properties={field={type=keyword}}}}"));
+        assertThat(getMappingsFromResponse().get("type").toString(), equalTo("{type={properties={field={type=keyword}}}}"));
     }
 
     public void testDefaultSettings() throws Exception {
@@ -236,10 +239,7 @@ public class IndexCreationTaskTests extends ESTestCase {
     }
 
     public void testRequestStateOpen() throws Exception {
-        when(request.state()).thenReturn(IndexMetaData.State.OPEN);
-
         executeTask();
-
         verify(allocationService, times(1)).reroute(anyObject(), anyObject());
     }
 
@@ -289,7 +289,7 @@ public class IndexCreationTaskTests extends ESTestCase {
     public void testWriteIndex() throws Exception {
         Boolean writeIndex = randomBoolean() ? null : randomBoolean();
         setupRequestAlias(new Alias("alias1").writeIndex(writeIndex));
-        setupRequestMapping("mapping1", createMapping());
+        setupRequestMapping("type", createMapping());
         reqSettings.put("key1", "value1");
 
         final ClusterState result = executeTask();
@@ -302,7 +302,7 @@ public class IndexCreationTaskTests extends ESTestCase {
             .settings(settings(Version.CURRENT)).putAlias(AliasMetaData.builder("alias1").writeIndex(true).build())
             .numberOfShards(1).numberOfReplicas(0).build();
         idxBuilder.put("test2", existingWriteIndex);
-        setupRequestMapping("mapping1", createMapping());
+        setupRequestMapping("type", createMapping());
         reqSettings.put("key1", "value1");
         setupRequestAlias(new Alias("alias1").writeIndex(true));
 
@@ -429,7 +429,14 @@ public class IndexCreationTaskTests extends ESTestCase {
         setupRequest();
         final MetaDataCreateIndexService.IndexCreationTask task = new MetaDataCreateIndexService.IndexCreationTask(
             logger, allocationService, request, listener, indicesService, aliasValidator, xContentRegistry, clusterStateSettings.build(),
-            validator, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
+            validator, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS) {
+
+            @Override
+            protected void checkShardLimit(final Settings settings, final ClusterState clusterState) {
+                // we have to make this a no-op since we are not mocking enough for this method to be able to execute
+            }
+
+        };
         return task.execute(state);
     }
 
@@ -484,5 +491,7 @@ public class IndexCreationTaskTests extends ESTestCase {
         when(service.getIndexEventListener()).thenReturn(mock(IndexEventListener.class));
 
         when(indicesService.createIndex(anyObject(), anyObject())).thenReturn(service);
+        when(allocationService.reroute(any(ClusterState.class), anyString())).thenAnswer(
+            (Answer<ClusterState>) invocationOnMock -> (ClusterState) invocationOnMock.getArguments()[0]);
     }
 }

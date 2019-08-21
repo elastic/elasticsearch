@@ -19,46 +19,62 @@
 
 package org.elasticsearch.client.dataframe.transforms.hlrc;
 
+import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.client.AbstractHlrcXContentTestCase;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointStats;
 
 import java.io.IOException;
 
-public class DataFrameTransformCheckpointStatsTests extends AbstractHlrcXContentTestCase<
+import static org.hamcrest.Matchers.equalTo;
+
+public class DataFrameTransformCheckpointStatsTests extends AbstractResponseTestCase<
         DataFrameTransformCheckpointStats,
         org.elasticsearch.client.dataframe.transforms.DataFrameTransformCheckpointStats> {
 
     public static DataFrameTransformCheckpointStats fromHlrc(
             org.elasticsearch.client.dataframe.transforms.DataFrameTransformCheckpointStats instance) {
-        return new DataFrameTransformCheckpointStats(instance.getTimestampMillis(), instance.getTimeUpperBoundMillis());
+        return new DataFrameTransformCheckpointStats(instance.getCheckpoint(),
+            DataFrameIndexerPositionTests.fromHlrc(instance.getPosition()),
+            DataFrameTransformProgressTests.fromHlrc(instance.getCheckpointProgress()),
+            instance.getTimestampMillis(),
+            instance.getTimeUpperBoundMillis());
+    }
+
+    public static DataFrameTransformCheckpointStats randomDataFrameTransformCheckpointStats() {
+        return new DataFrameTransformCheckpointStats(randomLongBetween(1, 1_000_000),
+            DataFrameIndexerPositionTests.randomDataFrameIndexerPosition(),
+            randomBoolean() ? null : DataFrameTransformProgressTests.randomDataFrameTransformProgress(),
+            randomLongBetween(1, 1_000_000), randomLongBetween(0, 1_000_000));
     }
 
     @Override
-    public org.elasticsearch.client.dataframe.transforms.DataFrameTransformCheckpointStats doHlrcParseInstance(XContentParser parser)
-            throws IOException {
+    protected DataFrameTransformCheckpointStats createServerTestInstance() {
+        return randomDataFrameTransformCheckpointStats();
+    }
+
+    @Override
+    protected org.elasticsearch.client.dataframe.transforms.DataFrameTransformCheckpointStats doParseToClientInstance(XContentParser parser)
+        throws IOException {
         return org.elasticsearch.client.dataframe.transforms.DataFrameTransformCheckpointStats.fromXContent(parser);
     }
 
     @Override
-    public DataFrameTransformCheckpointStats convertHlrcToInternal(
-            org.elasticsearch.client.dataframe.transforms.DataFrameTransformCheckpointStats instance) {
-        return fromHlrc(instance);
+    protected void assertInstances(DataFrameTransformCheckpointStats serverTestInstance,
+                                   org.elasticsearch.client.dataframe.transforms.DataFrameTransformCheckpointStats clientInstance) {
+        assertThat(serverTestInstance.getCheckpoint(), equalTo(clientInstance.getCheckpoint()));
+        assertThat(serverTestInstance.getPosition().getBucketsPosition(), equalTo(clientInstance.getPosition().getBucketsPosition()));
+        assertThat(serverTestInstance.getPosition().getIndexerPosition(), equalTo(clientInstance.getPosition().getIndexerPosition()));
+        assertThat(serverTestInstance.getTimestampMillis(), equalTo(clientInstance.getTimestampMillis()));
+        assertThat(serverTestInstance.getTimeUpperBoundMillis(), equalTo(clientInstance.getTimeUpperBoundMillis()));
+        if (serverTestInstance.getCheckpointProgress() != null) {
+            assertThat(serverTestInstance.getCheckpointProgress().getDocumentsIndexed(),
+                equalTo(clientInstance.getCheckpointProgress().getDocumentsIndexed()));
+            assertThat(serverTestInstance.getCheckpointProgress().getDocumentsProcessed(),
+                equalTo(clientInstance.getCheckpointProgress().getDocumentsProcessed()));
+            assertThat(serverTestInstance.getCheckpointProgress().getPercentComplete(),
+                equalTo(clientInstance.getCheckpointProgress().getPercentComplete()));
+            assertThat(serverTestInstance.getCheckpointProgress().getTotalDocs(),
+                equalTo(clientInstance.getCheckpointProgress().getTotalDocs()));
+        }
     }
-
-    @Override
-    protected DataFrameTransformCheckpointStats createTestInstance() {
-        return DataFrameTransformStateTests.randomDataFrameTransformCheckpointStats();
-    }
-
-    @Override
-    protected DataFrameTransformCheckpointStats doParseInstance(XContentParser parser) throws IOException {
-        return DataFrameTransformCheckpointStats.fromXContent(parser);
-    }
-
-    @Override
-    protected boolean supportsUnknownFields() {
-        return true;
-    }
-
 }

@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.gradle.testclusters;
 
-import org.elasticsearch.gradle.Distribution;
 import org.elasticsearch.gradle.FileSupplier;
 import org.elasticsearch.gradle.PropertyNormalization;
 import org.gradle.api.logging.Logging;
@@ -39,7 +38,9 @@ public interface TestClusterConfiguration {
 
     void setVersion(String version);
 
-    void setDistribution(Distribution distribution);
+    void setVersions(List<String> version);
+
+    void setTestDistribution(TestDistribution distribution);
 
     void plugin(URI plugin);
 
@@ -86,6 +87,8 @@ public interface TestClusterConfiguration {
     void start();
 
     void restart();
+
+    void goToNextVersion();
 
     void extraConfigFile(String destination, File from);
 
@@ -166,7 +169,7 @@ public interface TestClusterConfiguration {
     default String safeName(String name) {
         return name
             .replaceAll("^[^a-zA-Z0-9]+", "")
-            .replaceAll("[^a-zA-Z0-9]+", "-");
+            .replaceAll("[^a-zA-Z0-9\\.]+", "-");
     }
 
     boolean isProcessAlive();

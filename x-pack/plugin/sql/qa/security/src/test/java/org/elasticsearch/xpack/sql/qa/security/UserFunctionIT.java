@@ -34,10 +34,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.sql.qa.rest.BaseRestSqlTestCase.mode;
+import static org.elasticsearch.xpack.sql.qa.rest.BaseRestSqlTestCase.randomMode;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.SQL_QUERY_REST_ENDPOINT;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.columnInfo;
-import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.mode;
-import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.randomMode;
 
 public class UserFunctionIT extends ESRestTestCase {
 

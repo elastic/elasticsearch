@@ -1,5 +1,5 @@
 [[search-uri-request]]
-== URI Search
+=== URI Search
 
 A search request can be executed purely using a URI by providing request
 parameters. Not all search options are exposed when executing a search
@@ -52,7 +52,7 @@ And here is a sample response:
 // TESTRESPONSE[s/"took": 62/"took": "$body.took"/]
 
 [float]
-=== Parameters
+==== Parameters
 
 The parameters allowed in the URI are:
 
@@ -86,7 +86,7 @@ providing text to a numeric field) to be ignored. Defaults to false.
 hits was computed.
 
 |`_source`|Set to `false` to disable retrieval of the `_source` field. You can also retrieve
-part of the document by using `_source_includes` & `_source_excludes` (see the <<search-request-source-filtering, request body>>
+part of the document by using `_source_includes` & `_source_excludes` (see the <<request-body-search-source-filtering, request body>>
 documentation for more details)
 
 |`stored_fields` |The selective stored fields of the document to return for each hit,
@@ -105,7 +105,7 @@ scores and return them as part of each hit.
 of the total number of hits that match the query.
 It also accepts an integer which in this case represents the number of
 hits to count accurately.
-(See the <<search-request-track-total-hits, request body>> documentation
+(See the <<request-body-search-track-total-hits, request body>> documentation
 for more details).
 
 |`timeout` |A search timeout, bounding the search request to be executed
@@ -125,7 +125,7 @@ Defaults to no terminate_after.
 |`search_type` |The type of the search operation to perform. Can be
 `dfs_query_then_fetch` or `query_then_fetch`.
 Defaults to `query_then_fetch`. See
-<<search-request-search-type,_Search Type_>> for
+<<request-body-search-search-type,_Search Type_>> for
 more details on the different types of search that can be performed.
 
 |`allow_partial_search_results` |Set to `false` to return an overall failure if the request would produce

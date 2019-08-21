@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -41,8 +42,17 @@ public final class SReturn extends AStatement {
     }
 
     @Override
+    void storeSettings(CompilerSettings settings) {
+        if (expression != null) {
+            expression.storeSettings(settings);
+        }
+    }
+
+    @Override
     void extractVariables(Set<String> variables) {
-        expression.extractVariables(variables);
+        if (expression != null) {
+            expression.extractVariables(variables);
+        }
     }
 
     @Override

@@ -39,15 +39,6 @@ public interface BlobContainer {
     BlobPath path();
 
     /**
-     * Tests whether a blob with the given blob name exists in the container.
-     *
-     * @param   blobName
-     *          The name of the blob whose existence is to be determined.
-     * @return  {@code true} if a blob exists in the {@link BlobContainer} with the given name, and {@code false} otherwise.
-     */
-    boolean blobExists(String blobName);
-
-    /**
      * Creates a new {@link InputStream} for the given blob name.
      *
      * @param   blobName
@@ -111,9 +102,11 @@ public interface BlobContainer {
 
     /**
      * Deletes this container and all its contents from the repository.
+     *
+     * @return delete result
      * @throws IOException on failure
      */
-    void delete() throws IOException;
+    DeleteResult delete() throws IOException;
 
     /**
      * Deletes the blobs with given names. Unlike {@link #deleteBlob(String)} this method will not throw an exception

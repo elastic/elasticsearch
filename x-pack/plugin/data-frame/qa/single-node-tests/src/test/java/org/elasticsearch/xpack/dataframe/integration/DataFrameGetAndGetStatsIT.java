@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.dataframe.integration;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
@@ -20,9 +21,13 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.oneOf;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/45610")
 public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
 
     private static final String TEST_USER_NAME = "df_user";
@@ -98,10 +103,13 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
             assertThat("documents_processed is not > 0.", ((Integer)stat.get("documents_processed")), greaterThan(0));
             assertThat("search_total is not > 0.", ((Integer)stat.get("search_total")), greaterThan(0));
             assertThat("pages_processed is not > 0.", ((Integer)stat.get("pages_processed")), greaterThan(0));
-            Map<String, Object> progress = (Map<String, Object>)XContentMapValues.extractValue("state.progress", transformStats);
+            /* TODO progress is now checkpoint progress and it may be that no checkpoint is in progress here
+            Map<String, Object> progress =
+                (Map<String, Object>)XContentMapValues.extractValue("checkpointing.next.checkpoint_progress", transformStats);
             assertThat("total_docs is not 1000", progress.get("total_docs"), equalTo(1000));
             assertThat("docs_remaining is not 0", progress.get("docs_remaining"), equalTo(0));
             assertThat("percent_complete is not 100.0", progress.get("percent_complete"), equalTo(100.0));
+            */
         }
 
         // only pivot_1
@@ -111,10 +119,9 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
 
         transformsStats = (List<Map<String, Object>>)XContentMapValues.extractValue("transforms", stats);
         assertEquals(1, transformsStats.size());
-        Map<String, Object> state = (Map<String, Object>) XContentMapValues.extractValue("state", transformsStats.get(0));
-        assertEquals("stopped", XContentMapValues.extractValue("task_state", state));
-        assertEquals(null, XContentMapValues.extractValue("current_position", state));
-        assertEquals(1, XContentMapValues.extractValue("checkpoint", state));
+        assertEquals("stopped", XContentMapValues.extractValue("state", transformsStats.get(0)));
+        assertNull(XContentMapValues.extractValue("checkpointing.next.position", transformsStats.get(0)));
+        assertEquals(1, XContentMapValues.extractValue("checkpointing.last.checkpoint", transformsStats.get(0)));
 
         // only continuous
         getRequest = createRequestWithAuth("GET", DATAFRAME_ENDPOINT + "pivot_continuous/_stats", authHeader);
@@ -123,9 +130,8 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
 
         transformsStats = (List<Map<String, Object>>)XContentMapValues.extractValue("transforms", stats);
         assertEquals(1, transformsStats.size());
-        state = (Map<String, Object>) XContentMapValues.extractValue("state", transformsStats.get(0));
-        assertEquals("started", XContentMapValues.extractValue("task_state", state));
-        assertEquals(1, XContentMapValues.extractValue("checkpoint", state));
+        assertThat(XContentMapValues.extractValue("state", transformsStats.get(0)), oneOf("started", "indexing"));
+        assertEquals(1, XContentMapValues.extractValue("checkpointing.last.checkpoint", transformsStats.get(0)));
 
 
         // check all the different ways to retrieve all transforms
@@ -198,15 +204,18 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
             assertThat("documents_processed is not > 0.", ((Integer)stat.get("documents_processed")), greaterThan(0));
             assertThat("search_total is not > 0.", ((Integer)stat.get("search_total")), greaterThan(0));
             assertThat("pages_processed is not > 0.", ((Integer)stat.get("pages_processed")), greaterThan(0));
-            Map<String, Object> progress = (Map<String, Object>)XContentMapValues.extractValue("state.progress", transformStats);
+            /* TODO progress is now checkpoint progress and it may be that no checkpoint is in progress here
+            Map<String, Object> progress =
+                (Map<String, Object>)XContentMapValues.extractValue("checkpointing.next.checkpoint_progress", transformStats);
             assertThat("total_docs is not 37", progress.get("total_docs"), equalTo(37));
             assertThat("docs_remaining is not 0", progress.get("docs_remaining"), equalTo(0));
             assertThat("percent_complete is not 100.0", progress.get("percent_complete"), equalTo(100.0));
+            */
         }
     }
 
     @SuppressWarnings("unchecked")
-    public void testGetProgressResetWithContinuous() throws Exception {
+    public void testGetStatsWithContinuous() throws Exception {
         String transformId = "pivot_progress_continuous";
         String transformDest = transformId + "_idx";
         String transformSrc = "reviews_cont_pivot_test";
@@ -214,6 +223,7 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
         final Request createDataframeTransformRequest = createRequestWithAuth("PUT", DATAFRAME_ENDPOINT + transformId, null);
         String config = "{ \"dest\": {\"index\":\"" + transformDest + "\"},"
             + " \"source\": {\"index\":\"" + transformSrc + "\"},"
+            + " \"frequency\": \"1s\","
             + " \"sync\": {\"time\":{\"field\": \"timestamp\", \"delay\": \"1s\"}},"
             + " \"pivot\": {"
             + "   \"group_by\": {"
@@ -238,15 +248,20 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
         Map<String, Object> stats = entityAsMap(client().performRequest(getRequest));
         List<Map<String, Object>> transformsStats = (List<Map<String, Object>>)XContentMapValues.extractValue("transforms", stats);
         assertEquals(1, transformsStats.size());
-        // Verify that the transform's progress
+        // No continuous checkpoints have been seen and thus all exponential averages should be 0.0
         for (Map<String, Object> transformStats : transformsStats) {
-            Map<String, Object> progress = (Map<String, Object>)XContentMapValues.extractValue("state.progress", transformStats);
-            assertThat("total_docs is not 1000", progress.get("total_docs"), equalTo(1000));
-            assertThat("docs_remaining is not 0", progress.get("docs_remaining"), equalTo(0));
-            assertThat("percent_complete is not 100.0", progress.get("percent_complete"), equalTo(100.0));
+            transformStats = (Map<String, Object>)transformStats.get("stats");
+            assertThat("exponential_avg_checkpoint_duration_ms is not 0.0",
+                transformStats.get("exponential_avg_checkpoint_duration_ms"),
+                equalTo(0.0));
+            assertThat("exponential_avg_documents_indexed is not 0.0",
+                transformStats.get("exponential_avg_documents_indexed"),
+                equalTo(0.0));
+            assertThat("exponential_avg_documents_processed is not 0.0",
+                transformStats.get("exponential_avg_documents_processed"),
+                equalTo(0.0));
         }
 
-        // add more docs to verify total_docs gets updated with continuous
         int numDocs = 10;
         final StringBuilder bulk = new StringBuilder();
         long now = Instant.now().toEpochMilli() - 1_000;
@@ -273,17 +288,27 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
 
         waitForDataFrameCheckpoint(transformId, 2L);
 
+        // We should now have exp avgs since we have processed a continuous checkpoint
         assertBusy(() -> {
             Map<String, Object> statsResponse = entityAsMap(client().performRequest(getRequest));
             List<Map<String, Object>> contStats = (List<Map<String, Object>>)XContentMapValues.extractValue("transforms", statsResponse);
             assertEquals(1, contStats.size());
-            // add more docs to verify total_docs is the number of new docs added to the index
             for (Map<String, Object> transformStats : contStats) {
-                Map<String, Object> progress = (Map<String, Object>)XContentMapValues.extractValue("state.progress", transformStats);
-                assertThat("total_docs is not 10", progress.get("total_docs"), equalTo(numDocs));
-                assertThat("docs_remaining is not 0", progress.get("docs_remaining"), equalTo(0));
-                assertThat("percent_complete is not 100.0", progress.get("percent_complete"), equalTo(100.0));
+                Map<String, Object> statsObj = (Map<String, Object>)transformStats.get("stats");
+                assertThat("exponential_avg_checkpoint_duration_ms is 0",
+                    (Double)statsObj.get("exponential_avg_checkpoint_duration_ms"),
+                    greaterThan(0.0));
+                assertThat("exponential_avg_documents_indexed is 0",
+                    (Double)statsObj.get("exponential_avg_documents_indexed"),
+                    greaterThan(0.0));
+                assertThat("exponential_avg_documents_processed is 0",
+                    (Double)statsObj.get("exponential_avg_documents_processed"),
+                    greaterThan(0.0));
+                Map<String, Object> checkpointing = (Map<String, Object>)transformStats.get("checkpointing");
+                assertThat("changes_last_detected_at is null",
+                    checkpointing.get("changes_last_detected_at"),
+                    is(notNullValue()));
             }
-        }, 60, TimeUnit.SECONDS);
+        }, 120, TimeUnit.SECONDS);
     }
 }

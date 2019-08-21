@@ -19,7 +19,8 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -29,12 +30,7 @@ import java.util.Map;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLength;
 
-
-public class FieldCapabilitiesResponseTests extends AbstractStreamableTestCase<FieldCapabilitiesResponse> {
-    @Override
-    protected FieldCapabilitiesResponse createBlankInstance() {
-        return new FieldCapabilitiesResponse();
-    }
+public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestCase<FieldCapabilitiesResponse> {
 
     @Override
     protected FieldCapabilitiesResponse createTestInstance() {
@@ -45,6 +41,11 @@ public class FieldCapabilitiesResponseTests extends AbstractStreamableTestCase<F
             responses.add(createRandomIndexResponse());
         }
         return new FieldCapabilitiesResponse(responses);
+    }
+
+    @Override
+    protected Writeable.Reader<FieldCapabilitiesResponse> instanceReader() {
+        return FieldCapabilitiesResponse::new;
     }
 
     private FieldCapabilitiesIndexResponse createRandomIndexResponse() {

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.test.test;
 
-import com.carrotsearch.randomizedtesting.RandomizedTest;
 import junit.framework.AssertionFailedError;
 
 import org.elasticsearch.common.bytes.BytesReference;
@@ -43,6 +42,7 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 
 public class ESTestCaseTests extends ESTestCase {
 
@@ -185,8 +185,18 @@ public class ESTestCaseTests extends ESTestCase {
 
     public void testWorkerSystemProperty() {
         assumeTrue("requires running tests with Gradle", System.getProperty("tests.gradle") != null);
-        // org.gradle.test.worker starts counting at 1
-        assertThat(RandomizedTest.systemPropertyAsInt(TEST_WORKER_SYS_PROPERTY, -1), greaterThan(0));
-        assertEquals(RandomizedTest.systemPropertyAsInt(TEST_WORKER_SYS_PROPERTY, -1) - 1, TEST_WORKER_VM);
+
+        assertThat(ESTestCase.TEST_WORKER_VM_ID, not(equals(ESTestCase.DEFAULT_TEST_WORKER_ID)));
+    }
+
+    public void testBasePortGradle() {
+        assumeTrue("requires running tests with Gradle", System.getProperty("tests.gradle") != null);
+        // Gradle worker IDs are 1 based
+        assertNotEquals(10300, ESTestCase.getBasePort());
+    }
+
+    public void testBasePortIDE() {
+        assumeTrue("requires running tests without Gradle", System.getProperty("tests.gradle") == null);
+        assertEquals(10300, ESTestCase.getBasePort());
     }
 }

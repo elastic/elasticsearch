@@ -21,7 +21,6 @@ package org.elasticsearch.index.seqno;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
@@ -52,12 +51,7 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
         ReplicationResponse> {
 
     public static String ACTION_NAME = "indices:admin/seq_no/global_checkpoint_sync";
-    public static ActionType<ReplicationResponse> TYPE = new StreamableResponseActionType<>(ACTION_NAME) {
-        @Override
-        public ReplicationResponse newResponse() {
-            return new ReplicationResponse();
-        }
-    };
+    public static ActionType<ReplicationResponse> TYPE = new ActionType<>(ACTION_NAME, ReplicationResponse::new);
 
     @Inject
     public GlobalCheckpointSyncAction(
@@ -85,8 +79,8 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
     }
 
     @Override
-    protected ReplicationResponse newResponseInstance() {
-        return new ReplicationResponse();
+    protected ReplicationResponse newResponseInstance(StreamInput in) throws IOException {
+        return new ReplicationResponse(in);
     }
 
     @Override

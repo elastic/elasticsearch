@@ -93,9 +93,7 @@ public class TransportRecoveryAction extends TransportBroadcastByNodeAction<Reco
 
     @Override
     protected RecoveryRequest readRequestFrom(StreamInput in) throws IOException {
-        final RecoveryRequest recoveryRequest = new RecoveryRequest();
-        recoveryRequest.readFrom(in);
-        return recoveryRequest;
+        return new RecoveryRequest(in);
     }
 
     @Override

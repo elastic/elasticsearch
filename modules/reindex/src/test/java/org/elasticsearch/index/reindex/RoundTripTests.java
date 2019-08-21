@@ -24,7 +24,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.script.Script;
@@ -41,7 +41,7 @@ import static org.apache.lucene.util.TestUtil.randomSimpleString;
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 
 /**
- * Round trip tests for all Streamable things declared in this plugin.
+ * Round trip tests for all {@link Writeable} things declared in this plugin.
  */
 public class RoundTripTests extends ESTestCase {
     public void testReindexRequest() throws IOException {
@@ -175,11 +175,11 @@ public class RoundTripTests extends ESTestCase {
         assertEquals(request.getTaskId(), tripped.getTaskId());
     }
 
-    private StreamInput toInputByteStream(Streamable example) throws IOException {
+    private StreamInput toInputByteStream(Writeable example) throws IOException {
         return toInputByteStream(Version.CURRENT, example);
     }
 
-    private StreamInput toInputByteStream(Version version, Streamable example) throws IOException {
+    private StreamInput toInputByteStream(Version version, Writeable example) throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
         out.setVersion(version);
         example.writeTo(out);

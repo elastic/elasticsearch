@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.rollup.job;
 
 import org.apache.lucene.search.TotalHits;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -51,7 +50,6 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
 
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/45770")
 public class RollupIndexerStateTests extends ESTestCase {
     private static class EmptyRollupIndexer extends RollupIndexer {
         EmptyRollupIndexer(Executor executor, RollupJob job, AtomicReference<IndexerState> initialState,
@@ -662,24 +660,28 @@ public class RollupIndexerStateTests extends ESTestCase {
 
         Consumer<Exception> failureConsumer = e -> {
             assertThat(e.getMessage(), equalTo("Could not identify key in agg [foo]"));
-            isFinished.set(true);
+        };
+        BiConsumer<IndexerState, Map<String, Object>> stateCheck = (i, p) -> {
+            if (i == IndexerState.STARTED) {
+                isFinished.set(true);
+            }
         };
 
         final ExecutorService executor = Executors.newFixedThreadPool(1);
         try {
 
             NonEmptyRollupIndexer indexer = new NonEmptyRollupIndexer(executor, job, state, null,
-                searchFunction, bulkFunction, failureConsumer);
+                searchFunction, bulkFunction, failureConsumer, stateCheck);
             final CountDownLatch latch = indexer.newLatch(1);
             indexer.start();
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
             assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
             assertThat(indexer.getState(), equalTo(IndexerState.INDEXING));
             latch.countDown();
-            ESTestCase.awaitBusy(() -> isFinished.get());
+            assertBusy(() -> assertTrue(isFinished.get()));
 
             // Despite failure in bulk, we should move back to STARTED and wait to try again on next trigger
-            assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
+            assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STARTED)));
             assertThat(indexer.getStats().getNumInvocations(), equalTo(1L));
             assertThat(indexer.getStats().getNumPages(), equalTo(1L));
 
@@ -818,24 +820,28 @@ public class RollupIndexerStateTests extends ESTestCase {
 
         Consumer<Exception> failureConsumer = e -> {
             assertThat(e.getMessage(), startsWith("Partial shards failure"));
-            isFinished.set(true);
+        };
+        BiConsumer<IndexerState, Map<String, Object>> stateCheck = (i, p) -> {
+            if (i == IndexerState.STARTED) {
+                isFinished.set(true);
+            }
         };
 
         final ExecutorService executor = Executors.newFixedThreadPool(1);
         try {
 
             NonEmptyRollupIndexer indexer = new NonEmptyRollupIndexer(executor, job, state, null,
-                searchFunction, bulkFunction, failureConsumer);
+                searchFunction, bulkFunction, failureConsumer, stateCheck);
             final CountDownLatch latch = indexer.newLatch(1);
             indexer.start();
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
             assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
             assertThat(indexer.getState(), equalTo(IndexerState.INDEXING));
             latch.countDown();
-            ESTestCase.awaitBusy(() -> isFinished.get());
+            assertBusy(() -> assertTrue(isFinished.get()));
 
             // Despite failure in bulk, we should move back to STARTED and wait to try again on next trigger
-            assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
+            assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STARTED)));
             assertThat(indexer.getStats().getNumInvocations(), equalTo(1L));
 
             // There should be one recorded failure
@@ -927,14 +933,18 @@ public class RollupIndexerStateTests extends ESTestCase {
 
         Consumer<Exception> failureConsumer = e -> {
             assertThat(e.getMessage(), equalTo("failed"));
-            isFinished.set(true);
+        };
+        BiConsumer<IndexerState, Map<String, Object>> stateCheck = (i, p) -> {
+            if (i == IndexerState.STARTED) {
+                isFinished.set(true);
+            }
         };
 
         final ExecutorService executor = Executors.newFixedThreadPool(1);
         try {
 
             NonEmptyRollupIndexer indexer = new NonEmptyRollupIndexer(executor, job, state, null,
-                searchFunction, bulkFunction, failureConsumer) {
+                searchFunction, bulkFunction, failureConsumer, stateCheck) {
                 @Override
                 protected void doNextBulk(BulkRequest request, ActionListener<BulkResponse> nextPhase) {
                     nextPhase.onFailure(new RuntimeException("failed"));
@@ -946,10 +956,11 @@ public class RollupIndexerStateTests extends ESTestCase {
             assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
             assertThat(indexer.getState(), equalTo(IndexerState.INDEXING));
             latch.countDown();
+            assertBusy(() -> assertTrue(isFinished.get()));
             ESTestCase.awaitBusy(() -> isFinished.get());
 
             // Despite failure in bulk, we should move back to STARTED and wait to try again on next trigger
-            assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
+            assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STARTED)));
             assertThat(indexer.getStats().getNumInvocations(), equalTo(1L));
             assertThat(indexer.getStats().getNumPages(), equalTo(1L));
 

@@ -19,8 +19,8 @@ tag::expand-wildcards[]
 (Optional, string) Controls what kind of indices that wildcard
 expressions can expand to. Valid values are:
 
-`open`::
-Expand only to open and closed indices.
+`all`::
+Expand to open and closed indices.
 
 `open`::
 Expand only to open indices.

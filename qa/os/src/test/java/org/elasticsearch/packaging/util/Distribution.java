@@ -19,63 +19,26 @@
 
 package org.elasticsearch.packaging.util;
 
+import java.nio.file.Path;
 import java.util.Locale;
 
-public enum Distribution {
+public class Distribution {
 
-    OSS_LINUX(Packaging.TAR, Platform.LINUX, Flavor.OSS, true),
-    OSS_WINDOWS(Packaging.ZIP, Platform.WINDOWS, Flavor.OSS, true),
-    OSS_DARWIN(Packaging.TAR, Platform.DARWIN, Flavor.OSS, true),
-    OSS_DEB(Packaging.DEB, Platform.LINUX, Flavor.OSS, true),
-    OSS_RPM(Packaging.RPM, Platform.LINUX, Flavor.OSS, true),
-
-    DEFAULT_LINUX(Packaging.TAR, Platform.LINUX, Flavor.DEFAULT, true),
-    DEFAULT_WINDOWS(Packaging.ZIP, Platform.WINDOWS, Flavor.DEFAULT, true),
-    DEFAULT_DARWIN(Packaging.TAR, Platform.DARWIN, Flavor.DEFAULT, true),
-    DEFAULT_DEB(Packaging.DEB, Platform.LINUX, Flavor.DEFAULT, true),
-    DEFAULT_RPM(Packaging.RPM, Platform.LINUX, Flavor.DEFAULT, true),
-
-    OSS_NO_JDK_LINUX(Packaging.TAR, Platform.LINUX, Flavor.OSS, false),
-    OSS_NO_JDK_WINDOWS(Packaging.ZIP, Platform.WINDOWS, Flavor.OSS, false),
-    OSS_NO_JDK_DARWIN(Packaging.TAR, Platform.DARWIN, Flavor.OSS, false),
-    OSS_NO_JDK_DEB(Packaging.DEB, Platform.LINUX, Flavor.OSS, false),
-    OSS_NO_JDK_RPM(Packaging.RPM, Platform.LINUX, Flavor.OSS, false),
-
-    DEFAULT_NO_JDK_LINUX(Packaging.TAR, Platform.LINUX, Flavor.DEFAULT, false),
-    DEFAULT_NO_JDK_WINDOWS(Packaging.ZIP, Platform.WINDOWS, Flavor.DEFAULT, false),
-    DEFAULT_NO_JDK_DARWIN(Packaging.TAR, Platform.DARWIN, Flavor.DEFAULT, false),
-    DEFAULT_NO_JDK_DEB(Packaging.DEB, Platform.LINUX, Flavor.DEFAULT, false),
-    DEFAULT_NO_JDK_RPM(Packaging.RPM, Platform.LINUX, Flavor.DEFAULT, false);
-
+    public final Path path;
     public final Packaging packaging;
     public final Platform platform;
     public final Flavor flavor;
     public final boolean hasJdk;
 
-    Distribution(Packaging packaging, Platform platform, Flavor flavor, boolean hasJdk) {
-        this.packaging = packaging;
-        this.platform = platform;
-        this.flavor = flavor;
-        this.hasJdk = hasJdk;
-    }
-
-    public String filename(String version) {
-        String classifier = "";
-        if (version.startsWith("6.") == false) {
-
-            if (hasJdk == false) {
-                classifier += "-no-jdk";
-            }
-            if (packaging == Packaging.DEB) {
-                classifier += "-amd64";
-            } else {
-                if (packaging != Packaging.RPM) {
-                    classifier += "-" + platform.toString();
-                }
-                classifier += "-x86_64";
-            }
-        }
-        return flavor.name + "-" + version + classifier + packaging.extension;
+    public Distribution(Path path) {
+        this.path = path;
+        String filename = path.getFileName().toString();
+        int lastDot = filename.lastIndexOf('.');
+        String extension = filename.substring(lastDot + 1);
+        this.packaging = Packaging.valueOf(extension.equals("gz") ? "TAR" : extension.toUpperCase(Locale.ROOT));
+        this.platform = filename.contains("windows") ? Platform.WINDOWS : Platform.LINUX;
+        this.flavor = filename.contains("oss") ? Flavor.OSS : Flavor.DEFAULT;
+        this.hasJdk = filename.contains("no-jdk") == false;
     }
 
     public boolean isDefault() {

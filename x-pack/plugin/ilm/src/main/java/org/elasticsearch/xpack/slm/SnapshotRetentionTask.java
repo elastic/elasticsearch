@@ -262,20 +262,32 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
             String repo = entry.getKey();
             List<SnapshotInfo> snapshots = entry.getValue();
             for (SnapshotInfo info : snapshots) {
-                deleteSnapshot(getPolicyId(info), repo, info, slmStats, historyItem -> {
-                    // This would be nicer if we could use ifPresentOrElse
-                    historyItem.ifPresent(item -> {
-                        if (item.isSuccess()) {
-                            deleted.incrementAndGet();
-                        } else {
-                            failed.incrementAndGet();
-                        }
-                        historyStore.putAsync(item);
-                    });
-                    if (historyItem.isEmpty()) {
-                        failed.incrementAndGet();
+                final String policyId = getPolicyId(info);
+                deleteSnapshot(policyId, repo, info, slmStats, ActionListener.wrap(acknowledgedResponse -> {
+                    deleted.incrementAndGet();
+                    if (acknowledgedResponse.isAcknowledged()) {
+                        historyStore.putAsync(SnapshotHistoryItem.deletionSuccessRecord(Instant.now().toEpochMilli(),
+                            info.snapshotId().getName(), policyId, repo));
+                    } else {
+                        SnapshotHistoryItem.deletionPossibleSuccessRecord(Instant.now().toEpochMilli(),
+                            info.snapshotId().getName(), policyId, repo,
+                            "deletion request issued successfully, no acknowledgement received");
                     }
-                });
+                }, e -> {
+                    failed.incrementAndGet();
+                    SnapshotHistoryItem result;
+                    try {
+                        result = SnapshotHistoryItem.deletionFailureRecord(Instant.now().toEpochMilli(),
+                            info.snapshotId().getName(), policyId, repo, e);
+                    } catch (IOException ex) {
+                        // This shouldn't happen unless there's an issue with serializing the original exception
+                        logger.error(new ParameterizedMessage(
+                            "failed to record snapshot deletion failure for snapshot lifecycle policy [{}]",
+                            policyId), ex);
+                        return;
+                    }
+                    historyStore.putAsync(result);
+                }));
                 // Check whether we have exceeded the maximum time allowed to spend deleting
                 // snapshots, if we have, short-circuit the rest of the deletions
                 TimeValue elapsedDeletionTime = TimeValue.timeValueNanos(nowNanoSupplier.getAsLong() - startTime);
@@ -298,13 +310,13 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
     /**
      * Delete the given snapshot from the repository in blocking manner
      *
-     * @param repo         The repository the snapshot is in
-     * @param snapshot     The snapshot metadata
-     * @param onCompletion A callback taking info on the history of the snapshot. If present, a SnapshotHistoryItem containing the results
-     *                     of the deletion. Empty if interrupted or failed to serialize exception.
+     * @param repo     The repository the snapshot is in
+     * @param snapshot The snapshot metadata
+     * @param listener {@link ActionListener#onResponse(Object)} is called if a {@link SnapshotHistoryItem} can be created representing a
+     *                  successful or failed deletion call. {@link ActionListener#onFailure(Exception)} is called only if interrupted.
      */
     void deleteSnapshot(String slmPolicy, String repo, SnapshotInfo snapshot, SnapshotLifecycleStats slmStats,
-                        Consumer<Optional<SnapshotHistoryItem>> onCompletion) {
+                        ActionListener<AcknowledgedResponse> listener) {
         logger.info("[{}] snapshot retention deleting snapshot [{}]", repo, snapshot.snapshotId());
         CountDownLatch latch = new CountDownLatch(1);
         client.admin().cluster().prepareDeleteSnapshot(repo, snapshot.snapshotId().getName())
@@ -313,14 +325,10 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                     if (acknowledgedResponse.isAcknowledged()) {
                         logger.debug("[{}] snapshot [{}] deleted successfully", repo, snapshot.snapshotId());
-                        onCompletion.accept(Optional.of(SnapshotHistoryItem.deletionSuccessRecord(Instant.now().toEpochMilli(),
-                            snapshot.snapshotId().getName(), slmPolicy, repo)));
                     } else {
                         logger.warn("[{}] snapshot [{}] delete issued but the request was not acknowledged", repo, snapshot.snapshotId());
-                        onCompletion.accept(Optional.of(SnapshotHistoryItem.deletionPossibleSuccessRecord(Instant.now().toEpochMilli(),
-                            snapshot.snapshotId().getName(), slmPolicy, repo,
-                            "deletion request issued successfully, no acknowledgement received")));
                     }
+                    listener.onResponse(acknowledgedResponse);
                     slmStats.snapshotDeleted(slmPolicy);
                 }
 
@@ -329,18 +337,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                     logger.warn(new ParameterizedMessage("[{}] failed to delete snapshot [{}] for retention",
                         repo, snapshot.snapshotId()), e);
                     slmStats.snapshotDeleteFailure(slmPolicy);
-                    SnapshotHistoryItem result;
-                    try {
-                        result = SnapshotHistoryItem.deletionFailureRecord(Instant.now().toEpochMilli(),
-                            snapshot.snapshotId().getName(), slmPolicy, repo, e);
-                    } catch (IOException ex) {
-                        // This shouldn't happen unless there's an issue with serializing the original exception
-                        logger.error(new ParameterizedMessage(
-                            "failed to record snapshot creation failure for snapshot lifecycle policy [{}]",
-                            slmPolicy), e);
-                        result = null;
-                    }
-                    onCompletion.accept(Optional.ofNullable(result));
+                    listener.onFailure(e);
                 }
             }, latch));
         try {
@@ -350,7 +347,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
         } catch (InterruptedException e) {
             logger.error(new ParameterizedMessage("[{}] deletion of snapshot [{}] interrupted",
                 repo, snapshot.snapshotId()), e);
-            onCompletion.accept(Optional.empty());
+            listener.onFailure(e);
             slmStats.snapshotDeleteFailure(slmPolicy);
         }
     }

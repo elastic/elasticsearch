@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.slm;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -28,11 +29,8 @@ import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotRetentionConfiguration;
-import org.elasticsearch.xpack.core.slm.history.SnapshotHistoryItem;
 import org.elasticsearch.xpack.core.slm.history.SnapshotHistoryStore;
 
-import java.io.IOException;
-import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -40,7 +38,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
@@ -190,22 +187,15 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                     logger.info("--> retrieving snapshots [{}]", snaps);
                     return Collections.singletonMap(repoId, snaps);
                 },
-                (deletionPolicyId, repo, snapInfo, slmStats, onCompletion) -> {
+                (deletionPolicyId, repo, snapInfo, slmStats, listener) -> {
                     logger.info("--> deleting {} from repo {}", snapInfo, repo);
                     deleted.add(snapInfo);
-                    deletionLatch.countDown();
                     if (deletionSuccess) {
-                        onCompletion.accept(Optional.of(SnapshotHistoryItem.deletionSuccessRecord(Instant.now().toEpochMilli(),
-                            snapInfo.snapshotId().getName(), policy.getId(), repo)));
+                        listener.onResponse(new AcknowledgedResponse(true));
                     } else {
-                        try {
-                            onCompletion.accept(Optional.of(SnapshotHistoryItem.deletionFailureRecord(Instant.now().toEpochMilli(),
-                                snapInfo.snapshotId().getName(), policy.getId(), repo, new RuntimeException("deletion_failed"))));
-                        } catch (IOException e) {
-                            logger.error(e);
-                            fail("failed to serialize an exception to json, this should never happen");
-                        }
+                        listener.onFailure(new RuntimeException("deletion_failed"));
                     }
+                    deletionLatch.countDown();
                 },
                 System::nanoTime);
 
@@ -243,7 +233,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             final String policyId = "policy";
             final String repoId = "repo";
             SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy(policyId, "snap", "1 * * * * ?",
-                repoId, null, new SnapshotRetentionConfiguration(null, null,1));
+                repoId, null, new SnapshotRetentionConfiguration(null, null, 1));
 
             ClusterState state = createState(policy);
             state = ClusterState.builder(state)
@@ -288,7 +278,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                     logger.info("--> retrieving snapshots [{}]", snaps);
                     return Collections.singletonMap(repoId, snaps);
                 },
-                (deletionPolicyId, repo, snapInfo, slmStats, onCompletion) -> {
+                (deletionPolicyId, repo, snapInfo, slmStats, listener) -> {
                     logger.info("--> deleting {}", snapInfo.snapshotId());
                     // Don't pause until snapshot 2
                     if (snapInfo.snapshotId().equals(snap2.snapshotId())) {
@@ -296,19 +286,12 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                         nanos.addAndGet(TimeValue.timeValueMillis(501).nanos());
                     }
                     deleted.add(snapInfo.snapshotId());
-                    deletionLatch.countDown();
                     if (deletionSuccess) {
-                        onCompletion.accept(Optional.of(SnapshotHistoryItem.deletionSuccessRecord(Instant.now().toEpochMilli(),
-                            snapInfo.snapshotId().getName(), policy.getId(), repo)));
+                        listener.onResponse(new AcknowledgedResponse(true));
                     } else {
-                        try {
-                            onCompletion.accept(Optional.of(SnapshotHistoryItem.deletionFailureRecord(Instant.now().toEpochMilli(),
-                                snapInfo.snapshotId().getName(), policy.getId(), repo, new RuntimeException("deletion_failed"))));
-                        } catch (IOException e) {
-                            logger.error(e);
-                            fail("failed to serialize an exception to json, this should never happen");
-                        }
+                        listener.onFailure(new RuntimeException("deletion_failed"));
                     }
+                    deletionLatch.countDown();
                 },
                 nanos::get);
 
@@ -376,14 +359,14 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
 
         @Override
         void deleteSnapshot(String policyId, String repo, SnapshotInfo snapshot, SnapshotLifecycleStats slmStats,
-                                                     Consumer<Optional<SnapshotHistoryItem>> onCompletion) {
-            deleteRunner.apply(policyId, repo, snapshot, slmStats, onCompletion);
+                            ActionListener<AcknowledgedResponse> listener) {
+            deleteRunner.apply(policyId, repo, snapshot, slmStats, listener);
         }
     }
 
     @FunctionalInterface
     interface DeleteSnapshotMock {
         void apply(String policyId, String repo, SnapshotInfo snapshot, SnapshotLifecycleStats slmStats,
-                                            Consumer<Optional<SnapshotHistoryItem>> onCompletion);
+                   ActionListener<AcknowledgedResponse> listener);
     }
 }

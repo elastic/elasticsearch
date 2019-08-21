@@ -30,22 +30,34 @@ public class DataFrameTransformCheckpointStatsTests extends ESTestCase {
 
     public void testFromXContent() throws IOException {
         xContentTester(this::createParser,
-                DataFrameTransformCheckpointStatsTests::randomDataFrameTransformCheckpointStats,
-                DataFrameTransformCheckpointStatsTests::toXContent,
-                DataFrameTransformCheckpointStats::fromXContent)
+            DataFrameTransformCheckpointStatsTests::randomDataFrameTransformCheckpointStats,
+            DataFrameTransformCheckpointStatsTests::toXContent,
+            DataFrameTransformCheckpointStats::fromXContent)
                 .supportsUnknownFields(true)
+                .randomFieldsExcludeFilter(field -> field.startsWith("position"))
                 .test();
     }
 
     public static DataFrameTransformCheckpointStats randomDataFrameTransformCheckpointStats() {
-        return new DataFrameTransformCheckpointStats(randomLongBetween(1, 1_000_000), randomLongBetween(0, 1_000_000));
+        return new DataFrameTransformCheckpointStats(randomLongBetween(1, 1_000_000),
+            randomBoolean() ? null : DataFrameIndexerPositionTests.randomDataFrameIndexerPosition(),
+            randomBoolean() ? null : DataFrameTransformProgressTests.randomInstance(),
+            randomLongBetween(1, 1_000_000), randomLongBetween(0, 1_000_000));
     }
 
     public static void toXContent(DataFrameTransformCheckpointStats stats, XContentBuilder builder) throws IOException {
         builder.startObject();
-        builder.field("timestamp_millis", stats.getTimestampMillis());
-        builder.field("time_upper_bound_millis", stats.getTimeUpperBoundMillis());
+        builder.field(DataFrameTransformCheckpointStats.CHECKPOINT.getPreferredName(), stats.getCheckpoint());
+        if (stats.getPosition() != null) {
+            builder.field(DataFrameTransformCheckpointStats.POSITION.getPreferredName());
+            DataFrameIndexerPositionTests.toXContent(stats.getPosition(), builder);
+        }
+        if (stats.getCheckpointProgress() != null) {
+            builder.field(DataFrameTransformCheckpointStats.CHECKPOINT_PROGRESS.getPreferredName());
+            DataFrameTransformProgressTests.toXContent(stats.getCheckpointProgress(), builder);
+        }
+        builder.field(DataFrameTransformCheckpointStats.TIMESTAMP_MILLIS.getPreferredName(), stats.getTimestampMillis());
+        builder.field(DataFrameTransformCheckpointStats.TIME_UPPER_BOUND_MILLIS.getPreferredName(), stats.getTimeUpperBoundMillis());
         builder.endObject();
     }
-
 }

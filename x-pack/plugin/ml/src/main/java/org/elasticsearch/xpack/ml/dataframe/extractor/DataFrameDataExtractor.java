@@ -29,11 +29,13 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -48,6 +50,8 @@ public class DataFrameDataExtractor {
 
     private static final Logger LOGGER = LogManager.getLogger(DataFrameDataExtractor.class);
     private static final TimeValue SCROLL_TIMEOUT = new TimeValue(30, TimeUnit.MINUTES);
+
+    private static final String EMPTY_STRING = "";
 
     private final Client client;
     private final DataFrameDataExtractorContext context;
@@ -179,11 +183,18 @@ public class DataFrameDataExtractor {
         for (int i = 0; i < extractedValues.length; ++i) {
             ExtractedField field = context.extractedFields.getAllFields().get(i);
             Object[] values = field.value(hit);
-            if (values.length == 1 && values[0] instanceof Number) {
+            if (values.length == 1 && (values[0] instanceof Number || values[0] instanceof String)) {
                 extractedValues[i] = Objects.toString(values[0]);
             } else {
-                extractedValues = null;
-                break;
+                if (values.length == 0 && context.includeRowsWithMissingValues) {
+                    // if values is empty then it means it's a missing value
+                    extractedValues[i] = EMPTY_STRING;
+                } else {
+                    // we are here if we have a missing value but the analysis does not support those
+                    // or the value type is not supported (e.g. arrays, etc.)
+                    extractedValues = null;
+                    break;
+                }
             }
         }
         return new Row(extractedValues, hit);
@@ -231,6 +242,17 @@ public class DataFrameDataExtractor {
 
         SearchResponse searchResponse = executeSearchRequest(searchRequestBuilder);
         return new DataSummary(searchResponse.getHits().getTotalHits().value, context.extractedFields.getAllFields().size());
+    }
+
+    public Set<String> getCategoricalFields() {
+        Set<String> categoricalFields = new HashSet<>();
+        for (ExtractedField extractedField : context.extractedFields.getAllFields()) {
+            String fieldName = extractedField.getName();
+            if (ExtractedFieldsDetector.CATEGORICAL_TYPES.containsAll(extractedField.getTypes())) {
+                categoricalFields.add(fieldName);
+            }
+        }
+        return categoricalFields;
     }
 
     public static class DataSummary {

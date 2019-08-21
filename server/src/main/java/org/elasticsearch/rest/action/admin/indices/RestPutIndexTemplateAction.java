@@ -24,7 +24,6 @@ import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateReque
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -44,8 +43,7 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
             " Specifying include_type_name in put index template requests is deprecated."+
             " The parameter will be removed in the next major version.";
 
-    public RestPutIndexTemplateAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestPutIndexTemplateAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.PUT, "/_template/{name}", this);
         controller.registerHandler(RestRequest.Method.POST, "/_template/{name}", this);
     }

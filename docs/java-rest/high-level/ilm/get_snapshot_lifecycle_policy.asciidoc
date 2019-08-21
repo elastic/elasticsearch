@@ -1,0 +1,39 @@
+--
+:api: slm-get-snapshot-lifecycle-policy
+:request: GetSnapshotLifecyclePolicyRequest
+:response: GetSnapshotLifecyclePolicyResponse
+--
+
+[id="{upid}-{api}"]
+=== Get Snapshot Lifecycle Policy API
+
+
+[id="{upid}-{api}-request"]
+==== Request
+
+The Get Snapshot Lifecycle Policy API allows you to retrieve the definition of a Snapshot Lifecycle
+Management Policy from the cluster.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Gets all policies.
+<2> Gets `policy_id`
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ contains a map of `SnapshotLifecyclePolicyMetadata`, accessible by the id
+of the policy, which contains data about each policy, as well as the policy definition.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> The retrieved policies are retrieved by id.
+<2> The policy definition itself.
+
+include::../execution.asciidoc[]
+
+

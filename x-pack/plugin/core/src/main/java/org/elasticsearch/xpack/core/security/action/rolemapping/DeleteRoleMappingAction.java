@@ -5,23 +5,18 @@
  */
 package org.elasticsearch.xpack.core.security.action.rolemapping;
 
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 
 /**
  * ActionType for deleting a role-mapping from the
  * org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore
  */
-public class DeleteRoleMappingAction extends StreamableResponseActionType<DeleteRoleMappingResponse> {
+public class DeleteRoleMappingAction extends ActionType<DeleteRoleMappingResponse> {
 
     public static final DeleteRoleMappingAction INSTANCE = new DeleteRoleMappingAction();
     public static final String NAME = "cluster:admin/xpack/security/role_mapping/delete";
 
     private DeleteRoleMappingAction() {
-        super(NAME);
-    }
-
-    @Override
-    public DeleteRoleMappingResponse newResponse() {
-        return new DeleteRoleMappingResponse();
+        super(NAME, DeleteRoleMappingResponse::new);
     }
 }

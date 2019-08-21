@@ -58,10 +58,11 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlConfigMigrationEligibilityCheck;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzerTests;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.MockClientBuilder;
 import org.elasticsearch.xpack.ml.job.process.autodetect.UpdateParams;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Matchers;
@@ -103,7 +104,8 @@ public class JobManagerTests extends ESTestCase {
     private ClusterService clusterService;
     private ThreadPool threadPool;
     private JobResultsProvider jobResultsProvider;
-    private Auditor auditor;
+    private JobResultsPersister jobResultsPersister;
+    private AnomalyDetectionAuditor auditor;
     private UpdateJobProcessNotifier updateJobProcessNotifier;
 
     @Override
@@ -123,7 +125,8 @@ public class JobManagerTests extends ESTestCase {
         givenClusterSettings(settings);
 
         jobResultsProvider = mock(JobResultsProvider.class);
-        auditor = mock(Auditor.class);
+        jobResultsPersister = mock(JobResultsPersister.class);
+        auditor = mock(AnomalyDetectionAuditor.class);
         updateJobProcessNotifier = mock(UpdateJobProcessNotifier.class);
 
         ExecutorService executorService = mock(ExecutorService.class);
@@ -320,6 +323,7 @@ public class JobManagerTests extends ESTestCase {
         Mockito.verifyNoMoreInteractions(auditor, updateJobProcessNotifier);
     }
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public void testNotifyFilterChanged() throws IOException {
         Detector.Builder detectorReferencingFilter = new Detector.Builder("count", null);
         detectorReferencingFilter.setByFieldName("foo");
@@ -528,7 +532,7 @@ public class JobManagerTests extends ESTestCase {
                 ));
 
         ArgumentCaptor<UpdateParams> updateParamsCaptor = ArgumentCaptor.forClass(UpdateParams.class);
-        verify(updateJobProcessNotifier, times(2)).submitJobUpdate(updateParamsCaptor.capture(), any(ActionListener.class));
+        verify(updateJobProcessNotifier, times(2)).submitJobUpdate(updateParamsCaptor.capture(), any());
 
         List<UpdateParams> capturedUpdateParams = updateParamsCaptor.getAllValues();
         assertThat(capturedUpdateParams.size(), equalTo(2));
@@ -570,7 +574,7 @@ public class JobManagerTests extends ESTestCase {
                 ));
 
         ArgumentCaptor<UpdateParams> updateParamsCaptor = ArgumentCaptor.forClass(UpdateParams.class);
-        verify(updateJobProcessNotifier, times(2)).submitJobUpdate(updateParamsCaptor.capture(), any(ActionListener.class));
+        verify(updateJobProcessNotifier, times(2)).submitJobUpdate(updateParamsCaptor.capture(), any());
 
         List<UpdateParams> capturedUpdateParams = updateParamsCaptor.getAllValues();
         assertThat(capturedUpdateParams.size(), equalTo(2));
@@ -593,8 +597,17 @@ public class JobManagerTests extends ESTestCase {
     }
 
     private JobManager createJobManager(Client client) {
-        return new JobManager(environment, environment.settings(), jobResultsProvider, clusterService,
-                auditor, threadPool, client, updateJobProcessNotifier, xContentRegistry());
+        return new JobManager(
+            environment,
+            environment.settings(),
+            jobResultsProvider,
+            jobResultsPersister,
+            clusterService,
+            auditor,
+            threadPool,
+            client,
+            updateJobProcessNotifier,
+            xContentRegistry());
     }
 
     private ClusterState createClusterState() {

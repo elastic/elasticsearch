@@ -486,24 +486,19 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             () -> client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap")
                 .execute().actionGet().getSnapshots("test-repo"));
 
-        // TODO: Replace this by repository cleanup endpoint call once that's available
         logger.info("--> Go through a loop of creating and deleting a snapshot to trigger repository cleanup");
-        client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-tmp")
-            .setWaitForCompletion(true)
-            .setIndices("test-idx")
-            .get();
-        client().admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap-tmp").get();
+        client().admin().cluster().prepareCleanupRepository("test-repo").get();
 
         // Subtract four files that will remain in the repository:
         //   (1) index-(N+1)
         //   (2) index-N (because we keep the previous version) and
         //   (3) index-latest
-        //   (4) incompatible-snapshots
-        assertFileCount(repo, 4);
+        assertFileCount(repo, 3);
         logger.info("--> done");
     }
 
     public void testRestoreIndexWithMissingShards() throws Exception {
+        disableRepoConsistencyCheck("This test leaves behind a purposely broken repository");
         logger.info("--> start 2 nodes");
         internalCluster().startNode();
         internalCluster().startNode();
@@ -764,7 +759,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         ).get();
 
         NodeClient nodeClient = internalCluster().getInstance(NodeClient.class);
-        RestGetRepositoriesAction getRepoAction = new RestGetRepositoriesAction(nodeSettings, mock(RestController.class),
+        RestGetRepositoriesAction getRepoAction = new RestGetRepositoriesAction(mock(RestController.class),
                 internalCluster().getInstance(SettingsFilter.class));
         RestRequest getRepoRequest = new FakeRestRequest();
         getRepoRequest.params().put("repository", "test-repo");
@@ -787,7 +782,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             throw getRepoError.get();
         }
 
-        RestClusterStateAction clusterStateAction = new RestClusterStateAction(nodeSettings, mock(RestController.class),
+        RestClusterStateAction clusterStateAction = new RestClusterStateAction(mock(RestController.class),
                 internalCluster().getInstance(SettingsFilter.class));
         RestRequest clusterStateRequest = new FakeRestRequest();
         final CountDownLatch clusterStateLatch = new CountDownLatch(1);

@@ -38,7 +38,19 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
     private ShardStats[] shardsStats;
     private ClusterHealthStatus clusterStatus;
 
-    ClusterStatsNodeResponse() {
+    public ClusterStatsNodeResponse(StreamInput in) throws IOException {
+        super(in);
+        clusterStatus = null;
+        if (in.readBoolean()) {
+            clusterStatus = ClusterHealthStatus.fromValue(in.readByte());
+        }
+        this.nodeInfo = new NodeInfo(in);
+        this.nodeStats = new NodeStats(in);
+        int size = in.readVInt();
+        shardsStats = new ShardStats[size];
+        for (int i = 0; i < size; i++) {
+            shardsStats[i] = new ShardStats(in);
+        }
     }
 
     public ClusterStatsNodeResponse(DiscoveryNode node, @Nullable ClusterHealthStatus clusterStatus,
@@ -71,25 +83,7 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
     }
 
     public static ClusterStatsNodeResponse readNodeResponse(StreamInput in) throws IOException {
-        ClusterStatsNodeResponse nodeResponse = new ClusterStatsNodeResponse();
-        nodeResponse.readFrom(in);
-        return nodeResponse;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        clusterStatus = null;
-        if (in.readBoolean()) {
-            clusterStatus = ClusterHealthStatus.fromValue(in.readByte());
-        }
-        this.nodeInfo = NodeInfo.readNodeInfo(in);
-        this.nodeStats = NodeStats.readNodeStats(in);
-        int size = in.readVInt();
-        shardsStats = new ShardStats[size];
-        for (int i = 0; i < size; i++) {
-            shardsStats[i] = ShardStats.readShardStats(in);
-        }
+        return new ClusterStatsNodeResponse(in);
     }
 
     @Override

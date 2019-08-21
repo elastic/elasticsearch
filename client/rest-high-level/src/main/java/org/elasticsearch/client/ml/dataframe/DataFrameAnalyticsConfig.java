@@ -43,11 +43,12 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
         return PARSER.apply(parser, null).build();
     }
 
-    public static Builder builder(String id) {
-        return new Builder().setId(id);
+    public static Builder builder() {
+        return new Builder();
     }
 
     private static final ParseField ID = new ParseField("id");
+    private static final ParseField DESCRIPTION = new ParseField("description");
     private static final ParseField SOURCE = new ParseField("source");
     private static final ParseField DEST = new ParseField("dest");
     private static final ParseField ANALYSIS = new ParseField("analysis");
@@ -60,6 +61,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
 
     static {
         PARSER.declareString(Builder::setId, ID);
+        PARSER.declareString(Builder::setDescription, DESCRIPTION);
         PARSER.declareObject(Builder::setSource, (p, c) -> DataFrameAnalyticsSource.fromXContent(p), SOURCE);
         PARSER.declareObject(Builder::setDest, (p, c) -> DataFrameAnalyticsDest.fromXContent(p), DEST);
         PARSER.declareObject(Builder::setAnalysis, (p, c) -> parseAnalysis(p), ANALYSIS);
@@ -95,6 +97,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
     }
 
     private final String id;
+    private final String description;
     private final DataFrameAnalyticsSource source;
     private final DataFrameAnalyticsDest dest;
     private final DataFrameAnalysis analysis;
@@ -103,13 +106,15 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
     private final Instant createTime;
     private final Version version;
 
-    private DataFrameAnalyticsConfig(String id, DataFrameAnalyticsSource source, DataFrameAnalyticsDest dest, DataFrameAnalysis analysis,
+    private DataFrameAnalyticsConfig(@Nullable String id, @Nullable String description, @Nullable DataFrameAnalyticsSource source,
+                                     @Nullable DataFrameAnalyticsDest dest, @Nullable DataFrameAnalysis analysis,
                                      @Nullable FetchSourceContext analyzedFields, @Nullable ByteSizeValue modelMemoryLimit,
                                      @Nullable Instant createTime, @Nullable Version version) {
-        this.id = Objects.requireNonNull(id);
-        this.source = Objects.requireNonNull(source);
-        this.dest = Objects.requireNonNull(dest);
-        this.analysis = Objects.requireNonNull(analysis);
+        this.id = id;
+        this.description = description;
+        this.source = source;
+        this.dest = dest;
+        this.analysis = analysis;
         this.analyzedFields = analyzedFields;
         this.modelMemoryLimit = modelMemoryLimit;
         this.createTime = createTime == null ? null : Instant.ofEpochMilli(createTime.toEpochMilli());;
@@ -118,6 +123,10 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
 
     public String getId() {
         return id;
+    }
+
+    public String getDescription() {
+        return description;
     }
 
     public DataFrameAnalyticsSource getSource() {
@@ -151,12 +160,24 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(ID.getPreferredName(), id);
-        builder.field(SOURCE.getPreferredName(), source);
-        builder.field(DEST.getPreferredName(), dest);
-        builder.startObject(ANALYSIS.getPreferredName());
-        builder.field(analysis.getName(), analysis);
-        builder.endObject();
+        if (id != null) {
+            builder.field(ID.getPreferredName(), id);
+        }
+        if (description != null) {
+            builder.field(DESCRIPTION.getPreferredName(), description);
+        }
+        if (source != null) {
+            builder.field(SOURCE.getPreferredName(), source);
+        }
+        if (dest != null) {
+            builder.field(DEST.getPreferredName(), dest);
+        }
+        if (analysis != null) {
+            builder
+                .startObject(ANALYSIS.getPreferredName())
+                .field(analysis.getName(), analysis)
+                .endObject();
+        }
         if (analyzedFields != null) {
             builder.field(ANALYZED_FIELDS.getPreferredName(), analyzedFields);
         }
@@ -180,6 +201,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
 
         DataFrameAnalyticsConfig other = (DataFrameAnalyticsConfig) o;
         return Objects.equals(id, other.id)
+            && Objects.equals(description, other.description)
             && Objects.equals(source, other.source)
             && Objects.equals(dest, other.dest)
             && Objects.equals(analysis, other.analysis)
@@ -191,7 +213,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, source, dest, analysis, analyzedFields, modelMemoryLimit, createTime, version);
+        return Objects.hash(id, description, source, dest, analysis, analyzedFields, modelMemoryLimit, createTime, version);
     }
 
     @Override
@@ -202,6 +224,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
     public static class Builder {
 
         private String id;
+        private String description;
         private DataFrameAnalyticsSource source;
         private DataFrameAnalyticsDest dest;
         private DataFrameAnalysis analysis;
@@ -214,6 +237,11 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
 
         public Builder setId(String id) {
             this.id = Objects.requireNonNull(id);
+            return this;
+        }
+
+        public Builder setDescription(String description) {
+            this.description = description;
             return this;
         }
 
@@ -253,7 +281,8 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
         }
 
         public DataFrameAnalyticsConfig build() {
-            return new DataFrameAnalyticsConfig(id, source, dest, analysis, analyzedFields, modelMemoryLimit, createTime, version);
+            return new DataFrameAnalyticsConfig(id, description, source, dest, analysis, analyzedFields, modelMemoryLimit, createTime,
+                version);
         }
     }
 }

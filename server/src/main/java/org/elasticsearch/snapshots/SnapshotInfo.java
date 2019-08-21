@@ -301,7 +301,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         if (size > 0) {
             List<SnapshotShardFailure> failureBuilder = new ArrayList<>();
             for (int i = 0; i < size; i++) {
-                failureBuilder.add(SnapshotShardFailure.readSnapshotShardFailure(in));
+                failureBuilder.add(new SnapshotShardFailure(in));
             }
             shardFailures = Collections.unmodifiableList(failureBuilder);
         } else {
@@ -314,17 +314,6 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         } else {
             userMetadata = null;
         }
-    }
-
-    /**
-     * Gets a new {@link SnapshotInfo} instance for a snapshot that is incompatible with the
-     * current version of the cluster.
-     */
-    public static SnapshotInfo incompatible(SnapshotId snapshotId) {
-        return new SnapshotInfo(snapshotId, Collections.emptyList(), SnapshotState.INCOMPATIBLE,
-                                "the snapshot is incompatible with the current version of Elasticsearch and its exact version is unknown",
-                                null, 0L, 0L, 0, 0,
-                                Collections.emptyList(), null, null);
     }
 
     /**

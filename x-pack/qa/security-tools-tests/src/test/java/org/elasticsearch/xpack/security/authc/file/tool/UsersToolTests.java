@@ -299,7 +299,7 @@ public class UsersToolTests extends CommandTestCase {
 
     public void testParseUnknownRole() throws Exception {
         UsersTool.parseRoles(terminal, TestEnvironment.newEnvironment(settings), "test_r1,r2,r3");
-        String output = terminal.getOutput();
+        String output = terminal.getErrorOutput();
         assertTrue(output, output.contains("The following roles [r2,r3] are not in the ["));
     }
 
@@ -502,7 +502,7 @@ public class UsersToolTests extends CommandTestCase {
             execute("useradd", pathHomeParameter, fileOrderParameter, "username", "-p", SecuritySettingsSourceField.TEST_PASSWORD);
         });
         assertEquals(ExitCodes.CONFIG, e.exitCode);
-        assertThat(e.getMessage(), containsString("Configuration file [eshome/config/users] is missing"));
+        assertThat(e.getMessage(), containsString("Configuration file [/work/eshome/config/users] is missing"));
     }
 
     public void testUserListNoConfig() throws Exception {
@@ -514,7 +514,7 @@ public class UsersToolTests extends CommandTestCase {
             execute("list", pathHomeParameter, fileOrderParameter);
         });
         assertEquals(ExitCodes.CONFIG, e.exitCode);
-        assertThat(e.getMessage(), containsString("Configuration file [eshome/config/users] is missing"));
+        assertThat(e.getMessage(), containsString("Configuration file [/work/eshome/config/users] is missing"));
     }
 
     public void testUserDelNoConfig() throws Exception {
@@ -526,7 +526,7 @@ public class UsersToolTests extends CommandTestCase {
             execute("userdel", pathHomeParameter, fileOrderParameter, "username");
         });
         assertEquals(ExitCodes.CONFIG, e.exitCode);
-        assertThat(e.getMessage(), containsString("Configuration file [eshome/config/users] is missing"));
+        assertThat(e.getMessage(), containsString("Configuration file [/work/eshome/config/users] is missing"));
     }
 
     public void testListUserRolesNoConfig() throws Exception {
@@ -538,6 +538,6 @@ public class UsersToolTests extends CommandTestCase {
             execute("roles", pathHomeParameter, fileOrderParameter, "username");
         });
         assertEquals(ExitCodes.CONFIG, e.exitCode);
-        assertThat(e.getMessage(), containsString("Configuration file [eshome/config/users_roles] is missing"));
+        assertThat(e.getMessage(), containsString("Configuration file [/work/eshome/config/users_roles] is missing"));
     }
 }

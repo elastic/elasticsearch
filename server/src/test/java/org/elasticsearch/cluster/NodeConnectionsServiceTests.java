@@ -19,8 +19,6 @@
 
 package org.elasticsearch.cluster;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -33,12 +31,10 @@ import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -60,10 +56,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 
@@ -137,7 +131,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
                 service.connectToNodes(nodes, () -> future.onResponse(null));
                 future.actionGet();
                 if (isDisrupting == false) {
-                    assertConnected(nodes);
+                    assertConnected(transportService, nodes);
                 }
                 service.disconnectFromNodesExcept(nodes);
 
@@ -174,6 +168,11 @@ public class NodeConnectionsServiceTests extends ESTestCase {
 
         final DeterministicTaskQueue deterministicTaskQueue
             = new DeterministicTaskQueue(builder().put(NODE_NAME_SETTING.getKey(), "node").build(), random());
+
+        MockTransport transport = new MockTransport(deterministicTaskQueue.getThreadPool());
+        TestTransportService transportService = new TestTransportService(transport, deterministicTaskQueue.getThreadPool());
+        transportService.start();
+        transportService.acceptIncomingRequests();
 
         final NodeConnectionsService service
             = new NodeConnectionsService(settings.build(), deterministicTaskQueue.getThreadPool(), transportService);
@@ -217,10 +216,9 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         transport.randomConnectionExceptions = false;
         logger.info("renewing connections");
         runTasksUntil(deterministicTaskQueue, maxDisconnectionTime + reconnectIntervalMillis);
-        assertConnectedExactlyToNodes(targetNodes);
+        assertConnectedExactlyToNodes(transportService, targetNodes);
     }
 
-    @TestLogging("org.elasticsearch.cluster.NodeConnectionsService:TRACE") // for https://github.com/elastic/elasticsearch/issues/40170
     public void testOnlyBlocksOnConnectionsToNewNodes() throws Exception {
         final NodeConnectionsService service = new NodeConnectionsService(Settings.EMPTY, threadPool, transportService);
 
@@ -233,7 +231,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         assertConnectedExactlyToNodes(nodes0);
 
         // connection attempts to node0 block indefinitely
-        final CyclicBarrier connectionBarrier = new VerboseCyclicBarrier(2);
+        final CyclicBarrier connectionBarrier = new CyclicBarrier(2);
         try {
             nodeConnectionBlocks.put(node0, connectionBarrier::await);
             transportService.disconnectFromNode(node0);
@@ -260,8 +258,8 @@ public class NodeConnectionsServiceTests extends ESTestCase {
             expectThrows(ElasticsearchTimeoutException.class, () -> future3.actionGet(timeValueMillis(scaledRandomIntBetween(1, 1000))));
 
             // once the connection is unblocked we successfully connect to it.
-            nodeConnectionBlocks.clear();
             connectionBarrier.await(10, TimeUnit.SECONDS);
+            nodeConnectionBlocks.clear();
             future3.actionGet();
             assertConnectedExactlyToNodes(nodes01);
 
@@ -293,40 +291,13 @@ public class NodeConnectionsServiceTests extends ESTestCase {
             future6.actionGet(); // completed even though the connection attempt is still blocked
             assertConnectedExactlyToNodes(nodes1);
 
-            nodeConnectionBlocks.clear();
             connectionBarrier.await(10, TimeUnit.SECONDS);
+            nodeConnectionBlocks.clear();
             ensureConnections(service);
             assertConnectedExactlyToNodes(nodes1);
         } finally {
             nodeConnectionBlocks.clear();
             connectionBarrier.reset();
-        }
-    }
-
-    // tracing barrier usage for https://github.com/elastic/elasticsearch/issues/40170
-    private class VerboseCyclicBarrier extends CyclicBarrier {
-        VerboseCyclicBarrier(int parties) {
-            super(parties);
-        }
-
-        @Override
-        public int await() throws InterruptedException, BrokenBarrierException {
-            final String waitUUID = UUIDs.randomBase64UUID(random());
-            logger.info(new ParameterizedMessage("--> wait[{}] starting", waitUUID),
-                new ElasticsearchException("stack trace for CyclicBarrier#await()"));
-            final int result = super.await();
-            logger.info("--> wait[{}] returning [{}]", waitUUID, result);
-            return result;
-        }
-
-        @Override
-        public int await(long timeout, TimeUnit unit) throws InterruptedException, BrokenBarrierException, TimeoutException {
-            final String waitUUID = UUIDs.randomBase64UUID(random());
-            logger.info(new ParameterizedMessage("--> wait[{}] starting", waitUUID),
-                new ElasticsearchException("stack trace for CyclicBarrier#await(" + timeout + ", " + unit + ')'));
-            final int result = super.await(timeout, unit);
-            logger.info("--> wait[{}] returning [{}]", waitUUID, result);
-            return result;
         }
     }
 
@@ -348,11 +319,15 @@ public class NodeConnectionsServiceTests extends ESTestCase {
     }
 
     private void assertConnectedExactlyToNodes(DiscoveryNodes discoveryNodes) {
-        assertConnected(discoveryNodes);
+        assertConnectedExactlyToNodes(transportService, discoveryNodes);
+    }
+
+    private void assertConnectedExactlyToNodes(TransportService transportService, DiscoveryNodes discoveryNodes) {
+        assertConnected(transportService, discoveryNodes);
         assertThat(transportService.getConnectionManager().size(), equalTo(discoveryNodes.getSize()));
     }
 
-    private void assertConnected(Iterable<DiscoveryNode> nodes) {
+    private void assertConnected(TransportService transportService, Iterable<DiscoveryNode> nodes) {
         for (DiscoveryNode node : nodes) {
             assertTrue("not connected to " + node, transportService.nodeConnected(node));
         }
@@ -362,8 +337,9 @@ public class NodeConnectionsServiceTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        this.threadPool = new TestThreadPool(getClass().getName());
-        this.transport = new MockTransport();
+        ThreadPool threadPool = new TestThreadPool(getClass().getName());
+        this.threadPool = threadPool;
+        this.transport = new MockTransport(threadPool);
         nodeConnectionBlocks = newConcurrentMap();
         transportService = new TestTransportService(transport, threadPool);
         transportService.start();
@@ -388,32 +364,48 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }
 
         @Override
-        public HandshakeResponse handshake(Transport.Connection connection, long timeout, Predicate<ClusterName> clusterNamePredicate) {
-            return new HandshakeResponse(connection.getNode(), new ClusterName(""), Version.CURRENT);
+        public void handshake(Transport.Connection connection, long timeout, Predicate<ClusterName> clusterNamePredicate,
+                              ActionListener<HandshakeResponse> listener) {
+            listener.onResponse(new HandshakeResponse(connection.getNode(), new ClusterName(""), Version.CURRENT));
         }
 
         @Override
         public void connectToNode(DiscoveryNode node) throws ConnectTransportException {
+            throw new AssertionError("no blocking connect");
+        }
+
+        @Override
+        public void connectToNode(DiscoveryNode node, ActionListener<Void> listener) throws ConnectTransportException {
             final CheckedRunnable<Exception> connectionBlock = nodeConnectionBlocks.get(node);
             if (connectionBlock != null) {
-                try {
-                    connectionBlock.run();
-                } catch (Exception e) {
-                    throw new AssertionError(e);
-                }
+                getThreadPool().generic().execute(() -> {
+                        try {
+                            connectionBlock.run();
+                            super.connectToNode(node, listener);
+                        } catch (Exception e) {
+                            throw new AssertionError(e);
+                        }
+                    });
+            } else {
+                super.connectToNode(node, listener);
             }
-            super.connectToNode(node);
         }
     }
 
     private final class MockTransport implements Transport {
         private ResponseHandlers responseHandlers = new ResponseHandlers();
         private volatile boolean randomConnectionExceptions = false;
+        private final ThreadPool threadPool;
+
+        MockTransport(ThreadPool threadPool) {
+            this.threadPool = threadPool;
+        }
 
         @Override
         public <Request extends TransportRequest> void registerRequestHandler(RequestHandlerRegistry<Request> reg) {
         }
 
+        @SuppressWarnings("unchecked")
         @Override
         public RequestHandlerRegistry getRequestHandler(String action) {
             return null;
@@ -439,7 +431,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }
 
         @Override
-        public Releasable openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> listener) {
+        public void openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> listener) {
             if (profile == null && randomConnectionExceptions && randomBoolean()) {
                 threadPool.generic().execute(() -> listener.onFailure(new ConnectTransportException(node, "simulated")));
             } else {
@@ -468,8 +460,6 @@ public class NodeConnectionsServiceTests extends ESTestCase {
                     }
                 }));
             }
-            return () -> {
-            };
         }
 
         @Override

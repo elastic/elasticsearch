@@ -22,6 +22,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -39,12 +40,7 @@ public class StopDataFrameAnalyticsAction extends ActionType<StopDataFrameAnalyt
     public static final String NAME = "cluster:admin/xpack/ml/data_frame/analytics/stop";
 
     private StopDataFrameAnalyticsAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, StopDataFrameAnalyticsAction.Response::new);
     }
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContentObject {
@@ -123,6 +119,11 @@ public class StopDataFrameAnalyticsAction extends ActionType<StopDataFrameAnalyt
 
         public void setExpandedIds(Set<String> expandedIds) {
             this.expandedIds = Objects.requireNonNull(expandedIds);
+        }
+
+        @Override
+        public boolean match(Task task) {
+            return expandedIds.stream().anyMatch(expandedId -> StartDataFrameAnalyticsAction.TaskMatcher.match(task, expandedId));
         }
 
         @Override

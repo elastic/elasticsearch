@@ -16,10 +16,9 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditMessage;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformProgress;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStats;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStoredDoc;
 import org.elasticsearch.xpack.core.dataframe.transforms.DestConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.SourceConfig;
 
@@ -54,6 +53,7 @@ public final class DataFrameInternalIndex {
 
     // data types
     public static final String FLOAT = "float";
+    public static final String DOUBLE = "double";
     public static final String LONG = "long";
     public static final String KEYWORD = "keyword";
 
@@ -132,7 +132,7 @@ public final class DataFrameInternalIndex {
         // add the schema for transform configurations
         addDataFrameTransformsConfigMappings(builder);
         // add the schema for transform stats
-        addDataFrameTransformStateAndStatsMappings(builder);
+        addDataFrameTransformStoredDocMappings(builder);
         // end type
         builder.endObject();
         // end properties
@@ -143,9 +143,9 @@ public final class DataFrameInternalIndex {
     }
 
 
-    private static XContentBuilder addDataFrameTransformStateAndStatsMappings(XContentBuilder builder) throws IOException {
+    private static XContentBuilder addDataFrameTransformStoredDocMappings(XContentBuilder builder) throws IOException {
         return builder
-            .startObject(DataFrameTransformStateAndStats.STATE_FIELD.getPreferredName())
+            .startObject(DataFrameTransformStoredDoc.STATE_FIELD.getPreferredName())
                 .startObject(PROPERTIES)
                     .startObject(DataFrameTransformState.TASK_STATE.getPreferredName())
                         .field(TYPE, KEYWORD)
@@ -172,6 +172,12 @@ public final class DataFrameInternalIndex {
                             .endObject()
                             .startObject(DataFrameTransformProgress.PERCENT_COMPLETE)
                                 .field(TYPE, FLOAT)
+                            .endObject()
+                            .startObject(DataFrameTransformProgress.DOCS_INDEXED.getPreferredName())
+                                .field(TYPE, LONG)
+                            .endObject()
+                            .startObject(DataFrameTransformProgress.DOCS_PROCESSED.getPreferredName())
+                                .field(TYPE, LONG)
                             .endObject()
                         .endObject()
                     .endObject()
@@ -209,9 +215,20 @@ public final class DataFrameInternalIndex {
                      .startObject(DataFrameIndexerTransformStats.INDEX_FAILURES.getPreferredName())
                         .field(TYPE, LONG)
                     .endObject()
+                    .startObject(DataFrameIndexerTransformStats.EXPONENTIAL_AVG_CHECKPOINT_DURATION_MS.getPreferredName())
+                        .field(TYPE, DOUBLE)
+                    .endObject()
+                    .startObject(DataFrameIndexerTransformStats.EXPONENTIAL_AVG_DOCUMENTS_INDEXED.getPreferredName())
+                        .field(TYPE, DOUBLE)
+                    .endObject()
+                    .startObject(DataFrameIndexerTransformStats.EXPONENTIAL_AVG_DOCUMENTS_PROCESSED.getPreferredName())
+                        .field(TYPE, DOUBLE)
+                    .endObject()
                 .endObject()
             .endObject()
-            .startObject(DataFrameTransformStateAndStats.CHECKPOINTING_INFO_FIELD.getPreferredName())
+            // This is obsolete and can be removed for future versions of the index, but is left here as a warning/reminder that
+            // we cannot declare this field differently in version 1 of the internal index as it would cause a mapping clash
+            .startObject("checkpointing")
                 .field(ENABLED, false)
             .endObject();
     }
@@ -238,7 +255,7 @@ public final class DataFrameInternalIndex {
                     .endObject()
                 .endObject()
             .endObject()
-            .startObject(DataFrameTransformConfig.DESCRIPTION.getPreferredName())
+            .startObject(DataFrameField.DESCRIPTION.getPreferredName())
                 .field(TYPE, TEXT)
             .endObject();
     }

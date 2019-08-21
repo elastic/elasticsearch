@@ -21,8 +21,9 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.junit.Before;
 
 import java.util.Collections;
@@ -43,24 +44,26 @@ import static org.mockito.Mockito.when;
 public class DatafeedJobBuilderTests extends ESTestCase {
 
     private Client client;
-    private Auditor auditor;
+    private AnomalyDetectionAuditor auditor;
     private Consumer<Exception> taskHandler;
     private JobResultsProvider jobResultsProvider;
     private JobConfigProvider jobConfigProvider;
     private DatafeedConfigProvider datafeedConfigProvider;
+    private JobResultsPersister jobResultsPersister;
 
     private DatafeedJobBuilder datafeedJobBuilder;
 
     @Before
+    @SuppressWarnings("unchecked")
     public void init() {
         client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(client.threadPool()).thenReturn(threadPool);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(client.settings()).thenReturn(Settings.EMPTY);
-        auditor = mock(Auditor.class);
+        auditor = mock(AnomalyDetectionAuditor.class);
         taskHandler = mock(Consumer.class);
-        datafeedJobBuilder = new DatafeedJobBuilder(client, Settings.EMPTY, xContentRegistry(), auditor, System::currentTimeMillis);
+        jobResultsPersister = mock(JobResultsPersister.class);
 
         jobResultsProvider = mock(JobResultsProvider.class);
         Mockito.doAnswer(invocationOnMock -> {
@@ -80,6 +83,16 @@ public class DatafeedJobBuilderTests extends ESTestCase {
 
         jobConfigProvider = mock(JobConfigProvider.class);
         datafeedConfigProvider = mock(DatafeedConfigProvider.class);
+        datafeedJobBuilder =
+            new DatafeedJobBuilder(
+                client,
+                xContentRegistry(),
+                auditor,
+                System::currentTimeMillis,
+                jobConfigProvider,
+                jobResultsProvider,
+                datafeedConfigProvider,
+                jobResultsPersister);
     }
 
     public void testBuild_GivenScrollDatafeedAndNewJob() throws Exception {
@@ -103,7 +116,7 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         givenJob(jobBuilder);
         givenDatafeed(datafeed);
 
-        datafeedJobBuilder.build("datafeed1", jobResultsProvider, jobConfigProvider, datafeedConfigProvider, datafeedJobHandler);
+        datafeedJobBuilder.build("datafeed1", datafeedJobHandler);
 
         assertBusy(() -> wasHandlerCalled.get());
     }
@@ -131,7 +144,7 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         givenJob(jobBuilder);
         givenDatafeed(datafeed);
 
-        datafeedJobBuilder.build("datafeed1", jobResultsProvider, jobConfigProvider, datafeedConfigProvider, datafeedJobHandler);
+        datafeedJobBuilder.build("datafeed1", datafeedJobHandler);
 
         assertBusy(() -> wasHandlerCalled.get());
     }
@@ -159,7 +172,7 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         givenJob(jobBuilder);
         givenDatafeed(datafeed);
 
-        datafeedJobBuilder.build("datafeed1", jobResultsProvider, jobConfigProvider, datafeedConfigProvider, datafeedJobHandler);
+        datafeedJobBuilder.build("datafeed1", datafeedJobHandler);
 
         assertBusy(() -> wasHandlerCalled.get());
     }
@@ -184,8 +197,7 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         givenJob(jobBuilder);
         givenDatafeed(datafeed);
 
-        datafeedJobBuilder.build("datafeed1", jobResultsProvider, jobConfigProvider, datafeedConfigProvider,
-                ActionListener.wrap(datafeedJob -> fail(), taskHandler));
+        datafeedJobBuilder.build("datafeed1", ActionListener.wrap(datafeedJob -> fail(), taskHandler));
 
         verify(taskHandler).accept(error);
     }

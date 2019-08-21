@@ -3306,7 +3306,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .build();
             PutDataFrameAnalyticsRequest request = new PutDataFrameAnalyticsRequest(config);
             // tag::estimate-memory-usage-execute-listener
-            ActionListener<EstimateMemoryUsageResponse> listener = new ActionListener<>() {
+            ActionListener<EstimateMemoryUsageResponse> listener = new ActionListener<EstimateMemoryUsageResponse>() {
                 @Override
                 public void onResponse(EstimateMemoryUsageResponse response) {
                     // <1>

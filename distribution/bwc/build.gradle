@@ -21,6 +21,7 @@ import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.BwcVersions
+import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin
 
 import java.nio.charset.StandardCharsets
 
@@ -145,6 +146,7 @@ bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInfo unreleased
                 spec.workingDir = checkoutDir
                 spec.commandLine "git", "checkout", refspec
             }
+            file("${project.buildDir}/refspec").text = GlobalBuildInfoPlugin.gitRevision(checkoutDir)
         }
     }
 
@@ -217,6 +219,9 @@ bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInfo unreleased
 
     Closure createBuildBwcTask = { projectName, projectDir, projectArtifact ->
         Task bwcTask = createRunBwcGradleTask(buildBwcTaskName(projectName)) {
+            inputs.file("${project.buildDir}/refspec")
+            outputs.files(projectArtifact)
+            outputs.cacheIf { true }
             args ":${projectDir.replace('/', ':')}:assemble"
             doLast {
                 if (projectArtifact.exists() == false) {

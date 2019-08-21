@@ -38,7 +38,7 @@ import org.elasticsearch.xpack.ml.job.persistence.TimingStatsReporter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
 import java.time.Duration;
 import java.util.Iterator;
@@ -74,7 +74,7 @@ public class AutodetectResultProcessor {
     private static final Logger LOGGER = LogManager.getLogger(AutodetectResultProcessor.class);
 
     private final Client client;
-    private final Auditor auditor;
+    private final AnomalyDetectionAuditor auditor;
     private final String jobId;
     private final Renormalizer renormalizer;
     private final JobResultsPersister persister;
@@ -96,7 +96,7 @@ public class AutodetectResultProcessor {
     private volatile ModelSizeStats latestModelSizeStats;
 
     public AutodetectResultProcessor(Client client,
-                                     Auditor auditor,
+                                     AnomalyDetectionAuditor auditor,
                                      String jobId,
                                      Renormalizer renormalizer,
                                      JobResultsPersister persister,
@@ -107,7 +107,7 @@ public class AutodetectResultProcessor {
     }
 
     // Visible for testing
-    AutodetectResultProcessor(Client client, Auditor auditor, String jobId, Renormalizer renormalizer,
+    AutodetectResultProcessor(Client client, AnomalyDetectionAuditor auditor, String jobId, Renormalizer renormalizer,
                               JobResultsPersister persister, AutodetectProcess autodetectProcess, ModelSizeStats latestModelSizeStats,
                               TimingStats timingStats,
                               FlushListener flushListener) {

@@ -395,7 +395,7 @@ public class RecoverySourceHandler {
     }
 
     /**
-     * Increases the store reference and returns a {@link Releasable} that will decrease the store reference using a generic thread pool.
+     * Increases the store reference and returns a {@link Releasable} that will decrease the store reference using the generic thread pool.
      * We must never release the store using an interruptible thread as we can risk invalidating the node lock.
      */
     private Releasable acquireStore(Store store) {

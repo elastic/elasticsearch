@@ -196,24 +196,6 @@ public final class IndexSettings {
             Property.Dynamic, Property.IndexScope);
 
     /**
-     * Controls how long translog files that are no longer needed for persistence reasons
-     * will be kept around before being deleted. A longer retention policy is useful to increase
-     * the chance of ops based recoveries.
-     **/
-    public static final Setting<TimeValue> INDEX_TRANSLOG_RETENTION_AGE_SETTING =
-        Setting.timeSetting("index.translog.retention.age", TimeValue.timeValueHours(12), TimeValue.timeValueMillis(-1),
-            Property.Dynamic, Property.IndexScope);
-
-    /**
-     * Controls how many translog files that are no longer needed for persistence reasons
-     * will be kept around before being deleted. Keeping more files is useful to increase
-     * the chance of ops based recoveries.
-     **/
-    public static final Setting<ByteSizeValue> INDEX_TRANSLOG_RETENTION_SIZE_SETTING =
-        Setting.byteSizeSetting("index.translog.retention.size", new ByteSizeValue(512, ByteSizeUnit.MB), Property.Dynamic,
-            Property.IndexScope);
-
-    /**
      * The maximum size of a translog generation. This is independent of the maximum size of
      * translog operations that have not been flushed.
      */
@@ -257,6 +239,27 @@ public final class IndexSettings {
     public static final Setting<Long> INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING =
         Setting.longSetting("index.soft_deletes.retention.operations", 0, 0,
             Property.IndexScope, Property.Dynamic);
+
+    /**
+     * Controls how long translog files that are no longer needed for persistence reasons
+     * will be kept around before being deleted. Keeping more files is useful to increase
+     * the chance of ops based recoveries for indices with soft-deletes disabled.
+     * This setting will be ignored if soft-deletes is enabled.
+     **/
+    public static final Setting<TimeValue> INDEX_TRANSLOG_RETENTION_AGE_SETTING =
+        Setting.timeSetting("index.translog.retention.age",
+            settings -> INDEX_SOFT_DELETES_SETTING.get(settings) ? TimeValue.MINUS_ONE : TimeValue.timeValueHours(12), TimeValue.MINUS_ONE,
+            Property.Dynamic, Property.IndexScope);
+
+    /**
+     * Controls how many translog files that are no longer needed for persistence reasons
+     * will be kept around before being deleted. Keeping more files is useful to increase
+     * the chance of ops based recoveries for indices with soft-deletes disabled.
+     * This setting will be ignored if soft-deletes is enabled.
+     **/
+    public static final Setting<ByteSizeValue> INDEX_TRANSLOG_RETENTION_SIZE_SETTING =
+        Setting.byteSizeSetting("index.translog.retention.size", settings -> INDEX_SOFT_DELETES_SETTING.get(settings) ? "-1" : "512MB",
+            Property.Dynamic, Property.IndexScope);
 
     /**
      * Controls the maximum length of time since a retention lease is created or renewed before it is considered expired.
@@ -466,8 +469,6 @@ public final class IndexSettings {
         syncInterval = INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.get(settings);
         refreshInterval = scopedSettings.get(INDEX_REFRESH_INTERVAL_SETTING);
         flushThresholdSize = scopedSettings.get(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING);
-        translogRetentionAge = scopedSettings.get(INDEX_TRANSLOG_RETENTION_AGE_SETTING);
-        translogRetentionSize = scopedSettings.get(INDEX_TRANSLOG_RETENTION_SIZE_SETTING);
         generationThresholdSize = scopedSettings.get(INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING);
         mergeSchedulerConfig = new MergeSchedulerConfig(this);
         gcDeletesInMillis = scopedSettings.get(INDEX_GC_DELETES_SETTING).getMillis();
@@ -493,6 +494,8 @@ public final class IndexSettings {
         this.indexSortConfig = new IndexSortConfig(this);
         searchIdleAfter = scopedSettings.get(INDEX_SEARCH_IDLE_AFTER);
         defaultPipeline = scopedSettings.get(DEFAULT_PIPELINE);
+        setTranslogRetentionAge(scopedSettings.get(INDEX_TRANSLOG_RETENTION_AGE_SETTING));
+        setTranslogRetentionSize(scopedSettings.get(INDEX_TRANSLOG_RETENTION_SIZE_SETTING));
 
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING, mergePolicyConfig::setNoCFSRatio);
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_DELETES_PCT_ALLOWED_SETTING,
@@ -553,11 +556,21 @@ public final class IndexSettings {
     }
 
     private void setTranslogRetentionSize(ByteSizeValue byteSizeValue) {
-        this.translogRetentionSize = byteSizeValue;
+        if (softDeleteEnabled && byteSizeValue.getBytes() >= 0) {
+            // ignore the translog retention settings if soft-deletes enabled
+            this.translogRetentionSize = new ByteSizeValue(-1);
+        } else {
+            this.translogRetentionSize = byteSizeValue;
+        }
     }
 
     private void setTranslogRetentionAge(TimeValue age) {
-        this.translogRetentionAge = age;
+        if (softDeleteEnabled && age.millis() >= 0) {
+            // ignore the translog retention settings if soft-deletes enabled
+            this.translogRetentionAge = TimeValue.MINUS_ONE;
+        } else {
+            this.translogRetentionAge = age;
+        }
     }
 
     private void setGenerationThresholdSize(final ByteSizeValue generationThresholdSize) {
@@ -734,13 +747,19 @@ public final class IndexSettings {
     /**
      * Returns the transaction log retention size which controls how much of the translog is kept around to allow for ops based recoveries
      */
-    public ByteSizeValue getTranslogRetentionSize() { return translogRetentionSize; }
+    public ByteSizeValue getTranslogRetentionSize() {
+        assert softDeleteEnabled == false || translogRetentionSize.getBytes() == -1L : translogRetentionSize;
+        return translogRetentionSize;
+    }
 
     /**
      * Returns the transaction log retention age which controls the maximum age (time from creation) that translog files will be kept
      * around
      */
-    public TimeValue getTranslogRetentionAge() { return translogRetentionAge; }
+    public TimeValue getTranslogRetentionAge() {
+        assert softDeleteEnabled == false || translogRetentionAge.millis() == -1L : translogRetentionSize;
+        return translogRetentionAge;
+    }
 
     /**
      * Returns the generation threshold size. As sequence numbers can cause multiple generations to

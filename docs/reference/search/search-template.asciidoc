@@ -42,7 +42,7 @@ You can store a search template using the stored scripts API.
 
 [source,js]
 ------------------------------------------
-POST _scripts/<templatename>
+POST _scripts/<templateid>
 {
     "script": {
         "lang": "mustache",
@@ -78,7 +78,7 @@ This template can be retrieved by
 
 [source,js]
 ------------------------------------------
-GET _scripts/<templatename>
+GET _scripts/<templateid>
 ------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -95,7 +95,7 @@ which is rendered as:
           "content_type" : "application/json; charset=UTF-8"
         }
     },
-    "_id": "<templatename>",
+    "_id": "<templateid>",
     "found": true
 }
 ------------------------------------------
@@ -105,7 +105,7 @@ This template can be deleted by
 
 [source,js]
 ------------------------------------------
-DELETE _scripts/<templatename>
+DELETE _scripts/<templateid>
 ------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -135,7 +135,7 @@ To use a stored template at search time use:
 ------------------------------------------
 GET _search/template
 {
-    "id": "<templateName>", <1>
+    "id": "<templateid>", <1>
     "params": {
         "query_string": "search for these words"
     }

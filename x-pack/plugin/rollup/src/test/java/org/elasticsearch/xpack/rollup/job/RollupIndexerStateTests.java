@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.rollup.job;
 
 import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -50,6 +51,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
 
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/45770")
 public class RollupIndexerStateTests extends ESTestCase {
     private static class EmptyRollupIndexer extends RollupIndexer {
         EmptyRollupIndexer(Executor executor, RollupJob job, AtomicReference<IndexerState> initialState,

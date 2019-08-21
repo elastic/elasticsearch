@@ -19,6 +19,7 @@
 package org.elasticsearch.repositories.hdfs;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -30,6 +31,7 @@ import org.elasticsearch.repositories.AbstractThirdPartyRepositoryTestCase;
 import java.util.Collection;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 @ThreadLeakFilters(filters = HdfsClientThreadLeakFilter.class)
 public class HdfsRepositoryTests extends AbstractThirdPartyRepositoryTestCase {
@@ -57,5 +59,15 @@ public class HdfsRepositoryTests extends AbstractThirdPartyRepositoryTestCase {
                 .put("compress", randomBoolean())
             ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+    }
+
+    // HDFS repository doesn't have precise cleanup stats so we only check whether or not any blobs were removed
+    @Override
+    protected void assertCleanupResponse(CleanupRepositoryResponse response, long bytes, long blobs) {
+        if (blobs > 0) {
+            assertThat(response.result().blobs(), greaterThan(0L));
+        } else {
+            assertThat(response.result().blobs(), equalTo(0L));
+        }
     }
 }

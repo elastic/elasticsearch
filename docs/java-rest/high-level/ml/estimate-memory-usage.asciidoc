@@ -1,0 +1,35 @@
+--
+:api: estimate-memory-usage
+:request: PutDataFrameAnalyticsRequest
+:response: EstimateMemoryUsageResponse
+--
+[id="{upid}-{api}"]
+=== Estimate memory usage API
+
+The Estimate memory usage API is used to estimate memory usage of {dfanalytics}.
+Estimation results can be used when deciding the appropriate value for `model_memory_limit` setting later on.
+
+The API accepts an +{request}+ object and returns an +{response}+.
+
+[id="{upid}-{api}-request"]
+==== Estimate memory usage Request
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Constructing a new request containing a {dataframe-analytics-config} for which memory usage estimation should be performed
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ contains the memory usage estimates.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Estimated memory usage under the assumption that the whole {dfanalytics} should happen in memory (i.e. without overflowing to disk).
+<2> Estimated memory usage under the assumption that overflowing to disk is allowed during {dfanalytics}.

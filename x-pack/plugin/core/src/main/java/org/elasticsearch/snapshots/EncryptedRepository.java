@@ -21,6 +21,7 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -31,25 +32,42 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
+import java.security.spec.InvalidKeySpecException;
+import java.util.Base64;
 import java.util.Map;
 import java.util.function.Function;
+
+import javax.crypto.Cipher;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.KeyGenerator;
+import javax.crypto.NoSuchPaddingException;
+import javax.crypto.SecretKey;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.PBEKeySpec;
 
 public class EncryptedRepository extends BlobStoreRepository {
 
     private static final Setting<String> DELEGATE_TYPE = new Setting<>("delegate_type", "", Function.identity(),
             Setting.Property.NodeScope);
+    private static final Setting<String> PASSWORD = new Setting<>("password", "", Function.identity(),
+            Setting.Property.NodeScope);
     private static final String ENCRYPTION_METADATA_PREFIX = "encryption-metadata-";
 
-    private BlobStoreRepository delegatedRepository;
+    private final BlobStoreRepository delegatedRepository;
+    private final SecretKey masterSecretKey;
 
-    protected EncryptedRepository(BlobStoreRepository delegatedRepository) {
+    protected EncryptedRepository(BlobStoreRepository delegatedRepository, SecretKey masterSecretKey) {
         super(delegatedRepository);
         this.delegatedRepository = delegatedRepository;
+        this.masterSecretKey = masterSecretKey;
     }
 
     @Override
     protected BlobStore createBlobStore() throws Exception {
-        return new EncryptedBlobStoreDecorator(this.delegatedRepository.blobStore());
+        return new EncryptedBlobStoreDecorator(this.delegatedRepository.blobStore(), this.masterSecretKey);
     }
 
     @Override
@@ -70,6 +88,36 @@ public class EncryptedRepository extends BlobStoreRepository {
         this.delegatedRepository.close();
     }
 
+    private static SecretKey generateSecretKeyFromPassword(String password) throws NoSuchAlgorithmException, InvalidKeySpecException {
+        SecureRandom sr = SecureRandom.getInstanceStrong();
+        byte[] salt = new byte[16];
+        sr.nextBytes(salt);
+        PBEKeySpec spec = new PBEKeySpec(password.toCharArray(), salt, 1000, 128 * 8);
+        return SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1").generateSecret(spec);
+    }
+
+    private static SecretKey generateRandomSecretKey() throws NoSuchAlgorithmException {
+        KeyGenerator keyGen = KeyGenerator.getInstance("AES");
+        keyGen.init(128);
+        return keyGen.generateKey();
+    }
+
+    private static String wrapKey(SecretKey toWrap, SecretKey keyWrappingKey)
+            throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException {
+        Cipher cipher = Cipher.getInstance("AESWrap");
+        cipher.init(Cipher.WRAP_MODE, keyWrappingKey);
+        byte[] encodedKey = cipher.wrap(toWrap);
+        return Base64.getEncoder().encodeToString(encodedKey);
+    }
+
+    private static SecretKey unwrapKey(String toUnwrap, SecretKey keyEncryptionKey)
+            throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException {
+        Cipher cipher = Cipher.getInstance("AESWrap");
+        cipher.init(Cipher.UNWRAP_MODE, keyEncryptionKey);
+        byte[] encodedKey = Base64.getDecoder().decode(toUnwrap);
+        return (SecretKey) cipher.unwrap(encodedKey, "AES", Cipher.SECRET_KEY);
+    }
+
     /**
      * Returns a new encrypted repository factory
      */
@@ -87,13 +135,18 @@ public class EncryptedRepository extends BlobStoreRepository {
                 if (Strings.hasLength(delegateType) == false) {
                     throw new IllegalArgumentException(DELEGATE_TYPE.getKey() + " must be set");
                 }
+                String password = PASSWORD.get(metaData.settings());
+                if (Strings.hasLength(password) == false) {
+                    throw new IllegalArgumentException(PASSWORD.getKey() + " must be set");
+                }
+                SecretKey secretKey = generateSecretKeyFromPassword(password);
                 Repository.Factory factory = typeLookup.apply(delegateType);
                 Repository delegatedRepository = factory.create(new RepositoryMetaData(metaData.name(),
                         delegateType, metaData.settings()));
                 if (false == (delegatedRepository instanceof BlobStoreRepository)) {
                     throw new IllegalArgumentException("Unsupported type " + DELEGATE_TYPE.getKey());
                 }
-                return new EncryptedRepository((BlobStoreRepository)delegatedRepository);
+                return new EncryptedRepository((BlobStoreRepository)delegatedRepository, secretKey);
             }
         };
     }
@@ -101,9 +154,11 @@ public class EncryptedRepository extends BlobStoreRepository {
     private static class EncryptedBlobStoreDecorator implements BlobStore {
 
         private final BlobStore delegatedBlobStore;
+        private final SecretKey masterSecretKey;
 
-        EncryptedBlobStoreDecorator(BlobStore blobStore) {
+        EncryptedBlobStoreDecorator(BlobStore blobStore, SecretKey masterSecretKey) {
             this.delegatedBlobStore = blobStore;
+            this.masterSecretKey = masterSecretKey;
         }
 
         @Override
@@ -119,18 +174,21 @@ public class EncryptedRepository extends BlobStoreRepository {
                 encryptionMetadataBlobPath = encryptionMetadataBlobPath.add(pathComponent);
             }
             return new EncryptedBlobContainerDecorator(this.delegatedBlobStore.blobContainer(path),
-                    this.delegatedBlobStore.blobContainer(encryptionMetadataBlobPath));
+                    this.delegatedBlobStore.blobContainer(encryptionMetadataBlobPath), this.masterSecretKey);
         }
     }
 
     private static class EncryptedBlobContainerDecorator implements BlobContainer {
 
         private final BlobContainer delegatedBlobContainer;
-        private final BlobContainer metadataBlobContainer;
+        private final BlobContainer encryptionMetadataBlobContainer;
+        private final SecretKey masterSecretKey;
 
-        EncryptedBlobContainerDecorator(BlobContainer delegatedBlobContainer, BlobContainer metadataBlobContainer) {
+        EncryptedBlobContainerDecorator(BlobContainer delegatedBlobContainer, BlobContainer encryptionMetadataBlobContainer,
+                SecretKey masterSecretKey) {
             this.delegatedBlobContainer = delegatedBlobContainer;
-            this.metadataBlobContainer = metadataBlobContainer;
+            this.encryptionMetadataBlobContainer = encryptionMetadataBlobContainer;
+            this.masterSecretKey = masterSecretKey;
         }
 
         @Override
@@ -146,27 +204,35 @@ public class EncryptedRepository extends BlobStoreRepository {
 
         @Override
         public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
-            // TODO
+            try {
+                SecretKey dataEncryptionSecretKey = generateSecretKeyFromPassword(UUIDs.randomBase64UUID());
+                Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+                cipher.init(Cipher.WRAP_MODE, this.masterSecretKey);
+                byte[] encodedKey = cipher.wrap(dataEncryptionSecretKey);
+                String encodedDataEncryptionKey = Base64.getEncoder().encodeToString(encodedKey);
+            } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
+                throw new IOException(e);
+            }
             this.delegatedBlobContainer.writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
         }
 
         @Override
         public void writeBlobAtomic(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
                 throws IOException {
-            // TODO
-            this.delegatedBlobContainer.writeBlobAtomic(blobName, inputStream, blobSize, failIfAlreadyExists);
+            // does not support atomic write
+            writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
         }
 
         @Override
         public void deleteBlob(String blobName) throws IOException {
-            // TODO
             this.delegatedBlobContainer.deleteBlob(blobName);
+            this.encryptionMetadataBlobContainer.deleteBlob(blobName);
         }
 
         @Override
         public void delete() throws IOException {
-            // TODO
             this.delegatedBlobContainer.delete();
+            this.encryptionMetadataBlobContainer.delete();
         }
 
         @Override

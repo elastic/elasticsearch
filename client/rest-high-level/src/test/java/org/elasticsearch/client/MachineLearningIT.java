@@ -1381,7 +1381,6 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(statsResponse.getTaskFailures(), hasSize(0));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/45741")
     public void testStartDataFrameAnalyticsConfig() throws Exception {
         String sourceIndex = "start-test-source-index";
         String destIndex = "start-test-dest-index";
@@ -1690,7 +1689,6 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         highLevelClient().indices().create(new CreateIndexRequest(indexName).mapping(mapping), RequestOptions.DEFAULT);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/45741")
     public void testEstimateMemoryUsage() throws IOException {
         String indexName = "estimate-test-index";
         createIndex(indexName, mappingForClassification());
@@ -1717,8 +1715,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         EstimateMemoryUsageResponse response1 =
             execute(
                 estimateMemoryUsageRequest, machineLearningClient::estimateMemoryUsage, machineLearningClient::estimateMemoryUsageAsync);
-        assertThat(response1.getExpectedMemoryUsageWithOnePartition(), allOf(greaterThan(lowerBound), lessThan(upperBound)));
-        assertThat(response1.getExpectedMemoryUsageWithMaxPartitions(), allOf(greaterThan(lowerBound), lessThan(upperBound)));
+        assertThat(response1.getExpectedMemoryWithoutDisk(), allOf(greaterThan(lowerBound), lessThan(upperBound)));
+        assertThat(response1.getExpectedMemoryWithDisk(), allOf(greaterThan(lowerBound), lessThan(upperBound)));
 
         BulkRequest bulk2 = new BulkRequest()
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
@@ -1732,11 +1730,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             execute(
                 estimateMemoryUsageRequest, machineLearningClient::estimateMemoryUsage, machineLearningClient::estimateMemoryUsageAsync);
         assertThat(
-            response2.getExpectedMemoryUsageWithOnePartition(),
-            allOf(greaterThan(response1.getExpectedMemoryUsageWithOnePartition()), lessThan(upperBound)));
-        assertThat(
-            response2.getExpectedMemoryUsageWithMaxPartitions(),
-            allOf(greaterThan(response1.getExpectedMemoryUsageWithMaxPartitions()), lessThan(upperBound)));
+            response2.getExpectedMemoryWithoutDisk(), allOf(greaterThan(response1.getExpectedMemoryWithoutDisk()), lessThan(upperBound)));
+        assertThat(response2.getExpectedMemoryWithDisk(), allOf(greaterThan(response1.getExpectedMemoryWithDisk()), lessThan(upperBound)));
     }
 
     public void testPutFilter() throws Exception {

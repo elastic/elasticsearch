@@ -57,12 +57,23 @@ PUT /twitter-1,twitter-2/_mapping <1>
 [float]
 ==== Updating field mappings
 
-In general, the mapping for existing fields cannot be updated.  There are some
-exceptions to this rule. For instance:
+// tag::put-field-mapping-exceptions[]
 
-* new <<properties>> can be added to <<object>> fields.
-* new <<multi-fields,multi-fields>> can be added to existing fields.
-* the <<ignore-above>> parameter can be updated.
+You can't change the mapping of an existing field, with the following
+exceptions:
+
+* You can add new <<properties,properties>> to an <<object,`object`>> field.
+* You can use the <<multi-fields,`field`>> mapping parameter to enable
+multi-fields.
+* You can change the value of the <<ignore-above,`ignore_above`>> mapping
+parameter.
+
+Changing the mapping of an existing field could invalidate data that's already
+indexed. If you need to change the mapping of a field, create a new index with
+the correct mappings and <<docs-reindex,reindex>> your data into that index. If
+you only want to rename a field, consider adding an <<alias, `alias`>> field.
+
+// end::put-field-mapping-exceptions[]
 
 For example:
 

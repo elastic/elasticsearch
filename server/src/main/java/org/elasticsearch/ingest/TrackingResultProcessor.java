@@ -74,8 +74,13 @@ public final class TrackingResultProcessor implements Processor {
                     verbosePipelineProcessor);
                 ingestDocument.executePipeline(verbosePipeline);
             } else {
-                processor.execute(ingestDocument);
-                processorResultList.add(new SimulateProcessorResult(processor.getTag(), new IngestDocument(ingestDocument)));
+                IngestDocument result = processor.execute(ingestDocument);
+                if (result != null) {
+                    processorResultList.add(new SimulateProcessorResult(processor.getTag(), new IngestDocument(ingestDocument)));
+                } else {
+                    processorResultList.add(new SimulateProcessorResult(processor.getTag()));
+                    return null;
+                }
             }
         } catch (Exception e) {
             if (ignoreFailure) {

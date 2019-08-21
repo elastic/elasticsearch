@@ -795,6 +795,17 @@ public class MLRequestConvertersTests extends ESTestCase {
         }
     }
 
+    public void testEstimateMemoryUsage() throws IOException {
+        PutDataFrameAnalyticsRequest estimateRequest = new PutDataFrameAnalyticsRequest(randomDataFrameAnalyticsConfig());
+        Request request = MLRequestConverters.estimateMemoryUsage(estimateRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_ml/data_frame/analytics/_estimate_memory_usage", request.getEndpoint());
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
+            DataFrameAnalyticsConfig parsedConfig = DataFrameAnalyticsConfig.fromXContent(parser);
+            assertThat(parsedConfig, equalTo(estimateRequest.getConfig()));
+        }
+    }
+
     public void testPutFilter() throws IOException {
         MlFilter filter = MlFilterTests.createRandomBuilder("foo").build();
         PutFilterRequest putFilterRequest = new PutFilterRequest(filter);

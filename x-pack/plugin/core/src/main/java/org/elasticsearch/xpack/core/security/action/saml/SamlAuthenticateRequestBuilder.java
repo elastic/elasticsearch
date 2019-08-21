@@ -29,4 +29,9 @@ public final class SamlAuthenticateRequestBuilder
         request.setValidRequestIds(validRequestIds);
         return this;
     }
+
+    public SamlAuthenticateRequestBuilder preferredRealm(String realm) {
+        request.setRealm(realm);
+        return this;
+    }
 }

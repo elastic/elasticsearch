@@ -25,6 +25,8 @@ import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectAuthentica
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectAuthenticateAction;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectRealm;
@@ -59,7 +61,9 @@ public class TransportOpenIdConnectAuthenticateAction
         final ThreadContext threadContext = threadPool.getThreadContext();
         Authentication originatingAuthentication = Authentication.getAuthentication(threadContext);
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            authenticationService.authenticate(OpenIdConnectAuthenticateAction.NAME, request, token, ActionListener.wrap(
+            RealmConfig.RealmIdentifier preferredRealm = request.getRealm() == null ? null :
+                new RealmConfig.RealmIdentifier(OpenIdConnectRealmSettings.TYPE, request.getRealm());
+            authenticationService.authenticate(OpenIdConnectAuthenticateAction.NAME, request, token, preferredRealm, ActionListener.wrap(
                 authentication -> {
                     AuthenticationResult result = threadContext.getTransient(AuthenticationResult.THREAD_CONTEXT_KEY);
                     if (result == null) {

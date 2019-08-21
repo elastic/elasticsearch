@@ -13,10 +13,6 @@ setup:
 
 ---
 "Test memory usage estimation for empty data frame":
-  - skip:
-      version: "7.4.0 - "
-      reason:  "https://github.com/elastic/elasticsearch/issues/45741"
-
   - do:
       ml.estimate_memory_usage:
         body:
@@ -27,10 +23,6 @@ setup:
 
 ---
 "Test memory usage estimation for non-empty data frame":
-  - skip:
-      version: "7.4.0 - "
-      reason:  "https://github.com/elastic/elasticsearch/issues/45741"
-
   - do:
       index:
         index: index-source

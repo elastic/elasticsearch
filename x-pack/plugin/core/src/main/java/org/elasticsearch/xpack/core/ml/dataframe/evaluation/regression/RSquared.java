@@ -79,7 +79,7 @@ public class RSquared implements RegressionMetric {
         ExtendedStats extendedStats = aggs.get(ExtendedStatsAggregationBuilder.NAME + "_actual");
         // extendedStats.getVariance() is the statistical sumOfSquares divided by count
         return residualSumOfSquares == null || extendedStats == null || extendedStats.getCount() == 0 ?
-            null :
+            new Result(0.0) :
             new Result(1 - (residualSumOfSquares.value() / (extendedStats.getVariance() * extendedStats.getCount())));
     }
 
@@ -147,6 +147,19 @@ public class RSquared implements RegressionMetric {
             builder.field(VALUE, value);
             builder.endObject();
             return builder;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Result other = (Result)o;
+            return value == other.value;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hashCode(value);
         }
     }
 }

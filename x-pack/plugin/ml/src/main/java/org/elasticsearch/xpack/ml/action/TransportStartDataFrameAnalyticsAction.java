@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.EstimateMemoryUsageAction;
+import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
@@ -174,11 +175,11 @@ public class TransportStartDataFrameAnalyticsAction
             estimateMemoryUsageResponse -> {
                 // Validate that model memory limit is sufficient to run the analysis
                 if (configHolder.get().getModelMemoryLimit()
-                    .compareTo(estimateMemoryUsageResponse.getExpectedMemoryUsageWithOnePartition()) < 0) {
+                    .compareTo(estimateMemoryUsageResponse.getExpectedMemoryWithoutDisk()) < 0) {
                     ElasticsearchStatusException e =
                         ExceptionsHelper.badRequestException(
                             "Cannot start because the configured model memory limit [{}] is lower than the expected memory usage [{}]",
-                            configHolder.get().getModelMemoryLimit(), estimateMemoryUsageResponse.getExpectedMemoryUsageWithOnePartition());
+                            configHolder.get().getModelMemoryLimit(), estimateMemoryUsageResponse.getExpectedMemoryWithoutDisk());
                     listener.onFailure(e);
                     return;
                 }
@@ -193,7 +194,7 @@ public class TransportStartDataFrameAnalyticsAction
         ActionListener<DataFrameAnalyticsConfig> configListener = ActionListener.wrap(
             config -> {
                 configHolder.set(config);
-                EstimateMemoryUsageAction.Request estimateMemoryUsageRequest = new EstimateMemoryUsageAction.Request(config);
+                PutDataFrameAnalyticsAction.Request estimateMemoryUsageRequest = new PutDataFrameAnalyticsAction.Request(config);
                 ClientHelper.executeAsyncWithOrigin(
                     client,
                     ClientHelper.ML_ORIGIN,

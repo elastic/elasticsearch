@@ -239,7 +239,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         assertEquals(requestIds, releasedContexts);
     }
 
-    public void testOnShardNotAvailableDisallowPartialFailures() {
+    public void testShardNotAvailableWithDisallowPartialFailures() {
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(false);
         AtomicReference<Exception> exception = new AtomicReference<>();
         ActionListener<SearchResponse> listener = ActionListener.wrap(response -> fail("onResponse should not be called"), exception::set);

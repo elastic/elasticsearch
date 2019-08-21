@@ -169,6 +169,13 @@ public class WatchBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                 .build();
     }
 
+    public void testDummy() {
+        // Dummy test so the suite doesn't fail with a no executed tests error.
+        // Remove when the awaits fixes below (#44814) are resolved
+        assertTrue(true);
+    }
+
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/44814")
     public void testWatcherStats() throws Exception {
         executeAgainstAllNodes(client ->
             assertOK(client.performRequest("GET", "/_xpack/watcher/stats"))
@@ -187,6 +194,7 @@ public class WatchBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         ensureWatcherStartedOnExpectedNodes();
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/44814")
     public void testWatchCrudApis() throws Exception {
         assumeFalse("new nodes is empty", nodes.getNewNodes().isEmpty());
 

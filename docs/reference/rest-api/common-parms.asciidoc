@@ -1,8 +1,37 @@
 
+tag::allow-no-indices[]
+`allow_no_indices`::
+(Optional, boolean) If `true`, the request returns an error if a wildcard
+expression or `_all` value retrieves only missing or closed indices. This
+parameter also applies to <<indices-aliases,index aliases>> that point to a
+missing or closed index.
+end::allow-no-indices[]
+
 tag::bytes[]
 `bytes`::
 (Optional, <<byte-units,byte size units>>) Unit used to display byte values.
 end::bytes[]
+
+tag::expand-wildcards[]
+`expand_wildcards`::
++
+--
+(Optional, string) Controls what kind of indices that wildcard
+expressions can expand to. Valid values are:
+
+`all`::
+Expand to open and closed indices.
+
+`open`::
+Expand only to open indices.
+
+`closed`::
+Expand only to closed indices.
+
+`none`::
+Wildcard expressions are not accepted.
+--
+end::expand-wildcards[]
 
 tag::cat-h[]
 `h`::
@@ -27,6 +56,19 @@ tag::http-format[]
 https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html[HTTP accept header].
 Valid values include JSON, YAML, etc.
 end::http-format[]
+
+tag::include-type-name[]
+`include_type_name`::
+deprecated:[7.0.0, Mapping types have been deprecated. See <<removal-of-types>>.]
+(Optional, boolean) If `true`, a mapping type is expected in the body of
+mappings. Defaults to `false`.
+end::include-type-name[]
+
+tag::index-ignore-unavailable[]
+`ignore_unavailable`::
+(Optional, boolean) If `true`, missing or closed indices are not included in the
+response. Defaults to `false`.
+end::index-ignore-unavailable[]
 
 tag::include-unloaded-segments[]
 `include_unloaded_segments`::

@@ -16,15 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.action.admin.cluster.repositories.cleanup;
 
-package org.elasticsearch.packaging.test;
+import org.elasticsearch.action.ActionType;
 
-import org.elasticsearch.packaging.util.Distribution;
+public final class CleanupRepositoryAction extends ActionType<CleanupRepositoryResponse> {
 
-public class OssNoJdkRpmBasicTests extends PackageTestCase {
+    public static final CleanupRepositoryAction INSTANCE = new CleanupRepositoryAction();
+    public static final String NAME = "cluster:admin/repository/_cleanup";
 
-    @Override
-    protected Distribution distribution() {
-        return Distribution.OSS_NO_JDK_RPM;
+    private CleanupRepositoryAction() {
+        super(NAME, CleanupRepositoryResponse::new);
     }
 }

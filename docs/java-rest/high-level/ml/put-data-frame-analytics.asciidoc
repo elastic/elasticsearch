@@ -36,6 +36,7 @@ include-tagged::{doc-tests-file}[{api}-config]
 <4> The analysis to be performed
 <5> The fields to be included in / excluded from the analysis
 <6> The memory limit for the model created as part of the analysis process
+<7> Optionally, a human-readable description
 
 [id="{upid}-{api}-query-config"]
 

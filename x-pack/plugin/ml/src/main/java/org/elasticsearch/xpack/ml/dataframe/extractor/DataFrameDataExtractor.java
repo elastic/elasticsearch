@@ -51,6 +51,8 @@ public class DataFrameDataExtractor {
     private static final Logger LOGGER = LogManager.getLogger(DataFrameDataExtractor.class);
     private static final TimeValue SCROLL_TIMEOUT = new TimeValue(30, TimeUnit.MINUTES);
 
+    private static final String EMPTY_STRING = "";
+
     private final Client client;
     private final DataFrameDataExtractorContext context;
     private String scrollId;
@@ -184,8 +186,15 @@ public class DataFrameDataExtractor {
             if (values.length == 1 && (values[0] instanceof Number || values[0] instanceof String)) {
                 extractedValues[i] = Objects.toString(values[0]);
             } else {
-                extractedValues = null;
-                break;
+                if (values.length == 0 && context.includeRowsWithMissingValues) {
+                    // if values is empty then it means it's a missing value
+                    extractedValues[i] = EMPTY_STRING;
+                } else {
+                    // we are here if we have a missing value but the analysis does not support those
+                    // or the value type is not supported (e.g. arrays, etc.)
+                    extractedValues = null;
+                    break;
+                }
             }
         }
         return new Row(extractedValues, hit);

@@ -49,7 +49,8 @@ public class DeprecationChecks {
             IndexDeprecationChecks::oldIndicesCheck,
             IndexDeprecationChecks::tooManyFieldsCheck,
             IndexDeprecationChecks::chainedMultiFieldsCheck,
-            IndexDeprecationChecks::deprecatedDateTimeFormat
+            IndexDeprecationChecks::deprecatedDateTimeFormat,
+            IndexDeprecationChecks::translogRetentionSettingCheck
         ));
 
     static List<BiFunction<DatafeedConfig, NamedXContentRegistry, DeprecationIssue>> ML_SETTINGS_CHECKS =

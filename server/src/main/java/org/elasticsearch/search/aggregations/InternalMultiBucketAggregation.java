@@ -149,6 +149,7 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
      */
     @Override
     public final InternalAggregation materializePipelines(InternalAggregation reducedAggs, ReduceContext reduceContext) {
+        assert reduceContext.isFinalReduce();
         List<B> materializedBuckets = materializeBuckets(reduceContext);
         return super.materializePipelines(create(materializedBuckets), reduceContext);
     }

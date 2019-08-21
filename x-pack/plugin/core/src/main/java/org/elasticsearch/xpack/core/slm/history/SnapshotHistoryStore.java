@@ -99,7 +99,7 @@ public class SnapshotHistoryStore {
                 .setWaitForActiveShards(1)
                 .addAlias(new Alias(SLM_HISTORY_ALIAS)
                     .writeIndex(true))
-                .execute(new ActionListener<>() {
+                .execute(new ActionListener<CreateIndexResponse>() {
                     @Override
                     public void onResponse(CreateIndexResponse response) {
                         andThen.onResponse(true);

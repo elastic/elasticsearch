@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.ja.JapaneseAnalyzer;
@@ -39,6 +40,8 @@ import java.io.StringReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import static org.apache.lucene.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
@@ -306,5 +309,56 @@ public class KuromojiAnalysisTests extends ESTestCase {
         Tokenizer tokenizer = new JapaneseTokenizer(null, true, JapaneseTokenizer.Mode.SEARCH);
         tokenizer.setReader(new StringReader(source));
         assertSimpleTSOutput(tokenFilter.create(tokenizer), expected);
+    }
+
+    public void testKuromojiAnalyzerUserDict() throws Exception {
+        Settings settings = Settings.builder()
+            .put("index.analysis.analyzer.my_analyzer.type", "kuromoji")
+            .putList("index.analysis.analyzer.my_analyzer.user_dictionary_rules", "c++,c++,w,w", "制限スピード,制限スピード,セイゲンスピード,テスト名詞")
+            .build();
+        TestAnalysis analysis = createTestAnalysis(settings);
+        Analyzer analyzer = analysis.indexAnalyzers.get("my_analyzer");
+        try (TokenStream stream = analyzer.tokenStream("", "制限スピード")) {
+            assertTokenStreamContents(stream, new String[]{"制限スピード"});
+        }
+
+        try (TokenStream stream = analyzer.tokenStream("", "c++world")) {
+            assertTokenStreamContents(stream, new String[]{"c++", "world"});
+        }
+    }
+
+    public void testKuromojiAnalyzerInvalidUserDictOption() throws Exception {
+        Settings settings = Settings.builder()
+            .put("index.analysis.analyzer.my_analyzer.type", "kuromoji")
+            .put("index.analysis.analyzer.my_analyzer.user_dictionary", "user_dict.txt")
+            .putList("index.analysis.analyzer.my_analyzer.user_dictionary_rules", "c++,c++,w,w")
+            .build();
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> createTestAnalysis(settings));
+        assertThat(exc.getMessage(), containsString("It is not allowed to use [user_dictionary] in conjunction " +
+            "with [user_dictionary_rules]"));
+    }
+
+    public void testKuromojiAnalyzerDuplicateUserDictRule() throws Exception {
+        Settings settings = Settings.builder()
+            .put("index.analysis.analyzer.my_analyzer.type", "kuromoji")
+            .putList("index.analysis.analyzer.my_analyzer.user_dictionary_rules",
+                "c++,c++,w,w", "#comment", "制限スピード,制限スピード,セイゲンスピード,テスト名詞", "制限スピード,制限スピード,セイゲンスピード,テスト名詞")
+            .build();
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> createTestAnalysis(settings));
+        assertThat(exc.getMessage(), containsString("[制限スピード] in user dictionary at line [3]"));
+    }
+
+    private TestAnalysis createTestAnalysis(Settings analysisSettings) throws IOException {
+        InputStream dict = KuromojiAnalysisTests.class.getResourceAsStream("user_dict.txt");
+        Path home = createTempDir();
+        Path config = home.resolve("config");
+        Files.createDirectory(config);
+        Files.copy(dict, config.resolve("user_dict.txt"));
+        Settings settings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(Environment.PATH_HOME_SETTING.getKey(), home)
+            .put(analysisSettings)
+            .build();
+        return AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new AnalysisKuromojiPlugin());
     }
 }

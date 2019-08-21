@@ -843,7 +843,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final BlobContainer shardContainer = shardContainer(indexId, shardId);
             final Map<String, BlobMetaData> blobs;
             try {
-                blobs = shardContainer.listBlobs();
+                blobs = shardContainer.listBlobsByPrefix(INDEX_FILE_PREFIX);
             } catch (IOException e) {
                 throw new IndexShardSnapshotFailedException(shardId, "failed to list blobs", e);
             }
@@ -888,7 +888,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     List<BlobStoreIndexShardSnapshot.FileInfo> filesInfo = snapshots.findPhysicalIndexFiles(fileName);
                     if (filesInfo != null) {
                         for (BlobStoreIndexShardSnapshot.FileInfo fileInfo : filesInfo) {
-                            if (fileInfo.isSame(md) && snapshotFileExistsInBlobs(fileInfo, blobs)) {
+                            if (fileInfo.isSame(md)) {
                                 // a commit point file with the same name, size and checksum was already copied to repository
                                 // we will reuse it for this snapshot
                                 existingFileInfo = fileInfo;
@@ -1159,23 +1159,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         } else if (blobKeys.isEmpty() == false) {
             logger.warn("Could not find a readable index-N file in a non-empty shard snapshot directory [{}]", shardContainer.path());
         }
-
-        // We couldn't load the index file - falling back to loading individual snapshots
-        List<SnapshotFiles> snapshots = new ArrayList<>();
-        for (String name : blobKeys) {
-            try {
-                BlobStoreIndexShardSnapshot snapshot = null;
-                if (name.startsWith(SNAPSHOT_PREFIX)) {
-                    snapshot = indexShardSnapshotFormat.readBlob(shardContainer, name);
-                }
-                if (snapshot != null) {
-                    snapshots.add(new SnapshotFiles(snapshot.snapshot(), snapshot.indexFiles()));
-                }
-            } catch (IOException e) {
-                logger.warn(() -> new ParameterizedMessage("Failed to read blob [{}]", name), e);
-            }
-        }
-        return new Tuple<>(new BlobStoreIndexShardSnapshots(snapshots), latest);
+        return new Tuple<>(BlobStoreIndexShardSnapshots.EMPTY, latest);
     }
 
     /**

@@ -9,8 +9,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.LikePattern;
-import org.elasticsearch.xpack.sql.session.Rows;
-import org.elasticsearch.xpack.sql.session.SchemaRowSet;
+import org.elasticsearch.xpack.sql.session.Cursor.Page;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.tree.Source;
@@ -61,7 +60,7 @@ public class ShowColumns extends Command {
     }
 
     @Override
-    public void execute(SqlSession session, ActionListener<SchemaRowSet> listener) {
+    public void execute(SqlSession session, ActionListener<Page> listener) {
         String idx = index != null ? index : (pattern != null ? pattern.asIndexNameWildcard() : "*");
         String regex = pattern != null ? pattern.asJavaRegex() : null;
 
@@ -73,7 +72,7 @@ public class ShowColumns extends Command {
                         rows = new ArrayList<>();
                         fillInRows(indexResult.get().mapping(), null, rows);
                     }
-                    listener.onResponse(Rows.of(output(), rows));
+                    listener.onResponse(of(session, rows));
                 },
                 listener::onFailure));
     }

@@ -91,7 +91,7 @@ public class TransportEstimateMemoryUsageAction
                         ActionListener.wrap(
                             result -> listener.onResponse(
                                 new EstimateMemoryUsageAction.Response(
-                                    result.getExpectedMemoryUsageWithOnePartition(), result.getExpectedMemoryUsageWithMaxPartitions())),
+                                    result.getExpectedMemoryWithoutDisk(), result.getExpectedMemoryWithDisk())),
                             listener::onFailure
                         )
                     );

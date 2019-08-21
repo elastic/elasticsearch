@@ -79,11 +79,11 @@ The API returns the following response:
 
 [source,txt]
 --------------------------------------------------
-alias  index filter routing.index routing.search
-alias1 test1 -      -            -
-alias2 test1 *      -            -
-alias3 test1 -      1            1
-alias4 test1 -      2            1,2
+alias  index filter routing.index routing.search is_write_index
+alias1 test1 -      -            -              -
+alias2 test1 *      -            -              -
+alias3 test1 -      1            1              -
+alias4 test1 -      2            1,2            -
 --------------------------------------------------
 // TESTRESPONSE[s/[*]/[*]/ non_json]
 

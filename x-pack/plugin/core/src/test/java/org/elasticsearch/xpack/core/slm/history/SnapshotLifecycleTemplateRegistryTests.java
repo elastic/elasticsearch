@@ -277,7 +277,11 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
         protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(ActionType<Response> action,
                                                                                                   Request request,
                                                                                                   ActionListener<Response> listener) {
-            listener.onResponse((Response) verifier.apply(action, request, listener));
+            try {
+                listener.onResponse((Response) verifier.apply(action, request, listener));
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
         }
 
         public VerifyingClient setVerifier(TriFunction<ActionType<?>, ActionRequest, ActionListener<?>, ActionResponse> verifier) {

@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.core.slm.history;
 
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
@@ -280,6 +281,64 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
                 assertThat(ex, instanceOf(IllegalStateException.class));
                 assertThat(ex.getMessage(), containsString("SLM history alias [" + SLM_HISTORY_ALIAS +
                     "] already exists as concrete index"));
+            }), latch));
+
+        awaitLatch(latch, 10, TimeUnit.SECONDS);
+    }
+
+    public void testHistoryIndexCreatedConcurrently() throws InterruptedException {
+        ClusterState state = ClusterState.builder(new ClusterName(randomAlphaOfLength(5)))
+            .metaData(MetaData.builder())
+            .build();
+
+        client.setVerifier((a, r, l) -> {
+            assertThat(a, instanceOf(CreateIndexAction.class));
+            assertThat(r, instanceOf(CreateIndexRequest.class));
+            CreateIndexRequest request = (CreateIndexRequest) r;
+            assertThat(request.aliases(), hasSize(1));
+            request.aliases().forEach(alias -> {
+                assertThat(alias.name(), equalTo(SLM_HISTORY_ALIAS));
+                assertTrue(alias.writeIndex());
+            });
+            throw new ResourceAlreadyExistsException("that index already exists");
+        });
+
+        CountDownLatch latch = new CountDownLatch(1);
+        SnapshotHistoryStore.ensureHistoryIndex(client, state, new LatchedActionListener<>(ActionListener.wrap(
+            Assert::assertFalse,
+            ex -> {
+                logger.error(ex);
+                fail("should have called onResponse, not onFailure");
+            }), latch));
+
+        awaitLatch(latch, 10, TimeUnit.SECONDS);
+    }
+
+    public void testHistoryAliasDoesntExistButIndexDoes() throws InterruptedException {
+        final String initialIndex = SLM_HISTORY_INDEX_PREFIX + "000001";
+        ClusterState state = ClusterState.builder(new ClusterName(randomAlphaOfLength(5)))
+            .metaData(MetaData.builder()
+                .put(IndexMetaData.builder(initialIndex)
+                    .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+                    .numberOfShards(randomIntBetween(1,10))
+                    .numberOfReplicas(randomIntBetween(1,10))))
+            .build();
+
+        client.setVerifier((a, r, l) -> {
+            fail("no client calls should have been made");
+            return null;
+        });
+
+        CountDownLatch latch = new CountDownLatch(1);
+        SnapshotHistoryStore.ensureHistoryIndex(client, state, new LatchedActionListener<>(ActionListener.wrap(
+            response -> {
+                logger.error(response);
+                fail("should have called onFailure, not onResponse");
+            },
+            ex -> {
+                assertThat(ex, instanceOf(IllegalStateException.class));
+                assertThat(ex.getMessage(), containsString("SLM history index [" + initialIndex +
+                    "] already exists but does not have alias [" + SLM_HISTORY_ALIAS + "]"));
             }), latch));
 
         awaitLatch(latch, 10, TimeUnit.SECONDS);

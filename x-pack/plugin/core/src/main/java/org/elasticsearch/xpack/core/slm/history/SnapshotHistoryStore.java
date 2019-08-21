@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.slm.history;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -88,11 +89,13 @@ public class SnapshotHistoryStore {
      *                `false` if it already existed.
      */
     static void ensureHistoryIndex(Client client, ClusterState state, ActionListener<Boolean> andThen) {
-        AliasOrIndex slmHistory = state.metaData().getAliasAndIndexLookup().get(SLM_HISTORY_ALIAS);
+        final String initialHistoryIndexName = SLM_HISTORY_INDEX_PREFIX + "000001";
+        final AliasOrIndex slmHistory = state.metaData().getAliasAndIndexLookup().get(SLM_HISTORY_ALIAS);
+        final AliasOrIndex initialHistoryIndex = state.metaData().getAliasAndIndexLookup().get(initialHistoryIndexName);
 
-        if (slmHistory == null) {
-            // No alias or index exists with the expected name, so create it
-            client.admin().indices().prepareCreate(SLM_HISTORY_INDEX_PREFIX + "000001")
+        if (slmHistory == null && initialHistoryIndex == null) {
+            // No alias or index exists with the expected names, so create the index with appropriate alias
+            client.admin().indices().prepareCreate(initialHistoryIndexName)
                 .setWaitForActiveShards(1)
                 .addAlias(new Alias(SLM_HISTORY_ALIAS)
                     .writeIndex(true))
@@ -104,9 +107,20 @@ public class SnapshotHistoryStore {
 
                     @Override
                     public void onFailure(Exception e) {
-                        andThen.onFailure(e);
+                        if (e instanceof ResourceAlreadyExistsException) {
+                            // The index didn't exist before we made the call, there was probably a race - just ignore this
+                            logger.debug("index [{}] was created after checking for its existence, likely due to a concurrent call",
+                                initialHistoryIndexName);
+                            andThen.onResponse(false);
+                        } else {
+                            andThen.onFailure(e);
+                        }
                     }
                 });
+        } else if (slmHistory == null) {
+            // alias does not exist but initial index does, something is broken
+            andThen.onFailure(new IllegalStateException("SLM history index [" + initialHistoryIndexName +
+                "] already exists but does not have alias [" + SLM_HISTORY_ALIAS + "]"));
         } else if (slmHistory.isAlias() && slmHistory instanceof AliasOrIndex.Alias) {
             if (((AliasOrIndex.Alias) slmHistory).getWriteIndex() != null) {
                 // The alias exists and has a write index, so we're good

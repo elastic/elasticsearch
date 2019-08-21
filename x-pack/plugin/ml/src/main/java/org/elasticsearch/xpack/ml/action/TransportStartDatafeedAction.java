@@ -56,7 +56,7 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -82,7 +82,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     private final PersistentTasksService persistentTasksService;
     private final JobConfigProvider jobConfigProvider;
     private final DatafeedConfigProvider datafeedConfigProvider;
-    private final Auditor auditor;
+    private final AnomalyDetectionAuditor auditor;
     private final MlConfigMigrationEligibilityCheck migrationEligibilityCheck;
     private final NamedXContentRegistry xContentRegistry;
 
@@ -92,7 +92,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                                         PersistentTasksService persistentTasksService,
                                         ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                         Client client, JobConfigProvider jobConfigProvider, DatafeedConfigProvider datafeedConfigProvider,
-                                        Auditor auditor, NamedXContentRegistry xContentRegistry) {
+                                        AnomalyDetectionAuditor auditor, NamedXContentRegistry xContentRegistry) {
         super(StartDatafeedAction.NAME, transportService, clusterService, threadPool, actionFilters, StartDatafeedAction.Request::new,
             indexNameExpressionResolver);
         this.licenseState = licenseState;
@@ -119,7 +119,8 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     }
 
     //Get the deprecation warnings from the parsed query and aggs to audit
-    static void auditDeprecations(DatafeedConfig datafeed, Job job, Auditor auditor, NamedXContentRegistry xContentRegistry) {
+    static void auditDeprecations(DatafeedConfig datafeed, Job job, AnomalyDetectionAuditor auditor,
+                                  NamedXContentRegistry xContentRegistry) {
         List<String> deprecationWarnings = new ArrayList<>();
         deprecationWarnings.addAll(datafeed.getAggDeprecations(xContentRegistry));
         deprecationWarnings.addAll(datafeed.getQueryDeprecations(xContentRegistry));

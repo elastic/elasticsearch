@@ -164,6 +164,11 @@ public class OutlierDetection implements DataFrameAnalysis {
         return Collections.emptySet();
     }
 
+    @Override
+    public boolean supportsMissingValues() {
+        return false;
+    }
+
     public enum Method {
         LOF, LDOF, DISTANCE_KTH_NN, DISTANCE_KNN;
 

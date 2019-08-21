@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.ml.dataframe.process.results.RowResults;
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -45,12 +44,10 @@ public class AnalyticsResultProcessor {
 
     public void awaitForCompletion() {
         try {
-            if (completionLatch.await(30, TimeUnit.MINUTES) == false) {
-                LOGGER.warn("[{}] Timeout waiting for results processor to complete", dataFrameAnalyticsId);
-            }
+            completionLatch.await();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            LOGGER.info("[{}] Interrupted waiting for results processor to complete", dataFrameAnalyticsId);
+            LOGGER.error(new ParameterizedMessage("[{}] Interrupted waiting for results processor to complete", dataFrameAnalyticsId), e);
         }
     }
 

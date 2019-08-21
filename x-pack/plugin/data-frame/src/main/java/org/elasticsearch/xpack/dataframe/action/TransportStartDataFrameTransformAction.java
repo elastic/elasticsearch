@@ -161,7 +161,7 @@ public class TransportStartDataFrameTransformAction extends
                         ClientHelper.executeAsyncWithOrigin(client,
                             ClientHelper.DATA_FRAME_ORIGIN,
                             StartDataFrameTransformTaskAction.INSTANCE,
-                            new StartDataFrameTransformTaskAction.Request(request.getId()),
+                            new StartDataFrameTransformTaskAction.Request(request.getId(), request.isForce()),
                             ActionListener.wrap(
                                 r -> listener.onResponse(new StartDataFrameTransformAction.Response(true)),
                                 listener::onFailure));

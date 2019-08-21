@@ -709,10 +709,16 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             // with ZERO we are guaranteed to see the doc since we will wait for a refresh in the background
             assertFalse(hasRefreshed);
             assertTrue(shard.isSearchIdle());
-        } else if (randomTimeValue == null){
-            // with null we are guaranteed to see the doc since do execute the refresh.
-            // we can't assert on hasRefreshed since it might have been refreshed in the background on the shard concurrently
-            assertFalse(shard.isSearchIdle());
+        } else {
+            if (randomTimeValue == null) {
+                assertFalse(shard.isSearchIdle());
+            }
+            // we can't assert on hasRefreshed since it might have been refreshed in the background on the shard concurrently.
+            // and if the background refresh wins the refresh race (both call maybeRefresh), the document might not be visible
+            // until the background refresh is done.
+            if (hasRefreshed == false) {
+                ensureNoPendingScheduledRefresh(indexService.getThreadPool());
+            }
         }
         CountDownLatch started = new CountDownLatch(1);
         Thread t = new Thread(() -> {

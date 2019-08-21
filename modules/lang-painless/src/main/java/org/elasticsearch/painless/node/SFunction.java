@@ -28,7 +28,6 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.node.SSource.Reserved;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.Opcodes;
 
@@ -41,32 +40,12 @@ import java.util.Objects;
 import java.util.Set;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.unmodifiableSet;
 
 /**
  * Represents a user-defined function.
  */
 public final class SFunction extends AStatement {
-    public static final class FunctionReserved implements Reserved {
-        private final Set<String> usedVariables = new HashSet<>();
 
-        @Override
-        public void markUsedVariable(String name) {
-            usedVariables.add(name);
-        }
-
-        @Override
-        public Set<String> getUsedVariables() {
-            return unmodifiableSet(usedVariables);
-        }
-
-        @Override
-        public void addUsedVariables(FunctionReserved reserved) {
-            usedVariables.addAll(reserved.getUsedVariables());
-        }
-    }
-
-    final FunctionReserved reserved;
     private final String rtnTypeStr;
     public final String name;
     private final List<String> paramTypeStrs;
@@ -85,12 +64,11 @@ public final class SFunction extends AStatement {
 
     private Variable loop = null;
 
-    public SFunction(FunctionReserved reserved, Location location, String rtnType, String name,
+    public SFunction(Location location, String rtnType, String name,
                      List<String> paramTypes, List<String> paramNames, List<AStatement> statements,
                      boolean synthetic) {
         super(location);
 
-        this.reserved = Objects.requireNonNull(reserved);
         this.rtnTypeStr = Objects.requireNonNull(rtnType);
         this.name = Objects.requireNonNull(name);
         this.paramTypeStrs = Collections.unmodifiableList(paramTypes);
@@ -110,8 +88,12 @@ public final class SFunction extends AStatement {
 
     @Override
     void extractVariables(Set<String> variables) {
-        // we should never be extracting from a function, as functions are top-level!
-        throw new IllegalStateException("Illegal tree structure");
+        for (AStatement statement : statements) {
+            // we reset the list for function scope
+            // note this is not stored for this node
+            // but still required for lambdas
+            statement.extractVariables(new HashSet<>());
+        }
     }
 
     void generateSignature(PainlessLookup painlessLookup) {

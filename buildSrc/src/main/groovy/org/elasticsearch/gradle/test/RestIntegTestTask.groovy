@@ -20,6 +20,7 @@ package org.elasticsearch.gradle.test
 
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
+import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin
 import org.elasticsearch.gradle.tool.ClasspathUtils
 import org.gradle.api.DefaultTask
@@ -48,8 +49,6 @@ class RestIntegTestTask extends DefaultTask {
 
     protected Test runner
 
-    protected Task clusterInit
-
     /** Info about nodes in the integ test cluster. Note this is *not* available until runtime. */
     List<NodeInfo> nodes
 
@@ -60,11 +59,10 @@ class RestIntegTestTask extends DefaultTask {
     RestIntegTestTask() {
         runner = project.tasks.create("${name}Runner", RestTestRunnerTask.class)
         super.dependsOn(runner)
-        clusterInit = project.tasks.create(name: "${name}Cluster#init", dependsOn: project.testClasses)
-        runner.dependsOn(clusterInit)
         boolean usesTestclusters = project.plugins.hasPlugin(TestClustersPlugin.class)
         if (usesTestclusters == false) {
             clusterConfig = project.extensions.create("${name}Cluster", ClusterConfiguration.class, project)
+            runner.outputs.doNotCacheIf("Caching is disabled when using ClusterFormationTasks", { true })
         } else {
             project.testClusters {
                 "$name" {
@@ -74,8 +72,6 @@ class RestIntegTestTask extends DefaultTask {
             runner.useCluster project.testClusters."$name"
         }
 
-        // override/add more for rest tests
-        runner.maxParallelForks = 1
         runner.include('**/*IT.class')
         runner.systemProperty('tests.rest.load_packaged', 'false')
 
@@ -136,7 +132,6 @@ class RestIntegTestTask extends DefaultTask {
         project.gradle.projectsEvaluated {
             if (enabled == false) {
                 runner.enabled = false
-                clusterInit.enabled = false
                 return // no need to add cluster formation tasks if the task won't run!
             }
             if (usesTestclusters == false) {
@@ -185,11 +180,6 @@ class RestIntegTestTask extends DefaultTask {
                 runner.finalizedBy(((Fixture)dependency).getStopTask())
             }
         }
-    }
-
-    @Override
-    public Task mustRunAfter(Object... tasks) {
-        clusterInit.mustRunAfter(tasks)
     }
 
     public void runner(Closure configure) {

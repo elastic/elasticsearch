@@ -19,19 +19,16 @@
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ScoreMode;
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.LongHash;
-import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -47,19 +44,14 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
 
     protected final int requiredSize;
     protected final int shardSize;
-    protected final ValuesSource.GeoPoint valuesSource;
-    protected final int precision;
-    protected final GeoPointLongEncoder longEncoder;
+    protected final CellIdSource valuesSource;
     protected final LongHash bucketOrds;
 
-    GeoGridAggregator(String name, AggregatorFactories factories, ValuesSource.GeoPoint valuesSource,
-                      int precision, GeoPointLongEncoder longEncoder,
+    GeoGridAggregator(String name, AggregatorFactories factories, CellIdSource valuesSource,
                       int requiredSize, int shardSize, SearchContext aggregationContext, Aggregator parent,
                       List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         super(name, factories, aggregationContext, parent, pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
-        this.precision = precision;
-        this.longEncoder = longEncoder;
         this.requiredSize = requiredSize;
         this.shardSize = shardSize;
         bucketOrds = new LongHash(1, aggregationContext.bigArrays());
@@ -76,7 +68,7 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
             final LeafBucketCollector sub) throws IOException {
-        final MultiGeoPointValues values = valuesSource.geoPointValues(ctx);
+        final SortedNumericDocValues values = valuesSource.longValues(ctx);
         return new LeafBucketCollectorBase(sub, null) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
@@ -86,8 +78,7 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
 
                     long previous = Long.MAX_VALUE;
                     for (int i = 0; i < valuesCount; ++i) {
-                        final GeoPoint point = values.nextValue();
-                        final long val = longEncoder.encode(point.getLon(), point.getLat(), precision);
+                        final long val = values.nextValue();
                         if (previous != val || i == 0) {
                             long bucketOrdinal = bucketOrds.add(val);
                             if (bucketOrdinal < 0) { // already seen
@@ -102,48 +93,6 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
                 }
             }
         };
-    }
-
-    // private impl that stores a bucket ord. This allows for computing the aggregations lazily.
-    static class OrdinalBucket extends InternalGeoGridBucket {
-
-        long bucketOrd;
-        InternalGeoGridBucket sourceBucket; // used to keep track of appropriate getKeyAsString method
-
-        OrdinalBucket(InternalGeoGridBucket sourceBucket) {
-            super(sourceBucket.hashAsLong, sourceBucket.docCount, sourceBucket.aggregations);
-            this.sourceBucket = sourceBucket;
-        }
-
-        void hashAsLong(long hashAsLong) {
-            this.hashAsLong = hashAsLong;
-            this.sourceBucket.hashAsLong = hashAsLong;
-        }
-
-        @Override
-        InternalGeoGridBucket buildBucket(InternalGeoGridBucket bucket, long hashAsLong, long docCount,
-                                          InternalAggregations aggregations) {
-            OrdinalBucket ordBucket = new OrdinalBucket(bucket);
-            ordBucket.hashAsLong = hashAsLong;
-            ordBucket.docCount = docCount;
-            ordBucket.aggregations = aggregations;
-            // this is done because the aggregator may be rebuilt from cache (non OrdinalBucket),
-            // or it may be rebuilding from a new calculation, and therefore copying bucketOrd.
-            if (bucket instanceof OrdinalBucket) {
-                ordBucket.bucketOrd = ((OrdinalBucket) bucket).bucketOrd;
-            }
-            return ordBucket;
-        }
-
-        @Override
-        public Object getKey() {
-            return sourceBucket.getKey();
-        }
-
-        @Override
-        public String getKeyAsString() {
-            return sourceBucket.getKeyAsString();
-        }
     }
 
     abstract T buildAggregation(String name, int requiredSize, List<InternalGeoGridBucket> buckets,
@@ -162,24 +111,24 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
         final int size = (int) Math.min(bucketOrds.size(), shardSize);
         consumeBucketsAndMaybeBreak(size);
 
-        BucketPriorityQueue ordered = new BucketPriorityQueue(size);
-        OrdinalBucket spare = null;
+        BucketPriorityQueue<InternalGeoGridBucket> ordered = new BucketPriorityQueue<>(size);
+        InternalGeoGridBucket spare = null;
         for (long i = 0; i < bucketOrds.size(); i++) {
             if (spare == null) {
-                spare = new OrdinalBucket(newEmptyBucket());
+                spare = newEmptyBucket();
             }
 
             // need a special function to keep the source bucket
             // up-to-date so it can get the appropriate key
-            spare.hashAsLong(bucketOrds.get(i));
+            spare.hashAsLong = bucketOrds.get(i);
             spare.docCount = bucketDocCount(i);
             spare.bucketOrd = i;
-            spare = (OrdinalBucket) ordered.insertWithOverflow(spare);
+            spare = ordered.insertWithOverflow(spare);
         }
 
         final InternalGeoGridBucket[] list = new InternalGeoGridBucket[ordered.size()];
         for (int i = ordered.size() - 1; i >= 0; --i) {
-            final OrdinalBucket bucket = (OrdinalBucket) ordered.pop();
+            final InternalGeoGridBucket bucket = ordered.pop();
             bucket.aggregations = bucketAggregations(bucket.bucketOrd);
             list[i] = bucket;
         }
@@ -191,18 +140,8 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
         return buildAggregation(name, requiredSize, Collections.emptyList(), pipelineAggregators(), metaData());
     }
 
-
     @Override
     public void doClose() {
         Releasables.close(bucketOrds);
-    }
-
-    /**
-     * The encoder to use to convert a geopoint's (lon, lat, precision) into
-     * a long-encoded bucket key for aggregating.
-     */
-    @FunctionalInterface
-    public interface GeoPointLongEncoder {
-        long encode(double lon, double lat, int precision);
     }
 }

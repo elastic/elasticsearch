@@ -47,15 +47,6 @@ public class ExtractedFields {
         return docValueFields;
     }
 
-    /**
-     * Returns a new instance which only contains fields matching the given extraction method
-     * @param method the extraction method to filter fields on
-     * @return a new instance which only contains fields matching the given extraction method
-     */
-    public ExtractedFields filterFields(ExtractedField.ExtractionMethod method) {
-        return new ExtractedFields(filterFields(method, allFields));
-    }
-
     private static List<ExtractedField> filterFields(ExtractedField.ExtractionMethod method, List<ExtractedField> fields) {
         return fields.stream().filter(field -> field.getExtractionMethod() == method).collect(Collectors.toList());
     }
@@ -79,12 +70,13 @@ public class ExtractedFields {
         protected ExtractedField detect(String field) {
             String internalField = field;
             ExtractedField.ExtractionMethod method = ExtractedField.ExtractionMethod.SOURCE;
+            Set<String> types = getTypes(field);
             if (scriptFields.contains(field)) {
                 method = ExtractedField.ExtractionMethod.SCRIPT_FIELD;
             } else if (isAggregatable(field)) {
                 method = ExtractedField.ExtractionMethod.DOC_VALUE;
                 if (isFieldOfType(field, "date")) {
-                    return ExtractedField.newTimeField(field, method);
+                    return ExtractedField.newTimeField(field, types, method);
                 }
             } else if (isFieldOfType(field, TEXT)) {
                 String parentField = MlStrings.getParentField(field);
@@ -107,7 +99,12 @@ public class ExtractedFields {
                 return ExtractedField.newGeoShapeField(field, internalField);
             }
 
-            return ExtractedField.newField(field, internalField, method);
+            return ExtractedField.newField(field, internalField, types, method);
+        }
+
+        private Set<String> getTypes(String field) {
+            Map<String, FieldCapabilities> fieldCaps = fieldsCapabilities.getField(field);
+            return fieldCaps == null ? Collections.emptySet() : fieldCaps.keySet();
         }
 
         protected boolean isAggregatable(String field) {

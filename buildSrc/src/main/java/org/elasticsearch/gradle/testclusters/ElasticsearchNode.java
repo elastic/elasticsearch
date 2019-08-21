@@ -643,7 +643,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         // Windows requires this as it defaults to `c:\windows` despite ES_TMPDIR
         defaultEnv.put("TMP", tmpDir.toString());
         // Windows needs the COMPUTERNAME variable in order to set HOSTNAME
-        defaultEnv.put("COMPUTERNAME", System.getenv("COMPUTERNAME"));
+        if (System.getenv("COMPUTERNAME") != null) {
+            defaultEnv.put("COMPUTERNAME", System.getenv("COMPUTERNAME"));
+        }
 
         Set<String> commonKeys = new HashSet<>(environment.keySet());
         commonKeys.retainAll(defaultEnv.keySet());

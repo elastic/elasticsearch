@@ -886,8 +886,9 @@ public class QueryPhaseTests extends IndexShardTestCase {
                 IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy()) {
 
             @Override
-            protected void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
-                throw new AssertionError();
+            public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
+                final Collector in = new AssertingEarlyTerminationFilterCollector(collector, size);
+                super.search(leaves, weight, in);
             }
 
             @Override

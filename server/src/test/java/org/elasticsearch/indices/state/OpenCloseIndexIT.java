@@ -352,6 +352,7 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/45801")
     public void testTranslogStats()  {
         final String indexName = "test";
         createIndex(indexName, Settings.builder()

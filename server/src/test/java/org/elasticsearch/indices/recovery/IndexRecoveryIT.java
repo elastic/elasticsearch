@@ -1488,7 +1488,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         ensureGreen(indexName);
     }
 
-    public void testCancelRecoveryWithAutoExpandReplicas() {
+    public void testCancelRecoveryWithAutoExpandReplicas() throws Exception {
         internalCluster().startMasterOnlyNode();
         assertAcked(client().admin().indices().prepareCreate("test")
             .setSettings(Settings.builder().put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-all"))
@@ -1497,5 +1497,10 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         internalCluster().startNode();
         client().admin().cluster().prepareReroute().setRetryFailed(true).get();
         assertAcked(client().admin().indices().prepareDelete("test")); // cancel recoveries
+        assertBusy(() -> {
+            for (PeerRecoverySourceService recoveryService : internalCluster().getDataNodeInstances(PeerRecoverySourceService.class)) {
+                assertThat(recoveryService.numberOfOngoingRecoveries(), equalTo(0));
+            }
+        });
     }
 }

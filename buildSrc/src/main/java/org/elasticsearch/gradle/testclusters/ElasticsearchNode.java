@@ -481,6 +481,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             getVersion(), distributions.get(currentDistro + 1).getVersion(), this
         );
         currentDistro += 1;
+        setting("node.attr.upgraded", "true");
         restart();
     }
 
@@ -715,6 +716,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             // Another exception here would eat the orriginal.
             return;
         }
+        logToProcessStdout("Stopping node");
         LOGGER.info("Stopping `{}`, tailLogs: {}", this, tailLogs);
         requireNonNull(esProcess, "Can't stop `" + this + "` as it was not started or already stopped.");
         // Test clusters are not reused, don't spend time on a graceful shutdown

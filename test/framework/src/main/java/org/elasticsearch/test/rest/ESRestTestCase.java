@@ -866,11 +866,21 @@ public abstract class ESRestTestCase extends ESTestCase {
      * @param index index to test for
      **/
     protected static void ensureGreen(String index) throws IOException {
-        Request request = new Request("GET", "/_cluster/health/" + index);
-        request.addParameter("wait_for_status", "green");
-        request.addParameter("wait_for_no_relocating_shards", "true");
-        request.addParameter("timeout", "70s");
-        request.addParameter("level", "shards");
+        ensureHealth(index, (request) -> {
+            request.addParameter("wait_for_status", "green");
+            request.addParameter("wait_for_no_relocating_shards", "true");
+            request.addParameter("timeout", "70s");
+            request.addParameter("level", "shards");
+        });
+    }
+
+    protected static void ensureHealth(Consumer<Request> requestConsumer) throws IOException {
+        ensureHealth("", requestConsumer);
+    }
+
+    protected static void ensureHealth(String index, Consumer<Request> requestConsumer) throws IOException {
+        Request request = new Request("GET", "/_cluster/health" + (index.isBlank() ? "" : "/" + index));
+        requestConsumer.accept(request);
         try {
             client().performRequest(request);
         } catch (ResponseException e) {
@@ -886,6 +896,14 @@ public abstract class ESRestTestCase extends ESTestCase {
             throw e;
         }
     }
+
+
+    protected static void ensureYellow(String index) throws IOException {
+
+    }
+
+
+
 
     /**
      * waits until all shard initialization is completed. This is a handy alternative to ensureGreen as it relates to all shards

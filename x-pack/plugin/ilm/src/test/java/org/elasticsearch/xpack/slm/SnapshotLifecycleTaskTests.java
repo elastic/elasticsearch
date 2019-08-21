@@ -235,7 +235,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
         Consumer<SnapshotHistoryItem> verifier;
 
         public VerifyingHistoryStore(Client client, ZoneId timeZone, Consumer<SnapshotHistoryItem> verifier) {
-            super(Settings.EMPTY, client, timeZone);
+            super(Settings.EMPTY, client, null);
             this.verifier = verifier;
         }
 

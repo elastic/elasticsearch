@@ -21,9 +21,10 @@ public class DataFrameDataExtractorContext {
     final int scrollSize;
     final Map<String, String> headers;
     final boolean includeSource;
+    final boolean includeRowsWithMissingValues;
 
     DataFrameDataExtractorContext(String jobId, ExtractedFields extractedFields, List<String> indices, QueryBuilder query, int scrollSize,
-                                  Map<String, String> headers, boolean includeSource) {
+                                  Map<String, String> headers, boolean includeSource, boolean includeRowsWithMissingValues) {
         this.jobId = Objects.requireNonNull(jobId);
         this.extractedFields = Objects.requireNonNull(extractedFields);
         this.indices = indices.toArray(new String[indices.size()]);
@@ -31,5 +32,6 @@ public class DataFrameDataExtractorContext {
         this.scrollSize = scrollSize;
         this.headers = headers;
         this.includeSource = includeSource;
+        this.includeRowsWithMissingValues = includeRowsWithMissingValues;
     }
 }

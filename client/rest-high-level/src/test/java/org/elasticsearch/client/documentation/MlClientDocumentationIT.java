@@ -48,6 +48,7 @@ import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteJobResponse;
 import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
+import org.elasticsearch.client.ml.EstimateMemoryUsageResponse;
 import org.elasticsearch.client.ml.EvaluateDataFrameRequest;
 import org.elasticsearch.client.ml.EvaluateDataFrameResponse;
 import org.elasticsearch.client.ml.FindFileStructureRequest;
@@ -194,11 +195,13 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.core.Is.is;
 
 public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
@@ -3257,6 +3260,72 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::evaluate-data-frame-execute-async
             client.machineLearning().evaluateDataFrameAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::evaluate-data-frame-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testEstimateMemoryUsage() throws Exception {
+        createIndex("estimate-test-source-index");
+        BulkRequest bulkRequest =
+            new BulkRequest("estimate-test-source-index")
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (int i = 0; i < 10; ++i) {
+            bulkRequest.add(new IndexRequest().source(XContentType.JSON, "timestamp", 123456789L, "total", 10L));
+        }
+        RestHighLevelClient client = highLevelClient();
+        client.bulk(bulkRequest, RequestOptions.DEFAULT);
+        {
+            // tag::estimate-memory-usage-request
+            DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder()
+                .setSource(DataFrameAnalyticsSource.builder().setIndex("estimate-test-source-index").build())
+                .setAnalysis(OutlierDetection.createDefault())
+                .build();
+            PutDataFrameAnalyticsRequest request = new PutDataFrameAnalyticsRequest(config); // <1>
+            // end::estimate-memory-usage-request
+
+            // tag::estimate-memory-usage-execute
+            EstimateMemoryUsageResponse response = client.machineLearning().estimateMemoryUsage(request, RequestOptions.DEFAULT);
+            // end::estimate-memory-usage-execute
+
+            // tag::estimate-memory-usage-response
+            ByteSizeValue expectedMemoryWithoutDisk = response.getExpectedMemoryWithoutDisk(); // <1>
+            ByteSizeValue expectedMemoryWithDisk = response.getExpectedMemoryWithDisk(); // <2>
+            // end::estimate-memory-usage-response
+
+            // We are pretty liberal here as this test does not aim at verifying concrete numbers but rather end-to-end user workflow.
+            ByteSizeValue lowerBound = new ByteSizeValue(1, ByteSizeUnit.KB);
+            ByteSizeValue upperBound = new ByteSizeValue(1, ByteSizeUnit.GB);
+            assertThat(expectedMemoryWithoutDisk, allOf(greaterThan(lowerBound), lessThan(upperBound)));
+            assertThat(expectedMemoryWithDisk, allOf(greaterThan(lowerBound), lessThan(upperBound)));
+        }
+        {
+            DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder()
+                .setSource(DataFrameAnalyticsSource.builder().setIndex("estimate-test-source-index").build())
+                .setAnalysis(OutlierDetection.createDefault())
+                .build();
+            PutDataFrameAnalyticsRequest request = new PutDataFrameAnalyticsRequest(config);
+            // tag::estimate-memory-usage-execute-listener
+            ActionListener<EstimateMemoryUsageResponse> listener = new ActionListener<>() {
+                @Override
+                public void onResponse(EstimateMemoryUsageResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::estimate-memory-usage-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::estimate-memory-usage-execute-async
+            client.machineLearning().estimateMemoryUsageAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::estimate-memory-usage-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

@@ -3043,6 +3043,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/45741")
     public void testStartDataFrameAnalytics() throws Exception {
         createIndex(DF_ANALYTICS_CONFIG.getSource().getIndex()[0]);
         highLevelClient().index(

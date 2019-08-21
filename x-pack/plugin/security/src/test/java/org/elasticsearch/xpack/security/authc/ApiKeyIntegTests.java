@@ -533,7 +533,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         verifyInvalidateResponse(noOfApiKeysForUserWithManageApiKeyRole, userWithManageApiKeyRoleApiKeys, invalidateResponse);
     }
 
-    public void testApiKeyAuthorizationApiKeyMustBeAbleToRetrieveItsOwnInformationButNotAnyOtherKeysCreatedBySameOwner() throws InterruptedException, ExecutionException {
+    public void testApiKeyAuthorizationApiKeyMustBeAbleToRetrieveItsOwnInformationButNotAnyOtherKeysCreatedBySameOwner()
+        throws InterruptedException, ExecutionException {
         List<CreateApiKeyResponse> responses = createApiKeys(2, null);
         final String base64ApiKeyKeyValue = Base64.getEncoder().encodeToString(
             (responses.get(0).getId() + ":" + responses.get(0).getKey().toString()).getBytes(StandardCharsets.UTF_8));
@@ -558,8 +559,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             responses.get(0).getId());
     }
 
-    public void testApiKeyWithManageOwnPrivilegeIsAbleToInvalidateItselfButNotAnyOtherKeysCreatedBySameOwner() throws InterruptedException
-        , ExecutionException {
+    public void testApiKeyWithManageOwnPrivilegeIsAbleToInvalidateItselfButNotAnyOtherKeysCreatedBySameOwner()
+        throws InterruptedException, ExecutionException {
         List<CreateApiKeyResponse> responses = createApiKeys(SecuritySettingsSource.TEST_SUPERUSER, 2, null, "manage_own_api_key");
         final String base64ApiKeyKeyValue = Base64.getEncoder().encodeToString(
             (responses.get(0).getId() + ":" + responses.get(0).getKey().toString()).getBytes(StandardCharsets.UTF_8));

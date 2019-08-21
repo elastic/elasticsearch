@@ -37,7 +37,7 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
         return builder.add(this, ManageOwnClusterPermissionCheck.INSTANCE);
     }
 
-    private static final class ManageOwnClusterPermissionCheck extends ClusterPermission.AutomatonPermissionCheck {
+    private static final class ManageOwnClusterPermissionCheck extends ClusterPermission.ActionBasedPermissionCheck {
         public static final ManageOwnClusterPermissionCheck INSTANCE = new ManageOwnClusterPermissionCheck();
 
         private ManageOwnClusterPermissionCheck() {
@@ -45,22 +45,25 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
         }
 
         @Override
-        public boolean check(final String action, final TransportRequest request, final Authentication authentication) {
-            if (super.check(action, request, authentication)) {
-                if (request instanceof CreateApiKeyRequest) {
-                    return true;
-                } else if (request instanceof GetApiKeyRequest) {
-                    final GetApiKeyRequest getApiKeyRequest = (GetApiKeyRequest) request;
-                    return checkIfUserIsOwnerOfApiKeys(authentication, getApiKeyRequest.getApiKeyId(), getApiKeyRequest.getUserName(),
-                        getApiKeyRequest.getRealmName());
-                } else if (request instanceof InvalidateApiKeyRequest) {
-                    final InvalidateApiKeyRequest invalidateApiKeyRequest = (InvalidateApiKeyRequest) request;
-                    return checkIfUserIsOwnerOfApiKeys(authentication, invalidateApiKeyRequest.getId(),
-                        invalidateApiKeyRequest.getUserName(),
-                        invalidateApiKeyRequest.getRealmName());
-                }
+        public boolean doCheck(String action, TransportRequest request, Authentication authentication) {
+            if (request instanceof CreateApiKeyRequest) {
+                return true;
+            } else if (request instanceof GetApiKeyRequest) {
+                final GetApiKeyRequest getApiKeyRequest = (GetApiKeyRequest) request;
+                return checkIfUserIsOwnerOfApiKeys(authentication, getApiKeyRequest.getApiKeyId(), getApiKeyRequest.getUserName(),
+                    getApiKeyRequest.getRealmName());
+            } else if (request instanceof InvalidateApiKeyRequest) {
+                final InvalidateApiKeyRequest invalidateApiKeyRequest = (InvalidateApiKeyRequest) request;
+                return checkIfUserIsOwnerOfApiKeys(authentication, invalidateApiKeyRequest.getId(),
+                    invalidateApiKeyRequest.getUserName(),
+                    invalidateApiKeyRequest.getRealmName());
             }
             return false;
+        }
+
+        @Override
+        public boolean doImplies(ClusterPermission.PermissionCheck permissionCheck) {
+            return permissionCheck instanceof ManageOwnClusterPermissionCheck;
         }
 
         private boolean checkIfUserIsOwnerOfApiKeys(Authentication authentication, String apiKeyId, String username, String realmName) {

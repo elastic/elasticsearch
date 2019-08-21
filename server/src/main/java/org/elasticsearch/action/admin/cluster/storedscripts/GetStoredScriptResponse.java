@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -63,25 +64,36 @@ public class GetStoredScriptResponse extends ActionResponse implements ToXConten
             SCRIPT, ObjectParser.ValueType.OBJECT);
     }
 
-    private Map<String, StoredScriptSource> storedScripts;
+    private final Map<String, StoredScriptSource> storedScripts;
+    private final String[] requestedIds;
 
     GetStoredScriptResponse(StreamInput in) throws IOException {
         super(in);
 
-        int size = in.readVInt();
-        storedScripts = new HashMap<>(size);
-        for (int i = 0 ; i < size ; i++) {
+        if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
+            storedScripts = in.readMap(StreamInput::readString, StoredScriptSource::new);
+        } else {
+            StoredScriptSource source;
+            if (in.readBoolean()) {
+                source = new StoredScriptSource(in);
+            } else {
+                source = null;
+            }
             String id = in.readString();
-            storedScripts.put(id, new StoredScriptSource(in));
+            storedScripts = new HashMap<>(1);
+            storedScripts.put(id, source);
         }
+        requestedIds = new String[0];
     }
 
     GetStoredScriptResponse(String id, StoredScriptSource source) {
         this.storedScripts = new HashMap<>();
         storedScripts.put(id, source);
+        requestedIds = new String[]{ id };
     }
 
-    GetStoredScriptResponse(Map<String, StoredScriptSource> storedScripts) {
+    GetStoredScriptResponse(String[] requestedIds, Map<String, StoredScriptSource> storedScripts) {
+        this.requestedIds = requestedIds;
         this.storedScripts = storedScripts;
     }
 
@@ -97,27 +109,21 @@ public class GetStoredScriptResponse extends ActionResponse implements ToXConten
      */
     @Deprecated
     public StoredScriptSource getSource() {
-        if (storedScripts != null && storedScripts.size() == 1) {
-            return storedScripts.entrySet().iterator().next().getValue();
-        } else {
-            return null;
-        }
+        return storedScripts.entrySet().iterator().next().getValue();
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (params.paramAsBoolean("new_format", false)) {
+        if (!params.paramAsBoolean("new_format", false)) {
             return toXContentPre80(builder, params);
         }
-        builder.startObject();
 
+        builder.startObject();
         Map<String, StoredScriptSource> storedScripts = getStoredScripts();
         if (storedScripts != null) {
             for (Map.Entry<String, StoredScriptSource> storedScript : storedScripts.entrySet()) {
-                builder.startObject(storedScript.getKey());
-                builder.field(StoredScriptSource.SCRIPT_PARSE_FIELD.getPreferredName());
+                builder.field(storedScript.getKey());
                 storedScript.getValue().toXContent(builder, params);
-                builder.endObject();
             }
         }
         builder.endObject();
@@ -129,21 +135,24 @@ public class GetStoredScriptResponse extends ActionResponse implements ToXConten
         for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 String name = parser.currentName();
-                parser.nextToken();
-                parser.nextToken();
+                assert parser.nextToken() == XContentParser.Token.START_OBJECT;
                 StoredScriptSource storedScriptSource = StoredScriptSource.fromXContent(parser, false);
                 storedScripts.put(name, storedScriptSource);
             }
         }
-        return new GetStoredScriptResponse(storedScripts);
+        return new GetStoredScriptResponse(storedScripts.keySet().toArray(String[]::new), storedScripts);
     }
 
+    @Deprecated
     private XContentBuilder toXContentPre80(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
 
-        Map.Entry<String, StoredScriptSource> entry = storedScripts.entrySet().iterator().next();
-        String id = entry.getKey();
-        StoredScriptSource source = entry.getValue();
+        String id = requestedIds[0];
+        StoredScriptSource source = null;
+        if (!storedScripts.isEmpty()) {
+            Map.Entry<String, StoredScriptSource> entry = storedScripts.entrySet().iterator().next();
+            source = entry.getValue();
+        }
 
         builder.field(_ID_PARSE_FIELD.getPreferredName(), id);
         builder.field(FOUND_PARSE_FIELD.getPreferredName(), source != null);
@@ -156,21 +165,36 @@ public class GetStoredScriptResponse extends ActionResponse implements ToXConten
         return builder;
     }
 
+    /**
+     * Used to test backwards compatibility since the original format is the default prior to 8.0
+     */
+    @Deprecated
     public static GetStoredScriptResponse fromXContentPre80(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (storedScripts == null ) {
-            out.writeVInt(0);
-            return;
-        }
+        if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
+            if (storedScripts == null ) {
+                out.writeVInt(0);
+                return;
+            }
 
-        out.writeVInt(storedScripts.size());
-        for (Map.Entry<String, StoredScriptSource> storedScript : storedScripts.entrySet()) {
-            out.writeString(storedScript.getKey());
-            storedScript.getValue().writeTo(out);
+            out.writeVInt(storedScripts.size());
+            for (Map.Entry<String, StoredScriptSource> storedScript : storedScripts.entrySet()) {
+                out.writeString(storedScript.getKey());
+                storedScript.getValue().writeTo(out);
+            }
+        } else {
+            Map.Entry<String, StoredScriptSource> entry = storedScripts.entrySet().iterator().next();
+            if (entry.getValue() == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                entry.getValue().writeTo(out);
+            }
+            out.writeString(entry.getKey());
         }
     }
 

@@ -1,0 +1,96 @@
+---
+"Get script, default format":
+  - do:
+      put_script:
+        id: "1"
+        body: { "script": {"lang": "painless", "source": "_score * doc['myParent.weight'].value" } }
+  - match: { acknowledged: true }
+
+  - do:
+      get_script:
+        id: "1"
+  - match: { found: true }
+  - match: { _id: "1" }
+  - match: { "script": {"lang": "painless", "source": "_score * doc['myParent.weight'].value"} }
+
+---
+"Get script, new format":
+  -
+  - skip:
+      version: " - 7.99.99"
+      reason:  this uses a new API that has been added in 8.0
+
+  - do:
+      put_script:
+        id: "1"
+        body: { "script": {"lang": "painless", "source": "_score * doc['myParent.weight'].value" } }
+  - match: { acknowledged: true }
+
+  - do:
+      get_script:
+        id: "1"
+        new_format: true
+  - match: { "1" : { "lang": "painless", "source": "_score * doc['myParent.weight'].value"} }
+
+---
+"Get script with wildcard":
+
+  - skip:
+      version: " - 7.99.99"
+      reason:  this uses a new API that has been added in 8.0
+  - do:
+      put_script:
+        id: "foo"
+        body: { "script": {} }
+  - match: { acknowledged: true }
+
+  - do:
+      put_script:
+        id: "foo"
+        body: { "script": {} }
+  - match: { acknowledged: true }
+
+  - do:
+      put_script:
+        id: "bar"
+        body: { "script": {} }
+  - match: { acknowledged: true }
+
+  - do:
+      put_script:
+        id: "baz"
+        body: { "script": {} }
+  - match: { acknowledged: true }
+
+  - do:
+      get_script:
+        id: "ba*"
+        new_format: true
+  - length: { $body: 2 }
+
+---
+"Get all scripts":
+
+  - skip:
+      version: " - 7.99.99"
+      reason:  this uses a new API that has been added in 8.0
+
+  - do:
+      put_script:
+        id: "1"
+        body: { "script": { "lang": "painless", "source": "_score * doc['myParent.weight'].value" } }
+  - match: { acknowledged: true }
+
+  - do:
+      put_script:
+        id: "foo"
+        body: { "script": { "lang": "painless", "source": "_score * 9.9" } }
+  - match: { acknowledged: true }
+
+  - do:
+      get_script:
+        new_format: true
+
+  - length: { $body: 2 }
+  - match: { 1: {"lang": "painless", "source": "_score * doc['myParent.weight'].value"} }
+  - match: { foo: {"lang": "painless", "source": "_score * 9.9"} }

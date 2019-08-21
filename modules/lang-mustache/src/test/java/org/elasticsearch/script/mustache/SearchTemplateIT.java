@@ -35,6 +35,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.NoSuchElementException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -170,6 +171,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
 
         GetStoredScriptResponse getResponse = client().admin().cluster()
                 .prepareGetStoredScript("testTemplate").get();
+        assertEquals(1, getResponse.getStoredScripts().size());
         assertNotNull(getResponse.getSource());
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
@@ -192,8 +194,9 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
 
         assertAcked(client().admin().cluster().prepareDeleteStoredScript("testTemplate"));
 
-        getResponse = client().admin().cluster().prepareGetStoredScript("testTemplate").get();
-        assertNull(getResponse.getSource());
+        final GetStoredScriptResponse response = client().admin().cluster().prepareGetStoredScript("testTemplate").get();
+        assertEquals(0, response.getStoredScripts().size());
+        expectThrows(NoSuchElementException.class, () -> response.getSource());
     }
 
     public void testIndexedTemplate() throws Exception {

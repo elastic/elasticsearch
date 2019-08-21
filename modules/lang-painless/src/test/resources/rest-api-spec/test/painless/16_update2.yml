@@ -12,7 +12,8 @@
   - do:
      get_script:
        id: "1"
-  - match: { "1" : { "script": {"lang": "painless", "source": "_score * doc['myParent.weight'].value"} } }
+       new_format: true
+  - match: { "1" : { "lang": "painless", "source": "_score * doc['myParent.weight'].value"} }
 
   - do:
      catch: missing

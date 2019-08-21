@@ -81,7 +81,7 @@ public class VectorEncoderDecoderTests extends ESTestCase {
         );
 
         // test that values that went through encoding and decoding are equal to their original
-        BytesRef encodedSparseVector = VectorEncoderDecoder.encodeSparseVector(expectedDims, expectedValues, dimCount);
+        BytesRef encodedSparseVector = VectorEncoderDecoder.encodeSparseVector(indexVersion, expectedDims, expectedValues, dimCount);
         int[] decodedDims = VectorEncoderDecoder.decodeSparseVectorDims(indexVersion, encodedSparseVector);
         float[] decodedValues = VectorEncoderDecoder.decodeSparseVector(indexVersion, encodedSparseVector);
         float decodedMagnitude = VectorEncoderDecoder.getVectorMagnitude(indexVersion, encodedSparseVector, decodedValues);
@@ -119,7 +119,7 @@ public class VectorEncoderDecoderTests extends ESTestCase {
         );
 
         // test that values that went through encoding and decoding are equal to their original
-        BytesRef encodedSparseVector = mockEncodeSparseVectorBefore7_4(expectedDims, expectedValues, dimCount);
+        BytesRef encodedSparseVector = VectorEncoderDecoder.encodeSparseVector(indexVersion, expectedDims, expectedValues, dimCount);
         int[] decodedDims = VectorEncoderDecoder.decodeSparseVectorDims(indexVersion, encodedSparseVector);
         float[] decodedValues = VectorEncoderDecoder.decodeSparseVector(indexVersion, encodedSparseVector);
         assertArrayEquals(
@@ -178,7 +178,7 @@ public class VectorEncoderDecoderTests extends ESTestCase {
     }
 
     // generate unique random dims
-    private int[] randomUniqueDims(int dimCount) {
+    private static int[] randomUniqueDims(int dimCount) {
         int[] values = new int[dimCount];
         Set<Integer> usedValues = new HashSet<>();
         int value;
@@ -188,38 +188,6 @@ public class VectorEncoderDecoderTests extends ESTestCase {
             values[i] = value;
         }
         return values;
-    }
-
-    // copies the code in VectorEncoderDecoder::encodeSparseVector before version 7.4
-    public static BytesRef mockEncodeSparseVectorBefore7_4(int[] dims, float[] values, int dimCount) {
-        final short INT_BYTES = 4;
-        final byte SHORT_BYTES = 2;
-        // 1. Sort dims and values
-        VectorEncoderDecoder.sortSparseDimsValues(dims, values, dimCount);
-        byte[] buf = new byte[dimCount * (INT_BYTES + SHORT_BYTES)];
-
-        // 2. Encode dimensions
-        // as each dimension is a positive value that doesn't exceed 65535, 2 bytes is enough for encoding it
-        int offset = 0;
-        for (int dim = 0; dim < dimCount; dim++) {
-            buf[offset] = (byte) (dims[dim] >>  8);
-            buf[offset+1] = (byte) dims[dim];
-            offset += SHORT_BYTES;
-        }
-
-        // 3. Encode values
-        double dotProduct = 0.0f;
-        for (int dim = 0; dim < dimCount; dim++) {
-            int intValue = Float.floatToIntBits(values[dim]);
-            buf[offset] =  (byte) (intValue >> 24);
-            buf[offset+1] = (byte) (intValue >> 16);
-            buf[offset+2] = (byte) (intValue >>  8);
-            buf[offset+3] = (byte) intValue;
-            offset += INT_BYTES;
-            dotProduct += values[dim] * values[dim];
-        }
-
-        return new BytesRef(buf);
     }
 
 }

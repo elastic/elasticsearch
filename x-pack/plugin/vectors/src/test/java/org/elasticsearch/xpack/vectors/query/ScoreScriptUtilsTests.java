@@ -85,7 +85,8 @@ public class ScoreScriptUtilsTests extends ESTestCase {
     public void testSparseVectorFunctions() {
         int[] docVectorDims = {2, 10, 50, 113, 4545};
         float[] docVectorValues = {230.0f, 300.33f, -34.8988f, 15.555f, -200.0f};
-        BytesRef encodedDocVector = VectorEncoderDecoder.encodeSparseVector(docVectorDims, docVectorValues, docVectorDims.length);
+        BytesRef encodedDocVector = VectorEncoderDecoder.encodeSparseVector(
+            Version.CURRENT, docVectorDims, docVectorValues, docVectorDims.length);
         VectorScriptDocValues.SparseVectorScriptDocValues dvs = mock(VectorScriptDocValues.SparseVectorScriptDocValues.class);
         when(dvs.getEncodedValue()).thenReturn(encodedDocVector);
         ScoreScript scoreScript = mock(ScoreScript.class);
@@ -124,7 +125,7 @@ public class ScoreScriptUtilsTests extends ESTestCase {
         // Document vector's biggest dimension > query vector's biggest dimension
         int[] docVectorDims = {2, 10, 50, 113, 4545, 4546};
         float[] docVectorValues = {230.0f, 300.33f, -34.8988f, 15.555f, -200.0f, 11.5f};
-        BytesRef encodedDocVector = VectorEncoderDecoder.encodeSparseVector(docVectorDims, docVectorValues, docVectorDims.length);
+        BytesRef encodedDocVector = VectorEncoderDecoder.encodeSparseVector(Version.CURRENT, docVectorDims, docVectorValues, docVectorDims.length);
         VectorScriptDocValues.SparseVectorScriptDocValues dvs = mock(VectorScriptDocValues.SparseVectorScriptDocValues.class);
         when(dvs.getEncodedValue()).thenReturn(encodedDocVector);
         ScoreScript scoreScript = mock(ScoreScript.class);
@@ -163,7 +164,8 @@ public class ScoreScriptUtilsTests extends ESTestCase {
         // Document vector's biggest dimension < query vector's biggest dimension
         int[] docVectorDims = {2, 10, 50, 113, 4545, 4546};
         float[] docVectorValues = {230.0f, 300.33f, -34.8988f, 15.555f, -200.0f, 11.5f};
-        BytesRef encodedDocVector = VectorEncoderDecoder.encodeSparseVector(docVectorDims, docVectorValues, docVectorDims.length);
+        BytesRef encodedDocVector = VectorEncoderDecoder.encodeSparseVector(
+            Version.CURRENT, docVectorDims, docVectorValues, docVectorDims.length);
         VectorScriptDocValues.SparseVectorScriptDocValues dvs = mock(VectorScriptDocValues.SparseVectorScriptDocValues.class);
         when(dvs.getEncodedValue()).thenReturn(encodedDocVector);
         ScoreScript scoreScript = mock(ScoreScript.class);

@@ -156,6 +156,16 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     return;
                 }
             }
+            if (allowPartialResults == false && successfulOps.get() != getNumShards()) {
+                int discrepancy = getNumShards() - successfulOps.get();
+                assert discrepancy > 0 : "discrepancy: " + discrepancy;
+                if (logger.isDebugEnabled()) {
+                    logger.debug("Partial shards failure (unavailable: {}, successful: {}, skipped: {}, num-shards: {}, phase: {})",
+                        discrepancy, successfulOps.get(), skippedOps.get(), getNumShards(), currentPhase.getName());
+                }
+                onPhaseFailure(currentPhase, "Partial shards failure (" + discrepancy + " shards unavailable)", null);
+                return;
+            }
             if (logger.isTraceEnabled()) {
                 final String resultsFrom = results.getSuccessfulResults()
                     .map(r -> r.getSearchShardTarget().toString()).collect(Collectors.joining(","));

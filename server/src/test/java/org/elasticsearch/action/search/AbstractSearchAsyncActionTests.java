@@ -28,7 +28,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
@@ -245,16 +244,19 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(false);
         AtomicReference<Exception> exception = new AtomicReference<>();
         ActionListener<SearchResponse> listener = ActionListener.wrap(response -> fail("onResponse should not be called"), exception::set);
-        InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> phaseResults = new InitialSearchPhase.ArraySearchPhaseResults<>(10);
+        int numShards = randomIntBetween(2, 10);
+        InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> phaseResults =
+            new InitialSearchPhase.ArraySearchPhaseResults<>(numShards);
         AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(searchRequest, phaseResults, listener, false, new AtomicLong());
-        ShardId shardId = new ShardId("test", "testuuid", randomInt(10));
-        // IllegalIndexShardStateException is considered a shard not available exception
-        action.onShardFailure(0, null, null, new SearchShardIterator(null, shardId, Collections.emptyList(), null),
-            new IllegalIndexShardStateException(null, null, "shard failure"));
+        // skip one to avoid the "all shards failed" failure.
+        SearchShardIterator skipIterator = new SearchShardIterator(null, null, Collections.emptyList(), null);
+        skipIterator.resetAndSkip();
+        action.skipShard(skipIterator);
+        // expect at least 2 shards, so onPhaseDone should report failure.
+        action.onPhaseDone();
         assertThat(exception.get(), instanceOf(SearchPhaseExecutionException.class));
         SearchPhaseExecutionException searchPhaseExecutionException = (SearchPhaseExecutionException)exception.get();
-        assertEquals("All shard copies failed for " + shardId
-                + ". Consider using `allow_partial_search_results` setting to bypass this error.",
+        assertEquals("Partial shards failure (" + (numShards - 1) + " shards unavailable)",
             searchPhaseExecutionException.getMessage());
         assertEquals("test", searchPhaseExecutionException.getPhaseName());
         assertEquals(0, searchPhaseExecutionException.shardFailures().length);

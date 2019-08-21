@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchService;
@@ -115,9 +116,12 @@ public class SearchRedStateIndexIT extends ESIntegTestCase {
                 @Override
                 public void run() {
                     while (stop.get() == false) {
+                        // todo: the timeouts below should not be necessary, but this test sometimes hangs without them and that is not
+                        // the immediate purpose of the test.
                         verify(() -> client().prepareSearch("test").setQuery(new RangeQueryBuilder("field1").gte(0))
-                            .setSize(100).setAllowPartialSearchResults(false).get());
-                        verify(() -> client().prepareSearch("test").setSize(100).setAllowPartialSearchResults(false).get());
+                            .setSize(100).setAllowPartialSearchResults(false).get(TimeValue.timeValueSeconds(10)));
+                        verify(() -> client().prepareSearch("test")
+                            .setSize(100).setAllowPartialSearchResults(false).get(TimeValue.timeValueSeconds(10)));
                     }
                 }
 
@@ -160,14 +164,19 @@ public class SearchRedStateIndexIT extends ESIntegTestCase {
             assertFalse(restartThread.isAlive());
         } finally {
             stop.set(true);
+            searchThreads.forEach(thread -> {
+                try {
+                    thread.join(30000);
+                    if (thread.isAlive()) {
+                        logger.warn("Thread: " + thread + " is still alive");
+                        // do not continue unless thread terminates to avoid getting other confusing test errors. Please kill me...
+                        thread.join();
+                    }
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            });
         }
-        searchThreads.forEach(thread -> {
-            try {
-                thread.join();
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-        });
 
         // hack to ensure all search contexts are removed, seems we risk leaked search contexts when coordinator dies.
         client().admin().indices().prepareDelete("test").get();

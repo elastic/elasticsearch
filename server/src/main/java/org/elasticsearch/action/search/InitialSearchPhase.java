@@ -86,21 +86,13 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
         this.executor = executor;
     }
 
-    void onShardFailure(final int shardIndex, @Nullable ShardRouting shard, @Nullable String nodeId,
+    private void onShardFailure(final int shardIndex, @Nullable ShardRouting shard, @Nullable String nodeId,
                                 final SearchShardIterator shardIt, Exception e) {
         // we always add the shard failure for a specific shard instance
         // we do make sure to clean it on a successful response from a shard
         SearchShardTarget shardTarget = shardIt.newSearchShardTarget(nodeId);
         onShardFailure(shardIndex, shardTarget, e);
 
-        final ShardRouting nextShard = shardIt.nextOrNull();
-        final boolean lastShard = nextShard == null;
-        if (lastShard && request.allowPartialSearchResults() == Boolean.FALSE) {
-            onPhaseFailure(this,
-                "All shard copies failed for " + shardIt.shardId() + ". Consider using `allow_partial_search_results` " +
-                    "setting to bypass this error.", null);
-            return;
-        }
         if (totalOps.incrementAndGet() == expectedTotalOps) {
             if (logger.isDebugEnabled()) {
                 if (e != null && !TransportActions.isShardNotAvailableException(e)) {
@@ -112,6 +104,8 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
             }
             onPhaseDone();
         } else {
+            final ShardRouting nextShard = shardIt.nextOrNull();
+            final boolean lastShard = nextShard == null;
             // trace log this exception
             logger.trace(() -> new ParameterizedMessage(
                 "{}: Failed to execute [{}] lastShard [{}]",
@@ -336,15 +330,6 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
      * @see #onShardSuccess(SearchPhaseResult)
      */
     abstract void onPhaseDone(); // as a tribute to @kimchy aka. finishHim()
-
-    /**
-     * This method will communicate a fatal phase failure back to the user. In contrast to a shard failure
-     * will this method immediately fail the search request and return the failure to the issuer of the request
-     * @param phase the phase that failed
-     * @param msg an optional message
-     * @param cause the cause of the phase failure
-     */
-    abstract void onPhaseFailure(SearchPhase phase, String msg, Throwable cause);
 
     /**
      * Executed once for every failed shard level request. This method is invoked before the next replica is tried for the given

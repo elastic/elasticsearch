@@ -19,7 +19,6 @@
 
 package org.elasticsearch.packaging.test;
 
-import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.Archives;
 import org.elasticsearch.packaging.util.Distribution;
@@ -29,6 +28,7 @@ import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.packaging.util.Shell.Result;
+import org.junit.BeforeClass;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -55,13 +55,15 @@ import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.isEmptyString;
 import static org.junit.Assume.assumeThat;
+import static org.junit.Assume.assumeTrue;
 
-/**
- * Tests that apply to the archive distributions (tar, zip). To add a case for a distribution, subclass and
- * override {@link ArchiveTestCase#distribution()}. These tests should be the same across all archive distributions
- */
-@TestCaseOrdering(TestCaseOrdering.AlphabeticOrder.class)
-public abstract class ArchiveTestCase extends PackagingTestCase {
+public class ArchiveTests extends PackagingTestCase {
+
+    @BeforeClass
+    public static void assumptions() {
+        assumeTrue("only archive distributions",
+            distribution().packaging == Distribution.Packaging.TAR || distribution().packaging == Distribution.Packaging.ZIP);
+    }
 
     public void test10Install() throws Exception {
         installation = installArchive(distribution());
@@ -362,7 +364,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         final Installation.Executables bin = installation.executables();
         final Shell sh = newShell();
 
-        if (distribution().equals(Distribution.DEFAULT_LINUX) || distribution().equals(Distribution.DEFAULT_WINDOWS)) {
+        if (distribution().isDefault()) {
             assertTrue(Files.exists(installation.lib.resolve("tools").resolve("security-cli")));
             final Platforms.PlatformAction action = () -> {
                 Result result = sh.run(bin.elasticsearchCertutil + " --help");
@@ -375,7 +377,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
             };
             Platforms.onLinux(action);
             Platforms.onWindows(action);
-        } else if (distribution().equals(Distribution.OSS_LINUX) || distribution().equals(Distribution.OSS_WINDOWS)) {
+        } else {
             assertFalse(Files.exists(installation.lib.resolve("tools").resolve("security-cli")));
         }
     }
@@ -391,7 +393,8 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
             assertThat(result.stdout, containsString("A CLI tool to remove corrupted parts of unrecoverable shards"));
         };
 
-        if (distribution().equals(Distribution.DEFAULT_LINUX) || distribution().equals(Distribution.DEFAULT_WINDOWS)) {
+        // TODO: this should be checked on all distributions
+        if (distribution().isDefault()) {
             Platforms.onLinux(action);
             Platforms.onWindows(action);
         }
@@ -409,7 +412,8 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
                     containsString("A CLI tool to do unsafe cluster and index manipulations on current node"));
         };
 
-        if (distribution().equals(Distribution.DEFAULT_LINUX) || distribution().equals(Distribution.DEFAULT_WINDOWS)) {
+        // TODO: this should be checked on all distributions
+        if (distribution().isDefault()) {
             Platforms.onLinux(action);
             Platforms.onWindows(action);
         }
@@ -454,7 +458,8 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
                 containsString("Manages elasticsearch file users"));
         };
 
-        if (distribution().equals(Distribution.DEFAULT_LINUX) || distribution().equals(Distribution.DEFAULT_WINDOWS)) {
+        // TODO: this should be checked on all distributions
+        if (distribution().isDefault()) {
             Platforms.onLinux(action);
             Platforms.onWindows(action);
         }

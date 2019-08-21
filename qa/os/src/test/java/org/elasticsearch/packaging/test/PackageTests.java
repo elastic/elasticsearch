@@ -22,6 +22,7 @@ package org.elasticsearch.packaging.test;
 import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.apache.http.client.fluent.Request;
+import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.packaging.util.Shell.Result;
@@ -70,12 +71,14 @@ import static org.junit.Assume.assumeThat;
 import static org.junit.Assume.assumeTrue;
 
 @TestCaseOrdering(TestCaseOrdering.AlphabeticOrder.class)
-public abstract class PackageTestCase extends PackagingTestCase {
+public class PackageTests extends PackagingTestCase {
     private Shell sh;
 
     @Before
     public void onlyCompatibleDistributions() throws Exception {
         assumeTrue("only compatible distributions", distribution().packaging.compatible);
+        assumeTrue("rpm or deb",
+            distribution().packaging == Distribution.Packaging.DEB || distribution().packaging == Distribution.Packaging.RPM);
         sh = newShell();
     }
 

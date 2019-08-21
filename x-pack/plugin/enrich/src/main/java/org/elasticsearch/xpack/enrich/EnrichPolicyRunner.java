@@ -16,7 +16,6 @@ import java.util.function.LongSupplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -31,7 +30,6 @@ import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
-import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
@@ -40,7 +38,6 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -51,8 +48,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
-import org.elasticsearch.ingest.IngestMetadata;
-import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
@@ -63,7 +58,6 @@ public class EnrichPolicyRunner implements Runnable {
     private static final Logger logger = LogManager.getLogger(EnrichPolicyRunner.class);
 
     static final String ENRICH_POLICY_FIELD_NAME = "enrich_policy";
-    static final String ENRICH_PIPELINE_REMOVE_IDS = "enrich_policy_execute_pipeline";
 
     private final String policyName;
     private final EnrichPolicy policy;
@@ -292,6 +286,7 @@ public class EnrichPolicyRunner implements Runnable {
             .setSourceIndices(policy.getIndices().toArray(new String[0]));
         reindexRequest.getSearchRequest().source(searchSourceBuilder);
         reindexRequest.getDestination().source(new BytesArray(new byte[0]), XContentType.SMILE);
+        reindexRequest.getDestination().routing("discard");
         reindexRequest.getDestination().setPipeline(EnrichPolicyReindexPipeline.pipelineName());
         client.execute(ReindexAction.INSTANCE, reindexRequest, new ActionListener<>() {
             @Override

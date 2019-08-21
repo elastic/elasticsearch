@@ -1225,6 +1225,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 .setIndex("put-test-dest-index")
                 .build())
             .setAnalysis(OutlierDetection.createDefault())
+            .setDescription("some description")
             .build();
 
         createIndex("put-test-source-index", defaultMappingForTest());
@@ -1241,6 +1242,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(createdConfig.getAnalysis(), equalTo(config.getAnalysis()));
         assertThat(createdConfig.getAnalyzedFields(), equalTo(config.getAnalyzedFields()));
         assertThat(createdConfig.getModelMemoryLimit(), equalTo(ByteSizeValue.parseBytesSizeValue("1gb", "")));  // default value
+        assertThat(createdConfig.getDescription(), equalTo("some description"));
     }
 
     public void testGetDataFrameAnalyticsConfig_SingleConfig() throws Exception {

@@ -2951,6 +2951,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setAnalysis(outlierDetection) // <4>
                 .setAnalyzedFields(analyzedFields) // <5>
                 .setModelMemoryLimit(new ByteSizeValue(5, ByteSizeUnit.MB)) // <6>
+                .setDescription("this is an example description") // <7>
                 .build();
             // end::put-data-frame-analytics-config
 

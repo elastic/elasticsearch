@@ -20,6 +20,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
+import org.elasticsearch.xpack.core.slm.history.SnapshotHistoryStore;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 
 import java.util.Collections;
@@ -67,7 +68,7 @@ public class SnapshotRetentionServiceTests extends ESTestCase {
 
     private static class FakeRetentionTask extends SnapshotRetentionTask {
         FakeRetentionTask() {
-            super(mock(Client.class), null, System::nanoTime);
+            super(mock(Client.class), null, System::nanoTime, mock(SnapshotHistoryStore.class));
         }
 
         @Override

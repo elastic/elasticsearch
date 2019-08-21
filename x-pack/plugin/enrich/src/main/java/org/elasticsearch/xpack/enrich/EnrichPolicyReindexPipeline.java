@@ -1,3 +1,8 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
 package org.elasticsearch.xpack.enrich;
 
 import java.io.IOException;
@@ -76,12 +81,6 @@ public class EnrichPolicyReindexPipeline {
                             // remove the id from the document so that documents from multiple indices will always be unique.
                             .startObject("remove")
                                 .field("field", "_id")
-                            .endObject()
-                        .endObject()
-                        .startObject()
-                            // remove the routing from the document as well as it will not be needed in a single shard enrich index.
-                            .startObject("remove")
-                                .field("field", "_routing")
                             .endObject()
                         .endObject()
                     .endArray()

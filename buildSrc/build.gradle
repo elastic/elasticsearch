@@ -221,6 +221,11 @@ if (project != rootProject) {
     maxParallelForks System.getProperty('tests.jvms', project.rootProject.ext.defaultParallel.toString()) as Integer
     // These tests run Gradle which doesn't have FIPS support
     onlyIf { project.inFipsJvm == false }
+    testLogging {
+      showExceptions = true
+      showCauses = true
+      exceptionFormat = 'full'
+    }
   }
   check.dependsOn(integTest)
 

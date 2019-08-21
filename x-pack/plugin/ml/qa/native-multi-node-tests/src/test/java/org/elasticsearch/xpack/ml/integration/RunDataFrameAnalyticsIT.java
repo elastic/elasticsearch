@@ -48,7 +48,6 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         cleanUp();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/45741")
     public void testOutlierDetectionWithFewDocuments() throws Exception {
         String sourceIndex = "test-outlier-detection-with-few-docs";
 
@@ -116,7 +115,6 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         assertThat(scoreOfOutlier, is(greaterThan(scoreOfNonOutlier)));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/45741")
     public void testOutlierDetectionWithEnoughDocumentsToScroll() throws Exception {
         String sourceIndex = "test-outlier-detection-with-enough-docs-to-scroll";
 
@@ -160,7 +158,6 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) docCount));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/45741")
     public void testOutlierDetectionWithMoreFieldsThanDocValueFieldLimit() throws Exception {
         String sourceIndex = "test-outlier-detection-with-more-fields-than-docvalue-limit";
 
@@ -280,7 +277,6 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/45741")
     public void testOutlierDetectionWithMultipleSourceIndices() throws Exception {
         String sourceIndex1 = "test-outlier-detection-with-multiple-source-indices-1";
         String sourceIndex2 = "test-outlier-detection-with-multiple-source-indices-2";
@@ -331,7 +327,6 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) bulkRequestBuilder.numberOfActions()));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/45741")
     public void testOutlierDetectionWithPreExistingDestIndex() throws Exception {
         String sourceIndex = "test-outlier-detection-with-pre-existing-dest-index";
         String destIndex = "test-outlier-detection-with-pre-existing-dest-index-results";
@@ -445,7 +440,6 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         assertThat(resultsWithPrediction, greaterThan(0));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/45741")
     public void testModelMemoryLimitLowerThanEstimatedMemoryUsage() {
         String sourceIndex = "test-model-memory-limit";
 

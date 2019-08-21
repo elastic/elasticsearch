@@ -135,11 +135,11 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
         assertThat(SnapshotRetentionTask.snapshotEligibleForDeletion(info, mkInfos.apply(info), policyMap), equalTo(false));
     }
 
-    public void testRentionTaskSuccess() throws Exception {
+    public void testRetentionTaskSuccess() throws Exception {
         retentionTaskTest(true);
     }
 
-    public void testRentionTaskFailure() throws Exception {
+    public void testRetentionTaskFailure() throws Exception {
         retentionTaskTest(false);
     }
 

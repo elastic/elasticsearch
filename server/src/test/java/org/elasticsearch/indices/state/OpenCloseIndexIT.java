@@ -37,6 +37,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -352,14 +353,14 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/45801")
     public void testTranslogStats()  {
         final String indexName = "test";
         createIndex(indexName, Settings.builder()
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
             .build());
-        boolean softDeletesEnabled = IndexSettings.INDEX_SOFT_DELETES_SETTING.get(
-            client().admin().indices().prepareGetSettings(indexName).get().getIndexToSettings().get(indexName));
+        Settings indexSettings = client().admin().indices().prepareGetSettings(indexName).get().getIndexToSettings().get(indexName);
+        boolean softDeletesEnabled = IndexSettings.INDEX_SOFT_DELETES_SETTING.get(indexSettings);
+        Translog.Durability translogDurability = IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.get(indexSettings);
 
         final int nbDocs = randomIntBetween(0, 50);
         int uncommittedOps = 0;
@@ -377,8 +378,13 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
 
         IndicesStatsResponse stats = client().admin().indices().prepareStats(indexName).clear().setTranslog(true).get();
         assertThat(stats.getIndex(indexName), notNullValue());
-        assertThat(stats.getIndex(indexName).getPrimaries().getTranslog().estimatedNumberOfOperations(), equalTo(
-            softDeletesEnabled ? uncommittedOps : nbDocs));
+        // If soft-deletes is enabled, we will trim translog above the local checkpoint of the safe commit immediately.
+        // However, if the translog durability is async, the last commit might not be the safe commit as the local checkpoint
+        // won't advance until translog is synced. We can't check for translog stats in this case.
+        if (translogDurability != Translog.Durability.ASYNC || softDeletesEnabled == false) {
+            assertThat(stats.getIndex(indexName).getPrimaries().getTranslog().estimatedNumberOfOperations(),
+                equalTo(softDeletesEnabled ? uncommittedOps : nbDocs));
+        }
         assertThat(stats.getIndex(indexName).getPrimaries().getTranslog().getUncommittedOperations(), equalTo(uncommittedOps));
 
         assertAcked(client().admin().indices().prepareClose("test"));

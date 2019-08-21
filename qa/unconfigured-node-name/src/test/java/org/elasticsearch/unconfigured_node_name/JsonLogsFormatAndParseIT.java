@@ -37,15 +37,15 @@ public class JsonLogsFormatAndParseIT extends JsonLogsIntegTestCase {
     private static final boolean WINDOWS = OS_NAME.startsWith("Windows");
 
     // These match the values defined in org.elasticsearch.gradle.testclusters.ElasticsearchNode
-    private static final String WINDOWS_COMPUTERNAME = "WindowsComputername";
-    private static final String LINUX_DARWIN_HOSTNAME = "LinuxDarwinHostname";
+    private static final String COMPUTERNAME = "WindowsComputername";
+    private static final String HOSTNAME = "LinuxDarwinHostname";
 
     @Override
     protected Matcher<String> nodeNameMatcher() {
         if (WINDOWS) {
-            return equalTo(WINDOWS_COMPUTERNAME);
+            return equalTo(COMPUTERNAME);
         }
-        return equalTo(LINUX_DARWIN_HOSTNAME);
+        return equalTo(HOSTNAME);
     }
 
     @Override

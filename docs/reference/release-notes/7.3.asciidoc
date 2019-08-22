@@ -48,7 +48,7 @@ Data Frame::
 * Fix null aggregation handling in indexer {pull}45061[#45061] (issue: {issue}44906[#44906])
 
 Distributed::
-* Ensure AsyncTask#isScheduled remain false after close {pull}45687[#45687] (issue: {issue}45576[#45576])
+* Ensure AsyncTask#isScheduled remains false after close {pull}45687[#45687] (issue: {issue}45576[#45576])
 * Fix clock used in update requests {pull}45262[#45262] (issue: {issue}45254[#45254])
 * Restore DefaultShardOperationFailedException's reason during deserialization {pull}45203[#45203]
 

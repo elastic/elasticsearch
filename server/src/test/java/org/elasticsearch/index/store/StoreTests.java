@@ -70,7 +70,6 @@ import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.hamcrest.Matchers;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -107,47 +106,47 @@ public class StoreTests extends ESTestCase {
     private static final Version MIN_SUPPORTED_LUCENE_VERSION = org.elasticsearch.Version.CURRENT
         .minimumIndexCompatibilityVersion().luceneVersion;
 
-    public void testRefCount() {
-        final ShardId shardId = new ShardId("index", "_na_", 1);
-        IndexSettings indexSettings = INDEX_SETTINGS;
-        Store store = new Store(shardId, indexSettings, StoreTests.newDirectory(random()), new DummyShardLock(shardId));
-        int incs = randomIntBetween(1, 100);
-        for (int i = 0; i < incs; i++) {
-            if (randomBoolean()) {
-                store.incRef();
-            } else {
-                assertTrue(store.tryIncRef());
-            }
-            store.ensureOpen();
-        }
-
-        for (int i = 0; i < incs; i++) {
-            store.decRef();
-            store.ensureOpen();
-        }
-
-        store.incRef();
-        store.close();
-        for (int i = 0; i < incs; i++) {
-            if (randomBoolean()) {
-                store.incRef();
-            } else {
-                assertTrue(store.tryIncRef());
-            }
-            store.ensureOpen();
-        }
-
-        for (int i = 0; i < incs; i++) {
-            store.decRef();
-            store.ensureOpen();
-        }
-
-        store.decRef();
-        assertThat(store.refCount(), Matchers.equalTo(0));
-        assertFalse(store.tryIncRef());
-        expectThrows(IllegalStateException.class, store::incRef);
-        expectThrows(IllegalStateException.class, store::ensureOpen);
-    }
+//    public void testRefCount() {
+//        final ShardId shardId = new ShardId("index", "_na_", 1);
+//        IndexSettings indexSettings = INDEX_SETTINGS;
+//        Store store = new Store(shardId, indexSettings, StoreTests.newDirectory(random()), new DummyShardLock(shardId));
+//        int incs = randomIntBetween(1, 100);
+//        for (int i = 0; i < incs; i++) {
+//            if (randomBoolean()) {
+//                store.incRef();
+//            } else {
+//                assertTrue(store.tryIncRef());
+//            }
+//            store.ensureOpen();
+//        }
+//
+//        for (int i = 0; i < incs; i++) {
+//            store.decRef();
+//            store.ensureOpen();
+//        }
+//
+//        store.incRef();
+//        store.close();
+//        for (int i = 0; i < incs; i++) {
+//            if (randomBoolean()) {
+//                store.incRef();
+//            } else {
+//                assertTrue(store.tryIncRef());
+//            }
+//            store.ensureOpen();
+//        }
+//
+//        for (int i = 0; i < incs; i++) {
+//            store.decRef();
+//            store.ensureOpen();
+//        }
+//
+//        store.decRef();
+//        assertThat(store.refCount(), Matchers.equalTo(0));
+//        assertFalse(store.tryIncRef());
+//        expectThrows(IllegalStateException.class, store::incRef);
+//        expectThrows(IllegalStateException.class, store::ensureOpen);
+//    }
 
     public void testVerifyingIndexOutput() throws IOException {
         Directory dir = newDirectory();

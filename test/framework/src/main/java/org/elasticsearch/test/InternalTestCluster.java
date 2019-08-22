@@ -1191,7 +1191,9 @@ public final class InternalTestCluster extends TestCluster {
                 for (IndexService indexService : indexServices) {
                     for (IndexShard indexShard : indexService) {
                         try {
-                            if (IndexShardTestCase.getEngine(indexShard) instanceof InternalEngine) {
+                            final Engine engine = IndexShardTestCase.getEngine(indexShard);
+                            EngineTestCase.assertNoPendingSearchers(engine);
+                            if (engine instanceof InternalEngine) {
                                 IndexShardTestCase.getTranslog(indexShard).getDeletionPolicy().assertNoOpenTranslogRefs();
                             }
                         } catch (AlreadyClosedException ok) {

@@ -23,6 +23,7 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -279,11 +280,11 @@ public class NodeTests extends ESTestCase {
                 .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)));
         IndexService indexService = indicesService.iterator().next();
         IndexShard shard = indexService.getShard(0);
-        shard.store().incRef();
+        final Releasable storeRef = shard.store().incRef("test");
         node.close();
 
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> node.awaitClose(1, TimeUnit.DAYS));
-        shard.store().decRef();
+        storeRef.close();
         assertThat(e.getMessage(), Matchers.containsString("Something is leaking index readers or store references"));
     }
 }

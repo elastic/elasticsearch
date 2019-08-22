@@ -30,6 +30,7 @@ import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.store.NativeFSLockFactory;
 import org.apache.lucene.store.SimpleFSDirectory;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -46,6 +47,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -787,6 +789,23 @@ public final class NodeEnvironment  implements Closeable {
                 shardLock.release();
                 logger.trace("released shard lock for [{}]", shardId);
             }
+
+            @Override
+            public boolean addNewAcquirer(Object key, String source) {
+                assert shardLock.childrenAcquirers.put(key, new Exception("acquired by [" + source + "]")) == null;
+                return true;
+            }
+
+            @Override
+            public boolean removeAcquirer(Object key) {
+                assert shardLock.childrenAcquirers.remove(key) != null;
+                return true;
+            }
+
+            @Override
+            public Collection<Exception> acquirers() {
+                return shardLock.childrenAcquirers.values();
+            }
         };
     }
 
@@ -820,6 +839,7 @@ public final class NodeEnvironment  implements Closeable {
         private int waitCount = 1; // guarded by shardLocks
         private String lockDetails;
         private final ShardId shardId;
+        private final Map<Object, Exception> childrenAcquirers = Assertions.ENABLED ? ConcurrentCollections.newConcurrentMap() : null;
 
         InternalShardLock(final ShardId shardId, final String details) {
             this.shardId = shardId;
@@ -857,9 +877,11 @@ public final class NodeEnvironment  implements Closeable {
                 if (mutex.tryAcquire(timeoutInMillis, TimeUnit.MILLISECONDS)) {
                     lockDetails = details;
                 } else {
-                    throw new ShardLockObtainFailedException(shardId,
+                    final ShardLockObtainFailedException error = new ShardLockObtainFailedException(shardId,
                         "obtaining shard lock timed out after " + timeoutInMillis + "ms, previous lock details: [" + lockDetails +
                             "] trying to lock for [" + details + "]");
+                    childrenAcquirers.values().forEach(error::addSuppressed);
+                    throw error;
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();

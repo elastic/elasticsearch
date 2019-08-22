@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -38,6 +39,7 @@ import org.elasticsearch.repositories.Repository;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -127,6 +129,21 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                 protected void closeInternal() {
                     // do nothing;
                 }
+
+                @Override
+                public boolean addNewAcquirer(Object key, String source) {
+                    return true;
+                }
+
+                @Override
+                public boolean removeAcquirer(Object key) {
+                    return true;
+                }
+
+                @Override
+                public Collection<Exception> acquirers() {
+                    return Collections.emptyList();
+                }
             }, Store.OnClose.EMPTY);
             Supplier<Query> querySupplier = mapperService.hasNested() ? Queries::newNestedFilter : null;
             // SourceOnlySnapshot will take care of soft- and hard-deletes no special casing needed here
@@ -136,13 +153,13 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             SegmentInfos segmentInfos = tempStore.readLastCommittedSegmentsInfo();
             final long maxDoc = segmentInfos.totalMaxDoc();
             tempStore.bootstrapNewHistory(maxDoc, maxDoc);
-            store.incRef();
+            final Releasable storeRef = store.incRef("source_only_snapshot");
             try (DirectoryReader reader = DirectoryReader.open(tempStore.directory(),
                 Collections.singletonMap(BlockTreeTermsReader.FST_MODE_KEY, BlockTreeTermsReader.FSTLoadMode.OFF_HEAP.name()))) {
                 IndexCommit indexCommit = reader.getIndexCommit();
                 super.snapshotShard(tempStore, mapperService, snapshotId, indexId, indexCommit, snapshotStatus);
             } finally {
-                store.decRef();
+                storeRef.close();
             }
         } catch (IOException e) {
             // why on earth does this super method not declare IOException

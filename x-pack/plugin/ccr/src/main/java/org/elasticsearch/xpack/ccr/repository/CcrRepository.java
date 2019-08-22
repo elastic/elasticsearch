@@ -34,6 +34,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -361,13 +362,10 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     }
 
     private void createEmptyStore(Store store) {
-        store.incRef();
-        try {
+        try (Releasable ignored = store.incRef("ccr_create_empty_store")) {
             store.createEmpty(store.indexSettings().getIndexVersionCreated().luceneVersion);
         } catch (final EngineException | IOException e) {
             throw new IndexShardRecoveryException(store.shardId(), "failed to create empty store", e);
-        } finally {
-            store.decRef();
         }
     }
 

@@ -46,6 +46,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.CheckedRunnable;
@@ -67,6 +68,7 @@ import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVers
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
@@ -143,6 +145,8 @@ public abstract class Engine implements Closeable {
      *  reduce index buffer sizes on inactive shards.
      */
     protected volatile long lastWriteNanos = System.nanoTime();
+
+    final Map<Object, Exception> assertPendingSearchers = Assertions.ENABLED ? ConcurrentCollections.newConcurrentMap() : null;
 
     protected Engine(EngineConfig engineConfig) {
         Objects.requireNonNull(engineConfig.getStore(), "Store must be provided to the engine");
@@ -665,14 +669,15 @@ public abstract class Engine implements Closeable {
         /* Acquire order here is store -> manager since we need
          * to make sure that the store is not closed before
          * the searcher is acquired. */
-        if (store.tryIncRef() == false) {
+        Releasable storeRef = store.tryIncRef(source);
+        if (storeRef == null) {
             throw new AlreadyClosedException(shardId + " store is closed", failedEngine.get());
         }
-        Releasable releasable = store::decRef;
         try {
             ReferenceManager<ElasticsearchDirectoryReader> referenceManager = getReferenceManager(scope);
             final ElasticsearchDirectoryReader acquire = referenceManager.acquire();
             AtomicBoolean released = new AtomicBoolean(false);
+            final Releasable finalStoreRef = storeRef;
             Searcher engineSearcher = new Searcher(source, acquire,
                 engineConfig.getSimilarity(), engineConfig.getQueryCache(), engineConfig.getQueryCachingPolicy(),
                 () -> {
@@ -680,7 +685,8 @@ public abstract class Engine implements Closeable {
                     try {
                         referenceManager.release(acquire);
                     } finally {
-                        store.decRef();
+                        assert assertPendingSearchers.remove(released) != null;
+                        finalStoreRef.close();
                     }
                 } else {
                     /* In general, readers should never be released twice or this would break reference counting. There is one rare case
@@ -689,7 +695,8 @@ public abstract class Engine implements Closeable {
                     logger.warn("Searcher was released twice", new IllegalStateException("Double release"));
                 }
               });
-            releasable = null; // success - hand over the reference to the engine reader
+            assert assertPendingSearchers.put(released, new Exception("acquired by [" + source + "]")) == null;
+            storeRef = null; // success - hand over the reference to the engine reader
             return engineSearcher;
         } catch (AlreadyClosedException ex) {
             throw ex;
@@ -699,7 +706,7 @@ public abstract class Engine implements Closeable {
             logger.error(() -> new ParameterizedMessage("failed to acquire searcher, source {}", source), ex);
             throw new EngineException(shardId, "failed to acquire searcher, source " + source, ex);
         } finally {
-            Releasables.close(releasable);
+            Releasables.close(storeRef);
         }
     }
 
@@ -1005,7 +1012,8 @@ public abstract class Engine implements Closeable {
     public abstract List<Segment> segments(boolean verbose);
 
     public boolean refreshNeeded() {
-        if (store.tryIncRef()) {
+        final Releasable releasable;
+        if ((releasable = store.tryIncRef("refresh_if_needed")) != null) {
             /*
               we need to inc the store here since we acquire a searcher and that might keep a file open on the
               store. this violates the assumption that all files are closed when
@@ -1020,7 +1028,7 @@ public abstract class Engine implements Closeable {
                 failEngine("failed to access searcher manager", e);
                 throw new EngineException(shardId, "failed to access searcher manager", e);
             } finally {
-                store.decRef();
+                releasable.close();
             }
         }
         return false;
@@ -1157,8 +1165,7 @@ public abstract class Engine implements Closeable {
             maybeDie(reason, failure);
         }
         if (failEngineLock.tryLock()) {
-            store.incRef();
-            try {
+            try (Releasable releaseStore = store.incRef("fail_engine")){
                 if (failedEngine.get() != null) {
                     logger.warn(() ->
                         new ParameterizedMessage("tried to fail engine but engine is already failed. ignoring. [{}]",
@@ -1192,8 +1199,6 @@ public abstract class Engine implements Closeable {
                 if (failure != null) inner.addSuppressed(failure);
                 // don't bubble up these exceptions up
                 logger.warn("failEngine threw exception", inner);
-            } finally {
-                store.decRef();
             }
         } else {
             logger.debug(() -> new ParameterizedMessage("tried to fail engine but could not acquire lock - engine should " +

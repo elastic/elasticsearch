@@ -26,6 +26,7 @@ import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.shard.ShardId;
@@ -86,8 +87,7 @@ public abstract class FileRestoreContext {
      * Performs restore operation
      */
     public void restore(SnapshotFiles snapshotFiles, Store store) throws IOException {
-        store.incRef();
-        try {
+        try (Releasable ignored = store.incRef("restore_snapshot")) {
             logger.debug("[{}] [{}] restoring to [{}] ...", snapshotId, repositoryName, shardId);
 
             if (snapshotFiles.indexFiles().size() == 1
@@ -205,8 +205,6 @@ public abstract class FileRestoreContext {
             } catch (IOException e) {
                 logger.warn("[{}] [{}] failed to list directory - some of files might not be deleted", shardId, snapshotId);
             }
-        } finally {
-            store.decRef();
         }
     }
 

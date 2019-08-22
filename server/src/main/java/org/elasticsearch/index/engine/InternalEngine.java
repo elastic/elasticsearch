@@ -173,6 +173,7 @@ public class InternalEngine extends Engine {
 
     private final AtomicBoolean trackTranslogLocation = new AtomicBoolean(false);
     private final KeyedLock<Long> noOpKeyedLock = new KeyedLock<>();
+    private final Releasable releaseStoreFromCtor;
 
     @Nullable
     private final String historyUUID;
@@ -189,7 +190,7 @@ public class InternalEngine extends Engine {
                 engineConfig.getIndexSettings().getTranslogRetentionSize().getBytes(),
                 engineConfig.getIndexSettings().getTranslogRetentionAge().getMillis()
         );
-        store.incRef();
+        releaseStoreFromCtor = store.incRef("internal_engine_ctor");
         IndexWriter writer = null;
         Translog translog = null;
         ExternalReaderManager externalReaderManager = null;
@@ -264,7 +265,7 @@ public class InternalEngine extends Engine {
                 IOUtils.closeWhileHandlingException(writer, translog, internalReaderManager, externalReaderManager, scheduler);
                 if (isClosed.get() == false) {
                     // failure we need to dec the store reference
-                    store.decRef();
+                    releaseStoreFromCtor.close();
                 }
             }
         }
@@ -1562,7 +1563,8 @@ public class InternalEngine extends Engine {
         boolean refreshed;
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
-            if (store.tryIncRef()) {
+            Releasable releaseStore = store.tryIncRef("refresh[" + source + "]");
+            if (releaseStore != null) {
                 // increment the ref just to ensure nobody closes the store during a refresh
                 try {
                     // even though we maintain 2 managers we really do the heavy-lifting only once.
@@ -1576,7 +1578,7 @@ public class InternalEngine extends Engine {
                         refreshed = referenceManager.maybeRefresh();
                     }
                 } finally {
-                    store.decRef();
+                    releaseStore.close();
                 }
                 if (refreshed) {
                     lastRefreshedCheckpointListener.updateRefreshedCheckpoint(localCheckpointBeforeRefresh);
@@ -1785,8 +1787,7 @@ public class InternalEngine extends Engine {
      * dec the store reference which can essentially close the store and unless we can inc the reference
      * we can't use it.
      */
-        store.incRef();
-        try {
+        try (Releasable ignored = store.incRef("refresh_last_commit")){
             // reread the last committed segment infos
             lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
         } catch (Exception e) {
@@ -1800,8 +1801,6 @@ public class InternalEngine extends Engine {
                     throw new FlushFailedEngineException(shardId, e);
                 }
             }
-        } finally {
-            store.decRef();
         }
     }
 
@@ -1931,8 +1930,7 @@ public class InternalEngine extends Engine {
                 logger.info("starting segment upgrade upgradeOnlyAncientSegments={}", upgradeOnlyAncientSegments);
                 mp.setUpgradeInProgress(true, upgradeOnlyAncientSegments);
             }
-            store.incRef(); // increment the ref just to ensure nobody closes the store while we optimize
-            try {
+            try (Releasable releasable = store.incRef("force_merge")){
                 if (onlyExpungeDeletes) {
                     assert upgrade == false;
                     indexWriter.forceMergeDeletes(true /* blocks and waits for merges*/);
@@ -1950,8 +1948,6 @@ public class InternalEngine extends Engine {
                 if (upgrade) {
                     logger.info("finished segment upgrade");
                 }
-            } finally {
-                store.decRef();
             }
         } catch (AlreadyClosedException ex) {
             /* in this case we first check if the engine is still open. If so this exception is just fine
@@ -2138,7 +2134,7 @@ public class InternalEngine extends Engine {
                 logger.warn("failed to rollback writer on close", e);
             } finally {
                 try {
-                    store.decRef();
+                    releaseStoreFromCtor.close();
                     logger.debug("engine closed [{}]", reason);
                 } finally {
                     closedLatch.countDown();

@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.RemovalNotification;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.Environment;
@@ -130,14 +131,14 @@ public class IndicesServiceCloseTests extends ESTestCase {
 
         IndexService indexService = indicesService.iterator().next();
         IndexShard shard = indexService.getShard(0);
-        shard.store().incRef();
+        final Releasable storeRef = shard.store().incRef("");
         assertFalse(indicesService.awaitClose(0, TimeUnit.MILLISECONDS));
 
         node.close();
         assertEquals(1, indicesService.indicesRefCount.refCount());
         assertFalse(indicesService.awaitClose(0, TimeUnit.MILLISECONDS));
 
-        shard.store().decRef();
+        storeRef.close();
         assertEquals(0, indicesService.indicesRefCount.refCount());
         assertTrue(indicesService.awaitClose(0, TimeUnit.MILLISECONDS));
     }

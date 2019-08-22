@@ -26,6 +26,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.NoLockFactory;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.store.Store;
@@ -40,18 +41,19 @@ final class LocalShardSnapshot implements Closeable {
     private final Store store;
     private final Engine.IndexCommitRef indexCommit;
     private final AtomicBoolean closed = new AtomicBoolean(false);
+    private final Releasable storeRef;
 
     LocalShardSnapshot(IndexShard shard) {
         this.shard = shard;
         store = shard.store();
-        store.incRef();
+        storeRef = store.incRef("local_shard_snapshot");
         boolean success = false;
         try {
             indexCommit = shard.acquireLastIndexCommit(true);
             success = true;
         } finally {
             if (success == false) {
-                store.decRef();
+                storeRef.close();
             }
         }
     }
@@ -125,7 +127,7 @@ final class LocalShardSnapshot implements Closeable {
             try {
                 indexCommit.close();
             } finally {
-                store.decRef();
+                storeRef.close();
             }
         }
     }

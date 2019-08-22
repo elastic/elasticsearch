@@ -31,6 +31,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Setting;
@@ -196,7 +197,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
     @SuppressWarnings("fallthrough")
     @SuppressForbidden( reason = "we manage references explicitly here")
     public Searcher acquireSearcher(String source, SearcherScope scope) throws EngineException {
-        store.incRef();
+        final Releasable storeRef = store.incRef("acquire_searcher_frozen_engine");
         boolean releaseRefeference = true;
         try  {
             final boolean maybeOpenReader;
@@ -236,7 +237,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
                     LazyDirectoryReader lazyDirectoryReader = new LazyDirectoryReader(reader, this);
                     Searcher newSearcher = new Searcher(source, lazyDirectoryReader,
                         engineConfig.getSimilarity(), engineConfig.getQueryCache(), engineConfig.getQueryCachingPolicy(),
-                        () -> IOUtils.close(lazyDirectoryReader, store::decRef));
+                        () -> IOUtils.close(lazyDirectoryReader, storeRef));
                     releaseRefeference = false;
                     return newSearcher;
                 } finally {
@@ -249,7 +250,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
             throw new UncheckedIOException(e);
         } finally {
             if (releaseRefeference) {
-                store.decRef();
+                storeRef.close();
             }
         }
     }

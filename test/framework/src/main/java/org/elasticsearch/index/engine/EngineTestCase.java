@@ -112,6 +112,7 @@ import java.nio.charset.Charset;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -1236,5 +1237,14 @@ public abstract class EngineTestCase extends ESTestCase {
      */
     public static long getNumVersionLookups(Engine engine) {
         return ((InternalEngine) engine).getNumVersionLookups();
+    }
+
+    public static void assertNoPendingSearchers(Engine engine) {
+        final Collection<Exception> pendingSearchers = engine.assertPendingSearchers.values();
+        if (pendingSearchers.isEmpty() == false) {
+            AssertionError e = new AssertionError("not all searchers have been released");
+            pendingSearchers.forEach(e::addSuppressed);
+            throw e;
+        }
     }
 }

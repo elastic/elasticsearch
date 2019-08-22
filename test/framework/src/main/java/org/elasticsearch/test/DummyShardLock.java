@@ -22,6 +22,9 @@ package org.elasticsearch.test;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.shard.ShardId;
 
+import java.util.Collection;
+import java.util.Collections;
+
 /*
  * A ShardLock that does nothing... for tests only
  */
@@ -33,5 +36,20 @@ public class DummyShardLock extends ShardLock {
 
     @Override
     protected void closeInternal() {
+    }
+
+    @Override
+    public boolean addNewAcquirer(Object key, String source) {
+        return true;
+    }
+
+    @Override
+    public boolean removeAcquirer(Object key) {
+        return true;
+    }
+
+    @Override
+    public Collection<Exception> acquirers() {
+        return Collections.emptyList();
     }
 }

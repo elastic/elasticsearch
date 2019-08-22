@@ -58,6 +58,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
@@ -66,7 +67,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
-import org.elasticsearch.common.util.concurrent.RefCounted;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
@@ -127,7 +127,7 @@ import static java.util.Collections.unmodifiableMap;
  *      }
  * </pre>
  */
-public class Store extends AbstractIndexShardComponent implements Closeable, RefCounted {
+public class Store extends AbstractIndexShardComponent implements Closeable {
     /**
      * This is an escape hatch for lucenes internal optimization that checks if the IndexInput is an instance of ByteBufferIndexInput
      * and if that's the case doesn't load the term dictionary into ram but loads it off disk iff the fields is not an ID like field.
@@ -379,11 +379,22 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      *
      * @throws AlreadyClosedException iff the reference counter can not be incremented.
      * @see #decRef
-     * @see #tryIncRef()
+     * @see #tryIncRef(String source)
      */
-    @Override
-    public final void incRef() {
+    public final Releasable incRef(String source) {
         refCounter.incRef();
+        return decRefAsReleasable(source);
+    }
+
+    private Releasable decRefAsReleasable(String source) {
+        final AtomicBoolean released = new AtomicBoolean();
+        assert shardLock.addNewAcquirer(released, source);
+        return () -> {
+            if (released.compareAndSet(false, true)) {
+                assert shardLock.removeAcquirer(released);
+                decRef();
+            }
+        };
     }
 
     /**
@@ -397,11 +408,14 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * Note: Close can safely be called multiple times.
      *
      * @see #decRef()
-     * @see #incRef()
+     * @see #incRef(String)
      */
-    @Override
-    public final boolean tryIncRef() {
-        return refCounter.tryIncRef();
+    public final Releasable tryIncRef(String source) {
+        if (refCounter.tryIncRef()) {
+            return decRefAsReleasable(source);
+        } else {
+            return null;
+        }
     }
 
     /**
@@ -410,8 +424,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      *
      * @see #incRef
      */
-    @Override
-    public final void decRef() {
+    private void decRef() {
         refCounter.decRef();
     }
 

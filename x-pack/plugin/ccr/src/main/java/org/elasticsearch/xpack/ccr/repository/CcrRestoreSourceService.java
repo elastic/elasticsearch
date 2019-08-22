@@ -199,11 +199,8 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
         }
 
         private Store.MetadataSnapshot getMetaData() throws IOException {
-            indexShard.store().incRef();
-            try {
+            try (Releasable ignored = indexShard.store().incRef("ccr_meta_data_source")) {
                 return indexShard.store().getMetadata(commitRef.getIndexCommit());
-            } finally {
-                indexShard.store().decRef();
             }
         }
 

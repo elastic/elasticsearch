@@ -1193,7 +1193,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public Store.MetadataSnapshot snapshotStoreMetadata() throws IOException {
         Engine.IndexCommitRef indexCommit = null;
-        store.incRef();
+        final Releasable storeRef = store.incRef("snapshot_store_metadata");
         try {
             Engine engine;
             synchronized (mutex) {
@@ -1208,7 +1208,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             indexCommit = engine.acquireLastIndexCommit(false);
             return store.getMetadata(indexCommit.getIndexCommit());
         } finally {
-            store.decRef();
+            storeRef.close();
             IOUtils.close(indexCommit);
         }
     }
@@ -2399,14 +2399,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     void checkIndex() throws IOException {
-        if (store.tryIncRef()) {
+        final Releasable storeRef = store.tryIncRef("check_index");
+        if (storeRef != null) {
             try {
                 doCheckIndex();
             } catch (IOException e) {
                 store.markStoreCorrupted(e);
                 throw e;
             } finally {
-                store.decRef();
+                storeRef.close();
             }
         }
     }

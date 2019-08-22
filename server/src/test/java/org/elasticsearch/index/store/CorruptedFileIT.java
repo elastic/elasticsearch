@@ -49,6 +49,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -205,7 +206,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
             public void afterIndexShardClosed(ShardId sid, @Nullable IndexShard indexShard, Settings indexSettings) {
                 if (indexShard != null) {
                     Store store = indexShard.store();
-                    store.incRef();
+                    final Releasable storeRef = store.incRef("");
                     try {
                         if (!Lucene.indexExists(store.directory()) && indexShard.state() == IndexShardState.STARTED) {
                             return;
@@ -221,7 +222,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
                     } catch (Exception e) {
                         exception.add(e);
                     } finally {
-                        store.decRef();
+                        storeRef.close();
                         latch.countDown();
                     }
                 }

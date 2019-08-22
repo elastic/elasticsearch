@@ -2211,10 +2211,10 @@ public class IndexShardTests extends IndexShardTestCase {
         }
 
         Store store = shard.store();
-        store.incRef();
+        final Releasable storeRef = store.incRef("test");
         closeShards(shard);
         cleanLuceneIndex(store.directory());
-        store.decRef();
+        storeRef.close();
         IndexShard newShard = reinitShard(shard);
         DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         ShardRouting routing = newShard.routingEntry();

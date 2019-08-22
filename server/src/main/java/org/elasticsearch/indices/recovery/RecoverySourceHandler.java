@@ -399,13 +399,13 @@ public class RecoverySourceHandler {
      * We must never release the store using an interruptible thread as we can risk invalidating the node lock.
      */
     private Releasable acquireStore(Store store) {
-        store.incRef();
+        final Releasable releaseStore = store.incRef("peer_recovery");
         return Releasables.releaseOnce(() -> {
             final PlainActionFuture<Void> future = new PlainActionFuture<>();
             threadPool.generic().execute(new ActionRunnable<>(future) {
                 @Override
                 protected void doRun() {
-                    store.decRef();
+                    releaseStore.close();
                     listener.onResponse(null);
                 }
             });

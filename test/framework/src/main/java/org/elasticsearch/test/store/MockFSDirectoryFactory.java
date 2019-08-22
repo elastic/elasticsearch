@@ -30,6 +30,7 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestRuleMarkFailure;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -70,7 +71,8 @@ public class MockFSDirectoryFactory implements IndexStorePlugin.DirectoryFactory
     }
 
     public static void checkIndex(Logger logger, Store store, ShardId shardId) {
-        if (store.tryIncRef()) {
+        final Releasable storeRef = store.tryIncRef("check_index");
+        if (storeRef != null) {
             logger.info("start check index");
             try {
                 Directory dir = store.directory();
@@ -99,7 +101,7 @@ public class MockFSDirectoryFactory implements IndexStorePlugin.DirectoryFactory
                 logger.warn("failed to check index", e);
             } finally {
                 logger.info("end check index");
-                store.decRef();
+                storeRef.close();
             }
         }
     }

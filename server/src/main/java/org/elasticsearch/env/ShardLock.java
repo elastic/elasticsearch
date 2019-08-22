@@ -22,6 +22,7 @@ package org.elasticsearch.env;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.Closeable;
+import java.util.Collection;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -50,7 +51,7 @@ public abstract class ShardLock implements Closeable {
     @Override
     public final void close() {
         if (this.closed.compareAndSet(false, true)) {
-           closeInternal();
+            closeInternal();
         }
     }
 
@@ -63,4 +64,9 @@ public abstract class ShardLock implements Closeable {
                 '}';
     }
 
+    public abstract boolean addNewAcquirer(Object key, String source);
+
+    public abstract boolean removeAcquirer(Object key);
+
+    public abstract Collection<Exception> acquirers();
 }

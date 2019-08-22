@@ -31,6 +31,7 @@ import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.CancellableThreads;
@@ -84,6 +85,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
 
     // latch that can be used to blockingly wait for RecoveryTarget to be closed
     private final CountDownLatch closedLatch = new CountDownLatch(1);
+    private final Releasable releaseStore;
 
     /**
      * Creates a new recovery target object that represents a recovery to the provided shard.
@@ -106,7 +108,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             this::ensureRefCount);
         this.store = indexShard.store();
         // make sure the store is not released until we are done.
-        store.incRef();
+        this.releaseStore = store.incRef("recovery_target");
         indexShard.recoveryStats().incCurrentAsTarget();
     }
 
@@ -259,7 +261,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             multiFileWriter.close();
         } finally {
             // free store. increment happens in constructor
-            store.decRef();
+            releaseStore.close();
             indexShard.recoveryStats().decCurrentAsTarget();
             closedLatch.countDown();
         }
@@ -411,8 +413,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             // to recover from in case of a full cluster shutdown just when this code executes...
             multiFileWriter.renameAllTempFiles();
             final Store store = store();
-            store.incRef();
-            try {
+            try (Releasable releasable = store.incRef("clean_files")){
                 store.cleanupAndVerify("recovery CleanFilesRequestHandler", sourceMetaData);
                 final String translogUUID = Translog.createEmptyTranslog(
                     indexShard.shardPath().resolveTranslog(), globalCheckpoint, shardId, indexShard.getPendingPrimaryTerm());
@@ -450,8 +451,6 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                 RecoveryFailedException rfe = new RecoveryFailedException(state(), "failed to clean after recovery", ex);
                 fail(rfe, true);
                 throw rfe;
-            } finally {
-                store.decRef();
             }
             return null;
         });

@@ -29,6 +29,7 @@ import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.Lock;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
@@ -78,6 +79,7 @@ public class ReadOnlyEngine extends Engine {
     private final DocsStats docsStats;
     private final RamAccountingRefreshListener refreshListener;
     private final SafeCommitInfo safeCommitInfo;
+    private final Releasable storeRef;
 
     protected volatile TranslogStats translogStats;
 
@@ -99,7 +101,7 @@ public class ReadOnlyEngine extends Engine {
         this.refreshListener = new RamAccountingRefreshListener(engineConfig.getCircuitBreakerService());
         try {
             Store store = config.getStore();
-            store.incRef();
+            storeRef = store.incRef("readonly_engine_ctor");
             ElasticsearchDirectoryReader reader = null;
             Directory directory = store.directory();
             Lock indexWriterLock = null;
@@ -125,7 +127,7 @@ public class ReadOnlyEngine extends Engine {
                 success = true;
             } finally {
                 if (success == false) {
-                    IOUtils.close(reader, indexWriterLock, store::decRef);
+                    IOUtils.close(reader, indexWriterLock, storeRef);
                 }
             }
         } catch (IOException e) {
@@ -201,7 +203,7 @@ public class ReadOnlyEngine extends Engine {
     protected void closeNoLock(String reason, CountDownLatch closedLatch) {
         if (isClosed.compareAndSet(false, true)) {
             try {
-                IOUtils.close(readerManager, indexWriterLock, store::decRef);
+                IOUtils.close(readerManager, indexWriterLock, storeRef);
             } catch (Exception ex) {
                 logger.warn("failed to close reader", ex);
             } finally {
@@ -413,8 +415,8 @@ public class ReadOnlyEngine extends Engine {
 
     @Override
     public IndexCommitRef acquireLastIndexCommit(boolean flushFirst) {
-        store.incRef();
-        return new IndexCommitRef(indexCommit, store::decRef);
+        final Releasable releaseStore = store.incRef("acquire_last_commit");
+        return new IndexCommitRef(indexCommit, releaseStore::close);
     }
 
     @Override

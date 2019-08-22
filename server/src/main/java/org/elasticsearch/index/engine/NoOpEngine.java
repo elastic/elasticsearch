@@ -26,6 +26,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.store.Store;
@@ -132,7 +133,7 @@ public final class NoOpEngine extends ReadOnlyEngine {
     @Override
     public void trimUnreferencedTranslogFiles() {
         final Store store = this.engineConfig.getStore();
-        store.incRef();
+        final Releasable storeRef = store.incRef("trim_translog");
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
             final List<IndexCommit> commits = DirectoryReader.listCommits(store.directory());
@@ -171,7 +172,7 @@ public final class NoOpEngine extends ReadOnlyEngine {
             }
             throw new EngineException(shardId, "failed to trim translog", e);
         } finally {
-            store.decRef();
+            storeRef.close();
         }
     }
 }

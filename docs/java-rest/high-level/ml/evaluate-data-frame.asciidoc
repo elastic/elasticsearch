@@ -18,14 +18,15 @@ include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> Constructing a new evaluation request
 <2> Reference to an existing index
-<3> Kind of evaluation to perform
-<4> Name of the field in the index. Its value denotes the actual (i.e. ground truth) label for an example. Must be either true or false
-<5> Name of the field in the index. Its value denotes the probability (as per some ML algorithm) of the example being classified as positive
-<6> The remaining parameters are the metrics to be calculated based on the two fields described above.
-<7> https://en.wikipedia.org/wiki/Precision_and_recall[Precision] calculated at thresholds: 0.4, 0.5 and 0.6
-<8> https://en.wikipedia.org/wiki/Precision_and_recall[Recall] calculated at thresholds: 0.5 and 0.7
-<9> https://en.wikipedia.org/wiki/Confusion_matrix[Confusion matrix] calculated at threshold 0.5
-<10> https://en.wikipedia.org/wiki/Receiver_operating_characteristic#Area_under_the_curve[AuC ROC] calculated and the curve points returned
+<3> The query with which to select data from indices
+<4> Kind of evaluation to perform
+<5> Name of the field in the index. Its value denotes the actual (i.e. ground truth) label for an example. Must be either true or false
+<6> Name of the field in the index. Its value denotes the probability (as per some ML algorithm) of the example being classified as positive
+<7> The remaining parameters are the metrics to be calculated based on the two fields described above.
+<8> https://en.wikipedia.org/wiki/Precision_and_recall[Precision] calculated at thresholds: 0.4, 0.5 and 0.6
+<9> https://en.wikipedia.org/wiki/Precision_and_recall[Recall] calculated at thresholds: 0.5 and 0.7
+<10> https://en.wikipedia.org/wiki/Confusion_matrix[Confusion matrix] calculated at threshold 0.5
+<11> https://en.wikipedia.org/wiki/Receiver_operating_characteristic#Area_under_the_curve[AuC ROC] calculated and the curve points returned
 
 include::../execution.asciidoc[]
 

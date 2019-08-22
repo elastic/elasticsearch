@@ -31,12 +31,7 @@ if [ -f "$ES_PATH_CONF"/elasticsearch.keystore ] \
     && ! "`dirname "$0"`"/elasticsearch-keystore list <&- >/dev/null 2>&1
 then
   if [ -e "$ES_KEYSTORE_PASSPHRASE_FILE" ] ; then
-    # read from a file or a FIFO
-    if [ -p "$ES_KEYSTORE_PASSPHRASE_FILE" ] ; then
-      echo "Reading keystore passphrase from FIFO $ES_KEYSTORE_PASSPHRASE_FILE (blocking operation)" 1>&2
-    else
-      echo "Reading keystore passphrase from file $ES_KEYSTORE_PASSPHRASE_FILE" 1>&2
-    fi
+    echo "Reading keystore passphrase from file $ES_KEYSTORE_PASSPHRASE_FILE" 1>&2
     read -s KEYSTORE_PASSWORD <"$ES_KEYSTORE_PASSPHRASE_FILE"
   else
     # read from standard input

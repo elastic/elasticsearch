@@ -23,6 +23,8 @@ import org.elasticsearch.xpack.core.security.support.Automatons;
 public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
     public static final ManageOwnApiKeyClusterPrivilege INSTANCE = new ManageOwnApiKeyClusterPrivilege();
     private static final String PRIVILEGE_NAME = "manage_own_api_key";
+    private static final String API_KEY_REALM_TYPE = "_es_api_key";
+    private static final String API_KEY_ID_KEY = "_security_api_key_id";
 
     private ManageOwnApiKeyClusterPrivilege() {
     }
@@ -45,7 +47,7 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
         }
 
         @Override
-        protected boolean doCheck(String action, TransportRequest request, Authentication authentication) {
+        protected boolean extendedCheck(String action, TransportRequest request, Authentication authentication) {
             if (request instanceof CreateApiKeyRequest) {
                 return true;
             } else if (request instanceof GetApiKeyRequest) {
@@ -62,7 +64,7 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
         }
 
         @Override
-        protected boolean doImplies(ClusterPermission.PermissionCheck permissionCheck) {
+        protected boolean doImplies(ClusterPermission.ActionBasedPermissionCheck permissionCheck) {
             return permissionCheck instanceof ManageOwnClusterPermissionCheck;
         }
 
@@ -76,7 +78,7 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
                  */
                 String authenticatedUserPrincipal = authentication.getUser().principal();
                 String authenticatedUserRealm = authentication.getAuthenticatedBy().getName();
-                if (authenticatedUserRealm.equals("_es_api_key")) {
+                if (authenticatedUserRealm.equals(API_KEY_REALM_TYPE)) {
                     // API key cannot own any other API key so deny access
                     return false;
                 } else if (Strings.hasText(username) && Strings.hasText(realmName)) {
@@ -87,9 +89,9 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
         }
 
         private boolean isCurrentAuthenticationUsingSameApiKeyIdFromRequest(Authentication authentication, String apiKeyId) {
-            if (authentication.getAuthenticatedBy().getType().equals("_es_api_key")) {
+            if (authentication.getAuthenticatedBy().getType().equals(API_KEY_REALM_TYPE)) {
                 // API key id from authentication must match the id from request
-                String authenticatedApiKeyId = (String) authentication.getMetadata().get("_security_api_key_id");
+                String authenticatedApiKeyId = (String) authentication.getMetadata().get(API_KEY_ID_KEY);
                 if (Strings.hasText(apiKeyId)) {
                     return apiKeyId.equals(authenticatedApiKeyId);
                 }

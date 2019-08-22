@@ -167,21 +167,21 @@ public class ClusterPermission {
 
         @Override
         public final boolean check(final String action, final TransportRequest request, final Authentication authentication) {
-            return actionPredicate.test(action) && doCheck(action, request, authentication);
+            return actionPredicate.test(action) && extendedCheck(action, request, authentication);
         }
 
-        protected abstract boolean doCheck(String action, TransportRequest request, Authentication authentication);
+        protected abstract boolean extendedCheck(String action, TransportRequest request, Authentication authentication);
 
         @Override
         public final boolean implies(final PermissionCheck permissionCheck) {
             if (permissionCheck instanceof ActionBasedPermissionCheck) {
                 return Operations.subsetOf(((ActionBasedPermissionCheck) permissionCheck).automaton, this.automaton) &&
-                    doImplies(permissionCheck);
+                    doImplies((ActionBasedPermissionCheck) permissionCheck);
             }
             return false;
         }
 
-        protected abstract boolean doImplies(PermissionCheck permissionCheck);
+        protected abstract boolean doImplies(ActionBasedPermissionCheck permissionCheck);
     }
 
     // Automaton based permission check
@@ -192,12 +192,12 @@ public class ClusterPermission {
         }
 
         @Override
-        protected boolean doCheck(String action, TransportRequest request, Authentication authentication) {
+        protected boolean extendedCheck(String action, TransportRequest request, Authentication authentication) {
             return true;
         }
 
         @Override
-        protected boolean doImplies(PermissionCheck permissionCheck) {
+        protected boolean doImplies(ActionBasedPermissionCheck permissionCheck) {
             return permissionCheck instanceof AutomatonPermissionCheck;
         }
 
@@ -216,12 +216,12 @@ public class ClusterPermission {
         }
 
         @Override
-        protected boolean doCheck(String action, TransportRequest request, Authentication authentication) {
+        protected boolean extendedCheck(String action, TransportRequest request, Authentication authentication) {
             return requestPredicate.test(request);
         }
 
         @Override
-        protected boolean doImplies(final PermissionCheck permissionCheck) {
+        protected boolean doImplies(final ActionBasedPermissionCheck permissionCheck) {
             if (permissionCheck instanceof ActionRequestBasedPermissionCheck) {
                 final ActionRequestBasedPermissionCheck otherCheck =
                     (ActionRequestBasedPermissionCheck) permissionCheck;

@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
 
+import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -404,9 +405,13 @@ public class EsExecutorsTests extends ESTestCase {
         final Settings settings = Settings.builder().put(processorsSetting.getKey(), processors).build();
         final IllegalArgumentException e =
             expectThrows(IllegalArgumentException.class, () -> processorsSetting.get(settings));
-        assertThat(
-            e,
-            hasToString(containsString("Failed to parse value [" + processors + "] for setting [" + processorsSetting.getKey() + "] must be <= " + available)));
+        final String expected = String.format(
+            Locale.ROOT,
+            "Failed to parse value [%d] for setting [%s] must be <= %d",
+            processors,
+            processorsSetting.getKey(),
+            available);
+        assertThat(e, hasToString(containsString(expected)));
         if (processorsSetting.getProperties().contains(Setting.Property.Deprecated)) {
             assertSettingDeprecationsAndWarnings(new Setting<?>[]{processorsSetting});
         }

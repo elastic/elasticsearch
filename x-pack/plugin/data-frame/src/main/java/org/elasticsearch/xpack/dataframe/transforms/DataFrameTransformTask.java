@@ -933,7 +933,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 handleFailure(exc);
             } catch (Exception e) {
                 logger.error(
-                    new ParameterizedMessage("[{} data frame transform encountered an unexpected internal exception: ", transformId),
+                    new ParameterizedMessage("[{}] data frame transform encountered an unexpected internal exception: ", transformId),
                     e);
             }
         }
@@ -1070,7 +1070,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         }
 
         synchronized void handleFailure(Exception e) {
-            logger.warn(new ParameterizedMessage("[{} data frame transform encountered an exception: ",
+            logger.warn(new ParameterizedMessage("[{}] data frame transform encountered an exception: ",
                 transformTask.getTransformId()),
                 e);
             if (handleCircuitBreakingException(e)) {

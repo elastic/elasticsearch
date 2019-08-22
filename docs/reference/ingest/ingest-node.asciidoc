@@ -906,8 +906,8 @@ PUT _ingest/pipeline/user_lookup
     {
       "enrich" : {
         "policy_name": "users-policy",
-        "enrich_key" : "email",
-        "targets": ["address", "city", "zip", "state"]
+        "field" : "email",
+        "target_field": "user"
       }
     }
   ]
@@ -936,10 +936,15 @@ Which returns:
   "_seq_no": 55,
   "_primary_term": 1,
   "_source": {
-    "zip": 70116,
-    "address": "6649 N Blue Gum St",
-    "city": "New Orleans",
-    "state": "LA",
+    "user": {
+      "email": "mardy.brown@email.me",
+      "first_name": "Mardy",
+      "last_name": "Brown",
+      "zip": 70116,
+      "address": "6649 N Blue Gum St",
+      "city": "New Orleans",
+      "state": "LA"
+    },
     "email": "mardy.brown@email.me"
   }
 }

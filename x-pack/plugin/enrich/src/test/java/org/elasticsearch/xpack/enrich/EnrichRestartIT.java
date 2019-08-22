@@ -20,7 +20,7 @@ import java.util.Collections;
 import java.util.Optional;
 
 import static org.elasticsearch.xpack.enrich.EnrichMultiNodeIT.DECORATE_FIELDS;
-import static org.elasticsearch.xpack.enrich.EnrichMultiNodeIT.KEY_FIELD;
+import static org.elasticsearch.xpack.enrich.EnrichMultiNodeIT.MATCH_FIELD;
 import static org.elasticsearch.xpack.enrich.EnrichMultiNodeIT.POLICY_NAME;
 import static org.elasticsearch.xpack.enrich.EnrichMultiNodeIT.SOURCE_INDEX_NAME;
 import static org.hamcrest.Matchers.equalTo;
@@ -49,7 +49,7 @@ public class EnrichRestartIT extends ESIntegTestCase {
         internalCluster().startNode();
 
         EnrichPolicy enrichPolicy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null,
-            Collections.singletonList(SOURCE_INDEX_NAME), KEY_FIELD, Arrays.asList(DECORATE_FIELDS));
+            Collections.singletonList(SOURCE_INDEX_NAME), MATCH_FIELD, Arrays.asList(DECORATE_FIELDS));
         for (int i = 0; i < numPolicies; i++) {
             String policyName = POLICY_NAME + i;
             PutEnrichPolicyAction.Request request = new PutEnrichPolicyAction.Request(policyName, enrichPolicy);

@@ -34,7 +34,7 @@ using a PUT request. Omit to automatically generate an ID when using a
 POST request.
 
 
-[[docs-index-api-query-params]]
+[[docs--api-query-params]]
 ==== {api-query-parms-title}
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-seq-no]

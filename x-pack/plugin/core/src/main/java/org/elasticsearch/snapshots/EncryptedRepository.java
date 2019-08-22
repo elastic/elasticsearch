@@ -21,26 +21,29 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.spec.InvalidKeySpecException;
-import java.util.Base64;
 import java.util.Map;
 import java.util.function.Function;
 
 import javax.crypto.Cipher;
+import javax.crypto.CipherInputStream;
+import javax.crypto.CipherOutputStream;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.KeyGenerator;
 import javax.crypto.NoSuchPaddingException;
@@ -102,20 +105,18 @@ public class EncryptedRepository extends BlobStoreRepository {
         return keyGen.generateKey();
     }
 
-    private static String wrapKey(SecretKey toWrap, SecretKey keyWrappingKey)
+    private static byte[] wrapKey(SecretKey toWrap, SecretKey keyWrappingKey)
             throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException {
         Cipher cipher = Cipher.getInstance("AESWrap");
         cipher.init(Cipher.WRAP_MODE, keyWrappingKey);
-        byte[] encodedKey = cipher.wrap(toWrap);
-        return Base64.getEncoder().encodeToString(encodedKey);
+        return cipher.wrap(toWrap);
     }
 
-    private static SecretKey unwrapKey(String toUnwrap, SecretKey keyEncryptionKey)
+    private static SecretKey unwrapKey(byte[] toUnwrap, SecretKey keyEncryptionKey)
             throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException {
         Cipher cipher = Cipher.getInstance("AESWrap");
         cipher.init(Cipher.UNWRAP_MODE, keyEncryptionKey);
-        byte[] encodedKey = Base64.getDecoder().decode(toUnwrap);
-        return (SecretKey) cipher.unwrap(encodedKey, "AES", Cipher.SECRET_KEY);
+        return (SecretKey) cipher.unwrap(toUnwrap, "AES", Cipher.SECRET_KEY);
     }
 
     /**
@@ -198,22 +199,31 @@ public class EncryptedRepository extends BlobStoreRepository {
 
         @Override
         public InputStream readBlob(String blobName) throws IOException {
-            // TODO
-            return this.delegatedBlobContainer.readBlob(blobName);
+            final BytesReference dataDecryptionKeyBytes = Streams.readFully(this.encryptionMetadataBlobContainer.readBlob(blobName));
+            try {
+                SecretKey dataDecryptionKey = unwrapKey(BytesReference.toBytes(dataDecryptionKeyBytes), this.masterSecretKey);
+                Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+                cipher.init(Cipher.DECRYPT_MODE, dataDecryptionKey);
+                return new CipherInputStream(this.delegatedBlobContainer.readBlob(blobName), cipher);
+            } catch (InvalidKeyException | NoSuchAlgorithmException | NoSuchPaddingException e) {
+                throw new IOException(e);
+            }
         }
 
         @Override
         public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
             try {
-                SecretKey dataEncryptionSecretKey = generateSecretKeyFromPassword(UUIDs.randomBase64UUID());
+                SecretKey dataEncryptionKey = generateRandomSecretKey();
+                byte[] wrappedDataEncryptionKey = wrapKey(dataEncryptionKey, this.masterSecretKey);
+                try (InputStream stream = new ByteArrayInputStream(wrappedDataEncryptionKey)) {
+                    this.encryptionMetadataBlobContainer.writeBlob(blobName, stream, wrappedDataEncryptionKey.length, failIfAlreadyExists);
+                }
                 Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-                cipher.init(Cipher.WRAP_MODE, this.masterSecretKey);
-                byte[] encodedKey = cipher.wrap(dataEncryptionSecretKey);
-                String encodedDataEncryptionKey = Base64.getEncoder().encodeToString(encodedKey);
-            } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
+                cipher.init(Cipher.ENCRYPT_MODE, dataEncryptionKey);
+                this.delegatedBlobContainer.writeBlob(blobName, new CipherInputStream(inputStream, cipher), blobSize, failIfAlreadyExists);
+            } catch (NoSuchAlgorithmException | InvalidKeyException | NoSuchPaddingException | IllegalBlockSizeException e) {
                 throw new IOException(e);
             }
-            this.delegatedBlobContainer.writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
         }
 
         @Override

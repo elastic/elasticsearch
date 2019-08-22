@@ -220,7 +220,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=timeout]
 ==== {api-request-body-title}
 
 `query`::
-  (Optional, string) Defines the search definition using the Query DSL.
+  (Optional, <<query-dsl,query object>>) Defines the search definition using the <<query-dsl,Query DSL>>.
 
 
 [[search-search-api-example]]

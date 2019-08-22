@@ -607,7 +607,12 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 BytesArray message = new BytesArray(e.getMessage().getBytes(StandardCharsets.UTF_8));
                 outboundHandler.sendBytes(channel, message, ActionListener.wrap(() -> CloseableChannel.closeChannel(channel)));
             }
-        } else {
+        } else if (e instanceof  TcpTransport.TLSOnNonSecureTransportException) {
+            logger.warn(() -> new ParameterizedMessage("{}, [{}], closing connection", e.getMessage(), channel));
+            CloseableChannel.closeChannel(channel);
+        }
+
+        else {
             logger.warn(() -> new ParameterizedMessage("exception caught on transport layer [{}], closing connection", channel), e);
             // close the channel, which will cause a node to be disconnected if relevant
             CloseableChannel.closeChannel(channel);
@@ -738,11 +743,18 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 throw new TcpTransport.HttpOnTransportException("This is not an HTTP port");
             }
 
-            throw new StreamCorruptedException("invalid internal transport message format, got ("
-                + Integer.toHexString(headerBuffer.get(0) & 0xFF) + ","
-                + Integer.toHexString(headerBuffer.get(1) & 0xFF) + ","
-                + Integer.toHexString(headerBuffer.get(2) & 0xFF) + ","
-                + Integer.toHexString(headerBuffer.get(3) & 0xFF) + ")");
+            String firstBytes = "("
+                    + Integer.toHexString(headerBuffer.get(0) & 0xFF) + ","
+                    + Integer.toHexString(headerBuffer.get(1) & 0xFF) + ","
+                    + Integer.toHexString(headerBuffer.get(2) & 0xFF) + ","
+                    + Integer.toHexString(headerBuffer.get(3) & 0xFF) + ")";
+
+            if (appearsToBeTLS(headerBuffer)) {
+                throw new TLSOnNonSecureTransportException("SSL/TLS request received but SSL/TLS is not enabled on this node, got "
+                        + firstBytes);
+            }
+
+            throw new StreamCorruptedException("invalid internal transport message format, got " + firstBytes);
         }
         final int messageLength = headerBuffer.getInt(TcpHeader.MARKER_BYTES_SIZE);
 
@@ -775,6 +787,10 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             bufferStartsWith(headerBuffer, "TRACE");
     }
 
+    private static boolean appearsToBeTLS(BytesReference headerBuffer) {
+        return headerBuffer.get(0) == 0x16 && headerBuffer.get(1) == 0x03;
+    }
+
     private static boolean bufferStartsWith(BytesReference buffer, String method) {
         char[] chars = method.toCharArray();
         for (int i = 0; i < chars.length; i++) {
@@ -804,6 +820,18 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             super(in);
         }
     }
+
+
+    /**
+     * A helper exception to mark an incoming connection as potentially being encrypted.
+     */
+    public static class TLSOnNonSecureTransportException extends ElasticsearchException {
+
+        private TLSOnNonSecureTransportException(String msg) {
+            super(msg);
+        }
+    }
+
 
     public void executeHandshake(DiscoveryNode node, TcpChannel channel, ConnectionProfile profile, ActionListener<Version> listener) {
         long requestId = inboundHandler.getResponseHandlers().newRequestId();

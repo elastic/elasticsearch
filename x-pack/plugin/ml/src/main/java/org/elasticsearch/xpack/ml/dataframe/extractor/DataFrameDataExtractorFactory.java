@@ -41,14 +41,16 @@ public class DataFrameDataExtractorFactory {
     private final List<String> indices;
     private final ExtractedFields extractedFields;
     private final Map<String, String> headers;
+    private final boolean includeRowsWithMissingValues;
 
     private DataFrameDataExtractorFactory(Client client, String analyticsId, List<String> indices, ExtractedFields extractedFields,
-                                          Map<String, String> headers) {
+                                          Map<String, String> headers, boolean includeRowsWithMissingValues) {
         this.client = Objects.requireNonNull(client);
         this.analyticsId = Objects.requireNonNull(analyticsId);
         this.indices = Objects.requireNonNull(indices);
         this.extractedFields = Objects.requireNonNull(extractedFields);
         this.headers = headers;
+        this.includeRowsWithMissingValues = includeRowsWithMissingValues;
     }
 
     public DataFrameDataExtractor newExtractor(boolean includeSource) {
@@ -56,12 +58,17 @@ public class DataFrameDataExtractorFactory {
                 analyticsId,
                 extractedFields,
                 indices,
-                allExtractedFieldsExistQuery(),
+                createQuery(),
                 1000,
                 headers,
-                includeSource
+                includeSource,
+                includeRowsWithMissingValues
             );
         return new DataFrameDataExtractor(client, context);
+    }
+
+    private QueryBuilder createQuery() {
+        return includeRowsWithMissingValues ? QueryBuilders.matchAllQuery() : allExtractedFieldsExistQuery();
     }
 
     private QueryBuilder allExtractedFieldsExistQuery() {
@@ -94,7 +101,8 @@ public class DataFrameDataExtractorFactory {
             ActionListener.wrap(
                 extractedFields -> listener.onResponse(
                     new DataFrameDataExtractorFactory(
-                        client, taskId, Arrays.asList(config.getSource().getIndex()), extractedFields, config.getHeaders())),
+                        client, taskId, Arrays.asList(config.getSource().getIndex()), extractedFields, config.getHeaders(),
+                        config.getAnalysis().supportsMissingValues())),
                 listener::onFailure
             )
         );
@@ -123,7 +131,8 @@ public class DataFrameDataExtractorFactory {
             ActionListener.wrap(
                 extractedFields -> listener.onResponse(
                     new DataFrameDataExtractorFactory(
-                        client, config.getId(), Arrays.asList(config.getDest().getIndex()), extractedFields, config.getHeaders())),
+                        client, config.getId(), Arrays.asList(config.getDest().getIndex()), extractedFields, config.getHeaders(),
+                        config.getAnalysis().supportsMissingValues())),
                 listener::onFailure
             )
         );

@@ -48,7 +48,7 @@ public class TestClustersRegistry {
                     }
                 }
             } else {
-                cluster.stop(false);
+                cluster.stop(true);
                 runningClusters.remove(cluster);
             }
         } else {

@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.ml.job.retention.ExpiredModelSnapshotsRemover;
 import org.elasticsearch.xpack.ml.job.retention.ExpiredResultsRemover;
 import org.elasticsearch.xpack.ml.job.retention.MlDataRemover;
 import org.elasticsearch.xpack.ml.job.retention.UnusedStateRemover;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.utils.VolatileCursorIterator;
 
 import java.util.Arrays;
@@ -54,7 +54,7 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
     }
 
     private void deleteExpiredData(ActionListener<DeleteExpiredDataAction.Response> listener) {
-        Auditor auditor = new Auditor(client, clusterService.getNodeName());
+        AnomalyDetectionAuditor auditor = new AnomalyDetectionAuditor(client, clusterService.getNodeName());
         List<MlDataRemover> dataRemovers = Arrays.asList(
                 new ExpiredResultsRemover(client, auditor),
                 new ExpiredForecastsRemover(client, threadPool),

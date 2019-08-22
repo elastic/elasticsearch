@@ -817,11 +817,6 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitRegex(RegexContext ctx) {
-        if (false == settings.areRegexesEnabled()) {
-            throw location(ctx).createError(new IllegalStateException("Regexes are disabled. Set [script.painless.regex.enabled] to [true] "
-                    + "in elasticsearch.yaml to allow them. Be careful though, regexes break out of Painless's protection against deep "
-                    + "recursion and long loops."));
-        }
         String text = ctx.REGEX().getText();
         int lastSlash = text.lastIndexOf('/');
         String pattern = text.substring(1, lastSlash);

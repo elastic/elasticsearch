@@ -178,7 +178,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.tasks.TaskId;
-import org.hamcrest.CoreMatchers;
 import org.junit.After;
 
 import java.io.IOException;
@@ -3179,16 +3178,16 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         BulkRequest bulkRequest =
             new BulkRequest(indexName)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .add(new IndexRequest().source(XContentType.JSON, "label", false, "p", 0.1)) // #0
-                .add(new IndexRequest().source(XContentType.JSON, "label", false, "p", 0.2)) // #1
-                .add(new IndexRequest().source(XContentType.JSON, "label", false, "p", 0.3)) // #2
-                .add(new IndexRequest().source(XContentType.JSON, "label", false, "p", 0.4)) // #3
-                .add(new IndexRequest().source(XContentType.JSON, "label", false, "p", 0.7)) // #4
-                .add(new IndexRequest().source(XContentType.JSON, "label", true,  "p", 0.2)) // #5
-                .add(new IndexRequest().source(XContentType.JSON, "label", true,  "p", 0.3)) // #6
-                .add(new IndexRequest().source(XContentType.JSON, "label", true,  "p", 0.4)) // #7
-                .add(new IndexRequest().source(XContentType.JSON, "label", true,  "p", 0.8)) // #8
-                .add(new IndexRequest().source(XContentType.JSON, "label", true,  "p", 0.9)); // #9
+                .add(new IndexRequest().source(XContentType.JSON, "dataset", "blue", "label", false, "p", 0.1)) // #0
+                .add(new IndexRequest().source(XContentType.JSON, "dataset", "blue", "label", false, "p", 0.2)) // #1
+                .add(new IndexRequest().source(XContentType.JSON, "dataset", "blue", "label", false, "p", 0.3)) // #2
+                .add(new IndexRequest().source(XContentType.JSON, "dataset", "blue", "label", false, "p", 0.4)) // #3
+                .add(new IndexRequest().source(XContentType.JSON, "dataset", "blue", "label", false, "p", 0.7)) // #4
+                .add(new IndexRequest().source(XContentType.JSON, "dataset", "blue", "label", true,  "p", 0.2)) // #5
+                .add(new IndexRequest().source(XContentType.JSON, "dataset", "blue", "label", true,  "p", 0.3)) // #6
+                .add(new IndexRequest().source(XContentType.JSON, "dataset", "blue", "label", true,  "p", 0.4)) // #7
+                .add(new IndexRequest().source(XContentType.JSON, "dataset", "blue", "label", true,  "p", 0.8)) // #8
+                .add(new IndexRequest().source(XContentType.JSON, "dataset", "blue", "label", true,  "p", 0.9)); // #9
         RestHighLevelClient client = highLevelClient();
         client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
         client.bulk(bulkRequest, RequestOptions.DEFAULT);
@@ -3196,14 +3195,15 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::evaluate-data-frame-request
             EvaluateDataFrameRequest request = new EvaluateDataFrameRequest( // <1>
                 indexName, // <2>
-                new BinarySoftClassification( // <3>
-                    "label", // <4>
-                    "p", // <5>
-                    // Evaluation metrics // <6>
-                    PrecisionMetric.at(0.4, 0.5, 0.6), // <7>
-                    RecallMetric.at(0.5, 0.7), // <8>
-                    ConfusionMatrixMetric.at(0.5), // <9>
-                    AucRocMetric.withCurve())); // <10>
+                new QueryConfig(QueryBuilders.termQuery("dataset", "blue")),  // <3>
+                new BinarySoftClassification( // <4>
+                    "label", // <5>
+                    "p", // <6>
+                    // Evaluation metrics // <7>
+                    PrecisionMetric.at(0.4, 0.5, 0.6), // <8>
+                    RecallMetric.at(0.5, 0.7), // <9>
+                    ConfusionMatrixMetric.at(0.5), // <10>
+                    AucRocMetric.withCurve())); // <11>
             // end::evaluate-data-frame-request
 
             // tag::evaluate-data-frame-execute
@@ -3224,14 +3224,15 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 metrics.stream().map(m -> m.getMetricName()).collect(Collectors.toList()),
                 containsInAnyOrder(PrecisionMetric.NAME, RecallMetric.NAME, ConfusionMatrixMetric.NAME, AucRocMetric.NAME));
             assertThat(precision, closeTo(0.6, 1e-9));
-            assertThat(confusionMatrix.getTruePositives(), CoreMatchers.equalTo(2L));  // docs #8 and #9
-            assertThat(confusionMatrix.getFalsePositives(), CoreMatchers.equalTo(1L));  // doc #4
-            assertThat(confusionMatrix.getTrueNegatives(), CoreMatchers.equalTo(4L));  // docs #0, #1, #2 and #3
-            assertThat(confusionMatrix.getFalseNegatives(), CoreMatchers.equalTo(3L));  // docs #5, #6 and #7
+            assertThat(confusionMatrix.getTruePositives(), equalTo(2L));  // docs #8 and #9
+            assertThat(confusionMatrix.getFalsePositives(), equalTo(1L));  // doc #4
+            assertThat(confusionMatrix.getTrueNegatives(), equalTo(4L));  // docs #0, #1, #2 and #3
+            assertThat(confusionMatrix.getFalseNegatives(), equalTo(3L));  // docs #5, #6 and #7
         }
         {
             EvaluateDataFrameRequest request = new EvaluateDataFrameRequest(
                 indexName,
+                new QueryConfig(QueryBuilders.termQuery("dataset", "blue")),
                 new BinarySoftClassification(
                     "label",
                     "p",

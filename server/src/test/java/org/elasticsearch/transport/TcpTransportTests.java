@@ -288,7 +288,7 @@ public class TcpTransportTests extends ESTestCase {
         }
     }
 
-    public void testHTTPHeader() throws IOException {
+    public void testHTTPRequest() throws IOException {
         String[] httpHeaders = {"GET", "POST", "PUT", "HEAD", "DELETE", "OPTIONS", "PATCH", "TRACE"};
 
         for (String httpHeader : httpHeaders) {
@@ -307,6 +307,25 @@ public class TcpTransportTests extends ESTestCase {
                 assertThat(ex, instanceOf(TcpTransport.HttpRequestOnTransportException.class));
                 assertEquals("This is not an HTTP port", ex.getMessage());
             }
+        }
+    }
+
+    public void testHTTPResponse() throws IOException {
+        BytesStreamOutput streamOutput = new BytesStreamOutput(1 << 14);
+        streamOutput.write('H');
+        streamOutput.write('T');
+        streamOutput.write('T');
+        streamOutput.write('P');
+        streamOutput.write(randomByte());
+        streamOutput.write(randomByte());
+
+        try {
+            TcpTransport.decodeFrame(streamOutput.bytes());
+            fail("Expected exception");
+        } catch (Exception ex) {
+            assertThat(ex, instanceOf(TcpTransport.HttpResponseOnTransportException.class));
+            assertEquals("Received HTTP response on transport port, ensure that transport port " +
+                    "(not HTTP port) of remote node is specified in the configuration", ex.getMessage());
         }
     }
 }

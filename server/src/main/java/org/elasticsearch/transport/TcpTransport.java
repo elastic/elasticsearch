@@ -601,6 +601,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 "cancelled key exception caught on transport layer [{}], disconnecting from relevant node", channel), e);
             // close the channel as safe measure, which will cause a node to be disconnected if relevant
             CloseableChannel.closeChannel(channel);
+        } else if (e instanceof HttpResponseOnTransportException) {
+            logger.warn(() -> new ParameterizedMessage("{} [{}], closing connection", e.getMessage(), channel));
+            CloseableChannel.closeChannel(channel);
         } else if (e instanceof HttpRequestOnTransportException) {
             // in case we are able to return data, serialize the exception content and sent it back to the client
             if (channel.isOpen()) {
@@ -738,6 +741,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 throw new HttpRequestOnTransportException("This is not an HTTP port");
             }
 
+            if (appearsToBeHTTPResponse(headerBuffer)) {
+                throw new HttpResponseOnTransportException("Received HTTP response on transport port, ensure that transport port (not " +
+                        "HTTP port) of remote node is specified in the configuration");
+            }
+
             throw new StreamCorruptedException("invalid internal transport message format, got ("
                 + Integer.toHexString(headerBuffer.get(0) & 0xFF) + ","
                 + Integer.toHexString(headerBuffer.get(1) & 0xFF) + ","
@@ -775,6 +783,10 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             bufferStartsWith(headerBuffer, "TRACE");
     }
 
+    private static boolean appearsToBeHTTPResponse(BytesReference headerBuffer) {
+        return bufferStartsWith(headerBuffer, "HTTP");
+    }
+
     private static boolean bufferStartsWith(BytesReference buffer, String method) {
         char[] chars = method.toCharArray();
         for (int i = 0; i < chars.length; i++) {
@@ -802,6 +814,16 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
         public HttpRequestOnTransportException(StreamInput in) throws IOException {
             super(in);
+        }
+    }
+
+    /**
+     * A helper exception to mark a remote end of the connection as HTTP
+     */
+    public static class HttpResponseOnTransportException extends ElasticsearchException {
+
+        private HttpResponseOnTransportException(String msg) {
+            super(msg);
         }
     }
 

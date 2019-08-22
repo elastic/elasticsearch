@@ -8,7 +8,7 @@ Returns documents that match a provided text, number, date or boolean value. The
 provided text is analyzed before matching.
 
 The `match` query is the standard query for performing a full-text search,
-including options for fuzzy and proximity matching.
+including options for fuzzy matching.
 
 
 [[match-query-ex-request]]

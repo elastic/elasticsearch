@@ -43,10 +43,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
 [[search-search-api-query-params]]
 ==== {api-query-parms-title}
 
-`allow_no_indices`::
-  (Optional, boolean) If `true`, ignores if a wildcard indices expression 
-  resolves into no concrete indices. This includes `_all` string or when no 
-  indices have been specified. Defaults to `false`.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
   
 `allow_partial_search_results`::
   (Optional, boolean) Indicates if an error should be returned if there is a 
@@ -81,13 +78,9 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
   (Optional, string) A comma-separated list of fields to return as the docvalue 
   representation of a field for each hit.
   
-`expand_wildcards`::
-  (Optional, string) Whether to expand wildcard expression to concrete indices 
-  that are open, closed or both. Defaults to `open`. Available options:
-    * `open`
-    * `closed`
-    * `none`
-    * `all`
+include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
++
+Defaults to `open`.
   
 `explain`::
   (Optional, boolean) If `true`, returns detailed information about score 
@@ -100,9 +93,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
   (Optional, boolean) If `true`, concrete, expanded or aliased indices will be 
   ignored when throttled. Defaults to `false`.
 
-`ignore_unavailable`::
-  (Optional, boolean) If `true`, concrete indices will be ignored when 
-  unavailable (missing or closed). Defaults to `false`.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
   
 `lenient`::
   (Optional, boolean) If `true`, format-based query failures (such as 
@@ -158,8 +149,8 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
   (Optional, string) A comma-separated list of <field>:<direction> pairs.
   
 `_source`::
-  (Optional, string) True or false to return the `_source` field or not, or a list 
-  of fields to return.
+  (Optional, string) True or false to return the `_source` field or not, or a 
+  list of fields to return.
   
 `_source_excludes`::
   (Optional, string) A list of fields to exclude from the returned `_source` 
@@ -220,7 +211,8 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=timeout]
 ==== {api-request-body-title}
 
 `query`::
-  (Optional, <<query-dsl,query object>>) Defines the search definition using the <<query-dsl,Query DSL>>.
+  (Optional, <<query-dsl,query object>>) Defines the search definition using the 
+  <<query-dsl,Query DSL>>.
 
 
 [[search-search-api-example]]

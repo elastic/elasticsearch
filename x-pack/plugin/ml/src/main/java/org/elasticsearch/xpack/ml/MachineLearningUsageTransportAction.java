@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
+import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.MachineLearningFeatureSetUsage;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
@@ -98,6 +99,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
                 addDatafeedsUsage(response, datafeedsUsage);
                 GetDataFrameAnalyticsStatsAction.Request dataframeAnalyticsStatsRequest =
                     new GetDataFrameAnalyticsStatsAction.Request(GetDatafeedsStatsAction.ALL);
+                dataframeAnalyticsStatsRequest.setPageParams(new PageParams(0, 10_000));
                 client.execute(GetDataFrameAnalyticsStatsAction.INSTANCE, dataframeAnalyticsStatsRequest, dataframeAnalyticsListener);
             },
             listener::onFailure);

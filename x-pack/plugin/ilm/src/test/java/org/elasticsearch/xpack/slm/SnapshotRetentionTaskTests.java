@@ -315,10 +315,52 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             threadPool.shutdownNow();
             threadPool.awaitTermination(10, TimeUnit.SECONDS);
         }
+    }
 
+    public void testSkipWhileStopping() throws Exception {
+        doTestSkipDuringMode(OperationMode.STOPPING);
+    }
+
+    public void testSkipWhileStopped() throws Exception {
+        doTestSkipDuringMode(OperationMode.STOPPED);
+    }
+
+    private void doTestSkipDuringMode(OperationMode mode) throws Exception {
+        try (ThreadPool threadPool = new TestThreadPool("slm-test");
+             ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
+             Client noOpClient = new NoOpClient("slm-test")) {
+            final String policyId = "policy";
+            final String repoId = "repo";
+            SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy(policyId, "snap", "1 * * * * ?",
+                repoId, null, new SnapshotRetentionConfiguration(TimeValue.timeValueDays(30), null, null));
+
+            ClusterState state = createState(mode, policy);
+            ClusterServiceUtils.setState(clusterService, state);
+
+            SnapshotRetentionTask task = new MockSnapshotRetentionTask(noOpClient, clusterService,
+                new SnapshotLifecycleTaskTests.VerifyingHistoryStore(noOpClient, ZoneOffset.UTC,
+                    (historyItem) -> fail("should never write history")),
+                threadPool,
+                () -> {
+                    fail("should not retrieve snapshots");
+                    return null;
+                },
+                (a, b, c, d, e) -> fail("should not delete snapshots"),
+                System::nanoTime);
+
+            long time = System.currentTimeMillis();
+            task.triggered(new SchedulerEngine.Event(SnapshotRetentionService.SLM_RETENTION_JOB_ID, time, time));
+
+            threadPool.shutdownNow();
+            threadPool.awaitTermination(10, TimeUnit.SECONDS);
+        }
     }
 
     public ClusterState createState(SnapshotLifecyclePolicy... policies) {
+        return createState(OperationMode.RUNNING, policies);
+    }
+
+    public ClusterState createState(OperationMode mode, SnapshotLifecyclePolicy... policies) {
         Map<String, SnapshotLifecyclePolicyMetadata> policyMetadataMap = Arrays.stream(policies)
             .map(policy -> SnapshotLifecyclePolicyMetadata.builder()
                 .setPolicy(policy)
@@ -330,7 +372,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
 
         MetaData metaData = MetaData.builder()
             .putCustom(SnapshotLifecycleMetadata.TYPE,
-                new SnapshotLifecycleMetadata(policyMetadataMap, OperationMode.RUNNING, new SnapshotLifecycleStats()))
+                new SnapshotLifecycleMetadata(policyMetadataMap, mode, new SnapshotLifecycleStats()))
             .build();
         return ClusterState.builder(new ClusterName("cluster"))
             .metaData(metaData)

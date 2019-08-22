@@ -83,6 +83,13 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
     public void triggered(SchedulerEngine.Event event) {
         assert event.getJobName().equals(SnapshotRetentionService.SLM_RETENTION_JOB_ID) :
             "expected id to be " + SnapshotRetentionService.SLM_RETENTION_JOB_ID + " but it was " + event.getJobName();
+
+        final ClusterState state = clusterService.state();
+        if (SnapshotLifecycleService.ilmStoppedOrStopping(state)) {
+            logger.debug("skipping SLM retention as ILM is currently stopped or stopping");
+            return;
+        }
+
         if (running.compareAndSet(false, true)) {
             final SnapshotLifecycleStats slmStats = new SnapshotLifecycleStats();
 
@@ -98,7 +105,6 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
             };
 
             try {
-                final ClusterState state = clusterService.state();
                 final TimeValue maxDeletionTime = LifecycleSettings.SLM_RETENTION_DURATION_SETTING.get(state.metaData().settings());
 
                 logger.info("starting SLM retention snapshot cleanup task");

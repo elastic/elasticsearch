@@ -355,7 +355,7 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
     public static void removeIndices() throws Exception {
         // we might have disabled wiping indices, but now its time to get rid of them
         // note: can not use super.cleanUpCluster() as this method must be static
-        wipeIndices();
+        wipeAllIndices();
     }
 
     public void wipeDataFrameTransforms() throws IOException {
@@ -401,17 +401,6 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
 
     protected static void waitForPendingDataFrameTasks() throws Exception {
         waitForPendingTasks(adminClient(), taskName -> taskName.startsWith(DataFrameField.TASK_NAME) == false);
-    }
-
-    protected static void wipeIndices() throws IOException {
-        try {
-            adminClient().performRequest(new Request("DELETE", "*"));
-        } catch (ResponseException e) {
-            // 404 here just means we had no indexes
-            if (e.getResponse().getStatusLine().getStatusCode() != 404) {
-                throw e;
-            }
-        }
     }
 
     static int getDataFrameCheckpoint(String transformId) throws IOException {

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.util.concurrent;
 
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
@@ -389,15 +390,26 @@ public class EsExecutorsTests extends ESTestCase {
         }
     }
 
+    public void testNodeProcessorsBound() {
+        runProcessorsBoundTest(EsExecutors.NODE_PROCESSORS_SETTING);
+    }
+
     public void testProcessorsBound() {
+        runProcessorsBoundTest(EsExecutors.PROCESSORS_SETTING);
+    }
+
+    private void runProcessorsBoundTest(final Setting<Integer> processorsSetting) {
         final int available = Runtime.getRuntime().availableProcessors();
         final int processors = randomIntBetween(available + 1, Integer.MAX_VALUE);
-        final Settings settings = Settings.builder().put("processors", processors).build();
+        final Settings settings = Settings.builder().put(processorsSetting.getKey(), processors).build();
         final IllegalArgumentException e =
-            expectThrows(IllegalArgumentException.class, () -> EsExecutors.NODE_PROCESSORS_SETTING.get(settings));
+            expectThrows(IllegalArgumentException.class, () -> processorsSetting.get(settings));
         assertThat(
             e,
-            hasToString(containsString("Failed to parse value [" + processors + "] for setting [processors] must be <= " + available)));
+            hasToString(containsString("Failed to parse value [" + processors + "] for setting [" + processorsSetting.getKey() + "] must be <= " + available)));
+        if (processorsSetting.getProperties().contains(Setting.Property.Deprecated)) {
+            assertSettingDeprecationsAndWarnings(new Setting<?>[]{processorsSetting});
+        }
     }
 
 }

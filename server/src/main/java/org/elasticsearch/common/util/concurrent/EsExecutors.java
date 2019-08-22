@@ -57,11 +57,12 @@ public class EsExecutors {
     /**
      * Setting to manually set the number of available processors. This setting is used to adjust thread pool sizes per node.
      */
-    // when removing "processors" setting, the default and max values are Runtime.getRuntime().availableProcessors()
+    // TODO: when removing "processors" setting, the default value is Runtime.getRuntime().availableProcessors()
     public static final Setting<Integer> NODE_PROCESSORS_SETTING = Setting.intSetting(
         "node.processors",
         PROCESSORS_SETTING,
         1,
+        Runtime.getRuntime().availableProcessors(),
         Property.NodeScope);
 
     /**

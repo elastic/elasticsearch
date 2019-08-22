@@ -33,10 +33,8 @@ authenticating HTTP traffic using username and password credentials. You can
 also set `xpack.security.transport.ssl.client_authentication` to `optional` to
 allow clients without certificates to authenticate with other credentials.
 
-IMPORTANT: You must enable SSL/TLS to use PKI. If a PKI realm does **not**
-support delegation, i.e. only allows for clients connecting directly to {es}
-and not through {kib}, then SSL/TLS client authentication must be enabled as
-well.
+IMPORTANT: You must enable SSL/TLS with client authentication to use PKI when
+clients connect directly to {es}.
 
 . Add a realm configuration for a `pki` realm to `elasticsearch.yml` under the
 `xpack.security.authc.realms.pki` namespace.
@@ -224,10 +222,10 @@ alternative to role mapping.
 [[pki-realm-for-proxied-clients]]
 ==== PKI authentication for clients connecting to {kib}
 
-Clients must normally connect directly to {es} because the {es} PKI realm
-relies on the node's network interface to do the SSL/TLS authentication and to
-also internally forward the client's certificate chain for the realm to be able
-to optionally validate it. If SSL/TLS authenticatication is to be performed
+By default, the PKI realm relies on the node's network interface to perform the
+SSL/TLS handshake and extract the client certificate. This behaviour requires
+that that clients connect directly to {es} so that their SSL connection is
+terminated by the {es} node.  If SSL/TLS authenticatication is to be performed
 by {kib}, the PKI realm must be configured to permit delegation.
 
 Specifically, when clients presenting X.509 certificates connect to {kib},
@@ -248,8 +246,9 @@ Afterwards, simply toggle the `delegation.enabled` realm setting to `true`.
 This realm is now allowed to validate delegated PKI authentication (after
 restarting {es}).
 
-NOTE: PKI authentication delegation requires that
-the `xpack.security.authc.token.enabled` setting is `true`.
+NOTE: PKI authentication delegation requires that the
+`xpack.security.authc.token.enabled` setting be `true` and that SSL/TLS be
+configured (without SSL/TLS client authentication).
 
 NOTE: {kib} also needs to be configured to allow PKI certificate authentication.
 
@@ -281,10 +280,8 @@ PUT /_security/role_mapping/direct_pki_only
         "field": {"realm.name": "pki1"}
       },
       {
-        "except": {
-          "field": {
-            "metadata.pki_delegated_by_user": null <1>
-          }
+        "field": {
+          "metadata.pki_delegated_by_user": null <1>
         }
       }
     ]

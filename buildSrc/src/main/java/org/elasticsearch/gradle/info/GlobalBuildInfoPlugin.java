@@ -103,9 +103,6 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         String compilerJavaProperty = System.getProperty("compiler.java");
 
         if (compilerJavaProperty != null) {
-            if (compilerJavaProperty.contains("/")) {
-                return new File(compilerJavaProperty);
-            }
             compilerJavaHome = findJavaHome(compilerJavaProperty);
         }
 
@@ -117,9 +114,6 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         String runtimeJavaProperty = System.getProperty("runtime.java");
 
         if (runtimeJavaProperty != null) {
-            if (runtimeJavaProperty.contains("/")) {
-                return new File(runtimeJavaProperty);
-            }
             return new File(findJavaHome(runtimeJavaProperty));
         }
 

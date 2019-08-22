@@ -25,6 +25,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Setting;
@@ -43,7 +44,6 @@ import java.util.function.Function;
 
 import javax.crypto.Cipher;
 import javax.crypto.CipherInputStream;
-import javax.crypto.CipherOutputStream;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.KeyGenerator;
 import javax.crypto.NoSuchPaddingException;
@@ -240,9 +240,10 @@ public class EncryptedRepository extends BlobStoreRepository {
         }
 
         @Override
-        public void delete() throws IOException {
-            this.delegatedBlobContainer.delete();
+        public DeleteResult delete() throws IOException {
+            DeleteResult result = this.delegatedBlobContainer.delete();
             this.encryptionMetadataBlobContainer.delete();
+            return result;
         }
 
         @Override

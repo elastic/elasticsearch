@@ -40,7 +40,7 @@ public class TransportEvaluateDataFrameAction extends HandledTransportAction<Eva
                              ActionListener<EvaluateDataFrameAction.Response> listener) {
         Evaluation evaluation = request.getEvaluation();
         SearchRequest searchRequest = new SearchRequest(request.getIndices());
-        searchRequest.source(evaluation.buildSearch());
+        searchRequest.source(evaluation.buildSearch(request.getParsedQuery()));
 
         ActionListener<List<EvaluationMetricResult>> resultsListener = ActionListener.wrap(
             results -> listener.onResponse(new EvaluateDataFrameAction.Response(evaluation.getName(), results)),

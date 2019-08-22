@@ -42,7 +42,7 @@ GET /_search
 `query`::
 +
 --
-(Required, string) Text, number, or date you wish to find in the provided
+(Required) Text, number, boolean value or date you wish to find in the provided
 `<field>`.
 
 The `match` query <<analysis,analyzes>> any provided text before performing a

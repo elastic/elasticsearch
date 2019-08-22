@@ -26,7 +26,6 @@ import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.packaging.util.Shell.Result;
 import org.junit.After;
-import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -41,22 +40,16 @@ import static org.elasticsearch.packaging.util.FileUtils.mv;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public abstract class WindowsServiceTestCase extends PackagingTestCase {
+public class WindowsServiceTests extends PackagingTestCase {
 
     private static final String DEFAULT_ID = "elasticsearch-service-x64";
     private static final String DEFAULT_DISPLAY_NAME = "Elasticsearch " + FileUtils.getCurrentVersion() + " (elasticsearch-service-x64)";
     private static String serviceScript;
 
-    private Shell sh;
-
-    @Before
-    public void createShell() {
-        sh = new Shell();
-    }
-
     @BeforeClass
     public static void ensureWindows() {
         assumeTrue(Platforms.WINDOWS);
+        assumeTrue(distribution().hasJdk);
     }
 
     @After

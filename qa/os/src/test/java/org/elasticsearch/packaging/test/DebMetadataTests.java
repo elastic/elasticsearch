@@ -21,35 +21,39 @@ package org.elasticsearch.packaging.test;
 
 import junit.framework.TestCase;
 import org.elasticsearch.packaging.util.Distribution;
-import org.elasticsearch.packaging.util.Platforms;
+import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Shell;
+import org.junit.Before;
 
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.packaging.util.Distribution.DEFAULT_DEB;
-import static org.elasticsearch.packaging.util.Distribution.OSS_DEB;
 import static org.elasticsearch.packaging.util.FileUtils.getDistributionFile;
 import static org.junit.Assume.assumeTrue;
 
-public class OssDebBasicTests extends PackageTestCase {
+public class DebMetadataTests extends PackagingTestCase {
 
-    @Override
-    protected Distribution distribution() {
-        return Distribution.OSS_DEB;
+    @Before
+    public void filterDistros() {
+        assumeTrue("only deb", distribution.packaging == Distribution.Packaging.DEB);
     }
 
-    public void test11DebDependencies() {
-        assumeTrue(Platforms.isDPKG());
+    public void test05CheckLintian() {
+        sh.run("lintian --fail-on-warnings " + FileUtils.getDistributionFile(distribution()));
+    }
+
+    public void test06Dependencies() {
 
         final Shell sh = new Shell();
 
-        final Shell.Result defaultResult = sh.run("dpkg -I " + getDistributionFile(DEFAULT_DEB));
-        final Shell.Result ossResult = sh.run("dpkg -I " + getDistributionFile(OSS_DEB));
+        final Shell.Result result = sh.run("dpkg -I " + getDistributionFile(distribution()));
 
-        TestCase.assertTrue(Pattern.compile("(?m)^ Depends:.*bash.*").matcher(defaultResult.stdout).find());
-        TestCase.assertTrue(Pattern.compile("(?m)^ Depends:.*bash.*").matcher(ossResult.stdout).find());
+        TestCase.assertTrue(Pattern.compile("(?m)^ Depends:.*bash.*").matcher(result.stdout).find());
 
-        TestCase.assertTrue(Pattern.compile("(?m)^ Conflicts: elasticsearch-oss$").matcher(defaultResult.stdout).find());
-        TestCase.assertTrue(Pattern.compile("(?m)^ Conflicts: elasticsearch$").matcher(ossResult.stdout).find());
+        String oppositePackageName = "elasticsearch";
+        if (distribution().isDefault()) {
+            oppositePackageName += "-oss";
+        }
+
+        TestCase.assertTrue(Pattern.compile("(?m)^ Conflicts: " + oppositePackageName + "$").matcher(result.stdout).find());
     }
 }

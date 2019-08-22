@@ -29,78 +29,48 @@ public final class VectorEncoderDecoder {
      * @return BytesRef
      */
     public static BytesRef encodeSparseVector(Version indexVersion, int[] dims, float[] values, int dimCount) {
+        // 1. Sort dims and values
+        sortSparseDimsValues(dims, values, dimCount);
+
+        // 2. Encode dimensions
+        // as each dimension is a positive value that doesn't exceed 65535, 2 bytes is enough for encoding it
+        byte[] buf;
+        int offset;
         if (indexVersion.onOrAfter(Version.V_7_4_0)) {
-            return encodeSparseVectorOnAndAfter_V_7_4_0(dims, values, dimCount);
+            buf = new byte[dimCount * (INT_BYTES + SHORT_BYTES) + INT_BYTES];
+            offset = 4;
         } else {
-            return encodeSparseVectorBefore_V_7_4_0(dims, values, dimCount);
+            buf = new byte[dimCount * (INT_BYTES + SHORT_BYTES)];
+            offset = 0;
         }
-    }
-
-    private static BytesRef encodeSparseVectorBefore_V_7_4_0(int[] dims, float[] values, int dimCount) {
-        // 1. Sort dims and values
-        sortSparseDimsValues(dims, values, dimCount);
-        byte[] buf = new byte[dimCount * (INT_BYTES + SHORT_BYTES)];
-
-        // 2. Encode dimensions
-        // as each dimension is a positive value that doesn't exceed 65535, 2 bytes is enough for encoding it
-        int offset = 0;
         for (int dim = 0; dim < dimCount; dim++) {
-            buf[offset] = (byte) (dims[dim] >>  8);
-            buf[offset+1] = (byte) dims[dim];
-            offset += SHORT_BYTES;
-        }
-
-        // 3. Encode values
-        for (int dim = 0; dim < dimCount; dim++) {
-            int intValue = Float.floatToIntBits(values[dim]);
-            buf[offset] =  (byte) (intValue >> 24);
-            buf[offset+1] = (byte) (intValue >> 16);
-            buf[offset+2] = (byte) (intValue >>  8);
-            buf[offset+3] = (byte) intValue;
-            offset += INT_BYTES;
-        }
-
-        return new BytesRef(buf);
-    }
-
-
-    private static BytesRef encodeSparseVectorOnAndAfter_V_7_4_0(int[] dims, float[] values, int dimCount) {
-        // 1. Sort dims and values
-        sortSparseDimsValues(dims, values, dimCount);
-        byte[] buf = new byte[dimCount * (INT_BYTES + SHORT_BYTES) + INT_BYTES];
-
-        // 2. Encode dimensions
-        // as each dimension is a positive value that doesn't exceed 65535, 2 bytes is enough for encoding it
-        int offset = 4;
-        for (int dim = 0; dim < dimCount; dim++) {
-            buf[offset] = (byte) (dims[dim] >>  8);
-            buf[offset+1] = (byte) dims[dim];
-            offset += SHORT_BYTES;
+            buf[offset++] = (byte) (dims[dim] >>  8);
+            buf[offset++] = (byte) dims[dim];
         }
 
         // 3. Encode values
         double dotProduct = 0.0f;
         for (int dim = 0; dim < dimCount; dim++) {
             int intValue = Float.floatToIntBits(values[dim]);
-            buf[offset] =  (byte) (intValue >> 24);
-            buf[offset+1] = (byte) (intValue >> 16);
-            buf[offset+2] = (byte) (intValue >>  8);
-            buf[offset+3] = (byte) intValue;
-            offset += INT_BYTES;
+            buf[offset++] = (byte) (intValue >> 24);
+            buf[offset++] = (byte) (intValue >> 16);
+            buf[offset++] = (byte) (intValue >>  8);
+            buf[offset++] = (byte) intValue;
             dotProduct += values[dim] * values[dim];
         }
 
         // 4. Encode vector magnitude
-        float vectorMagnitude = (float) Math.sqrt(dotProduct);
-        int vectorMagnitudeIntValue = Float.floatToIntBits(vectorMagnitude);
-        buf[0] = (byte) (vectorMagnitudeIntValue >> 24);
-        buf[1] = (byte) (vectorMagnitudeIntValue >> 16);
-        buf[2] = (byte) (vectorMagnitudeIntValue >>  8);
-        buf[3] = (byte) vectorMagnitudeIntValue;
+        if (indexVersion.onOrAfter(Version.V_7_4_0)) {
+            float vectorMagnitude = (float) Math.sqrt(dotProduct);
+            int vectorMagnitudeIntValue = Float.floatToIntBits(vectorMagnitude);
+            buf[0] = (byte) (vectorMagnitudeIntValue >> 24);
+            buf[1] = (byte) (vectorMagnitudeIntValue >> 16);
+            buf[2] = (byte) (vectorMagnitudeIntValue >> 8);
+            buf[3] = (byte) vectorMagnitudeIntValue;
+        }
 
         return new BytesRef(buf);
     }
-
 
     /**
      * Decodes the first part of BytesRef into sparse vector dimensions

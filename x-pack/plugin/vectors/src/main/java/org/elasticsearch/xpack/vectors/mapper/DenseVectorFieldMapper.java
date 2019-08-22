@@ -183,26 +183,35 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
         // this code is here and not int the VectorEncoderDecoder so not to create extra arrays
         byte[] buf;
         int offset;
-        int dim = 0;
         if (indexCreatedVersion.onOrAfter(Version.V_7_4_0)) {
             buf = new byte[dims * INT_BYTES + INT_BYTES]; // extra 4 bytes to store the vector's magnitude
             offset = 4;
-            double dotProduct = 0f;
-            for (Token token = context.parser().nextToken(); token != Token.END_ARRAY; token = context.parser().nextToken()) {
-                if (dim++ >= dims) {
-                    throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] of doc [" +
-                        context.sourceToParse().id() + "] has exceeded the number of dimensions [" + dims + "] defined in mapping");
-                }
-                ensureExpectedToken(Token.VALUE_NUMBER, token, context.parser()::getTokenLocation);
-                float value = context.parser().floatValue(true);
-                int intValue = Float.floatToIntBits(value);
-                buf[offset++] = (byte) (intValue >> 24);
-                buf[offset++] = (byte) (intValue >> 16);
-                buf[offset++] = (byte) (intValue >>  8);
-                buf[offset++] = (byte) intValue;
-                dotProduct += value * value;
+        } else {
+            buf = new byte[dims * INT_BYTES];
+            offset = 0;
+        }
+        double dotProduct = 0f;
+        int dim = 0;
+        for (Token token = context.parser().nextToken(); token != Token.END_ARRAY; token = context.parser().nextToken()) {
+            if (dim++ >= dims) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] of doc [" +
+                    context.sourceToParse().id() + "] has exceeded the number of dimensions [" + dims + "] defined in mapping");
             }
-
+            ensureExpectedToken(Token.VALUE_NUMBER, token, context.parser()::getTokenLocation);
+            float value = context.parser().floatValue(true);
+            int intValue = Float.floatToIntBits(value);
+            buf[offset++] = (byte) (intValue >> 24);
+            buf[offset++] = (byte) (intValue >> 16);
+            buf[offset++] = (byte) (intValue >>  8);
+            buf[offset++] = (byte) intValue;
+            dotProduct += value * value;
+        }
+        if (dim != dims) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] of doc [" +
+                context.sourceToParse().id() + "] has number of dimensions [" + dim +
+                "] less than defined in the mapping [" +  dims +"]");
+        }
+        if (indexCreatedVersion.onOrAfter(Version.V_7_4_0)) {
             // encode vector magnitude at the beginning
             float vectorMagnitude = (float) Math.sqrt(dotProduct);
             int vectorMagnitudeIntValue = Float.floatToIntBits(vectorMagnitude);
@@ -210,27 +219,6 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
             buf[1] = (byte) (vectorMagnitudeIntValue >> 16);
             buf[2] = (byte) (vectorMagnitudeIntValue >> 8);
             buf[3] = (byte) vectorMagnitudeIntValue;
-        } else {
-            buf = new byte[dims * INT_BYTES];
-            offset = 0;
-            for (Token token = context.parser().nextToken(); token != Token.END_ARRAY; token = context.parser().nextToken()) {
-                if (dim++ >= dims) {
-                    throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] of doc [" +
-                        context.sourceToParse().id() + "] has exceeded the number of dimensions [" + dims + "] defined in mapping");
-                }
-                ensureExpectedToken(Token.VALUE_NUMBER, token, context.parser()::getTokenLocation);
-                float value = context.parser().floatValue(true);
-                int intValue = Float.floatToIntBits(value);
-                buf[offset++] = (byte) (intValue >> 24);
-                buf[offset++] = (byte) (intValue >> 16);
-                buf[offset++] = (byte) (intValue >>  8);
-                buf[offset++] = (byte) intValue;
-            }
-        }
-        if (dim != dims) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] of doc [" +
-                context.sourceToParse().id() + "] has number of dimensions [" + dim +
-                "] less than defined in the mapping [" +  dims +"]");
         }
         BinaryDocValuesField field = new BinaryDocValuesField(fieldType().name(), new BytesRef(buf, 0, offset));
         if (context.doc().getByKey(fieldType().name()) != null) {

@@ -9,6 +9,7 @@ import org.apache.http.HttpHost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -45,6 +46,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
+@LuceneTestCase.AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/44814")
 public class WatchBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     private final StringEntity entity = new StringEntity(watchBuilder()
@@ -167,12 +169,6 @@ public class WatchBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         return Settings.builder()
                 .put(ThreadContext.PREFIX + ".Authorization", token)
                 .build();
-    }
-
-    public void testDummy() {
-        // Dummy test so the suite doesn't fail with a no executed tests error.
-        // Remove when the awaits fixes below (#44814) are resolved
-        assertTrue(true);
     }
 
     @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/44814")

@@ -42,6 +42,9 @@ PUT _ml/data_frame/analytics/loganalytics
 // CONSOLE
 // TEST[setup:setup_logdata]
 
+`description`::
+  (Optional, string) A description of the job.
+
 `dest`::
   (object) The destination configuration of the analysis. The `index` property 
   (string) is the name of the index in which to store the results of the 

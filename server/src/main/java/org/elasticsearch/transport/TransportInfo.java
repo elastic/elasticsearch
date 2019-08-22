@@ -47,17 +47,17 @@ public class TransportInfo implements Writeable, ToXContentFragment {
 
     private BoundTransportAddress address;
     private Map<String, BoundTransportAddress> profileAddresses;
-    private final boolean cnameInPublishAddress;
+    private final boolean cnameInPublishAddressProperty;
 
     public TransportInfo(BoundTransportAddress address, @Nullable Map<String, BoundTransportAddress> profileAddresses) {
         this(address, profileAddresses, CNAME_IN_PUBLISH_ADDRESS);
     }
 
     public TransportInfo(BoundTransportAddress address, @Nullable Map<String, BoundTransportAddress> profileAddresses,
-                         boolean cnameInPublishAddress) {
+                         boolean cnameInPublishAddressProperty) {
         this.address = address;
         this.profileAddresses = profileAddresses;
-        this.cnameInPublishAddress = cnameInPublishAddress;
+        this.cnameInPublishAddressProperty = cnameInPublishAddressProperty;
     }
 
     public TransportInfo(StreamInput in) throws IOException {
@@ -71,7 +71,7 @@ public class TransportInfo implements Writeable, ToXContentFragment {
                 profileAddresses.put(key, value);
             }
         }
-        this.cnameInPublishAddress = CNAME_IN_PUBLISH_ADDRESS;
+        this.cnameInPublishAddressProperty = CNAME_IN_PUBLISH_ADDRESS;
     }
 
     @Override
@@ -97,17 +97,15 @@ public class TransportInfo implements Writeable, ToXContentFragment {
         static final String PROFILES = "profiles";
     }
 
-    private String formatPublishAddressString(String propertyName, TransportAddress publishAddress){
+    private String formatPublishAddressString(String propertyName, TransportAddress publishAddress) {
         String publishAddressString = publishAddress.toString();
         String hostString = publishAddress.address().getHostString();
         if (InetAddresses.isInetAddress(hostString) == false) {
-            if (cnameInPublishAddress) {
-                publishAddressString = hostString + '/' + publishAddress.toString();
-            } else {
+            publishAddressString = hostString + '/' + publishAddress.toString();
+            if (cnameInPublishAddressProperty) {
                 deprecationLogger.deprecated(
-                        propertyName + " was printed as [ip:port] instead of [hostname/ip:port]. "
-                                + "This format is deprecated and will change to [hostname/ip:port] in a future version. "
-                                + "Use -Des.transport.cname_in_publish_address=true to enforce non-deprecated formatting."
+                        "es.transport.cname_in_publish_address system property is deprecated and no longer affects " + propertyName +
+                                " formatting. Remove this property to get rid of this deprecation warning."
                 );
             }
         }

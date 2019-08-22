@@ -8,7 +8,7 @@ Also see <<breaking-changes-7.3,Breaking changes in 7.3>>.
 === Enhancements
 
 CCR::
-* Include leases in error message when operations no longer available {pull}45681[#45681]
+* Include leases in error message when operations are no longer available {pull}45681[#45681]
 
 Infra/Core::
 * Add OCI annotations and adjust existing annotations {pull}45167[#45167] (issues: {issue}45162[#45162], {issue}45166[#45166])

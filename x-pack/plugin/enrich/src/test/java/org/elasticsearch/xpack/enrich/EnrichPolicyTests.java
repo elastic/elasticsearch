@@ -89,7 +89,7 @@ public class EnrichPolicyTests extends AbstractSerializingTestCase<EnrichPolicy>
             assertThat(expectedInstance.getQuery(), nullValue());
         }
         assertThat(newInstance.getIndices(), equalTo(expectedInstance.getIndices()));
-        assertThat(newInstance.getEnrichKey(), equalTo(expectedInstance.getEnrichKey()));
-        assertThat(newInstance.getEnrichValues(), equalTo(expectedInstance.getEnrichValues()));
+        assertThat(newInstance.getMatchField(), equalTo(expectedInstance.getMatchField()));
+        assertThat(newInstance.getEnrichFields(), equalTo(expectedInstance.getEnrichFields()));
     }
 }

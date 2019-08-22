@@ -837,6 +837,7 @@ public class RestHighLevelClientTests extends ESTestCase {
                                 apiName.startsWith("security.") == false &&
                                 apiName.startsWith("index_lifecycle.") == false &&
                                 apiName.startsWith("ccr.") == false &&
+                                apiName.startsWith("enrich.") == false &&
                                 apiName.startsWith("data_frame") == false &&
                                 apiName.endsWith("freeze") == false &&
                                 apiName.endsWith("reload_analyzers") == false &&

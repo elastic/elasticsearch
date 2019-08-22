@@ -1,8 +1,7 @@
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.LoggedExec
-import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.testfixtures.TestFixturesPlugin
+import org.elasticsearch.gradle.testfixtures.TestFixturesPlugin 
 
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
@@ -24,8 +23,10 @@ ext.expansions = { oss, local ->
   final String classifier = 'linux-x86_64'            
   final String elasticsearch = oss ? "elasticsearch-oss-${VersionProperties.elasticsearch}-${classifier}.tar.gz" : "elasticsearch-${VersionProperties.elasticsearch}-${classifier}.tar.gz"
   return [
+    'build_date'          : project.ext.buildDate,
     'elasticsearch'       : elasticsearch,
-    'license'             : oss ? 'Apache-2.0' : 'Elastic License',
+    'git_revision'        : project.ext.gitRevision,
+    'license'             : oss ? 'Apache-2.0' : 'Elastic-License',
     'source_elasticsearch': local ? "COPY $elasticsearch /opt/" : "RUN cd /opt && curl --retry 8 -s -L -O https://artifacts.elastic.co/downloads/elasticsearch/${elasticsearch} && cd -",
     'version'             : VersionProperties.elasticsearch
   ]
@@ -56,7 +57,7 @@ project.ext {
       }
 
       from(project.projectDir.toPath().resolve("src/docker/Dockerfile")) {
-        MavenFilteringHack.filter(it, expansions(oss, local))
+        expand(expansions(oss, local))
       }
     }
   }
@@ -64,7 +65,9 @@ project.ext {
 
 void addCopyDockerContextTask(final boolean oss) {
   task(taskName("copy", oss, "DockerContext"), type: Sync) {
-    inputs.properties(expansions(oss, true))
+    expansions(oss, true).each { k, v ->
+      inputs.property(k, { v.toString() })
+    }
     into files(oss)
 
     with dockerBuildContext(oss, true)
@@ -126,15 +129,15 @@ processTestResources {
   from project(':x-pack:plugin:core')
           .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
   dependsOn configurations.restSpec
-  // don't add the tasks to build the docker images if we have no way of testing them
-  if (TestFixturesPlugin.dockerComposeSupported()) {
-    dependsOn assemble
-  }
 }
 
 task integTest(type: Test) {
   maxParallelForks = '1'
   include '**/*IT.class'
+  // don't add the tasks to build the docker images if we have no way of testing them
+  if (TestFixturesPlugin.dockerComposeSupported()) {
+    dependsOn assemble
+  }
 }
 
 check.dependsOn integTest

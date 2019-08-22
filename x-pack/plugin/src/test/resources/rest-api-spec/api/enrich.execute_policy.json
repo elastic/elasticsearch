@@ -2,19 +2,19 @@
   "enrich.execute_policy": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/enrich-execute-policy.html",
     "stability" : "stable",
-    "methods": [ "PUT" ],
     "url": {
-      "path": "/_enrich/policy/{name}/_execute",
-      "paths": ["/_enrich/policy/{name}/_execute"],
-      "parts": {
-        "name": {
-          "type" : "string",
-          "description" : "The name of the enrich policy"
+      "paths": [
+        {
+          "path": "/_enrich/policy/{name}/_execute",
+          "methods": [ "PUT" ],
+          "parts": {
+            "name": {
+              "type" : "string",
+              "description" : "The name of the enrich policy"
+            }
+          }
         }
-      },
-      "params": {
-      }
-    },
-    "body": null
+      ]
+    }
   }
 }

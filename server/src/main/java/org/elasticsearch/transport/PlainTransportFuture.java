@@ -25,9 +25,9 @@ import org.elasticsearch.common.util.concurrent.BaseFuture;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 
-public class PlainTransportFuture<V extends TransportResponse> extends BaseFuture<V>
-    implements TransportFuture<V>, TransportResponseHandler<V> {
+public class PlainTransportFuture<V extends TransportResponse> extends BaseFuture<V> implements Future<V>, TransportResponseHandler<V> {
 
     private final TransportResponseHandler<V> handler;
 
@@ -35,7 +35,6 @@ public class PlainTransportFuture<V extends TransportResponse> extends BaseFutur
         this.handler = handler;
     }
 
-    @Override
     public V txGet() {
         try {
             return get();

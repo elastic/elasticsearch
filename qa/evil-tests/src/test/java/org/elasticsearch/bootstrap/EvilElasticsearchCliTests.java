@@ -22,9 +22,12 @@ package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 
 public class EvilElasticsearchCliTests extends ESElasticsearchCliTestCase {
 
@@ -40,9 +43,11 @@ public class EvilElasticsearchCliTests extends ESElasticsearchCliTestCase {
                 output -> {},
                 (foreground, pidFile, quiet, esSettings) -> {
                     Settings settings = esSettings.settings();
-                    assertThat(settings.size(), equalTo(2));
-                    assertEquals(value, settings.get("path.home"));
-                    assertTrue(settings.keySet().contains("path.logs")); // added by env initialization
+                    assertThat(settings.keySet(), hasSize(2));
+                    assertThat(
+                        settings.get("path.home"),
+                        equalTo(PathUtils.get(System.getProperty("user.dir")).resolve(value).toString()));
+                    assertThat(settings.keySet(), hasItem("path.logs")); // added by env initialization
                 });
 
         System.clearProperty("es.path.home");
@@ -53,9 +58,11 @@ public class EvilElasticsearchCliTests extends ESElasticsearchCliTestCase {
                 output -> {},
                 (foreground, pidFile, quiet, esSettings) -> {
                     Settings settings = esSettings.settings();
-                    assertThat(settings.size(), equalTo(2));
-                    assertEquals(commandLineValue, settings.get("path.home"));
-                    assertTrue(settings.keySet().contains("path.logs")); // added by env initialization
+                    assertThat(settings.keySet(), hasSize(2));
+                    assertThat(
+                        settings.get("path.home"),
+                        equalTo(PathUtils.get(System.getProperty("user.dir")).resolve(commandLineValue).toString()));
+                    assertThat(settings.keySet(), hasItem("path.logs")); // added by env initialization
                 },
                 "-Epath.home=" + commandLineValue);
 

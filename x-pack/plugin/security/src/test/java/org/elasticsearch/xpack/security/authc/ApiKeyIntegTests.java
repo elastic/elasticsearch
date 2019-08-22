@@ -93,7 +93,9 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     public String configRoles() {
         return super.configRoles() + "\n" +
             "manage_api_key_role:\n" +
-            "  cluster: [\"manage_api_key\"]\n";
+            "  cluster: [\"manage_api_key\"]\n" +
+            "manage_own_api_key_role:\n" +
+            "  cluster: [\"manage_own_api_key\"]\n";
     }
 
     @Override
@@ -101,13 +103,15 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final String usersPasswdHashed = new String(
             getFastStoredHashAlgoForTests().hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
         return super.configUsers() +
-            "user_with_manage_api_key_role:" + usersPasswdHashed + "\n";
+            "user_with_manage_api_key_role:" + usersPasswdHashed + "\n" +
+            "user_with_manage_own_api_key_role:" + usersPasswdHashed + "\n";
     }
 
     @Override
     public String configUsersRoles() {
         return super.configUsersRoles() +
-            "manage_api_key_role:user_with_manage_api_key_role\n";
+            "manage_api_key_role:user_with_manage_api_key_role\n" +
+            "manage_own_api_key_role:user_with_manage_own_api_key_role\n";
     }
 
     private void awaitApiKeysRemoverCompletion() throws InterruptedException {
@@ -505,15 +509,16 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         int noOfSuperuserApiKeys = randomIntBetween(3, 5);
         int noOfApiKeysForUserWithManageApiKeyRole = randomIntBetween(3, 5);
         List<CreateApiKeyResponse> defaultUserCreatedKeys = createApiKeys(noOfSuperuserApiKeys, null);
-        List<CreateApiKeyResponse> userWithManageApiKeyRoleApiKeys = createApiKeys("user_with_manage_api_key_role",
+        String userWithManageApiKeyRole = randomFrom("user_with_manage_api_key_role", "user_with_manage_own_api_key_role");
+        List<CreateApiKeyResponse> userWithManageApiKeyRoleApiKeys = createApiKeys(userWithManageApiKeyRole,
             noOfApiKeysForUserWithManageApiKeyRole, null);
         final Client client = client().filterWithHeader(Collections.singletonMap("Authorization", UsernamePasswordToken
-            .basicAuthHeaderValue("user_with_manage_api_key_role", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
+            .basicAuthHeaderValue(userWithManageApiKeyRole, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
 
         PlainActionFuture<GetApiKeyResponse> listener = new PlainActionFuture<>();
         client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.forOwnedApiKeys(), listener);
         GetApiKeyResponse response = listener.get();
-        verifyGetResponse("user_with_manage_api_key_role", noOfApiKeysForUserWithManageApiKeyRole, userWithManageApiKeyRoleApiKeys,
+        verifyGetResponse(userWithManageApiKeyRole, noOfApiKeysForUserWithManageApiKeyRole, userWithManageApiKeyRoleApiKeys,
             response, userWithManageApiKeyRoleApiKeys.stream().map(o -> o.getId()).collect(Collectors.toSet()), null);
     }
 
@@ -521,10 +526,11 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         int noOfSuperuserApiKeys = randomIntBetween(3, 5);
         int noOfApiKeysForUserWithManageApiKeyRole = randomIntBetween(3, 5);
         List<CreateApiKeyResponse> defaultUserCreatedKeys = createApiKeys(noOfSuperuserApiKeys, null);
-        List<CreateApiKeyResponse> userWithManageApiKeyRoleApiKeys = createApiKeys("user_with_manage_api_key_role",
+        String userWithManageApiKeyRole = randomFrom("user_with_manage_api_key_role", "user_with_manage_own_api_key_role");
+        List<CreateApiKeyResponse> userWithManageApiKeyRoleApiKeys = createApiKeys(userWithManageApiKeyRole,
             noOfApiKeysForUserWithManageApiKeyRole, null);
         final Client client = client().filterWithHeader(Collections.singletonMap("Authorization", UsernamePasswordToken
-            .basicAuthHeaderValue("user_with_manage_api_key_role", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
+            .basicAuthHeaderValue(userWithManageApiKeyRole, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
 
         PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
         client.execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.forOwnedApiKeys(), listener);

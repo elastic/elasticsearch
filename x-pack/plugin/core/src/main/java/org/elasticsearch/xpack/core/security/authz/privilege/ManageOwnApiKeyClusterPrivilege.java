@@ -53,12 +53,12 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
             } else if (request instanceof GetApiKeyRequest) {
                 final GetApiKeyRequest getApiKeyRequest = (GetApiKeyRequest) request;
                 return checkIfUserIsOwnerOfApiKeys(authentication, getApiKeyRequest.getApiKeyId(), getApiKeyRequest.getUserName(),
-                    getApiKeyRequest.getRealmName());
+                    getApiKeyRequest.getRealmName(), getApiKeyRequest.ownedByAuthenticatedUser());
             } else if (request instanceof InvalidateApiKeyRequest) {
                 final InvalidateApiKeyRequest invalidateApiKeyRequest = (InvalidateApiKeyRequest) request;
                 return checkIfUserIsOwnerOfApiKeys(authentication, invalidateApiKeyRequest.getId(),
-                    invalidateApiKeyRequest.getUserName(),
-                    invalidateApiKeyRequest.getRealmName());
+                    invalidateApiKeyRequest.getUserName(), invalidateApiKeyRequest.getRealmName(),
+                    invalidateApiKeyRequest.ownedByAuthenticatedUser());
             }
             return false;
         }
@@ -68,7 +68,8 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
             return permissionCheck instanceof ManageOwnClusterPermissionCheck;
         }
 
-        private boolean checkIfUserIsOwnerOfApiKeys(Authentication authentication, String apiKeyId, String username, String realmName) {
+        private boolean checkIfUserIsOwnerOfApiKeys(Authentication authentication, String apiKeyId, String username, String realmName,
+                                                    boolean ownedByAuthenticatedUser) {
             if (isCurrentAuthenticationUsingSameApiKeyIdFromRequest(authentication, apiKeyId)) {
                 return true;
             } else {
@@ -81,6 +82,8 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
                 if (authenticatedUserRealm.equals(API_KEY_REALM_TYPE)) {
                     // API key cannot own any other API key so deny access
                     return false;
+                } else if (ownedByAuthenticatedUser) {
+                    return true;
                 } else if (Strings.hasText(username) && Strings.hasText(realmName)) {
                     return username.equals(authenticatedUserPrincipal) && realmName.equals(authenticatedUserRealm);
                 }

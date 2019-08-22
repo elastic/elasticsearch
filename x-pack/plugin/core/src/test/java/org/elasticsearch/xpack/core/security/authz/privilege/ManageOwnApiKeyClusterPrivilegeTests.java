@@ -57,8 +57,10 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
             ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(ClusterPermission.builder()).build();
 
         final Authentication authentication = createMockAuthentication("joe","realm1", "native", Map.of());
-        final TransportRequest getApiKeyRequest = GetApiKeyRequest.usingRealmAndUserName("realm1", "joe");
-        final TransportRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingRealmAndUserName("realm1", "joe");
+        final TransportRequest getApiKeyRequest = randomFrom(GetApiKeyRequest.usingRealmAndUserName("realm1", "joe"),
+            GetApiKeyRequest.forOwnedApiKeys());
+        final TransportRequest invalidateApiKeyRequest = randomFrom(InvalidateApiKeyRequest.usingRealmAndUserName("realm1", "joe"),
+            GetApiKeyRequest.forOwnedApiKeys());
 
         assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/get", getApiKeyRequest, authentication));
         assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/invalidate", invalidateApiKeyRequest, authentication));
@@ -73,11 +75,11 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
         final TransportRequest getApiKeyRequest = randomFrom(
             GetApiKeyRequest.usingRealmAndUserName("realm1", randomAlphaOfLength(7)),
             GetApiKeyRequest.usingRealmAndUserName(randomAlphaOfLength(5), "joe"),
-            new GetApiKeyRequest(randomAlphaOfLength(5), randomAlphaOfLength(7), null, null, randomBoolean()));
+            new GetApiKeyRequest(randomAlphaOfLength(5), randomAlphaOfLength(7), null, null, false));
         final TransportRequest invalidateApiKeyRequest = randomFrom(
             InvalidateApiKeyRequest.usingRealmAndUserName("realm1", randomAlphaOfLength(7)),
             InvalidateApiKeyRequest.usingRealmAndUserName(randomAlphaOfLength(5), "joe"),
-            new InvalidateApiKeyRequest(randomAlphaOfLength(5), randomAlphaOfLength(7), null, null, randomBoolean()));
+            new InvalidateApiKeyRequest(randomAlphaOfLength(5), randomAlphaOfLength(7), null, null, false));
 
         assertFalse(clusterPermission.check("cluster:admin/xpack/security/api_key/get", getApiKeyRequest, authentication));
         assertFalse(clusterPermission.check("cluster:admin/xpack/security/api_key/invalidate", invalidateApiKeyRequest, authentication));

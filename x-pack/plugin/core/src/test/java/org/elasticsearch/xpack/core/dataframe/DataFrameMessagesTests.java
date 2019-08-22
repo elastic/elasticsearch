@@ -51,7 +51,7 @@ public class DataFrameMessagesTests extends ESTestCase {
         try {
             innerAssertSingleMessage(message);
         } catch (Exception e) {
-            fail(e.getMessage());
+            fail("message: " + message + " failure: " + e.getMessage());
         }
     }
 

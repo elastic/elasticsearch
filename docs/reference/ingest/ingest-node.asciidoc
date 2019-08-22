@@ -546,6 +546,7 @@ PUT _ingest/pipeline/logs_pipeline
     },
     {
       "fail": {
+        "if": "ctx.service?.name != 'apache_httpd' && ctx.service?.name != 'syslog'",
         "message": "This pipeline requires service.name to be either `syslog` or `apache_httpd`"
       }
     }

@@ -187,7 +187,7 @@ PUT /_security/role_mapping/users
 
 Or, alternatively, configured inside a role-mapping file. The file's path
 defaults to `ES_PATH_CONF/role_mapping.yml`. You can specify a different path (which must be within
-ES_PATH_CONF--by using the `files.role_mapping` realm setting (e.g.
+ES_PATH_CONF) by using the `files.role_mapping` realm setting (e.g.
 `xpack.security.authc.realms.pki.pki1.files.role_mapping`):
 
 [source, yaml]

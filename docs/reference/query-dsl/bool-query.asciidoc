@@ -90,7 +90,7 @@ any returned documents.
 
 The `filter` parameter is like the `must` parameter. Unlike the `must`
 parameter, filter queries do not calculate <<relevance-scores,relevance
-scores>>.  Instead, the `filter` query assigns all matching documents a score of
+scores>>. Instead, the `filter` query assigns all matching documents a score of
 `0`.
 
 To speed up performance, {es} automatically caches frequently used filter
@@ -117,8 +117,8 @@ document.
 ===== Scoring with `bool.filter`
 
 Queries specified under the `filter` element have no effect on scoring --
-scores are returned as `0`.  Scores are only affected by the query that has
-been specified.  For instance, all three of the following queries return
+scores are returned as `0`. Scores are only affected by the query that has
+been specified. For instance, all three of the following queries return
 all documents where the `status` field contains the term `active`.
 
 This first query assigns a score of `0` to all documents, as no scoring

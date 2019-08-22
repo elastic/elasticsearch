@@ -13,7 +13,7 @@ token.
 
 `POST /_security/delegate_pki`
 
-[[security-api-dellegate-pki-authentication-prereqs]]
+[[security-api-delegate-pki-authentication-prereqs]]
 ==== {api-prereq-title}
 
 * To call this API, the (proxy) user must have the `delegate_pki` or the `all`

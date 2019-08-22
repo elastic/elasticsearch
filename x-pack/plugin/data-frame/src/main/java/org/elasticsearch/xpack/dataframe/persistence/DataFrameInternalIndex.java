@@ -31,11 +31,23 @@ import static org.elasticsearch.xpack.core.dataframe.DataFrameField.TRANSFORM_ID
 
 public final class DataFrameInternalIndex {
 
+    /* Changelog of internal index versions
+     *
+     * Please list changes, increase the version if you are 1st in this release cycle
+     *
+     * version 1 (7.2): initial
+     * version 2 (7.4): cleanup, add config::version, config::create_time, checkpoint::timestamp, checkpoint::time_upper_bound,
+     *                  progress::docs_processed, progress::docs_indexed,
+     *                  stats::exponential_avg_checkpoint_duration_ms, stats::exponential_avg_documents_indexed,
+     *                  stats::exponential_avg_documents_processed
+     */
+
     // constants for the index
-    public static final String INDEX_TEMPLATE_VERSION = "1";
-    public static final String INDEX_TEMPLATE_PATTERN = ".data-frame-internal-";
-    public static final String INDEX_TEMPLATE_NAME = INDEX_TEMPLATE_PATTERN + INDEX_TEMPLATE_VERSION;
-    public static final String INDEX_NAME = INDEX_TEMPLATE_NAME;
+    public static final String INDEX_VERSION = "2";
+    public static final String INDEX_PATTERN = ".data-frame-internal-";
+    public static final String LATEST_INDEX_VERSIONED_NAME = INDEX_PATTERN + INDEX_VERSION;
+    public static final String LATEST_INDEX_NAME = LATEST_INDEX_VERSIONED_NAME;
+    public static final String INDEX_NAME_PATTERN = INDEX_PATTERN + "*";
 
     public static final String AUDIT_TEMPLATE_VERSION = "1";
     public static final String AUDIT_INDEX_PREFIX = ".data-frame-notifications-";
@@ -58,8 +70,8 @@ public final class DataFrameInternalIndex {
     public static final String KEYWORD = "keyword";
 
     public static IndexTemplateMetaData getIndexTemplateMetaData() throws IOException {
-        IndexTemplateMetaData dataFrameTemplate = IndexTemplateMetaData.builder(INDEX_TEMPLATE_NAME)
-                .patterns(Collections.singletonList(INDEX_TEMPLATE_NAME))
+        IndexTemplateMetaData dataFrameTemplate = IndexTemplateMetaData.builder(LATEST_INDEX_VERSIONED_NAME)
+                .patterns(Collections.singletonList(LATEST_INDEX_VERSIONED_NAME))
                 .version(Version.CURRENT.id)
                 .settings(Settings.builder()
                         // the configurations are expected to be small
@@ -116,7 +128,7 @@ public final class DataFrameInternalIndex {
         return builder;
     }
 
-    private static XContentBuilder mappings() throws IOException {
+    public static XContentBuilder mappings() throws IOException {
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
 
@@ -133,6 +145,8 @@ public final class DataFrameInternalIndex {
         addDataFrameTransformsConfigMappings(builder);
         // add the schema for transform stats
         addDataFrameTransformStoredDocMappings(builder);
+        // add the schema for checkpoints
+        addDataFrameCheckpointMappings(builder);
         // end type
         builder.endObject();
         // end properties
@@ -225,15 +239,13 @@ public final class DataFrameInternalIndex {
                         .field(TYPE, DOUBLE)
                     .endObject()
                 .endObject()
-            .endObject()
+            .endObject();
             // This is obsolete and can be removed for future versions of the index, but is left here as a warning/reminder that
             // we cannot declare this field differently in version 1 of the internal index as it would cause a mapping clash
-            .startObject("checkpointing")
-                .field(ENABLED, false)
-            .endObject();
+            // .startObject("checkpointing").field(ENABLED, false).endObject();
     }
 
-    private static XContentBuilder addDataFrameTransformsConfigMappings(XContentBuilder builder) throws IOException {
+    public static XContentBuilder addDataFrameTransformsConfigMappings(XContentBuilder builder) throws IOException {
         return builder
             .startObject(DataFrameField.ID.getPreferredName())
                 .field(TYPE, KEYWORD)
@@ -257,6 +269,22 @@ public final class DataFrameInternalIndex {
             .endObject()
             .startObject(DataFrameField.DESCRIPTION.getPreferredName())
                 .field(TYPE, TEXT)
+            .endObject()
+            .startObject(DataFrameField.VERSION.getPreferredName())
+                .field(TYPE, KEYWORD)
+            .endObject()
+            .startObject(DataFrameField.CREATE_TIME.getPreferredName())
+                .field(TYPE, DATE)
+            .endObject();
+    }
+
+    private static XContentBuilder addDataFrameCheckpointMappings(XContentBuilder builder) throws IOException {
+        return builder
+            .startObject(DataFrameField.TIMESTAMP_MILLIS.getPreferredName())
+                .field(TYPE, DATE)
+            .endObject()
+            .startObject(DataFrameField.TIME_UPPER_BOUND_MILLIS.getPreferredName())
+                .field(TYPE, DATE)
             .endObject();
     }
 

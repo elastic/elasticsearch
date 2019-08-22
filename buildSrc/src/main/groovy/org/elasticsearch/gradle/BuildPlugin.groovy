@@ -884,6 +884,22 @@ class BuildPlugin implements Plugin<Project> {
                 // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
                 test.systemProperty 'es.transport.cname_in_publish_address', 'true'
 
+                // Set netty system properties
+                test.systemProperty('io.netty.noUnsafe', 'true')
+                test.systemProperty('io.netty.noKeySetOptimization', 'true')
+                test.systemProperty('io.netty.recycler.maxCapacityPerThread', '0')
+                def seed = Long.parseUnsignedLong(((String) project.property('testSeed')).tokenize(':').get(0), 16)
+                if (seed % 4 == 0) {
+                    // Occasionally use the unpooled allocator as we ergonomically choose it on small heaps
+                    test.systemProperty('io.netty.allocator.type', 'unpooled')
+                } else {
+                    test.systemProperty('io.netty.allocator.type', 'pooled')
+                    if (seed % 2 != 0) {
+                        // Disable direct buffer pooling most of the time as it is disabled by default in Elasticsearch
+                        test.systemProperty('io.netty.allocator.numDirectArenas', '0')
+                    }
+                }
+
                 test.testLogging { TestLoggingContainer logging ->
                     logging.showExceptions = true
                     logging.showCauses = true

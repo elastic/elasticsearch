@@ -242,9 +242,6 @@ public abstract class ESTestCase extends LuceneTestCase {
 
         // Enable Netty leak detection and monitor logger for logged leak errors
         System.setProperty("io.netty.leakDetection.level", "paranoid");
-
-        // Disable direct buffer pooling
-        System.setProperty("io.netty.allocator.numDirectArenas", "0");
     }
 
     protected final Logger logger = LogManager.getLogger(getClass());

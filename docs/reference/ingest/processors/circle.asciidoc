@@ -16,6 +16,9 @@ Converts circle definitions of shapes to regular polygons which approximate them
 include::common-options.asciidoc[]
 |======
 
+
+image:images/spatial/error_distance_in_meters.png[]
+
 [source,js]
 --------------------------------------------------
 PUT circles

@@ -155,22 +155,17 @@ public class BinarySoftClassification implements Evaluation {
     }
 
     @Override
-    public SearchSourceBuilder buildSearch() {
-        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-        searchSourceBuilder.size(0);
-        searchSourceBuilder.query(buildQuery());
+    public SearchSourceBuilder buildSearch(QueryBuilder queryBuilder) {
+        BoolQueryBuilder boolQuery = QueryBuilders.boolQuery()
+            .filter(QueryBuilders.existsQuery(actualField))
+            .filter(QueryBuilders.existsQuery(predictedProbabilityField))
+            .filter(queryBuilder);
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0).query(boolQuery);
         for (SoftClassificationMetric metric : metrics) {
             List<AggregationBuilder> aggs = metric.aggs(actualField, Collections.singletonList(new BinaryClassInfo()));
             aggs.forEach(searchSourceBuilder::aggregation);
         }
         return searchSourceBuilder;
-    }
-
-    private QueryBuilder buildQuery() {
-        BoolQueryBuilder boolQuery = QueryBuilders.boolQuery();
-        boolQuery.filter(QueryBuilders.existsQuery(actualField));
-        boolQuery.filter(QueryBuilders.existsQuery(predictedProbabilityField));
-        return boolQuery;
     }
 
     @Override

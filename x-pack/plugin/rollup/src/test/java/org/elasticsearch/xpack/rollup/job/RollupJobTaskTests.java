@@ -527,7 +527,7 @@ public class RollupJobTaskTests extends ESTestCase {
                 fail("Should not have entered onFailure");
             }
         });
-        ESTestCase.assertBusy(() -> assertTrue(started.get()));
+        assertBusy(() -> assertTrue(started.get()));
 
         task.triggered(new SchedulerEngine.Event(RollupJobTask.SCHEDULE_NAME + "_" + job.getConfig().getId(), 123, 123));
         assertThat(((RollupJobStatus)task.getStatus()).getIndexerState(), equalTo(IndexerState.INDEXING));
@@ -536,7 +536,7 @@ public class RollupJobTaskTests extends ESTestCase {
         latch.countDown();
 
         // Wait for the final persistent status to finish
-        ESTestCase.assertBusy(() -> assertTrue(finished.get()));
+        assertBusy(() -> assertTrue(finished.get()));
     }
 
     @SuppressWarnings("unchecked")

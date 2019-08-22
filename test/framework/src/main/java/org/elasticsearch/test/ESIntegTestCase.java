@@ -930,7 +930,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      *                This saves on unneeded searches.
      * @return the actual number of docs seen.
      */
-    public long waitForDocs(final long numDocs, @Nullable final BackgroundIndexer indexer) throws InterruptedException {
+    public long waitForDocs(final long numDocs, @Nullable final BackgroundIndexer indexer) {
         // indexing threads can wait for up to ~1m before retrying when they first try to index into a shard which is not STARTED.
         return waitForDocs(numDocs, 90, TimeUnit.SECONDS, indexer);
     }
@@ -945,17 +945,16 @@ public abstract class ESIntegTestCase extends ESTestCase {
      *                        This saves on unneeded searches.
      * @return the actual number of docs seen.
      */
-    public long waitForDocs(final long numDocs, int maxWaitTime, TimeUnit maxWaitTimeUnit, @Nullable final BackgroundIndexer indexer)
-        throws InterruptedException {
+    public long waitForDocs(final long numDocs, int maxWaitTime, TimeUnit maxWaitTimeUnit, @Nullable final BackgroundIndexer indexer) {
         final AtomicLong lastKnownCount = new AtomicLong(-1);
         long lastStartCount = -1;
-        CheckedRunnable<Exception> testDocs = () -> {
+
+        final CheckedRunnable<Exception> testDocs = () -> {
             if (indexer != null) {
                 lastKnownCount.set(indexer.totalIndexedDocs());
             }
             if (lastKnownCount.get() >= numDocs) {
                 try {
-
                     long count = client().prepareSearch()
                         .setTrackTotalHits(true)
                         .setSize(0)
@@ -970,28 +969,30 @@ public abstract class ESIntegTestCase extends ESTestCase {
                     lastKnownCount.set(count);
                 } catch (Exception e) { // count now acts like search and barfs if all shards failed...
                     logger.debug("failed to executed count", e);
-                    fail(e.getMessage());
+                    throw e;
                 }
                 logger.debug("[{}] docs visible for search. waiting for [{}]", lastKnownCount.get(), numDocs);
             } else {
                 logger.debug("[{}] docs indexed. waiting for [{}]", lastKnownCount.get(), numDocs);
             }
+
             assertThat(lastKnownCount.get(), greaterThanOrEqualTo(numDocs));
         };
 
         while (true) {
             try {
                 assertBusy(testDocs, maxWaitTime, maxWaitTimeUnit);
-                break;
-            } catch (AssertionError ae) {
-                if (lastStartCount == lastKnownCount.get()) {
-                    // we didn't make any progress
-                    fail("failed to reach " + numDocs + "docs");
-                }
-                lastStartCount = lastKnownCount.get();
-            } catch (Exception ex) {
-                throw new RuntimeException(ex);
+                break; // The previous line didn't throw, so we can exit the loop
             }
+            catch (Exception e) {
+                // don't care
+            }
+
+            if (lastStartCount == lastKnownCount.get()) {
+                // we didn't make any progress
+                fail("failed to reach " + numDocs + " docs");
+            }
+            lastStartCount = lastKnownCount.get();
         }
         return lastKnownCount.get();
     }

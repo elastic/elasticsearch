@@ -49,6 +49,7 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
@@ -235,7 +236,7 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
 
                     final Number activeWrites = (Number) extractValue("thread_pool.write.active", node);
                     assertNotNull(activeWrites);
-                    assertEquals(0L, activeWrites.longValue());
+                    assertThat(activeWrites, equalTo(0));
                 } catch (Exception e) {
                     throw new ElasticsearchException("Failed to wait for monitoring exporters to stop:", e);
                 }
@@ -279,26 +280,15 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
                               Map<String, String> params,
                               List<Map<String, Object>> bodies,
                               CheckedFunction<ClientYamlTestResponse, Boolean, IOException> success,
-                              Supplier<String> error) throws Exception {
-
-        AtomicReference<IOException> exceptionHolder = new AtomicReference<>();
-        assertBusy(() -> {
-            try {
-                ClientYamlTestResponse response = callApi(apiName, params, bodies, getApiCallHeaders());
-                if (response.getStatusCode() == HttpStatus.SC_OK) {
-                    exceptionHolder.set(null);
-                    assertTrue(success.apply(response));
-                    return;
-                }
-            } catch (IOException e) {
-                exceptionHolder.set(e);
-            }
-            fail("Response is not OK");
-        });
-
-        IOException exception = exceptionHolder.get();
-        if (exception != null) {
-            throw new IllegalStateException(error.get(), exception);
+                              Supplier<String> error) {
+        try {
+            // The actual method call that sends the API requests returns a Future, but we immediately
+            // call .get() on it so there's no need for this method to do any other awaiting.
+            ClientYamlTestResponse response = callApi(apiName, params, bodies, getApiCallHeaders());
+            assertEquals(response.getStatusCode(), HttpStatus.SC_OK);
+            success.apply(response);
+        } catch (Exception e) {
+            throw new IllegalStateException(error.get(), e);
         }
     }
 

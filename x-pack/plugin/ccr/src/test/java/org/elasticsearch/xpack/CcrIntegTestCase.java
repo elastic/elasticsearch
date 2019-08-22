@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
@@ -106,7 +107,6 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -625,11 +625,11 @@ public abstract class CcrIntegTestCase extends ESTestCase {
      *                        This saves on unneeded searches.
      * @return the actual number of docs seen.
      */
-    public long waitForDocs(final long numDocs, int maxWaitTime, TimeUnit maxWaitTimeUnit, final BackgroundIndexer indexer)
-        throws InterruptedException {
+    public long waitForDocs(final long numDocs, int maxWaitTime, TimeUnit maxWaitTimeUnit, final BackgroundIndexer indexer) {
         final AtomicLong lastKnownCount = new AtomicLong(-1);
         long lastStartCount = -1;
-        BooleanSupplier testDocs = () -> {
+
+        final CheckedRunnable<Exception> testDocs = () -> {
             lastKnownCount.set(indexer.totalIndexedDocs());
             if (lastKnownCount.get() >= numDocs) {
                 try {
@@ -647,19 +647,28 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                     lastKnownCount.set(count);
                 } catch (Exception e) { // count now acts like search and barfs if all shards failed...
                     logger.debug("failed to executed count", e);
-                    return false;
+                    throw e;
                 }
                 logger.debug("[{}] docs visible for search. waiting for [{}]", lastKnownCount.get(), numDocs);
             } else {
                 logger.debug("[{}] docs indexed. waiting for [{}]", lastKnownCount.get(), numDocs);
             }
-            return lastKnownCount.get() >= numDocs;
+
+            assertThat(lastKnownCount.get(), greaterThanOrEqualTo(numDocs));
         };
 
-        while (!awaitBusy(testDocs, maxWaitTime, maxWaitTimeUnit)) {
+        while (true) {
+            try {
+                assertBusy(testDocs, maxWaitTime, maxWaitTimeUnit);
+                break; // The previous line didn't throw, so we can exit the loop
+            }
+            catch (Exception e) {
+                // don't care
+            }
+
             if (lastStartCount == lastKnownCount.get()) {
                 // we didn't make any progress
-                fail("failed to reach " + numDocs + "docs");
+                fail("failed to reach " + numDocs + " docs");
             }
             lastStartCount = lastKnownCount.get();
         }

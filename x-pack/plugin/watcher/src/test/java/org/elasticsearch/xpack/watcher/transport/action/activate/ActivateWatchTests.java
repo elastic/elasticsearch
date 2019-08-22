@@ -38,8 +38,10 @@ import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.cron;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
@@ -90,7 +92,7 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
 
         refresh();
         //ensure no new watch history
-        awaitBusy(() -> count1 != docCount(".watcher-history*", matchAllQuery()), 5, TimeUnit.SECONDS);
+        assertBusy(() -> assertThat(docCount(".watcher-history*", matchAllQuery()), not(equalTo(count1))), 5, TimeUnit.SECONDS);
 
         // lets activate it again
         logger.info("Activating watch again");

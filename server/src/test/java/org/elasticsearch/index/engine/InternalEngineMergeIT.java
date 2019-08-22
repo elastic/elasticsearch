@@ -65,6 +65,7 @@ public class InternalEngineMergeIT extends ESIntegTestCase {
                 stats.getPrimaries().getMerge().getCurrent());
         }
         final long upperNumberSegments = 2 * numOfShards * 10;
+
         assertBusy(() -> {
             IndicesStatsResponse stats = client().admin().indices().prepareStats().setSegments(true).setMerge(true).get();
             logger.info("numshards {}, segments {}, total merges {}, current merge {}", numOfShards,
@@ -75,6 +76,7 @@ public class InternalEngineMergeIT extends ESIntegTestCase {
             assertThat(count, lessThan(upperNumberSegments));
             assertThat(current, equalTo(0));
         });
+
         IndicesStatsResponse stats = client().admin().indices().prepareStats().setSegments(true).setMerge(true).get();
         logger.info("numshards {}, segments {}, total merges {}, current merge {}", numOfShards,
             stats.getPrimaries().getSegments().getCount(), stats.getPrimaries().getMerge().getTotal(),

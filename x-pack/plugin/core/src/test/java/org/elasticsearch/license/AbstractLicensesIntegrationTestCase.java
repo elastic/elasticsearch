@@ -92,7 +92,7 @@ public abstract class AbstractLicensesIntegrationTestCase extends ESIntegTestCas
                     return;
                 }
             }
-            fail("We expect having one license state which active is: " + active);
+            fail("No data nodes have a license active state of [" + active + "]");
         });
     }
 

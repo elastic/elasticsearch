@@ -301,8 +301,8 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
         // 10 seconds is usually fine but on heavily loaded machines this can take a while
         assertBusy(
             () -> {
-                assertTrue(ALLOWED_OPERATIONS.hasQueuedThreads());
-                assertEquals(0, ALLOWED_OPERATIONS.availablePermits());
+                assertTrue("Expected some queued threads", ALLOWED_OPERATIONS.hasQueuedThreads());
+                assertEquals("Expected that no permits are available", 0, ALLOWED_OPERATIONS.availablePermits());
             },
             1, TimeUnit.MINUTES);
         return builder;

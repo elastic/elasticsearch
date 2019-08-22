@@ -82,16 +82,15 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     }
 
     @After
-    public void wipeSecurityIndex() throws InterruptedException {
+    public void wipeSecurityIndex() throws Exception {
         // get the api key service and wait until api key expiration is not in progress!
         awaitApiKeysRemoverCompletion();
         deleteSecurityIndex();
     }
 
-    private void awaitApiKeysRemoverCompletion() throws InterruptedException {
+    private void awaitApiKeysRemoverCompletion() throws Exception {
         for (ApiKeyService apiKeyService : internalCluster().getInstances(ApiKeyService.class)) {
-            final boolean done = awaitBusy(() -> apiKeyService.isExpirationInProgress() == false);
-            assertTrue(done);
+            assertBusy(() -> assertFalse(apiKeyService.isExpirationInProgress()));
         }
     }
 

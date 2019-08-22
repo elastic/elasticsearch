@@ -315,12 +315,12 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
         client().performRequest(createFeedRequest);
         client().performRequest(new Request("POST", MachineLearning.BASE_PATH + "datafeeds/hrd-split-datafeed/_start"));
 
-        assertBusy(() -> {
-            try {
+        try {
+            assertBusy(() -> {
                 client().performRequest(new Request("POST", "/_refresh"));
 
                 Response response = client().performRequest(new Request("GET",
-                        MachineLearning.BASE_PATH + "anomaly_detectors/hrd-split-job/results/records"));
+                    MachineLearning.BASE_PATH + "anomaly_detectors/hrd-split-job/results/records"));
                 String responseBody = EntityUtils.toString(response.getEntity());
 
                 if (responseBody.contains("\"count\":2")) {
@@ -339,23 +339,19 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
                     // domainSplit() tests had subdomain, testHighestRegisteredDomainCases() do not
                     if (test.subDomainExpected != null) {
                         assertThat("Expected subdomain [" + test.subDomainExpected + "] but found [" + actualSubDomain
-                                + "]. Actual " + actualTotal + " vs Expected " + expectedTotal, actualSubDomain,
-                                equalTo(test.subDomainExpected));
+                            + "]. Actual " + actualTotal + " vs Expected " + expectedTotal, actualSubDomain, equalTo(test.subDomainExpected));
                     }
 
                     assertThat("Expected domain [" + test.domainExpected + "] but found [" + actualDomain + "].  Actual "
-                            + actualTotal + " vs Expected " + expectedTotal, actualDomain, equalTo(test.domainExpected));
-
+                        + actualTotal + " vs Expected " + expectedTotal, actualDomain, equalTo(test.domainExpected));
                 } else {
                     logger.error(responseBody);
-                    fail("Anomaly records were not found within 5 seconds");
+                    fail("Response body didn't contain [\"count\":2]");
                 }
-
-            } catch (Exception e) {
-                logger.error(e.getMessage());
-                fail("Anomaly records were not found within 5 seconds");
-            }
-
-        }, 5, TimeUnit.SECONDS);
+            }, 5, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            logger.error(e.getMessage());
+            fail("Anomaly records were not found within 5 seconds");
+        }
     }
 }

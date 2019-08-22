@@ -375,10 +375,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
                             errorOccurred = true;
                         }
                     }
-
-                    if (errorOccurred == true) {
-                        fail("Couldn't read the expected number of documents");
-                    }
+                    assertFalse("An error occurred while waiting", errorOccurred);
                 },
                 5,
                 TimeUnit.MINUTES

@@ -2849,7 +2849,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
     private void waitForIndex(final String index, TimeValue timeout) throws Exception {
         assertBusy(
-            () -> assertTrue("Expected index " + index + " to exist", indexExists(index)),
+            () -> assertTrue("Expected index [" + index + "] to exist", indexExists(index)),
             timeout.millis(),
             TimeUnit.MILLISECONDS);
     }

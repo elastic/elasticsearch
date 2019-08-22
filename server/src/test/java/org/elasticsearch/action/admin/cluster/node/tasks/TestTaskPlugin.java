@@ -54,7 +54,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
@@ -76,7 +75,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
-import static org.junit.Assert.assertFalse;
+import static org.elasticsearch.test.ESTestCase.waitUntil;
 
 /**
  * A plugin that adds a cancellable blocking test task of integration testing of the task manager.
@@ -306,16 +305,14 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
             logger.info("Test task started on the node {}", clusterService.localNode());
             if (request.shouldBlock) {
                 try {
-                    ESTestCase.assertBusy(() -> {
+                    waitUntil(() -> {
                         if (((CancellableTask) task).isCancelled()) {
                             throw new RuntimeException("Cancelled!");
                         }
-                        assertFalse(((TestTask) task).isBlocked());
+                        return ((TestTask) task).isBlocked() == false;
                     });
                 } catch (InterruptedException ex) {
                     Thread.currentThread().interrupt();
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
                 }
             }
             logger.info("Test task finished on the node {}", clusterService.localNode());

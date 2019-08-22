@@ -176,7 +176,7 @@ public class LicenseServiceClusterTests extends AbstractLicensesIntegrationTestC
                     return;
                 }
             }
-            fail("We expect having one license state which operation mode is: " + operationMode);
+            fail("No data nodes found with operation mode [" + operationMode + "]");
         });
     }
 

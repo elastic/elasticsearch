@@ -76,6 +76,7 @@ public class QuorumGatewayIT extends ESIntegTestCase {
                         assertFalse(clusterHealth.isTimedOut());
                         assertEquals(ClusterHealthStatus.YELLOW, clusterHealth.getStatus());
                     }, 30, TimeUnit.SECONDS);
+
                     logger.info("--> one node is closed -- index 1 document into the remaining nodes");
                     activeClient.prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject().field("field", "value3")
                         .endObject()).get();

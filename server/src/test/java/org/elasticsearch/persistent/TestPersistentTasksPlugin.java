@@ -338,6 +338,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
                     } catch (Exception ex) {
                         throw new RuntimeException(ex);
                     }
+
                     if (clusterService.lifecycleState() != Lifecycle.State.STARTED) {
                         return;
                     }

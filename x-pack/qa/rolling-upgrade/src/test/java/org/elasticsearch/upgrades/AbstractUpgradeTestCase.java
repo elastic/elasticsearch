@@ -13,10 +13,14 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.xpack.test.SecuritySettingsSourceField.basicAuthHeaderValue;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.is;
 
 public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
 
@@ -83,21 +87,29 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
     @Before
     public void setupForTests() throws Exception {
         assertBusy(() -> {
-            boolean success = true;
+            final List<String> missingTemplates = new ArrayList<>();
+
             for (String template : templatesToWaitFor()) {
                 try {
                     final Request headRequest = new Request("HEAD", "_template/" + template);
                     headRequest.setOptions(allowTypesRemovalWarnings());
+
                     final boolean exists = adminClient()
                         .performRequest(headRequest)
-                            .getStatusLine().getStatusCode() == 200;
-                    success &= exists;
+                        .getStatusLine().getStatusCode() == 200;
+
+                    if (exists == false) {
+                        missingTemplates.add(template);
+                    }
+
                     logger.debug("template [{}] exists [{}]", template, exists);
                 } catch (IOException e) {
                     logger.warn("error calling template api", e);
+                    throw e;
                 }
             }
-            assertTrue(success);
+
+            assertThat(missingTemplates, is(empty()));
         });
     }
 }

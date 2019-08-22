@@ -153,7 +153,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.junit.After;
-import org.junit.Assert;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -872,7 +871,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         // b) is slightly more efficient since we may not need to wait an entire second for the timestamp to increment
         assertBusy(() -> {
             long timeNow = System.currentTimeMillis() / 1000;
-            assertFalse(prevJobTimeStamp >= timeNow);
+            assertThat(prevJobTimeStamp, lessThan(timeNow));
         });
 
         // Update snapshot timestamp to force it out of snapshot retention window
@@ -890,10 +889,9 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         waitForForecastToComplete(jobId, forecastJobResponse.getForecastId());
 
         // Wait for the forecast to expire
-        try {
-            assertBusy(Assert::fail, 1, TimeUnit.SECONDS);
-        } catch (AssertionError ignore) {
-        }
+        // FIXME: We should wait for something specific to change, rather than waiting for time to pass.
+        waitUntil(() -> false, 1, TimeUnit.SECONDS);
+
         // Run up to now
         startDatafeed(datafeedId, String.valueOf(0), String.valueOf(nowMillis));
 
@@ -936,10 +934,10 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         assertTrue(response.getDeleted());
 
-        try {
-            assertBusy(Assert::fail, 1, TimeUnit.SECONDS);
-        } catch (AssertionError ignore) {
-        }
+        // Wait for the forecast to expire
+        // FIXME: We should wait for something specific to change, rather than waiting for time to pass.
+        waitUntil(() -> false, 1, TimeUnit.SECONDS);
+
         GetModelSnapshotsRequest getModelSnapshotsRequest1 = new GetModelSnapshotsRequest(jobId);
         GetModelSnapshotsResponse getModelSnapshotsResponse1 = execute(getModelSnapshotsRequest1, machineLearningClient::getModelSnapshots,
             machineLearningClient::getModelSnapshotsAsync);
@@ -2010,12 +2008,6 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         UpdateRequest updateSnapshotRequest = new UpdateRequest(".ml-anomalies-" + jobId, "_doc", documentId);
         updateSnapshotRequest.doc(snapshotUpdate.getBytes(StandardCharsets.UTF_8), XContentType.JSON);
         highLevelClient().update(updateSnapshotRequest, RequestOptions.DEFAULT);
-
-        // Wait a second to ensure subsequent model snapshots will have a different ID (it depends on epoch seconds)
-        try {
-            assertBusy(Assert::fail, 1, TimeUnit.SECONDS);
-        } catch (AssertionError ignore) {
-        }
     }
 
     private String createAndPutDatafeed(String jobId, String indexName) throws IOException {

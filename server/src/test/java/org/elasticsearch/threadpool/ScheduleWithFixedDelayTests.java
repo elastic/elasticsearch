@@ -27,8 +27,8 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
-import org.elasticsearch.threadpool.Scheduler.ReschedulingRunnable;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.threadpool.Scheduler.ReschedulingRunnable;
 import org.junit.After;
 import org.junit.Before;
 
@@ -178,7 +178,7 @@ public class ScheduleWithFixedDelayTests extends ESTestCase {
 
         // rarely wait and make sure the runnable didn't run at the next interval
         if (rarely()) {
-            expectThrows(AssertionError.class, () -> assertBusy(() -> assertTrue(runAfterDone.get()), 1L, TimeUnit.SECONDS));
+            assertBusy(() -> assertFalse("Runnable was run after being cancelled", runAfterDone.get()), 1L, TimeUnit.SECONDS);
         }
     }
 
@@ -283,10 +283,10 @@ public class ScheduleWithFixedDelayTests extends ESTestCase {
         assertThat(counterValue, equalTo(iterations));
 
         if (rarely()) {
-            assertBusy(() -> {
-                final int value = counter.get();
-                assertEquals(value, iterations);
-            }, 5 * interval.millis(), TimeUnit.MILLISECONDS);
+            assertBusy(
+                () -> assertThat(counter.get(), equalTo(iterations)),
+                5 * interval.millis(),
+                TimeUnit.MILLISECONDS);
         }
     }
 

@@ -20,7 +20,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.test.ESTestCase.assertBusy;
 import static org.elasticsearch.test.rest.ESRestTestCase.allowTypesRemovalWarnings;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
 public final class XPackRestTestHelper {
 
@@ -35,28 +40,25 @@ public final class XPackRestTestHelper {
      * @param templateNames     Names of the templates to wait for
      * @throws InterruptedException If the wait is interrupted
      */
-    public static void waitForTemplates(RestClient client, List<String> templateNames) throws InterruptedException {
+    public static void waitForTemplates(RestClient client, List<String> templateNames) throws Exception {
         AtomicReference<Version> masterNodeVersion = new AtomicReference<>();
-        ESTestCase.awaitBusy(() -> {
-            String response;
-            try {
-                Request request = new Request("GET", "/_cat/nodes");
-                request.addParameter("h", "master,version");
-                response = EntityUtils.toString(client.performRequest(request).getEntity());
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
+
+        assertBusy(() -> {
+            Request request = new Request("GET", "/_cat/nodes");
+            request.addParameter("h", "master,version");
+            String response = EntityUtils.toString(client.performRequest(request).getEntity());
+
             for (String line : response.split("\n")) {
                 if (line.startsWith("*")) {
                     masterNodeVersion.set(Version.fromString(line.substring(2).trim()));
-                    return true;
+                    return;
                 }
             }
-            return false;
+            fail("No master elected");
         });
 
         for (String template : templateNames) {
-            ESTestCase.awaitBusy(() -> {
+            assertBusy(() -> {
                 Map<?, ?> response;
                 try {
                     final Request getRequest = new Request("GET", "_template/" + template);
@@ -65,14 +67,12 @@ public final class XPackRestTestHelper {
                     response = XContentHelper.convertToMap(JsonXContent.jsonXContent, string, false);
                 } catch (ResponseException e) {
                     if (e.getResponse().getStatusLine().getStatusCode() == 404) {
-                        return false;
+                        fail("Template [" + template + "] not found");
                     }
-                    throw new RuntimeException(e);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
+                    throw e;
                 }
                 Map<?, ?> templateDefinition = (Map<?, ?>) response.get(template);
-                return Version.fromId((Integer) templateDefinition.get("version")).equals(masterNodeVersion.get());
+                assertThat(Version.fromId((Integer) templateDefinition.get("version")), equalTo(masterNodeVersion.get()));
             });
         }
     }

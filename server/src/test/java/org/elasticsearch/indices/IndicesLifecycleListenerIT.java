@@ -221,11 +221,13 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
             throws Exception {
         CheckedRunnable<Exception> waitPredicate = () -> {
             assertEquals(stateChangeListener.shardStates.size(), numShards);
+
             for (List<IndexShardState> indexShardStates : stateChangeListener.shardStates.values()) {
                 assertNotNull(indexShardStates);
-                assertEquals(indexShardStates.size(), shardStates.length);
+                assertThat(indexShardStates.size(), equalTo(shardStates.length));
+
                 for (int i = 0; i < shardStates.length; i++) {
-                    assertEquals(indexShardStates.get(i), shardStates[i]);
+                    assertThat(indexShardStates.get(i), equalTo(shardStates[i]));
                 }
             }
         };

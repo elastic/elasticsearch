@@ -69,8 +69,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         "path.repo",
         "discovery.seed_providers"
     );
-    private static final String HOSTNAME_OVERRIDE = "LinuxDarwinHostname";
-    private static final String COMPUTERNAME_OVERRIDE = "WindowsComputername";
+    public static final String HOSTNAME_OVERRIDE = "LinuxDarwinHostname";
+    public static final String COMPUTERNAME_OVERRIDE = "WindowsComputername";
 
     private final String path;
     private final String name;

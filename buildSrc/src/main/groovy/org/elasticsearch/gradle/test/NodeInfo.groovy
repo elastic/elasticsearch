@@ -23,6 +23,7 @@ import com.sun.jna.Native
 import com.sun.jna.WString
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.testclusters.ElasticsearchNode
 import org.gradle.api.Project
 
 import java.nio.file.Files
@@ -196,6 +197,8 @@ class NodeInfo {
         else {
             env.put('ES_PATH_CONF', pathConf)
         }
+        env.put('HOSTNAME', ElasticsearchNode.HOSTNAME_OVERRIDE)
+        env.put('COMPUTERNAME', ElasticsearchNode.COMPUTERNAME_OVERRIDE)
         if (!System.properties.containsKey("tests.es.path.data")) {
             if (Os.isFamily(Os.FAMILY_WINDOWS)) {
                 /*

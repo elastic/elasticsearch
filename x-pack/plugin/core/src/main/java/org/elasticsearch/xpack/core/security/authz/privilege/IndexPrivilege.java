@@ -46,7 +46,7 @@ public final class IndexPrivilege extends Privilege {
     private static final Automaton CREATE_AUTOMATON = patterns("indices:data/write/index*", "indices:data/write/bulk*",
             PutMappingAction.NAME);
     private static final Automaton APPEND_ONLY_AUTOMATON = Automatons.minusAndMinimize(CREATE_AUTOMATON,
-        patterns("indices:data/write/index[op_type:i]"));
+        patterns("indices:data/write/index:op_type/index"));
     private static final Automaton INDEX_AUTOMATON =
             patterns("indices:data/write/index*", "indices:data/write/bulk*", "indices:data/write/update*", PutMappingAction.NAME);
     private static final Automaton DELETE_AUTOMATON = patterns("indices:data/write/delete*", "indices:data/write/bulk*");

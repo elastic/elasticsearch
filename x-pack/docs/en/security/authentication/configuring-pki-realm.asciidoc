@@ -138,7 +138,7 @@ xpack:
         pki:
           pki1:
             truststore:
-              path: "ES_PATH_CONF/pki1_truststore.jks"
+              path: "pki1_truststore.jks"
 ------------------------------------------------------------
 
 If the truststore is password protected, the password should be configured by

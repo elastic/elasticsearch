@@ -1,3 +1,6 @@
+
+apply plugin: 'elasticsearch.build'
+
 dependencies {
   testCompile project(':x-pack:plugin:core')
 }
@@ -6,27 +9,23 @@ Project mainProject = project
 
 group = "${group}.x-pack.qa.sql.security"
 
+configurations.create('testClasses')
+
+String classesDir = project.file(project.sourceSets.main.output.classesDirs.singleFile).toString()
+artifacts.add('testClasses', project.layout.projectDirectory.dir(classesDir)) {
+  builtBy tasks.named('testClasses')
+} 
+
 // Tests are pushed down to subprojects and will be checked there.
 testingConventions.enabled = false
 
 subprojects {
-  // Use resources from the parent project in subprojects
-  sourceSets {
-    test {
-      mainProject.sourceSets.test.output.classesDirs.each { dir ->
-        output.addClassesDir { dir }
-        output.builtBy(mainProject.tasks.testClasses)
-      }
-      runtimeClasspath += mainProject.sourceSets.test.output
-    }
-  }
-
-  processTestResources {
-    from mainProject.file('src/test/resources')
-  }
+  // Use tests from the root security qa project in subprojects
+  configurations.create('testClasses')
 
   dependencies {
     testCompile project(":x-pack:plugin:core")
+    testClasses project(path: mainProject.path, configuration: 'testClasses')
   }
 
   testClusters.integTest {
@@ -43,6 +42,8 @@ subprojects {
   }
 
   integTest.runner {
+    dependsOn configurations.testClasses
+    testClassesDirs += project.files(configurations.testClasses.singleFile)
     nonInputProperties.systemProperty 'tests.audit.logfile',
         "${ -> testClusters.integTest.singleNode().getAuditLog()}"
     nonInputProperties.systemProperty 'tests.audit.yesterday.logfile',

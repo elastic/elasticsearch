@@ -47,6 +47,9 @@ forbiddenApisMain {
 thirdPartyAudit.enabled = false
 
 subprojects {
+  if (subprojects.isEmpty() == false) {
+    return // not a leaf project
+  }
   apply plugin: 'elasticsearch.standalone-rest-test'
   dependencies {
     

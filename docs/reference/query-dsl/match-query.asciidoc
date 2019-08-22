@@ -165,14 +165,13 @@ GET /_search
 
 The `match` query is of type `boolean`. It means that the text
 provided is analyzed and the analysis process constructs a boolean query
-from the provided text. The `operator` flag can be set to `or` or `and`
+from the provided text. The `operator` parameter can be set to `or` or `and`
 to control the boolean clauses (defaults to `or`). The minimum number of
 optional `should` clauses to match can be set using the
 <<query-dsl-minimum-should-match,`minimum_should_match`>>
 parameter.
 
-Here is an example when providing additional parameters (note the slight
-change in structure, `message` is the field name):
+Here is an example when the `operator` parameter:
 
 [source,js]
 --------------------------------------------------

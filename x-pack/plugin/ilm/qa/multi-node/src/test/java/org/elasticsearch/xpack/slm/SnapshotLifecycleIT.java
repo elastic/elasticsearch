@@ -310,8 +310,8 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
                 assertThat(snapsTaken, equalTo(1));
                 assertThat(totalTaken, equalTo(1));
                 assertThat(retentionRun, greaterThanOrEqualTo(1));
-                assertThat(snapsDeleted, equalTo(1));
-                assertThat(totalDeleted, equalTo(1));
+                assertThat(snapsDeleted, greaterThanOrEqualTo(1));
+                assertThat(totalDeleted, greaterThanOrEqualTo(1));
             }, 60, TimeUnit.SECONDS);
 
         } finally {

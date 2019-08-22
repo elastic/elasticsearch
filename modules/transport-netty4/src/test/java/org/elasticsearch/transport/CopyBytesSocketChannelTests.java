@@ -30,6 +30,7 @@ import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.nio.NioEventLoopGroup;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -56,6 +57,7 @@ public class CopyBytesSocketChannelTests extends ESTestCase {
     private Channel serverChannel;
 
     @Override
+    @SuppressForbidden(reason = "calls getLocalHost")
     public void setUp() throws Exception {
         super.setUp();
         eventLoopGroup = new NioEventLoopGroup(1);

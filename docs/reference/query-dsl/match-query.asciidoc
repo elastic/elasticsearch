@@ -171,7 +171,7 @@ optional `should` clauses to match can be set using the
 <<query-dsl-minimum-should-match,`minimum_should_match`>>
 parameter.
 
-Here is an example when the `operator` parameter:
+Here is an example with the `operator` parameter:
 
 [source,js]
 --------------------------------------------------

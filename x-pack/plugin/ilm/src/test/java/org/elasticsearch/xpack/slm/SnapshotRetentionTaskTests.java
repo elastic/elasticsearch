@@ -180,6 +180,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                         deletedSnapshotsInHistory.add(historyItem.getSnapshotName());
                         historyLatch.countDown();
                     }),
+                threadPool,
                 () -> {
                     List<SnapshotInfo> snaps = new ArrayList<>(2);
                     snaps.add(eligibleSnapshot);
@@ -273,6 +274,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                         deletedSnapshotsInHistory.add(historyItem.getSnapshotName());
                         historyLatch.countDown();
                     }),
+                threadPool,
                 () -> {
                     List<SnapshotInfo> snaps = Arrays.asList(snap1, snap2, snap3, snap4, snap5);
                     logger.info("--> retrieving snapshots [{}]", snaps);
@@ -342,10 +344,11 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
         MockSnapshotRetentionTask(Client client,
                                   ClusterService clusterService,
                                   SnapshotHistoryStore historyStore,
+                                  ThreadPool threadPool,
                                   Supplier<Map<String, List<SnapshotInfo>>> snapshotRetriever,
                                   DeleteSnapshotMock deleteRunner,
                                   LongSupplier nanoSupplier) {
-            super(client, clusterService, nanoSupplier, historyStore);
+            super(client, clusterService, nanoSupplier, historyStore, threadPool);
             this.snapshotRetriever = snapshotRetriever;
             this.deleteRunner = deleteRunner;
         }

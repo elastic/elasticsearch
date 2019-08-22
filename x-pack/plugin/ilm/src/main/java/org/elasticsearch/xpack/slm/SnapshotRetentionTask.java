@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.slm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
@@ -16,12 +17,15 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
@@ -63,14 +67,16 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
     private final Client client;
     private final ClusterService clusterService;
     private final LongSupplier nowNanoSupplier;
+    private final ThreadPool threadPool;
     private final SnapshotHistoryStore historyStore;
 
     public SnapshotRetentionTask(Client client, ClusterService clusterService, LongSupplier nowNanoSupplier,
-                                 SnapshotHistoryStore historyStore) {
+                                 SnapshotHistoryStore historyStore, ThreadPool threadPool) {
         this.client = new OriginSettingClient(client, ClientHelper.INDEX_LIFECYCLE_ORIGIN);
         this.clusterService = clusterService;
         this.nowNanoSupplier = nowNanoSupplier;
         this.historyStore = historyStore;
+        this.threadPool = threadPool;
     }
 
     @Override
@@ -126,7 +132,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                                         .collect(Collectors.toList())));
 
                             // Finally, delete the snapshots that need to be deleted
-                            deleteSnapshots(snapshotsToBeDeleted, maxDeletionTime, slmStats);
+                            maybeDeleteSnapshots(snapshotsToBeDeleted, maxDeletionTime, slmStats);
 
                             updateStateWithStats(slmStats);
                         } finally {
@@ -246,14 +252,59 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                 " to have a policy in its metadata, but it did not"));
     }
 
-    void deleteSnapshots(Map<String, List<SnapshotInfo>> snapshotsToDelete,
-                         TimeValue maximumTime,
-                         SnapshotLifecycleStats slmStats) {
+    /**
+     * Maybe delete the given snapshots. If a snapshot is currently running according to the cluster
+     * state, this waits (using a {@link ClusterStateObserver} until a cluster state with no running
+     * snapshots before executing the blocking
+     * {@link #deleteSnapshots(Map, TimeValue, SnapshotLifecycleStats)} request. At most, we wait
+     * for the maximum allowed deletion time before timing out waiting for a state with no
+     * running snapshots.
+     *
+     * It's possible the task may still run into a SnapshotInProgressException, if a snapshot is
+     * started between the state retrieved here and the actual deletion. Since is is expected to be
+     * a rare case, no special handling is present.
+     */
+    private void maybeDeleteSnapshots(Map<String, List<SnapshotInfo>> snapshotsToDelete,
+                                      TimeValue maximumTime,
+                                      SnapshotLifecycleStats slmStats) {
         int count = snapshotsToDelete.values().stream().mapToInt(List::size).sum();
         if (count == 0) {
             logger.debug("no snapshots are eligible for deletion");
             return;
         }
+
+        ClusterState state = clusterService.state();
+        if (snapshotInProgress(state)) {
+            logger.debug("a snapshot is currently running, rescheduling SLM retention for after snapshot has completed");
+            ClusterStateObserver observer = new ClusterStateObserver(clusterService, maximumTime, logger, threadPool.getThreadContext());
+            CountDownLatch latch = new CountDownLatch(1);
+            observer.waitForNextChange(
+                new NoSnapshotRunningListener(observer,
+                    newState -> threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(() -> {
+                            try {
+                                deleteSnapshots(snapshotsToDelete, maximumTime, slmStats);
+                            } finally {
+                                latch.countDown();
+                            }
+                        }),
+                    e -> {
+                        latch.countDown();
+                        throw new ElasticsearchException(e);
+                    }));
+            try {
+                latch.await();
+            } catch (InterruptedException e) {
+                throw new ElasticsearchException(e);
+            }
+        } else {
+            deleteSnapshots(snapshotsToDelete, maximumTime, slmStats);
+        }
+    }
+
+    void deleteSnapshots(Map<String, List<SnapshotInfo>> snapshotsToDelete,
+                         TimeValue maximumTime,
+                         SnapshotLifecycleStats slmStats) {
+        int count = snapshotsToDelete.values().stream().mapToInt(List::size).sum();
 
         logger.info("starting snapshot retention deletion for [{}] snapshots", count);
         long startTime = nowNanoSupplier.getAsLong();
@@ -290,7 +341,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                 // Check whether we have exceeded the maximum time allowed to spend deleting
                 // snapshots, if we have, short-circuit the rest of the deletions
                 TimeValue elapsedDeletionTime = TimeValue.timeValueNanos(nowNanoSupplier.getAsLong() - startTime);
-                logger.trace("elapsed time for deletion of [{}] snapshot: {}", info.snapshotId(), elapsedDeletionTime);
+                logger.debug("elapsed time for deletion of [{}] snapshot: {}", info.snapshotId(), elapsedDeletionTime);
                 if (elapsedDeletionTime.compareTo(maximumTime) > 0) {
                     logger.info("maximum snapshot retention deletion time reached, time spent: [{}]," +
                             " maximum allowed time: [{}], deleted [{}] out of [{}] snapshots scheduled for deletion, failed to delete [{}]",
@@ -353,5 +404,61 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
 
     void updateStateWithStats(SnapshotLifecycleStats newStats) {
         clusterService.submitStateUpdateTask("update_slm_stats", new UpdateSnapshotLifecycleStatsTask(newStats));
+    }
+
+    public static boolean snapshotInProgress(ClusterState state) {
+        SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE);
+        if (snapshotsInProgress == null || snapshotsInProgress.entries().isEmpty()) {
+            // No snapshots are running, new state is acceptable to proceed
+            return false;
+        }
+
+        // There are snapshots
+        return true;
+    }
+
+    /**
+     * A {@link ClusterStateObserver.Listener} that invokes the given function with the new state,
+     * once no snapshots are running. If a snapshot is still running it registers a new listener
+     * and tries again. Passes any exceptions to the original exception listener if they occur.
+     */
+    class NoSnapshotRunningListener implements ClusterStateObserver.Listener {
+
+        private final Consumer<ClusterState> reRun;
+        private final Consumer<Exception> exceptionConsumer;
+        private final ClusterStateObserver observer;
+
+        NoSnapshotRunningListener(ClusterStateObserver observer,
+                                  Consumer<ClusterState> reRun,
+                                  Consumer<Exception> exceptionConsumer) {
+            this.observer = observer;
+            this.reRun = reRun;
+            this.exceptionConsumer = exceptionConsumer;
+        }
+
+        @Override
+        public void onNewClusterState(ClusterState state) {
+            try {
+                if (snapshotInProgress(state)) {
+                    observer.waitForNextChange(this);
+                } else {
+                    logger.debug("retrying SLM snapshot retention deletion after snapshot has completed");
+                    reRun.accept(state);
+                }
+            } catch (Exception e) {
+                exceptionConsumer.accept(e);
+            }
+        }
+
+        @Override
+        public void onClusterServiceClose() {
+            // This means the cluster is being shut down, so nothing to do here
+        }
+
+        @Override
+        public void onTimeout(TimeValue timeout) {
+            exceptionConsumer.accept(
+                new IllegalStateException("slm retention snapshot deletion out while waiting for ongoing snapshots to complete"));
+        }
     }
 }

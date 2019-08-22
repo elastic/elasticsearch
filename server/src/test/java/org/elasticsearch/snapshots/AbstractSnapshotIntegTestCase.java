@@ -207,16 +207,18 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         }
     }
 
-    public void waitForBlockOnAnyDataNode(String repository, TimeValue timeout) throws InterruptedException {
-        if (false == awaitBusy(() -> {
-            for(RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
-                MockRepository mockRepository = (MockRepository) repositoriesService.repository(repository);
-                if (mockRepository.blocked()) {
-                    return true;
+    public void waitForBlockOnAnyDataNode(String repository, TimeValue timeout) throws Exception {
+        try {
+            assertBusy(() -> {
+                for(RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
+                    MockRepository mockRepository = (MockRepository) repositoriesService.repository(repository);
+                    if (mockRepository.blocked()) {
+                        return;
+                    }
                 }
-            }
-            return false;
-        }, timeout.millis(), TimeUnit.MILLISECONDS)) {
+                fail();
+            }, timeout.millis(), TimeUnit.MILLISECONDS);
+        } catch (AssertionError ae) {
             fail("Timeout waiting for repository block on any data node!!!");
         }
     }

@@ -210,7 +210,7 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
                     },
                     () -> "Exception when disabling monitoring");
 
-            awaitBusy(() -> {
+            assertBusy(() -> {
                 try {
                     ClientYamlTestResponse response =
                             callApi("xpack.usage", singletonMap("filter_path", "monitoring.enabled_exporters"), emptyList(),
@@ -219,7 +219,7 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
                     @SuppressWarnings("unchecked")
                     final Map<String, ?> exporters = (Map<String, ?>) response.evaluate("monitoring.enabled_exporters");
                     if (exporters.isEmpty() == false) {
-                        return false;
+                        fail("Exporters were not found");
                     }
 
                     final Map<String, String> params = new HashMap<>();
@@ -234,7 +234,8 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
                     final Map<String, Object> node = (Map<String, Object>) nodes.values().iterator().next();
 
                     final Number activeWrites = (Number) extractValue("thread_pool.write.active", node);
-                    return activeWrites != null && activeWrites.longValue() == 0L;
+                    assertNotNull(activeWrites);
+                    assertEquals(0L, activeWrites.longValue());
                 } catch (Exception e) {
                     throw new ElasticsearchException("Failed to wait for monitoring exporters to stop:", e);
                 }
@@ -281,18 +282,18 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
                               Supplier<String> error) throws Exception {
 
         AtomicReference<IOException> exceptionHolder = new AtomicReference<>();
-        awaitBusy(() -> {
+        assertBusy(() -> {
             try {
                 ClientYamlTestResponse response = callApi(apiName, params, bodies, getApiCallHeaders());
                 if (response.getStatusCode() == HttpStatus.SC_OK) {
                     exceptionHolder.set(null);
-                    return success.apply(response);
+                    assertTrue(success.apply(response));
+                    return;
                 }
-                return false;
             } catch (IOException e) {
                 exceptionHolder.set(e);
             }
-            return false;
+            fail("Response is not OK");
         });
 
         IOException exception = exceptionHolder.get();

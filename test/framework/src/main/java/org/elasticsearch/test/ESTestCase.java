@@ -136,7 +136,6 @@ import java.util.TimeZone;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.IntFunction;
 import java.util.function.Predicate;
@@ -873,30 +872,6 @@ public abstract class ESTestCase extends LuceneTestCase {
             }
             throw e;
         }
-    }
-
-    public static boolean awaitBusy(BooleanSupplier breakSupplier) throws InterruptedException {
-        return awaitBusy(breakSupplier, 10, TimeUnit.SECONDS);
-    }
-
-    // After 1s, we stop growing the sleep interval exponentially and just sleep 1s until maxWaitTime
-    private static final long AWAIT_BUSY_THRESHOLD = 1000L;
-
-    public static boolean awaitBusy(BooleanSupplier breakSupplier, long maxWaitTime, TimeUnit unit) throws InterruptedException {
-        long maxTimeInMillis = TimeUnit.MILLISECONDS.convert(maxWaitTime, unit);
-        long timeInMillis = 1;
-        long sum = 0;
-        while (sum + timeInMillis < maxTimeInMillis) {
-            if (breakSupplier.getAsBoolean()) {
-                return true;
-            }
-            Thread.sleep(timeInMillis);
-            sum += timeInMillis;
-            timeInMillis = Math.min(AWAIT_BUSY_THRESHOLD, timeInMillis * 2);
-        }
-        timeInMillis = maxTimeInMillis - sum;
-        Thread.sleep(Math.max(timeInMillis, 0));
-        return breakSupplier.getAsBoolean();
     }
 
     public static boolean terminate(ExecutorService... services) {

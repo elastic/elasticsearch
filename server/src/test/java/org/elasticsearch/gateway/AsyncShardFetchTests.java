@@ -328,7 +328,7 @@ public class AsyncShardFetchTests extends ESTestCase {
                             entry = simulations.get(nodeId);
                             if (entry == null) {
                                 // we are simulating a master node switch, wait for it to not be null
-                                awaitBusy(() ->  simulations.containsKey(nodeId));
+                                assertBusy(() -> assertTrue(simulations.containsKey(nodeId)));
                             }
                             assert entry != null;
                             entry.executeLatch.await();

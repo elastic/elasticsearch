@@ -248,7 +248,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
      * Tests corruption that happens on a single shard when no replicas are present. We make sure that the primary stays unassigned
      * and all other replicas for the healthy shards happens
      */
-    public void testCorruptPrimaryNoReplica() throws ExecutionException, InterruptedException, IOException {
+    public void testCorruptPrimaryNoReplica() throws Exception {
         int numDocs = scaledRandomIntBetween(100, 1000);
         internalCluster().ensureAtLeastNumDataNodes(2);
 
@@ -281,11 +281,17 @@ public class CorruptedFileIT extends ESIntegTestCase {
         client().admin().indices().prepareUpdateSettings("test").setSettings(build).get();
         client().admin().cluster().prepareReroute().get();
 
-        boolean didClusterTurnRed = awaitBusy(() -> {
-            ClusterHealthStatus test = client().admin().cluster()
-                .health(Requests.clusterHealthRequest("test")).actionGet().getStatus();
-            return test == ClusterHealthStatus.RED;
-        }, 5, TimeUnit.MINUTES);// sometimes on slow nodes the replication / recovery is just dead slow
+        boolean didClusterTurnRed;
+        try {
+            assertBusy(() -> {
+                ClusterHealthStatus test = client().admin().cluster()
+                    .health(Requests.clusterHealthRequest("test")).actionGet().getStatus();
+                assertEquals(ClusterHealthStatus.RED, test);
+            }, 5, TimeUnit.MINUTES);// sometimes on slow nodes the replication / recovery is just dead slow
+            didClusterTurnRed = true;
+        } catch (AssertionError ae) {
+            didClusterTurnRed = false;
+        }
         final ClusterHealthResponse response = client().admin().cluster()
             .health(Requests.clusterHealthRequest("test")).get();
         if (response.getStatus() != ClusterHealthStatus.RED) {

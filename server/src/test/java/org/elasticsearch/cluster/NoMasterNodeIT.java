@@ -219,11 +219,11 @@ public class NoMasterNodeIT extends ESIntegTestCase {
 
         final Client clientToMasterlessNode = client();
 
-        assertTrue(awaitBusy(() -> {
+        assertBusy(() -> {
                 ClusterState state = clientToMasterlessNode.admin().cluster().prepareState().setLocal(true).get().getState();
-                return state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID);
+                assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
             }
-        ));
+        );
 
         GetResponse getResponse = clientToMasterlessNode.prepareGet("test1", "type1", "1").get();
         assertExists(getResponse);

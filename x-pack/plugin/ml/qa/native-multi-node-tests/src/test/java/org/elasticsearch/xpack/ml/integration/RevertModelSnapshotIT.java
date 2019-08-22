@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapsho
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.junit.After;
+import org.junit.Assert;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -69,7 +70,10 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
         assertThat(revertPointBucket.isInterim(), is(true));
 
         // We need to wait a second to ensure the second time around model snapshot will have a different ID (it depends on epoch seconds)
-        awaitBusy(() -> false, 1, TimeUnit.SECONDS);
+        try {
+            assertBusy(Assert::fail, 1, TimeUnit.SECONDS);
+        } catch (AssertionError ignore) {
+        }
 
         openJob(job.getId());
         postData(job.getId(), generateData(startTime + 10 * bucketSpan.getMillis(), bucketSpan, 10, Arrays.asList("foo", "bar"),

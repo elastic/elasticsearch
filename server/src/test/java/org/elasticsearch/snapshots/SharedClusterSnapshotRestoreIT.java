@@ -1229,7 +1229,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> wait for the index to appear");
         //  that would mean that recovery process started and failing
-        assertThat(waitForIndex("test-idx", TimeValue.timeValueSeconds(10)), equalTo(true));
+        waitForIndex("test-idx", TimeValue.timeValueSeconds(10));
 
         logger.info("--> delete index");
         cluster().wipeIndices("test-idx");
@@ -2847,13 +2847,18 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertAcked(client.admin().cluster().prepareDeleteSnapshot(repositoryName, snapshotName).get("10s"));
     }
 
-    private boolean waitForIndex(final String index, TimeValue timeout) throws InterruptedException {
-        return awaitBusy(() -> indexExists(index), timeout.millis(), TimeUnit.MILLISECONDS);
+    private void waitForIndex(final String index, TimeValue timeout) throws Exception {
+        assertBusy(
+            () -> assertTrue("Expected index " + index + " to exist", indexExists(index)),
+            timeout.millis(),
+            TimeUnit.MILLISECONDS);
     }
 
-    private boolean waitForRelocationsToStart(final String index, TimeValue timeout) throws InterruptedException {
-        return awaitBusy(() -> client().admin().cluster().prepareHealth(index).execute().actionGet().getRelocatingShards() > 0,
-            timeout.millis(), TimeUnit.MILLISECONDS);
+    private void waitForRelocationsToStart(final String index, TimeValue timeout) throws Exception {
+        assertBusy(
+            () -> assertThat(client().admin().cluster().prepareHealth(index).execute().actionGet().getRelocatingShards(), greaterThan(0)),
+            timeout.millis(),
+            TimeUnit.MILLISECONDS);
     }
 
     public void testSnapshotName() throws Exception {

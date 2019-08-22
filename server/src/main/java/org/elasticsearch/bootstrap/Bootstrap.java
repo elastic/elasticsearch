@@ -236,9 +236,8 @@ final class Bootstrap {
             throw new BootstrapException(e);
         }
 
-        try (SecureString password = keystore != null && keystore.hasPassword()
-                ? new SecureString(Terminal.DEFAULT.readSecret("Elasticsearch keystore password? "))
-                : new SecureString(new char[0])) {
+        // Startup scripts always provide a password string
+        try (SecureString password = new SecureString(Terminal.DEFAULT.readSecret(""))) {
             if (keystore == null) {
                 final KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.create();
                 keyStoreWrapper.save(initialEnv.configFile(), new char[0]);

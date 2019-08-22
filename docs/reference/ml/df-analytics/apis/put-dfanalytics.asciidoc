@@ -77,7 +77,10 @@ and mappings.
   `analyzed_fields.excludes`:::
     (Optional, array) An array of strings that defines the fields that will be 
     excluded from the analysis.
-  
+
+`description`::
+  (Optional, string) A description of the job.
+
 `dest`::
   (Required, object) The destination configuration, consisting of `index` and 
   optionally `results_field` (`ml` by default).
@@ -125,6 +128,7 @@ type is `outlier_detection`:
 --------------------------------------------------
 PUT _ml/data_frame/analytics/loganalytics
 {
+  "description": "Outlier detection on log data",
   "source": {
     "index": "logdata"
   },
@@ -147,6 +151,7 @@ The API returns the following result:
 ----
 {
     "id": "loganalytics",
+    "description": "Outlier detection on log data",
     "source": {
         "index": ["logdata"],
         "query": {

@@ -5,8 +5,11 @@
  */
 package org.elasticsearch.xpack.watcher.execution;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.xpack.core.watcher.WatcherState;
 
 import java.util.Iterator;
 import java.util.concurrent.ConcurrentHashMap;
@@ -19,6 +22,7 @@ import static org.elasticsearch.xpack.core.watcher.support.Exceptions.illegalSta
 
 public final class CurrentExecutions implements Iterable<ExecutionService.WatchExecution> {
 
+    private static final Logger logger = LogManager.getLogger(CurrentExecutions.class);
     private final ConcurrentMap<String, ExecutionService.WatchExecution> currentExecutions = new ConcurrentHashMap<>();
     // the condition of the lock is used to wait and signal the finishing of all executions on shutdown
     private final ReentrantLock lock = new ReentrantLock();
@@ -63,9 +67,12 @@ public final class CurrentExecutions implements Iterable<ExecutionService.WatchE
      * Calling this method makes the class stop accepting new executions and throws and exception instead.
      * In addition it waits for a certain amount of time for current executions to finish before returning
      *
-     * @param maxStopTimeout    The maximum wait time to wait to current executions to finish
+     * @param maxStopTimeout The maximum wait time to wait to current executions to finish
+     * @param stoppedListener The listener that will set Watcher state to: {@link WatcherState#STOPPED}, may be a no-op assuming the
+     *                       {@link WatcherState#STOPPED} is set elsewhere or not needed to be set.
      */
-    void sealAndAwaitEmpty(TimeValue maxStopTimeout) {
+    void sealAndAwaitEmpty(TimeValue maxStopTimeout, Runnable stoppedListener) {
+        assert stoppedListener != null;
         lock.lock();
         // We may have current executions still going on.
         // We should try to wait for the current executions to have completed.
@@ -81,6 +88,8 @@ public final class CurrentExecutions implements Iterable<ExecutionService.WatchE
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } finally {
+            //fully stop Watcher after all executions are finished
+            stoppedListener.run();
             lock.unlock();
         }
     }

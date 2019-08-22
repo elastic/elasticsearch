@@ -18,9 +18,9 @@ interface TestClustersAware extends Task {
             );
         }
 
-        for (ElasticsearchNode node : cluster.getNodes()) {
-            this.dependsOn(node.getDistribution().getExtracted());
-        }
+        cluster.getNodes().stream().flatMap(node -> node.getDistributions().stream()).forEach( distro ->
+            dependsOn(distro.getExtracted())
+        );
         getClusters().add(cluster);
     }
 }

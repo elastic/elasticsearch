@@ -28,14 +28,14 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
             ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(ClusterPermission.builder()).build();
 
         final String apiKeyId = randomAlphaOfLengthBetween(4, 7);
-        final Authentication authentication = createMockAuthentication("_es_api_key", "_es_api_key",
+        final Authentication authentication = createMockAuthentication("joe","_es_api_key", "_es_api_key",
             Map.of("_security_api_key_id", apiKeyId));
-        final TransportRequest request = randomFrom(GetApiKeyRequest.usingApiKeyId(apiKeyId, randomBoolean()),
-            InvalidateApiKeyRequest.usingApiKeyId(apiKeyId, randomBoolean()));
+        final TransportRequest getApiKeyRequest = GetApiKeyRequest.usingApiKeyId(apiKeyId, randomBoolean());
+        final TransportRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingApiKeyId(apiKeyId, randomBoolean());
 
-        assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/get", request, authentication));
-        assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/invalidate", request, authentication));
-        assertFalse(clusterPermission.check("cluster:admin/something", request, authentication));
+        assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/get", getApiKeyRequest, authentication));
+        assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/invalidate", invalidateApiKeyRequest, authentication));
+        assertFalse(clusterPermission.check("cluster:admin/something", mock(TransportRequest.class), authentication));
     }
 
     public void testAuthenticationWithApiKeyDeniesAccessToApiKeyActionsWhenItIsNotOwner() {
@@ -43,45 +43,48 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
             ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(ClusterPermission.builder()).build();
 
         final String apiKeyId = randomAlphaOfLengthBetween(4, 7);
-        final Authentication authentication = createMockAuthentication("_es_api_key", "_es_api_key",
+        final Authentication authentication = createMockAuthentication("joe","_es_api_key", "_es_api_key",
             Map.of("_security_api_key_id", randomAlphaOfLength(7)));
-        final TransportRequest request = randomFrom(GetApiKeyRequest.usingApiKeyId(apiKeyId, randomBoolean()),
-            InvalidateApiKeyRequest.usingApiKeyId(apiKeyId, randomBoolean()));
+        final TransportRequest getApiKeyRequest = GetApiKeyRequest.usingApiKeyId(apiKeyId, randomBoolean());
+        final TransportRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingApiKeyId(apiKeyId, randomBoolean());
 
-        assertFalse(clusterPermission.check("cluster:admin/xpack/security/api_key/get", request, authentication));
-        assertFalse(clusterPermission.check("cluster:admin/xpack/security/api_key/invalidate", request, authentication));
+        assertFalse(clusterPermission.check("cluster:admin/xpack/security/api_key/get", getApiKeyRequest, authentication));
+        assertFalse(clusterPermission.check("cluster:admin/xpack/security/api_key/invalidate", invalidateApiKeyRequest, authentication));
     }
 
     public void testAuthenticationWithUserAllowsAccessToApiKeyActionsWhenItIsOwner() {
         final ClusterPermission clusterPermission =
             ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(ClusterPermission.builder()).build();
 
-        final Authentication authentication = createMockAuthentication("realm1", "native", Map.of());
-        final TransportRequest request = randomFrom(GetApiKeyRequest.usingRealmAndUserName("realm1", "joe"),
-            InvalidateApiKeyRequest.usingRealmAndUserName("realm1", "joe"));
+        final Authentication authentication = createMockAuthentication("joe","realm1", "native", Map.of());
+        final TransportRequest getApiKeyRequest = GetApiKeyRequest.usingRealmAndUserName("realm1", "joe");
+        final TransportRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingRealmAndUserName("realm1", "joe");
 
-        assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/get", request, authentication));
-        assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/invalidate", request, authentication));
-        assertFalse(clusterPermission.check("cluster:admin/something", request, authentication));
+        assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/get", getApiKeyRequest, authentication));
+        assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/invalidate", invalidateApiKeyRequest, authentication));
+        assertFalse(clusterPermission.check("cluster:admin/something", mock(TransportRequest.class), authentication));
     }
 
-    public void testAuthenticationWithUserAllowsAccessToApiKeyActionsWhenItIsNotOwner() {
+    public void testAuthenticationWithUserDeniesAccessToApiKeyActionsWhenItIsNotOwner() {
         final ClusterPermission clusterPermission =
             ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(ClusterPermission.builder()).build();
 
-        final Authentication authentication = createMockAuthentication("realm1", "native", Map.of());
-        final TransportRequest request = randomFrom(
+        final Authentication authentication = createMockAuthentication("joe", "realm1", "native", Map.of());
+        final TransportRequest getApiKeyRequest = randomFrom(
             GetApiKeyRequest.usingRealmAndUserName("realm1", randomAlphaOfLength(7)),
             GetApiKeyRequest.usingRealmAndUserName(randomAlphaOfLength(5), "joe"),
+            new GetApiKeyRequest(randomAlphaOfLength(5), randomAlphaOfLength(7), null, null, randomBoolean()));
+        final TransportRequest invalidateApiKeyRequest = randomFrom(
             InvalidateApiKeyRequest.usingRealmAndUserName("realm1", randomAlphaOfLength(7)),
-            InvalidateApiKeyRequest.usingRealmAndUserName(randomAlphaOfLength(5), "joe"));
+            InvalidateApiKeyRequest.usingRealmAndUserName(randomAlphaOfLength(5), "joe"),
+            new InvalidateApiKeyRequest(randomAlphaOfLength(5), randomAlphaOfLength(7), null, null, randomBoolean()));
 
-        assertFalse(clusterPermission.check("cluster:admin/xpack/security/api_key/get", request, authentication));
-        assertFalse(clusterPermission.check("cluster:admin/xpack/security/api_key/invalidate", request, authentication));
+        assertFalse(clusterPermission.check("cluster:admin/xpack/security/api_key/get", getApiKeyRequest, authentication));
+        assertFalse(clusterPermission.check("cluster:admin/xpack/security/api_key/invalidate", invalidateApiKeyRequest, authentication));
     }
 
-    private Authentication createMockAuthentication(String realmName, String realmType, Map<String, Object> metadata) {
-        final User user = new User("joe");
+    private Authentication createMockAuthentication(String username, String realmName, String realmType, Map<String, Object> metadata) {
+        final User user = new User(username);
         final Authentication authentication = mock(Authentication.class);
         final Authentication.RealmRef authenticatedBy = mock(Authentication.RealmRef.class);
         when(authentication.getUser()).thenReturn(user);

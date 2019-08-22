@@ -154,7 +154,7 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
             }
         );
 
-        SearchRequest totalTransformCount = client.prepareSearch(DataFrameInternalIndex.INDEX_NAME)
+        SearchRequest totalTransformCount = client.prepareSearch(DataFrameInternalIndex.INDEX_NAME_PATTERN)
             .setTrackTotalHits(true)
             .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.boolQuery()
                 .filter(QueryBuilders.termQuery(DataFrameField.INDEX_DOC_TYPE.getPreferredName(), DataFrameTransformConfig.NAME))))
@@ -196,7 +196,7 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
             .filter(QueryBuilders.termQuery(DataFrameField.INDEX_DOC_TYPE.getPreferredName(),
                     DataFrameTransformStoredDoc.NAME)));
 
-        SearchRequestBuilder requestBuilder = client.prepareSearch(DataFrameInternalIndex.INDEX_NAME)
+        SearchRequestBuilder requestBuilder = client.prepareSearch(DataFrameInternalIndex.INDEX_NAME_PATTERN)
             .setSize(0)
             .setQuery(queryBuilder);
 

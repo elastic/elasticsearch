@@ -385,7 +385,7 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
         assertTrue(transformConfigs.isEmpty());
 
         // the configuration index should be empty
-        Request request = new Request("GET", DataFrameInternalIndex.INDEX_NAME + "/_search");
+        Request request = new Request("GET", DataFrameInternalIndex.LATEST_INDEX_NAME + "/_search");
         try {
             Response searchResponse = adminClient().performRequest(request);
             Map<String, Object> searchResult = entityAsMap(searchResponse);

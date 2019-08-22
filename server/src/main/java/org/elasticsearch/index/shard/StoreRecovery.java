@@ -368,7 +368,7 @@ final class StoreRecovery {
                         files = Arrays.toString(store.directory().listAll());
                     } catch (Exception inner) {
                         inner.addSuppressed(e);
-                        files += " (failure=" + ExceptionsHelper.detailedMessage(inner) + ")";
+                        files += " (failure=" + inner.getMessage() + ")";
                     }
                     if (indexShouldExists) {
                         throw new IndexShardRecoveryException(shardId,

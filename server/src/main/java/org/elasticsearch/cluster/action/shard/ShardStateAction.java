@@ -445,7 +445,7 @@ public class ShardStateAction {
             components.add("primary term [" + primaryTerm + "]");
             components.add("message [" + message + "]");
             if (failure != null) {
-                components.add("failure [" + ExceptionsHelper.detailedMessage(failure) + "]");
+                components.add("failure [" + failure.getMessage() + "]");
             }
             components.add("markAsStale [" + markAsStale + "]");
             return String.join(", ", components);

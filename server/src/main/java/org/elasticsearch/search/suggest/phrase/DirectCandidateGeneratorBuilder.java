@@ -490,7 +490,7 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
             toXContent(builder, EMPTY_PARAMS);
             return Strings.toString(builder);
         } catch (Exception e) {
-            return "{ \"error\" : \"" + ExceptionsHelper.detailedMessage(e) + "\"}";
+            throw new RuntimeException(e);
         }
     }
 

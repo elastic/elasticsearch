@@ -1029,7 +1029,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
             snapshotStatus.moveToDone(threadPool.absoluteTimeInMillis());
         } catch (Exception e) {
-            snapshotStatus.moveToFailed(threadPool.absoluteTimeInMillis(), ExceptionsHelper.detailedMessage(e));
+            snapshotStatus.moveToFailed(threadPool.absoluteTimeInMillis(), e.getMessage());
             if (e instanceof IndexShardSnapshotFailedException) {
                 throw (IndexShardSnapshotFailedException) e;
             } else {

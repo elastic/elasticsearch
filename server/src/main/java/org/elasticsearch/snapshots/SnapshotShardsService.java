@@ -331,7 +331,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 public void onAfter() {
                     final Exception exception = failure.get();
                     if (exception != null) {
-                        notifyFailedSnapshotShard(snapshot, shardId, ExceptionsHelper.detailedMessage(exception));
+                        notifyFailedSnapshotShard(snapshot, shardId, exception.getMessage());
                     } else {
                         notifySuccessfulSnapshotShard(snapshot, shardId);
                     }

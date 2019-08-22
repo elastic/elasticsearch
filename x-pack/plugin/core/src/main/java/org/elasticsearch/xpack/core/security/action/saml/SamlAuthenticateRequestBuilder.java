@@ -30,7 +30,7 @@ public final class SamlAuthenticateRequestBuilder
         return this;
     }
 
-    public SamlAuthenticateRequestBuilder preferredRealm(String realm) {
+    public SamlAuthenticateRequestBuilder authenticatingRealm(String realm) {
         request.setRealm(realm);
         return this;
     }

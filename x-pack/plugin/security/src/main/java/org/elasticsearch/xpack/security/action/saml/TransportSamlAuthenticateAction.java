@@ -53,8 +53,7 @@ public final class TransportSamlAuthenticateAction extends HandledTransportActio
         final ThreadContext threadContext = threadPool.getThreadContext();
         Authentication originatingAuthentication = Authentication.getAuthentication(threadContext);
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            authenticationService.authenticate(SamlAuthenticateAction.NAME, request, saml,
-                ActionListener.wrap(authentication -> {
+            authenticationService.authenticate(SamlAuthenticateAction.NAME, request, saml, ActionListener.wrap(authentication -> {
                 AuthenticationResult result = threadContext.getTransient(AuthenticationResult.THREAD_CONTEXT_KEY);
                 if (result == null) {
                     listener.onFailure(new IllegalStateException("Cannot find AuthenticationResult on thread context"));

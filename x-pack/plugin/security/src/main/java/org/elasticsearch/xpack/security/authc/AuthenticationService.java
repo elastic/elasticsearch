@@ -140,8 +140,8 @@ public class AuthenticationService {
     }
 
     /**
-     * Authenticates the user based on the contents of the token that is provided as parameter.If {@code preferredRealm} can't
-     * authenticate the token, no other realms will be attempted. This will not look at the values in the ThreadContext for Authentication.
+     * Authenticates the user based on the contents of the token that is provided as parameter. This will not look at the values in the
+     * ThreadContext for Authentication.
      *
      * @param action  The action of the message
      * @param message The message that resulted in this authenticate call

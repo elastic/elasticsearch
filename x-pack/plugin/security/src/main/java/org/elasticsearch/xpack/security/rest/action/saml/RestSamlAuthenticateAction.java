@@ -84,7 +84,7 @@ public class RestSamlAuthenticateAction extends SamlBaseRestHandler implements R
             return channel -> {
                 final byte[] bytes = decodeBase64(input.content);
                 final SamlAuthenticateRequestBuilder requestBuilder =
-                    new SamlAuthenticateRequestBuilder(client).saml(bytes).validRequestIds(input.ids).preferredRealm(input.realm);
+                    new SamlAuthenticateRequestBuilder(client).saml(bytes).validRequestIds(input.ids).authenticatingRealm(input.realm);
                 requestBuilder.execute(new RestBuilderListener<>(channel) {
                     @Override
                     public RestResponse buildResponse(SamlAuthenticateResponse response, XContentBuilder builder) throws Exception {

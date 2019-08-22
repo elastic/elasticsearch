@@ -550,7 +550,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         ConfigurableClusterPrivilege ccp1 = new MockConfigurableClusterPrivilege() {
             @Override
             public ClusterPermission.Builder buildPermission(ClusterPermission.Builder builder) {
-                builder.add(this, ((ActionClusterPrivilege) ClusterPrivilegeResolver.MANAGE_SECURITY).getAllowedActionPatterns(), Set.of(),
+                builder.add(this, ((ActionClusterPrivilege) ClusterPrivilegeResolver.MANAGE_SECURITY).getAllowedActionPatterns(),
                     req -> req == request1);
                 return builder;
             }
@@ -582,7 +582,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             @Override
             public ClusterPermission.Builder buildPermission(ClusterPermission.Builder builder) {
                 builder.add(this, ((ActionClusterPrivilege) ClusterPrivilegeResolver.MANAGE_SECURITY).getAllowedActionPatterns(),
-                    Set.of(), req -> req == request2);
+                    req -> req == request2);
                 return builder;
             }
         };

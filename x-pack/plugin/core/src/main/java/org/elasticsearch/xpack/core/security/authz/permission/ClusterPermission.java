@@ -82,22 +82,14 @@ public class ClusterPermission {
         public Builder add(final ClusterPrivilege clusterPrivilege, final Set<String> allowedActionPatterns,
                            final Set<String> excludeActionPatterns) {
             this.clusterPrivileges.add(clusterPrivilege);
-            if (allowedActionPatterns.isEmpty() && excludeActionPatterns.isEmpty()) {
-                this.actionAutomatons.add(Automatons.EMPTY);
-            } else {
-                final Automaton allowedAutomaton = Automatons.patterns(allowedActionPatterns);
-                final Automaton excludedAutomaton = Automatons.patterns(excludeActionPatterns);
-                this.actionAutomatons.add(Automatons.minusAndMinimize(allowedAutomaton, excludedAutomaton));
-            }
+            final Automaton actionAutomaton = createAutomaton(allowedActionPatterns, excludeActionPatterns);
+            this.actionAutomatons.add(actionAutomaton);
             return this;
         }
 
         public Builder add(final ClusterPrivilege clusterPrivilege, final Set<String> allowedActionPatterns,
-                           final Set<String> excludeActionPatterns, final Predicate<TransportRequest> requestPredicate) {
-            final Automaton allowedAutomaton = Automatons.patterns(allowedActionPatterns);
-            final Automaton excludedAutomaton = Automatons.patterns(excludeActionPatterns);
-            final Automaton actionAutomaton = Automatons.minusAndMinimize(allowedAutomaton, excludedAutomaton);
-
+                           final Predicate<TransportRequest> requestPredicate) {
+            final Automaton actionAutomaton = createAutomaton(allowedActionPatterns, Set.of());
             return add(clusterPrivilege, new ActionRequestBasedPermissionCheck(clusterPrivilege, actionAutomaton, requestPredicate));
         }
 
@@ -119,6 +111,21 @@ public class ClusterPermission {
                 checks.addAll(this.permissionChecks);
             }
             return new ClusterPermission(this.clusterPrivileges, checks);
+        }
+
+        private static Automaton createAutomaton(Set<String> allowedActionPatterns, Set<String> excludeActionPatterns) {
+            allowedActionPatterns = (allowedActionPatterns == null) ? Set.of() : allowedActionPatterns;
+            excludeActionPatterns = (excludeActionPatterns == null) ? Set.of() : excludeActionPatterns;
+
+            if (allowedActionPatterns.isEmpty()) {
+                return Automatons.EMPTY;
+            } else if (excludeActionPatterns.isEmpty()) {
+                return Automatons.patterns(allowedActionPatterns);
+            } else {
+                final Automaton allowedAutomaton = Automatons.patterns(allowedActionPatterns);
+                final Automaton excludedAutomaton = Automatons.patterns(excludeActionPatterns);
+                return Automatons.minusAndMinimize(allowedAutomaton, excludedAutomaton);
+            }
         }
     }
 

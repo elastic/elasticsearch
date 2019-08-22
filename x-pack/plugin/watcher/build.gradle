@@ -67,6 +67,10 @@ thirdPartyAudit {
     )
 }
 
+forbiddenPatterns {
+    exclude '**/*.p12'
+}
+
 // pulled in as external dependency to work on java 9
 rootProject.globalInfo.ready {
     if (project.runtimeJavaVersion <= JavaVersion.VERSION_1_8) {

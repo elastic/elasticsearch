@@ -26,11 +26,11 @@ import static org.mockito.Mockito.when;
 /**
  * Test implementation for AggregatorFactory.
  */
-public class TestAggregatorFactory extends AggregatorFactory {
+public class StubAggregatorFactory extends AggregatorFactory {
 
     private final Aggregator aggregator;
 
-    private TestAggregatorFactory(SearchContext context, Aggregator aggregator) throws IOException {
+    private StubAggregatorFactory(SearchContext context, Aggregator aggregator) throws IOException {
         super("_name", context, null, new AggregatorFactories.Builder(), Collections.emptyMap());
         this.aggregator = aggregator;
     }
@@ -40,13 +40,13 @@ public class TestAggregatorFactory extends AggregatorFactory {
         return aggregator;
     }
 
-    public static TestAggregatorFactory createInstance() throws IOException {
+    public static StubAggregatorFactory createInstance() throws IOException {
         BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         SearchContext searchContext = mock(SearchContext.class);
         when(searchContext.bigArrays()).thenReturn(bigArrays);
 
         Aggregator aggregator = mock(Aggregator.class);
 
-        return new TestAggregatorFactory(searchContext, aggregator);
+        return new StubAggregatorFactory(searchContext, aggregator);
     }
 }

@@ -18,7 +18,6 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.time.DateFormatters;
-import org.elasticsearch.xpack.datascience.TestAggregatorFactory;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -45,7 +44,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.xpack.datascience.DataSciencePlugin;
+import org.elasticsearch.xpack.datascience.StubAggregatorFactory;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -77,14 +76,6 @@ public class CumulativeCardinalityAggregatorTests extends AggregatorTestCase {
 
     private static final List<Integer> datasetValues = Arrays.asList(1,1,3,1,5,1,7,1,9,10);
     private static final List<Double> cumulativeCardinality = Arrays.asList(1.0,1.0,2.0,2.0,3.0,3.0,4.0,4.0,6.0);
-
-    // Initialize plugin so we can set license state
-    static DataSciencePlugin PLUGIN = new DataSciencePlugin() {
-        @Override
-        protected void registerLicenseListener() {
-            DataSciencePlugin.isDataScienceAllowed = true;
-        }
-    };
 
     public void testSimple() throws IOException {
 
@@ -160,7 +151,7 @@ public class CumulativeCardinalityAggregatorTests extends AggregatorTestCase {
         // Mocked "test" agg, should fail validation
         aggBuilders.clear();
         aggBuilders.add(new CumulativeCardinalityPipelineAggregationBuilder("cumulative_card", "sum"));
-        TestAggregatorFactory parentFactory = TestAggregatorFactory.createInstance();
+        StubAggregatorFactory parentFactory = StubAggregatorFactory.createInstance();
 
         CumulativeCardinalityPipelineAggregationBuilder failBuilder
             = new CumulativeCardinalityPipelineAggregationBuilder("name", "invalid_agg>metric");

@@ -22,6 +22,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 public class DataScienceStatsAction extends ActionType<DataScienceStatsAction.Response> {
     public static final DataScienceStatsAction INSTANCE = new DataScienceStatsAction();
@@ -50,7 +51,8 @@ public class DataScienceStatsAction extends ActionType<DataScienceStatsAction.Re
 
         @Override
         public int hashCode() {
-            return 19;
+            // Nothing to hash atm, so just use the action name
+            return Objects.hashCode(NAME);
         }
 
         @Override

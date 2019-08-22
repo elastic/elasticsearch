@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.datascience;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -28,30 +29,12 @@ import static java.util.Collections.singletonList;
 
 public class DataSciencePlugin extends Plugin implements SearchPlugin, ActionPlugin {
 
-    // volatile so all threads can see changes
-    protected static volatile boolean isDataScienceAllowed;
-
     // TODO this should probably become more structured once DataScience plugin has more than just one agg
     public static AtomicLong cumulativeCardUsage = new AtomicLong(0);
 
-    public DataSciencePlugin() {
-        registerLicenseListener();
-    }
+    public DataSciencePlugin() { }
 
-    /**
-     * Protected for test over-riding
-     */
-    protected void registerLicenseListener() {
-        // Add a listener to the license state and cache it when there is a change.
-        // Aggs could be called in high numbers so we don't want them contending on
-        // the synchronized isFooAllowed() methods
-        XPackPlugin.getSharedLicenseState()
-            .addListener(() -> isDataScienceAllowed = XPackPlugin.getSharedLicenseState().isDataScienceAllowed());
-    }
-
-    public static boolean isIsDataScienceAllowed() {
-        return isDataScienceAllowed;
-    }
+    public static XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }
 
     @Override
     public List<PipelineAggregationSpec> getPipelineAggregations() {

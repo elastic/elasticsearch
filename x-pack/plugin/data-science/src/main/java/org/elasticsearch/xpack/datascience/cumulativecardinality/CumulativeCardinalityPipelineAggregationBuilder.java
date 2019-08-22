@@ -50,9 +50,6 @@ public class CumulativeCardinalityPipelineAggregationBuilder
 
     public CumulativeCardinalityPipelineAggregationBuilder(String name, String bucketsPath) {
         super(name, NAME, new String[] { bucketsPath });
-        if (DataSciencePlugin.isIsDataScienceAllowed() == false) {
-            throw LicenseUtils.newComplianceException(XPackField.DATA_SCIENCE);
-        }
     }
 
     /**
@@ -61,9 +58,6 @@ public class CumulativeCardinalityPipelineAggregationBuilder
     public CumulativeCardinalityPipelineAggregationBuilder(StreamInput in) throws IOException {
         super(in, NAME);
         format = in.readOptionalString();
-        if (DataSciencePlugin.isIsDataScienceAllowed() == false) {
-            throw LicenseUtils.newComplianceException(XPackField.DATA_SCIENCE);
-        }
     }
 
     @Override
@@ -122,6 +116,10 @@ public class CumulativeCardinalityPipelineAggregationBuilder
     }
 
     public static CumulativeCardinalityPipelineAggregationBuilder parse(String aggName, XContentParser parser) {
+        if (DataSciencePlugin.getLicenseState().isDataScienceAllowed() == false) {
+            throw LicenseUtils.newComplianceException(XPackField.DATA_SCIENCE);
+        }
+
         // Increment usage here since it is a good boundary between internal and external, and should correlate 1:1 with
         // usage and not internal instantiations
         DataSciencePlugin.cumulativeCardUsage.incrementAndGet();

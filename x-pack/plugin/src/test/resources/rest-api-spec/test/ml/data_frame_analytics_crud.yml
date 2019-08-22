@@ -1182,3 +1182,36 @@ setup:
   }}
   - is_true: create_time
   - is_true: version
+
+---
+"Test put with description":
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "with-description"
+        body: >
+          {
+            "description": "This is a described config",
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "regression": {
+                "dependent_variable": "foo"
+              }
+            }
+          }
+  - match: { id: "with-description" }
+  - match: { description: "This is a described config" }
+  - match: { source.index: ["index-source"] }
+  - match: { dest.index: "index-dest" }
+  - match: { analysis: {
+    "regression":{
+      "dependent_variable": "foo"
+    }
+  }}
+  - is_true: create_time
+  - is_true: version

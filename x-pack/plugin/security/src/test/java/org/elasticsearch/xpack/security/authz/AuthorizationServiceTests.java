@@ -1235,7 +1235,7 @@ public class AuthorizationServiceTests extends ESTestCase {
                 eq(DeleteAction.NAME), Matchers.startsWith("datemath-"), eq(BulkItemRequest.class.getSimpleName()),
                 eq(request.remoteAddress()), authzInfoRoles(new String[] { role.getName() }));
         verify(auditTrail, times(2)).explicitIndexAccessEvent(eq(requestId), eq(AuditLevel.ACCESS_GRANTED), eq(authentication),
-                eq(IndexAction.NAME + "[op_type:i]"), Matchers.startsWith("datemath-"), eq(BulkItemRequest.class.getSimpleName()),
+                eq(IndexAction.NAME + ":op_type/index"), Matchers.startsWith("datemath-"), eq(BulkItemRequest.class.getSimpleName()),
                 eq(request.remoteAddress()), authzInfoRoles(new String[] { role.getName() }));
         // bulk request is allowed
         verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(action), eq(request),

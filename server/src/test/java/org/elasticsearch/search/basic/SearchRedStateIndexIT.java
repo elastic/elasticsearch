@@ -100,9 +100,9 @@ public class SearchRedStateIndexIT extends ESIntegTestCase {
     }
 
     public void testDisallowPartialsWithRedStateRecovering() throws Exception {
-        int docCount = scaledRandomIntBetween(1000, 10000);
+        int docCount = scaledRandomIntBetween(10, 1000);
         logger.info("Using docCount [{}]", docCount);
-        buildIndex(cluster().numDataNodes(), 1, docCount);
+        buildIndex(cluster().numDataNodes() + 2, 1, docCount);
 
         AtomicBoolean stop = new AtomicBoolean();
         List<Thread> searchThreads = new ArrayList<>();
@@ -128,7 +128,7 @@ public class SearchRedStateIndexIT extends ESIntegTestCase {
                 void verify(Supplier<SearchResponse> call) {
                     try {
                         SearchResponse response = call.get();
-                        assertThat(response.getHits().getHits().length, equalTo(100));
+                        assertThat(response.getHits().getHits().length, equalTo(Math.min(100, docCount)));
                         assertThat(response.getHits().getTotalHits().value, equalTo((long) docCount));
                     } catch (Exception e) {
                         // this is OK.

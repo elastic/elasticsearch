@@ -140,7 +140,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         } else {
             Boolean allowPartialResults = request.allowPartialSearchResults();
             assert allowPartialResults != null : "SearchRequest missing setting for allowPartialSearchResults";
-            if (allowPartialResults == false && shardFailures.get() != null) {
+            if (allowPartialResults == false && successfulOps.get() != getNumShards()) {
                 // check if there are actual failures in the atomic array since
                 // successful retries can reset the failures to null
                 ShardOperationFailedException[] shardSearchFailures = buildShardFailures();
@@ -154,17 +154,16 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     }
                     onPhaseFailure(currentPhase, "Partial shards failure", null);
                     return;
+                } else {
+                    int discrepancy = getNumShards() - successfulOps.get();
+                    assert discrepancy > 0 : "discrepancy: " + discrepancy;
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("Partial shards failure (unavailable: {}, successful: {}, skipped: {}, num-shards: {}, phase: {})",
+                            discrepancy, successfulOps.get(), skippedOps.get(), getNumShards(), currentPhase.getName());
+                    }
+                    onPhaseFailure(currentPhase, "Partial shards failure (" + discrepancy + " shards unavailable)", null);
+                    return;
                 }
-            }
-            if (allowPartialResults == false && successfulOps.get() != getNumShards()) {
-                int discrepancy = getNumShards() - successfulOps.get();
-                assert discrepancy > 0 : "discrepancy: " + discrepancy;
-                if (logger.isDebugEnabled()) {
-                    logger.debug("Partial shards failure (unavailable: {}, successful: {}, skipped: {}, num-shards: {}, phase: {})",
-                        discrepancy, successfulOps.get(), skippedOps.get(), getNumShards(), currentPhase.getName());
-                }
-                onPhaseFailure(currentPhase, "Partial shards failure (" + discrepancy + " shards unavailable)", null);
-                return;
             }
             if (logger.isTraceEnabled()) {
                 final String resultsFrom = results.getSuccessfulResults()

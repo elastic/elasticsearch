@@ -82,17 +82,20 @@ public class CopyBytesSocketChannelTests extends ESTestCase {
         });
 
         ChannelFuture bindFuture = serverBootstrap.bind(new InetSocketAddress(InetAddress.getLocalHost(), 0));
-        bindFuture.await(10, TimeUnit.SECONDS);
+        assertTrue(bindFuture.await(10, TimeUnit.SECONDS));
         serverAddress = (InetSocketAddress) bindFuture.channel().localAddress();
-        assertTrue(bindFuture.isSuccess());
+        bindFuture.isSuccess();
         serverChannel = bindFuture.channel();
     }
 
     @Override
     public void tearDown() throws Exception {
         super.tearDown();
-        serverChannel.close().await(10, TimeUnit.SECONDS);
-        eventLoopGroup.shutdownGracefully().await(10, TimeUnit.SECONDS);
+        try {
+            assertTrue(serverChannel.close().await(10, TimeUnit.SECONDS));
+        } finally {
+            eventLoopGroup.shutdownGracefully().await(10, TimeUnit.SECONDS);
+        }
     }
 
     public void testSendAndReceive() throws Exception {
@@ -130,7 +133,7 @@ public class CopyBytesSocketChannelTests extends ESTestCase {
 
             int serverBytesToWrite = serverData.readableBytes();
             ChannelFuture serverWriteFuture = accepted.get().writeAndFlush(serverData.retainedSlice());
-            serverWriteFuture.await(10, TimeUnit.SECONDS);
+            assertTrue(serverWriteFuture.await(10, TimeUnit.SECONDS));
             assertBusy(() -> assertEquals(serverBytesToWrite, clientBytesReceived.get()));
 
             ByteBuf compositeServerReceived = Unpooled.wrappedBuffer(serverReceived.toArray(new ByteBuf[0]));
@@ -142,7 +145,7 @@ public class CopyBytesSocketChannelTests extends ESTestCase {
             serverData.release();
             serverReceived.forEach(ByteBuf::release);
             clientReceived.forEach(ByteBuf::release);
-            copyChannel.close().await(10, TimeUnit.SECONDS);
+            assertTrue(copyChannel.close().await(10, TimeUnit.SECONDS));
         }
     }
 

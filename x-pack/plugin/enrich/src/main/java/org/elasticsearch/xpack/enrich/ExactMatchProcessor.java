@@ -16,10 +16,8 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
-import org.elasticsearch.xpack.enrich.EnrichProcessorFactory.EnrichSpecification;
 import org.elasticsearch.xpack.enrich.action.EnrichCoordinatorProxyAction;
 
-import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
@@ -28,61 +26,65 @@ public final class ExactMatchProcessor extends AbstractEnrichProcessor {
     static final String ENRICH_KEY_FIELD_NAME = "enrich_key_field";
 
     private final BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> searchRunner;
-    private final String enrichKey;
+    private final String field;
+    private final String targetField;
+    private final String matchField;
     private final boolean ignoreMissing;
     private final boolean overrideEnabled;
-    private final List<EnrichSpecification> specifications;
 
     ExactMatchProcessor(String tag,
                         Client client,
                         String policyName,
-                        String enrichKey,
+                        String field,
+                        String targetField,
+                        String matchField,
                         boolean ignoreMissing,
-                        boolean overrideEnabled,
-                        List<EnrichSpecification> specifications) {
+                        boolean overrideEnabled) {
         this(
             tag,
             createSearchRunner(client),
             policyName,
-            enrichKey,
-            ignoreMissing,
-            overrideEnabled,
-            specifications
+            field,
+            targetField,
+            matchField, ignoreMissing,
+            overrideEnabled
         );
     }
 
     ExactMatchProcessor(String tag,
                         BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> searchRunner,
                         String policyName,
-                        String enrichKey,
+                        String field,
+                        String targetField,
+                        String matchField,
                         boolean ignoreMissing,
-                        boolean overrideEnabled,
-                        List<EnrichSpecification> specifications) {
+                        boolean overrideEnabled) {
         super(tag, policyName);
         this.searchRunner = searchRunner;
-        this.enrichKey = enrichKey;
+        this.field = field;
+        this.targetField = targetField;
+        this.matchField = matchField;
         this.ignoreMissing = ignoreMissing;
         this.overrideEnabled = overrideEnabled;
-        this.specifications = specifications;
     }
 
     @Override
     public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
         try {
             // If a document does not have the enrich key, return the unchanged document
-            final String value = ingestDocument.getFieldValue(enrichKey, String.class, ignoreMissing);
+            final String value = ingestDocument.getFieldValue(field, String.class, ignoreMissing);
             if (value == null) {
                 handler.accept(ingestDocument, null);
                 return;
             }
 
-            TermQueryBuilder termQuery = new TermQueryBuilder(enrichKey, value);
+            TermQueryBuilder termQuery = new TermQueryBuilder(matchField, value);
             ConstantScoreQueryBuilder constantScore = new ConstantScoreQueryBuilder(termQuery);
             SearchSourceBuilder searchBuilder = new SearchSourceBuilder();
             searchBuilder.from(0);
             searchBuilder.size(1);
             searchBuilder.trackScores(false);
-            searchBuilder.fetchSource(specifications.stream().map(s -> s.sourceField).toArray(String[]::new), null);
+            searchBuilder.fetchSource(true);
             searchBuilder.query(constantScore);
 
             SearchRequest req = new SearchRequest();
@@ -104,18 +106,15 @@ public final class ExactMatchProcessor extends AbstractEnrichProcessor {
                     handler.accept(ingestDocument, null);
                     return;
                 } else if (searchHits.length > 1) {
-                    handler.accept(null, new IllegalStateException("more than one doc id matching for [" + enrichKey + "]"));
+                    handler.accept(null, new IllegalStateException("more than one doc id matching for [" + matchField + "]"));
                     return;
                 }
 
                 // If a document is returned, add its fields to the document
                 Map<String, Object> enrichDocument = searchHits[0].getSourceAsMap();
-                assert enrichDocument != null : "enrich document for id [" + enrichKey + "] was empty despite non-zero search hits length";
-                for (EnrichSpecification specification : specifications) {
-                    Object enrichFieldValue = enrichDocument.get(specification.sourceField);
-                    if (overrideEnabled || ingestDocument.hasField(specification.targetField) == false) {
-                        ingestDocument.setFieldValue(specification.targetField, enrichFieldValue);
-                    }
+                assert enrichDocument != null : "enrich document for id [" + field + "] was empty despite non-zero search hits length";
+                if (overrideEnabled || ingestDocument.hasField(targetField) == false) {
+                    ingestDocument.setFieldValue(targetField, enrichDocument);
                 }
                 handler.accept(ingestDocument, null);
             });
@@ -134,8 +133,16 @@ public final class ExactMatchProcessor extends AbstractEnrichProcessor {
         return EnrichProcessorFactory.TYPE;
     }
 
-    String getEnrichKey() {
-        return enrichKey;
+    String getField() {
+        return field;
+    }
+
+    public String getTargetField() {
+        return targetField;
+    }
+
+    public String getMatchField() {
+        return matchField;
     }
 
     boolean isIgnoreMissing() {
@@ -144,10 +151,6 @@ public final class ExactMatchProcessor extends AbstractEnrichProcessor {
 
     boolean isOverrideEnabled() {
         return overrideEnabled;
-    }
-
-    List<EnrichSpecification> getSpecifications() {
-        return specifications;
     }
 
     private static BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> createSearchRunner(Client client) {

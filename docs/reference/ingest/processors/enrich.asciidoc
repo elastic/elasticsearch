@@ -6,96 +6,16 @@
 The `enrich` processor can enrich documents with data from another index.
 See <<ingest-enriching-data,enrich data>> section for more information how to set this up and
 check out the <<enrich-processor-getting-started,getting started>> to get familiar with enrich policies and related APIs.
-a
+
 [[enrich-options]]
 .Enrich Options
 [options="header"]
 |======
 | Name               | Required  | Default              | Description
 | `policy_name`      | yes       | -                    | The name of the enrich policy to use.
-| `enrich_key`       | no        | Policy enrich_key    | The field to get the value from for the enrich lookup.
-| `ignore_missing`   | no        | `false`              | If `true` and `enrich_key` does not exist, the processor quietly exits without modifying the document
+| `field`            | yes       | -                    | The field in the input document that matches the policies match_field used to retrieve the enrichment data.
+| `target_field`     | yes       | -                    | The field that will be used for the enrichment data.
+| `ignore_missing`   | no        | false                | If `true` and `field` does not exist, the processor quietly exits without modifying the document
 | `override`         | no        | true                 | If processor will update fields with pre-existing non-null-valued field. When set to `false`, such fields will not be touched.
-| `targets`          | no 1)     | -                    | Describes what fields should be added to the document being indexed from the lookup document
-| `set_from`         | no 1)     | -                    | Same as `targets`, but allows fields from the lookup document to added under a different name to the document being indexed
 include::common-options.asciidoc[]
 |======
-
-1) Either `targets` or `set_from` must be specified.
-
-[[enrich-processor-set-from]]
-==== Enrich `set_from` option
-
-This option should be used in the case that the field in the looked up document should be placed under
-a different field in the document being ingested.
-
-The `set_from` accepts an array with two fields:
-* `source` - The name of the field in the lookup document
-* `target` - The name of the field in the document being ingested that should hold the source field's value.
-
-For example:
-
-//////////////////////////
-
-[source,js]
---------------------------------------------------
-PUT /_enrich/policy/users-policy
-{
-    "type": "exact_match",
-    "indices": "users",
-    "match_field": "email",
-    "enrich_fields": ["first_name", "last_name", "address", "city", "zip", "state"]
-}
---------------------------------------------------
-// CONSOLE
-// TEST
-
-//////////////////////////
-
-[source,js]
---------------------------------------------------
-PUT _ingest/pipeline/user_lookup
-{
-  "description" : "Enriching user details to messages",
-  "processors" : [
-    {
-      "enrich" : {
-        "policy_name": "users-policy",
-        "enrich_key" : "email",
-        "set_from": [
-            {
-                "source": "address",
-                "target": "address-line-1"
-            },
-            {
-                "source": "city",
-                "target": "residence"
-            },
-            {
-                "source": "zip",
-                "target": "zipcode"
-            },
-            {
-                "source": "state",
-                "target": "us_state"
-            }
-        ]
-      }
-    }
-  ]
-}
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-//////////////////////////
-
-[source,js]
---------------------------------------------------
-DELETE /_ingest/pipeline/user_lookup
-DELETE /_enrich/policy/users-policy
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-//////////////////////////

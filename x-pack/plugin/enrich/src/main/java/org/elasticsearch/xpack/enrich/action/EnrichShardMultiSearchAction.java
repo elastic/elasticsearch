@@ -245,6 +245,10 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
     }
 
     private static BytesReference filterSource(FetchSourceContext fetchSourceContext, BytesReference source) throws IOException {
+        if (fetchSourceContext.includes().length == 0 && fetchSourceContext.excludes().length == 0) {
+            return source;
+        }
+
         Set<String> includes = Set.of(fetchSourceContext.includes());
         Set<String> excludes = Set.of(fetchSourceContext.excludes());
 

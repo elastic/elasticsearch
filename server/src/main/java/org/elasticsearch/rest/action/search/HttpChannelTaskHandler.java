@@ -58,7 +58,7 @@ public final class HttpChannelTaskHandler {
         CloseListener closeListener = httpChannels.computeIfAbsent(httpChannel, channel -> new CloseListener(client));
         TaskHolder taskHolder = new TaskHolder();
         Task task = client.executeLocally(actionType, request,
-            new ActionListener<>() {
+            new ActionListener<Response>() {
                 @Override
                 public void onResponse(Response searchResponse) {
                     try {

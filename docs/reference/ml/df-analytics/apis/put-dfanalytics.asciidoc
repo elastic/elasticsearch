@@ -70,14 +70,23 @@ and mappings.
   If `analyzed_fields` is not set, only the relevant fields will be included. 
   For example, all the numeric fields for {oldetection}.
   
+  `analyzed_fields.includes`:::
+    (Optional, array) An array of strings that defines the fields that will be 
+    included in the analysis.
+    
+  `analyzed_fields.excludes`:::
+    (Optional, array) An array of strings that defines the fields that will be 
+    excluded from the analysis.
+  
 `dest`::
   (Required, object) The destination configuration, consisting of `index` and 
   optionally `results_field` (`ml` by default).
   
     `index`:::
-      (Required, string) The _destination index_ for the {dfanalytics}.
+      (Required, string) Defines the _destination index_ to store the results of 
+      the {dfanalytics-job}.
     
-    `results_field`::
+    `results_field`:::
       (Optional, string) Defines the name of the field in which to store the 
       results of the analysis. Default to `ml`.
   
@@ -93,12 +102,12 @@ and mappings.
   (Required, object) The source configuration, consisting of `index` and 
   optionally a `query`.
   
-    `index`::
+    `index`:::
       (Required, string or array) Index or indices on which to perform the 
       analysis. It can be a single index or index pattern as well as an array of 
       indices or patterns.
   
-    `query`::
+    `query`:::
       (Optional, object) The {es} query domain-specific language 
       (<<query-dsl,DSL>>). This value corresponds to the query object in an {es} 
       search POST body. All the options that are supported by {es} can be used, 

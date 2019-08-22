@@ -59,7 +59,7 @@ Infra/Packaging::
 * Use bundled JDK in Sys V init {pull}45593[#45593] (issue: {issue}45542[#45542])
 
 Infra/Settings::
-* Fix bug with elasticsearch.common.settings.Settings.processSetting {pull}44047[#44047] (issue: {issue}43791[#43791])
+* Fix a bug with elasticsearch.common.settings.Settings.processSetting {pull}44047[#44047] (issue: {issue}43791[#43791])
 
 MULTIPLE AREA LABELS::
 * Fix a bug where mappings are dropped from rollover requests. {pull}45411[#45411] (issue: {issue}45399[#45399])

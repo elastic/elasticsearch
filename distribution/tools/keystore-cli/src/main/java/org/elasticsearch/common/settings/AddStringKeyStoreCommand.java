@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.settings;
 
-import java.io.InputStream;
 import java.util.Arrays;
 
 import joptsimple.OptionSet;
@@ -43,11 +42,6 @@ class AddStringKeyStoreCommand extends BaseKeyStoreCommand {
         this.forceOption = parser.acceptsAll(Arrays.asList("f", "force"),
             "Overwrite existing setting without prompting, creating keystore if necessary");
         this.arguments = parser.nonOptions("setting name");
-    }
-
-    // pkg private so tests can manipulate
-    InputStream getStdin() {
-        return System.in;
     }
 
     @Override

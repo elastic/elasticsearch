@@ -91,10 +91,8 @@ if [[ -f bin/elasticsearch-users ]]; then
       fi
     else
       # keystore requires password
-      # ugh - when keystore is password protected, prompt gets mixed up in list output
       if ! (run_as_other_user_if_needed echo "$KEYSTORE_PASSWORD" \
-          | elasticsearch-keystore list \
-          | grep -q '^\(.*: \)\?bootstrap.password$') ; then
+          | elasticsearch-keystore list | grep -q '^bootstrap.password$') ; then
         COMMANDS="$(printf "%s\n%s" "$KEYSTORE_PASSWORD" "$ELASTIC_PASSWORD")"
         (run_as_other_user_if_needed echo "$COMMANDS" | elasticsearch-keystore add -x 'bootstrap.password')
       fi

@@ -19,35 +19,22 @@
 
 package org.elasticsearch.common.settings;
 
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cli.TestSystemTerminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
 
 import static org.hamcrest.Matchers.containsString;
 
 public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
-    InputStream input;
-
     @Override
     protected Command newCommand() {
         return new AddStringKeyStoreCommand() {
             @Override
             protected Environment createEnv(Map<String, String> settings) throws UserException {
                 return env;
-            }
-
-            @Override
-            InputStream getStdin() {
-                return input;
             }
         };
     }
@@ -163,15 +150,6 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
         assertSecureString("foo", "secret value 2", password);
     }
 
-    public void testStdinSystemTerminalNoException() throws Exception {
-        String password = "keystorepassword";
-        KeyStoreWrapper.create().save(env.configFile(), password.toCharArray());
-        String input = password + "\nbar\n";
-        InputStream in = new ByteArrayInputStream(input.getBytes(Charset.defaultCharset()));
-        Terminal term = new TestSystemTerminal(in);
-        execute(term, newCommand(), "--stdin", "foo");
-    }
-
     public void testMissingSettingName() throws Exception {
         String password = "keystorepassword";
         createKeystore(password);
@@ -190,9 +168,5 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
         // will not be prompted for a password
         execute("foo");
         assertSecureString("foo", "bar", password);
-    }
-
-    void setInput(String inputStr) {
-        input = new ByteArrayInputStream(inputStr.getBytes(StandardCharsets.UTF_8));
     }
 }

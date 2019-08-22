@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.bootstrap;
 
+import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.common.settings.KeyStoreCommandTestCase;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
@@ -60,7 +61,9 @@ public class BootstrapTests extends ESTestCase {
             keyStoreWrapper.save(configPath, new char[0]);
         }
         assertTrue(Files.exists(configPath.resolve("elasticsearch.keystore")));
-        try (SecureSettings secureSettings = Bootstrap.loadSecureSettings(env)) {
+        MockTerminal mockTerminal = new MockTerminal();
+        mockTerminal.addSecretInput("");
+        try (SecureSettings secureSettings = Bootstrap.loadSecureSettings(env, mockTerminal)) {
             SecureString seedAfterLoad = KeyStoreWrapper.SEED_SETTING.get(Settings.builder().setSecureSettings(secureSettings).build());
             assertEquals(seedAfterLoad.toString(), seed.toString());
             assertTrue(Files.exists(configPath.resolve("elasticsearch.keystore")));

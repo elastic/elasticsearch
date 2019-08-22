@@ -21,6 +21,7 @@ package org.elasticsearch.cli;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.nio.charset.Charset;
@@ -80,10 +81,10 @@ public class TerminalTests extends ESTestCase {
     }
 
     public void testReadTwiceFromSystemTerminal() throws Exception {
-        InputStream in = new ByteArrayInputStream("foo\nbar\n".getBytes(Charset.defaultCharset()));
-        Terminal terminal = new TestSystemTerminal(in);
-        assertEquals(terminal.readText("say foo"), "foo");
-        assertEquals(terminal.readText("say bar"), "bar");
+        Terminal.SystemTerminal terminal = new Terminal.SystemTerminal();
+        BufferedReader reader1 = terminal.getReader();
+        BufferedReader reader2 = terminal.getReader();
+        assertSame("System terminal should not create multiple buffered readers", reader1, reader2);
     }
 
     private void assertPrinted(MockTerminal logTerminal, Terminal.Verbosity verbosity, String text) throws Exception {

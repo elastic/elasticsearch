@@ -229,6 +229,11 @@ final class Bootstrap {
     }
 
     static SecureSettings loadSecureSettings(Environment initialEnv) throws BootstrapException {
+        return loadSecureSettings(initialEnv, Terminal.DEFAULT);
+    }
+
+    /** visible for testing */
+    static SecureSettings loadSecureSettings(Environment initialEnv, Terminal terminal) throws BootstrapException {
         final KeyStoreWrapper keystore;
         try {
             keystore = KeyStoreWrapper.load(initialEnv.configFile());
@@ -237,7 +242,7 @@ final class Bootstrap {
         }
 
         // Startup scripts always provide a password string
-        try (SecureString password = new SecureString(Terminal.DEFAULT.readSecret(""))) {
+        try (SecureString password = new SecureString(terminal.readSecret(""))) {
             if (keystore == null) {
                 final KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.create();
                 keyStoreWrapper.save(initialEnv.configFile(), new char[0]);

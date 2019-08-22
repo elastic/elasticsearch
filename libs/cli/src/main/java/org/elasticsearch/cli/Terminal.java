@@ -22,7 +22,6 @@ package org.elasticsearch.cli;
 import java.io.BufferedReader;
 import java.io.Console;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.nio.charset.Charset;
@@ -58,11 +57,6 @@ public abstract class Terminal {
 
     protected Terminal(String lineSeparator) {
         this.lineSeparator = lineSeparator;
-    }
-
-    /** Visible for testing in subclasses: set an input other than standard input */
-    protected void setInput(InputStream inputStream) throws IOException {
-        throw new AssertionError("unsupported operation");
     }
 
     /** Sets the verbosity of the terminal. */
@@ -151,7 +145,8 @@ public abstract class Terminal {
         }
     }
 
-    private static class SystemTerminal extends Terminal {
+    /** visible for testing */
+    static class SystemTerminal extends Terminal {
 
         private static final PrintWriter WRITER = newWriter();
 
@@ -166,20 +161,12 @@ public abstract class Terminal {
             return new PrintWriter(System.out);
         }
 
-        private BufferedReader getReader() {
+        /** visible for testing */
+        BufferedReader getReader() {
             if (reader == null) {
                 reader = new BufferedReader(new InputStreamReader(System.in, Charset.defaultCharset()));
             }
             return reader;
-        }
-
-        /** Visible for testing the system terminal with custom input */
-        @Override
-        protected void setInput(InputStream inputStream) throws IOException {
-            if (reader != null) {
-                reader.close();
-            }
-            reader = new BufferedReader(new InputStreamReader(inputStream, Charset.defaultCharset()));
         }
 
         @Override
@@ -187,9 +174,9 @@ public abstract class Terminal {
             return WRITER;
         }
 
+        /** Read text from standard input, discarding prompt text */
         @Override
         public String readText(String text) {
-            getWriter().print(text);
             try {
                 final String line = getReader().readLine();
                 if (line == null) {

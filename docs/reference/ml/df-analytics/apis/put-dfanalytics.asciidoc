@@ -65,7 +65,10 @@ and mappings.
   (Optional, object) You can specify both `includes` and/or `excludes` patterns. If 
   `analyzed_fields` is not set, only the relevant fields will be included. For 
   example, all the numeric fields for {oldetection}.
-  
+
+`description`::
+  (Optional, string) A description of the job.
+
 `dest`::
   (Required, object) The destination configuration, consisting of `index` and 
   optionally `results_field` (`ml` by default). See 
@@ -94,6 +97,7 @@ type is `outlier_detection`:
 --------------------------------------------------
 PUT _ml/data_frame/analytics/loganalytics
 {
+  "description": "Outlier detection on log data",
   "source": {
     "index": "logdata"
   },
@@ -115,6 +119,7 @@ The API returns the following result:
 ----
 {
     "id": "loganalytics",
+    "description": "Outlier detection on log data",
     "source": {
         "index": ["logdata"],
         "query": {

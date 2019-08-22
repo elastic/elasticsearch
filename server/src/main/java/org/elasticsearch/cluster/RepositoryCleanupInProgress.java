@@ -87,7 +87,7 @@ public final class RepositoryCleanupInProgress extends AbstractNamedDiffable<Clu
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_8_0_0;
+        return Version.V_7_4_0;
     }
 
     public static final class Entry implements Writeable {

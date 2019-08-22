@@ -65,6 +65,7 @@ import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus.Stage;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportException;
@@ -99,7 +100,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
 
     private final IndicesService indicesService;
 
-    private final SnapshotsService snapshotsService;
+    private final RepositoriesService repositoriesService;
 
     private final TransportService transportService;
 
@@ -114,11 +115,11 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
     private final SnapshotStateExecutor snapshotStateExecutor = new SnapshotStateExecutor();
     private final UpdateSnapshotStatusAction updateSnapshotStatusHandler;
 
-    public SnapshotShardsService(Settings settings, ClusterService clusterService, SnapshotsService snapshotsService,
+    public SnapshotShardsService(Settings settings, ClusterService clusterService, RepositoriesService repositoriesService,
                                  ThreadPool threadPool, TransportService transportService, IndicesService indicesService,
                                  ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         this.indicesService = indicesService;
-        this.snapshotsService = snapshotsService;
+        this.repositoriesService = repositoriesService;
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
@@ -361,7 +362,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             throw new IndexShardSnapshotFailedException(shardId, "shard didn't fully recover yet");
         }
 
-        final Repository repository = snapshotsService.getRepositoriesService().repository(snapshot.getRepository());
+        final Repository repository = repositoriesService.repository(snapshot.getRepository());
         try {
             // we flush first to make sure we get the latest writes snapshotted
             try (Engine.IndexCommitRef snapshotRef = indexShard.acquireLastIndexCommit(true)) {

@@ -38,49 +38,49 @@ import static java.util.Collections.singleton;
  */
 public final class SIfElse extends AStatement {
 
-    private AExpression condition;
-    private final SBlock ifblock;
-    private final SBlock elseblock;
-
     public SIfElse(Location location, AExpression condition, SBlock ifblock, SBlock elseblock) {
         super(location);
 
-        this.condition = Objects.requireNonNull(condition);
-        this.ifblock = ifblock;
-        this.elseblock = elseblock;
+        children.add(Objects.requireNonNull(condition));
+        children.add(ifblock);
+        children.add(elseblock);
     }
 
     @Override
     void storeSettings(CompilerSettings settings) {
-        condition.storeSettings(settings);
+        children.get(0).storeSettings(settings);
 
-        if (ifblock != null) {
-            ifblock.storeSettings(settings);
+        if (children.get(1) != null) {
+            children.get(1).storeSettings(settings);
         }
 
-        if (elseblock != null) {
-            elseblock.storeSettings(settings);
+        if (children.get(2) != null) {
+            children.get(2).storeSettings(settings);
         }
     }
 
     @Override
     void extractVariables(Set<String> variables) {
-        condition.extractVariables(variables);
+        children.get(0).extractVariables(variables);
 
-        if (ifblock != null) {
-            ifblock.extractVariables(variables);
+        if (children.get(1) != null) {
+            children.get(1).extractVariables(variables);
         }
 
-        if (elseblock != null) {
-            elseblock.extractVariables(variables);
+        if (children.get(2) != null) {
+            children.get(2).extractVariables(variables);
         }
     }
 
     @Override
     void analyze(Locals locals) {
+        AExpression condition = (AExpression)children.get(0);
+        SBlock ifblock = (SBlock)children.get(1);
+        SBlock elseblock = (SBlock)children.get(2);
+
         condition.expected = boolean.class;
         condition.analyze(locals);
-        condition = condition.cast(locals);
+        children.set(0, condition = condition.cast(locals));
 
         if (condition.constant != null) {
             throw createError(new IllegalArgumentException("Extraneous if statement."));
@@ -120,12 +120,15 @@ public final class SIfElse extends AStatement {
 
     @Override
     void write(MethodWriter writer, Globals globals) {
+        SBlock ifblock = (SBlock)children.get(1);
+        SBlock elseblock = (SBlock)children.get(2);
+
         writer.writeStatementOffset(location);
 
         Label fals = new Label();
         Label end = new Label();
 
-        condition.write(writer, globals);
+        children.get(0).write(writer, globals);
         writer.ifZCmp(Opcodes.IFEQ, fals);
 
         ifblock.continu = continu;
@@ -147,6 +150,6 @@ public final class SIfElse extends AStatement {
 
     @Override
     public String toString() {
-        return multilineToString(singleton(condition), Arrays.asList(ifblock, elseblock));
+        return multilineToString(singleton(children.get(0)), Arrays.asList(children.get(1), children.get(2)));
     }
 }

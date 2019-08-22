@@ -27,7 +27,6 @@ import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
-import java.util.Arrays;
 import java.util.Set;
 
 import static java.util.Collections.emptyList;
@@ -37,69 +36,68 @@ import static java.util.Collections.emptyList;
  */
 public final class SFor extends AStatement {
 
-    private ANode initializer;
-    private AExpression condition;
-    private AExpression afterthought;
-    private final SBlock block;
-
     private boolean continuous = false;
 
     public SFor(Location location, ANode initializer, AExpression condition, AExpression afterthought, SBlock block) {
         super(location);
 
-        this.initializer = initializer;
-        this.condition = condition;
-        this.afterthought = afterthought;
-        this.block = block;
+        children.add(initializer);
+        children.add(condition);
+        children.add(afterthought);
+        children.add(block);
     }
 
     @Override
     void storeSettings(CompilerSettings settings) {
-        if (initializer != null) {
-            initializer.storeSettings(settings);
+        if (children.get(0) != null) {
+            children.get(0).storeSettings(settings);
         }
 
-        if (condition != null) {
-            condition.storeSettings(settings);
+        if (children.get(1) != null) {
+            children.get(1).storeSettings(settings);
         }
 
-        if (afterthought != null) {
-            afterthought.storeSettings(settings);
+        if (children.get(2) != null) {
+            children.get(2).storeSettings(settings);
         }
 
-        if (block != null) {
-            block.storeSettings(settings);
+        if (children.get(3) != null) {
+            children.get(3).storeSettings(settings);
         }
     }
 
     @Override
     void extractVariables(Set<String> variables) {
-        if (initializer != null) {
-            initializer.extractVariables(variables);
+        if (children.get(0) != null) {
+            children.get(0).extractVariables(variables);
         }
 
-        if (condition != null) {
-            condition.extractVariables(variables);
+        if (children.get(1) != null) {
+            children.get(1).extractVariables(variables);
         }
 
-        if (afterthought != null) {
-            afterthought.extractVariables(variables);
+        if (children.get(2) != null) {
+            children.get(2).extractVariables(variables);
         }
 
-        if (block != null) {
-            block.extractVariables(variables);
+        if (children.get(3) != null) {
+            children.get(3).extractVariables(variables);
         }
     }
 
     @Override
     void analyze(Locals locals) {
+        AExpression condition = (AExpression)children.get(1);
+        AExpression afterthought = (AExpression)children.get(2);
+        SBlock block = (SBlock)children.get(3);
+
         locals = Locals.newLocalScope(locals);
 
-        if (initializer != null) {
-            if (initializer instanceof SDeclBlock) {
-                initializer.analyze(locals);
-            } else if (initializer instanceof AExpression) {
-                AExpression initializer = (AExpression)this.initializer;
+        if (children.get(0) != null) {
+            if (children.get(0) instanceof SDeclBlock) {
+                children.get(0).analyze(locals);
+            } else if (children.get(0) instanceof AExpression) {
+                AExpression initializer = (AExpression)children.get(0);
 
                 initializer.read = false;
                 initializer.analyze(locals);
@@ -109,7 +107,7 @@ public final class SFor extends AStatement {
                 }
 
                 initializer.expected = initializer.actual;
-                this.initializer = initializer.cast(locals);
+                children.set(0, initializer.cast(locals));
             } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));
             }
@@ -118,7 +116,7 @@ public final class SFor extends AStatement {
         if (condition != null) {
             condition.expected = boolean.class;
             condition.analyze(locals);
-            condition = condition.cast(locals);
+            children.set(1, condition = condition.cast(locals));
 
             if (condition.constant != null) {
                 continuous = (boolean)condition.constant;
@@ -144,7 +142,7 @@ public final class SFor extends AStatement {
             }
 
             afterthought.expected = afterthought.actual;
-            afterthought = afterthought.cast(locals);
+            children.set(2, afterthought.cast(locals));
         }
 
         if (block != null) {
@@ -174,16 +172,20 @@ public final class SFor extends AStatement {
 
     @Override
     void write(MethodWriter writer, Globals globals) {
+        AExpression condition = (AExpression)children.get(1);
+        AExpression afterthought = (AExpression)children.get(2);
+        SBlock block = (SBlock)children.get(3);
+
         writer.writeStatementOffset(location);
 
         Label start = new Label();
         Label begin = afterthought == null ? start : new Label();
         Label end = new Label();
 
-        if (initializer instanceof SDeclBlock) {
-            initializer.write(writer, globals);
-        } else if (initializer instanceof AExpression) {
-            AExpression initializer = (AExpression)this.initializer;
+        if (children.get(0) instanceof SDeclBlock) {
+            children.get(0).write(writer, globals);
+        } else if (children.get(0) instanceof AExpression) {
+            AExpression initializer = (AExpression)children.get(0);
 
             initializer.write(writer, globals);
             writer.writePop(MethodWriter.getType(initializer.expected).getSize());
@@ -235,6 +237,6 @@ public final class SFor extends AStatement {
 
     @Override
     public String toString() {
-        return multilineToString(emptyList(), Arrays.asList(initializer, condition, afterthought, block));
+        return multilineToString(emptyList(), children);
     }
 }

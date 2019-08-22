@@ -104,6 +104,6 @@ public class PSubNullSafeField extends AStoreable {
 
     @Override
     public String toString() {
-        return singleLineToString(guarded);
+        throw new UnsupportedOperationException("unexpected node");
     }
 }

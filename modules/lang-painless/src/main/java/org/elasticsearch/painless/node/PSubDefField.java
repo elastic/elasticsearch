@@ -109,6 +109,6 @@ final class PSubDefField extends AStoreable {
 
     @Override
     public String toString() {
-        return singleLineToString(prefix, value);
+        throw new UnsupportedOperationException("unexpected node");
     }
 }

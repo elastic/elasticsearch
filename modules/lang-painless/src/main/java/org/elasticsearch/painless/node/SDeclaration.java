@@ -37,7 +37,6 @@ public final class SDeclaration extends AStatement {
 
     private final String type;
     private final String name;
-    private AExpression expression;
 
     private Variable variable = null;
 
@@ -46,13 +45,13 @@ public final class SDeclaration extends AStatement {
 
         this.type = Objects.requireNonNull(type);
         this.name = Objects.requireNonNull(name);
-        this.expression = expression;
+        children.add(expression);
     }
 
     @Override
     void storeSettings(CompilerSettings settings) {
-        if (expression != null) {
-            expression.storeSettings(settings);
+        if (children.get(0) != null) {
+            children.get(0).storeSettings(settings);
         }
     }
 
@@ -60,8 +59,8 @@ public final class SDeclaration extends AStatement {
     void extractVariables(Set<String> variables) {
         variables.add(name);
 
-        if (expression != null) {
-            expression.extractVariables(variables);
+        if (children.get(0) != null) {
+            children.get(0).extractVariables(variables);
         }
     }
 
@@ -73,10 +72,12 @@ public final class SDeclaration extends AStatement {
             throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }
 
+        AExpression expression = (AExpression)children.get(0);
+
         if (expression != null) {
             expression.expected = clazz;
             expression.analyze(locals);
-            expression = expression.cast(locals);
+            children.set(0, expression.cast(locals));
         }
 
         variable = locals.addVariable(location, clazz, name, false);
@@ -86,7 +87,7 @@ public final class SDeclaration extends AStatement {
     void write(MethodWriter writer, Globals globals) {
         writer.writeStatementOffset(location);
 
-        if (expression == null) {
+        if (children.get(0) == null) {
             Class<?> sort = variable.clazz;
 
             if (sort == void.class || sort == boolean.class || sort == byte.class ||
@@ -102,7 +103,7 @@ public final class SDeclaration extends AStatement {
                 writer.visitInsn(Opcodes.ACONST_NULL);
             }
         } else {
-            expression.write(writer, globals);
+            children.get(0).write(writer, globals);
         }
 
         writer.visitVarInsn(MethodWriter.getType(variable.clazz).getOpcode(Opcodes.ISTORE), variable.getSlot());
@@ -110,9 +111,9 @@ public final class SDeclaration extends AStatement {
 
     @Override
     public String toString() {
-        if (expression == null) {
+        if (children.get(0) == null) {
             return singleLineToString(type, name);
         }
-        return singleLineToString(type, name, expression);
+        return singleLineToString(type, name, children.get(0));
     }
 }

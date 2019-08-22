@@ -38,8 +38,6 @@ public class SEach extends AStatement {
 
     private final String type;
     private final String name;
-    private AExpression expression;
-    private final SBlock block;
 
     private AStatement sub = null;
 
@@ -48,16 +46,16 @@ public class SEach extends AStatement {
 
         this.type = Objects.requireNonNull(type);
         this.name = Objects.requireNonNull(name);
-        this.expression = Objects.requireNonNull(expression);
-        this.block = block;
+        children.add(Objects.requireNonNull(expression));
+        children.add(block);
     }
 
     @Override
     void storeSettings(CompilerSettings settings) {
-        expression.storeSettings(settings);
+        children.get(0).storeSettings(settings);
 
-        if (block != null) {
-            block.storeSettings(settings);
+        if (children.get(1) != null) {
+            children.get(1).storeSettings(settings);
         }
     }
 
@@ -65,15 +63,18 @@ public class SEach extends AStatement {
     void extractVariables(Set<String> variables) {
         variables.add(name);
 
-        expression.extractVariables(variables);
+        children.get(0).extractVariables(variables);
 
-        if (block != null) {
-            block.extractVariables(variables);
+        if (children.get(1) != null) {
+            children.get(1).extractVariables(variables);
         }
     }
 
     @Override
     void analyze(Locals locals) {
+        AExpression expression = (AExpression)children.get(0);
+        SBlock block = (SBlock)children.get(1);
+
         expression.analyze(locals);
         expression.expected = expression.actual;
         expression = expression.cast(locals);
@@ -125,6 +126,6 @@ public class SEach extends AStatement {
 
     @Override
     public String toString() {
-        return singleLineToString(type, name, expression, block);
+        return singleLineToString(type, name, children.get(0), children.get(1));
     }
 }

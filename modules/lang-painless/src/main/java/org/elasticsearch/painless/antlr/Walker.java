@@ -254,7 +254,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         String name = ctx.ID().getText();
         List<String> paramTypes = new ArrayList<>();
         List<String> paramNames = new ArrayList<>();
-        List<AStatement> statements = new ArrayList<>();
+        List<ANode> statements = new ArrayList<>();
 
         for (DecltypeContext decltype : ctx.parameters().decltype()) {
             paramTypes.add(decltype.getText());
@@ -984,15 +984,14 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitMapinitializer(MapinitializerContext ctx) {
-        List<AExpression> keys = new ArrayList<>();
-        List<AExpression> values = new ArrayList<>();
+        List<AExpression> pairs = new ArrayList<>();
 
         for (MaptokenContext maptoken : ctx.maptoken()) {
-            keys.add((AExpression)visit(maptoken.expression(0)));
-            values.add((AExpression)visit(maptoken.expression(1)));
+            pairs.add((AExpression)visit(maptoken.expression(0)));
+            pairs.add((AExpression)visit(maptoken.expression(1)));
         }
 
-        return new EMapInit(location(ctx), keys, values);
+        return new EMapInit(location(ctx), pairs);
     }
 
     @Override

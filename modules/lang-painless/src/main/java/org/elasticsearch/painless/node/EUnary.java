@@ -42,7 +42,6 @@ import java.util.Set;
 public final class EUnary extends AExpression {
 
     private final Operation operation;
-    private AExpression child;
 
     private Class<?> promote;
     private boolean originallyExplicit = false; // record whether there was originally an explicit cast
@@ -51,17 +50,17 @@ public final class EUnary extends AExpression {
         super(location);
 
         this.operation = Objects.requireNonNull(operation);
-        this.child = Objects.requireNonNull(child);
+        children.add(Objects.requireNonNull(child));
     }
 
     @Override
     void storeSettings(CompilerSettings settings) {
-        child.storeSettings(settings);
+        children.get(0).storeSettings(settings);
     }
 
     @Override
     void extractVariables(Set<String> variables) {
-        child.extractVariables(variables);
+        children.get(0).extractVariables(variables);
     }
 
     @Override
@@ -82,9 +81,11 @@ public final class EUnary extends AExpression {
     }
 
     void analyzeNot(Locals variables) {
+        AExpression child = (AExpression)children.get(0);
+
         child.expected = boolean.class;
         child.analyze(variables);
-        child = child.cast(variables);
+        children.set(0, child = child.cast(variables));
 
         if (child.constant != null) {
             constant = !(boolean)child.constant;
@@ -94,6 +95,8 @@ public final class EUnary extends AExpression {
     }
 
     void analyzeBWNot(Locals variables) {
+        AExpression child = (AExpression)children.get(0);
+
         child.analyze(variables);
 
         promote = AnalyzerCaster.promoteNumeric(child.actual, false);
@@ -104,7 +107,7 @@ public final class EUnary extends AExpression {
         }
 
         child.expected = promote;
-        child = child.cast(variables);
+        children.set(0, child = child.cast(variables));
 
         if (child.constant != null) {
             if (promote == int.class) {
@@ -124,6 +127,8 @@ public final class EUnary extends AExpression {
     }
 
     void analyzerAdd(Locals variables) {
+        AExpression child = (AExpression)children.get(0);
+
         child.analyze(variables);
 
         promote = AnalyzerCaster.promoteNumeric(child.actual, true);
@@ -134,7 +139,7 @@ public final class EUnary extends AExpression {
         }
 
         child.expected = promote;
-        child = child.cast(variables);
+        children.set(0, child = child.cast(variables));
 
         if (child.constant != null) {
             if (promote == int.class) {
@@ -158,6 +163,8 @@ public final class EUnary extends AExpression {
     }
 
     void analyzerSub(Locals variables) {
+        AExpression child = (AExpression)children.get(0);
+
         child.analyze(variables);
 
         promote = AnalyzerCaster.promoteNumeric(child.actual, true);
@@ -168,7 +175,7 @@ public final class EUnary extends AExpression {
         }
 
         child.expected = promote;
-        child = child.cast(variables);
+        children.set(0, child = child.cast(variables));
 
         if (child.constant != null) {
             if (promote == int.class) {
@@ -193,6 +200,8 @@ public final class EUnary extends AExpression {
 
     @Override
     void write(MethodWriter writer, Globals globals) {
+        AExpression child = (AExpression)children.get(0);
+
         writer.writeDebugInfo(location);
 
         if (operation == Operation.NOT) {
@@ -256,6 +265,6 @@ public final class EUnary extends AExpression {
 
     @Override
     public String toString() {
-        return singleLineToString(operation.symbol, child);
+        return singleLineToString(operation.symbol, children.get(0));
     }
 }

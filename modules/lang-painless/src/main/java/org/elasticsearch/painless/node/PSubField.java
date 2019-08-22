@@ -126,6 +126,6 @@ final class PSubField extends AStoreable {
 
     @Override
     public String toString() {
-        return singleLineToString(prefix, field.javaField.getName());
+        throw new UnsupportedOperationException("unexpected node");
     }
 }

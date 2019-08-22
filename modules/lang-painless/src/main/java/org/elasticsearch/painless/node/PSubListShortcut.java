@@ -37,7 +37,6 @@ import java.util.Set;
 final class PSubListShortcut extends AStoreable {
 
     private final Class<?> targetClass;
-    private AExpression index;
 
     private PainlessMethod getter;
     private PainlessMethod setter;
@@ -46,7 +45,7 @@ final class PSubListShortcut extends AStoreable {
         super(location);
 
         this.targetClass = Objects.requireNonNull(targetClass);
-        this.index = Objects.requireNonNull(index);
+        children.add(Objects.requireNonNull(index));
     }
 
     @Override
@@ -81,9 +80,11 @@ final class PSubListShortcut extends AStoreable {
         }
 
         if ((read || write) && (!read || getter != null) && (!write || setter != null)) {
+            AExpression index = (AExpression)children.get(0);
+
             index.expected = int.class;
             index.analyze(locals);
-            index = index.cast(locals);
+            children.set(0, index.cast(locals));
 
             actual = setter != null ? setter.typeParameters.get(1) : getter.returnType;
         } else {
@@ -114,7 +115,7 @@ final class PSubListShortcut extends AStoreable {
 
     @Override
     void setup(MethodWriter writer, Globals globals) {
-        index.write(writer, globals);
+        children.get(0).write(writer, globals);
         writeIndexFlip(writer, w -> {
             w.invokeInterface(WriterConstants.COLLECTION_TYPE, WriterConstants.COLLECTION_SIZE);
         });
@@ -139,6 +140,6 @@ final class PSubListShortcut extends AStoreable {
 
     @Override
     public String toString() {
-        return singleLineToString(prefix, index);
+        throw new UnsupportedOperationException("unexpected node");
     }
 }

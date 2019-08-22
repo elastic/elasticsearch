@@ -35,13 +35,12 @@ import java.util.Set;
  */
 final class ECast extends AExpression {
 
-    private AExpression child;
     private final PainlessCast cast;
 
     ECast(Location location, AExpression child, PainlessCast cast) {
         super(location);
 
-        this.child = Objects.requireNonNull(child);
+        children.add(Objects.requireNonNull(child));
         this.cast = Objects.requireNonNull(cast);
     }
 
@@ -62,13 +61,13 @@ final class ECast extends AExpression {
 
     @Override
     void write(MethodWriter writer, Globals globals) {
-        child.write(writer, globals);
+        children.get(0).write(writer, globals);
         writer.writeDebugInfo(location);
         writer.writeCast(cast);
     }
 
     @Override
     public String toString() {
-        return singleLineToString(PainlessLookupUtility.typeToCanonicalTypeName(cast.targetType), child);
+        return singleLineToString(PainlessLookupUtility.typeToCanonicalTypeName(cast.targetType), children.get(0));
     }
 }

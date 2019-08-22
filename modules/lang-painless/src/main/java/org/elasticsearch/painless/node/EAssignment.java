@@ -41,8 +41,6 @@ import java.util.Set;
  */
 public final class EAssignment extends AExpression {
 
-    private AExpression lhs;
-    private AExpression rhs;
     private final boolean pre;
     private final boolean post;
     private Operation operation;
@@ -56,8 +54,8 @@ public final class EAssignment extends AExpression {
     public EAssignment(Location location, AExpression lhs, AExpression rhs, boolean pre, boolean post, Operation operation) {
         super(location);
 
-        this.lhs = Objects.requireNonNull(lhs);
-        this.rhs = rhs;
+        children.add(Objects.requireNonNull(lhs));
+        children.add(rhs);
         this.pre = pre;
         this.post = post;
         this.operation = operation;
@@ -65,19 +63,19 @@ public final class EAssignment extends AExpression {
 
     @Override
     void storeSettings(CompilerSettings settings) {
-        lhs.storeSettings(settings);
+        children.get(0).storeSettings(settings);
 
-        if (rhs != null) {
-            rhs.storeSettings(settings);
+        if (children.get(1) != null) {
+            children.get(1).storeSettings(settings);
         }
     }
 
     @Override
     void extractVariables(Set<String> variables) {
-        lhs.extractVariables(variables);
+        children.get(0).extractVariables(variables);
 
-        if (rhs != null) {
-            rhs.extractVariables(variables);
+        if (children.get(1) != null) {
+            children.get(1).extractVariables(variables);
         }
     }
 
@@ -88,7 +86,7 @@ public final class EAssignment extends AExpression {
 
         if (operation != null) {
             analyzeCompound(locals);
-        } else if (rhs != null) {
+        } else if (children.get(1) != null) {
             analyzeSimple(locals);
         } else {
             throw new IllegalStateException("Illegal tree structure.");
@@ -96,8 +94,8 @@ public final class EAssignment extends AExpression {
     }
 
     private void analyzeLHS(Locals locals) {
-        if (lhs instanceof AStoreable) {
-            AStoreable lhs = (AStoreable)this.lhs;
+        if (children.get(0) instanceof AStoreable) {
+            AStoreable lhs = (AStoreable)children.get(0);
 
             lhs.read = read;
             lhs.write = true;
@@ -108,34 +106,36 @@ public final class EAssignment extends AExpression {
     }
 
     private void analyzeIncrDecr() {
+        AExpression lhs = (AExpression)children.get(0);
+
         if (pre && post) {
             throw createError(new IllegalStateException("Illegal tree structure."));
         } else if (pre || post) {
-            if (rhs != null) {
+            if (children.get(1) != null) {
                 throw createError(new IllegalStateException("Illegal tree structure."));
             }
 
             if (operation == Operation.INCR) {
                 if (lhs.actual == double.class) {
-                    rhs = new EConstant(location, 1D);
+                    children.set(1, new EConstant(location, 1D));
                 } else if (lhs.actual == float.class) {
-                    rhs = new EConstant(location, 1F);
+                    children.set(1, new EConstant(location, 1F));
                 } else if (lhs.actual == long.class) {
-                    rhs = new EConstant(location, 1L);
+                    children.set(1, new EConstant(location, 1L));
                 } else {
-                    rhs = new EConstant(location, 1);
+                    children.set(1, new EConstant(location, 1));
                 }
 
                 operation = Operation.ADD;
             } else if (operation == Operation.DECR) {
                 if (lhs.actual == double.class) {
-                    rhs = new EConstant(location, 1D);
+                    children.set(1, new EConstant(location, 1D));
                 } else if (lhs.actual == float.class) {
-                    rhs = new EConstant(location, 1F);
+                    children.set(1, new EConstant(location, 1F));
                 } else if (lhs.actual == long.class) {
-                    rhs = new EConstant(location, 1L);
+                    children.set(1, new EConstant(location, 1L));
                 } else {
-                    rhs = new EConstant(location, 1);
+                    children.set(1, new EConstant(location, 1));
                 }
 
                 operation = Operation.SUB;
@@ -146,6 +146,9 @@ public final class EAssignment extends AExpression {
     }
 
     private void analyzeCompound(Locals locals) {
+        AExpression lhs = (AExpression)children.get(0);
+        AExpression rhs = (AExpression)children.get(1);
+
         rhs.analyze(locals);
 
         boolean shift = false;
@@ -209,7 +212,7 @@ public final class EAssignment extends AExpression {
             rhs.expected = promote;
         }
 
-        rhs = rhs.cast(locals);
+        children.set(1, rhs.cast(locals));
 
         there = AnalyzerCaster.getLegalCast(location, lhs.actual, promote, false, false);
         back = AnalyzerCaster.getLegalCast(location, promote, lhs.actual, true, false);
@@ -219,7 +222,8 @@ public final class EAssignment extends AExpression {
     }
 
     private void analyzeSimple(Locals locals) {
-        AStoreable lhs = (AStoreable)this.lhs;
+        AStoreable lhs = (AStoreable)children.get(0);
+        AExpression rhs = (AExpression)children.get(1);
 
         // If the lhs node is a def optimized node we update the actual type to remove the need for a cast.
         if (lhs.isDefOptimized()) {
@@ -237,7 +241,7 @@ public final class EAssignment extends AExpression {
             rhs.analyze(locals);
         }
 
-        rhs = rhs.cast(locals);
+        children.set(1, rhs.cast(locals));
 
         this.statement = true;
         this.actual = read ? lhs.actual : void.class;
@@ -265,7 +269,8 @@ public final class EAssignment extends AExpression {
         }
 
         // Cast the lhs to a storeable to perform the necessary operations to store the rhs.
-        AStoreable lhs = (AStoreable)this.lhs;
+        AStoreable lhs = (AStoreable)children.get(0);
+        AExpression rhs = (AExpression)children.get(1);
         lhs.setup(writer, globals); // call the setup method on the lhs to prepare for a load/store operation
 
         if (cat) {
@@ -345,11 +350,11 @@ public final class EAssignment extends AExpression {
     @Override
     public String toString() {
         List<Object> subs = new ArrayList<>();
-        subs.add(lhs);
-        if (rhs != null) {
+        subs.add(children.get(0));
+        if (children.get(1) != null) {
             // Make sure "=" is in the symbol so this is easy to read at a glance
             subs.add(operation == null ? "=" : operation.symbol + "=");
-            subs.add(rhs);
+            subs.add(children.get(1));
             return singleLineToString(subs);
         }
         subs.add(operation.symbol);

@@ -36,12 +36,10 @@ import java.util.Set;
  * Represents an array load/store or shortcut on a def type.  (Internal only.)
  */
 final class PSubDefArray extends AStoreable {
-    private AExpression index;
-
     PSubDefArray(Location location, AExpression index) {
         super(location);
 
-        this.index = Objects.requireNonNull(index);
+        children.add(Objects.requireNonNull(index));
     }
 
     @Override
@@ -56,9 +54,11 @@ final class PSubDefArray extends AStoreable {
 
     @Override
     void analyze(Locals locals) {
+        AExpression index = (AExpression)children.get(0);
+
         index.analyze(locals);
         index.expected = index.actual;
-        index = index.cast(locals);
+        children.set(0, index.cast(locals));
 
         // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
         actual = expected == null || expected == ZonedDateTime.class || explicit ? def.class : expected;
@@ -87,6 +87,8 @@ final class PSubDefArray extends AStoreable {
 
     @Override
     void setup(MethodWriter writer, Globals globals) {
+        AExpression index = (AExpression)children.get(0);
+
         // Current stack:                                                                    def
         writer.dup();                                                                     // def, def
         index.write(writer, globals);                                                     // def, def, unnormalized_index
@@ -97,6 +99,8 @@ final class PSubDefArray extends AStoreable {
 
     @Override
     void load(MethodWriter writer, Globals globals) {
+        AExpression index = (AExpression)children.get(0);
+
         writer.writeDebugInfo(location);
 
         Type methodType =
@@ -106,6 +110,8 @@ final class PSubDefArray extends AStoreable {
 
     @Override
     void store(MethodWriter writer, Globals globals) {
+        AExpression index = (AExpression)children.get(0);
+
         writer.writeDebugInfo(location);
 
         Type methodType =
@@ -116,6 +122,6 @@ final class PSubDefArray extends AStoreable {
 
     @Override
     public String toString() {
-        return singleLineToString(prefix, index);
+        throw new UnsupportedOperationException("unexpected node");
     }
 }

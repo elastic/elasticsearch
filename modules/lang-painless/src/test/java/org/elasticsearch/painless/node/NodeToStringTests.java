@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.FeatureTestObject;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
@@ -28,12 +27,8 @@ import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.action.PainlessExecuteAction.PainlessTestScript;
 import org.elasticsearch.painless.antlr.Walker;
 import org.elasticsearch.painless.lookup.PainlessCast;
-import org.elasticsearch.painless.lookup.PainlessClass;
-import org.elasticsearch.painless.lookup.PainlessField;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.test.ESTestCase;
@@ -41,9 +36,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 
-import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 
 /**
@@ -386,126 +379,6 @@ public class NodeToStringTests extends ESTestCase {
                 "org.elasticsearch.painless.FeatureTestObject a = new org.elasticsearch.painless.FeatureTestObject();\n"
               + "a.x = 10;\n"
               + "return a.x");
-    }
-
-    public void testPSubArrayLength() {
-        Location l = new Location(getTestName(), 0);
-        PSubArrayLength node = new PSubArrayLength(l, "int", "a");
-        node.prefix = new EVariable(l, "a");
-        assertEquals("(PSubArrayLength (EVariable a))", node.toString());
-        assertEquals("(PSubNullSafeField (PSubArrayLength (EVariable a)))", new PSubNullSafeField(l, node).toString());
-    }
-
-    public void testPSubBrace() {
-        Location l = new Location(getTestName(), 0);
-        PSubBrace node = new PSubBrace(l, int.class, new ENumeric(l, "1", 10));
-        node.prefix = new EVariable(l, "a");
-        assertEquals("(PSubBrace (EVariable a) (ENumeric 1))", node.toString());
-    }
-
-    public void testPSubCallInvoke() {
-        Location l = new Location(getTestName(), 0);
-        PainlessClass c = painlessLookup.lookupPainlessClass(Integer.class);
-        PainlessMethod m = c.methods.get(PainlessLookupUtility.buildPainlessMethodKey("toString", 0));
-        PSubCallInvoke node = new PSubCallInvoke(l, m, null, emptyList());
-        node.prefix = new EVariable(l, "a");
-        assertEquals("(PSubCallInvoke (EVariable a) toString)", node.toString());
-        assertEquals("(PSubNullSafeCallInvoke (PSubCallInvoke (EVariable a) toString))", new PSubNullSafeCallInvoke(l, node).toString());
-
-        l = new Location(getTestName(), 1);
-        m = c.methods.get(PainlessLookupUtility.buildPainlessMethodKey("equals", 1));
-        node = new PSubCallInvoke(l, m, null, singletonList(new EVariable(l, "b")));
-        node.prefix = new EVariable(l, "a");
-        assertEquals("(PSubCallInvoke (EVariable a) equals (Args (EVariable b)))", node.toString());
-        assertEquals("(PSubNullSafeCallInvoke (PSubCallInvoke (EVariable a) equals (Args (EVariable b))))",
-                new PSubNullSafeCallInvoke(l, node).toString());
-    }
-
-    public void testPSubDefArray() {
-        Location l = new Location(getTestName(), 0);
-        PSubDefArray node = new PSubDefArray(l, new EConstant(l, 1));
-        node.prefix = new EVariable(l, "a");
-        assertEquals("(PSubDefArray (EVariable a) (EConstant Integer 1))", node.toString());
-    }
-
-    public void testPSubDefCall() {
-        Location l = new Location(getTestName(), 0);
-        PSubDefCall node = new PSubDefCall(l, "toString", emptyList());
-        node.prefix = new EVariable(l, "a");
-        assertEquals("(PSubDefCall (EVariable a) toString)", node.toString());
-        assertEquals("(PSubNullSafeCallInvoke (PSubDefCall (EVariable a) toString))", new PSubNullSafeCallInvoke(l, node).toString());
-
-        l = new Location(getTestName(), 0);
-        node = new PSubDefCall(l, "equals", singletonList(new EVariable(l, "b")));
-        node.prefix = new EVariable(l, "a");
-        assertEquals("(PSubDefCall (EVariable a) equals (Args (EVariable b)))", node.toString());
-        assertEquals("(PSubNullSafeCallInvoke (PSubDefCall (EVariable a) equals (Args (EVariable b))))",
-                new PSubNullSafeCallInvoke(l, node).toString());
-
-        l = new Location(getTestName(), 0);
-        node = new PSubDefCall(l, "superWeird", Arrays.asList(new EVariable(l, "b"), new EVariable(l, "c"), new EVariable(l, "d")));
-        node.prefix = new EVariable(l, "a");
-        assertEquals("(PSubDefCall (EVariable a) superWeird (Args (EVariable b) (EVariable c) (EVariable d)))", node.toString());
-        assertEquals("(PSubNullSafeCallInvoke (PSubDefCall (EVariable a) superWeird (Args (EVariable b) (EVariable c) (EVariable d))))",
-                new PSubNullSafeCallInvoke(l, node).toString());
-    }
-
-    public void testPSubDefField() {
-        Location l = new Location(getTestName(), 0);
-        PSubDefField node = new PSubDefField(l, "ok");
-        node.prefix = new EVariable(l, "a");
-        assertEquals("(PSubDefField (EVariable a) ok)", node.toString());
-        assertEquals("(PSubNullSafeCallInvoke (PSubDefField (EVariable a) ok))", new PSubNullSafeCallInvoke(l, node).toString());
-    }
-
-    public void testPSubField() {
-        Location l = new Location(getTestName(), 0);
-        PainlessClass s = painlessLookup.lookupPainlessClass(Boolean.class);
-        PainlessField f = s.staticFields.get("TRUE");
-        PSubField node = new PSubField(l, f);
-        node.prefix = new EStatic(l, "Boolean");
-        assertEquals("(PSubField (EStatic Boolean) TRUE)", node.toString());
-        assertEquals("(PSubNullSafeCallInvoke (PSubField (EStatic Boolean) TRUE))", new PSubNullSafeCallInvoke(l, node).toString());
-    }
-
-    public void testPSubListShortcut() {
-        Location l = new Location(getTestName(), 0);
-        PSubListShortcut node = new PSubListShortcut(l, List.class, new EConstant(l, 1));
-        node.prefix = new EVariable(l, "a");
-        assertEquals("(PSubListShortcut (EVariable a) (EConstant Integer 1))", node.toString());
-        assertEquals("(PSubNullSafeCallInvoke (PSubListShortcut (EVariable a) (EConstant Integer 1)))",
-                new PSubNullSafeCallInvoke(l, node).toString());
-
-        l = new Location(getTestName(), 0);
-        node = new PSubListShortcut(l, List.class, new EBinary(l, Operation.ADD, new EConstant(l, 1), new EConstant(l, 4)));
-        node.prefix = new EVariable(l, "a");
-        assertEquals("(PSubListShortcut (EVariable a) (EBinary (EConstant Integer 1) + (EConstant Integer 4)))", node.toString());
-    }
-
-    public void testPSubMapShortcut() {
-        Location l = new Location(getTestName(), 0);
-        PSubMapShortcut node = new PSubMapShortcut(l, Map.class, new EConstant(l, "cat"));
-        node.prefix = new EVariable(l, "a");
-        assertEquals("(PSubMapShortcut (EVariable a) (EConstant String 'cat'))", node.toString());
-        assertEquals("(PSubNullSafeCallInvoke (PSubMapShortcut (EVariable a) (EConstant String 'cat')))",
-                new PSubNullSafeCallInvoke(l, node).toString());
-
-        l = new Location(getTestName(), 1);
-        node = new PSubMapShortcut(l, Map.class, new EBinary(l, Operation.ADD, new EConstant(l, 1), new EConstant(l, 4)));
-        node.prefix = new EVariable(l, "a");
-        assertEquals("(PSubMapShortcut (EVariable a) (EBinary (EConstant Integer 1) + (EConstant Integer 4)))", node.toString());
-    }
-
-    public void testPSubShortcut() {
-        Location l = new Location(getTestName(), 0);
-        PainlessClass s = painlessLookup.lookupPainlessClass(FeatureTestObject.class);
-        PainlessMethod getter = s.methods.get(PainlessLookupUtility.buildPainlessMethodKey("getX", 0));
-        PainlessMethod setter = s.methods.get(PainlessLookupUtility.buildPainlessMethodKey("setX", 1));
-        PSubShortcut node = new PSubShortcut(l, "x", FeatureTestObject.class.getName(), getter, setter);
-        node.prefix = new EVariable(l, "a");
-        assertEquals("(PSubShortcut (EVariable a) x)", node.toString());
-        assertEquals("(PSubNullSafeCallInvoke (PSubShortcut (EVariable a) x))",
-                new PSubNullSafeCallInvoke(l, node).toString());
     }
 
     public void testSBreak() {

@@ -39,8 +39,6 @@ import java.util.Set;
  */
 final class SSubEachArray extends AStatement {
     private final Variable variable;
-    private AExpression expression;
-    private final SBlock block;
 
     private PainlessCast cast = null;
     private Variable array = null;
@@ -51,8 +49,8 @@ final class SSubEachArray extends AStatement {
         super(location);
 
         this.variable = Objects.requireNonNull(variable);
-        this.expression = Objects.requireNonNull(expression);
-        this.block = block;
+        children.add(Objects.requireNonNull(expression));
+        children.add(block);
     }
 
     @Override
@@ -67,6 +65,8 @@ final class SSubEachArray extends AStatement {
 
     @Override
     void analyze(Locals locals) {
+        AExpression expression = (AExpression)children.get(0);
+
         // We must store the array and index as variables for securing slots on the stack, and
         // also add the location offset to make the names unique in case of nested for each loops.
         array = locals.addVariable(location, expression.actual, "#array" + location.getOffset(), true);
@@ -77,6 +77,9 @@ final class SSubEachArray extends AStatement {
 
     @Override
     void write(MethodWriter writer, Globals globals) {
+        AExpression expression = (AExpression)children.get(0);
+        SBlock block = (SBlock)children.get(1);
+
         writer.writeStatementOffset(location);
 
         expression.write(writer, globals);
@@ -115,6 +118,7 @@ final class SSubEachArray extends AStatement {
 
     @Override
     public String toString() {
-        return singleLineToString(PainlessLookupUtility.typeToCanonicalTypeName(variable.clazz), variable.name, expression, block);
+        return singleLineToString(
+                PainlessLookupUtility.typeToCanonicalTypeName(variable.clazz), variable.name, children.get(0), children.get(1));
     }
 }

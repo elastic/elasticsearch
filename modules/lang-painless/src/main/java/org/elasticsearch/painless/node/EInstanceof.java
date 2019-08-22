@@ -35,7 +35,6 @@ import java.util.Set;
  * Unlike java's, this works for primitive types too.
  */
 public final class EInstanceof extends AExpression {
-    private AExpression expression;
     private final String type;
 
     private Class<?> resolvedType;
@@ -44,22 +43,23 @@ public final class EInstanceof extends AExpression {
 
     public EInstanceof(Location location, AExpression expression, String type) {
         super(location);
-        this.expression = Objects.requireNonNull(expression);
+        children.add(Objects.requireNonNull(expression));
         this.type = Objects.requireNonNull(type);
     }
 
     @Override
     void storeSettings(CompilerSettings settings) {
-        expression.storeSettings(settings);
+        children.get(0).storeSettings(settings);
     }
 
     @Override
     void extractVariables(Set<String> variables) {
-        expression.extractVariables(variables);
+        children.get(0).extractVariables(variables);
     }
 
     @Override
     void analyze(Locals locals) {
+        AExpression expression = (AExpression)children.get(0);
 
         // ensure the specified type is part of the definition
         Class<?> clazz = locals.getPainlessLookup().canonicalTypeNameToType(this.type);
@@ -75,7 +75,7 @@ public final class EInstanceof extends AExpression {
         // analyze and cast the expression
         expression.analyze(locals);
         expression.expected = expression.actual;
-        expression = expression.cast(locals);
+        children.set(0, expression = expression.cast(locals));
 
         // record if the expression returns a primitive
         primitiveExpression = expression.actual.isPrimitive();
@@ -88,6 +88,8 @@ public final class EInstanceof extends AExpression {
 
     @Override
     void write(MethodWriter writer, Globals globals) {
+        AExpression expression = (AExpression)children.get(0);
+
         // primitive types
         if (primitiveExpression) {
             // run the expression anyway (who knows what it does)
@@ -105,6 +107,6 @@ public final class EInstanceof extends AExpression {
 
     @Override
     public String toString() {
-        return singleLineToString(expression, type);
+        return singleLineToString(children.get(0), type);
     }
 }

@@ -50,7 +50,6 @@ public final class SFunction extends AStatement {
     public final String name;
     private final List<String> paramTypeStrs;
     private final List<String> paramNameStrs;
-    private final List<AStatement> statements;
     public final boolean synthetic;
 
     private CompilerSettings settings;
@@ -65,7 +64,7 @@ public final class SFunction extends AStatement {
     private Variable loop = null;
 
     public SFunction(Location location, String rtnType, String name,
-                     List<String> paramTypes, List<String> paramNames, List<AStatement> statements,
+                     List<String> paramTypes, List<String> paramNames, List<ANode> statements,
                      boolean synthetic) {
         super(location);
 
@@ -73,13 +72,13 @@ public final class SFunction extends AStatement {
         this.name = Objects.requireNonNull(name);
         this.paramTypeStrs = Collections.unmodifiableList(paramTypes);
         this.paramNameStrs = Collections.unmodifiableList(paramNames);
-        this.statements = Collections.unmodifiableList(statements);
+        children.addAll(statements);
         this.synthetic = synthetic;
     }
 
     @Override
     void storeSettings(CompilerSettings settings) {
-        for (AStatement statement : statements) {
+        for (ANode statement : children) {
             statement.storeSettings(settings);
         }
 
@@ -88,7 +87,7 @@ public final class SFunction extends AStatement {
 
     @Override
     void extractVariables(Set<String> variables) {
-        for (AStatement statement : statements) {
+        for (ANode statement : children) {
             // we reset the list for function scope
             // note this is not stored for this node
             // but still required for lambdas
@@ -131,15 +130,17 @@ public final class SFunction extends AStatement {
 
     @Override
     void analyze(Locals locals) {
-        if (statements == null || statements.isEmpty()) {
+        if (children.isEmpty()) {
             throw createError(new IllegalArgumentException("Cannot generate an empty function [" + name + "]."));
         }
 
         locals = Locals.newLocalScope(locals);
 
-        AStatement last = statements.get(statements.size() - 1);
+        AStatement last = (AStatement)children.get(children.size() - 1);
 
-        for (AStatement statement : statements) {
+        for (ANode node : children) {
+            AStatement statement = (AStatement)node;
+
             // Note that we do not need to check after the last statement because
             // there is no statement that can be unreachable after the last.
             if (allEscape) {
@@ -184,7 +185,7 @@ public final class SFunction extends AStatement {
             function.visitVarInsn(Opcodes.ISTORE, loop.getSlot());
         }
 
-        for (AStatement statement : statements) {
+        for (ANode statement : children) {
             statement.write(function, globals);
         }
 
@@ -205,6 +206,6 @@ public final class SFunction extends AStatement {
         if (false == (paramTypeStrs.isEmpty() && paramNameStrs.isEmpty())) {
             description.add(joinWithName("Args", pairwiseToString(paramTypeStrs, paramNameStrs), emptyList()));
         }
-        return multilineToString(description, statements);
+        return multilineToString(description, children);
     }
 }

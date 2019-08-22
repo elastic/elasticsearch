@@ -33,15 +33,6 @@ import java.util.Objects;
 public abstract class AExpression extends ANode {
 
     /**
-     * Prefix is the predecessor to this node in a variable chain.
-     * This is used to analyze and write variable chains in a
-     * more natural order since the parent node of a variable
-     * chain will want the data from the final postfix to be
-     * analyzed.
-     */
-    AExpression prefix;
-
-    /**
      * Set to false when an expression will not be read from such as
      * a basic assignment.  Note this variable is always set by the parent
      * as input.
@@ -99,8 +90,6 @@ public abstract class AExpression extends ANode {
      */
     AExpression(Location location) {
         super(location);
-
-        prefix = null;
     }
 
     /**
@@ -109,7 +98,7 @@ public abstract class AExpression extends ANode {
     AExpression(Location location, AExpression prefix) {
         super(location);
 
-        this.prefix = Objects.requireNonNull(prefix);
+        children.add(Objects.requireNonNull(prefix));
     }
 
     /**

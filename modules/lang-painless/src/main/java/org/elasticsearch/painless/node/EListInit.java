@@ -40,27 +40,25 @@ import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCano
  * Represents a list initialization shortcut.
  */
 public final class EListInit extends AExpression {
-    private final List<AExpression> values;
-
     private PainlessConstructor constructor = null;
     private PainlessMethod method = null;
 
     public EListInit(Location location, List<AExpression> values) {
         super(location);
 
-        this.values = values;
+        children.addAll(values);
     }
 
     @Override
     void storeSettings(CompilerSettings settings) {
-        for (AExpression value : values) {
+        for (ANode value : children) {
             value.storeSettings(settings);
         }
     }
 
     @Override
     void extractVariables(Set<String> variables) {
-        for (AExpression value : values) {
+        for (ANode value : children) {
             value.extractVariables(variables);
         }
     }
@@ -86,13 +84,13 @@ public final class EListInit extends AExpression {
             throw createError(new IllegalArgumentException("method [" + typeToCanonicalTypeName(actual) + ", add/1] not found"));
         }
 
-        for (int index = 0; index < values.size(); ++index) {
-            AExpression expression = values.get(index);
+        for (int index = 0; index < children.size(); ++index) {
+            AExpression expression = (AExpression)children.get(index);
 
             expression.expected = def.class;
             expression.internal = true;
             expression.analyze(locals);
-            values.set(index, expression.cast(locals));
+            children.set(index, expression.cast(locals));
         }
     }
 
@@ -105,7 +103,7 @@ public final class EListInit extends AExpression {
         writer.invokeConstructor(
                     Type.getType(constructor.javaConstructor.getDeclaringClass()), Method.getMethod(constructor.javaConstructor));
 
-        for (AExpression value : values) {
+        for (ANode value : children) {
             writer.dup();
             value.write(writer, globals);
             writer.invokeMethodCall(method);
@@ -115,6 +113,6 @@ public final class EListInit extends AExpression {
 
     @Override
     public String toString() {
-        return singleLineToString(values);
+        return singleLineToString(children);
     }
 }

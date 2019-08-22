@@ -37,14 +37,13 @@ final class PSubCallInvoke extends AExpression {
 
     private final PainlessMethod method;
     private final Class<?> box;
-    private final List<AExpression> arguments;
 
-    PSubCallInvoke(Location location, PainlessMethod method, Class<?> box, List<AExpression> arguments) {
+    PSubCallInvoke(Location location, PainlessMethod method, Class<?> box, List<ANode> arguments) {
         super(location);
 
         this.method = Objects.requireNonNull(method);
         this.box = box;
-        this.arguments = Objects.requireNonNull(arguments);
+        children.addAll(Objects.requireNonNull(arguments));
     }
 
     @Override
@@ -59,13 +58,13 @@ final class PSubCallInvoke extends AExpression {
 
     @Override
     void analyze(Locals locals) {
-        for (int argument = 0; argument < arguments.size(); ++argument) {
-            AExpression expression = arguments.get(argument);
+        for (int argument = 0; argument < children.size(); ++argument) {
+            AExpression expression = (AExpression)children.get(argument);
 
             expression.expected = method.typeParameters.get(argument);
             expression.internal = true;
             expression.analyze(locals);
-            arguments.set(argument, expression.cast(locals));
+            children.set(argument, expression.cast(locals));
         }
 
         statement = true;
@@ -80,7 +79,7 @@ final class PSubCallInvoke extends AExpression {
             writer.box(MethodWriter.getType(box));
         }
 
-        for (AExpression argument : arguments) {
+        for (ANode argument : children) {
             argument.write(writer, globals);
         }
 
@@ -89,6 +88,6 @@ final class PSubCallInvoke extends AExpression {
 
     @Override
     public String toString() {
-        return singleLineToStringWithOptionalArgs(arguments, prefix, method.javaMethod.getName());
+        throw new UnsupportedOperationException("unexpected node");
     }
 }

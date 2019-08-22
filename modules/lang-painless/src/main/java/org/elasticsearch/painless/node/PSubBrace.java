@@ -34,13 +34,12 @@ import java.util.Set;
 final class PSubBrace extends AStoreable {
 
     private final Class<?> clazz;
-    private AExpression index;
 
     PSubBrace(Location location, Class<?> clazz, AExpression index) {
         super(location);
 
         this.clazz = Objects.requireNonNull(clazz);
-        this.index = Objects.requireNonNull(index);
+        children.add(Objects.requireNonNull(index));
     }
 
     @Override
@@ -55,9 +54,11 @@ final class PSubBrace extends AStoreable {
 
     @Override
     void analyze(Locals locals) {
+        AExpression index = (AExpression)children.get(0);
+
         index.expected = int.class;
         index.analyze(locals);
-        index = index.cast(locals);
+        children.set(0, index.cast(locals));
 
         actual = clazz.getComponentType();
     }
@@ -85,7 +86,7 @@ final class PSubBrace extends AStoreable {
 
     @Override
     void setup(MethodWriter writer, Globals globals) {
-        index.write(writer, globals);
+        children.get(0).write(writer, globals);
         writeIndexFlip(writer, MethodWriter::arrayLength);
     }
 
@@ -103,6 +104,6 @@ final class PSubBrace extends AStoreable {
 
     @Override
     public String toString() {
-        return singleLineToString(prefix, index);
+        throw new UnsupportedOperationException("unexpected node");
     }
 }

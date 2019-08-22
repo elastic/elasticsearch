@@ -48,10 +48,28 @@ public abstract class ANode {
     final Location location;
 
     /**
+     * Child nodes.
+     */
+    final List<ANode> children;
+
+    /**
      * Standard constructor with location used for error tracking.
      */
     ANode(Location location) {
         this.location = Objects.requireNonNull(location);
+        children = new ArrayList<>();
+    }
+
+    public void addChild(ANode child) {
+        children.add(child);
+    }
+
+    public void setChild(int index, ANode child) {
+        children.set(index, child);
+    }
+
+    public void removeChild(int index) {
+        children.remove(index);
     }
 
     /**

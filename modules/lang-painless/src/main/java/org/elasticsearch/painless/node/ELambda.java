@@ -64,7 +64,6 @@ public final class ELambda extends AExpression implements ILambda {
 
     private final List<String> paramTypeStrs;
     private final List<String> paramNameStrs;
-    private final List<AStatement> statements;
 
     private CompilerSettings settings;
 
@@ -85,14 +84,14 @@ public final class ELambda extends AExpression implements ILambda {
         super(location);
         this.paramTypeStrs = Collections.unmodifiableList(paramTypes);
         this.paramNameStrs = Collections.unmodifiableList(paramNames);
-        this.statements = Collections.unmodifiableList(statements);
+        children.addAll(statements);
 
         this.extractedVariables = new HashSet<>();
     }
 
     @Override
     void storeSettings(CompilerSettings settings) {
-        for (AStatement statement : statements) {
+        for (ANode statement : children) {
             statement.storeSettings(settings);
         }
 
@@ -101,7 +100,7 @@ public final class ELambda extends AExpression implements ILambda {
 
     @Override
     void extractVariables(Set<String> variables) {
-        for (AStatement statement : statements) {
+        for (ANode statement : children) {
             statement.extractVariables(extractedVariables);
         }
 
@@ -176,7 +175,7 @@ public final class ELambda extends AExpression implements ILambda {
         // desugar lambda body into a synthetic method
         String name = locals.getNextSyntheticName();
         desugared = new SFunction(
-                location, PainlessLookupUtility.typeToCanonicalTypeName(returnType), name, paramTypes, paramNames, statements, true);
+                location, PainlessLookupUtility.typeToCanonicalTypeName(returnType), name, paramTypes, paramNames, children, true);
         desugared.storeSettings(settings);
         desugared.generateSignature(locals.getPainlessLookup());
         desugared.analyze(Locals.newLambdaScope(locals.getProgramScope(), desugared.name, returnType,
@@ -236,6 +235,6 @@ public final class ELambda extends AExpression implements ILambda {
 
     @Override
     public String toString() {
-        return multilineToString(pairwiseToString(paramTypeStrs, paramNameStrs), statements);
+        return multilineToString(pairwiseToString(paramTypeStrs, paramNameStrs), children);
     }
 }

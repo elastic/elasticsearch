@@ -36,7 +36,6 @@ import java.util.Set;
 final class PSubMapShortcut extends AStoreable {
 
     private final Class<?> targetClass;
-    private AExpression index;
 
     private PainlessMethod getter;
     private PainlessMethod setter;
@@ -45,7 +44,7 @@ final class PSubMapShortcut extends AStoreable {
         super(location);
 
         this.targetClass = Objects.requireNonNull(targetClass);
-        this.index = Objects.requireNonNull(index);
+        children.add(Objects.requireNonNull(index));
     }
 
     @Override
@@ -79,9 +78,11 @@ final class PSubMapShortcut extends AStoreable {
         }
 
         if ((read || write) && (!read || getter != null) && (!write || setter != null)) {
+            AExpression index = (AExpression)children.get(0);
+
             index.expected = setter != null ? setter.typeParameters.get(0) : getter.typeParameters.get(0);
             index.analyze(locals);
-            index = index.cast(locals);
+            children.set(0, index.cast(locals));
 
             actual = setter != null ? setter.typeParameters.get(1) : getter.returnType;
         } else {
@@ -91,7 +92,7 @@ final class PSubMapShortcut extends AStoreable {
 
     @Override
     void write(MethodWriter writer, Globals globals) {
-        index.write(writer, globals);
+        children.get(0).write(writer, globals);
 
         writer.writeDebugInfo(location);
         writer.invokeMethodCall(getter);
@@ -118,7 +119,7 @@ final class PSubMapShortcut extends AStoreable {
 
     @Override
     void setup(MethodWriter writer, Globals globals) {
-        index.write(writer, globals);
+        children.get(0).write(writer, globals);
     }
 
     @Override
@@ -140,6 +141,6 @@ final class PSubMapShortcut extends AStoreable {
 
     @Override
     public String toString() {
-        return singleLineToString(prefix, index);
+        throw new UnsupportedOperationException("unexpected node");
     }
 }

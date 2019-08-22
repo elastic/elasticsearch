@@ -41,16 +41,15 @@ import java.util.Set;
 final class PSubDefCall extends AExpression {
 
     private final String name;
-    private final List<AExpression> arguments;
 
     private StringBuilder recipe = null;
     private List<String> pointers = new ArrayList<>();
 
-    PSubDefCall(Location location, String name, List<AExpression> arguments) {
+    PSubDefCall(Location location, String name, List<ANode> arguments) {
         super(location);
 
         this.name = Objects.requireNonNull(name);
-        this.arguments = Objects.requireNonNull(arguments);
+        children.addAll(Objects.requireNonNull(arguments));
     }
 
     @Override
@@ -68,8 +67,8 @@ final class PSubDefCall extends AExpression {
         recipe = new StringBuilder();
         int totalCaptures = 0;
 
-        for (int argument = 0; argument < arguments.size(); ++argument) {
-            AExpression expression = arguments.get(argument);
+        for (int argument = 0; argument < children.size(); ++argument) {
+            AExpression expression = (AExpression)children.get(argument);
 
             expression.internal = true;
             expression.analyze(locals);
@@ -88,7 +87,7 @@ final class PSubDefCall extends AExpression {
             }
 
             expression.expected = expression.actual;
-            arguments.set(argument, expression.cast(locals));
+            children.set(argument, expression.cast(locals));
         }
 
         // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
@@ -105,7 +104,8 @@ final class PSubDefCall extends AExpression {
         parameterTypes.add(org.objectweb.asm.Type.getType(Object.class));
 
         // append each argument
-        for (AExpression argument : arguments) {
+        for (ANode child : children) {
+            AExpression argument = (AExpression)child;
             parameterTypes.add(MethodWriter.getType(argument.actual));
 
             if (argument instanceof ILambda) {
@@ -127,6 +127,6 @@ final class PSubDefCall extends AExpression {
 
     @Override
     public String toString() {
-        return singleLineToStringWithOptionalArgs(arguments, prefix, name);
+        throw new UnsupportedOperationException("unexpected node");
     }
 }

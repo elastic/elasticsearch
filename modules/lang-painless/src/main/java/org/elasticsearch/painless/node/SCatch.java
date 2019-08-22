@@ -38,7 +38,6 @@ public final class SCatch extends AStatement {
 
     private final String type;
     private final String name;
-    private final SBlock block;
 
     private Variable variable = null;
 
@@ -51,25 +50,29 @@ public final class SCatch extends AStatement {
 
         this.type = Objects.requireNonNull(type);
         this.name = Objects.requireNonNull(name);
-        this.block = block;
+        children.add(block);
     }
 
     @Override
     void storeSettings(CompilerSettings settings) {
-        block.storeSettings(settings);
+        if (children.get(0) != null) {
+            children.get(0).storeSettings(settings);
+        }
     }
 
     @Override
     void extractVariables(Set<String> variables) {
         variables.add(name);
 
-        if (block != null) {
-            block.extractVariables(variables);
+        if (children.get(0) != null) {
+            children.get(0).extractVariables(variables);
         }
     }
 
     @Override
     void analyze(Locals locals) {
+        SBlock block = (SBlock)children.get(0);
+
         Class<?> clazz = locals.getPainlessLookup().canonicalTypeNameToType(this.type);
 
         if (clazz == null) {
@@ -100,6 +103,8 @@ public final class SCatch extends AStatement {
 
     @Override
     void write(MethodWriter writer, Globals globals) {
+        SBlock block = (SBlock)children.get(0);
+
         writer.writeStatementOffset(location);
 
         Label jump = new Label();
@@ -115,13 +120,13 @@ public final class SCatch extends AStatement {
 
         writer.visitTryCatchBlock(begin, end, jump, MethodWriter.getType(variable.clazz).getInternalName());
 
-        if (exception != null && !block.allEscape) {
+        if (exception != null && (block == null || !block.allEscape)) {
             writer.goTo(exception);
         }
     }
 
     @Override
     public String toString() {
-        return singleLineToString(type, name, block);
+        return singleLineToString(type, name, children.get(0));
     }
 }

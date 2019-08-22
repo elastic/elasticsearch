@@ -104,6 +104,6 @@ final class PSubArrayLength extends AStoreable {
 
     @Override
     public String toString() {
-        return singleLineToString(prefix);
+        throw new UnsupportedOperationException("unexpected node");
     }
 }

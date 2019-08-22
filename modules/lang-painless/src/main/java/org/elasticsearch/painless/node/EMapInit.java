@@ -30,6 +30,7 @@ import org.elasticsearch.painless.lookup.def;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.commons.Method;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
@@ -40,38 +41,26 @@ import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCano
  * Represents a map initialization shortcut.
  */
 public final class EMapInit extends AExpression {
-    private final List<AExpression> keys;
-    private final List<AExpression> values;
-
     private PainlessConstructor constructor = null;
     private PainlessMethod method = null;
 
-    public EMapInit(Location location, List<AExpression> keys, List<AExpression> values) {
+    public EMapInit(Location location, List<AExpression> pairs) {
         super(location);
 
-        this.keys = keys;
-        this.values = values;
+        children.addAll(pairs);
     }
 
     @Override
     void storeSettings(CompilerSettings settings) {
-        for (AExpression key : keys) {
-            key.storeSettings(settings);
-        }
-
-        for (AExpression value : values) {
-            value.storeSettings(settings);
+        for (ANode pair : children) {
+            pair.storeSettings(settings);
         }
     }
 
     @Override
     void extractVariables(Set<String> variables) {
-        for (AExpression key : keys) {
-            key.extractVariables(variables);
-        }
-
-        for (AExpression value : values) {
-            value.extractVariables(variables);
+        for (ANode pair : children) {
+            pair.extractVariables(variables);
         }
     }
 
@@ -79,6 +68,10 @@ public final class EMapInit extends AExpression {
     void analyze(Locals locals) {
         if (!read) {
             throw createError(new IllegalArgumentException("Must read from map initializer."));
+        }
+
+        if (children.size()%2 == 1) {
+            throw createError(new IllegalStateException("illegal tree structure"));
         }
 
         actual = HashMap.class;
@@ -96,26 +89,13 @@ public final class EMapInit extends AExpression {
             throw createError(new IllegalArgumentException("method [" + typeToCanonicalTypeName(actual) + ", put/2] not found"));
         }
 
-        if (keys.size() != values.size()) {
-            throw createError(new IllegalStateException("Illegal tree structure."));
-        }
-
-        for (int index = 0; index < keys.size(); ++index) {
-            AExpression expression = keys.get(index);
+        for (int index = 0; index < children.size(); ++index) {
+            AExpression expression = (AExpression)children.get(index);
 
             expression.expected = def.class;
             expression.internal = true;
             expression.analyze(locals);
-            keys.set(index, expression.cast(locals));
-        }
-
-        for (int index = 0; index < values.size(); ++index) {
-            AExpression expression = values.get(index);
-
-            expression.expected = def.class;
-            expression.internal = true;
-            expression.analyze(locals);
-            values.set(index, expression.cast(locals));
+            children.set(index, expression.cast(locals));
         }
     }
 
@@ -128,9 +108,9 @@ public final class EMapInit extends AExpression {
         writer.invokeConstructor(
                     Type.getType(constructor.javaConstructor.getDeclaringClass()), Method.getMethod(constructor.javaConstructor));
 
-        for (int index = 0; index < keys.size(); ++index) {
-            AExpression key = keys.get(index);
-            AExpression value = values.get(index);
+        for (int index = 0; index < children.size(); ++index) {
+            AExpression key = (AExpression)children.get(index++);
+            AExpression value = (AExpression)children.get(index);
 
             writer.dup();
             key.write(writer, globals);
@@ -142,6 +122,14 @@ public final class EMapInit extends AExpression {
 
     @Override
     public String toString() {
+        List<ANode> keys = new ArrayList<>();
+        List<ANode> values = new ArrayList<>();
+
+        for (int index = 0; index < children.size(); ++index) {
+            keys.add(children.get(index++));
+            values.add(children.get(index));
+        }
+
         return singleLineToString(pairwiseToString(keys, values));
     }
 }

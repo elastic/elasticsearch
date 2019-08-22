@@ -45,7 +45,6 @@ import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
 public final class ECallLocal extends AExpression {
 
     private final String name;
-    private final List<AExpression> arguments;
 
     private LocalMethod localMethod = null;
     private PainlessMethod importedMethod = null;
@@ -57,32 +56,32 @@ public final class ECallLocal extends AExpression {
         super(location);
 
         this.name = Objects.requireNonNull(name);
-        this.arguments = Objects.requireNonNull(arguments);
+        children.addAll(arguments);
     }
 
     @Override
     void storeSettings(CompilerSettings settings) {
-        for (AExpression argument : arguments) {
+        for (ANode argument : children) {
             argument.storeSettings(settings);
         }
     }
 
     @Override
     void extractVariables(Set<String> variables) {
-        for (AExpression argument : arguments) {
+        for (ANode argument : children) {
             argument.extractVariables(variables);
         }
     }
 
     @Override
     void analyze(Locals locals) {
-        localMethod = locals.getMethod(name, arguments.size());
+        localMethod = locals.getMethod(name, children.size());
 
         if (localMethod == null) {
-            importedMethod = locals.getPainlessLookup().lookupImportedPainlessMethod(name, arguments.size());
+            importedMethod = locals.getPainlessLookup().lookupImportedPainlessMethod(name, children.size());
 
             if (importedMethod == null) {
-                classBinding = locals.getPainlessLookup().lookupPainlessClassBinding(name, arguments.size());
+                classBinding = locals.getPainlessLookup().lookupPainlessClassBinding(name, children.size());
 
                 // check to see if this class binding requires an implicit this reference
                 if (classBinding != null && classBinding.typeParameters.isEmpty() == false &&
@@ -97,7 +96,7 @@ public final class ECallLocal extends AExpression {
                     // will likely involve adding a class instance binding where any instance can have a class binding
                     // as part of its API.  However, the situation at run-time is difficult and will modifications that
                     // are a substantial change if even possible to do.
-                    classBinding = locals.getPainlessLookup().lookupPainlessClassBinding(name, arguments.size() + 1);
+                    classBinding = locals.getPainlessLookup().lookupPainlessClassBinding(name, children.size() + 1);
 
                     if (classBinding != null) {
                         if (classBinding.typeParameters.isEmpty() == false &&
@@ -109,11 +108,11 @@ public final class ECallLocal extends AExpression {
                     }
 
                     if (classBinding == null) {
-                        instanceBinding = locals.getPainlessLookup().lookupPainlessInstanceBinding(name, arguments.size());
+                        instanceBinding = locals.getPainlessLookup().lookupPainlessInstanceBinding(name, children.size());
 
                         if (instanceBinding == null) {
                             throw createError(new IllegalArgumentException(
-                                    "Unknown call [" + name + "] with [" + arguments.size() + "] arguments."));
+                                    "Unknown call [" + name + "] with [" + children.size() + "] arguments."));
                         }
                     }
                 }
@@ -141,13 +140,13 @@ public final class ECallLocal extends AExpression {
         // if the class binding is using an implicit this reference then the arguments counted must
         // be incremented by 1 as the this reference will not be part of the arguments passed into
         // the class binding call
-        for (int argument = 0; argument < arguments.size(); ++argument) {
-            AExpression expression = arguments.get(argument);
+        for (int argument = 0; argument < children.size(); ++argument) {
+            AExpression expression = (AExpression)children.get(argument);
 
             expression.expected = typeParameters.get(argument + classBindingOffset);
             expression.internal = true;
             expression.analyze(locals);
-            arguments.set(argument, expression.cast(locals));
+            children.set(argument, expression.cast(locals));
         }
 
         statement = true;
@@ -158,13 +157,13 @@ public final class ECallLocal extends AExpression {
         writer.writeDebugInfo(location);
 
         if (localMethod != null) {
-            for (AExpression argument : arguments) {
+            for (ANode argument : children) {
                 argument.write(writer, globals);
             }
 
             writer.invokeStatic(CLASS_TYPE, new Method(localMethod.name, localMethod.methodType.toMethodDescriptorString()));
         } else if (importedMethod != null) {
-            for (AExpression argument : arguments) {
+            for (ANode argument : children) {
                 argument.write(writer, globals);
             }
 
@@ -189,7 +188,7 @@ public final class ECallLocal extends AExpression {
             }
 
             for (int argument = 0; argument < javaConstructorParameterCount; ++argument) {
-                arguments.get(argument).write(writer, globals);
+                children.get(argument).write(writer, globals);
             }
 
             writer.invokeConstructor(type, Method.getMethod(classBinding.javaConstructor));
@@ -200,7 +199,7 @@ public final class ECallLocal extends AExpression {
             writer.getField(CLASS_TYPE, name, type);
 
             for (int argument = 0; argument < classBinding.javaMethod.getParameterCount(); ++argument) {
-                arguments.get(argument + javaConstructorParameterCount).write(writer, globals);
+                children.get(argument + javaConstructorParameterCount).write(writer, globals);
             }
 
             writer.invokeVirtual(type, Method.getMethod(classBinding.javaMethod));
@@ -212,7 +211,7 @@ public final class ECallLocal extends AExpression {
             writer.getStatic(CLASS_TYPE, name, type);
 
             for (int argument = 0; argument < instanceBinding.javaMethod.getParameterCount(); ++argument) {
-                arguments.get(argument).write(writer, globals);
+                children.get(argument).write(writer, globals);
             }
 
             writer.invokeVirtual(type, Method.getMethod(instanceBinding.javaMethod));
@@ -223,6 +222,6 @@ public final class ECallLocal extends AExpression {
 
     @Override
     public String toString() {
-        return singleLineToStringWithOptionalArgs(arguments, name);
+        return singleLineToStringWithOptionalArgs(children, name);
     }
 }

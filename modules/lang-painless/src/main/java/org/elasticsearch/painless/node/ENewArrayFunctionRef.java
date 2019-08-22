@@ -39,7 +39,6 @@ public final class ENewArrayFunctionRef extends AExpression implements ILambda {
 
     private CompilerSettings settings;
 
-    private SFunction function;
     private FunctionRef ref;
     private String defPointer;
 
@@ -62,8 +61,9 @@ public final class ENewArrayFunctionRef extends AExpression implements ILambda {
     @Override
     void analyze(Locals locals) {
         SReturn code = new SReturn(location, new ENewArray(location, type, Arrays.asList(new EVariable(location, "size")), false));
-        function = new SFunction(location, type, locals.getNextSyntheticName(),
+        SFunction function = new SFunction(location, type, locals.getNextSyntheticName(),
                 Arrays.asList("int"), Arrays.asList("size"), Arrays.asList(code), true);
+        children.add(function);
         function.storeSettings(settings);
         function.generateSignature(locals.getPainlessLookup());
         function.extractVariables(null);
@@ -91,7 +91,7 @@ public final class ENewArrayFunctionRef extends AExpression implements ILambda {
             writer.push((String)null);
         }
 
-        globals.addSyntheticMethod(function);
+        globals.addSyntheticMethod((SFunction)children.get(0));
     }
 
     @Override

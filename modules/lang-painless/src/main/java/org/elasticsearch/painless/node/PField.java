@@ -55,19 +55,21 @@ public final class PField extends AStoreable {
 
     @Override
     void storeSettings(CompilerSettings settings) {
-        prefix.storeSettings(settings);
+        children.get(0).storeSettings(settings);
     }
 
     @Override
     void extractVariables(Set<String> variables) {
-        prefix.extractVariables(variables);
+        children.get(0).extractVariables(variables);
     }
 
     @Override
     void analyze(Locals locals) {
+        AExpression prefix = (AExpression)children.get(0);
+
         prefix.analyze(locals);
         prefix.expected = prefix.actual;
-        prefix = prefix.cast(locals);
+        children.set(0, prefix = prefix.cast(locals));
 
         if (prefix.actual.isArray()) {
             sub = new PSubArrayLength(location, PainlessLookupUtility.typeToCanonicalTypeName(prefix.actual), value);
@@ -129,7 +131,7 @@ public final class PField extends AStoreable {
 
     @Override
     void write(MethodWriter writer, Globals globals) {
-        prefix.write(writer, globals);
+        children.get(0).write(writer, globals);
         sub.write(writer, globals);
     }
 
@@ -151,7 +153,7 @@ public final class PField extends AStoreable {
 
     @Override
     void setup(MethodWriter writer, Globals globals) {
-        prefix.write(writer, globals);
+        children.get(0).write(writer, globals);
         sub.setup(writer, globals);
     }
 
@@ -168,8 +170,8 @@ public final class PField extends AStoreable {
     @Override
     public String toString() {
         if (nullSafe) {
-            return singleLineToString("nullSafe", prefix, value);
+            return singleLineToString("nullSafe", children.get(0), value);
         }
-        return singleLineToString(prefix, value);
+        return singleLineToString(children.get(0), value);
     }
 }

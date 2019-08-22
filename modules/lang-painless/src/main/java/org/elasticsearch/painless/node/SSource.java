@@ -43,7 +43,6 @@ import java.lang.invoke.MethodType;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -83,9 +82,8 @@ public final class SSource extends AStatement {
     private final ScriptClassInfo scriptClassInfo;
     private final String name;
     private final Printer debugStream;
-    private final List<SFunction> functions;
+    private final int functionCount;
     private final Globals globals;
-    private final List<AStatement> statements;
 
     private CompilerSettings settings;
 
@@ -100,8 +98,9 @@ public final class SSource extends AStatement {
         this.scriptClassInfo = Objects.requireNonNull(scriptClassInfo);
         this.name = Objects.requireNonNull(name);
         this.debugStream = debugStream;
-        this.functions = Collections.unmodifiableList(functions);
-        this.statements = Collections.unmodifiableList(statements);
+        children.addAll(functions);
+        this.functionCount = functions.size();
+        children.addAll(statements);
         this.globals = new Globals(new BitSet(sourceText.length()));
 
         this.extractedVariables = new HashSet<>();
@@ -110,12 +109,8 @@ public final class SSource extends AStatement {
 
     @Override
     public void storeSettings(CompilerSettings settings) {
-        for (SFunction function : functions) {
-            function.storeSettings(settings);
-        }
-
-        for (AStatement statement : statements) {
-            statement.storeSettings(settings);
+        for (ANode child : children) {
+            child.storeSettings(settings);
         }
 
         this.settings = settings;
@@ -123,12 +118,12 @@ public final class SSource extends AStatement {
 
     @Override
     public void extractVariables(Set<String> variables) {
-        for (SFunction function : functions) {
-            function.extractVariables(null);
-        }
-
-        for (AStatement statement : statements) {
-            statement.extractVariables(variables);
+        for (ANode child : children) {
+            if (child instanceof SFunction) {
+                child.extractVariables(null);
+            } else {
+                child.extractVariables(variables);
+            }
         }
 
         extractedVariables.addAll(variables);
@@ -137,14 +132,19 @@ public final class SSource extends AStatement {
     public void analyze(PainlessLookup painlessLookup) {
         Map<String, LocalMethod> methods = new HashMap<>();
 
-        for (SFunction function : functions) {
-            function.generateSignature(painlessLookup);
+        for (ANode child : children) {
+            if (child instanceof SFunction) {
+                SFunction function = (SFunction)child;
+                function.generateSignature(painlessLookup);
 
-            String key = Locals.buildLocalMethodKey(function.name, function.parameters.size());
+                String key = Locals.buildLocalMethodKey(function.name, function.parameters.size());
 
-            if (methods.put(key,
-                    new LocalMethod(function.name, function.returnType, function.typeParameters, function.methodType)) != null) {
-                throw createError(new IllegalArgumentException("Duplicate functions with name [" + function.name + "]."));
+                if (methods.put(key,
+                        new LocalMethod(function.name, function.returnType, function.typeParameters, function.methodType)) != null) {
+                    throw createError(new IllegalArgumentException("Duplicate functions with name [" + function.name + "]."));
+                }
+            } else {
+                break;
             }
         }
 
@@ -154,13 +154,18 @@ public final class SSource extends AStatement {
 
     @Override
     void analyze(Locals program) {
-        for (SFunction function : functions) {
-            Locals functionLocals =
-                Locals.newFunctionScope(program, function.returnType, function.parameters, settings.getMaxLoopCounter());
-            function.analyze(functionLocals);
+        for (ANode child : children) {
+            if (child instanceof SFunction) {
+                SFunction function = (SFunction) child;
+                Locals functionLocals =
+                        Locals.newFunctionScope(program, function.returnType, function.parameters, settings.getMaxLoopCounter());
+                function.analyze(functionLocals);
+            } else {
+                break;
+            }
         }
 
-        if (statements == null || statements.isEmpty()) {
+        if (children.size() - functionCount == 0) {
             throw createError(new IllegalArgumentException("Cannot generate an empty script."));
         }
 
@@ -178,9 +183,11 @@ public final class SSource extends AStatement {
             }
         }
 
-        AStatement last = statements.get(statements.size() - 1);
+        AStatement last = (AStatement)children.get(children.size() - 1);
 
-        for (AStatement statement : statements) {
+        for (int statementIndex = functionCount; statementIndex < children.size(); ++statementIndex) {
+            AStatement statement = (AStatement)children.get(statementIndex);
+
             // Note that we do not need to check after the last statement because
             // there is no statement that can be unreachable after the last.
             if (allEscape) {
@@ -288,8 +295,12 @@ public final class SSource extends AStatement {
         executeMethod.endMethod();
 
         // Write all functions:
-        for (SFunction function : functions) {
-            function.write(visitor, settings, globals);
+        for (ANode child : children) {
+            if (child instanceof SFunction) {
+                ((SFunction)child).write(visitor, settings, globals);
+            } else {
+                break;
+            }
         }
 
         // Write all synthetic functions. Note that this process may add more :)
@@ -398,9 +409,10 @@ public final class SSource extends AStatement {
             writer.visitVarInsn(method.getReturnType().getOpcode(Opcodes.ISTORE), variable.getSlot());
         }
 
-        for (AStatement statement : statements) {
-            statement.write(writer, globals);
+        for (int statementIndex = functionCount; statementIndex < children.size(); ++statementIndex) {
+            children.get(statementIndex).write(writer, globals);
         }
+
         if (!methodEscape) {
             switch (scriptClassInfo.getExecuteMethod().getReturnType().getSort()) {
                 case org.objectweb.asm.Type.VOID:
@@ -476,9 +488,6 @@ public final class SSource extends AStatement {
 
     @Override
     public String toString() {
-        List<Object> subs = new ArrayList<>(functions.size() + statements.size());
-        subs.addAll(functions);
-        subs.addAll(statements);
-        return multilineToString(emptyList(), subs);
+        return multilineToString(emptyList(), children);
     }
 }

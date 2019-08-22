@@ -34,27 +34,28 @@ import java.util.Set;
 public final class EExplicit extends AExpression {
 
     private final String type;
-    private AExpression child;
 
     public EExplicit(Location location, String type, AExpression child) {
         super(location);
 
         this.type = Objects.requireNonNull(type);
-        this.child = Objects.requireNonNull(child);
+        children.add(Objects.requireNonNull(child));
     }
 
     @Override
     void storeSettings(CompilerSettings settings) {
-        child.storeSettings(settings);
+        children.get(0).storeSettings(settings);
     }
 
     @Override
     void extractVariables(Set<String> variables) {
-        child.extractVariables(variables);
+        children.get(0).extractVariables(variables);
     }
 
     @Override
     void analyze(Locals locals) {
+        AExpression child = (AExpression)children.get(0);
+
         actual = locals.getPainlessLookup().canonicalTypeNameToType(type);
 
         if (actual == null) {
@@ -64,7 +65,7 @@ public final class EExplicit extends AExpression {
         child.expected = actual;
         child.explicit = true;
         child.analyze(locals);
-        child = child.cast(locals);
+        children.set(0, child.cast(locals));
     }
 
     @Override
@@ -73,6 +74,8 @@ public final class EExplicit extends AExpression {
     }
 
     AExpression cast(Locals locals) {
+        AExpression child = (AExpression)children.get(0);
+
         child.expected = expected;
         child.explicit = explicit;
         child.internal = internal;
@@ -82,6 +85,6 @@ public final class EExplicit extends AExpression {
 
     @Override
     public String toString() {
-        return singleLineToString(type, child);
+        return singleLineToString(type, children.get(0));
     }
 }

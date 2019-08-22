@@ -48,8 +48,6 @@ import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCano
  */
 final class SSubEachIterable extends AStatement {
 
-    private AExpression expression;
-    private final SBlock block;
     private final Variable variable;
 
     private PainlessCast cast = null;
@@ -60,8 +58,8 @@ final class SSubEachIterable extends AStatement {
         super(location);
 
         this.variable = Objects.requireNonNull(variable);
-        this.expression = Objects.requireNonNull(expression);
-        this.block = block;
+        children.add(Objects.requireNonNull(expression));
+        children.add(block);
     }
 
     @Override
@@ -76,6 +74,8 @@ final class SSubEachIterable extends AStatement {
 
     @Override
     void analyze(Locals locals) {
+        AExpression expression = (AExpression)children.get(0);
+
         // We must store the iterator as a variable for securing a slot on the stack, and
         // also add the location offset to make the name unique in case of nested for each loops.
         iterator = locals.addVariable(location, Iterator.class, "#itr" + location.getOffset(), true);
@@ -96,6 +96,9 @@ final class SSubEachIterable extends AStatement {
 
     @Override
     void write(MethodWriter writer, Globals globals) {
+        AExpression expression = (AExpression)children.get(0);
+        SBlock block = (SBlock)children.get(1);
+
         writer.writeStatementOffset(location);
 
         expression.write(writer, globals);
@@ -138,6 +141,7 @@ final class SSubEachIterable extends AStatement {
 
     @Override
     public String toString() {
-        return singleLineToString(PainlessLookupUtility.typeToCanonicalTypeName(variable.clazz), variable.name, expression, block);
+        return singleLineToString(
+                PainlessLookupUtility.typeToCanonicalTypeName(variable.clazz), variable.name, children.get(0), children.get(1));
     }
 }

@@ -41,7 +41,6 @@ import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCano
 public final class ENewObj extends AExpression {
 
     private final String type;
-    private final List<AExpression> arguments;
 
     private PainlessConstructor constructor;
 
@@ -49,19 +48,19 @@ public final class ENewObj extends AExpression {
         super(location);
 
         this.type = Objects.requireNonNull(type);
-        this.arguments = Objects.requireNonNull(arguments);
+        children.addAll(Objects.requireNonNull(arguments));
     }
 
     @Override
     void storeSettings(CompilerSettings settings) {
-        for (AExpression argument : arguments) {
+        for (ANode argument : children) {
             argument.storeSettings(settings);
         }
     }
 
     @Override
     void extractVariables(Set<String> variables) {
-        for (AExpression argument : arguments) {
+        for (ANode argument : children) {
             argument.extractVariables(variables);
         }
     }
@@ -74,29 +73,29 @@ public final class ENewObj extends AExpression {
             throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }
 
-        constructor = locals.getPainlessLookup().lookupPainlessConstructor(actual, arguments.size());
+        constructor = locals.getPainlessLookup().lookupPainlessConstructor(actual, children.size());
 
         if (constructor == null) {
             throw createError(new IllegalArgumentException(
-                    "constructor [" + typeToCanonicalTypeName(actual) + ", <init>/" + arguments.size() + "] not found"));
+                    "constructor [" + typeToCanonicalTypeName(actual) + ", <init>/" + children.size() + "] not found"));
         }
 
         Class<?>[] types = new Class<?>[constructor.typeParameters.size()];
         constructor.typeParameters.toArray(types);
 
-        if (constructor.typeParameters.size() != arguments.size()) {
+        if (constructor.typeParameters.size() != children.size()) {
             throw createError(new IllegalArgumentException(
                     "When calling constructor on type [" + PainlessLookupUtility.typeToCanonicalTypeName(actual) + "] " +
-                    "expected [" + constructor.typeParameters.size() + "] arguments, but found [" + arguments.size() + "]."));
+                    "expected [" + constructor.typeParameters.size() + "] arguments, but found [" + children.size() + "]."));
         }
 
-        for (int argument = 0; argument < arguments.size(); ++argument) {
-            AExpression expression = arguments.get(argument);
+        for (int argument = 0; argument < children.size(); ++argument) {
+            AExpression expression = (AExpression)children.get(argument);
 
             expression.expected = types[argument];
             expression.internal = true;
             expression.analyze(locals);
-            arguments.set(argument, expression.cast(locals));
+            children.set(argument, expression.cast(locals));
         }
 
         statement = true;
@@ -112,7 +111,7 @@ public final class ENewObj extends AExpression {
             writer.dup();
         }
 
-        for (AExpression argument : arguments) {
+        for (ANode argument : children) {
             argument.write(writer, globals);
         }
 
@@ -122,6 +121,6 @@ public final class ENewObj extends AExpression {
 
     @Override
     public String toString() {
-        return singleLineToStringWithOptionalArgs(arguments, type);
+        return singleLineToStringWithOptionalArgs(children, type);
     }
 }

@@ -37,33 +37,34 @@ import java.util.Set;
  */
 public final class PBrace extends AStoreable {
 
-    private AExpression index;
-
     private AStoreable sub = null;
 
     public PBrace(Location location, AExpression prefix, AExpression index) {
         super(location, prefix);
 
-        this.index = Objects.requireNonNull(index);
+        children.add(Objects.requireNonNull(index));
     }
 
     @Override
     void storeSettings(CompilerSettings settings) {
-        prefix.storeSettings(settings);
-        index.storeSettings(settings);
+        children.get(0).storeSettings(settings);
+        children.get(1).storeSettings(settings);
     }
 
     @Override
     void extractVariables(Set<String> variables) {
-        prefix.extractVariables(variables);
-        index.extractVariables(variables);
+        children.get(0).extractVariables(variables);
+        children.get(1).extractVariables(variables);
     }
 
     @Override
     void analyze(Locals locals) {
+        AExpression prefix = (AExpression)children.get(0);
+        AExpression index = (AExpression)children.get(1);
+
         prefix.analyze(locals);
         prefix.expected = prefix.actual;
-        prefix = prefix.cast(locals);
+        children.set(0, prefix = prefix.cast(locals));
 
         if (prefix.actual.isArray()) {
             sub = new PSubBrace(location, prefix.actual, index);
@@ -88,7 +89,7 @@ public final class PBrace extends AStoreable {
 
     @Override
     void write(MethodWriter writer, Globals globals) {
-        prefix.write(writer, globals);
+        children.get(0).write(writer, globals);
         sub.write(writer, globals);
     }
 
@@ -110,7 +111,7 @@ public final class PBrace extends AStoreable {
 
     @Override
     void setup(MethodWriter writer, Globals globals) {
-        prefix.write(writer, globals);
+        children.get(0).write(writer, globals);
         sub.setup(writer, globals);
     }
 
@@ -126,6 +127,6 @@ public final class PBrace extends AStoreable {
 
     @Override
     public String toString() {
-        return singleLineToString(prefix, index);
+        return singleLineToString(children.get(0), children.get(1));
     }
 }

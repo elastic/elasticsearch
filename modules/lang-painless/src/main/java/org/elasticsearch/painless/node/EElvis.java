@@ -36,30 +36,31 @@ import static java.util.Objects.requireNonNull;
  * non null. If the first expression is null then it evaluates the second expression and returns it.
  */
 public class EElvis extends AExpression {
-    private AExpression lhs;
-    private AExpression rhs;
 
     public EElvis(Location location, AExpression lhs, AExpression rhs) {
         super(location);
 
-        this.lhs = requireNonNull(lhs);
-        this.rhs = requireNonNull(rhs);
+        children.add(requireNonNull(lhs));
+        children.add(requireNonNull(rhs));
     }
 
     @Override
     void storeSettings(CompilerSettings settings) {
-        lhs.storeSettings(settings);
-        rhs.storeSettings(settings);
+        children.get(0).storeSettings(settings);
+        children.get(1).storeSettings(settings);
     }
 
     @Override
     void extractVariables(Set<String> variables) {
-        lhs.extractVariables(variables);
-        rhs.extractVariables(variables);
+        children.get(0).extractVariables(variables);
+        children.get(1).extractVariables(variables);
     }
 
     @Override
     void analyze(Locals locals) {
+        AExpression lhs = (AExpression)children.get(0);
+        AExpression rhs = (AExpression)children.get(1);
+
         if (expected != null && expected.isPrimitive()) {
             throw createError(new IllegalArgumentException("Elvis operator cannot return primitives"));
         }
@@ -94,8 +95,8 @@ public class EElvis extends AExpression {
             actual = promote;
         }
 
-        lhs = lhs.cast(locals);
-        rhs = rhs.cast(locals);
+        children.set(0, lhs.cast(locals));
+        children.set(1, rhs.cast(locals));
     }
 
     @Override
@@ -104,16 +105,16 @@ public class EElvis extends AExpression {
 
         Label end = new Label();
 
-        lhs.write(writer, globals);
+        children.get(0).write(writer, globals);
         writer.dup();
         writer.ifNonNull(end);
         writer.pop();
-        rhs.write(writer, globals);
+        children.get(1).write(writer, globals);
         writer.mark(end);
     }
 
     @Override
     public String toString() {
-        return singleLineToString(lhs, rhs);
+        return singleLineToString(children.get(0), children.get(1));
     }
 }

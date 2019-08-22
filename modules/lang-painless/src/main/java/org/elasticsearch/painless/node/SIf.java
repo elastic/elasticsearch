@@ -35,39 +35,39 @@ import java.util.Set;
  */
 public final class SIf extends AStatement {
 
-    AExpression condition;
-    final SBlock ifblock;
-
     public SIf(Location location, AExpression condition, SBlock ifblock) {
         super(location);
 
-        this.condition = Objects.requireNonNull(condition);
-        this.ifblock = ifblock;
+        children.add(Objects.requireNonNull(condition));
+        children.add(ifblock);
     }
 
     @Override
     void storeSettings(CompilerSettings settings) {
-        condition.storeSettings(settings);
+        children.get(0).storeSettings(settings);
 
-        if (ifblock != null) {
-            ifblock.storeSettings(settings);
+        if (children.get(1) != null) {
+            children.get(1).storeSettings(settings);
         }
     }
 
     @Override
     void extractVariables(Set<String> variables) {
-        condition.extractVariables(variables);
+        children.get(0).extractVariables(variables);
 
-        if (ifblock != null) {
-            ifblock.extractVariables(variables);
+        if (children.get(1) != null) {
+            children.get(1).extractVariables(variables);
         }
     }
 
     @Override
     void analyze(Locals locals) {
+        AExpression condition = (AExpression)children.get(0);
+        SBlock ifblock = (SBlock)children.get(1);
+
         condition.expected = boolean.class;
         condition.analyze(locals);
-        condition = condition.cast(locals);
+        children.set(0, condition.cast(locals));
 
         if (condition.constant != null) {
             throw createError(new IllegalArgumentException("Extraneous if statement."));
@@ -90,11 +90,13 @@ public final class SIf extends AStatement {
 
     @Override
     void write(MethodWriter writer, Globals globals) {
+        SBlock ifblock = (SBlock)children.get(1);
+
         writer.writeStatementOffset(location);
 
         Label fals = new Label();
 
-        condition.write(writer, globals);
+        children.get(0).write(writer, globals);
         writer.ifZCmp(Opcodes.IFEQ, fals);
 
         ifblock.continu = continu;
@@ -106,6 +108,6 @@ public final class SIf extends AStatement {
 
     @Override
     public String toString() {
-        return singleLineToString(condition, ifblock);
+        return singleLineToString(children.get(0), children.get(1));
     }
 }

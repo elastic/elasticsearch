@@ -35,42 +35,43 @@ import java.util.Set;
  */
 public final class SWhile extends AStatement {
 
-    private AExpression condition;
-    private final SBlock block;
-
     private boolean continuous = false;
 
     public SWhile(Location location, AExpression condition, SBlock block) {
         super(location);
 
-        this.condition = Objects.requireNonNull(condition);
-        this.block = block;
+        children.add(Objects.requireNonNull(condition));
+        children.add(block);
     }
 
     @Override
     void storeSettings(CompilerSettings settings) {
-        condition.storeSettings(settings);
+        children.get(0).storeSettings(settings);
 
-        if (block != null) {
-            block.storeSettings(settings);
+        if (children.get(1) != null) {
+            children.get(1).storeSettings(settings);
         }
     }
 
     @Override
     void extractVariables(Set<String> variables) {
-        condition.extractVariables(variables);
-        if (block != null) {
-            block.extractVariables(variables);
+        children.get(0).extractVariables(variables);
+
+        if (children.get(1) != null) {
+            children.get(1).extractVariables(variables);
         }
     }
 
     @Override
     void analyze(Locals locals) {
+        AExpression condition = (AExpression)children.get(0);
+        AStatement block = (AStatement)children.get(1);
+
         locals = Locals.newLocalScope(locals);
 
         condition.expected = boolean.class;
         condition.analyze(locals);
-        condition = condition.cast(locals);
+        children.set(0, condition = condition.cast(locals));
 
         if (condition.constant != null) {
             continuous = (boolean)condition.constant;
@@ -111,6 +112,9 @@ public final class SWhile extends AStatement {
 
     @Override
     void write(MethodWriter writer, Globals globals) {
+        AExpression condition = (AExpression)children.get(0);
+        AStatement block = (AStatement)children.get(1);
+
         writer.writeStatementOffset(location);
 
         Label begin = new Label();
@@ -146,6 +150,6 @@ public final class SWhile extends AStatement {
 
     @Override
     public String toString() {
-        return singleLineToString(condition, block);
+        return singleLineToString(children.get(0), children.get(1));
     }
 }

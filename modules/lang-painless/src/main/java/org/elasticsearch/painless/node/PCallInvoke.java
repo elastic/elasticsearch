@@ -40,7 +40,6 @@ public final class PCallInvoke extends AExpression {
 
     private final String name;
     private final boolean nullSafe;
-    private final List<AExpression> arguments;
 
     private AExpression sub = null;
 
@@ -49,45 +48,43 @@ public final class PCallInvoke extends AExpression {
 
         this.name = Objects.requireNonNull(name);
         this.nullSafe = nullSafe;
-        this.arguments = Objects.requireNonNull(arguments);
+        children.addAll(Objects.requireNonNull(arguments));
     }
 
     @Override
     void storeSettings(CompilerSettings settings) {
-        prefix.storeSettings(settings);
-
-        for (AExpression argument : arguments) {
-            argument.storeSettings(settings);
+        for (ANode child : children) {
+            child.storeSettings(settings);
         }
     }
 
     @Override
     void extractVariables(Set<String> variables) {
-        prefix.extractVariables(variables);
-
-        for (AExpression argument : arguments) {
-            argument.extractVariables(variables);
+        for (ANode child : children) {
+            child.extractVariables(variables);
         }
     }
 
     @Override
     void analyze(Locals locals) {
+        AExpression prefix = (AExpression)children.get(0);
+
         prefix.analyze(locals);
         prefix.expected = prefix.actual;
-        prefix = prefix.cast(locals);
+        children.set(0, prefix = prefix.cast(locals));
 
         if (prefix.actual == def.class) {
-            sub = new PSubDefCall(location, name, arguments);
+            sub = new PSubDefCall(location, name, children.subList(1, children.size()));
         } else {
             PainlessMethod method =
-                    locals.getPainlessLookup().lookupPainlessMethod(prefix.actual, prefix instanceof EStatic, name, arguments.size());
+                    locals.getPainlessLookup().lookupPainlessMethod(prefix.actual, prefix instanceof EStatic, name, children.size() - 1);
 
             if (method == null) {
                 throw createError(new IllegalArgumentException(
-                        "method [" + typeToCanonicalTypeName(prefix.actual) + ", " + name + "/" + arguments.size() + "] not found"));
+                        "method [" + typeToCanonicalTypeName(prefix.actual) + ", " + name + "/" + (children.size() - 1) + "] not found"));
             }
 
-            sub = new PSubCallInvoke(location, method, prefix.actual, arguments);
+            sub = new PSubCallInvoke(location, method, prefix.actual, children.subList(1, children.size()));
         }
 
         if (nullSafe) {
@@ -104,12 +101,12 @@ public final class PCallInvoke extends AExpression {
 
     @Override
     void write(MethodWriter writer, Globals globals) {
-        prefix.write(writer, globals);
+        children.get(0).write(writer, globals);
         sub.write(writer, globals);
     }
 
     @Override
     public String toString() {
-        return singleLineToStringWithOptionalArgs(arguments, prefix, name);
+        return singleLineToStringWithOptionalArgs(children.subList(1, children.size()), children.get(0), name);
     }
 }

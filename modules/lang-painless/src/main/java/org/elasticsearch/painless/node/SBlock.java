@@ -25,7 +25,6 @@ import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -36,37 +35,37 @@ import static java.util.Collections.emptyList;
  */
 public final class SBlock extends AStatement {
 
-    private final List<AStatement> statements;
-
     public SBlock(Location location, List<AStatement> statements) {
         super(location);
 
-        this.statements = Collections.unmodifiableList(statements);
+        children.addAll(statements);
     }
 
     @Override
     void storeSettings(CompilerSettings settings) {
-        for (AStatement statement : statements) {
+        for (ANode statement : children) {
             statement.storeSettings(settings);
         }
     }
 
     @Override
     void extractVariables(Set<String> variables) {
-        for (AStatement statement : statements) {
+        for (ANode statement : children) {
             statement.extractVariables(variables);
         }
     }
 
     @Override
     void analyze(Locals locals) {
-        if (statements == null || statements.isEmpty()) {
+        if (children.isEmpty()) {
             throw createError(new IllegalArgumentException("A block must contain at least one statement."));
         }
 
-        AStatement last = statements.get(statements.size() - 1);
+        AStatement last = (AStatement)children.get(children.size() - 1);
 
-        for (AStatement statement : statements) {
+        for (ANode child : children) {
+            AStatement statement = (AStatement)child;
+
             // Note that we do not need to check after the last statement because
             // there is no statement that can be unreachable after the last.
             if (allEscape) {
@@ -90,7 +89,9 @@ public final class SBlock extends AStatement {
 
     @Override
     void write(MethodWriter writer, Globals globals) {
-        for (AStatement statement : statements) {
+        for (ANode child : children) {
+            AStatement statement = (AStatement)child;
+
             statement.continu = continu;
             statement.brake = brake;
             statement.write(writer, globals);
@@ -99,6 +100,6 @@ public final class SBlock extends AStatement {
 
     @Override
     public String toString() {
-        return multilineToString(emptyList(), statements);
+        return multilineToString(emptyList(), children);
     }
 }

@@ -42,8 +42,6 @@ import java.util.regex.Pattern;
 public final class EBinary extends AExpression {
 
     final Operation operation;
-    private AExpression left;
-    private AExpression right;
 
     private Class<?> promote = null;            // promoted type
     private Class<?> shiftDistance = null;      // for shifts, the rhs is promoted independently
@@ -54,20 +52,20 @@ public final class EBinary extends AExpression {
         super(location);
 
         this.operation = Objects.requireNonNull(operation);
-        this.left = Objects.requireNonNull(left);
-        this.right = Objects.requireNonNull(right);
+        children.add(Objects.requireNonNull(left));
+        children.add(Objects.requireNonNull(right));
     }
 
     @Override
     void storeSettings(CompilerSettings settings) {
-        left.storeSettings(settings);
-        right.storeSettings(settings);
+        children.get(0).storeSettings(settings);
+        children.get(1).storeSettings(settings);
     }
 
     @Override
     void extractVariables(Set<String> variables) {
-        left.extractVariables(variables);
-        right.extractVariables(variables);
+        children.get(0).extractVariables(variables);
+        children.get(1).extractVariables(variables);
     }
 
     @Override
@@ -106,6 +104,9 @@ public final class EBinary extends AExpression {
     }
 
     private void analyzeMul(Locals variables) {
+        AExpression left = (AExpression)children.get(0);
+        AExpression right = (AExpression)children.get(1);
+
         left.analyze(variables);
         right.analyze(variables);
 
@@ -130,8 +131,8 @@ public final class EBinary extends AExpression {
             right.expected = promote;
         }
 
-        left = left.cast(variables);
-        right = right.cast(variables);
+        children.set(0, left = left.cast(variables));
+        children.set(1, right = right.cast(variables));
 
         if (left.constant != null && right.constant != null) {
             if (promote == int.class) {
@@ -149,6 +150,9 @@ public final class EBinary extends AExpression {
     }
 
     private void analyzeDiv(Locals variables) {
+        AExpression left = (AExpression)children.get(0);
+        AExpression right = (AExpression)children.get(1);
+
         left.analyze(variables);
         right.analyze(variables);
 
@@ -174,8 +178,8 @@ public final class EBinary extends AExpression {
             right.expected = promote;
         }
 
-        left = left.cast(variables);
-        right = right.cast(variables);
+        children.set(0, left = left.cast(variables));
+        children.set(1, right = right.cast(variables));
 
         if (left.constant != null && right.constant != null) {
             try {
@@ -197,6 +201,9 @@ public final class EBinary extends AExpression {
     }
 
     private void analyzeRem(Locals variables) {
+        AExpression left = (AExpression)children.get(0);
+        AExpression right = (AExpression)children.get(1);
+
         left.analyze(variables);
         right.analyze(variables);
 
@@ -222,8 +229,8 @@ public final class EBinary extends AExpression {
             right.expected = promote;
         }
 
-        left = left.cast(variables);
-        right = right.cast(variables);
+        children.set(0, left = left.cast(variables));
+        children.set(1, right = right.cast(variables));
 
         if (left.constant != null && right.constant != null) {
             try {
@@ -245,6 +252,9 @@ public final class EBinary extends AExpression {
     }
 
     private void analyzeAdd(Locals variables) {
+        AExpression left = (AExpression)children.get(0);
+        AExpression right = (AExpression)children.get(1);
+
         left.analyze(variables);
         right.analyze(variables);
 
@@ -282,8 +292,8 @@ public final class EBinary extends AExpression {
             right.expected = promote;
         }
 
-        left = left.cast(variables);
-        right = right.cast(variables);
+        children.set(0, left = left.cast(variables));
+        children.set(1, right = right.cast(variables));
 
         if (left.constant != null && right.constant != null) {
             if (promote == int.class) {
@@ -304,6 +314,9 @@ public final class EBinary extends AExpression {
     }
 
     private void analyzeSub(Locals variables) {
+        AExpression left = (AExpression)children.get(0);
+        AExpression right = (AExpression)children.get(1);
+
         left.analyze(variables);
         right.analyze(variables);
 
@@ -329,8 +342,8 @@ public final class EBinary extends AExpression {
             right.expected = promote;
         }
 
-        left = left.cast(variables);
-        right = right.cast(variables);
+        children.set(0, left = left.cast(variables));
+        children.set(1, right = right.cast(variables));
 
         if (left.constant != null && right.constant != null) {
             if (promote == int.class) {
@@ -348,20 +361,26 @@ public final class EBinary extends AExpression {
     }
 
     private void analyzeRegexOp(Locals variables) {
+        AExpression left = (AExpression)children.get(0);
+        AExpression right = (AExpression)children.get(1);
+
         left.analyze(variables);
         right.analyze(variables);
 
         left.expected = String.class;
         right.expected = Pattern.class;
 
-        left = left.cast(variables);
-        right = right.cast(variables);
+        children.set(0, left.cast(variables));
+        children.set(1, right.cast(variables));
 
         promote = boolean.class;
         actual = boolean.class;
     }
 
     private void analyzeLSH(Locals variables) {
+        AExpression left = (AExpression)children.get(0);
+        AExpression right = (AExpression)children.get(1);
+
         left.analyze(variables);
         right.analyze(variables);
 
@@ -395,8 +414,8 @@ public final class EBinary extends AExpression {
             }
         }
 
-        left = left.cast(variables);
-        right = right.cast(variables);
+        children.set(0, left = left.cast(variables));
+        children.set(1, right = right.cast(variables));
 
         if (left.constant != null && right.constant != null) {
             if (promote == int.class) {
@@ -410,6 +429,9 @@ public final class EBinary extends AExpression {
     }
 
     private void analyzeRSH(Locals variables) {
+        AExpression left = (AExpression)children.get(0);
+        AExpression right = (AExpression)children.get(1);
+
         left.analyze(variables);
         right.analyze(variables);
 
@@ -443,8 +465,8 @@ public final class EBinary extends AExpression {
             }
         }
 
-        left = left.cast(variables);
-        right = right.cast(variables);
+        children.set(0, left = left.cast(variables));
+        children.set(1, right = right.cast(variables));
 
         if (left.constant != null && right.constant != null) {
             if (promote == int.class) {
@@ -458,6 +480,9 @@ public final class EBinary extends AExpression {
     }
 
     private void analyzeUSH(Locals variables) {
+        AExpression left = (AExpression)children.get(0);
+        AExpression right = (AExpression)children.get(1);
+
         left.analyze(variables);
         right.analyze(variables);
 
@@ -491,8 +516,8 @@ public final class EBinary extends AExpression {
             }
         }
 
-        left = left.cast(variables);
-        right = right.cast(variables);
+        children.set(0, left = left.cast(variables));
+        children.set(1, right = right.cast(variables));
 
         if (left.constant != null && right.constant != null) {
             if (promote == int.class) {
@@ -506,6 +531,9 @@ public final class EBinary extends AExpression {
     }
 
     private void analyzeBWAnd(Locals variables) {
+        AExpression left = (AExpression)children.get(0);
+        AExpression right = (AExpression)children.get(1);
+
         left.analyze(variables);
         right.analyze(variables);
 
@@ -531,8 +559,8 @@ public final class EBinary extends AExpression {
             right.expected = promote;
         }
 
-        left = left.cast(variables);
-        right = right.cast(variables);
+        children.set(0, left = left.cast(variables));
+        children.set(1, right = right.cast(variables));
 
         if (left.constant != null && right.constant != null) {
             if (promote == int.class) {
@@ -546,6 +574,9 @@ public final class EBinary extends AExpression {
     }
 
     private void analyzeXor(Locals variables) {
+        AExpression left = (AExpression)children.get(0);
+        AExpression right = (AExpression)children.get(1);
+
         left.analyze(variables);
         right.analyze(variables);
 
@@ -570,8 +601,8 @@ public final class EBinary extends AExpression {
             right.expected = promote;
         }
 
-        left = left.cast(variables);
-        right = right.cast(variables);
+        children.set(0, left = left.cast(variables));
+        children.set(1, right = right.cast(variables));
 
         if (left.constant != null && right.constant != null) {
             if (promote == boolean.class) {
@@ -587,6 +618,9 @@ public final class EBinary extends AExpression {
     }
 
     private void analyzeBWOr(Locals variables) {
+        AExpression left = (AExpression)children.get(0);
+        AExpression right = (AExpression)children.get(1);
+
         left.analyze(variables);
         right.analyze(variables);
 
@@ -611,8 +645,8 @@ public final class EBinary extends AExpression {
             right.expected = promote;
         }
 
-        left = left.cast(variables);
-        right = right.cast(variables);
+        children.set(0, left = left.cast(variables));
+        children.set(1, right = right.cast(variables));
 
         if (left.constant != null && right.constant != null) {
             if (promote == int.class) {
@@ -627,6 +661,9 @@ public final class EBinary extends AExpression {
 
     @Override
     void write(MethodWriter writer, Globals globals) {
+        AExpression left = (AExpression)children.get(0);
+        AExpression right = (AExpression)children.get(1);
+
         writer.writeDebugInfo(location);
 
         if (promote == String.class && operation == Operation.ADD) {
@@ -681,6 +718,6 @@ public final class EBinary extends AExpression {
 
     @Override
     public String toString() {
-        return singleLineToString(left, operation.symbol, right);
+        return singleLineToString(children.get(0), operation.symbol, children.get(1));
     }
 }

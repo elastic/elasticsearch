@@ -44,8 +44,6 @@ abstract class AStoreable extends AExpression {
      */
     AStoreable(Location location) {
         super(location);
-
-        prefix = null;
     }
 
     /**
@@ -54,7 +52,7 @@ abstract class AStoreable extends AExpression {
     AStoreable(Location location, AExpression prefix) {
         super(location);
 
-        this.prefix = Objects.requireNonNull(prefix);
+        children.add(Objects.requireNonNull(prefix));
     }
 
     /**

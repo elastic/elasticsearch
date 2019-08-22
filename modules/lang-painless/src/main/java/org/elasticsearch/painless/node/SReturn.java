@@ -33,30 +33,30 @@ import java.util.Set;
  */
 public final class SReturn extends AStatement {
 
-    private AExpression expression;
-
     public SReturn(Location location, AExpression expression) {
         super(location);
 
-        this.expression = expression;
+        children.add(expression);
     }
 
     @Override
     void storeSettings(CompilerSettings settings) {
-        if (expression != null) {
-            expression.storeSettings(settings);
+        if (children.get(0) != null) {
+            children.get(0).storeSettings(settings);
         }
     }
 
     @Override
     void extractVariables(Set<String> variables) {
-        if (expression != null) {
-            expression.extractVariables(variables);
+        if (children.get(0) != null) {
+            children.get(0).extractVariables(variables);
         }
     }
 
     @Override
     void analyze(Locals locals) {
+        AExpression expression = (AExpression)children.get(0);
+
         if (expression == null) {
             if (locals.getReturnType() != void.class) {
                 throw location.createError(new ClassCastException("Cannot cast from " +
@@ -67,7 +67,7 @@ public final class SReturn extends AStatement {
             expression.expected = locals.getReturnType();
             expression.internal = true;
             expression.analyze(locals);
-            expression = expression.cast(locals);
+            children.set(0, expression.cast(locals));
         }
 
         methodEscape = true;
@@ -81,8 +81,8 @@ public final class SReturn extends AStatement {
     void write(MethodWriter writer, Globals globals) {
         writer.writeStatementOffset(location);
 
-        if (expression != null) {
-            expression.write(writer, globals);
+        if (children.get(0) != null) {
+            children.get(0).write(writer, globals);
         }
 
         writer.returnValue();
@@ -90,6 +90,6 @@ public final class SReturn extends AStatement {
 
     @Override
     public String toString() {
-        return expression == null ? singleLineToString() : singleLineToString(expression);
+        return children.get(0) == null ? singleLineToString() : singleLineToString(children.get(0));
     }
 }

@@ -26,7 +26,6 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Label;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -37,39 +36,31 @@ import static java.util.Collections.singleton;
  */
 public final class STry extends AStatement {
 
-    private final SBlock block;
-    private final List<SCatch> catches;
-
     public STry(Location location, SBlock block, List<SCatch> catches) {
         super(location);
 
-        this.block = block;
-        this.catches = Collections.unmodifiableList(catches);
+        children.add(block);
+        children.addAll(catches);
     }
 
     @Override
     void storeSettings(CompilerSettings settings) {
-        if (block != null) {
-            block.storeSettings(settings);
-        }
-
-        for (SCatch ctch : catches) {
-            ctch.storeSettings(settings);
+        for (ANode child : children) {
+            child.storeSettings(settings);
         }
     }
 
     @Override
     void extractVariables(Set<String> variables) {
-        if (block != null) {
-            block.extractVariables(variables);
-        }
-        for (SCatch expr : catches) {
-            expr.extractVariables(variables);
+        for (ANode child : children) {
+            child.extractVariables(variables);
         }
     }
 
     @Override
     void analyze(Locals locals) {
+        SBlock block = (SBlock)children.get(0);
+
         if (block == null) {
             throw createError(new IllegalArgumentException("Extraneous try statement."));
         }
@@ -88,7 +79,9 @@ public final class STry extends AStatement {
 
         int statementCount = 0;
 
-        for (SCatch catc : catches) {
+        for (int catchIndex = 1; catchIndex < children.size(); ++catchIndex) {
+            SCatch catc = (SCatch)children.get(catchIndex);
+
             catc.lastSource = lastSource;
             catc.inLoop = inLoop;
             catc.lastLoop = lastLoop;
@@ -109,6 +102,8 @@ public final class STry extends AStatement {
 
     @Override
     void write(MethodWriter writer, Globals globals) {
+        SBlock block = (SBlock)children.get(0);
+
         writer.writeStatementOffset(location);
 
         Label begin = new Label();
@@ -127,20 +122,21 @@ public final class STry extends AStatement {
 
         writer.mark(end);
 
-        for (SCatch catc : catches) {
+        for (int catchIndex = 1; catchIndex < children.size(); ++catchIndex) {
+            SCatch catc = (SCatch)children.get(catchIndex);
             catc.begin = begin;
             catc.end = end;
-            catc.exception = catches.size() > 1 ? exception : null;
+            catc.exception = children.size() > 2 ? exception : null;
             catc.write(writer, globals);
         }
 
-        if (!block.allEscape || catches.size() > 1) {
+        if (!block.allEscape || children.size() > 2) {
             writer.mark(exception);
         }
     }
 
     @Override
     public String toString() {
-        return multilineToString(singleton(block), catches);
+        return multilineToString(singleton(children.get(0)), children.subList(1, children.size()));
     }
 }

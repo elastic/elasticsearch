@@ -35,27 +35,26 @@ import java.util.Set;
 public final class ENewArray extends AExpression {
 
     private final String type;
-    private final List<AExpression> arguments;
     private final boolean initialize;
 
     public ENewArray(Location location, String type, List<AExpression> arguments, boolean initialize) {
         super(location);
 
         this.type = Objects.requireNonNull(type);
-        this.arguments = Objects.requireNonNull(arguments);
+        children.addAll(Objects.requireNonNull(arguments));
         this.initialize = initialize;
     }
 
     @Override
     void storeSettings(CompilerSettings settings) {
-        for (AExpression argument : arguments) {
+        for (ANode argument : children) {
             argument.storeSettings(settings);
         }
     }
 
     @Override
     void extractVariables(Set<String> variables) {
-        for (AExpression argument : arguments) {
+        for (ANode argument : children) {
             argument.extractVariables(variables);
         }
     }
@@ -72,13 +71,13 @@ public final class ENewArray extends AExpression {
             throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }
 
-        for (int argument = 0; argument < arguments.size(); ++argument) {
-            AExpression expression = arguments.get(argument);
+        for (int argument = 0; argument < children.size(); ++argument) {
+            AExpression expression = (AExpression)children.get(argument);
 
             expression.expected = initialize ? clazz.getComponentType() : int.class;
             expression.internal = true;
             expression.analyze(locals);
-            arguments.set(argument, expression.cast(locals));
+            children.set(argument, expression.cast(locals));
         }
 
         actual = clazz;
@@ -89,11 +88,11 @@ public final class ENewArray extends AExpression {
         writer.writeDebugInfo(location);
 
         if (initialize) {
-            writer.push(arguments.size());
+            writer.push(children.size());
             writer.newArray(MethodWriter.getType(actual.getComponentType()));
 
-            for (int index = 0; index < arguments.size(); ++index) {
-                AExpression argument = arguments.get(index);
+            for (int index = 0; index < children.size(); ++index) {
+                ANode argument = children.get(index);
 
                 writer.dup();
                 writer.push(index);
@@ -101,12 +100,12 @@ public final class ENewArray extends AExpression {
                 writer.arrayStore(MethodWriter.getType(actual.getComponentType()));
             }
         } else {
-            for (AExpression argument : arguments) {
+            for (ANode argument : children) {
                 argument.write(writer, globals);
             }
 
-            if (arguments.size() > 1) {
-                writer.visitMultiANewArrayInsn(MethodWriter.getType(actual).getDescriptor(), arguments.size());
+            if (children.size() > 1) {
+                writer.visitMultiANewArrayInsn(MethodWriter.getType(actual).getDescriptor(), children.size());
             } else {
                 writer.newArray(MethodWriter.getType(actual.getComponentType()));
             }
@@ -115,6 +114,6 @@ public final class ENewArray extends AExpression {
 
     @Override
     public String toString() {
-        return singleLineToStringWithOptionalArgs(arguments, type, initialize ? "init" : "dims");
+        return singleLineToStringWithOptionalArgs(children, type, initialize ? "init" : "dims");
     }
 }

@@ -37,38 +37,39 @@ import java.util.Set;
 public final class EBool extends AExpression {
 
     private final Operation operation;
-    private AExpression left;
-    private AExpression right;
 
     public EBool(Location location, Operation operation, AExpression left, AExpression right) {
         super(location);
 
         this.operation = Objects.requireNonNull(operation);
-        this.left = Objects.requireNonNull(left);
-        this.right = Objects.requireNonNull(right);
+        children.add(Objects.requireNonNull(left));
+        children.add(Objects.requireNonNull(right));
     }
 
     @Override
     void storeSettings(CompilerSettings settings) {
-        left.storeSettings(settings);
-        right.storeSettings(settings);
+        children.get(0).storeSettings(settings);
+        children.get(1).storeSettings(settings);
     }
 
     @Override
     void extractVariables(Set<String> variables) {
-        left.extractVariables(variables);
-        right.extractVariables(variables);
+        children.get(0).extractVariables(variables);
+        children.get(1).extractVariables(variables);
     }
 
     @Override
     void analyze(Locals locals) {
+        AExpression left = (AExpression)children.get(0);
+        AExpression right = (AExpression)children.get(1);
+
         left.expected = boolean.class;
         left.analyze(locals);
-        left = left.cast(locals);
+        children.set(0, left = left.cast(locals));
 
         right.expected = boolean.class;
         right.analyze(locals);
-        right = right.cast(locals);
+        children.set(1, right = right.cast(locals));
 
         if (left.constant != null && right.constant != null) {
             if (operation == Operation.AND) {
@@ -85,6 +86,9 @@ public final class EBool extends AExpression {
 
     @Override
     void write(MethodWriter writer, Globals globals) {
+        AExpression left = (AExpression)children.get(0);
+        AExpression right = (AExpression)children.get(1);
+
         if (operation == Operation.AND) {
             Label fals = new Label();
             Label end = new Label();
@@ -122,6 +126,6 @@ public final class EBool extends AExpression {
 
     @Override
     public String toString() {
-        return singleLineToString(left, operation.symbol, right);
+        return singleLineToString(children.get(0), operation.symbol, children.get(1));
     }
 }

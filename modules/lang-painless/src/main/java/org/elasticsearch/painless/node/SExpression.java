@@ -33,26 +33,26 @@ import java.util.Set;
  */
 public final class SExpression extends AStatement {
 
-    private AExpression expression;
-
     public SExpression(Location location, AExpression expression) {
         super(location);
 
-        this.expression = Objects.requireNonNull(expression);
+        children.add(Objects.requireNonNull(expression));
     }
 
     @Override
     void storeSettings(CompilerSettings settings) {
-        expression.storeSettings(settings);
+        children.get(0).storeSettings(settings);
     }
 
     @Override
     void extractVariables(Set<String> variables) {
-        expression.extractVariables(variables);
+        children.get(0).extractVariables(variables);
     }
 
     @Override
     void analyze(Locals locals) {
+        AExpression expression = (AExpression)children.get(0);
+
         Class<?> rtnType = locals.getReturnType();
         boolean isVoid = rtnType == void.class;
 
@@ -67,7 +67,7 @@ public final class SExpression extends AStatement {
 
         expression.expected = rtn ? rtnType : expression.actual;
         expression.internal = rtn;
-        expression = expression.cast(locals);
+        children.set(0, expression.cast(locals));
 
         methodEscape = rtn;
         loopEscape = rtn;
@@ -77,6 +77,8 @@ public final class SExpression extends AStatement {
 
     @Override
     void write(MethodWriter writer, Globals globals) {
+        AExpression expression = (AExpression)children.get(0);
+
         writer.writeStatementOffset(location);
         expression.write(writer, globals);
 
@@ -89,6 +91,6 @@ public final class SExpression extends AStatement {
 
     @Override
     public String toString() {
-        return singleLineToString(expression);
+        return singleLineToString(children.get(0));
     }
 }

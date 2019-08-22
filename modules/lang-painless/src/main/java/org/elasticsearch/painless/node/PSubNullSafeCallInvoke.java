@@ -76,6 +76,6 @@ public class PSubNullSafeCallInvoke extends AExpression {
 
     @Override
     public String toString() {
-        return singleLineToString(guarded);
+        throw new UnsupportedOperationException("unexpected node");
     }
 }

@@ -36,37 +36,37 @@ import java.util.Set;
  */
 public final class EConditional extends AExpression {
 
-    private AExpression condition;
-    private AExpression left;
-    private AExpression right;
-
     public EConditional(Location location, AExpression condition, AExpression left, AExpression right) {
         super(location);
 
-        this.condition = Objects.requireNonNull(condition);
-        this.left = Objects.requireNonNull(left);
-        this.right = Objects.requireNonNull(right);
+        children.add(Objects.requireNonNull(condition));
+        children.add(Objects.requireNonNull(left));
+        children.add(Objects.requireNonNull(right));
     }
 
     @Override
     void storeSettings(CompilerSettings settings) {
-        condition.storeSettings(settings);
-        left.storeSettings(settings);
-        right.storeSettings(settings);
+        children.get(0).storeSettings(settings);
+        children.get(1).storeSettings(settings);
+        children.get(2).storeSettings(settings);
     }
 
     @Override
     void extractVariables(Set<String> variables) {
-        condition.extractVariables(variables);
-        left.extractVariables(variables);
-        right.extractVariables(variables);
+        children.get(0).extractVariables(variables);
+        children.get(1).extractVariables(variables);
+        children.get(2).extractVariables(variables);
     }
 
     @Override
     void analyze(Locals locals) {
+        AExpression condition = (AExpression)children.get(0);
+        AExpression left = (AExpression)children.get(1);
+        AExpression right = (AExpression)children.get(2);
+
         condition.expected = boolean.class;
         condition.analyze(locals);
-        condition = condition.cast(locals);
+        children.set(0, condition = condition.cast(locals));
 
         if (condition.constant != null) {
             throw createError(new IllegalArgumentException("Extraneous conditional statement."));
@@ -91,8 +91,8 @@ public final class EConditional extends AExpression {
             actual = promote;
         }
 
-        left = left.cast(locals);
-        right = right.cast(locals);
+        children.set(1, left = left.cast(locals));
+        children.set(2, right = right.cast(locals));
     }
 
     @Override
@@ -102,18 +102,18 @@ public final class EConditional extends AExpression {
         Label fals = new Label();
         Label end = new Label();
 
-        condition.write(writer, globals);
+        children.get(0).write(writer, globals);
         writer.ifZCmp(Opcodes.IFEQ, fals);
 
-        left.write(writer, globals);
+        children.get(1).write(writer, globals);
         writer.goTo(end);
         writer.mark(fals);
-        right.write(writer, globals);
+        children.get(2).write(writer, globals);
         writer.mark(end);
     }
 
     @Override
     public String toString() {
-        return singleLineToString(condition, left, right);
+        return singleLineToString(children.get(0), children.get(1), children.get(2));
     }
 }

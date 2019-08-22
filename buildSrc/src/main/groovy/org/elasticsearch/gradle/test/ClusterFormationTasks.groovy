@@ -21,9 +21,9 @@ package org.elasticsearch.gradle.test
 import org.apache.tools.ant.DefaultLogger
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.BuildPlugin
+import org.elasticsearch.gradle.BwcVersions
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.BwcVersions
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.elasticsearch.gradle.plugin.PluginPropertiesExtension
@@ -39,11 +39,13 @@ import org.gradle.api.logging.Logger
 import org.gradle.api.tasks.Copy
 import org.gradle.api.tasks.Delete
 import org.gradle.api.tasks.Exec
+import org.gradle.internal.jvm.Jvm
 
 import java.nio.charset.StandardCharsets
 import java.nio.file.Paths
 import java.util.concurrent.TimeUnit
 import java.util.stream.Collectors
+
 /**
  * A helper for creating tasks to build a cluster that is used by a task, and tear down the cluster when the task is finished.
  */
@@ -887,15 +889,7 @@ class ClusterFormationTasks {
             onlyIf { node.pidFile.exists() }
             // the pid file won't actually be read until execution time, since the read is wrapped within an inner closure of the GString
             ext.pid = "${ -> node.pidFile.getText('UTF-8').trim()}"
-            File jps
-            if (Os.isFamily(Os.FAMILY_WINDOWS)) {
-                jps = getJpsExecutableByName(project, "jps.exe")
-            } else {
-                jps = getJpsExecutableByName(project, "jps")
-            }
-            if (!jps.exists()) {
-                throw new GradleException("jps executable not found; ensure that you're running Gradle with the JDK rather than the JRE")
-            }
+            final File jps = Jvm.forHome(project.runtimeJavaHome).getExecutable('jps')
             commandLine jps, '-l'
             standardOutput = new ByteArrayOutputStream()
             doLast {
@@ -912,10 +906,6 @@ class ClusterFormationTasks {
                 }
             }
         }
-    }
-
-    private static File getJpsExecutableByName(Project project, String jpsExecutableName) {
-        return Paths.get(project.runtimeJavaHome.toString(), "bin/" + jpsExecutableName).toFile()
     }
 
     /** Adds a task to kill an elasticsearch node with the given pidfile */

@@ -76,12 +76,23 @@ commit point. Defaults to `512mb`.
 
 `index.translog.retention.size`::
 
-The total size of translog files to keep. Keeping more translog files increases
-the chance of performing an operation based sync when recovering replicas. If
-the translog files are not sufficient, replica recovery will fall back to a
-file based sync. Defaults to `512mb`
+When soft deletes is disabled (enabled by default in 7.0 or later),
+`index.translog.retention.size` controls the total size of translog files to keep.
+Keeping more translog files increases the chance of performing an operation based
+sync when recovering replicas. If the translog files are not sufficient,
+replica recovery will fall back to a file based sync. Defaults to `512mb`
+
+Both `index.translog.retention.size` and `index.translog.retention.age` should not
+be specified unless soft deletes is disabled as they will be ignored.
 
 
 `index.translog.retention.age`::
 
-The maximum duration for which translog files will be kept. Defaults to `12h`.
+When soft deletes is disabled (enabled by default in 7.0 or later),
+`index.translog.retention.age` controls the maximum duration for which translog
+files to keep. Keeping more translog files increases the chance of performing an
+operation based sync when recovering replicas. If the translog files are not sufficient,
+replica recovery will fall back to a file based sync. Defaults to `12h`
+
+Both `index.translog.retention.size` and `index.translog.retention.age` should not
+be specified unless soft deletes is disabled as they will be ignored.

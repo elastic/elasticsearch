@@ -88,8 +88,8 @@ public class ClusterPermission {
         }
 
         public Builder add(final ClusterPrivilege clusterPrivilege, final Set<String> allowedActionPatterns,
-                           final Set<String> excludeActionPatterns, final Predicate<TransportRequest> requestPredicate) {
-            final Automaton actionAutomaton = createAutomaton(allowedActionPatterns, excludeActionPatterns);
+                           final Predicate<TransportRequest> requestPredicate) {
+            final Automaton actionAutomaton = createAutomaton(allowedActionPatterns, Set.of());
             return add(clusterPrivilege, new ActionRequestBasedPermissionCheck(clusterPrivilege, actionAutomaton, requestPredicate));
         }
 

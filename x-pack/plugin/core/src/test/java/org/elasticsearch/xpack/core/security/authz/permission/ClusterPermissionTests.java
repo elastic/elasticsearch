@@ -282,7 +282,7 @@ public class ClusterPermissionTests extends ESTestCase {
 
         @Override
         public ClusterPermission.Builder buildPermission(ClusterPermission.Builder builder) {
-            return builder.add(this, Set.of("cluster:admin/xpack/security/privilege/*"), Set.of(), requestPredicate);
+            return builder.add(this, Set.of("cluster:admin/xpack/security/privilege/*"), requestPredicate);
         }
     }
 }

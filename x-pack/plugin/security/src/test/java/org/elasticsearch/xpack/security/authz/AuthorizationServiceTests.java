@@ -320,7 +320,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             @Override
             public ClusterPermission.Builder buildPermission(ClusterPermission.Builder builder) {
                 final Predicate<TransportRequest> requestPredicate = r -> r == request;
-                builder.add(this, ((ActionClusterPrivilege) ClusterPrivilegeResolver.MANAGE_SECURITY).getAllowedActionPatterns(), Set.of(),
+                builder.add(this, ((ActionClusterPrivilege) ClusterPrivilegeResolver.MANAGE_SECURITY).getAllowedActionPatterns(),
                     requestPredicate);
                 return builder;
             }
@@ -346,8 +346,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             @Override
             public ClusterPermission.Builder buildPermission(ClusterPermission.Builder builder) {
                 final Predicate<TransportRequest> requestPredicate = r -> false;
-                builder.add(this, ((ActionClusterPrivilege) ClusterPrivilegeResolver.MANAGE_SECURITY).getAllowedActionPatterns(), Set.of()
-                    , requestPredicate);
+                builder.add(this, ((ActionClusterPrivilege) ClusterPrivilegeResolver.MANAGE_SECURITY).getAllowedActionPatterns(),
+                    requestPredicate);
                 return builder;
             }
         };

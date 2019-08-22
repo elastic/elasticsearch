@@ -32,7 +32,209 @@ disable scripts per type and context as described in the
 <<allowed-script-types-setting, scripting docs>>
 
 [float]
-==== More template examples
+==== Examples
+
+[float]
+[[pre-registered-templates]]
+===== Store a search template
+
+You can store a search template using the stored scripts API.
+
+[source,js]
+------------------------------------------
+POST _scripts/<templateid>
+{
+    "script": {
+        "lang": "mustache",
+        "source": {
+            "query": {
+                "match": {
+                    "title": "{{query_string}}"
+                }
+            }
+        }
+    }
+}
+------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+//////////////////////////
+
+We want to be sure that the template has been created,
+because we'll use it later.
+
+[source,js]
+--------------------------------------------------
+{
+    "acknowledged" : true
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+//////////////////////////
+
+This template can be retrieved by
+
+[source,js]
+------------------------------------------
+GET _scripts/<templateid>
+------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+which is rendered as:
+
+[source,js]
+------------------------------------------
+{
+    "script" : {
+        "lang" : "mustache",
+        "source" : "{\"query\":{\"match\":{\"title\":\"{{query_string}}\"}}}",
+        "options": {
+          "content_type" : "application/json; charset=UTF-8"
+        }
+    },
+    "_id": "<templateid>",
+    "found": true
+}
+------------------------------------------
+// TESTRESPONSE
+
+This template can be deleted by
+
+[source,js]
+------------------------------------------
+DELETE _scripts/<templateid>
+------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+//////////////////////////
+
+We want to be sure that the template has been created,
+because we'll use it later.
+
+[source,js]
+--------------------------------------------------
+{
+    "acknowledged" : true
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+//////////////////////////
+
+[float]
+[[use-registered-templates]]
+===== Use a stored search template
+
+To use a stored template at search time use:
+
+[source,js]
+------------------------------------------
+GET _search/template
+{
+    "id": "<templateid>", <1>
+    "params": {
+        "query_string": "search for these words"
+    }
+}
+------------------------------------------
+// CONSOLE
+// TEST[catch:missing]
+<1> Name of the stored template script.
+
+[float]
+[[_validating_templates]]
+==== Validate a search template
+
+A template can be rendered in a response with given parameters using
+
+[source,js]
+------------------------------------------
+GET _render/template
+{
+  "source": "{ \"query\": { \"terms\": {{#toJson}}statuses{{/toJson}} }}",
+  "params": {
+    "statuses" : {
+        "status": [ "pending", "published" ]
+    }
+  }
+}
+------------------------------------------
+// CONSOLE
+
+This call will return the rendered template:
+
+[source,js]
+------------------------------------------
+{
+  "template_output": {
+    "query": {
+      "terms": {
+        "status": [ <1>
+          "pending",
+          "published"
+        ]
+      }
+    }
+  }
+}
+------------------------------------------
+// TESTRESPONSE
+<1> `status` array has been populated with values from the `params` object.
+
+Stored templates can also be rendered using
+
+[source,js]
+------------------------------------------
+GET _render/template/<template_name>
+{
+  "params": {
+    "..."
+  }
+}
+------------------------------------------
+// NOTCONSOLE
+
+[float]
+===== Explain
+
+You can use `explain` parameter when running a template:
+
+[source,js]
+------------------------------------------
+GET _search/template
+{
+  "id": "my_template",
+  "params": {
+    "status": [ "pending", "published" ]
+  },
+  "explain": true
+}
+------------------------------------------
+// CONSOLE
+// TEST[catch:missing]
+
+[float]
+===== Profiling
+
+You can use `profile` parameter when running a template:
+
+[source,js]
+------------------------------------------
+GET _search/template
+{
+  "id": "my_template",
+  "params": {
+    "status": [ "pending", "published" ]
+  },
+  "profile": true
+}
+------------------------------------------
+// CONSOLE
+// TEST[catch:missing]
 
 [float]
 ===== Filling in a query string with a single value
@@ -396,204 +598,6 @@ The previous query will be rendered as:
 }
 ------------------------------------------
 // TESTRESPONSE
-
-
-[float]
-[[pre-registered-templates]]
-===== Pre-registered template
-
-You can register search templates by using the stored scripts api.
-
-[source,js]
-------------------------------------------
-POST _scripts/<templatename>
-{
-    "script": {
-        "lang": "mustache",
-        "source": {
-            "query": {
-                "match": {
-                    "title": "{{query_string}}"
-                }
-            }
-        }
-    }
-}
-------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-//////////////////////////
-
-We want to be sure that the template has been created,
-because we'll use it later.
-
-[source,js]
---------------------------------------------------
-{
-    "acknowledged" : true
-}
---------------------------------------------------
-// TESTRESPONSE
-
-//////////////////////////
-
-This template can be retrieved by
-
-[source,js]
-------------------------------------------
-GET _scripts/<templatename>
-------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-which is rendered as:
-
-[source,js]
-------------------------------------------
-{
-    "script" : {
-        "lang" : "mustache",
-        "source" : "{\"query\":{\"match\":{\"title\":\"{{query_string}}\"}}}",
-        "options": {
-          "content_type" : "application/json; charset=UTF-8"
-        }
-    },
-    "_id": "<templatename>",
-    "found": true
-}
-------------------------------------------
-// TESTRESPONSE
-
-This template can be deleted by
-
-[source,js]
-------------------------------------------
-DELETE _scripts/<templatename>
-------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-//////////////////////////
-
-We want to be sure that the template has been created,
-because we'll use it later.
-
-[source,js]
---------------------------------------------------
-{
-    "acknowledged" : true
-}
---------------------------------------------------
-// TESTRESPONSE
-
-//////////////////////////
-
-To use a stored template at search time use:
-
-[source,js]
-------------------------------------------
-GET _search/template
-{
-    "id": "<templateName>", <1>
-    "params": {
-        "query_string": "search for these words"
-    }
-}
-------------------------------------------
-// CONSOLE
-// TEST[catch:missing]
-<1> Name of the stored template script.
-
-[float]
-==== Validating templates
-
-A template can be rendered in a response with given parameters using
-
-[source,js]
-------------------------------------------
-GET _render/template
-{
-  "source": "{ \"query\": { \"terms\": {{#toJson}}statuses{{/toJson}} }}",
-  "params": {
-    "statuses" : {
-        "status": [ "pending", "published" ]
-    }
-  }
-}
-------------------------------------------
-// CONSOLE
-
-This call will return the rendered template:
-
-[source,js]
-------------------------------------------
-{
-  "template_output": {
-    "query": {
-      "terms": {
-        "status": [ <1>
-          "pending",
-          "published"
-        ]
-      }
-    }
-  }
-}
-------------------------------------------
-// TESTRESPONSE
-<1> `status` array has been populated with values from the `params` object.
-
-Pre-registered templates can also be rendered using
-
-[source,js]
-------------------------------------------
-GET _render/template/<template_name>
-{
-  "params": {
-    "..."
-  }
-}
-------------------------------------------
-// NOTCONSOLE
-
-[float]
-===== Explain
-
-You can use `explain` parameter when running a template:
-
-[source,js]
-------------------------------------------
-GET _search/template
-{
-  "id": "my_template",
-  "params": {
-    "status": [ "pending", "published" ]
-  },
-  "explain": true
-}
-------------------------------------------
-// CONSOLE
-// TEST[catch:missing]
-
-[float]
-===== Profiling
-
-You can use `profile` parameter when running a template:
-
-[source,js]
-------------------------------------------
-GET _search/template
-{
-  "id": "my_template",
-  "params": {
-    "status": [ "pending", "published" ]
-  },
-  "profile": true
-}
-------------------------------------------
-// CONSOLE
-// TEST[catch:missing]
 
 [[multi-search-template]]
 === Multi Search Template

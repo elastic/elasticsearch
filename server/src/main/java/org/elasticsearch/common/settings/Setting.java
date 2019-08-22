@@ -1053,7 +1053,12 @@ public class Setting<T> implements ToXContentObject {
         return new Setting<>(key, fallbackSetting, (s) -> parseInt(s, minValue, key), properties);
     }
 
-    public static Setting<Integer> intSetting(String key, Setting<Integer> fallbackSetting, int minValue, int maxValue, Property... properties) {
+    public static Setting<Integer> intSetting(
+        final String key,
+        final Setting<Integer> fallbackSetting,
+        final int minValue,
+        final int maxValue,
+        final Property... properties) {
         return new Setting<>(key, fallbackSetting, (s) -> parseInt(s, minValue, maxValue, key), properties);
     }
 

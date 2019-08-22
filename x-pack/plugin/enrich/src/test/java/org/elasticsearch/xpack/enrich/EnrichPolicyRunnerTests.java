@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.enrich;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -41,6 +40,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.ReindexPlugin;
+import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -56,7 +56,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singletonList(ReindexPlugin.class);
+        return List.of(ReindexPlugin.class, IngestCommonPlugin.class);
     }
 
     public void testRunner() throws Exception {
@@ -159,6 +159,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
                 .source(
                     "{" +
                         "\"idx\":" + idx + "," +
+                        "\"key\":" + "\"key" + idx + "\"," +
                         "\"field1\":\"value1\"," +
                         "\"field2\":2," +
                         "\"field3\":\"ignored\"," +
@@ -178,6 +179,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             Map<String, Object> sourceDocMap = sourceSearchResponse.getHits().getAt(0).getSourceAsMap();
             assertNotNull(sourceDocMap);
             assertThat(sourceDocMap.get("idx"), is(equalTo(idx)));
+            assertThat(sourceDocMap.get("key"), is(equalTo("key" + idx)));
             assertThat(sourceDocMap.get("field1"), is(equalTo("value1")));
             assertThat(sourceDocMap.get("field2"), is(equalTo(2)));
             assertThat(sourceDocMap.get("field3"), is(equalTo("ignored")));
@@ -186,8 +188,8 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         }
 
         String sourceIndexPattern = baseSourceName + "*";
-        List<String> enrichFields = List.of("idx", "field2", "field5");
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, List.of(sourceIndexPattern), "field1", enrichFields);
+        List<String> enrichFields = List.of("idx", "field1", "field2", "field5");
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, List.of(sourceIndexPattern), "key", enrichFields);
         String policyName = "test1";
 
         final long createTime = randomNonNegativeLong();
@@ -218,10 +220,10 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         Map<?, ?> properties = (Map<?, ?>) mapping.get("properties");
         assertNotNull(properties);
         assertThat(properties.size(), is(equalTo(1)));
-        Map<?, ?> field1 = (Map<?, ?>) properties.get("field1");
-        assertNotNull(field1);
-        assertThat(field1.get("type"), is(equalTo("keyword")));
-        assertThat(field1.get("doc_values"), is(false));
+        Map<?, ?> keyfield = (Map<?, ?>) properties.get("key");
+        assertNotNull(keyfield);
+        assertThat(keyfield.get("type"), is(equalTo("keyword")));
+        assertThat(keyfield.get("doc_values"), is(false));
 
         // Validate document structure
         SearchResponse enrichSearchResponse = client().search(
@@ -231,7 +233,205 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(3L));
         Map<String, Object> enrichDocument = enrichSearchResponse.getHits().iterator().next().getSourceAsMap();
         assertNotNull(enrichDocument);
-        assertThat(enrichDocument.size(), is(equalTo(4)));
+        assertThat(enrichDocument.size(), is(equalTo(5)));
+        assertThat(enrichDocument.get("key"), is(equalTo("key0")));
+        assertThat(enrichDocument.get("field1"), is(equalTo("value1")));
+        assertThat(enrichDocument.get("field2"), is(equalTo(2)));
+        assertThat(enrichDocument.get("field5"), is(equalTo("value5")));
+
+        // Validate segments
+        validateSegments(createdEnrichIndex, 3);
+
+        // Validate Index is read only
+        ensureEnrichIndexIsReadOnly(createdEnrichIndex);
+    }
+
+    public void testRunnerMultiSourceDocIdCollisions() throws Exception {
+        String baseSourceName = "source-index-";
+        int numberOfSourceIndices = 3;
+        String collidingDocId = randomAlphaOfLength(10);
+        for (int idx = 0; idx < numberOfSourceIndices; idx++) {
+            final String sourceIndex = baseSourceName + idx;
+            IndexResponse indexRequest = client().index(new IndexRequest()
+                .index(sourceIndex)
+                .id(collidingDocId)
+                .source(
+                    "{" +
+                        "\"idx\":" + idx + "," +
+                        "\"key\":" + "\"key" + idx + "\"," +
+                        "\"field1\":\"value1\"," +
+                        "\"field2\":2," +
+                        "\"field3\":\"ignored\"," +
+                        "\"field4\":\"ignored\"," +
+                        "\"field5\":\"value5\"" +
+                    "}",
+                    XContentType.JSON)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            ).actionGet();
+            assertEquals(RestStatus.CREATED, indexRequest.status());
+
+            SearchResponse sourceSearchResponse = client().search(
+                new SearchRequest(sourceIndex)
+                    .source(SearchSourceBuilder.searchSource()
+                        .query(QueryBuilders.matchAllQuery()))).actionGet();
+            assertThat(sourceSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+            Map<String, Object> sourceDocMap = sourceSearchResponse.getHits().getAt(0).getSourceAsMap();
+            assertNotNull(sourceDocMap);
+            assertThat(sourceDocMap.get("idx"), is(equalTo(idx)));
+            assertThat(sourceDocMap.get("key"), is(equalTo("key" + idx)));
+            assertThat(sourceDocMap.get("field1"), is(equalTo("value1")));
+            assertThat(sourceDocMap.get("field2"), is(equalTo(2)));
+            assertThat(sourceDocMap.get("field3"), is(equalTo("ignored")));
+            assertThat(sourceDocMap.get("field4"), is(equalTo("ignored")));
+            assertThat(sourceDocMap.get("field5"), is(equalTo("value5")));
+        }
+
+        String sourceIndexPattern = baseSourceName + "*";
+        List<String> enrichFields = List.of("idx", "field1", "field2", "field5");
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, List.of(sourceIndexPattern), "key", enrichFields);
+        String policyName = "test1";
+
+        final long createTime = randomNonNegativeLong();
+        final AtomicReference<Exception> exception = new AtomicReference<>();
+        final CountDownLatch latch = new CountDownLatch(1);
+        ActionListener<PolicyExecutionResult> listener = createTestListener(latch, exception::set);
+        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, listener, createTime);
+
+        logger.info("Starting policy run");
+        enrichPolicyRunner.run();
+        latch.await();
+        if (exception.get() != null) {
+            throw exception.get();
+        }
+
+        // Validate Index definition
+        String createdEnrichIndex = ".enrich-test1-" + createTime;
+        GetIndexResponse enrichIndex = client().admin().indices().getIndex(new GetIndexRequest().indices(".enrich-test1")).actionGet();
+        assertThat(enrichIndex.getIndices().length, equalTo(1));
+        assertThat(enrichIndex.getIndices()[0], equalTo(createdEnrichIndex));
+        Settings settings = enrichIndex.getSettings().get(createdEnrichIndex);
+        assertNotNull(settings);
+        assertThat(settings.get("index.auto_expand_replicas"), is(equalTo("0-all")));
+
+        // Validate Mapping
+        Map<String, Object> mapping = enrichIndex.getMappings().get(createdEnrichIndex).get("_doc").sourceAsMap();
+        assertThat(mapping.get("dynamic"), is("false"));
+        Map<?, ?> properties = (Map<?, ?>) mapping.get("properties");
+        assertNotNull(properties);
+        assertThat(properties.size(), is(equalTo(1)));
+        Map<?, ?> keyfield = (Map<?, ?>) properties.get("key");
+        assertNotNull(keyfield);
+        assertThat(keyfield.get("type"), is(equalTo("keyword")));
+        assertThat(keyfield.get("doc_values"), is(false));
+
+        // Validate document structure
+        SearchResponse enrichSearchResponse = client().search(
+            new SearchRequest(".enrich-test1")
+                .source(SearchSourceBuilder.searchSource()
+                    .query(QueryBuilders.matchAllQuery()))).actionGet();
+        assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(3L));
+        Map<String, Object> enrichDocument = enrichSearchResponse.getHits().iterator().next().getSourceAsMap();
+        assertNotNull(enrichDocument);
+        assertThat(enrichDocument.size(), is(equalTo(5)));
+        assertThat(enrichDocument.get("key"), is(equalTo("key0")));
+        assertThat(enrichDocument.get("field1"), is(equalTo("value1")));
+        assertThat(enrichDocument.get("field2"), is(equalTo(2)));
+        assertThat(enrichDocument.get("field5"), is(equalTo("value5")));
+
+        // Validate segments
+        validateSegments(createdEnrichIndex, 3);
+
+        // Validate Index is read only
+        ensureEnrichIndexIsReadOnly(createdEnrichIndex);
+    }
+
+    public void testRunnerMultiSourceEnrichKeyCollisions() throws Exception {
+        String baseSourceName = "source-index-";
+        int numberOfSourceIndices = 3;
+        for (int idx = 0; idx < numberOfSourceIndices; idx++) {
+            final String sourceIndex = baseSourceName + idx;
+            IndexResponse indexRequest = client().index(new IndexRequest()
+                .index(sourceIndex)
+                .id(randomAlphaOfLength(10))
+                .source(
+                    "{" +
+                        "\"idx\":" + idx + "," +
+                        "\"key\":" + "\"key\"," +
+                        "\"field1\":\"value1\"," +
+                        "\"field2\":2," +
+                        "\"field3\":\"ignored\"," +
+                        "\"field4\":\"ignored\"," +
+                        "\"field5\":\"value5\"" +
+                    "}",
+                    XContentType.JSON)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            ).actionGet();
+            assertEquals(RestStatus.CREATED, indexRequest.status());
+
+            SearchResponse sourceSearchResponse = client().search(
+                new SearchRequest(sourceIndex)
+                    .source(SearchSourceBuilder.searchSource()
+                        .query(QueryBuilders.matchAllQuery()))).actionGet();
+            assertThat(sourceSearchResponse.getHits().getTotalHits().value, equalTo(1L));
+            Map<String, Object> sourceDocMap = sourceSearchResponse.getHits().getAt(0).getSourceAsMap();
+            assertNotNull(sourceDocMap);
+            assertThat(sourceDocMap.get("idx"), is(equalTo(idx)));
+            assertThat(sourceDocMap.get("key"), is(equalTo("key")));
+            assertThat(sourceDocMap.get("field1"), is(equalTo("value1")));
+            assertThat(sourceDocMap.get("field2"), is(equalTo(2)));
+            assertThat(sourceDocMap.get("field3"), is(equalTo("ignored")));
+            assertThat(sourceDocMap.get("field4"), is(equalTo("ignored")));
+            assertThat(sourceDocMap.get("field5"), is(equalTo("value5")));
+        }
+
+        String sourceIndexPattern = baseSourceName + "*";
+        List<String> enrichFields = List.of("idx", "field1", "field2", "field5");
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, List.of(sourceIndexPattern), "key", enrichFields);
+        String policyName = "test1";
+
+        final long createTime = randomNonNegativeLong();
+        final AtomicReference<Exception> exception = new AtomicReference<>();
+        final CountDownLatch latch = new CountDownLatch(1);
+        ActionListener<PolicyExecutionResult> listener = createTestListener(latch, exception::set);
+        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, listener, createTime);
+
+        logger.info("Starting policy run");
+        enrichPolicyRunner.run();
+        latch.await();
+        if (exception.get() != null) {
+            throw exception.get();
+        }
+
+        // Validate Index definition
+        String createdEnrichIndex = ".enrich-test1-" + createTime;
+        GetIndexResponse enrichIndex = client().admin().indices().getIndex(new GetIndexRequest().indices(".enrich-test1")).actionGet();
+        assertThat(enrichIndex.getIndices().length, equalTo(1));
+        assertThat(enrichIndex.getIndices()[0], equalTo(createdEnrichIndex));
+        Settings settings = enrichIndex.getSettings().get(createdEnrichIndex);
+        assertNotNull(settings);
+        assertThat(settings.get("index.auto_expand_replicas"), is(equalTo("0-all")));
+
+        // Validate Mapping
+        Map<String, Object> mapping = enrichIndex.getMappings().get(createdEnrichIndex).get("_doc").sourceAsMap();
+        assertThat(mapping.get("dynamic"), is("false"));
+        Map<?, ?> properties = (Map<?, ?>) mapping.get("properties");
+        assertNotNull(properties);
+        assertThat(properties.size(), is(equalTo(1)));
+        Map<?, ?> keyfield = (Map<?, ?>) properties.get("key");
+        assertNotNull(keyfield);
+        assertThat(keyfield.get("type"), is(equalTo("keyword")));
+        assertThat(keyfield.get("doc_values"), is(false));
+
+        // Validate document structure
+        SearchResponse enrichSearchResponse = client().search(
+            new SearchRequest(".enrich-test1")
+                .source(SearchSourceBuilder.searchSource()
+                    .query(QueryBuilders.matchAllQuery()))).actionGet();
+        assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(3L));
+        Map<String, Object> enrichDocument = enrichSearchResponse.getHits().iterator().next().getSourceAsMap();
+        assertNotNull(enrichDocument);
+        assertThat(enrichDocument.size(), is(equalTo(5)));
+        assertThat(enrichDocument.get("key"), is(equalTo("key")));
         assertThat(enrichDocument.get("field1"), is(equalTo("value1")));
         assertThat(enrichDocument.get("field2"), is(equalTo(2)));
         assertThat(enrichDocument.get("field5"), is(equalTo("value5")));

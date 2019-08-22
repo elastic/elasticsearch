@@ -961,8 +961,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         RESOURCE_ALREADY_EXISTS_EXCEPTION(ResourceAlreadyExistsException.class,
             ResourceAlreadyExistsException::new, 123, UNKNOWN_VERSION_ADDED),
         // 124 used to be Script.ScriptParseException
-        HTTP_ON_TRANSPORT_EXCEPTION(TcpTransport.HttpOnTransportException.class,
-                TcpTransport.HttpOnTransportException::new, 125, UNKNOWN_VERSION_ADDED),
+        HTTP_REQUEST_ON_TRANSPORT_EXCEPTION(TcpTransport.HttpRequestOnTransportException.class,
+                TcpTransport.HttpRequestOnTransportException::new, 125, UNKNOWN_VERSION_ADDED),
         MAPPER_PARSING_EXCEPTION(org.elasticsearch.index.mapper.MapperParsingException.class,
                 org.elasticsearch.index.mapper.MapperParsingException::new, 126, UNKNOWN_VERSION_ADDED),
         SEARCH_CONTEXT_EXCEPTION(org.elasticsearch.search.SearchContextException.class,

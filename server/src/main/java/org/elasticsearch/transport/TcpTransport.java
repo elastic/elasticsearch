@@ -601,7 +601,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 "cancelled key exception caught on transport layer [{}], disconnecting from relevant node", channel), e);
             // close the channel as safe measure, which will cause a node to be disconnected if relevant
             CloseableChannel.closeChannel(channel);
-        } else if (e instanceof TcpTransport.HttpOnTransportException) {
+        } else if (e instanceof HttpRequestOnTransportException) {
             // in case we are able to return data, serialize the exception content and sent it back to the client
             if (channel.isOpen()) {
                 BytesArray message = new BytesArray(e.getMessage().getBytes(StandardCharsets.UTF_8));
@@ -671,7 +671,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      * @param bytesReference the bytes available to consume
      * @return the number of bytes consumed
      * @throws StreamCorruptedException              if the message header format is not recognized
-     * @throws TcpTransport.HttpOnTransportException if the message header appears to be an HTTP message
+     * @throws HttpRequestOnTransportException if the message header appears to be an HTTP message
      * @throws IllegalArgumentException              if the message length is greater that the maximum allowed frame size.
      *                                               This is dependent on the available memory.
      */
@@ -693,7 +693,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      * @param networkBytes the will be read
      * @return the message decoded
      * @throws StreamCorruptedException              if the message header format is not recognized
-     * @throws TcpTransport.HttpOnTransportException if the message header appears to be an HTTP message
+     * @throws HttpRequestOnTransportException if the message header appears to be an HTTP message
      * @throws IllegalArgumentException              if the message length is greater that the maximum allowed frame size.
      *                                               This is dependent on the available memory.
      */
@@ -720,7 +720,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      * @param networkBytes the will be read
      * @return the length of the message
      * @throws StreamCorruptedException              if the message header format is not recognized
-     * @throws TcpTransport.HttpOnTransportException if the message header appears to be an HTTP message
+     * @throws HttpRequestOnTransportException if the message header appears to be an HTTP message
      * @throws IllegalArgumentException              if the message length is greater that the maximum allowed frame size.
      *                                               This is dependent on the available memory.
      */
@@ -734,8 +734,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     private static int readHeaderBuffer(BytesReference headerBuffer) throws IOException {
         if (headerBuffer.get(0) != 'E' || headerBuffer.get(1) != 'S') {
-            if (appearsToBeHTTP(headerBuffer)) {
-                throw new TcpTransport.HttpOnTransportException("This is not an HTTP port");
+            if (appearsToBeHTTPRequest(headerBuffer)) {
+                throw new HttpRequestOnTransportException("This is not an HTTP port");
             }
 
             throw new StreamCorruptedException("invalid internal transport message format, got ("
@@ -763,7 +763,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         return messageLength;
     }
 
-    private static boolean appearsToBeHTTP(BytesReference headerBuffer) {
+    private static boolean appearsToBeHTTPRequest(BytesReference headerBuffer) {
         return bufferStartsWith(headerBuffer, "GET") ||
             bufferStartsWith(headerBuffer, "POST") ||
             bufferStartsWith(headerBuffer, "PUT") ||
@@ -789,9 +789,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      * A helper exception to mark an incoming connection as potentially being HTTP
      * so an appropriate error code can be returned
      */
-    public static class HttpOnTransportException extends ElasticsearchException {
+    public static class HttpRequestOnTransportException extends ElasticsearchException {
 
-        private HttpOnTransportException(String msg) {
+        private HttpRequestOnTransportException(String msg) {
             super(msg);
         }
 
@@ -800,7 +800,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             return RestStatus.BAD_REQUEST;
         }
 
-        public HttpOnTransportException(StreamInput in) throws IOException {
+        public HttpRequestOnTransportException(StreamInput in) throws IOException {
             super(in);
         }
     }

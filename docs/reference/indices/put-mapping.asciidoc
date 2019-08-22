@@ -35,34 +35,6 @@ please see <<removal-of-types>>.
 `PUT /_mapping`
 
 
-[[put-mapping-api-desc]]
-==== {api-description-title}
-
-You can use the put mapping API to add fields to an existing index or to change
-the search settings of existing fields.
-
-[[updating-field-mappings]]
-===== Restrictions for existing fields
-
-// tag::put-field-mapping-exceptions[]
-
-You can't change the mapping of an existing field, with the following
-exceptions:
-
-* You can add new <<properties,properties>> to an <<object,`object`>> field.
-* You can use the <<multi-fields,`field`>> mapping parameter to enable
-multi-fields.
-* You can change the value of the <<ignore-above,`ignore_above`>> mapping
-parameter.
-
-Changing the mapping of an existing field could invalidate data that's already
-indexed. If you need to change the mapping of a field, create a new index with
-the correct mappings and <<docs-reindex,reindex>> your data into that index. If
-you only want to rename a field, consider adding an <<alias, `alias`>> field.
-
-// end::put-field-mapping-exceptions[]
-
-
 [[put-mapping-api-path-params]]
 ==== {api-path-parms-title}
 
@@ -162,6 +134,27 @@ PUT /twitter-1,twitter-2/_mapping <1>
 // TEST[setup:twitter]
 
 <1> Note that the indices specified (`twitter-1,twitter-2`) follows <<multi-index,multiple index names>> and wildcard format.
+
+[[updating-field-mappings]]
+===== Update an existing field
+
+// tag::put-field-mapping-exceptions[]
+
+You can't change the mapping of an existing field, with the following
+exceptions:
+
+* You can add new <<properties,properties>> to an <<object,`object`>> field.
+* You can use the <<multi-fields,`field`>> mapping parameter to enable
+multi-fields.
+* You can change the value of the <<ignore-above,`ignore_above`>> mapping
+parameter.
+
+Changing the mapping of an existing field could invalidate data that's already
+indexed. If you need to change the mapping of a field, create a new index with
+the correct mappings and <<docs-reindex,reindex>> your data into that index. If
+you only want to rename a field, consider adding an <<alias, `alias`>> field.
+
+// end::put-field-mapping-exceptions[]
 
 For example:
 

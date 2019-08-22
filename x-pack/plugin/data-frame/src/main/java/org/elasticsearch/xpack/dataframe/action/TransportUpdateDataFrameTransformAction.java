@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.dataframe.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -19,6 +21,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -59,6 +62,7 @@ import static org.elasticsearch.xpack.dataframe.action.TransportPutDataFrameTran
 
 public class TransportUpdateDataFrameTransformAction extends TransportMasterNodeAction<Request, Response> {
 
+    private static final Logger logger = LogManager.getLogger(TransportUpdateDataFrameTransformAction.class);
     private final XPackLicenseState licenseState;
     private final Client client;
     private final DataFrameTransformsConfigManager dataFrameTransformsConfigManager;
@@ -109,8 +113,6 @@ public class TransportUpdateDataFrameTransformAction extends TransportMasterNode
         DataFrameTransformConfigUpdate update = request.getUpdate();
         update.setHeaders(filteredHeaders);
 
-        String transformId = request.getId();
-
         // GET transform and attempt to update
         // We don't want the update to complete if the config changed between GET and INDEX
         dataFrameTransformsConfigManager.getTransformConfigurationForUpdate(request.getId(), ActionListener.wrap(
@@ -136,12 +138,12 @@ public class TransportUpdateDataFrameTransformAction extends TransportMasterNode
     private void handlePrivsResponse(String username,
                                      Request request,
                                      DataFrameTransformConfig config,
-                                     DataFrameTransformsConfigManager.SeqNoPrimaryTermPair seqNoPrimaryTermPair,
+                                     DataFrameTransformsConfigManager.SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex,
                                      ClusterState clusterState,
                                      HasPrivilegesResponse privilegesResponse,
                                      ActionListener<Response> listener) {
         if (privilegesResponse.isCompleteMatch()) {
-            updateDataFrame(request, config, seqNoPrimaryTermPair, clusterState, listener);
+            updateDataFrame(request, config, seqNoPrimaryTermAndIndex, clusterState, listener);
         } else {
             List<String> indices = privilegesResponse.getIndexPrivileges()
                 .stream()
@@ -159,7 +161,7 @@ public class TransportUpdateDataFrameTransformAction extends TransportMasterNode
     private void validateAndUpdateDataFrame(Request request,
                                             ClusterState clusterState,
                                             DataFrameTransformConfig config,
-                                            DataFrameTransformsConfigManager.SeqNoPrimaryTermPair seqNoPrimaryTermPair,
+                                            DataFrameTransformsConfigManager.SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex,
                                             ActionListener<Response> listener) {
         try {
             SourceDestValidator.validate(config, clusterState, indexNameExpressionResolver, request.isDeferValidation());
@@ -174,17 +176,17 @@ public class TransportUpdateDataFrameTransformAction extends TransportMasterNode
             final String username = securityContext.getUser().principal();
             HasPrivilegesRequest privRequest = buildPrivilegeCheck(config, indexNameExpressionResolver, clusterState, username);
             ActionListener<HasPrivilegesResponse> privResponseListener = ActionListener.wrap(
-                r -> handlePrivsResponse(username, request, config, seqNoPrimaryTermPair, clusterState, r, listener),
+                r -> handlePrivsResponse(username, request, config, seqNoPrimaryTermAndIndex, clusterState, r, listener),
                 listener::onFailure);
 
             client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
         } else { // No security enabled, just create the transform
-            updateDataFrame(request, config, seqNoPrimaryTermPair, clusterState, listener);
+            updateDataFrame(request, config, seqNoPrimaryTermAndIndex, clusterState, listener);
         }
     }
     private void updateDataFrame(Request request,
                                  DataFrameTransformConfig config,
-                                 DataFrameTransformsConfigManager.SeqNoPrimaryTermPair seqNoPrimaryTermPair,
+                                 DataFrameTransformsConfigManager.SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex,
                                  ClusterState clusterState,
                                  ActionListener<Response> listener) {
 
@@ -194,7 +196,18 @@ public class TransportUpdateDataFrameTransformAction extends TransportMasterNode
         ActionListener<Boolean> putTransformConfigurationListener = ActionListener.wrap(
             putTransformConfigurationResult -> {
                 auditor.info(config.getId(), "updated data frame transform.");
-                listener.onResponse(new Response(config));
+                dataFrameTransformsConfigManager.deleteOldTransformConfigurations(request.getId(), ActionListener.wrap(
+                    r -> {
+                        logger.trace("[{}] successfully deleted old transform configurations", request.getId());
+                        listener.onResponse(new Response(config));
+                    },
+                    e -> {
+                        logger.warn(
+                            LoggerMessageFormat.format("[{}] failed deleting old transform configurations.", request.getId()),
+                            e);
+                        listener.onResponse(new Response(config));
+                    }
+                ));
             },
             // If we failed to INDEX AND we created the destination index, the destination index will still be around
             // This is a similar behavior to _start
@@ -204,7 +217,7 @@ public class TransportUpdateDataFrameTransformAction extends TransportMasterNode
         // <2> Update our transform
         ActionListener<Void> createDestinationListener = ActionListener.wrap(
             createDestResponse -> dataFrameTransformsConfigManager.updateTransformConfiguration(config,
-                seqNoPrimaryTermPair,
+                seqNoPrimaryTermAndIndex,
                 putTransformConfigurationListener),
             listener::onFailure
         );

@@ -64,7 +64,7 @@ public abstract class AbstractNativeProcess implements NativeProcess {
         this.jobId = jobId;
         this.nativeController = nativeController;
         cppLogHandler = new CppLogMessageHandler(jobId, logStream);
-        this.processInStream = new BufferedOutputStream(processInStream);
+        this.processInStream = processInStream != null ? new BufferedOutputStream(processInStream) : null;
         this.processOutStream = processOutStream;
         this.processRestoreStream = processRestoreStream;
         this.recordWriter = new LengthEncodedWriter(this.processInStream);
@@ -89,17 +89,30 @@ public abstract class AbstractNativeProcess implements NativeProcess {
                     LOGGER.error(new ParameterizedMessage("[{}] Error tailing {} process logs", jobId, getName()), e);
                 }
             } finally {
-                if (processCloseInitiated == false && processKilled == false) {
-                    // The log message doesn't say "crashed", as the process could have been killed
-                    // by a user or other process (e.g. the Linux OOM killer)
-
-                    String errors = cppLogHandler.getErrors();
-                    String fullError = String.format(Locale.ROOT, "[%s] %s process stopped unexpectedly: %s", jobId, getName(), errors);
-                    LOGGER.error(fullError);
-                    onProcessCrash.accept(fullError);
-                }
+                detectCrash();
             }
         });
+    }
+
+    /**
+     * Try detecting whether the process crashed i.e. stopped prematurely without any known reason.
+     */
+    private void detectCrash() {
+        if (processCloseInitiated || processKilled) {
+            // Do not detect crash when the process is being closed or killed.
+            return;
+        }
+        if (processInStream == null) {
+            // Do not detect crash when the process has been closed automatically.
+            // This is possible when the process does not have input pipe to hang on and closes right after writing its output.
+            return;
+        }
+        // The log message doesn't say "crashed", as the process could have been killed
+        // by a user or other process (e.g. the Linux OOM killer)
+        String errors = cppLogHandler.getErrors();
+        String fullError = String.format(Locale.ROOT, "[%s] %s process stopped unexpectedly: %s", jobId, getName(), errors);
+        LOGGER.error(fullError);
+        onProcessCrash.accept(fullError);
     }
 
     /**
@@ -149,7 +162,9 @@ public abstract class AbstractNativeProcess implements NativeProcess {
         try {
             processCloseInitiated = true;
             // closing its input causes the process to exit
-            processInStream.close();
+            if (processInStream != null) {
+                processInStream.close();
+            }
             // wait for the process to exit by waiting for end-of-file on the named pipe connected
             // to the state processor - it may take a long time for all the model state to be
             // indexed
@@ -194,7 +209,9 @@ public abstract class AbstractNativeProcess implements NativeProcess {
             LOGGER.warn("[{}] Failed to get PID of {} process to kill", jobId, getName());
         } finally {
             try {
-                processInStream.close();
+                if (processInStream != null) {
+                    processInStream.close();
+                }
             } catch (IOException e) {
                 // Ignore it - we're shutting down and the method itself has logged a warning
             }

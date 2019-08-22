@@ -16,9 +16,11 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -37,16 +39,19 @@ import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
+import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
+import org.elasticsearch.xpack.core.security.authz.privilege.ActionClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
-import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
+import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -75,11 +80,11 @@ import java.util.function.Predicate;
 import static org.elasticsearch.mock.orig.Mockito.times;
 import static org.elasticsearch.mock.orig.Mockito.verifyNoMoreInteractions;
 import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anySetOf;
 import static org.mockito.Matchers.eq;
@@ -542,9 +547,15 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final TransportRequest request2 = mock(TransportRequest.class);
         final TransportRequest request3 = mock(TransportRequest.class);
 
-        ConditionalClusterPrivilege ccp1 = mock(ConditionalClusterPrivilege.class);
-        when(ccp1.getPrivilege()).thenReturn(ClusterPrivilege.MANAGE_SECURITY);
-        when(ccp1.getRequestPredicate()).thenReturn(req -> req == request1);
+        ConfigurableClusterPrivilege ccp1 = new MockConfigurableClusterPrivilege() {
+            @Override
+            public ClusterPermission.Builder buildPermission(ClusterPermission.Builder builder) {
+                Predicate<String> predicate1 =
+                    Automatons.predicate(((ActionClusterPrivilege) ClusterPrivilegeResolver.MANAGE_SECURITY).getAllowedActionPatterns());
+                builder.add(this, predicate1, req -> req == request1);
+                return builder;
+            }
+        };
         RoleDescriptor role1 = new RoleDescriptor("r1", new String[]{"monitor"}, new IndicesPrivileges[]{
             IndicesPrivileges.builder()
                 .indices("abc-*", "xyz-*")
@@ -565,12 +576,18 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 .resources("settings/*")
                 .privileges("read")
                 .build()
-        }, new ConditionalClusterPrivilege[] { ccp1 },
+        }, new ConfigurableClusterPrivilege[] { ccp1 },
         new String[]{"app-user-1"}, null, null);
 
-        ConditionalClusterPrivilege ccp2 = mock(ConditionalClusterPrivilege.class);
-        when(ccp2.getPrivilege()).thenReturn(ClusterPrivilege.MANAGE_SECURITY);
-        when(ccp2.getRequestPredicate()).thenReturn(req -> req == request2);
+        ConfigurableClusterPrivilege ccp2 = new MockConfigurableClusterPrivilege() {
+            @Override
+            public ClusterPermission.Builder buildPermission(ClusterPermission.Builder builder) {
+                Predicate<String> predicate2 =
+                    Automatons.predicate(((ActionClusterPrivilege) ClusterPrivilegeResolver.MANAGE_SECURITY).getAllowedActionPatterns());
+                builder.add(this, predicate2, req -> req == request2);
+                return builder;
+            }
+        };
         RoleDescriptor role2 = new RoleDescriptor("r2", new String[]{"manage_saml"}, new IndicesPrivileges[]{
             IndicesPrivileges.builder()
                 .indices("abc-*", "ind-2-*")
@@ -587,7 +604,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 .resources("*")
                 .privileges("read")
                 .build()
-        }, new ConditionalClusterPrivilege[] { ccp2 },
+        }, new ConfigurableClusterPrivilege[] { ccp2 },
         new String[]{"app-user-2"}, null, null);
 
         FieldPermissionsCache cache = new FieldPermissionsCache(Settings.EMPTY);
@@ -1074,6 +1091,27 @@ public class CompositeRolesStoreTests extends ESTestCase {
         @Override
         public void accept(Set<String> roles, ActionListener<RoleRetrievalResult> listener) {
             listener.onResponse(roleDescriptorsFunc.apply(roles));
+        }
+    }
+
+    private abstract static class MockConfigurableClusterPrivilege implements ConfigurableClusterPrivilege {
+        @Override
+        public Category getCategory() {
+            return Category.APPLICATION;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return "mock";
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
         }
     }
 }

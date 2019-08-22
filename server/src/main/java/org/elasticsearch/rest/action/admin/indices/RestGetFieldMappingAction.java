@@ -27,7 +27,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -51,8 +50,7 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in get " +
         "field mapping requests is deprecated. The parameter will be removed in the next major version.";
 
-    public RestGetFieldMappingAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestGetFieldMappingAction(RestController controller) {
         controller.registerHandler(GET, "/_mapping/field/{fields}", this);
         controller.registerHandler(GET, "/_mapping/{type}/field/{fields}", this);
         controller.registerHandler(GET, "/{index}/_mapping/field/{fields}", this);

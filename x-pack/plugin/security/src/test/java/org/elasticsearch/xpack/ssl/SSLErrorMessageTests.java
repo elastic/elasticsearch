@@ -107,22 +107,27 @@ public class SSLErrorMessageTests extends ESTestCase {
     }
 
     public void testMessageForKeyStoreOutsideConfigDir() throws Exception {
+        assumeFalse("@AwaitsFix(bugUrl = https://github.com/elastic/elasticsearch/issues/45598)", Constants.WINDOWS);
         checkBlockedKeyManagerResource("keystore", "keystore.path", null);
     }
 
     public void testMessageForPemCertificateOutsideConfigDir() throws Exception {
+        assumeFalse("@AwaitsFix(bugUrl = https://github.com/elastic/elasticsearch/issues/45598)", Constants.WINDOWS);
         checkBlockedKeyManagerResource("certificate", "certificate", withKey("cert1a.key"));
     }
 
     public void testMessageForPemKeyOutsideConfigDir() throws Exception {
+        assumeFalse("@AwaitsFix(bugUrl = https://github.com/elastic/elasticsearch/issues/45598)", Constants.WINDOWS);
         checkBlockedKeyManagerResource("key", "key", withCertificate("cert1a.crt"));
     }
 
     public void testMessageForTrustStoreOutsideConfigDir() throws Exception {
+        assumeFalse("@AwaitsFix(bugUrl = https://github.com/elastic/elasticsearch/issues/45598)", Constants.WINDOWS);
         checkBlockedTrustManagerResource("truststore", "truststore.path");
     }
 
     public void testMessageForCertificateAuthoritiesOutsideConfigDir() throws Exception {
+        assumeFalse("@AwaitsFix(bugUrl = https://github.com/elastic/elasticsearch/issues/45598)", Constants.WINDOWS);
         checkBlockedTrustManagerResource("certificate_authorities", "certificate_authorities");
     }
 

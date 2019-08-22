@@ -24,7 +24,6 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -44,8 +43,7 @@ public class RestCreateIndexAction extends BaseRestHandler {
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in create " +
         "index requests is deprecated. The parameter will be removed in the next major version.";
 
-    public RestCreateIndexAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestCreateIndexAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.PUT, "/{index}", this);
     }
 

@@ -13,8 +13,8 @@ import org.elasticsearch.common.geo.builders.EnvelopeBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.geo.geometry.Geometry;
-import org.elasticsearch.geo.geometry.ShapeType;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -227,6 +227,7 @@ public class ShapeQueryTests extends ESSingleNodeTestCase {
         assertHitCount(result, numDocs);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/45628")
     public void testFieldAlias() {
         SearchResponse response = client().prepareSearch(INDEX)
             .setQuery(new ShapeQueryBuilder("alias", queryGeometry).relation(ShapeRelation.INTERSECTS))

@@ -19,14 +19,12 @@
 package org.elasticsearch.rest.action.cat;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -37,8 +35,8 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestAliasAction extends AbstractCatAction {
-    public RestAliasAction(Settings settings, RestController controller) {
-        super(settings);
+
+    public RestAliasAction(RestController controller) {
         controller.registerHandler(GET, "/_cat/aliases", this);
         controller.registerHandler(GET, "/_cat/aliases/{alias}", this);
     }
@@ -79,6 +77,7 @@ public class RestAliasAction extends AbstractCatAction {
         table.addCell("filter", "alias:f,fi;desc:filter");
         table.addCell("routing.index", "alias:ri,routingIndex;desc:index routing");
         table.addCell("routing.search", "alias:rs,routingSearch;desc:search routing");
+        table.addCell("is_write_index", "alias:w,isWriteIndex;desc:write index");
         table.endHeaders();
         return table;
     }
@@ -97,6 +96,8 @@ public class RestAliasAction extends AbstractCatAction {
                 table.addCell(indexRouting);
                 String searchRouting = Strings.hasLength(aliasMetaData.searchRouting()) ? aliasMetaData.searchRouting() : "-";
                 table.addCell(searchRouting);
+                String isWriteIndex = aliasMetaData.writeIndex() == null ? "-" : aliasMetaData.writeIndex().toString();
+                table.addCell(isWriteIndex);
                 table.endRow();
             }
         }

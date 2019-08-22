@@ -20,6 +20,7 @@ package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.core.AcknowledgedResponse;
+import org.elasticsearch.client.enrich.DeletePolicyRequest;
 import org.elasticsearch.client.enrich.PutPolicyRequest;
 
 import java.io.IOException;
@@ -43,7 +44,7 @@ public final class EnrichClient {
     /**
      * Executes the put policy api, which stores an enrich policy.
      *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/enrich-processor.html#put-policy-api">
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/enrich-policy-apis.html#put-policy-api">
      * the docs</a> for more.
      *
      * @param request the {@link PutPolicyRequest}
@@ -64,7 +65,7 @@ public final class EnrichClient {
     /**
      * Asynchronously executes the put policy api, which stores an enrich policy.
      *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/enrich-processor.html#put-policy-api">
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/enrich-policy-apis.html#put-policy-api">
      * the docs</a> for more.
      *
      * @param request the {@link PutPolicyRequest}
@@ -77,6 +78,50 @@ public final class EnrichClient {
         restHighLevelClient.performRequestAsyncAndParseEntity(
             request,
             EnrichRequestConverters::putPolicy,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            Collections.emptySet()
+        );
+    }
+
+    /**
+     * Executes the delete policy api, which deletes an enrich policy.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/enrich-policy-apis.html#delete-policy-api">
+     * the docs</a> for more.
+     *
+     * @param request the {@link DeletePolicyRequest}
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public AcknowledgedResponse deletePolicy(DeletePolicyRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            EnrichRequestConverters::deletePolicy,
+            options,
+            AcknowledgedResponse::fromXContent,
+            Collections.emptySet()
+        );
+    }
+
+    /**
+     * Asynchronously executes the delete policy api, which deletes an enrich policy.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/enrich-policy-apis.html#delete-policy-api">
+     * the docs</a> for more.
+     *
+     * @param request the {@link DeletePolicyRequest}
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void deletePolicyAsync(DeletePolicyRequest request,
+                                  RequestOptions options,
+                                  ActionListener<AcknowledgedResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            EnrichRequestConverters::deletePolicy,
             options,
             AcknowledgedResponse::fromXContent,
             listener,

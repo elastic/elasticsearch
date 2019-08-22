@@ -32,7 +32,7 @@ public class EvaluateDataFrameActionRequestTests extends AbstractSerializingTest
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
         namedWriteables.addAll(new MlEvaluationNamedXContentProvider().getNamedWriteables());
-        namedWriteables.addAll(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedWriteables());
+        namedWriteables.addAll(new SearchModule(Settings.EMPTY, false, Collections.emptyList()).getNamedWriteables());
         return new NamedWriteableRegistry(namedWriteables);
     }
 
@@ -40,7 +40,7 @@ public class EvaluateDataFrameActionRequestTests extends AbstractSerializingTest
     protected NamedXContentRegistry xContentRegistry() {
         List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
         namedXContent.addAll(new MlEvaluationNamedXContentProvider().getNamedXContentParsers());
-        namedXContent.addAll(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents());
+        namedXContent.addAll(new SearchModule(Settings.EMPTY, false, Collections.emptyList()).getNamedXContents());
         return new NamedXContentRegistry(namedXContent);
     }
 

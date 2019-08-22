@@ -172,7 +172,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
     @Override
     protected boolean serializeTargetValueType(Version version) {
         // TODO: Update version number after backport
-        return version.onOrAfter(Version.V_8_0_0);
+        return version.onOrAfter(Version.V_7_4_0);
     }
 
     @Override

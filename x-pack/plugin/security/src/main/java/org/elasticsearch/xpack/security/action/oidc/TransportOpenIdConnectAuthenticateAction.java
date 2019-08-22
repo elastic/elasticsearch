@@ -25,8 +25,6 @@ import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectAuthentica
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectAuthenticateAction;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
-import org.elasticsearch.xpack.core.security.authc.RealmConfig;
-import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectRealm;
@@ -57,13 +55,11 @@ public class TransportOpenIdConnectAuthenticateAction
     protected void doExecute(Task task, OpenIdConnectAuthenticateRequest request,
                              ActionListener<OpenIdConnectAuthenticateResponse> listener) {
         final OpenIdConnectToken token = new OpenIdConnectToken(request.getRedirectUri(), new State(request.getState()),
-            new Nonce(request.getNonce()));
+            new Nonce(request.getNonce()), request.getRealm());
         final ThreadContext threadContext = threadPool.getThreadContext();
         Authentication originatingAuthentication = Authentication.getAuthentication(threadContext);
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            RealmConfig.RealmIdentifier preferredRealm = request.getRealm() == null ? null :
-                new RealmConfig.RealmIdentifier(OpenIdConnectRealmSettings.TYPE, request.getRealm());
-            authenticationService.authenticate(OpenIdConnectAuthenticateAction.NAME, request, token, preferredRealm, ActionListener.wrap(
+            authenticationService.authenticate(OpenIdConnectAuthenticateAction.NAME, request, token, ActionListener.wrap(
                 authentication -> {
                     AuthenticationResult result = threadContext.getTransient(AuthenticationResult.THREAD_CONTEXT_KEY);
                     if (result == null) {

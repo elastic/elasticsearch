@@ -20,8 +20,6 @@ import org.elasticsearch.xpack.core.security.action.saml.SamlAuthenticateRequest
 import org.elasticsearch.xpack.core.security.action.saml.SamlAuthenticateResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
-import org.elasticsearch.xpack.core.security.authc.RealmConfig;
-import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.saml.SamlRealm;
@@ -50,14 +48,12 @@ public final class TransportSamlAuthenticateAction extends HandledTransportActio
 
     @Override
     protected void doExecute(Task task, SamlAuthenticateRequest request, ActionListener<SamlAuthenticateResponse> listener) {
-        final SamlToken saml = new SamlToken(request.getSaml(), request.getValidRequestIds());
+        final SamlToken saml = new SamlToken(request.getSaml(), request.getValidRequestIds(), request.getRealm());
         logger.trace("Attempting to authenticate SamlToken [{}]", saml);
         final ThreadContext threadContext = threadPool.getThreadContext();
         Authentication originatingAuthentication = Authentication.getAuthentication(threadContext);
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            RealmConfig.RealmIdentifier preferredRealm = request.getRealm() == null ? null :
-                new RealmConfig.RealmIdentifier(SamlRealmSettings.TYPE, request.getRealm());
-            authenticationService.authenticate(SamlAuthenticateAction.NAME, request, saml, preferredRealm,
+            authenticationService.authenticate(SamlAuthenticateAction.NAME, request, saml,
                 ActionListener.wrap(authentication -> {
                 AuthenticationResult result = threadContext.getTransient(AuthenticationResult.THREAD_CONTEXT_KEY);
                 if (result == null) {

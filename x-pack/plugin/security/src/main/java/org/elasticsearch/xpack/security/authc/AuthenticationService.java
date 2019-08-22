@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.Realm;
-import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.EmptyAuthorizationInfo;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
@@ -57,7 +56,6 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isIndexDeleted;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isMoveFromRedToNonRed;
@@ -143,8 +141,7 @@ public class AuthenticationService {
 
     /**
      * Authenticates the user based on the contents of the token that is provided as parameter.If {@code preferredRealm} can't
-     * authenticate the token, no other realms will be attempted.
-     * This will not look at the values in the ThreadContext for Authentication.
+     * authenticate the token, no other realms will be attempted. This will not look at the values in the ThreadContext for Authentication.
      *
      * @param action  The action of the message
      * @param message The message that resulted in this authenticate call
@@ -152,23 +149,7 @@ public class AuthenticationService {
      */
     public void authenticate(String action, TransportMessage message,
                              AuthenticationToken token, ActionListener<Authentication> listener) {
-        new Authenticator(action, message, null, listener).authenticateToken(token, null);
-    }
-
-    /**
-     * Authenticates the user based on the contents of the token that is provided as parameter only at the realm that is indicated with
-     * {@code preferredRealm}. If {@code preferredRealm} can't authenticate the token, no other realms will be attempted.
-     * This will not look at the values in the ThreadContext for Authentication.
-     *
-     * @param action  The action of the message
-     * @param message The message that resulted in this authenticate call
-     * @param token   The token (credentials) to be authenticated
-     * @param preferredRealm The realm that should be used to authenticate the token
-     */
-    public void authenticate(String action, TransportMessage message,
-                             AuthenticationToken token, @Nullable RealmConfig.RealmIdentifier preferredRealm,
-                             ActionListener<Authentication> listener) {
-        new Authenticator(action, message, null, listener).authenticateToken(token, preferredRealm);
+        new Authenticator(action, message, null, listener).authenticateToken(token);
     }
 
     public void expire(String principal) {
@@ -364,25 +345,19 @@ public class AuthenticationService {
             action.run();
         }
 
-        private void consumeToken(AuthenticationToken token){
-            consumeToken(token, null);
-        }
-
         /**
          * Consumes the {@link AuthenticationToken} provided by the caller. In the case of a {@code null} token, {@link #handleNullToken()}
          * is called. In the case of a {@code non-null} token, the realms are iterated over in the order defined in the configuration
-         * while possible also taking into consideration the last realm that authenticated this principal. If {@code preferredRealm} is
-         * not null, only this realm will be attempted, regardless of its order/applicability. When consulting multiple realms, the
-         * first realm that returns a non-null {@link User} is the authenticating realm and iteration is stopped. This user is then
+         * while possibly also taking into consideration the last realm that authenticated this principal. When consulting multiple realms,
+         * the first realm that returns a non-null {@link User} is the authenticating realm and iteration is stopped. This user is then
          * passed to {@link #consumeUser(User, Map)} if no exception was caught while trying to authenticate the token
          */
-        private void consumeToken(AuthenticationToken token, @Nullable RealmConfig.RealmIdentifier preferredRealm) {
+        private void consumeToken(AuthenticationToken token) {
             if (token == null) {
                 handleNullToken();
             } else {
                 authenticationToken = token;
-                final List<Realm> realmsList = getRealmList(authenticationToken.principal(), preferredRealm);
-                logger.debug("Realms [{}] will be used for authentication in the specified order.", realmsList);
+                final List<Realm> realmsList = getRealmList(authenticationToken.principal());
                 final long startInvalidation = numInvalidation.get();
                 final Map<Realm, Tuple<String, Exception>> messages = new LinkedHashMap<>();
                 final BiConsumer<Realm, ActionListener<User>> realmAuthenticatingConsumer = (realm, userListener) -> {
@@ -438,19 +413,13 @@ public class AuthenticationService {
         }
 
         /**
-         * Possible filters the realm list that is defined in the node's configuration based on {@code preferredRealm} and also
-         * possibly reorders the realm list depending on whether this principal has been recently authenticated by a specific realm
+         * Possibly reorders the realm list depending on whether this principal has been recently authenticated by a specific realm
+         *
          * @param principal The principal of the {@link AuthenticationToken} to be authenticated by a realm
-         * @param preferredRealm The realm that should authenticate the current {@link AuthenticationToken}
          * @return a list of realms ordered based on which realm should authenticate the current {@link AuthenticationToken}
          */
-        private List<Realm> getRealmList(String principal, @Nullable RealmConfig.RealmIdentifier preferredRealm) {
+        private List<Realm> getRealmList(String principal) {
             final List<Realm> orderedRealmList = this.defaultOrderedRealmList;
-            if (preferredRealm != null){
-                return orderedRealmList.stream()
-                    .filter(realm -> realm.name().equals(preferredRealm.getName()) && realm.type().equals(preferredRealm.getType()))
-                    .collect(Collectors.toUnmodifiableList());
-            }
             if (lastSuccessfulAuthCache != null) {
                 final Realm lastSuccess = lastSuccessfulAuthCache.get(principal);
                 if (lastSuccess != null) {
@@ -557,7 +526,7 @@ public class AuthenticationService {
          * names of users that exist using a timing attack
          */
         private void lookupRunAsUser(final User user, String runAsUsername, Consumer<User> userConsumer) {
-            final RealmUserLookup lookup = new RealmUserLookup(getRealmList(runAsUsername, null), threadContext);
+            final RealmUserLookup lookup = new RealmUserLookup(getRealmList(runAsUsername), threadContext);
             final long startInvalidationNum = numInvalidation.get();
             lookup.lookup(runAsUsername, ActionListener.wrap(tuple -> {
                 if (tuple == null) {
@@ -610,8 +579,8 @@ public class AuthenticationService {
             action.run();
         }
 
-        private void authenticateToken(AuthenticationToken token, @Nullable RealmConfig.RealmIdentifier preferredRealm) {
-            this.consumeToken(token, preferredRealm);
+        private void authenticateToken(AuthenticationToken token) {
+            this.consumeToken(token);
         }
     }
 

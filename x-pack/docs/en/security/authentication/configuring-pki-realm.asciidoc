@@ -61,7 +61,7 @@ xpack:
 With this configuration, any certificate trusted by the {es} SSL/TLS layer is
 accepted for authentication. The username is the common name (CN) extracted
 from the DN in the Subject field of the end-entity certificate. This
-configuration does not permit clients authenticating to {kib}.
+configuration does not permit PKI authentication to {kib}.
 
 IMPORTANT: When you configure realms in `elasticsearch.yml`, only the
 realms you specify are used for authentication. If you also want to use the

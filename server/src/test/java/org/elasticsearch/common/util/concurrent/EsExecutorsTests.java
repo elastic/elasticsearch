@@ -394,7 +394,7 @@ public class EsExecutorsTests extends ESTestCase {
         final int processors = randomIntBetween(available + 1, Integer.MAX_VALUE);
         final Settings settings = Settings.builder().put("processors", processors).build();
         final IllegalArgumentException e =
-            expectThrows(IllegalArgumentException.class, () -> EsExecutors.PROCESSORS_SETTING.get(settings));
+            expectThrows(IllegalArgumentException.class, () -> EsExecutors.NODE_PROCESSORS_SETTING.get(settings));
         assertThat(
             e,
             hasToString(containsString("Failed to parse value [" + processors + "] for setting [processors] must be <= " + available)));

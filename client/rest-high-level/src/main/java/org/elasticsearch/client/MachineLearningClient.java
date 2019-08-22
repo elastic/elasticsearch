@@ -34,7 +34,6 @@ import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteJobResponse;
 import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
-import org.elasticsearch.client.ml.EstimateMemoryUsageRequest;
 import org.elasticsearch.client.ml.EstimateMemoryUsageResponse;
 import org.elasticsearch.client.ml.EvaluateDataFrameRequest;
 import org.elasticsearch.client.ml.EvaluateDataFrameResponse;
@@ -2254,14 +2253,15 @@ public final class MachineLearningClient {
      * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/estimate-memory-usage-dfanalytics.html">
      *     Estimate Memory Usage for Data Frame Analytics documentation</a>
      *
-     * @param request The {@link EstimateMemoryUsageRequest}
+     * @param request The {@link PutDataFrameAnalyticsRequest}
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return {@link EstimateMemoryUsageResponse} response object
      * @throws IOException when there is a serialization issue sending the request or receiving the response
      */
-    public EstimateMemoryUsageResponse estimateMemoryUsage(EstimateMemoryUsageRequest request,
+    public EstimateMemoryUsageResponse estimateMemoryUsage(PutDataFrameAnalyticsRequest request,
                                                            RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request,
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
             MLRequestConverters::estimateMemoryUsage,
             options,
             EstimateMemoryUsageResponse::fromXContent,
@@ -2275,14 +2275,15 @@ public final class MachineLearningClient {
      * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/estimate-memory-usage-dfanalytics.html">
      *     Estimate Memory Usage for Data Frame Analytics documentation</a>
      *
-     * @param request The {@link EstimateMemoryUsageRequest}
+     * @param request The {@link PutDataFrameAnalyticsRequest}
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener Listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable estimateMemoryUsageAsync(EstimateMemoryUsageRequest request, RequestOptions options,
+    public Cancellable estimateMemoryUsageAsync(PutDataFrameAnalyticsRequest request, RequestOptions options,
                                                 ActionListener<EstimateMemoryUsageResponse> listener) {
-       return restHighLevelClient.performRequestAsyncAndParseEntity(request,
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
             MLRequestConverters::estimateMemoryUsage,
             options,
             EstimateMemoryUsageResponse::fromXContent,

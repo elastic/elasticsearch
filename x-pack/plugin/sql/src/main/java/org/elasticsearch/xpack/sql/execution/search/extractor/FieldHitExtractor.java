@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.common.io.SqlStreamInput;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoShape;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.DateUtils;
@@ -95,11 +96,12 @@ public class FieldHitExtractor implements HitExtractor {
         }
         String esType = in.readOptionalString();
         dataType = esType != null ? DataType.fromTypeName(esType) : null;
-        zoneId = ZoneId.of(in.readString());
         useDocValue = in.readBoolean();
         hitName = in.readOptionalString();
         arrayLeniency = in.readBoolean();
         path = sourcePath(fieldName, useDocValue, hitName);
+
+        zoneId = SqlStreamInput.asSqlStream(in).zoneId();
     }
 
     @Override
@@ -114,7 +116,6 @@ public class FieldHitExtractor implements HitExtractor {
             out.writeOptionalString(fullFieldName);
         }
         out.writeOptionalString(dataType == null ? null : dataType.typeName);
-        out.writeString(zoneId.getId());
         out.writeBoolean(useDocValue);
         out.writeOptionalString(hitName);
         out.writeBoolean(arrayLeniency);

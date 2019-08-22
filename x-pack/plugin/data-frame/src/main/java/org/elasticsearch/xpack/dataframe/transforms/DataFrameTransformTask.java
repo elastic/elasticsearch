@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.dataframe.transforms;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
@@ -303,7 +304,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 listener.onResponse(new StartDataFrameTransformTaskAction.Response(true));
             },
             exc -> {
-                logger.error("[" + transform.getId() + "] failed updating state to [" + state + "].", exc);
+                logger.error(new ParameterizedMessage("[{}] failed updating state to [{}].", getTransformId(), state), exc);
                 getIndexer().stop();
                 listener.onFailure(new ElasticsearchException("Error while updating state for data frame transform ["
                                     + transform.getId() + "] to [" + state.getIndexerState() + "].", exc));
@@ -410,7 +411,9 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             },
             failure -> {
                 auditor.warning(transform.getId(), "Failed to persist to state to cluster state: " + failure.getMessage());
-                logger.error("[" + transform.getId() + "] failed to update cluster state for data frame transform.", failure);
+                logger.error(new ParameterizedMessage("[{}] failed to update cluster state for data frame transform.",
+                    transform.getId()),
+                    failure);
                 listener.onFailure(failure);
             }
         ));
@@ -454,7 +457,8 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         persistStateToClusterState(newState, ActionListener.wrap(
             r -> listener.onResponse(null),
             e -> {
-                logger.error("[" + getTransformId() + "] failed to set task state as failed to cluster state.", e);
+                logger.error(new ParameterizedMessage("[{}] failed to set task state as failed to cluster state.", getTransformId()),
+                    e);
                 listener.onFailure(e);
             }
         ));
@@ -699,7 +703,9 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                                 },
                                 failure -> {
                                     progress = null;
-                                    logger.warn("[" + transformId + "] unable to load progress information for task.", failure);
+                                    logger.warn(new ParameterizedMessage("[{}] unable to load progress information for task.",
+                                        transformId),
+                                        failure);
                                     super.onStart(now, listener);
                                 }
                             ));
@@ -900,7 +906,9 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                                 next.run();
                             },
                             statsExc -> {
-                                logger.error("[" + transformConfig.getId() + "] updating stats of transform failed.", statsExc);
+                                logger.error(new ParameterizedMessage("[{}] updating stats of transform failed.",
+                                    transformConfig.getId()),
+                                    statsExc);
                                 auditor.warning(getJobId(),
                                     "Failure updating stats of transform: " + statsExc.getMessage());
                                 // for auto stop shutdown the task
@@ -925,7 +933,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 handleFailure(exc);
             } catch (Exception e) {
                 logger.error(
-                    "[" + transformTask.getTransformId() + "] data frame transform encountered an unexpected internal exception: ",
+                    new ParameterizedMessage("[{} data frame transform encountered an unexpected internal exception: ", transformId),
                     e);
             }
         }
@@ -1021,12 +1029,14 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                         ActionListener.wrap(
                             putCheckPointResponse -> listener.onResponse(checkpoint),
                             createCheckpointException -> {
-                                logger.warn("[" + transformId + "] failed to create checkpoint.", createCheckpointException);
+                                logger.warn(new ParameterizedMessage("[{}] failed to create checkpoint.", transformId),
+                                    createCheckpointException);
                                 listener.onFailure(new RuntimeException("Failed to create checkpoint", createCheckpointException));
                             }
                     )),
                     getCheckPointException -> {
-                        logger.warn("[" + transformId + "] failed to retrieve checkpoint.", getCheckPointException);
+                        logger.warn(new ParameterizedMessage("[{}] failed to retrieve checkpoint.", transformId),
+                            getCheckPointException);
                         listener.onFailure(new RuntimeException("Failed to retrieve checkpoint", getCheckPointException));
                     }
             ));
@@ -1042,7 +1052,9 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                     },
                     e -> {
                         logger.warn(
-                            "[" + transformId + "] failed to detect changes for data frame transform. Skipping update till next check.",
+                            new ParameterizedMessage(
+                                "[{}] failed to detect changes for data frame transform. Skipping update till next check.",
+                                transformId),
                             e);
                         auditor.warning(transformId,
                             "Failed to detect changes for data frame transform, skipping update till next check. Exception: "
@@ -1058,7 +1070,9 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         }
 
         synchronized void handleFailure(Exception e) {
-            logger.warn("[" + transformTask.getTransformId() + "] data frame transform encountered an exception: ", e);
+            logger.warn(new ParameterizedMessage("[{} data frame transform encountered an exception: ",
+                transformTask.getTransformId()),
+                e);
             if (handleCircuitBreakingException(e)) {
                 return;
             }

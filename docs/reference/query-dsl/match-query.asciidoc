@@ -141,6 +141,25 @@ See <<query-dsl-match-query-zero>> for an example.
 [[match-query-notes]]
 ==== Notes
 
+[[query-dsl-match-query-short-ex]]
+===== Short request example
+
+You can simplify the match query syntax by combining the `<field>` and `query`
+parameters. For example:
+
+[source,js]
+----
+GET /_search
+{
+    "query": {
+        "match" : {
+            "message" : "this is a test"
+        }
+    }
+}
+----
+// CONSOLE
+
 [[query-dsl-match-query-boolean]]
 ===== How the match query works
 

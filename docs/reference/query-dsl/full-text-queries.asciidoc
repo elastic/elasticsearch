@@ -34,7 +34,7 @@ Returns documents based on the order and proximity of matching terms.
 Returns documents that match an analyzed text, number, or date.
 
 The `match` query is the standard query for performing a full-text search,
-including options for fuzzy and proximity matching.
+including options for fuzzy matching.
 --
 
 <<query-dsl-match-bool-prefix-query,`match_bool_prefix` query>>::

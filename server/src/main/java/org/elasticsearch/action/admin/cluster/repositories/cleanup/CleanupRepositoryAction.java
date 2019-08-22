@@ -16,26 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.action.admin.cluster.repositories.cleanup;
 
-package org.elasticsearch.transport;
+import org.elasticsearch.action.ActionType;
 
-import org.elasticsearch.threadpool.ThreadPool;
+public final class CleanupRepositoryAction extends ActionType<CleanupRepositoryResponse> {
 
-/**
- * A response handler to be used when all interaction will be done through the {@link TransportFuture}.
- */
-public abstract class FutureTransportResponseHandler<T extends TransportResponse> implements TransportResponseHandler<T> {
+    public static final CleanupRepositoryAction INSTANCE = new CleanupRepositoryAction();
+    public static final String NAME = "cluster:admin/repository/_cleanup";
 
-    @Override
-    public void handleResponse(T response) {
-    }
-
-    @Override
-    public void handleException(TransportException exp) {
-    }
-
-    @Override
-    public String executor() {
-        return ThreadPool.Names.SAME;
+    private CleanupRepositoryAction() {
+        super(NAME, CleanupRepositoryResponse::new);
     }
 }

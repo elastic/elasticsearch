@@ -127,10 +127,12 @@ public class CopyBytesSocketChannel extends NioSocketChannel {
         return bytesRead;
     }
 
+    // Protected so that tests can verify behavior and simulate partial writes
     protected int writeToSocketChannel(SocketChannel socketChannel, ByteBuffer ioBuffer) throws IOException {
         return socketChannel.write(ioBuffer);
     }
 
+    // Protected so that tests can verify behavior
     protected int readFromSocketChannel(SocketChannel socketChannel, ByteBuffer ioBuffer) throws IOException {
         return socketChannel.read(ioBuffer);
     }

@@ -54,7 +54,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
         if (randomBoolean()) {
             final int processors = randomIntBetween(1, 64);
             maxBasedOnNumberOfProcessors = expectedSize(threadPoolName, processors);
-            builder.put("processors", processors);
+            builder.put("node.processors", processors);
             processorsUsed = processors;
         } else {
             maxBasedOnNumberOfProcessors = expectedSize(threadPoolName, availableProcessors);
@@ -99,7 +99,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
         });
 
         if (processorsUsed > availableProcessors) {
-            assertWarnings("setting processors to value [" + processorsUsed +
+            assertWarnings("setting node.processors to value [" + processorsUsed +
                 "] which is more than available processors [" + availableProcessors + "] is deprecated");
         }
     }

@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.core.security.authz.permission;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
 import java.util.ArrayList;
@@ -34,14 +34,16 @@ public class ClusterPermission {
     }
 
     /**
-     * Checks permission to a cluster action for a given request.
+     * Checks permission to a cluster action for a given request in the context of given
+     * authentication.
      *
      * @param action  cluster action
      * @param request {@link TransportRequest}
+     * @param authentication {@link Authentication}
      * @return {@code true} if the access is allowed else returns {@code false}
      */
-    public boolean check(final String action, final TransportRequest request) {
-        return checks.stream().anyMatch(permission -> permission.check(action, request));
+    public boolean check(final String action, final TransportRequest request, final Authentication authentication) {
+        return checks.stream().anyMatch(permission -> permission.check(action, request, authentication));
     }
 
     /**
@@ -80,21 +82,15 @@ public class ClusterPermission {
         public Builder add(final ClusterPrivilege clusterPrivilege, final Set<String> allowedActionPatterns,
                            final Set<String> excludeActionPatterns) {
             this.clusterPrivileges.add(clusterPrivilege);
-            if (allowedActionPatterns.isEmpty() && excludeActionPatterns.isEmpty()) {
-                this.actionAutomatons.add(Automatons.EMPTY);
-            } else {
-                final Automaton allowedAutomaton = Automatons.patterns(allowedActionPatterns);
-                final Automaton excludedAutomaton = Automatons.patterns(excludeActionPatterns);
-                this.actionAutomatons.add(Automatons.minusAndMinimize(allowedAutomaton, excludedAutomaton));
-            }
+            final Automaton actionAutomaton = createAutomaton(allowedActionPatterns, excludeActionPatterns);
+            this.actionAutomatons.add(actionAutomaton);
             return this;
         }
 
-        public Builder add(final ConfigurableClusterPrivilege configurableClusterPrivilege, final Predicate<String> actionPredicate,
+        public Builder add(final ClusterPrivilege clusterPrivilege, final Set<String> allowedActionPatterns,
                            final Predicate<TransportRequest> requestPredicate) {
-            return add(configurableClusterPrivilege, new ActionRequestPredicatePermissionCheck(configurableClusterPrivilege,
-                                                                                               actionPredicate,
-                                                                                               requestPredicate));
+            final Automaton actionAutomaton = createAutomaton(allowedActionPatterns, Set.of());
+            return add(clusterPrivilege, new ActionRequestBasedPermissionCheck(clusterPrivilege, actionAutomaton, requestPredicate));
         }
 
         public Builder add(final ClusterPrivilege clusterPrivilege, final PermissionCheck permissionCheck) {
@@ -116,6 +112,21 @@ public class ClusterPermission {
             }
             return new ClusterPermission(this.clusterPrivileges, checks);
         }
+
+        private static Automaton createAutomaton(Set<String> allowedActionPatterns, Set<String> excludeActionPatterns) {
+            allowedActionPatterns = (allowedActionPatterns == null) ? Set.of() : allowedActionPatterns;
+            excludeActionPatterns = (excludeActionPatterns == null) ? Set.of() : excludeActionPatterns;
+
+            if (allowedActionPatterns.isEmpty()) {
+                return Automatons.EMPTY;
+            } else if (excludeActionPatterns.isEmpty()) {
+                return Automatons.patterns(allowedActionPatterns);
+            } else {
+                final Automaton allowedAutomaton = Automatons.patterns(allowedActionPatterns);
+                final Automaton excludedAutomaton = Automatons.patterns(excludeActionPatterns);
+                return Automatons.minusAndMinimize(allowedAutomaton, excludedAutomaton);
+            }
+        }
     }
 
     /**
@@ -124,13 +135,15 @@ public class ClusterPermission {
      */
     public interface PermissionCheck {
         /**
-         * Checks permission to a cluster action for a given request.
+         * Checks permission to a cluster action for a given request in the context of given
+         * authentication.
          *
          * @param action  action name
          * @param request {@link TransportRequest}
+         * @param authentication {@link Authentication}
          * @return {@code true} if the specified action for given request is allowed else returns {@code false}
          */
-        boolean check(String action, TransportRequest request);
+        boolean check(String action, TransportRequest request, Authentication authentication);
 
         /**
          * Checks whether specified {@link PermissionCheck} is implied by this {@link PermissionCheck}.<br>
@@ -156,7 +169,7 @@ public class ClusterPermission {
         }
 
         @Override
-        public boolean check(final String action, final TransportRequest request) {
+        public boolean check(final String action, final TransportRequest request, final Authentication authentication) {
             return actionPredicate.test(action);
         }
 
@@ -169,29 +182,31 @@ public class ClusterPermission {
         }
     }
 
-    // action and request based permission check
-    private static class ActionRequestPredicatePermissionCheck implements PermissionCheck {
+    // action, request based permission check
+    private static class ActionRequestBasedPermissionCheck extends AutomatonPermissionCheck {
         private final ClusterPrivilege clusterPrivilege;
-        final Predicate<String> actionPredicate;
-        final Predicate<TransportRequest> requestPredicate;
+        private final Predicate<TransportRequest> requestPredicate;
 
-        ActionRequestPredicatePermissionCheck(final ClusterPrivilege clusterPrivilege, final Predicate<String> actionPredicate,
-                                              final Predicate<TransportRequest> requestPredicate) {
-            this.clusterPrivilege = clusterPrivilege;
-            this.actionPredicate = actionPredicate;
+        ActionRequestBasedPermissionCheck(ClusterPrivilege clusterPrivilege, final Automaton automaton,
+                                          final Predicate<TransportRequest> requestPredicate) {
+            super(automaton);
             this.requestPredicate = requestPredicate;
+            this.clusterPrivilege = clusterPrivilege;
         }
 
         @Override
-        public boolean check(final String action, final TransportRequest request) {
-            return actionPredicate.test(action) && requestPredicate.test(request);
+        public boolean check(final String action, final TransportRequest request, final Authentication authentication) {
+            return super.check(action, request, authentication) && requestPredicate.test(request);
         }
 
         @Override
         public boolean implies(final PermissionCheck permissionCheck) {
-            if (permissionCheck instanceof ActionRequestPredicatePermissionCheck) {
-                final ActionRequestPredicatePermissionCheck otherCheck = (ActionRequestPredicatePermissionCheck) permissionCheck;
-                return this.clusterPrivilege.equals(otherCheck.clusterPrivilege);
+            if (super.implies(permissionCheck)) {
+                if (permissionCheck instanceof ActionRequestBasedPermissionCheck) {
+                    final ActionRequestBasedPermissionCheck otherCheck =
+                        (ActionRequestBasedPermissionCheck) permissionCheck;
+                    return this.clusterPrivilege.equals(otherCheck.clusterPrivilege);
+                }
             }
             return false;
         }

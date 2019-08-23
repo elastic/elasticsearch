@@ -1,11 +1,10 @@
 [[indices-update-settings]]
-=== Update Indices Settings
+=== Update index settings API
+++++
+<titleabbrev>Update index settings</titleabbrev>
+++++
 
-Change specific index level settings in real time.
-
-The REST endpoint is `/_settings` (to update all indices) or
-`{index}/_settings` to update one (or more) indices settings.
-The body of the request includes the updated settings, for example:
+Changes an <<index-modules-settings,index setting>> in real time.
 
 [source,js]
 --------------------------------------------------
@@ -19,6 +18,54 @@ PUT /twitter/_settings
 // CONSOLE
 // TEST[setup:twitter]
 
+
+[[update-index-settings-api-request]]
+==== {api-request-title}
+
+`PUT /<index>/_settings`
+
+
+[[update-index-settings-api-path-params]]
+==== {api-path-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
++
+To update a setting for all indices,
+use `_all` or exclude this parameter.
+
+
+[[update-index-settings-api-query-params]]
+==== {api-query-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
++
+Defaults to `open`.
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=flat-settings]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+
+`preserve_existing`::
+(Optional, boolean) If `true`, existing index settings remain unchanged.
+Defaults to `false`.
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+
+
+[[sample-api-query-params]]
+==== {api-query-parms-title}
+
+`settings`::
+(Optional, <<index-modules-settings,index setting object>>) Configuration
+options for the index. See <<index-modules-settings>>.
+
+[[sample-api-example]]
+==== {api-examples-title}
+
+[[reset-index-setting]]
+===== Reset an index setting
 To reset a setting back to the default value, use `null`. For example:
 
 [source,js]
@@ -38,9 +85,8 @@ indices can be found in <<index-modules>>.
 To preserve existing settings from being updated, the `preserve_existing`
 request parameter can be set to `true`.
 
-[float]
 [[bulk]]
-==== Bulk Indexing Usage
+===== Bulk indexing usage
 
 For example, the update settings API can be used to dynamically change
 the index from being more performant for bulk indexing, and then move it
@@ -86,9 +132,8 @@ POST /twitter/_forcemerge?max_num_segments=5
 // CONSOLE
 // TEST[continued]
 
-[float]
 [[update-settings-analysis]]
-==== Updating Index Analysis
+===== Update index analysis
 
 It is also possible to define new <<analysis,analyzers>> for the index.
 But it is required to <<indices-open-close,close>> the index

@@ -6,16 +6,11 @@
 package org.elasticsearch.xpack.spatial.ingest;
 
 import org.apache.lucene.document.Document;
-import org.apache.lucene.document.LatLonDocValuesField;
-import org.apache.lucene.document.LatLonShape;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.spatial3d.geom.GeoShape;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -33,7 +28,6 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
-import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -41,9 +35,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.VectorGeoShapeQueryProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
-import org.elasticsearch.search.aggregations.metrics.GeoBoundsAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.InternalGeoBounds;
-import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -52,7 +43,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.GeoShapeIndexer.toLucenePolygon;
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;

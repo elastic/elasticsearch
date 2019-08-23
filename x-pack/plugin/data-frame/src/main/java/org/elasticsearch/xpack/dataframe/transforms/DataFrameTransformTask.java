@@ -307,7 +307,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             },
             exc -> {
                 auditor.warning(transform.getId(),
-                    "Failed to persist to state to cluster state while marking task as started. Failure: " + exc.getMessage());
+                    "Failed to persist to cluster state while marking task as started. Failure: " + exc.getMessage());
                 logger.error(new ParameterizedMessage("[{}] failed updating state to [{}].", getTransformId(), state), exc);
                 getIndexer().stop();
                 listener.onFailure(new ElasticsearchException("Error while updating state for data frame transform ["

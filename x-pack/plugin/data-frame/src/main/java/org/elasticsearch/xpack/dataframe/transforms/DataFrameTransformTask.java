@@ -435,7 +435,6 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         // it is probably best to NOT change the internal state of the task and allow the normal stopping logic to continue.
         if (getIndexer() != null && getIndexer().getState() == IndexerState.STOPPING) {
             logger.info("[{}] attempt to fail transform with reason [{}] while it was stopping.", getTransformId(), reason);
-            auditor.info(getTransformId(), "Attempted to fail transform with reason [" + reason + "] while in STOPPING state.");
             listener.onResponse(null);
             return;
         }

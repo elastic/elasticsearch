@@ -19,6 +19,9 @@
 
 package org.elasticsearch.packaging.util;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -52,6 +55,8 @@ import static org.junit.Assert.assertTrue;
  */
 public class Archives {
 
+    private static final Log logger = LogFactory.getLog(Archives.class);
+
     // in the future we'll run as a role user on Windows
     public static final String ARCHIVE_OWNER = Platforms.WINDOWS
         ? "vagrant"
@@ -71,27 +76,27 @@ public class Archives {
         assertThat("distribution file must exist: " + distributionFile.toString(), Files.exists(distributionFile), is(true));
         assertThat("elasticsearch must not already be installed", lsGlob(baseInstallPath, "elasticsearch*"), empty());
 
+        logger.info("Installing file: " + distributionFile);
+        final String installCommand;
         if (distribution.packaging == Distribution.Packaging.TAR) {
-
-            Platforms.onLinux(() -> sh.run("tar -C " + baseInstallPath + " -xzpf " + distributionFile));
-
             if (Platforms.WINDOWS) {
-                throw new RuntimeException("Distribution " + distribution + " is not supported on windows");
+                throw new IllegalStateException("Distribution " + distribution + " is not supported on windows");
             }
+            installCommand = "tar -C " + baseInstallPath + " -xzpf " + distributionFile;
 
         } else if (distribution.packaging == Distribution.Packaging.ZIP) {
-
-            Platforms.onLinux(() -> sh.run("unzip " + distributionFile + " -d " + baseInstallPath));
-
-            Platforms.onWindows(() -> sh.run(
+            if (Platforms.WINDOWS == false) {
+                throw new IllegalStateException("Distribution " + distribution + " is not supported on linux");
+            }
+            installCommand =
                 "Add-Type -AssemblyName 'System.IO.Compression.Filesystem'; " +
-                "[IO.Compression.ZipFile]::ExtractToDirectory('" + distributionFile + "', '" + baseInstallPath + "')"
-            ));
+                "[IO.Compression.ZipFile]::ExtractToDirectory('" + distributionFile + "', '" + baseInstallPath + "')";
 
         } else {
             throw new RuntimeException("Distribution " + distribution + " is not a known archive type");
         }
 
+        sh.run(installCommand);
         assertThat("archive was extracted", Files.exists(extractedPath), is(true));
 
         mv(extractedPath, fullInstallPath);

@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.status;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.node.NodeClient;
@@ -116,15 +117,13 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
             for (int i = 0; i < currentSnapshots.size(); i++) {
                 snapshots[i] = currentSnapshots.get(i).snapshot();
             }
-
-            TransportNodesSnapshotsStatus.Request nodesRequest =
-                new TransportNodesSnapshotsStatus.Request(nodesIds.toArray(new String[nodesIds.size()]))
-                    .snapshots(snapshots).timeout(request.masterNodeTimeout());
-            client.executeLocally(TransportNodesSnapshotsStatus.TYPE, nodesRequest,
-                ActionListener.map(
-                    listener, nodeSnapshotStatuses ->
-                        buildResponse(request, snapshotsService.currentSnapshots(request.repository(), Arrays.asList(request.snapshots())),
-                            nodeSnapshotStatuses)));
+            client.executeLocally(TransportNodesSnapshotsStatus.TYPE,
+                new TransportNodesSnapshotsStatus.Request(nodesIds.toArray(Strings.EMPTY_ARRAY))
+                    .snapshots(snapshots).timeout(request.masterNodeTimeout()),
+                ActionListener.wrap(
+                    nodeSnapshotStatuses -> threadPool.executor(ThreadPool.Names.GENERIC).execute(
+                        ActionRunnable.wrap(listener, l -> l.onResponse(buildResponse(request, snapshotsService.currentSnapshots(
+                            request.repository(), Arrays.asList(request.snapshots())), nodeSnapshotStatuses)))), listener::onFailure));
         } else {
             // We don't have any in-progress shards, just return current stats
             listener.onResponse(buildResponse(request, currentSnapshots, null));

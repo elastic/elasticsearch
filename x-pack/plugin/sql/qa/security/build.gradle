@@ -25,6 +25,7 @@ subprojects {
 
   dependencies {
     testCompile project(":x-pack:plugin:core")
+    testCompile project(":test:framework")
     testClasses project(path: mainProject.path, configuration: 'testClasses')
   }
 

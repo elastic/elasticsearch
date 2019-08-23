@@ -48,9 +48,11 @@ thirdPartyAudit.enabled = false
 
 subprojects {
   if (subprojects.isEmpty() == false) {
-    return // not a leaf project
+    // leaf project
+    apply plugin: 'elasticsearch.standalone-rest-test'
+  } else {
+    apply plugin: 'elasticsearch.build'
   }
-  apply plugin: 'elasticsearch.standalone-rest-test'
   dependencies {
     
     /* Since we're a standalone rest test we actually get transitive

@@ -101,16 +101,25 @@ public class TransportDeleteEnrichPolicyAction extends TransportMasterNodeAction
             }
 
             if (pipelinesWithProcessors.isEmpty() == false) {
-                listener.onFailure(
-                    new ElasticsearchStatusException("Could not delete policy [{}] because a pipeline is referencing it {}",
-                        RestStatus.CONFLICT, request.getName(), pipelinesWithProcessors));
-                return;
+                throw new ElasticsearchStatusException("Could not delete policy [{}] because a pipeline is referencing it {}",
+                        RestStatus.CONFLICT, request.getName(), pipelinesWithProcessors);
             }
-
-            deleteIndicesAndPolicy(request.getName(), listener);
-        } finally {
+        } catch (Exception e) {
             enrichPolicyLocks.releasePolicy(request.getName());
+            listener.onFailure(e);
+            return;
         }
+
+        deleteIndicesAndPolicy(request.getName(), ActionListener.wrap(
+            (response) -> {
+                enrichPolicyLocks.releasePolicy(request.getName());
+                listener.onResponse(response);
+            },
+            (exc) -> {
+                enrichPolicyLocks.releasePolicy(request.getName());
+                listener.onFailure(exc);
+            }
+        ));
     }
 
     private void deleteIndicesAndPolicy(String name, ActionListener<AcknowledgedResponse> listener) {

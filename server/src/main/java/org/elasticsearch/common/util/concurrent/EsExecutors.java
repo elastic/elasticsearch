@@ -44,6 +44,7 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class EsExecutors {
@@ -56,19 +57,33 @@ public class EsExecutors {
     public static final Setting<Integer> PROCESSORS_SETTING = new Setting<>(
         "processors",
         s -> Integer.toString(Runtime.getRuntime().availableProcessors()),
-        s -> {
-            final int value = Setting.parseInt(s, 1, "processors");
+        processorsParser("processors"),
+        Property.Deprecated,
+        Property.NodeScope);
+
+    /**
+     * Setting to manually set the number of available processors. This setting is used to adjust thread pool sizes per node.
+     */
+    public static final Setting<Integer> NODE_PROCESSORS_SETTING = new Setting<>(
+        "node.processors",
+        PROCESSORS_SETTING,
+        processorsParser("node.processors"),
+        Property.NodeScope);
+
+    private static Function<String, Integer> processorsParser(final String name) {
+        return s -> {
+            final int value = Setting.parseInt(s, 1, name);
             final int availableProcessors = Runtime.getRuntime().availableProcessors();
             if (value > availableProcessors) {
                 deprecationLogger.deprecatedAndMaybeLog(
                     "processors",
-                    "setting processors to value [{}] which is more than available processors [{}] is deprecated",
+                    "setting [" + name + "] to value [{}] which is more than available processors [{}] is deprecated",
                     value,
                     availableProcessors);
             }
             return value;
-        },
-        Property.NodeScope);
+        };
+    }
 
     /**
      * Returns the number of available processors. Defaults to
@@ -79,7 +94,7 @@ public class EsExecutors {
      * @return the number of available processors
      */
     public static int numberOfProcessors(final Settings settings) {
-        return PROCESSORS_SETTING.get(settings);
+        return NODE_PROCESSORS_SETTING.get(settings);
     }
 
     public static PrioritizedEsThreadPoolExecutor newSinglePrioritizing(String name, ThreadFactory threadFactory,

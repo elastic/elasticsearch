@@ -84,7 +84,13 @@ public class ExtractedFieldsDetector {
         checkRequiredFieldsArePresent(fields);
 
         if (fields.isEmpty()) {
-            throw ExceptionsHelper.badRequestException("No compatible fields could be detected in index {}", Arrays.toString(index));
+            Set<String> supportedTypes = new HashSet<>(NUMERICAL_TYPES);
+            if (config.getAnalysis().supportsCategoricalFields()) {
+                supportedTypes.addAll(CATEGORICAL_TYPES);
+            }
+            throw ExceptionsHelper.badRequestException("No compatible fields could be detected in index {}. Supported types are {}.",
+                Arrays.toString(index),
+                supportedTypes);
         }
 
         List<String> sortedFields = new ArrayList<>(fields);

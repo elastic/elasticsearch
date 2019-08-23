@@ -95,6 +95,7 @@ public class MemoryUsageEstimationProcessManagerTests extends ESTestCase {
 
     public void testRunJob_ProcessNotAlive() {
         when(process.isProcessAlive()).thenReturn(false);
+        when(process.readError()).thenReturn("Error from inside the process");
 
         processManager.runJobAsync(TASK_ID, dataFrameAnalyticsConfig, dataExtractorFactory, listener);
 
@@ -103,8 +104,10 @@ public class MemoryUsageEstimationProcessManagerTests extends ESTestCase {
         assertThat(exception.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
         assertThat(exception.getMessage(), containsString(TASK_ID));
         assertThat(exception.getMessage(), containsString("Error while starting process"));
+        assertThat(exception.getMessage(), containsString("Error from inside the process"));
 
         verify(process).isProcessAlive();
+        verify(process).readError();
         verifyNoMoreInteractions(process, listener);
     }
 

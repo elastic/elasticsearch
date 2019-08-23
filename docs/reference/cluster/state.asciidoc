@@ -6,7 +6,7 @@ Returns metadata about the state of the cluster.
 [[cluster-state-api-request]]
 ==== {api-request-title}
 
-`GET /_cluster/state/{metrics}/{index}`
+`GET /_cluster/state/<metrics>/<index>`
 
 [[cluster-state-api-desc]]
 ==== {api-description-title}
@@ -50,7 +50,7 @@ including their mappings, as well as templates and other metadata. This means it
 can sometimes be quite large. To avoid the need to process all this information
 you can request only the part of the cluster state that you need:
 
-`{metrics}`::
+`<metrics>`::
     (Optional, string) A comma-separated list of the following options:
 +
 --

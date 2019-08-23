@@ -123,6 +123,7 @@ import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsStats;
 import org.elasticsearch.client.ml.dataframe.OutlierDetection;
+import org.elasticsearch.client.ml.dataframe.PhaseProgress;
 import org.elasticsearch.client.ml.dataframe.QueryConfig;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredErrorMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.RSquaredMetric;
@@ -1377,11 +1378,17 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(stats.getId(), equalTo(configId));
         assertThat(stats.getState(), equalTo(DataFrameAnalyticsState.STOPPED));
         assertNull(stats.getFailureReason());
-        assertNull(stats.getProgressPercent());
         assertNull(stats.getNode());
         assertNull(stats.getAssignmentExplanation());
         assertThat(statsResponse.getNodeFailures(), hasSize(0));
         assertThat(statsResponse.getTaskFailures(), hasSize(0));
+        List<PhaseProgress> progress = stats.getProgress();
+        assertThat(progress, is(notNullValue()));
+        assertThat(progress.size(), equalTo(4));
+        assertThat(progress.get(0), equalTo(new PhaseProgress("reindexing", 0)));
+        assertThat(progress.get(1), equalTo(new PhaseProgress("loading_data", 0)));
+        assertThat(progress.get(2), equalTo(new PhaseProgress("analyzing", 0)));
+        assertThat(progress.get(3), equalTo(new PhaseProgress("writing_results", 0)));
     }
 
     public void testStartDataFrameAnalyticsConfig() throws Exception {

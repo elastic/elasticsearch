@@ -104,7 +104,7 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
         IndexNameExpressionResolver resolver = new IndexNameExpressionResolver();
         String[] indices = resolver.concreteIndexNames(clusterState,
             IndicesOptions.lenientExpandOpen(),
-            DataFrameInternalIndex.INDEX_TEMPLATE_PATTERN + "*");
+            DataFrameInternalIndex.INDEX_NAME_PATTERN);
         List<String> unavailableIndices = new ArrayList<>(indices.length);
         for (String index : indices) {
             IndexRoutingTable routingTable = clusterState.getRoutingTable().index(index);

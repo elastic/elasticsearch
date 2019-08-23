@@ -10,7 +10,7 @@ Returns high-level information about indices in a cluster.
 [[cat-indices-api-request]]
 ==== {api-request-title}
 
-`GET /_cat/indices/{index}`
+`GET /_cat/indices/<index>`
 
 
 [[cat-indices-api-desc]]

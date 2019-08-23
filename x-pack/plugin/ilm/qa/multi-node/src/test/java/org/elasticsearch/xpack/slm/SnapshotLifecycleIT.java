@@ -446,7 +446,7 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
             } catch (ResponseException e) {
                 fail("expected policy to exist but it does not: " + EntityUtils.toString(e.getResponse().getEntity()));
             }
-        });
+        }, 60, TimeUnit.SECONDS);
 
         // Run retention every second
         ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest();

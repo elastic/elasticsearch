@@ -113,3 +113,15 @@ can no longer rely on adding this block manually to prevent writes to an index.
 You should use the `index.blocks.read_only` block instead. This behaviour can
 be disabled by setting the system property
 `es.disk.auto_release_flood_stage_block` to `false`.
+
+[float]
+[[breaking_74_settings_changes]]
+=== Settings changes
+
+[float]
+[[deprecate-processors]]
+==== `processors` setting is being replaced by `node.processors`
+
+To ensure that all settings are in a proper namespace, the `processors` setting
+is deprecated, and will be removed in version 8.0.0. Instead, use
+`node.processors`.

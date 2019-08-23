@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.spatial.ingest;
 
-import org.apache.lucene.geo.GeoUtils;
 import org.apache.lucene.util.SloppyMath;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.GeometryFormat;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
@@ -21,7 +21,6 @@ import org.elasticsearch.common.xcontent.support.MapXContentParser;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.LinearRing;
-import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.ingest.AbstractProcessor;
@@ -29,9 +28,6 @@ import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -128,23 +124,21 @@ public final class CircleProcessor extends AbstractProcessor {
         return Math.min(MAXIMUM_NUMBER_OF_SIDES, Math.max(MINIMUM_NUMBER_OF_SIDES, val));
     }
 
+
     /**
      * Makes an n-gon, centered at the provided lat/lon, and each vertex approximately
      * radiusMeters away from the center.
      *
-     * Do not invoke me around a pole!!
-     *
      * Adapted from from org.apache.lucene.geo.GeoTestUtil
      * */
-    static Geometry createRegularPolygon(double centerLat, double centerLon, double radiusMeters, int gons) {
-        List<Double> xCoord = new ArrayList<>(gons);
-        List<Double> yCoord = new ArrayList<>(gons);
-        // lists for coordinates of semi-circle that is on other side of the dateline from the radius.
-        // if empty, then circle does not cross the dateline
-        List<Double> antiXCoord = new ArrayList<>();
-        List<Double> antiYCoord = new ArrayList<>();
+    public static Polygon createRegularPolygon(double centerLat, double centerLon, double radiusMeters, int gons) {
+        double[][] result = new double[2][];
+        result[0] = new double[gons+1];
+        result[1] = new double[gons+1];
+        //System.out.println("make gon=" + gons);
         for(int i=0;i<gons;i++) {
             double angle = 360.0-i*(360.0/gons);
+            //System.out.println("  angle " + angle);
             double x = Math.cos(SloppyMath.toRadians(angle));
             double y = Math.sin(SloppyMath.toRadians(angle));
             double factor = 2.0;
@@ -154,26 +148,13 @@ public final class CircleProcessor extends AbstractProcessor {
             // Iterate out along one spoke until we hone in on the point that's nearly exactly radiusMeters from the center:
             while (true) {
                 double lat = centerLat + y * factor;
-                GeoUtils.checkLatitude(lat);
                 double lon = centerLon + x * factor;
-                boolean crosses = lon > 180 || lon < -180;
-                if (lon > 180) {
-                    lon = lon - 360;
-                } else if (lon < -180) {
-                    lon = 360 - lon;
-                }
-                GeoUtils.checkLongitude(lon);
                 double distanceMeters = SloppyMath.haversinMeters(centerLat, centerLon, lat, lon);
 
                 if (Math.abs(distanceMeters - radiusMeters) < 0.1) {
                     // Within 10 cm: close enough!
-                    if (crosses) {
-                        antiXCoord.add(lon);
-                        antiYCoord.add(lat);
-                    } else {
-                        xCoord.add(lon);
-                        yCoord.add(lat);
-                    }
+                    result[0][i] = GeoUtils.normalizeLon(lon);
+                    result[1][i] = GeoUtils.normalizeLat(lat);
                     break;
                 }
 
@@ -195,34 +176,10 @@ public final class CircleProcessor extends AbstractProcessor {
             }
         }
 
-        // close polygon
-        xCoord.add(xCoord.get(0));
-        yCoord.add(yCoord.get(0));
-
-        double[] xCoordArray = new double[xCoord.size()];
-        double[] yCoordArray = new double[yCoord.size()];
-        for (int i = 0; i < xCoord.size(); i++) {
-            xCoordArray[i] = xCoord.get(i);
-            yCoordArray[i] = yCoord.get(i);
-        }
-
-        Polygon circle = new Polygon(new LinearRing(xCoordArray, yCoordArray));
-
-        if (antiXCoord.isEmpty()) {
-            return circle;
-        } else {
-            // close polygon
-            antiXCoord.add(antiXCoord.get(0));
-            antiYCoord.add(antiYCoord.get(0));
-            double[] antiXCoordArray = new double[antiXCoord.size()];
-            double[] antiYCoordArray = new double[antiYCoord.size()];
-            for (int i = 0; i < antiXCoord.size(); i++) {
-                antiXCoordArray[i] = antiXCoord.get(i);
-                antiYCoordArray[i] = antiYCoord.get(i);
-            }
-            Polygon antiCircle = new Polygon(new LinearRing(antiXCoordArray, antiYCoordArray));
-            return new MultiPolygon(Arrays.asList(circle, antiCircle));
-        }
+        // close poly
+        result[0][gons] = result[0][0];
+        result[1][gons] = result[1][0];
+        return new Polygon(new LinearRing(result[0], result[1]));
     }
 
     public static final class Factory implements Processor.Factory {

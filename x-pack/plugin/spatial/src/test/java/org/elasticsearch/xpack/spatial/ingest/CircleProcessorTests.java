@@ -236,9 +236,7 @@ public class CircleProcessorTests extends ESTestCase {
         String fieldName = "circle";
         Circle circle = new Circle(179.999746, 67.1726, 1000);
         Geometry geometry = CircleProcessor.createRegularPolygon(circle.getLat(), circle.getLon(),
-            circle.getRadiusMeters(), randomIntBetween(4, 1000));
-        System.out.println("here");
-        System.out.println(WKT.toWKT(geometry));
+            circle.getRadiusMeters(), 500);
 
         MappedFieldType shapeType = new GeoShapeFieldMapper.GeoShapeFieldType();
         shapeType.setHasDocValues(false);
@@ -254,7 +252,8 @@ public class CircleProcessorTests extends ESTestCase {
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             Document doc = new Document();
             GeoShapeIndexer indexer = new GeoShapeIndexer(true, fieldName);
-            for (IndexableField field : indexer.indexShape(null, indexer.prepareForIndexing(geometry))) {
+            Geometry normalized = indexer.prepareForIndexing(geometry);
+            for (IndexableField field : indexer.indexShape(null, normalized)) {
                 doc.add(field);
             }
             w.addDocument(doc);

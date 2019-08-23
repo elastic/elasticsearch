@@ -27,6 +27,7 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.repositories.Repository;
@@ -35,9 +36,12 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
+import java.security.Provider;
 import java.security.SecureRandom;
+import java.security.Security;
 import java.security.spec.InvalidKeySpecException;
 import java.util.Map;
 import java.util.function.Function;
@@ -49,7 +53,9 @@ import javax.crypto.KeyGenerator;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
+import javax.crypto.spec.SecretKeySpec;
 
 public class EncryptedRepository extends BlobStoreRepository {
 
@@ -58,9 +64,12 @@ public class EncryptedRepository extends BlobStoreRepository {
     private static final Setting<String> PASSWORD = new Setting<>("password", "", Function.identity(),
             Setting.Property.NodeScope);
     private static final String ENCRYPTION_METADATA_PREFIX = "encryption-metadata-";
+    // always the same IV because the key is generated everytime (Key-IV pair never repeats)
+    private static final GCMParameterSpec gcmParameterSpec = new GCMParameterSpec(128, new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 });
 
     private final BlobStoreRepository delegatedRepository;
     private final SecretKey masterSecretKey;
+
 
     protected EncryptedRepository(BlobStoreRepository delegatedRepository, SecretKey masterSecretKey) {
         super(delegatedRepository);
@@ -95,13 +104,18 @@ public class EncryptedRepository extends BlobStoreRepository {
         SecureRandom sr = SecureRandom.getInstanceStrong();
         byte[] salt = new byte[16];
         sr.nextBytes(salt);
-        PBEKeySpec spec = new PBEKeySpec(password.toCharArray(), salt, 1000, 128 * 8);
-        return SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1").generateSecret(spec);
+        PBEKeySpec spec = new PBEKeySpec(password.toCharArray(), salt, 65536, 256);
+        SecretKey tmp = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec);
+        return new SecretKeySpec(tmp.getEncoded(), "AES");
+    }
+
+    private static String keyId(SecretKey secretKey) {
+        return MessageDigests.toHexString(MessageDigests.sha256().digest(secretKey.getEncoded()));
     }
 
     private static SecretKey generateRandomSecretKey() throws NoSuchAlgorithmException {
         KeyGenerator keyGen = KeyGenerator.getInstance("AES");
-        keyGen.init(128);
+        keyGen.init(256);
         return keyGen.generateKey();
     }
 
@@ -170,7 +184,7 @@ public class EncryptedRepository extends BlobStoreRepository {
         @Override
         public BlobContainer blobContainer(BlobPath path) {
             BlobPath encryptionMetadataBlobPath = BlobPath.cleanPath();
-            encryptionMetadataBlobPath = encryptionMetadataBlobPath.add(ENCRYPTION_METADATA_PREFIX + "<master-key-id>");
+            encryptionMetadataBlobPath = encryptionMetadataBlobPath.add(ENCRYPTION_METADATA_PREFIX + keyId(this.masterSecretKey));
             for (String pathComponent : path) {
                 encryptionMetadataBlobPath = encryptionMetadataBlobPath.add(pathComponent);
             }
@@ -203,9 +217,9 @@ public class EncryptedRepository extends BlobStoreRepository {
             try {
                 SecretKey dataDecryptionKey = unwrapKey(BytesReference.toBytes(dataDecryptionKeyBytes), this.masterSecretKey);
                 Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-                cipher.init(Cipher.DECRYPT_MODE, dataDecryptionKey);
+                cipher.init(Cipher.DECRYPT_MODE, dataDecryptionKey, gcmParameterSpec);
                 return new CipherInputStream(this.delegatedBlobContainer.readBlob(blobName), cipher);
-            } catch (InvalidKeyException | NoSuchAlgorithmException | NoSuchPaddingException e) {
+            } catch (InvalidKeyException | NoSuchAlgorithmException | NoSuchPaddingException | InvalidAlgorithmParameterException e) {
                 throw new IOException(e);
             }
         }
@@ -219,9 +233,10 @@ public class EncryptedRepository extends BlobStoreRepository {
                     this.encryptionMetadataBlobContainer.writeBlob(blobName, stream, wrappedDataEncryptionKey.length, failIfAlreadyExists);
                 }
                 Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-                cipher.init(Cipher.ENCRYPT_MODE, dataEncryptionKey);
+                cipher.init(Cipher.ENCRYPT_MODE, dataEncryptionKey, gcmParameterSpec);
                 this.delegatedBlobContainer.writeBlob(blobName, new CipherInputStream(inputStream, cipher), blobSize, failIfAlreadyExists);
-            } catch (NoSuchAlgorithmException | InvalidKeyException | NoSuchPaddingException | IllegalBlockSizeException e) {
+            } catch (NoSuchAlgorithmException | InvalidKeyException | NoSuchPaddingException | IllegalBlockSizeException
+                    | InvalidAlgorithmParameterException e) {
                 throw new IOException(e);
             }
         }

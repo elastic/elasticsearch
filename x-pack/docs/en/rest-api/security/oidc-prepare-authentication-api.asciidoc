@@ -35,7 +35,7 @@ The following parameters can be specified in the body of the request:
 `realm`::
   (Optional, string) The name of the OpenID Connect realm in {es} the configuration of which should
 be used in order to generate the authentication request. Cannot be specified
-when `iss` is specified. One of `realm`, `iss` needs to be specified.
+when `iss` is specified. One of `realm`, `iss` is required.
 
 `state`::
   (Optional, string) Value used to maintain state between the authentication request and the
@@ -51,7 +51,7 @@ generate one with sufficient entropy itself and return it in the response.
 `iss`::
   (Optional, string) In the case of a 3rd Party initiated Single Sign On, this is the Issuer
 Identifier for the OP that the RP is to send the Authentication Request to.
-Cannot be specified when `realm` is specified. One of `realm`, `iss` needs to be specified.
+Cannot be specified when `realm` is specified. One of `realm`, `iss` is required.
 
 `login_hint`::
   (Optional, string) In the case of a 3rd Party initiated Single Sign On, a string value to be

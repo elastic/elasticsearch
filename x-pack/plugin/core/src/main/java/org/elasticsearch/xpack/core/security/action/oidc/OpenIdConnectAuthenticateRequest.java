@@ -53,7 +53,7 @@ public class OpenIdConnectAuthenticateRequest extends ActionRequest {
         redirectUri = in.readString();
         state = in.readString();
         nonce = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_7_4_0)){
+        if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
             realm = in.readOptionalString();
         }
 
@@ -112,7 +112,7 @@ public class OpenIdConnectAuthenticateRequest extends ActionRequest {
         out.writeString(redirectUri);
         out.writeString(state);
         out.writeString(nonce);
-        if (out.getVersion().onOrAfter(Version.V_7_4_0)){
+        if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
             out.writeOptionalString(realm);
         }
     }

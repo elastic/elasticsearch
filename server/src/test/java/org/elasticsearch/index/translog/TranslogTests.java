@@ -3288,7 +3288,7 @@ public class TranslogTests extends ESTestCase {
         try (Translog translog = new Translog(config, translogUUID, createTranslogDeletionPolicy(config.getIndexSettings()),
             globalCheckpointSupplier, primaryTerm::get, persistedSeqNos::add)) {
             Thread[] threads = new Thread[between(2, 8)];
-            Phaser phaser = new Phaser(threads.length + 1);
+            Phaser phaser = new Phaser(threads.length);
             AtomicLong nextSeqNo = new AtomicLong();
             for (int t = 0; t < threads.length; t++) {
                 threads[t] = new Thread(() -> {
@@ -3310,15 +3310,15 @@ public class TranslogTests extends ESTestCase {
                             } else {
                                 translog.sync();
                             }
+                            for (Translog.Operation op : ops) {
+                                assertThat("seq# " + op.seqNo() + " was not marked as persisted", persistedSeqNos, hasItem(op.seqNo()));
+                            }
                             Checkpoint checkpoint = translog.getLastSyncedCheckpoint();
                             assertThat(checkpoint.offset, greaterThanOrEqualTo(location.translogLocation));
                             assertThat(checkpoint.globalCheckpoint, greaterThanOrEqualTo(globalCheckpoint));
                             for (Translog.Operation op : ops) {
                                 assertThat(checkpoint.minSeqNo, lessThanOrEqualTo(op.seqNo()));
                                 assertThat(checkpoint.maxSeqNo, greaterThanOrEqualTo(op.seqNo()));
-                            }
-                            for (Translog.Operation op : ops) {
-                                assertThat("seq# " + op.seqNo() + " was not marked as persisted", persistedSeqNos, hasItem(op.seqNo()));
                             }
                         } catch (Exception e) {
                             throw new AssertionError(e);
@@ -3327,7 +3327,6 @@ public class TranslogTests extends ESTestCase {
                 });
                 threads[t].start();
             }
-            phaser.arriveAndAwaitAdvance();
             for (Thread thread : threads) {
                 thread.join();
             }

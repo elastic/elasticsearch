@@ -226,6 +226,17 @@ successful or throw an exception if it fails. `performRequestAsync` is
 asynchronous and accepts a `ResponseListener` argument that it calls with a
 `Response` when the request is successful or with an `Exception` if it fails.
 
+`performRequestAsync` returns a `Cancellable` instance that may be used to cancel 
+requests. Doing so will result in a call to `abort` on the underlying Apache
+HttpClient request. This will result in the client side resources being freed up.
+However, it does not necessarily mean the server will abort in progress requesrs.
+
+The use of the `Cancellable` instance is optional and you can safely ignore this
+if you don't need it. A typical usecase for this would be using this together with 
+frameworks like Rx Java or the Kotlin's `suspendCancellableCoRoutine`. Cancelling
+no longer needed requests is a good way too avoid putting unnecessary 
+load on Elasticsearch.
+
 This is synchronous:
 
 ["source","java",subs="attributes,callouts,macros"]

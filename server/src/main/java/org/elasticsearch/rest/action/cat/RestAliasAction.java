@@ -77,6 +77,7 @@ public class RestAliasAction extends AbstractCatAction {
         table.addCell("filter", "alias:f,fi;desc:filter");
         table.addCell("routing.index", "alias:ri,routingIndex;desc:index routing");
         table.addCell("routing.search", "alias:rs,routingSearch;desc:search routing");
+        table.addCell("is_write_index", "alias:w,isWriteIndex;desc:write index");
         table.endHeaders();
         return table;
     }
@@ -95,6 +96,8 @@ public class RestAliasAction extends AbstractCatAction {
                 table.addCell(indexRouting);
                 String searchRouting = Strings.hasLength(aliasMetaData.searchRouting()) ? aliasMetaData.searchRouting() : "-";
                 table.addCell(searchRouting);
+                String isWriteIndex = aliasMetaData.writeIndex() == null ? "-" : aliasMetaData.writeIndex().toString();
+                table.addCell(isWriteIndex);
                 table.endRow();
             }
         }

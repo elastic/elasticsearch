@@ -134,7 +134,7 @@ public class DataFrameTransformPersistentTasksExecutorTests extends ESTestCase {
 
         metaData = new MetaData.Builder(cs.metaData());
         routingTable = new RoutingTable.Builder(cs.routingTable());
-        String indexToRemove = DataFrameInternalIndex.INDEX_NAME;
+        String indexToRemove = DataFrameInternalIndex.LATEST_INDEX_NAME;
         if (randomBoolean()) {
             routingTable.remove(indexToRemove);
         } else {
@@ -157,7 +157,7 @@ public class DataFrameTransformPersistentTasksExecutorTests extends ESTestCase {
     private void addIndices(MetaData.Builder metaData, RoutingTable.Builder routingTable) {
         List<String> indices = new ArrayList<>();
         indices.add(DataFrameInternalIndex.AUDIT_INDEX);
-        indices.add(DataFrameInternalIndex.INDEX_NAME);
+        indices.add(DataFrameInternalIndex.LATEST_INDEX_NAME);
         for (String indexName : indices) {
             IndexMetaData.Builder indexMetaData = IndexMetaData.builder(indexName);
             indexMetaData.settings(Settings.builder()

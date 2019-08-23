@@ -34,6 +34,9 @@ public class PutDataFrameAnalyticsAction extends ActionType<PutDataFrameAnalytic
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
 
+        /**
+         * Parses request.
+         */
         public static Request parseRequest(String id, XContentParser parser) {
             DataFrameAnalyticsConfig.Builder config = DataFrameAnalyticsConfig.STRICT_PARSER.apply(parser, null);
             if (config.getId() == null) {
@@ -45,6 +48,17 @@ public class PutDataFrameAnalyticsAction extends ActionType<PutDataFrameAnalytic
             }
 
             return new PutDataFrameAnalyticsAction.Request(config.build());
+        }
+
+        /**
+         * Parses request for memory estimation.
+         * {@link Request} is reused across {@link PutDataFrameAnalyticsAction} and {@link EstimateMemoryUsageAction} but parsing differs
+         * between these two usages.
+         */
+        public static Request parseRequestForMemoryEstimation(XContentParser parser) {
+            DataFrameAnalyticsConfig.Builder configBuilder = DataFrameAnalyticsConfig.STRICT_PARSER.apply(parser, null);
+            DataFrameAnalyticsConfig config = configBuilder.buildForMemoryEstimation();
+            return new PutDataFrameAnalyticsAction.Request(config);
         }
 
         private DataFrameAnalyticsConfig config;

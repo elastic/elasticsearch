@@ -127,6 +127,7 @@ public class DataFrameAnalyticsManager {
         ActionListener<RefreshResponse> refreshListener = ActionListener.wrap(
             refreshResponse -> {
                 if (task.isStopping()) {
+                    LOGGER.debug("[{}] Stopping before starting analytics process", config.getId());
                     return;
                 }
                 task.setReindexingTaskId(null);
@@ -139,6 +140,7 @@ public class DataFrameAnalyticsManager {
         ActionListener<BulkByScrollResponse> reindexCompletedListener = ActionListener.wrap(
             bulkResponse -> {
                 if (task.isStopping()) {
+                    LOGGER.debug("[{}] Stopping before refreshing destination index", config.getId());
                     return;
                 }
                 task.setReindexingFinished();

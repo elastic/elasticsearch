@@ -23,6 +23,7 @@ import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.ShapeType;
+import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -128,6 +129,9 @@ public final class CircleProcessor extends AbstractProcessor {
     /**
      * Makes an n-gon, centered at the provided lat/lon, and each vertex approximately
      * radiusMeters away from the center.
+     *
+     * This does not split the polygon across the date-line. Relies on {@link GeoShapeIndexer} to
+     * split prepare polygon for indexing.
      *
      * Adapted from from org.apache.lucene.geo.GeoTestUtil
      * */

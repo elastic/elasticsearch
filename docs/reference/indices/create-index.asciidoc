@@ -16,7 +16,7 @@ PUT /twitter
 [[indices-create-api-request]]
 ==== {api-request-title}
 
-`PUT /{index}`
+`PUT /<index>`
 
 [[indices-create-api-desc]]
 ==== {api-description-title}
@@ -31,7 +31,7 @@ creating an index, you can specify the following:
 [[indices-create-api-path-params]]
 ==== {api-path-parms-title}
 
-`{index}`::
+`<index>`::
 +
 --
 (Optional, string) Name of the index you wish to create.

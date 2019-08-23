@@ -21,7 +21,6 @@ package org.elasticsearch.repositories.s3;
 import com.amazonaws.SdkClientException;
 import com.amazonaws.services.s3.internal.MD5DigestCalculatingInputStream;
 import com.amazonaws.util.Base16;
-import com.amazonaws.util.CRC32ChecksumCalculatingInputStream;
 import com.sun.net.httpserver.HttpServer;
 import org.apache.http.HttpStatus;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
@@ -45,7 +44,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.Inet6Address;
@@ -55,6 +53,7 @@ import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -195,14 +194,11 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
         final CountDown countDown = new CountDown(maxRetries + 1);
 
         final byte[] bytes = randomByteArrayOfLength(randomIntBetween(1, frequently() ? 512 : 1 << 20)); // rarely up to 1mb
-        final long expectedChecksum = checksum(new ByteArrayInputStream(bytes), bytes.length);
-
         httpServer.createContext("/bucket/write_blob_max_retries", exchange -> {
             if ("PUT".equals(exchange.getRequestMethod()) && exchange.getRequestURI().getQuery() == null) {
                 if (countDown.countDown()) {
-                    int contentLength = Integer.parseInt(exchange.getRequestHeaders().getFirst("Content-Length"));
-                    long checksum = checksum(exchange.getRequestBody(), contentLength);
-                    if (checksum == expectedChecksum) {
+                    final BytesReference body = Streams.readFully(exchange.getRequestBody());
+                    if (Objects.deepEquals(bytes, BytesReference.toBytes(body))) {
                         exchange.sendResponseHeaders(HttpStatus.SC_OK, -1);
                     } else {
                         exchange.sendResponseHeaders(HttpStatus.SC_BAD_REQUEST, -1);
@@ -350,16 +346,6 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
         assertThat(countDownComplete.isCountedDown(), is(true));
     }
 
-    private static long checksum(final InputStream inputStream, final int length) throws IOException {
-        try (CRC32ChecksumCalculatingInputStream stream = new CRC32ChecksumCalculatingInputStream(inputStream)) {
-            BytesReference bytesReference = Streams.readFully(stream);
-            if (bytesReference.length() != length) {
-                throw new IllegalStateException("Not all bytes were read");
-            }
-            return stream.getCRC32Checksum();
-        }
-    }
-
     /**
      * A resettable InputStream that only serves zeros.
      **/
@@ -419,7 +405,14 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
         @Override
         public int available() throws IOException {
             ensureOpen();
-            return (reads.get() < length) ? Math.toIntExact(length - reads.get()) : 0;
+            if (reads.get() >= length) {
+                return 0;
+            }
+            try {
+                return Math.toIntExact(length - reads.get());
+            } catch (ArithmeticException e) {
+                return Integer.MAX_VALUE;
+            }
         }
 
         @Override

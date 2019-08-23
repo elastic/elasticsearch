@@ -15,7 +15,6 @@ import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
-import java.util.Collections;
 import java.util.Map;
 import java.util.function.Consumer;
 

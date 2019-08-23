@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 
@@ -29,7 +30,7 @@ public class EnrichPolicyUpdateTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singleton(LocalStateEnrich.class, ReindexPlugin.class);
+        return Arrays.asList(LocalStateEnrich.class, ReindexPlugin.class);
     }
 
     public void testUpdatePolicyOnly() {

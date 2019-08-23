@@ -74,30 +74,30 @@ public class ClientDataFrameIndexerTests extends ESTestCase {
         // Audit every checkpoint for the first 10
         assertTrue(shouldAudit.get(0));
         assertTrue(shouldAudit.get(1));
-        assertTrue(shouldAudit.get(9));
+        assertTrue(shouldAudit.get(10));
 
         // Then audit every 10 while < 100
-        assertFalse(shouldAudit.get(10));
         assertFalse(shouldAudit.get(11));
-        assertTrue(shouldAudit.get(19));
-        assertTrue(shouldAudit.get(29));
-        assertFalse(shouldAudit.get(30));
-        assertTrue(shouldAudit.get(99));
+        assertTrue(shouldAudit.get(20));
+        assertFalse(shouldAudit.get(29));
+        assertTrue(shouldAudit.get(30));
+        assertFalse(shouldAudit.get(99));
 
         // Then audit every 100 < 1000
-        assertFalse(shouldAudit.get(100));
+        assertTrue(shouldAudit.get(100));
         assertFalse(shouldAudit.get(109));
         assertFalse(shouldAudit.get(110));
-        assertTrue(shouldAudit.get(199));
+        assertFalse(shouldAudit.get(199));
 
         // Then audit every 1000 for the rest of time
-        assertTrue(shouldAudit.get(1999));
+        assertFalse(shouldAudit.get(1999));
         assertFalse(shouldAudit.get(2199));
-        assertTrue(shouldAudit.get(2999));
-        assertTrue(shouldAudit.get(9999));
-        assertTrue(shouldAudit.get(10_999));
-        assertFalse(shouldAudit.get(11_000));
-        assertTrue(shouldAudit.get(11_999));
+        assertTrue(shouldAudit.get(3000));
+        assertTrue(shouldAudit.get(10_000));
+        assertFalse(shouldAudit.get(10_999));
+        assertTrue(shouldAudit.get(11_000));
+        assertFalse(shouldAudit.get(11_001));
+        assertFalse(shouldAudit.get(11_999));
     }
 
 }

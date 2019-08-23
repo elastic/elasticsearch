@@ -24,11 +24,8 @@ fi
 # conflicting GC configurations for the keystore tools
 unset KEYSTORE_PASSWORD
 KEYSTORE_PASSWORD=
-# If keystore exists and is encrypted, prompt for a password
-if [ -f "$ES_PATH_CONF"/elasticsearch.keystore ] \
-    && ! echo $* | grep -E '(^-h |-h$| -h |--help$|--help )' >/dev/null 2>&1 \
-    && ! echo $* | grep -E '(^-V |-V$| -V |--version$|--version )' >/dev/null 2>&1 \
-    && ! "`dirname "$0"`"/elasticsearch-keystore list <&- >/dev/null 2>&1
+if ! echo $* | grep -E -q '(^-h |-h$| -h |--help$|--help |^-V |-V$| -V |--version$|--version )' \
+    && "`dirname "$0"`"/elasticsearch-keystore has-passwd >/dev/null 2>&1
 then
   if [ -e "$ES_KEYSTORE_PASSPHRASE_FILE" ] ; then
     echo "Reading keystore passphrase from file $ES_KEYSTORE_PASSPHRASE_FILE" 1>&2

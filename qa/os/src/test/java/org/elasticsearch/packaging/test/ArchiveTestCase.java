@@ -265,8 +265,6 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
 
     public void test61PasswordProtectedKeystore() throws Exception {
         assumeThat(installation, is(notNullValue()));
-        // cleanup from previous test
-        // rm(installation.config("elasticsearch.keystore"));
 
         String password = "keystorepass";
         final Shell sh = new Shell();

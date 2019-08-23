@@ -51,6 +51,7 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
+import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.isEmptyString;
 import static org.junit.Assume.assumeThat;
 import static org.junit.Assume.assumeTrue;

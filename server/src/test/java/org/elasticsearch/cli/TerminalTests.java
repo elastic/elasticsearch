@@ -22,9 +22,6 @@ package org.elasticsearch.cli;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.BufferedReader;
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
-import java.nio.charset.Charset;
 
 public class TerminalTests extends ESTestCase {
     public void testVerbosity() throws Exception {

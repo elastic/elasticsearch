@@ -34,7 +34,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.lessThan;
 
 /**

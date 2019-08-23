@@ -857,10 +857,11 @@ Create an enrich policy:
 --------------------------------------------------
 PUT /_enrich/policy/users-policy
 {
-    "type": "exact_match",
-    "indices": "users",
-    "match_field": "email",
-    "enrich_fields": ["first_name", "last_name", "address", "city", "zip", "state"]
+    "exact_match": {
+        "indices": "users",
+        "match_field": "email",
+        "enrich_fields": ["first_name", "last_name", "address", "city", "zip", "state"]
+    }
 }
 --------------------------------------------------
 // CONSOLE
@@ -989,10 +990,11 @@ Request:
 --------------------------------------------------
 PUT /_enrich/policy/my-policy
 {
-    "type": "exact_match",
-    "indices": "users",
-    "match_field": "email",
-    "enrich_fields": ["first_name", "last_name", "address", "city", "zip", "state"]
+    "exact_match": {
+        "indices": "users",
+        "match_field": "email",
+        "enrich_fields": ["first_name", "last_name", "address", "city", "zip", "state"]
+    }
 }
 --------------------------------------------------
 // CONSOLE
@@ -1028,18 +1030,19 @@ Response:
 {
     "policies": [
         {
-            "name" : "my-policy",
-            "type" : "exact_match",
-            "indices" : ["users"],
-            "match_field" : "email",
-            "enrich_fields" : [
-                "first_name",
-                "last_name",
-                "address",
-                "city",
-                "zip",
-                "state"
-            ]
+            "exact_match": {
+                "name" : "my-policy",
+                "indices" : ["users"],
+                "match_field" : "email",
+                "enrich_fields" : [
+                    "first_name",
+                    "last_name",
+                    "address",
+                    "city",
+                    "zip",
+                    "state"
+                ]
+            }
         }
     ]
 }
@@ -1064,18 +1067,19 @@ Response:
 {
     "policies": [
         {
-            "name" : "my-policy",
-            "type" : "exact_match",
-            "indices" : ["users"],
-            "match_field" : "email",
-            "enrich_fields" : [
-                "first_name",
-                "last_name",
-                "address",
-                "city",
-                "zip",
-                "state"
-            ]
+            "exact_match": {
+                "name" : "my-policy",
+                "indices" : ["users"],
+                "match_field" : "email",
+                "enrich_fields" : [
+                    "first_name",
+                    "last_name",
+                    "address",
+                    "city",
+                    "zip",
+                    "state"
+                ]
+            }
         }
     ]
 }

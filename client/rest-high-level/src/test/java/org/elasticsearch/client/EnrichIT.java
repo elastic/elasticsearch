@@ -23,6 +23,7 @@ import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.enrich.PutPolicyRequest;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -49,10 +50,12 @@ public class EnrichIT extends ESRestHighLevelClientTestCase {
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> responsePolicies = (List<Map<String, Object>>) responseBody.get("policies");
         assertThat(responsePolicies.size(), equalTo(1));
-        assertThat(responsePolicies.get(0).get("type"), equalTo(putPolicyRequest.getType()));
-        assertThat(responsePolicies.get(0).get("indices"), equalTo(putPolicyRequest.getIndices()));
-        assertThat(responsePolicies.get(0).get("match_field"), equalTo(putPolicyRequest.getMatchField()));
-        assertThat(responsePolicies.get(0).get("enrich_fields"), equalTo(putPolicyRequest.getEnrichFields()));
+        assertThat(XContentMapValues.extractValue("exact_match.indices", responsePolicies.get(0)),
+            equalTo(putPolicyRequest.getIndices()));
+        assertThat(XContentMapValues.extractValue("exact_match.match_field", responsePolicies.get(0)),
+            equalTo(putPolicyRequest.getMatchField()));
+        assertThat(XContentMapValues.extractValue("exact_match.enrich_fields", responsePolicies.get(0)),
+            equalTo(putPolicyRequest.getEnrichFields()));
     }
 
     private static Map<String, Object> toMap(Response response) throws IOException {

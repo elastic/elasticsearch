@@ -25,7 +25,7 @@ class NodeDeprecationChecks {
             EsExecutors.PROCESSORS_SETTING.getKey(),
             EsExecutors.NODE_PROCESSORS_SETTING.getKey());
         final String url =
-            "https://www.elastic.co/guide/en/elasticsearch/reference/7.x/breaking-changes-7.4.html#deprecate-processors";
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.4/breaking-changes-7.4.html#deprecate-processors";
         final String details = String.format(
             Locale.ROOT,
             "the setting [%s] is currently set to [%d], instead set [%s] to [%d]",

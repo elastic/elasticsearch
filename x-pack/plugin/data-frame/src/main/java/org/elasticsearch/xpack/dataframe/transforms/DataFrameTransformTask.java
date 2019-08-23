@@ -923,7 +923,6 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                                         }
                                     ));
                                 } else {
-                                    logger.trace("[{}] no need to cleanup on stats document.", transformId);
                                     next.run();
                                 }
                             },

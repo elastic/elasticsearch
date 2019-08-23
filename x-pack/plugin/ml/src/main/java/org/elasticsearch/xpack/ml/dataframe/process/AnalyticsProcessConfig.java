@@ -51,10 +51,6 @@ public class AnalyticsProcessConfig implements ToXContentObject {
         return cols;
     }
 
-    public long rows() {
-        return rows;
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();

@@ -11,7 +11,7 @@ filter and routing information.
 [[cat-alias-api-request]]
 ==== {api-request-title}
 
-`GET /_cat/aliases/{name}`
+`GET /_cat/aliases/<name>`
 
 [[cat-alias-api-path-params]]
 ==== {api-path-parms-title}

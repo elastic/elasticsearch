@@ -10,7 +10,7 @@ Returns information about the tasks currently executing in the cluster.
 
 `GET /_tasks` +
 
-`GET /_tasks/{task_id}`
+`GET /_tasks/<task_id>`
 
 
 [[tasks-api-desc]]
@@ -23,7 +23,7 @@ executing on one or more nodes in the cluster.
 [[tasks-api-path-params]]
 ==== {api-path-parms-title}
 
-{task_id}
+`<task_id>`::
     (Optional, string) The ID of the task to return (`node_id:task_number`).
 
 

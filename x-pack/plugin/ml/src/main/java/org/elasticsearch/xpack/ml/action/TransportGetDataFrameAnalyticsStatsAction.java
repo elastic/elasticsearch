@@ -197,6 +197,7 @@ public class TransportGetDataFrameAnalyticsStatsAction
                 for (MultiSearchResponse.Item itemResponse : multiSearchResponse.getResponses()) {
                     if (itemResponse.isFailure()) {
                         listener.onFailure(ExceptionsHelper.serverError(itemResponse.getFailureMessage(), itemResponse.getFailure()));
+                        return;
                     } else {
                         SearchHit[] hits = itemResponse.getResponse().getHits().getHits();
                         if (hits.length == 0) {

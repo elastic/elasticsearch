@@ -5,9 +5,22 @@
  */
 package org.elasticsearch.xpack.spatial.ingest;
 
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.LatLonDocValuesField;
+import org.apache.lucene.document.LatLonShape;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.spatial3d.geom.GeoShape;
+import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.geo.GeoJson;
+import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -16,11 +29,21 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.MultiPolygon;
+import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper;
+import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
+import org.elasticsearch.index.mapper.GeoShapeIndexer;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.VectorGeoShapeQueryProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
+import org.elasticsearch.search.aggregations.metrics.GeoBoundsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.InternalGeoBounds;
+import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -29,10 +52,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.index.mapper.GeoShapeIndexer.toLucenePolygon;
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class CircleProcessorTests extends ESTestCase {
     private static final WellKnownText WKT = new WellKnownText(true, new GeographyValidator(true));
@@ -202,6 +229,41 @@ public class CircleProcessorTests extends ESTestCase {
             field.put("radius", value);
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
             assertThat(e.getMessage(), equalTo("invalid circle definition"));
+        }
+    }
+
+    public void testQueryAcrossDateline() throws IOException {
+        String fieldName = "circle";
+        Circle circle = new Circle(179.999746, 67.1726, 1000);
+        Geometry geometry = CircleProcessor.createRegularPolygon(circle.getLat(), circle.getLon(),
+            circle.getRadiusMeters(), randomIntBetween(4, 1000));
+        System.out.println("here");
+        System.out.println(WKT.toWKT(geometry));
+
+        MappedFieldType shapeType = new GeoShapeFieldMapper.GeoShapeFieldType();
+        shapeType.setHasDocValues(false);
+        shapeType.setName(fieldName);
+
+        VectorGeoShapeQueryProcessor processor = new VectorGeoShapeQueryProcessor();
+        QueryShardContext mockedContext = mock(QueryShardContext.class);
+        when(mockedContext.fieldMapper(any())).thenReturn(shapeType);
+        Query sameShapeQuery = processor.process(geometry, fieldName, ShapeRelation.INTERSECTS, mockedContext);
+        Query pointOnDatelineQuery = processor.process(new Point(180, circle.getLat()), fieldName,
+            ShapeRelation.INTERSECTS, mockedContext);
+
+        try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+            Document doc = new Document();
+            GeoShapeIndexer indexer = new GeoShapeIndexer(true, fieldName);
+            for (IndexableField field : indexer.indexShape(null, indexer.prepareForIndexing(geometry))) {
+                doc.add(field);
+            }
+            w.addDocument(doc);
+
+            try (IndexReader reader = w.getReader()) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+                assertThat(searcher.search(sameShapeQuery, 1).totalHits.value, equalTo(1L));
+                assertThat(searcher.search(pointOnDatelineQuery, 1).totalHits.value, equalTo(1L));
+            }
         }
     }
 }

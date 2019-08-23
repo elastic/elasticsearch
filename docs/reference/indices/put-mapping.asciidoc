@@ -30,7 +30,7 @@ please see <<removal-of-types>>.
 [[put-mapping-api-request]]
 ==== {api-request-title}
 
-`PUT /{index}/_mapping`
+`PUT /<index>/_mapping`
 
 `PUT /_mapping`
 

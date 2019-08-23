@@ -427,12 +427,12 @@ public class TransportStartDataFrameAnalyticsAction
 
         @Override
         public void markAsCompleted() {
-            persistProgress(ActionListener.wrap(() -> super.markAsCompleted()));
+            persistProgress(() -> super.markAsCompleted());
         }
 
         @Override
         public void markAsFailed(Exception e) {
-            persistProgress(ActionListener.wrap(() -> super.markAsFailed(e)));
+            persistProgress(() -> super.markAsFailed(e));
         }
 
         public void stop(String reason, TimeValue timeout) {
@@ -539,7 +539,7 @@ public class TransportStartDataFrameAnalyticsAction
             }
         }
 
-        private void persistProgress(ActionListener<Void> listener) {
+        private void persistProgress(Runnable runnable) {
             GetDataFrameAnalyticsStatsAction.Request getStatsRequest = new GetDataFrameAnalyticsStatsAction.Request(taskParams.getId());
             executeAsyncWithOrigin(client, ML_ORIGIN, GetDataFrameAnalyticsStatsAction.INSTANCE, getStatsRequest, ActionListener.wrap(
                 statsResponse -> {
@@ -554,19 +554,19 @@ public class TransportStartDataFrameAnalyticsAction
                     executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(
                         indexResponse -> {
                             LOGGER.debug("[{}] Successfully indexed progress document", taskParams.getId());
-                            listener.onResponse(null);
+                            runnable.run();
                         },
                         indexError -> {
                             LOGGER.error(new ParameterizedMessage(
                             "[{}] cannot persist progress as an error occurred while indexing", taskParams.getId()), indexError);
-                            listener.onResponse(null);
+                            runnable.run();
                         }
                     ));
                 },
                 e -> {
                     LOGGER.error(new ParameterizedMessage(
                     "[{}] cannot persist progress as an error occurred while retrieving stats", taskParams.getId()), e);
-                    listener.onResponse(null);
+                    runnable.run();
                 }
             ));
         }

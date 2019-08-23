@@ -21,13 +21,13 @@ through the parameter include_type_name. For more details, please see <<removal-
 [[get-index-api-request]]
 ==== {api-request-title}
 
-`GET /{index}`
+`GET /<index>`
 
 
 [[get-index-api-path-params]]
 ==== {api-path-parms-title}
 
-`{index}`::
+`<index>`::
 +
 --
 (Required, string) Comma-separated list or wildcard expression of index names

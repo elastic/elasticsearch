@@ -143,7 +143,7 @@ public class AnalyticsProcessManager {
                     }
                 }
                 rowsProcessed += rows.get().size();
-                progressTracker.loadingDataPercent.set(rowsProcessed == totalRows ? 100 : (int) (rowsProcessed * 100.0 / totalRows));
+                progressTracker.loadingDataPercent.set(rowsProcessed >= totalRows ? 100 : (int) (rowsProcessed * 100.0 / totalRows));
             }
         }
     }

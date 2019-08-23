@@ -24,6 +24,7 @@ import org.elasticsearch.client.enrich.DeletePolicyRequest;
 import org.elasticsearch.client.enrich.PutPolicyRequest;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
 import java.io.IOException;
 import java.util.List;
@@ -49,10 +50,10 @@ public class EnrichIT extends ESRestHighLevelClientTestCase {
         List<?> responsePolicies = (List<?>) responseBody.get("policies");
         assertThat(responsePolicies.size(), equalTo(1));
         Map<?, ?> responsePolicy = (Map<?, ?>) responsePolicies.get(0);
-        assertThat(responsePolicy.get("type"), equalTo(putPolicyRequest.getType()));
-        assertThat(responsePolicy.get("indices"), equalTo(putPolicyRequest.getIndices()));
-        assertThat(responsePolicy.get("match_field"), equalTo(putPolicyRequest.getMatchField()));
-        assertThat(responsePolicy.get("enrich_fields"), equalTo(putPolicyRequest.getEnrichFields()));
+        assertThat(XContentMapValues.extractValue("exact_match.indices", responsePolicy), equalTo(putPolicyRequest.getIndices()));
+        assertThat(XContentMapValues.extractValue("exact_match.match_field", responsePolicy), equalTo(putPolicyRequest.getMatchField()));
+        assertThat(XContentMapValues.extractValue("exact_match.enrich_fields", responsePolicy),
+            equalTo(putPolicyRequest.getEnrichFields()));
 
         DeletePolicyRequest deletePolicyRequest = new DeletePolicyRequest("my-policy");
         AcknowledgedResponse deletePolicyResponse =

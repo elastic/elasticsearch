@@ -366,7 +366,6 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
     private static class ZeroInputStream extends InputStream {
 
         private final AtomicBoolean closed = new AtomicBoolean(false);
-        private final byte[] buffer = new byte[1024];
         private final long length;
         private final AtomicLong reads;
         private volatile long mark;
@@ -375,7 +374,6 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
             this.length = length;
             this.reads = new AtomicLong(0);
             this.mark = -1;
-            Arrays.fill(buffer, (byte) 0);
         }
 
         @Override
@@ -390,20 +388,14 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
             if (len == 0) {
                 return 0;
             }
+
             final int available = available();
             if (available == 0) {
                 return -1;
             }
 
             final int toCopy = Math.min(len, available);
-            int parts = toCopy / buffer.length;
-            for (int i = 0; i < parts; i++) {
-                System.arraycopy(buffer, 0, b, off + (i * buffer.length), buffer.length);
-            }
-            int remaining = toCopy % buffer.length;
-            if (remaining > 0) {
-                System.arraycopy(buffer, 0, b, off + (parts * buffer.length), remaining);
-            }
+            Arrays.fill(b, off, off + toCopy, (byte) 0);
             reads.addAndGet(toCopy);
             return toCopy;
         }

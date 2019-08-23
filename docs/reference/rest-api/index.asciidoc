@@ -19,6 +19,7 @@ not be included yet.
 * <<graph-explore-api,Graph Explore API>>
 * <<indices, Index APIs>>
 * <<index-lifecycle-management-api,Index lifecycle management APIs>>
+* <<ingest-apis,Ingest APIs>>
 * <<info-api,Info API>>
 * <<licensing-apis,Licensing APIs>>
 * <<ml-apis,{ml-cap} {anomaly-detect} APIs>>
@@ -41,6 +42,7 @@ include::{es-repo-dir}/docs.asciidoc[]
 include::{es-repo-dir}/graph/explore.asciidoc[]
 include::{es-repo-dir}/indices.asciidoc[]
 include::{es-repo-dir}/ilm/apis/ilm-api.asciidoc[]
+include::{es-repo-dir}/ingest/apis/index.asciidoc[]
 include::info.asciidoc[]
 include::{es-repo-dir}/licensing/index.asciidoc[]
 include::{es-repo-dir}/ml/anomaly-detection/apis/ml-api.asciidoc[]

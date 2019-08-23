@@ -198,9 +198,12 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                 }
 
                 int reindexingProgress = 0;
+                int loadingDataProgress = 0;
                 int analyzingProgress = 0;
                 switch (state) {
                     case ANALYZING:
+                        reindexingProgress = 100;
+                        loadingDataProgress = 100;
                         analyzingProgress = legacyProgressPercent;
                         break;
                     case REINDEXING:
@@ -215,7 +218,7 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
 
                 return Arrays.asList(
                     new PhaseProgress("reindexing", reindexingProgress),
-                    new PhaseProgress("loading_data", 100),
+                    new PhaseProgress("loading_data", loadingDataProgress),
                     new PhaseProgress("analyzing", analyzingProgress),
                     new PhaseProgress("writing_results", 0));
             }

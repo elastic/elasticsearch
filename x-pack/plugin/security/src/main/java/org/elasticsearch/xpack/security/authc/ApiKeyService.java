@@ -901,7 +901,7 @@ public class ApiKeyService {
      * @param authentication {@link Authentication}
      * @return realm name
      */
-    public String getCreatorRealmName(final Authentication authentication) {
+    public static String getCreatorRealmName(final Authentication authentication) {
         if (authentication.getAuthenticatedBy().getType().equals(API_KEY_REALM_TYPE)) {
             return (String) authentication.getMetadata().get(API_KEY_CREATOR_REALM);
         } else {

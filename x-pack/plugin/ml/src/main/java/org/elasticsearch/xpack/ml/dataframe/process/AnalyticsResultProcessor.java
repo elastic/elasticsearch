@@ -64,7 +64,7 @@ public class AnalyticsResultProcessor {
                 processResult(result, resultsJoiner);
                 if (result.getRowResults() != null) {
                     processedRows++;
-                    progressTracker.writingResultsPercent.set(processedRows == totalRows ? 100 : (int) (processedRows * 100.0 / totalRows));
+                    progressTracker.writingResultsPercent.set(processedRows >= totalRows ? 100 : (int) (processedRows * 100.0 / totalRows));
                 }
             }
             if (isProcessKilled.get() == false) {

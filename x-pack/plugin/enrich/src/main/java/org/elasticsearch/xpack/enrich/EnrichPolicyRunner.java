@@ -5,14 +5,6 @@
  */
 package org.elasticsearch.xpack.enrich;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.function.LongSupplier;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
@@ -51,13 +43,21 @@ import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
-import static org.elasticsearch.xpack.enrich.ExactMatchProcessor.ENRICH_KEY_FIELD_NAME;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.LongSupplier;
 
 public class EnrichPolicyRunner implements Runnable {
 
     private static final Logger logger = LogManager.getLogger(EnrichPolicyRunner.class);
 
-    static final String ENRICH_POLICY_FIELD_NAME = "enrich_policy";
+    static final String ENRICH_POLICY_NAME_FIELD_NAME = "enrich_policy_name";
+    static final String ENRICH_POLICY_TYPE_FIELD_NAME = "enrich_policy_type";
+    static final String ENRICH_MATCH_FIELD_NAME = "enrich_match_field";
 
     private final String policyName;
     private final EnrichPolicy policy;
@@ -216,8 +216,9 @@ public class EnrichPolicyRunner implements Runnable {
                         .endObject()
                     .endObject()
                     .startObject("_meta")
-                        .field(ENRICH_POLICY_FIELD_NAME, policyName)
-                        .field(ENRICH_KEY_FIELD_NAME, policy.getMatchField())
+                        .field(ENRICH_POLICY_NAME_FIELD_NAME, policyName)
+                        .field(ENRICH_MATCH_FIELD_NAME, policy.getMatchField())
+                        .field(ENRICH_POLICY_TYPE_FIELD_NAME, policy.getType())
                     .endObject()
                 .endObject()
             .endObject();

@@ -152,7 +152,7 @@ public class EnrichPolicyMaintenanceServiceTests extends ESSingleNodeTestCase {
                     .startObject()
                     .startObject(MapperService.SINGLE_MAPPING_NAME)
                     .startObject("_meta")
-                    .field(EnrichPolicyRunner.ENRICH_POLICY_FIELD_NAME, forPolicy)
+                    .field(EnrichPolicyRunner.ENRICH_POLICY_NAME_FIELD_NAME, forPolicy)
                     .endObject()
                     .endObject()
                     .endObject()

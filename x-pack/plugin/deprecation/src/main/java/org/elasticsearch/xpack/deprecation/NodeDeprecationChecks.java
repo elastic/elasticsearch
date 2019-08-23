@@ -24,7 +24,8 @@ class NodeDeprecationChecks {
             "setting [%s] is deprecated in favor of setting [%s]",
             EsExecutors.PROCESSORS_SETTING.getKey(),
             EsExecutors.NODE_PROCESSORS_SETTING.getKey());
-        final String url = "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html#remove-processors";
+        final String url =
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.4/breaking_74_plugin_changes.html#breaking_74_settings_changes";
         final String details = String.format(
             Locale.ROOT,
             "the setting [%s] is currently set to [%d], instead set [%s] to [%d]",

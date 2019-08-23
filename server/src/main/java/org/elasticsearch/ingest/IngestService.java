@@ -438,7 +438,7 @@ public class IngestService implements ClusterStateApplier {
                 if (metadataMap.get(IngestDocument.MetaData.VERSION_TYPE) != null) {
                     indexRequest.versionType(VersionType.fromString((String) metadataMap.get(IngestDocument.MetaData.VERSION_TYPE)));
                 }
-                indexRequest.source(ingestDocument.getSourceAndMetadata());
+                indexRequest.source(ingestDocument.getSourceAndMetadata(), indexRequest.getContentType());
             }
         } catch (Exception e) {
             totalMetrics.ingestFailed();

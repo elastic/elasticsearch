@@ -922,6 +922,8 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                                             next.run();
                                         }
                                     ));
+                                } else {
+                                    next.run();
                                 }
                             },
                             statsExc -> {

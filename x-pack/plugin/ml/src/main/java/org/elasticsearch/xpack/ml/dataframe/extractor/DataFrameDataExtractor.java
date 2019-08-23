@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.dataframe.extractor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.SearchAction;
@@ -20,6 +21,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
+import org.elasticsearch.search.profile.SearchProfileShardResults;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedField;
@@ -242,6 +244,26 @@ public class DataFrameDataExtractor {
 
         SearchResponse searchResponse = executeSearchRequest(searchRequestBuilder);
         return new DataSummary(searchResponse.getHits().getTotalHits().value, context.extractedFields.getAllFields().size());
+    }
+
+    public void collectDataSummaryAsync(ActionListener<DataSummary> dataSummaryActionListener) {
+        SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client, SearchAction.INSTANCE)
+            .setIndices(context.indices)
+            .setSize(0)
+            .setQuery(context.query)
+            .setTrackTotalHits(true);
+        final int numberOfFields = context.extractedFields.getAllFields().size();
+
+        ClientHelper.executeWithHeadersAsync(context.headers,
+            ClientHelper.ML_ORIGIN,
+            client,
+            SearchAction.INSTANCE,
+            searchRequestBuilder.request(),
+            ActionListener.wrap(
+                searchResponse -> dataSummaryActionListener.onResponse(
+                    new DataSummary(searchResponse.getHits().getTotalHits().value, numberOfFields)),
+            dataSummaryActionListener::onFailure
+        ));
     }
 
     public Set<String> getCategoricalFields() {

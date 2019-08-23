@@ -56,13 +56,13 @@ public final class EnrichStore {
         // TODO: add policy validation
 
         final EnrichPolicy finalPolicy;
-        if (policy.getVersionCreated() == null) {
+        if (policy.getElasticsearchVersion() == null) {
             finalPolicy = new EnrichPolicy(
                 policy.getType(),
                 policy.getQuery(),
                 policy.getIndices(),
-                policy.getEnrichKey(),
-                policy.getEnrichValues(),
+                policy.getMatchField(),
+                policy.getEnrichFields(),
                 Version.CURRENT
             );
         } else {

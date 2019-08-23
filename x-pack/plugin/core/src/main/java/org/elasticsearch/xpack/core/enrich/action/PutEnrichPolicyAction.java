@@ -38,9 +38,9 @@ public class PutEnrichPolicyAction extends ActionType<AcknowledgedResponse> {
 
         public Request(String name, EnrichPolicy policy) {
             this.name = Objects.requireNonNull(name, "name cannot be null");
-            if (!Version.CURRENT.equals(policy.getVersionCreated())) {
+            if (!Version.CURRENT.equals(policy.getElasticsearchVersion())) {
                 throw new IllegalArgumentException("Cannot set [version_created] field on enrich policy [" + name +
-                    "]. Found [" + policy.getVersionCreated() + "]");
+                    "]. Found [" + policy.getElasticsearchVersion() + "]");
             }
             this.policy = policy;
         }

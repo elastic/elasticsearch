@@ -41,7 +41,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
     private static final ParseField INDICES = new ParseField("indices");
     private static final ParseField MATCH_FIELD = new ParseField("match_field");
     private static final ParseField ENRICH_FIELDS = new ParseField("enrich_fields");
-    private static final ParseField VERSION_CREATED = new ParseField("version_created");
+    private static final ParseField ELASTICSEARCH_VERSION = new ParseField("elasticsearch_version");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<EnrichPolicy, Void> PARSER = new ConstructingObjectParser<>("policy",
@@ -70,7 +70,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         parser.declareString(ConstructingObjectParser.constructorArg(), MATCH_FIELD);
         parser.declareStringArray(ConstructingObjectParser.constructorArg(), ENRICH_FIELDS);
         parser.declareField(ConstructingObjectParser.optionalConstructorArg(), ((p, c) -> Version.fromString(p.text())),
-            VERSION_CREATED, ValueType.STRING);
+            ELASTICSEARCH_VERSION, ValueType.STRING);
     }
 
     public static EnrichPolicy fromXContent(XContentParser parser) throws IOException {
@@ -82,7 +82,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
     private final List<String> indices;
     private final String matchField;
     private final List<String> enrichFields;
-    private final Version versionCreated;
+    private final Version elasticsearchVersion;
 
     public EnrichPolicy(StreamInput in) throws IOException {
         this(
@@ -108,13 +108,13 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
                         List<String> indices,
                         String matchField,
                         List<String> enrichFields,
-                        Version versionCreated) {
+                        Version elasticsearchVersion) {
         this.type = type;
         this.query = query;
         this.indices = indices;
         this.matchField = matchField;
         this.enrichFields = enrichFields;
-        this.versionCreated = versionCreated != null ? versionCreated : Version.CURRENT;
+        this.elasticsearchVersion = elasticsearchVersion != null ? elasticsearchVersion : Version.CURRENT;
     }
 
     public String getType() {
@@ -137,8 +137,8 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         return enrichFields;
     }
 
-    public Version getVersionCreated() {
-        return versionCreated;
+    public Version getElasticsearchVersion() {
+        return elasticsearchVersion;
     }
 
     public static String getBaseName(String policyName) {
@@ -152,7 +152,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         out.writeStringCollection(indices);
         out.writeString(matchField);
         out.writeStringCollection(enrichFields);
-        Version.writeVersion(versionCreated, out);
+        Version.writeVersion(elasticsearchVersion, out);
     }
 
     @Override
@@ -164,8 +164,8 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         builder.array(INDICES.getPreferredName(), indices.toArray(new String[0]));
         builder.field(MATCH_FIELD.getPreferredName(), matchField);
         builder.array(ENRICH_FIELDS.getPreferredName(), enrichFields.toArray(new String[0]));
-        if (params.paramAsBoolean("include_version", false) && versionCreated != null) {
-            builder.field(VERSION_CREATED.getPreferredName(), versionCreated.toString());
+        if (params.paramAsBoolean("include_version", false) && elasticsearchVersion != null) {
+            builder.field(ELASTICSEARCH_VERSION.getPreferredName(), elasticsearchVersion.toString());
         }
         return builder;
     }
@@ -180,7 +180,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
             indices.equals(policy.indices) &&
             matchField.equals(policy.matchField) &&
             enrichFields.equals(policy.enrichFields) &&
-            versionCreated.equals(policy.versionCreated);
+            elasticsearchVersion.equals(policy.elasticsearchVersion);
     }
 
     @Override
@@ -191,7 +191,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
             indices,
             matchField,
             enrichFields,
-            versionCreated
+            elasticsearchVersion
         );
     }
 

@@ -110,6 +110,31 @@ public class CommandTests extends ESTestCase {
         assertFalse(command.executed);
     }
 
+    public void testUnknownOptions() throws Exception {
+        NoopCommand command = new NoopCommand();
+        MockTerminal terminal = new MockTerminal();
+        String[] args = {"-Z"};
+        int status = command.main(args, terminal);
+        String output = terminal.getOutput();
+        String error = terminal.getErrorOutput();
+        assertEquals(output, ExitCodes.USAGE, status);
+        assertTrue(error, error.contains("Does nothing"));
+        assertFalse(output, output.contains("Some extra help")); // extra help not printed for usage errors
+        assertTrue(error, error.contains("ERROR: Z is not a recognized option"));
+        assertFalse(command.executed);
+
+        command = new NoopCommand();
+        String[] args2 = {"--foobar"};
+        status = command.main(args2, terminal);
+        output = terminal.getOutput();
+        error = terminal.getErrorOutput();
+        assertEquals(output, ExitCodes.USAGE, status);
+        assertTrue(error, error.contains("Does nothing"));
+        assertFalse(output, output.contains("Some extra help")); // extra help not printed for usage errors
+        assertTrue(error, error.contains("ERROR: Z is not a recognized option"));
+        assertFalse(command.executed);
+    }
+
     public void testVerbositySilentAndVerbose() throws Exception {
         MockTerminal terminal = new MockTerminal();
         NoopCommand command = new NoopCommand();
@@ -155,8 +180,9 @@ public class CommandTests extends ESTestCase {
         String[] args = {};
         int status = command.main(args, terminal);
         String output = terminal.getOutput();
+        String error = terminal.getErrorOutput();
         assertEquals(output, ExitCodes.DATA_ERROR, status);
-        assertTrue(output, output.contains("ERROR: Bad input"));
+        assertTrue(error, error.contains("ERROR: Bad input"));
     }
 
     public void testUsageError() throws Exception {
@@ -165,9 +191,10 @@ public class CommandTests extends ESTestCase {
         String[] args = {};
         int status = command.main(args, terminal);
         String output = terminal.getOutput();
+        String error = terminal.getErrorOutput();
         assertEquals(output, ExitCodes.USAGE, status);
-        assertTrue(output, output.contains("Throws a usage error"));
-        assertTrue(output, output.contains("ERROR: something was no good"));
+        assertTrue(error, error.contains("Throws a usage error"));
+        assertTrue(error, error.contains("ERROR: something was no good"));
     }
 
 }

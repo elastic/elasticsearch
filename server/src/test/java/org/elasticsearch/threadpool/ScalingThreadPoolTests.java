@@ -99,7 +99,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
         });
 
         if (processorsUsed > availableProcessors) {
-            assertWarnings("setting node.processors to value [" + processorsUsed +
+            assertWarnings("setting [node.processors] to value [" + processorsUsed +
                 "] which is more than available processors [" + availableProcessors + "] is deprecated");
         }
     }

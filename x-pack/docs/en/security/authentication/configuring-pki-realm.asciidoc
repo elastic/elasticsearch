@@ -236,15 +236,11 @@ the PKI realms that have been configured for delegation.
 To permit authentication delegation for a specific {es} PKI realm, start by
 configuring the realm for the usual case, as detailed in the
 <<pki-realm-for-direct-clients>>
-section. Note that you must explicitly configure a `truststore`
-(or, equivalently `certificate_authorities`) when configuring
-a PKI realm for delegation, as delegated PKI will not automatically
-make use of the network layer's trust settings. 
-a `truststore` (or, equivalently `certificate_authorities`) even though it is
-the same trust configuration that you have configured on the network layer.
-Afterwards, simply toggle the `delegation.enabled` realm setting to `true`.
-This realm is now allowed to validate delegated PKI authentication (after
-restarting {es}).
+section. Note that you must explicitly configure a `truststore` (or,
+equivalently `certificate_authorities`) even though it is the same trust
+configuration that you have configured on the network layer.  Afterwards,
+simply toggle the `delegation.enabled` realm setting to `true`.  This realm is
+now allowed to validate delegated PKI authentication (after restarting {es}).
 
 NOTE: PKI authentication delegation requires that the
 `xpack.security.authc.token.enabled` setting be `true` and that SSL/TLS be

@@ -57,10 +57,21 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
             ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(ClusterPermission.builder()).build();
 
         final Authentication authentication = createMockAuthentication("joe","realm1", "native", Map.of());
-        final TransportRequest getApiKeyRequest = randomFrom(GetApiKeyRequest.usingRealmAndUserName("realm1", "joe"),
-            GetApiKeyRequest.forOwnedApiKeys());
-        final TransportRequest invalidateApiKeyRequest = randomFrom(InvalidateApiKeyRequest.usingRealmAndUserName("realm1", "joe"),
-            GetApiKeyRequest.forOwnedApiKeys());
+        final TransportRequest getApiKeyRequest = GetApiKeyRequest.usingRealmAndUserName("realm1", "joe");
+        final TransportRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingRealmAndUserName("realm1", "joe");
+
+        assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/get", getApiKeyRequest, authentication));
+        assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/invalidate", invalidateApiKeyRequest, authentication));
+        assertFalse(clusterPermission.check("cluster:admin/something", mock(TransportRequest.class), authentication));
+    }
+
+    public void testAuthenticationWithUserAllowsAccessToApiKeyActionsWhenItIsOwner_WithOwnerFlagOnly() {
+        final ClusterPermission clusterPermission =
+            ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(ClusterPermission.builder()).build();
+
+        final Authentication authentication = createMockAuthentication("joe","realm1", "native", Map.of());
+        final TransportRequest getApiKeyRequest = GetApiKeyRequest.forOwnedApiKeys();
+        final TransportRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.forOwnedApiKeys();
 
         assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/get", getApiKeyRequest, authentication));
         assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/invalidate", invalidateApiKeyRequest, authentication));

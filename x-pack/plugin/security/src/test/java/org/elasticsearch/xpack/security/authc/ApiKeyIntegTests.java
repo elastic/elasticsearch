@@ -511,7 +511,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         List<CreateApiKeyResponse> defaultUserCreatedKeys = createApiKeys(noOfSuperuserApiKeys, null);
         String userWithManageApiKeyRole = randomFrom("user_with_manage_api_key_role", "user_with_manage_own_api_key_role");
         List<CreateApiKeyResponse> userWithManageApiKeyRoleApiKeys = createApiKeys(userWithManageApiKeyRole,
-            noOfApiKeysForUserWithManageApiKeyRole, null);
+            noOfApiKeysForUserWithManageApiKeyRole, null, "monitor");
         final Client client = client().filterWithHeader(Collections.singletonMap("Authorization", UsernamePasswordToken
             .basicAuthHeaderValue(userWithManageApiKeyRole, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
 
@@ -528,7 +528,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         List<CreateApiKeyResponse> defaultUserCreatedKeys = createApiKeys(noOfSuperuserApiKeys, null);
         String userWithManageApiKeyRole = randomFrom("user_with_manage_api_key_role", "user_with_manage_own_api_key_role");
         List<CreateApiKeyResponse> userWithManageApiKeyRoleApiKeys = createApiKeys(userWithManageApiKeyRole,
-            noOfApiKeysForUserWithManageApiKeyRole, null);
+            noOfApiKeysForUserWithManageApiKeyRole, null, "monitor");
         final Client client = client().filterWithHeader(Collections.singletonMap("Authorization", UsernamePasswordToken
             .basicAuthHeaderValue(userWithManageApiKeyRole, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
 
@@ -541,7 +541,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
     public void testApiKeyAuthorizationApiKeyMustBeAbleToRetrieveItsOwnInformationButNotAnyOtherKeysCreatedBySameOwner()
         throws InterruptedException, ExecutionException {
-        List<CreateApiKeyResponse> responses = createApiKeys(2, null);
+        List<CreateApiKeyResponse> responses = createApiKeys(SecuritySettingsSource.TEST_SUPERUSER,2, null, (String[]) null);
         final String base64ApiKeyKeyValue = Base64.getEncoder().encodeToString(
             (responses.get(0).getId() + ":" + responses.get(0).getKey().toString()).getBytes(StandardCharsets.UTF_8));
         Client client = client().filterWithHeader(Map.of("Authorization", "ApiKey " + base64ApiKeyKeyValue));
@@ -632,14 +632,10 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         return createApiKeys(SecuritySettingsSource.TEST_SUPERUSER, noOfApiKeys, expiration, "monitor");
     }
 
-    private List<CreateApiKeyResponse> createApiKeys(String user, int noOfApiKeys, TimeValue expiration) {
-        return createApiKeys(user, noOfApiKeys, expiration, "monitor");
-    }
-
-    private List<CreateApiKeyResponse> createApiKeys(String user, int noOfApiKeys, TimeValue expiration, String role) {
+    private List<CreateApiKeyResponse> createApiKeys(String user, int noOfApiKeys, TimeValue expiration, String... clusterPrivileges) {
         List<CreateApiKeyResponse> responses = new ArrayList<>();
         for (int i = 0; i < noOfApiKeys; i++) {
-            final RoleDescriptor descriptor = new RoleDescriptor("role", new String[] { role }, null, null);
+            final RoleDescriptor descriptor = new RoleDescriptor("role", clusterPrivileges, null, null);
             Client client = client().filterWithHeader(Collections.singletonMap("Authorization", UsernamePasswordToken
                     .basicAuthHeaderValue(user, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
             final CreateApiKeyResponse response = new CreateApiKeyRequestBuilder(client)
@@ -656,9 +652,5 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     private void assertErrorMessage(final ElasticsearchSecurityException ese, String action, String userName, String apiKeyId) {
         assertThat(ese.getMessage(),
             is("action [" + action + "] is unauthorized for API key id [" + apiKeyId + "] of user [" + userName + "]"));
-    }
-
-    private void assertErrorMessage(final ElasticsearchSecurityException ese, String action, String userName) {
-        assertThat(ese.getMessage(), is("action [" + action + "] is unauthorized for user [" + userName + "]"));
     }
 }

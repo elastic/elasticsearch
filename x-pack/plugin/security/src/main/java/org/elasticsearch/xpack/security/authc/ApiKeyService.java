@@ -894,6 +894,21 @@ public class ApiKeyService {
         }
     }
 
+    /**
+     * Returns realm name for the authenticated user.
+     * If the user is authenticated by realm type {@value API_KEY_REALM_TYPE}
+     * then it will return the realm name of user who created this API key.
+     * @param authentication {@link Authentication}
+     * @return realm name
+     */
+    public String getCreatorRealmName(final Authentication authentication) {
+        if (authentication.getAuthenticatedBy().getType().equals(API_KEY_REALM_TYPE)) {
+            return (String) authentication.getMetadata().get(API_KEY_CREATOR_REALM);
+        } else {
+            return authentication.getAuthenticatedBy().getName();
+        }
+    }
+
     final class CachedApiKeyHashResult {
         final boolean success;
         final char[] hash;

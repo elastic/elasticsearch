@@ -96,40 +96,7 @@ public class ArchiveTests extends PackagingTestCase {
         }
     }
 
-    public void test40CreateKeystoreManually() throws Exception {
-        final Installation.Executables bin = installation.executables();
-
-        Platforms.onLinux(() -> sh.run("sudo -u " + ARCHIVE_OWNER + " " + bin.elasticsearchKeystore + " create"));
-
-        // this is a hack around the fact that we can't run a command in the same session as the same user but not as administrator.
-        // the keystore ends up being owned by the Administrators group, so we manually set it to be owned by the vagrant user here.
-        // from the server's perspective the permissions aren't really different, this is just to reflect what we'd expect in the tests.
-        // when we run these commands as a role user we won't have to do this
-        Platforms.onWindows(() -> sh.run(
-                bin.elasticsearchKeystore + " create; " +
-                "$account = New-Object System.Security.Principal.NTAccount 'vagrant'; " +
-                "$acl = Get-Acl '" + installation.config("elasticsearch.keystore") + "'; " +
-                "$acl.SetOwner($account); " +
-                "Set-Acl '" + installation.config("elasticsearch.keystore") + "' $acl"
-        ));
-
-        assertThat(installation.config("elasticsearch.keystore"), file(File, ARCHIVE_OWNER, ARCHIVE_OWNER, p660));
-
-        Platforms.onLinux(() -> {
-            final Result r = sh.run("sudo -u " + ARCHIVE_OWNER + " " + bin.elasticsearchKeystore + " list");
-            assertThat(r.stdout, containsString("keystore.seed"));
-        });
-
-        Platforms.onWindows(() -> {
-            final Result r = sh.run(bin.elasticsearchKeystore + " list");
-            assertThat(r.stdout, containsString("keystore.seed"));
-        });
-    }
-
     public void test50StartAndStop() throws Exception {
-        // cleanup from previous test
-        rm(installation.config("elasticsearch.keystore"));
-
         Archives.runElasticsearch(installation, sh);
 
         assertTrue("gc logs exist", Files.exists(installation.logs.resolve("gc.log")));
@@ -224,77 +191,6 @@ public class ArchiveTests extends PackagingTestCase {
                 FileUtils.rm(Paths.get(testJavaHome));
             }
         });
-    }
-
-    public void test60AutoCreateKeystore() throws Exception {
-        assertThat(installation.config("elasticsearch.keystore"), file(File, ARCHIVE_OWNER, ARCHIVE_OWNER, p660));
-
-        final Installation.Executables bin = installation.executables();
-        Platforms.onLinux(() -> {
-            final Result result = sh.run("sudo -u " + ARCHIVE_OWNER + " " + bin.elasticsearchKeystore + " list");
-            assertThat(result.stdout, containsString("keystore.seed"));
-        });
-
-        Platforms.onWindows(() -> {
-            final Result result = sh.run(bin.elasticsearchKeystore + " list");
-            assertThat(result.stdout, containsString("keystore.seed"));
-        });
-    }
-
-    public void test61PasswordProtectedKeystore() throws Exception {
-        assumeThat(installation, is(notNullValue()));
-
-        String password = "keystorepass";
-        final Shell sh = new Shell();
-        Platforms.onLinux(() -> {
-            String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
-            sh.getEnv().put("JAVA_HOME", systemJavaHome);
-        });
-        Platforms.onWindows(() -> {
-            final String systemJavaHome = sh.run("$Env:SYSTEM_JAVA_HOME").stdout.trim();
-            sh.getEnv().put("JAVA_HOME", systemJavaHome);
-        });
-
-
-        final Installation.Executables bin = installation.executables();
-
-        // set the password by passing it to stdin twice
-        Platforms.onLinux(() ->
-            sh.run("echo $\'" + password + "\n" + password + "\n\' | sudo -u " + ARCHIVE_OWNER + " "
-                + bin.elasticsearchKeystore + " passwd")
-        );
-        Platforms.onWindows(() -> {
-            sh.run("echo \"" + password + "`r`n" + password + "`r`n\" | " + bin.elasticsearchKeystore + " passwd");
-        });
-
-        Archives.runElasticsearch(installation, sh, password);
-        ServerUtils.runElasticsearchTests();
-        Archives.stopElasticsearch(installation);
-    }
-
-    public void test62PasswordProtectedKeystoreIncorrectPassword() throws Exception {
-        assumeThat(installation, is(notNullValue()));
-
-        final Shell sh = new Shell();
-        Platforms.onLinux(() -> {
-            String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
-            sh.getEnv().put("JAVA_HOME", systemJavaHome);
-        });
-        Platforms.onWindows(() -> {
-            final String systemJavaHome = sh.run("$Env:SYSTEM_JAVA_HOME").stdout.trim();
-            sh.getEnv().put("JAVA_HOME", systemJavaHome);
-        });
-
-        RuntimeException expected = null;
-        try {
-            Archives.runElasticsearch(installation, sh, "wrong");
-        } catch (RuntimeException e) {
-            expected = e;
-        } finally {
-            rm(installation.config("elasticsearch.keystore"));
-        }
-        assertThat(expected, notNullValue());
-        assertThat(expected.getMessage(), containsString("Elasticsearch did not start"));
     }
 
     public void test70CustomPathConfAndJvmOptions() throws Exception {

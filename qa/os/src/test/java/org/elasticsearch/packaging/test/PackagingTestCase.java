@@ -41,7 +41,13 @@ import org.junit.runner.RunWith;
 
 import java.nio.file.Paths;
 
+import static org.elasticsearch.packaging.util.Archives.installArchive;
+import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
 import static org.elasticsearch.packaging.util.Cleanup.cleanEverything;
+import static org.elasticsearch.packaging.util.Packages.assertInstalled;
+import static org.elasticsearch.packaging.util.Packages.assertRemoved;
+import static org.elasticsearch.packaging.util.Packages.installPackage;
+import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallation;
 import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
@@ -128,6 +134,22 @@ public abstract class PackagingTestCase extends Assert {
             });
         }
         return sh;
+    }
+
+    protected Installation installAndVerify(Distribution distribution) throws Exception {
+        Installation installation;
+        if (distribution().isArchive()) {
+            installation = installArchive(distribution());
+            verifyArchiveInstallation(installation, distribution());
+        } else if (distribution().isPackage()) {
+            assertRemoved(distribution());
+            installation = installPackage(distribution());
+            assertInstalled(distribution());
+            verifyPackageInstallation(installation, distribution(), sh);
+        } else {
+            throw new AssertionError("We should have only two installation types");
+        }
+        return installation;
     }
 
 }

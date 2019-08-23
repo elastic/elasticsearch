@@ -19,9 +19,9 @@ GET /twitter/_mapping/field/user
 [[get-field-mapping-api-request]]
 ==== {api-request-title}
 
-`GET /_mapping/field/{field}`
+`GET /_mapping/field/<field>`
 
-`GET /{index}/_mapping/field/{field}`
+`GET /<index>/_mapping/field/<field>`
 
 
 [[get-field-mapping-api-path-params]]
@@ -29,7 +29,7 @@ GET /twitter/_mapping/field/user
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
 
-`{field}`::
+`<field>`::
 (Optional, string) Comma-separated list or wildcard expression of fields used to
 limit returned information.
 

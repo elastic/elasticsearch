@@ -55,8 +55,7 @@ public class EnrichDocumentationIT extends ESRestHighLevelClientTestCase {
         ActionListener<AcknowledgedResponse> listener = new ActionListener<>() {
                 @Override
                 public void onResponse(AcknowledgedResponse response) { // <1>
-                    boolean isAcknowledged =
-                        putPolicyResponse.isAcknowledged();
+                    boolean isAcknowledged = response.isAcknowledged();
                 }
 
                 @Override
@@ -108,8 +107,7 @@ public class EnrichDocumentationIT extends ESRestHighLevelClientTestCase {
         ActionListener<AcknowledgedResponse> listener = new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse response) { // <1>
-                boolean isAcknowledged =
-                    deletePolicyResponse.isAcknowledged();
+                boolean isAcknowledged = response.isAcknowledged();
             }
 
             @Override

@@ -27,4 +27,9 @@ public interface DataFrameAnalysis extends ToXContentObject, NamedWriteable {
      * @return The set of fields that analyzed documents must have for the analysis to operate
      */
     Set<String> getRequiredFields();
+
+    /**
+     * @return {@code true} if this analysis supports data frame rows with missing values
+     */
+    boolean supportsMissingValues();
 }

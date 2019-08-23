@@ -11,31 +11,31 @@ Creates a {rollup-job}.
 
 experimental[]
 
-[[sample-api-request]]
+[[rollup-put-job-api-request]]
 ==== {api-request-title}
 
 `PUT _rollup/job/<job_id>`
 
-[[sample-api-prereqs]]
+[[rollup-put-job-api-prereqs]]
 ==== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have `manage` or
 `manage_rollup` cluster privileges to use this API. For more information, see
 {stack-ov}/security-privileges.html[Security privileges].
 
-[[sample-api-desc]]
+[[rollup-put-job-api-desc]]
 ==== {api-description-title}
 
 Jobs are created in a `STOPPED` state. You can start them with the
 <<rollup-start-job,start {rollup-jobs} API>>.
 
-[[sample-api-path-params]]
+[[rollup-put-job-api-path-params]]
 ==== {api-path-parms-title}
 
 `job_id`::
   (Required, string) Identifier for the {rollup-job}.
 
-[[sample-api-request-body]]
+[[rollup-put-job-api-request-body]]
 ==== {api-request-body-title}
 
 `cron`::
@@ -64,7 +64,7 @@ Jobs are created in a `STOPPED` state. You can start them with the
 
 For more details about the job configuration, see <<rollup-job-config>>.
 
-[[sample-api-example]]
+[[rollup-put-job-api-example]]
 ==== {api-example-title}
 
 The following example creates a {rollup-job} named "sensor", targeting the

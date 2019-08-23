@@ -42,7 +42,10 @@ public class DataFrameIndexerTransformStatsTests extends ESTestCase {
     public static DataFrameIndexerTransformStats randomStats() {
         return new DataFrameIndexerTransformStats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
                 randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
-                randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
+                randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
+            randomBoolean() ? null : randomDouble(),
+            randomBoolean() ? null : randomDouble(),
+            randomBoolean() ? null : randomDouble());
     }
 
     public static void toXContent(DataFrameIndexerTransformStats stats, XContentBuilder builder) throws IOException {
@@ -57,6 +60,12 @@ public class DataFrameIndexerTransformStatsTests extends ESTestCase {
         builder.field(IndexerJobStats.SEARCH_TIME_IN_MS.getPreferredName(), stats.getSearchTime());
         builder.field(IndexerJobStats.SEARCH_TOTAL.getPreferredName(), stats.getSearchTotal());
         builder.field(IndexerJobStats.SEARCH_FAILURES.getPreferredName(), stats.getSearchFailures());
+        builder.field(DataFrameIndexerTransformStats.EXPONENTIAL_AVG_CHECKPOINT_DURATION_MS.getPreferredName(),
+            stats.getExpAvgCheckpointDurationMs());
+        builder.field(DataFrameIndexerTransformStats.EXPONENTIAL_AVG_DOCUMENTS_INDEXED.getPreferredName(),
+            stats.getExpAvgDocumentsIndexed());
+        builder.field(DataFrameIndexerTransformStats.EXPONENTIAL_AVG_DOCUMENTS_PROCESSED.getPreferredName(),
+            stats.getExpAvgDocumentsProcessed());
         builder.endObject();
     }
 }

@@ -80,6 +80,7 @@ public abstract class AbstractTransportGetResourcesAction<Resource extends ToXCo
             sourceBuilder.from(request.getPageParams().getFrom())
                 .size(request.getPageParams().getSize());
         }
+        sourceBuilder.trackTotalHits(true);
 
         IndicesOptions indicesOptions = SearchRequest.DEFAULT_INDICES_OPTIONS;
         SearchRequest searchRequest = new SearchRequest(getIndices())
@@ -88,7 +89,7 @@ public abstract class AbstractTransportGetResourcesAction<Resource extends ToXCo
                 indicesOptions.expandWildcardsOpen(),
                 indicesOptions.expandWildcardsClosed(),
                 indicesOptions))
-            .source(sourceBuilder.trackTotalHits(true));
+            .source(customSearchOptions(sourceBuilder));
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(),
             executionOrigin(),
@@ -105,8 +106,12 @@ public abstract class AbstractTransportGetResourcesAction<Resource extends ToXCo
                              XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(
                                  xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)) {
                             Resource resource = parse(parser);
-                            docs.add(resource);
-                            foundResourceIds.add(extractIdFromResource(resource));
+                            String id = extractIdFromResource(resource);
+                            // Do not include a resource with the same ID twice
+                            if (foundResourceIds.contains(id) == false) {
+                                docs.add(resource);
+                                foundResourceIds.add(id);
+                            }
                         } catch (IOException e) {
                             this.onFailure(e);
                         }
@@ -157,6 +162,10 @@ public abstract class AbstractTransportGetResourcesAction<Resource extends ToXCo
             boolQuery.filter(additionalQuery);
         }
         return boolQuery.hasClauses() ? boolQuery : QueryBuilders.matchAllQuery();
+    }
+
+    protected SearchSourceBuilder customSearchOptions(SearchSourceBuilder searchSourceBuilder) {
+        return searchSourceBuilder;
     }
 
     @Nullable

@@ -54,19 +54,15 @@ public class InboundHandlerTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        TransportLogger transportLogger = new TransportLogger();
         taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
         channel = new FakeTcpChannel(randomBoolean(), buildNewFakeTransportAddress().address(), buildNewFakeTransportAddress().address());
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         InboundMessage.Reader reader = new InboundMessage.Reader(version, namedWriteableRegistry, threadPool.getThreadContext());
         TransportHandshaker handshaker = new TransportHandshaker(version, threadPool, (n, c, r, v) -> {
-        }, (v, c, r, r_id) -> {
-        });
+        }, (v, c, r, r_id) -> { });
         TransportKeepAlive keepAlive = new TransportKeepAlive(threadPool, TcpChannel::sendMessage);
-        OutboundHandler outboundHandler = new OutboundHandler("node", version, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
-            transportLogger);
-        handler = new InboundHandler(threadPool, outboundHandler, reader, new NoneCircuitBreakerService(), transportLogger, handshaker,
-            keepAlive);
+        OutboundHandler outboundHandler = new OutboundHandler("node", version, threadPool, BigArrays.NON_RECYCLING_INSTANCE);
+        handler = new InboundHandler(threadPool, outboundHandler, reader, new NoneCircuitBreakerService(), handshaker, keepAlive);
     }
 
     @After

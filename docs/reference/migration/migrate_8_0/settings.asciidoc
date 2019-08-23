@@ -13,6 +13,7 @@ refuse to start if you have these settings in your configuration or cluster
 state.
 
 [float]
+[[remove-processors]
 ==== `processors` setting is replaced by `node.processors`
 
 To ensure that all settings are in a proper namespace, the `processors` setting

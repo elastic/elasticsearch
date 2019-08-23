@@ -60,7 +60,8 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
                     invalidateApiKeyRequest.getUserName(), invalidateApiKeyRequest.getRealmName(),
                     invalidateApiKeyRequest.ownedByAuthenticatedUser());
             }
-            throw new IllegalArgumentException("manage own api key privilege only supports API key requests");
+            throw new IllegalArgumentException(
+                "manage own api key privilege only supports API key requests (not " + request.getClass().getName() + ")");
         }
 
         @Override

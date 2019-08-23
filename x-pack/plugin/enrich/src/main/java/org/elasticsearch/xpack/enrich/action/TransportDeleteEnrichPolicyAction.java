@@ -84,38 +84,33 @@ public class TransportDeleteEnrichPolicyAction extends TransportMasterNodeAction
         if (policy == null) {
             throw new ResourceNotFoundException("policy [{}] not found", request.getName());
         }
-        enrichPolicyLocks.lockPolicy(request.getName());
-        List<PipelineConfiguration> pipelines = IngestService.getPipelines(state);
-        List<String> pipelinesWithProcessors = new ArrayList<>();
 
-        for (PipelineConfiguration pipelineConfiguration : pipelines) {
-            List<AbstractEnrichProcessor> enrichProcessors =
-                ingestService.getProcessorsInPipeline(pipelineConfiguration.getId(), AbstractEnrichProcessor.class);
-            for (AbstractEnrichProcessor processor: enrichProcessors) {
-                if (processor.getPolicyName().equals(request.getName())) {
-                    pipelinesWithProcessors.add(pipelineConfiguration.getId());
+        enrichPolicyLocks.lockPolicy(request.getName());
+        try {
+            List<PipelineConfiguration> pipelines = IngestService.getPipelines(state);
+            List<String> pipelinesWithProcessors = new ArrayList<>();
+
+            for (PipelineConfiguration pipelineConfiguration : pipelines) {
+                List<AbstractEnrichProcessor> enrichProcessors =
+                    ingestService.getProcessorsInPipeline(pipelineConfiguration.getId(), AbstractEnrichProcessor.class);
+                for (AbstractEnrichProcessor processor : enrichProcessors) {
+                    if (processor.getPolicyName().equals(request.getName())) {
+                        pipelinesWithProcessors.add(pipelineConfiguration.getId());
+                    }
                 }
             }
-        }
 
-        if (pipelinesWithProcessors.isEmpty() == false) {
-            enrichPolicyLocks.releasePolicy(request.getName());
-            listener.onFailure(
-                new ElasticsearchStatusException("Could not delete policy [{}] because a pipeline is referencing it {}",
-                    RestStatus.CONFLICT, request.getName(), pipelinesWithProcessors));
-            return;
-        }
-
-        deleteIndicesAndPolicy(request.getName(), ActionListener.wrap(
-            (response) -> {
-                enrichPolicyLocks.releasePolicy(request.getName());
-                listener.onResponse(response);
-            },
-            (error) -> {
-                enrichPolicyLocks.releasePolicy(request.getName());
-                listener.onFailure(error);
+            if (pipelinesWithProcessors.isEmpty() == false) {
+                listener.onFailure(
+                    new ElasticsearchStatusException("Could not delete policy [{}] because a pipeline is referencing it {}",
+                        RestStatus.CONFLICT, request.getName(), pipelinesWithProcessors));
+                return;
             }
-        ));
+
+            deleteIndicesAndPolicy(request.getName(), listener);
+        } finally {
+            enrichPolicyLocks.releasePolicy(request.getName());
+        }
     }
 
     private void deleteIndicesAndPolicy(String name, ActionListener<AcknowledgedResponse> listener) {

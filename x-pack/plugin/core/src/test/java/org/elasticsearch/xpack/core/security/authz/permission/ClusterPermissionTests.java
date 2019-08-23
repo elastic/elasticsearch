@@ -276,7 +276,7 @@ public class ClusterPermissionTests extends ESTestCase {
         @Override
         public String toString() {
             return "MockConfigurableClusterPrivilege{" +
-                "requestAuthnPredicate=" + requestPredicate +
+                "requestPredicate=" + requestPredicate +
                 '}';
         }
 

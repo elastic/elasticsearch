@@ -50,7 +50,7 @@ public final class TransportInvalidateApiKeyAction extends HandledTransportActio
             assert realm == null;
             // restrict username and realm to current authenticated user.
             username = authentication.getUser().principal();
-            realm = authentication.getAuthenticatedBy().getName();
+            realm = ApiKeyService.getCreatorRealmName(authentication);
         }
 
         apiKeyService.invalidateApiKeys(realm, username, apiKeyName, apiKeyId, listener);

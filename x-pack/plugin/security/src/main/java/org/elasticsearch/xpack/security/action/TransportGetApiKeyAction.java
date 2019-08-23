@@ -50,7 +50,7 @@ public final class TransportGetApiKeyAction extends HandledTransportAction<GetAp
             assert realm == null;
             // restrict username and realm to current authenticated user.
             username = authentication.getUser().principal();
-            realm = authentication.getAuthenticatedBy().getName();
+            realm = ApiKeyService.getCreatorRealmName(authentication);
         }
 
         apiKeyService.getApiKeys(realm, username, apiKeyName, apiKeyId, listener);

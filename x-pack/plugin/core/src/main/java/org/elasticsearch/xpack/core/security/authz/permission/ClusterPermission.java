@@ -158,32 +158,60 @@ public class ClusterPermission {
         boolean implies(PermissionCheck otherPermissionCheck);
     }
 
-    // Automaton based permission check
-    private static class AutomatonPermissionCheck implements PermissionCheck {
+    /**
+     * Base for implementing cluster action based {@link PermissionCheck}.
+     * It enforces the checks at cluster action level and then hands it off to the implementations
+     * to enforce checks based on {@link TransportRequest} and/or {@link Authentication}.
+     */
+    public abstract static class ActionBasedPermissionCheck implements PermissionCheck {
         private final Automaton automaton;
         private final Predicate<String> actionPredicate;
 
-        AutomatonPermissionCheck(final Automaton automaton) {
+        public ActionBasedPermissionCheck(final Automaton automaton) {
             this.automaton = automaton;
             this.actionPredicate = Automatons.predicate(automaton);
         }
 
         @Override
-        public boolean check(final String action, final TransportRequest request, final Authentication authentication) {
-            return actionPredicate.test(action);
+        public final boolean check(final String action, final TransportRequest request, final Authentication authentication) {
+            return actionPredicate.test(action) && extendedCheck(action, request, authentication);
         }
 
+        protected abstract boolean extendedCheck(String action, TransportRequest request, Authentication authentication);
+
         @Override
-        public boolean implies(final PermissionCheck permissionCheck) {
-            if (permissionCheck instanceof AutomatonPermissionCheck) {
-                return Operations.subsetOf(((AutomatonPermissionCheck) permissionCheck).automaton, this.automaton);
+        public final boolean implies(final PermissionCheck permissionCheck) {
+            if (permissionCheck instanceof ActionBasedPermissionCheck) {
+                return Operations.subsetOf(((ActionBasedPermissionCheck) permissionCheck).automaton, this.automaton) &&
+                    doImplies((ActionBasedPermissionCheck) permissionCheck);
             }
             return false;
         }
+
+        protected abstract boolean doImplies(ActionBasedPermissionCheck permissionCheck);
+    }
+
+    // Automaton based permission check
+    private static class AutomatonPermissionCheck extends ActionBasedPermissionCheck {
+
+        AutomatonPermissionCheck(final Automaton automaton) {
+            super(automaton);
+        }
+
+        @Override
+        protected boolean extendedCheck(String action, TransportRequest request, Authentication authentication) {
+            return true;
+        }
+
+        @Override
+        protected boolean doImplies(ActionBasedPermissionCheck permissionCheck) {
+            return permissionCheck instanceof AutomatonPermissionCheck;
+        }
+
     }
 
     // action, request based permission check
-    private static class ActionRequestBasedPermissionCheck extends AutomatonPermissionCheck {
+    private static class ActionRequestBasedPermissionCheck extends ActionBasedPermissionCheck {
         private final ClusterPrivilege clusterPrivilege;
         private final Predicate<TransportRequest> requestPredicate;
 
@@ -195,18 +223,16 @@ public class ClusterPermission {
         }
 
         @Override
-        public boolean check(final String action, final TransportRequest request, final Authentication authentication) {
-            return super.check(action, request, authentication) && requestPredicate.test(request);
+        protected boolean extendedCheck(String action, TransportRequest request, Authentication authentication) {
+            return requestPredicate.test(request);
         }
 
         @Override
-        public boolean implies(final PermissionCheck permissionCheck) {
-            if (super.implies(permissionCheck)) {
-                if (permissionCheck instanceof ActionRequestBasedPermissionCheck) {
-                    final ActionRequestBasedPermissionCheck otherCheck =
-                        (ActionRequestBasedPermissionCheck) permissionCheck;
-                    return this.clusterPrivilege.equals(otherCheck.clusterPrivilege);
-                }
+        protected boolean doImplies(final ActionBasedPermissionCheck permissionCheck) {
+            if (permissionCheck instanceof ActionRequestBasedPermissionCheck) {
+                final ActionRequestBasedPermissionCheck otherCheck =
+                    (ActionRequestBasedPermissionCheck) permissionCheck;
+                return this.clusterPrivilege.equals(otherCheck.clusterPrivilege);
             }
             return false;
         }

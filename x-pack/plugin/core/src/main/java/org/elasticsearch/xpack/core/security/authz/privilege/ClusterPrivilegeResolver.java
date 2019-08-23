@@ -103,6 +103,8 @@ public class ClusterPrivilegeResolver {
     public static final NamedClusterPrivilege MANAGE_SLM = new ActionClusterPrivilege("manage_slm", MANAGE_SLM_PATTERN);
     public static final NamedClusterPrivilege READ_SLM = new ActionClusterPrivilege("read_slm", READ_SLM_PATTERN);
 
+    public static final NamedClusterPrivilege MANAGE_OWN_API_KEY = ManageOwnApiKeyClusterPrivilege.INSTANCE;
+
     private static final Map<String, NamedClusterPrivilege> VALUES = Stream.of(
         NONE,
         ALL,
@@ -131,7 +133,8 @@ public class ClusterPrivilegeResolver {
         MANAGE_ILM,
         READ_ILM,
         MANAGE_SLM,
-        READ_SLM).collect(Collectors.toUnmodifiableMap(NamedClusterPrivilege::name, Function.identity()));
+        READ_SLM,
+        MANAGE_OWN_API_KEY).collect(Collectors.toUnmodifiableMap(NamedClusterPrivilege::name, Function.identity()));
 
     /**
      * Resolves a {@link NamedClusterPrivilege} from a given name if it exists.

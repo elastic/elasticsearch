@@ -19,8 +19,9 @@
 
 package org.elasticsearch.painless.lookup;
 
+import org.elasticsearch.common.util.CollectionUtils;
+
 import java.lang.invoke.MethodHandle;
-import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -59,12 +60,12 @@ public final class PainlessLookup {
         Objects.requireNonNull(painlessMethodKeysToPainlessInstanceBindings);
 
         this.javaClassNamesToClasses = javaClassNamesToClasses;
-        this.canonicalClassNamesToClasses = Collections.unmodifiableMap(canonicalClassNamesToClasses);
-        this.classesToPainlessClasses = Collections.unmodifiableMap(classesToPainlessClasses);
+        this.canonicalClassNamesToClasses = CollectionUtils.copyMap(canonicalClassNamesToClasses);
+        this.classesToPainlessClasses = CollectionUtils.copyMap(classesToPainlessClasses);
 
-        this.painlessMethodKeysToImportedPainlessMethods = Collections.unmodifiableMap(painlessMethodKeysToImportedPainlessMethods);
-        this.painlessMethodKeysToPainlessClassBindings = Collections.unmodifiableMap(painlessMethodKeysToPainlessClassBindings);
-        this.painlessMethodKeysToPainlessInstanceBindings = Collections.unmodifiableMap(painlessMethodKeysToPainlessInstanceBindings);
+        this.painlessMethodKeysToImportedPainlessMethods = CollectionUtils.copyMap(painlessMethodKeysToImportedPainlessMethods);
+        this.painlessMethodKeysToPainlessClassBindings = CollectionUtils.copyMap(painlessMethodKeysToPainlessClassBindings);
+        this.painlessMethodKeysToPainlessInstanceBindings = CollectionUtils.copyMap(painlessMethodKeysToPainlessInstanceBindings);
     }
 
     public Class<?> javaClassNameToClass(String javaClassName) {

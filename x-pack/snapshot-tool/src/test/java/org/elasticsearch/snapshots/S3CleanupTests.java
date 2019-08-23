@@ -155,6 +155,7 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
             }
         } finally {
             logger.info("Cleanup command output:\n" + terminal.getOutput());
+            logger.info("Cleanup command standard error:\n" + terminal.getErrorOutput());
         }
 
         return terminal;

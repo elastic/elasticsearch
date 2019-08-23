@@ -495,8 +495,9 @@ public class Node implements Closeable {
             RepositoriesService repositoryService = repositoriesModule.getRepositoryService();
             SnapshotsService snapshotsService = new SnapshotsService(settings, clusterService,
                 clusterModule.getIndexNameExpressionResolver(), repositoryService, threadPool);
-            SnapshotShardsService snapshotShardsService = new SnapshotShardsService(settings, clusterService, snapshotsService, threadPool,
-                transportService, indicesService, actionModule.getActionFilters(), clusterModule.getIndexNameExpressionResolver());
+            SnapshotShardsService snapshotShardsService = new SnapshotShardsService(settings, clusterService, repositoryService,
+                threadPool, transportService, indicesService, actionModule.getActionFilters(),
+                clusterModule.getIndexNameExpressionResolver());
             TransportNodesSnapshotsStatus nodesSnapshotsStatus = new TransportNodesSnapshotsStatus(threadPool, clusterService,
                 transportService, snapshotShardsService, actionModule.getActionFilters());
             RestoreService restoreService = new RestoreService(clusterService, repositoryService, clusterModule.getAllocationService(),

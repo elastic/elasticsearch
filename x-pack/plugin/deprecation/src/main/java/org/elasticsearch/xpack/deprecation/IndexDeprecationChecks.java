@@ -231,4 +231,19 @@ public class IndexDeprecationChecks {
 
         return fields;
     }
+
+    static DeprecationIssue translogRetentionSettingCheck(IndexMetaData indexMetaData) {
+        final boolean softDeletesEnabled = IndexSettings.INDEX_SOFT_DELETES_SETTING.get(indexMetaData.getSettings());
+        if (softDeletesEnabled) {
+            if (IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.exists(indexMetaData.getSettings())
+                || IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.exists(indexMetaData.getSettings())) {
+                return new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                    "translog retention settings are ignored",
+                    "https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-translog.html",
+                    "translog retention settings [index.translog.retention.size] and [index.translog.retention.age] are ignored " +
+                        "because translog is no longer used in peer recoveries with soft-deletes enabled (default in 7.0 or later)");
+            }
+        }
+        return null;
+    }
 }

@@ -92,7 +92,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.test.transport.MockTransportService.getPortRange;
+import static org.elasticsearch.test.ESTestCase.getPortRange;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -1912,8 +1912,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
     public void testTimeoutPerConnection() throws IOException {
-        assumeTrue("Works only on BSD network stacks and apparently windows",
-            Constants.MAC_OS_X || Constants.FREE_BSD || Constants.WINDOWS);
+        assumeTrue("Works only on BSD network stacks", Constants.MAC_OS_X || Constants.FREE_BSD);
         try (ServerSocket socket = new MockServerSocket()) {
             // note - this test uses backlog=1 which is implementation specific ie. it might not work on some TCP/IP stacks
             // on linux (at least newer ones) the listen(addr, backlog=1) should just ignore new connections if the queue is full which

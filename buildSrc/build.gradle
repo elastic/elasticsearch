@@ -71,12 +71,6 @@ sourceSets {
     minimumRuntime { }
 }
 
-allprojects {
-    apply plugin: 'java'
-    targetCompatibility = 11
-    sourceCompatibility = 11
-}
-
 configurations {
   reaper
 }
@@ -160,8 +154,8 @@ if (project != rootProject) {
   apply plugin: 'nebula.maven-scm'
 
   allprojects {
-    targetCompatibility = 11
-    sourceCompatibility = 11
+    targetCompatibility = 10
+    sourceCompatibility = 10
   }
 
   // groovydoc succeeds, but has some weird internal exception...

@@ -20,21 +20,6 @@ what the pipeline does.
 The `processors` parameter defines a list of processors to be executed in
 order.
 
-[[ingest-apis]]
-== Ingest APIs
-
-The following ingest APIs are available for managing pipelines:
-
-* <<put-pipeline-api>> to add or update a pipeline
-* <<get-pipeline-api>> to return a specific pipeline
-* <<delete-pipeline-api>> to delete a pipeline
-* <<simulate-pipeline-api>> to simulate a call to a pipeline
-
-include::apis/put-pipeline.asciidoc[]
-include::apis/get-pipeline.asciidoc[]
-include::apis/delete-pipeline.asciidoc[]
-include::apis/simulate-pipeline.asciidoc[]
-
 [[accessing-data-in-pipelines]]
 == Accessing Data in Pipelines
 

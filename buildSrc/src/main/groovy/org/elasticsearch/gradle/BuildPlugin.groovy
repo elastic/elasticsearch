@@ -810,8 +810,6 @@ class BuildPlugin implements Plugin<Project> {
                 test.addTestOutputListener(listener)
                 test.addTestListener(listener)
 
-                test.doFirst { println test.jvmArgs }
-
                 /*
                  * We use lazy-evaluated strings in order to configure system properties whose value will not be known until
                  * execution time (e.g. cluster port numbers). Adding these via the normal DSL doesn't work as these get treated
@@ -895,6 +893,9 @@ class BuildPlugin implements Plugin<Project> {
 
                 // TODO: remove this once ctx isn't added to update script params in 7.0
                 test.systemProperty 'es.scripting.update.ctx_in_params', 'false'
+
+                // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
+                test.systemProperty 'es.transport.cname_in_publish_address', 'true'
 
                 test.testLogging { TestLoggingContainer logging ->
                     logging.showExceptions = true

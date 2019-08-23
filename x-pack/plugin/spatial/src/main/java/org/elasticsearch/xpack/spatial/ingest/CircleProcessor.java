@@ -137,7 +137,7 @@ public final class CircleProcessor extends AbstractProcessor {
         result[1] = new double[gons+1];
         //System.out.println("make gon=" + gons);
         for(int i=0;i<gons;i++) {
-            double angle = 360.0-i*(360.0/gons);
+            double angle = i*(360.0/gons);
             //System.out.println("  angle " + angle);
             double x = Math.cos(SloppyMath.toRadians(angle));
             double y = Math.sin(SloppyMath.toRadians(angle));

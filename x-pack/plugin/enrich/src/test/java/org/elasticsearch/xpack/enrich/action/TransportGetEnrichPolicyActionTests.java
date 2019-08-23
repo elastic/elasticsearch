@@ -8,13 +8,12 @@ package org.elasticsearch.xpack.enrich.action;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
-import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.GetEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.AbstractEnrichTestCase;
+import org.elasticsearch.xpack.enrich.EnrichPolicyLocks;
 import org.junit.After;
 
 import java.util.concurrent.CountDownLatch;
@@ -30,6 +29,8 @@ public class TransportGetEnrichPolicyActionTests extends AbstractEnrichTestCase 
 
     @After
     private void cleanupPolicies() throws InterruptedException {
+        ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<GetEnrichPolicyAction.Response> reference = new AtomicReference<>();
         final TransportGetEnrichPolicyAction transportAction = node().injector().getInstance(TransportGetEnrichPolicyAction.class);
@@ -52,26 +53,16 @@ public class TransportGetEnrichPolicyActionTests extends AbstractEnrichTestCase 
         GetEnrichPolicyAction.Response response = reference.get();
 
         for (EnrichPolicy.NamedPolicy policy: response.getPolicies()) {
-            final CountDownLatch loopLatch = new CountDownLatch(1);
-            final AtomicReference<AcknowledgedResponse> loopReference = new AtomicReference<>();
-            final TransportDeleteEnrichPolicyAction deleteAction = node().injector().getInstance(TransportDeleteEnrichPolicyAction.class);
-            deleteAction.execute(null,
-                new DeleteEnrichPolicyAction.Request(policy.getName()),
-                new ActionListener<AcknowledgedResponse>() {
-                    @Override
-                    public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                        loopReference.set(acknowledgedResponse);
-                        loopLatch.countDown();
-                    }
-
-                    public void onFailure(final Exception e) {
-                        fail();
-                    }
-                });
-            loopLatch.await();
-            assertNotNull(loopReference.get());
-            assertTrue(loopReference.get().isAcknowledged());
+            try {
+                deleteEnrichPolicy(policy.getName(), clusterService);
+            } catch (Exception e) {
+                // if the enrich policy does not exist, then just keep going
+            }
         }
+
+        // fail if the state of this is left locked
+        EnrichPolicyLocks enrichPolicyLocks = getInstanceFromNode(EnrichPolicyLocks.class);
+        assertFalse(enrichPolicyLocks.captureExecutionState().isAnyPolicyInFlight());
     }
 
     public void testListPolicies() throws InterruptedException {
@@ -204,6 +195,6 @@ public class TransportGetEnrichPolicyActionTests extends AbstractEnrichTestCase 
         assertNotNull(reference.get());
         assertThat(reference.get(), instanceOf(ResourceNotFoundException.class));
         assertThat(reference.get().getMessage(),
-            equalTo("Policy [non-exists] was not found"));
+            equalTo("Policy [non-exists] not found"));
     }
 }

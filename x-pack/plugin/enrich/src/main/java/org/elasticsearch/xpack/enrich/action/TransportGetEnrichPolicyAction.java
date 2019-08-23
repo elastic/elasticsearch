@@ -63,7 +63,7 @@ public class TransportGetEnrichPolicyAction extends TransportMasterNodeReadActio
         } else {
             EnrichPolicy policy = EnrichStore.getPolicy(request.getName(), state);
             if (policy == null) {
-                throw new ResourceNotFoundException("Policy [{}] was not found", request.getName());
+                throw new ResourceNotFoundException("Policy [{}] not found", request.getName());
             }
             policies = Collections.singletonMap(request.getName(), policy);
 

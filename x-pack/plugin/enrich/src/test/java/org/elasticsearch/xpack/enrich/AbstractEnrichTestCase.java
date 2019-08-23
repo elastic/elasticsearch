@@ -34,7 +34,7 @@ public abstract class AbstractEnrichTestCase extends ESSingleNodeTestCase {
         return error;
     }
 
-    void deleteEnrichPolicy(String name, ClusterService clusterService) throws Exception {
+    protected void deleteEnrichPolicy(String name, ClusterService clusterService) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();
         EnrichStore.deletePolicy(name, clusterService, e -> {

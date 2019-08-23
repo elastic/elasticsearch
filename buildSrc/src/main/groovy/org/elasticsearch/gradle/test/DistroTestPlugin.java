@@ -96,10 +96,12 @@ public class DistroTestPlugin implements Plugin<Project> {
         TaskProvider<Copy> copyUpgradeTask = configureCopyUpgradeTask(project, upgradeVersion, upgradeDir);
         TaskProvider<Copy> copyPluginsTask = configureCopyPluginsTask(project, pluginsDir);
 
-        Map<String, TaskProvider<?>> batsTests = new HashMap<>();
+        TaskProvider<Task> destructiveDistroTest = project.getTasks().register("destructiveDistroTest");
         for (ElasticsearchDistribution distribution : distributions) {
-            configureDistroTest(project, distribution);
+            TaskProvider<?> destructiveTask = configureDistroTest(project, distribution);
+            destructiveDistroTest.configure(t -> t.dependsOn(destructiveTask));
         }
+        Map<String, TaskProvider<?>> batsTests = new HashMap<>();
         batsTests.put("bats oss", configureBatsTest(project, "oss", distributionsDir, copyDistributionsTask));
         batsTests.put("bats default", configureBatsTest(project, "default", distributionsDir, copyDistributionsTask));
         configureBatsTest(project, "plugins",distributionsDir, copyDistributionsTask, copyPluginsTask).configure(t ->
@@ -126,7 +128,6 @@ public class DistroTestPlugin implements Plugin<Project> {
                     distroTest.configure(t -> t.dependsOn(vmTask));
                 }
             }
-
 
             batsTests.forEach((desc, task) -> {
                 configureVMWrapperTask(vmProject, desc, task.getName(), vmDependencies).configure(t -> {

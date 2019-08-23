@@ -9,6 +9,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.util.List;
@@ -25,8 +26,9 @@ public interface Evaluation extends ToXContentObject, NamedWriteable {
 
     /**
      * Builds the search required to collect data to compute the evaluation result
+     * @param queryBuilder User-provided query that must be respected when collecting data
      */
-    SearchSourceBuilder buildSearch();
+    SearchSourceBuilder buildSearch(QueryBuilder queryBuilder);
 
     /**
      * Computes the evaluation result

@@ -36,7 +36,6 @@ import java.util.Objects;
 
 public class PutPolicyRequest implements Validatable, ToXContentObject {
 
-    static final ParseField TYPE_FIELD = new ParseField("type");
     static final ParseField QUERY_FIELD = new ParseField("query");
     static final ParseField INDICES_FIELD = new ParseField("indices");
     static final ParseField MATCH_FIELD_FIELD = new ParseField("match_field");
@@ -108,13 +107,18 @@ public class PutPolicyRequest implements Validatable, ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(TYPE_FIELD.getPreferredName(), type);
-        builder.field(INDICES_FIELD.getPreferredName(), indices);
-        if (query != null) {
-            builder.field(QUERY_FIELD.getPreferredName(), asMap(query, builder.contentType()));
+        {
+            builder.startObject(type);
+            {
+                builder.field(INDICES_FIELD.getPreferredName(), indices);
+                if (query != null) {
+                    builder.field(QUERY_FIELD.getPreferredName(), asMap(query, builder.contentType()));
+                }
+                builder.field(MATCH_FIELD_FIELD.getPreferredName(), matchField);
+                builder.field(ENRICH_FIELDS_FIELD.getPreferredName(), enrichFields);
+            }
+            builder.endObject();
         }
-        builder.field(MATCH_FIELD_FIELD.getPreferredName(), matchField);
-        builder.field(ENRICH_FIELDS_FIELD.getPreferredName(), enrichFields);
         builder.endObject();
         return builder;
     }

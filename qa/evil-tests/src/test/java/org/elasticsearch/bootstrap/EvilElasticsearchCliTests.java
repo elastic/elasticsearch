@@ -40,7 +40,7 @@ public class EvilElasticsearchCliTests extends ESElasticsearchCliTestCase {
         runTest(
                 ExitCodes.OK,
                 true,
-                output -> {},
+                (output, error) -> {},
                 (foreground, pidFile, quiet, esSettings) -> {
                     Settings settings = esSettings.settings();
                     assertThat(settings.keySet(), hasSize(2));
@@ -55,7 +55,7 @@ public class EvilElasticsearchCliTests extends ESElasticsearchCliTestCase {
         runTest(
                 ExitCodes.OK,
                 true,
-                output -> {},
+                (output, error) -> {},
                 (foreground, pidFile, quiet, esSettings) -> {
                     Settings settings = esSettings.settings();
                     assertThat(settings.keySet(), hasSize(2));

@@ -175,7 +175,7 @@ public class TransportStopDataFrameTransformAction extends TransportTasksAction<
             waitResponse ->
                 client.admin()
                     .indices()
-                    .prepareRefresh(DataFrameInternalIndex.INDEX_NAME)
+                    .prepareRefresh(DataFrameInternalIndex.LATEST_INDEX_NAME)
                     .execute(ActionListener.wrap(
                         r -> listener.onResponse(waitResponse),
                         e -> {

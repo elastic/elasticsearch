@@ -396,15 +396,20 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         final Path translogPath = translog.getConfig().getTranslogPath();
         final String translogUuid = translog.getTranslogUUID();
 
+        int translogOps = 0;
         final int numDocs = scaledRandomIntBetween(10, 100);
         for (int i = 0; i < numDocs; i++) {
             client().prepareIndex().setIndex(indexName).setId(String.valueOf(i)).setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
+            translogOps++;
             if (randomBoolean()) {
                 client().admin().indices().prepareFlush(indexName).get();
+                if (indexService.getIndexSettings().isSoftDeleteEnabled()) {
+                    translogOps = 0;
+                }
             }
         }
-        assertThat(translog.totalOperations(), equalTo(numDocs));
-        assertThat(translog.stats().estimatedNumberOfOperations(), equalTo(numDocs));
+        assertThat(translog.totalOperations(), equalTo(translogOps));
+        assertThat(translog.stats().estimatedNumberOfOperations(), equalTo(translogOps));
         assertAcked(client().admin().indices().prepareClose("test").setWaitForActiveShards(ActiveShardCount.DEFAULT));
 
         indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(indexService.index());

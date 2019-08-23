@@ -333,6 +333,42 @@ POST /_snapshot/my_unverified_backup/_verify
 It returns a list of nodes where repository was successfully verified or an error message if verification process failed.
 
 [float]
+===== Repository Cleanup
+Repositories can over time accumulate data that is not referenced by any existing snapshot. This is a result of the data safety guarantees
+the snapshot functionality provides in failure scenarios during snapshot creation and the decentralized nature of the snapshot creation
+process. This unreferenced data does in no way negatively impact the performance or safety of a snapshot repository but leads to higher
+than necessary storage use. In order to clean up this unreferenced data, users can call the cleanup endpoint for a repository which will
+trigger a complete accounting of the repositories contents and subsequent deletion of all unreferenced data that was found.
+
+[source,js]
+-----------------------------------
+POST /_snapshot/my_repository/_cleanup
+-----------------------------------
+// CONSOLE
+// TEST[continued]
+
+The response to a cleanup request looks as follows:
+
+[source,js]
+--------------------------------------------------
+{
+  "results": {
+    "deleted_bytes": 20,
+    "deleted_blobs": 5
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+Depending on the concrete repository implementation the numbers shown for bytes free as well as the number of blobs removed will either
+be an approximation or an exact result. Any non-zero value for the number of blobs removed implies that unreferenced blobs were found and
+subsequently cleaned up.
+
+Please note that most of the cleanup operations executed by this endpoint are automatically executed when deleting any snapshot from a
+repository. If you regularly delete snapshots, you will in most cases not get any or only minor space savings from using this functionality
+and should lower your frequency of invoking it accordingly.
+
+[float]
 [[snapshots-take-snapshot]]
 === Snapshot
 

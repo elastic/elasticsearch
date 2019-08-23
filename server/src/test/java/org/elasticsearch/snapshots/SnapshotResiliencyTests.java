@@ -903,7 +903,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
             final ActionFilters actionFilters = new ActionFilters(emptySet());
             snapshotShardsService = new SnapshotShardsService(
-                settings, clusterService, snapshotsService, threadPool,
+                settings, clusterService, repositoriesService, threadPool,
                 transportService, indicesService, actionFilters, indexNameExpressionResolver);
             final ShardStateAction shardStateAction = new ShardStateAction(
                 clusterService, transportService, allocationService,

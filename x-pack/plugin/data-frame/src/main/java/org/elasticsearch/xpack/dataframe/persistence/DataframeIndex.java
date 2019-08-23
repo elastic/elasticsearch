@@ -100,7 +100,7 @@ public final class DataframeIndex {
             .field(DataFrameField.CREATED_BY, DataFrameField.DATA_FRAME_SIGNATURE)
             .startObject(DataFrameField.META_FIELDNAME)
                 .field(DataFrameField.CREATION_DATE_MILLIS, clock.millis())
-                .startObject(DataFrameField.VERSION)
+                .startObject(DataFrameField.VERSION.getPreferredName())
                     .field(DataFrameField.CREATED, Version.CURRENT)
                 .endObject()
                 .field(DataFrameField.TRANSFORM, id)

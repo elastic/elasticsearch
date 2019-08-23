@@ -2545,7 +2545,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 assertTrue("num ipv4 is wrong: " + ipv4, ipv4 >= 1);
                 assertTrue("num ipv6 is wrong: " + ipv6, ipv6 >= 1);
             } else {
-                assertEquals(profileBoundAddresses.get("some_other_profile").boundAddresses().length, 1);
+                assertTrue(profileBoundAddresses.get("some_other_profile").boundAddresses().length >= 1);
             }
             assertTrue(profileBoundAddresses.get("some_other_profile").publishAddress().address().getAddress() instanceof Inet4Address);
         }

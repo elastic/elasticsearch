@@ -72,7 +72,6 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -930,70 +929,53 @@ public abstract class ESIntegTestCase extends ESTestCase {
      *                This saves on unneeded searches.
      * @return the actual number of docs seen.
      */
-    public long waitForDocs(final long numDocs, @Nullable final BackgroundIndexer indexer) {
-        // indexing threads can wait for up to ~1m before retrying when they first try to index into a shard which is not STARTED.
-        return waitForDocs(numDocs, 90, TimeUnit.SECONDS, indexer);
-    }
-
-    /**
-     * Waits until at least a give number of document is visible for searchers
-     *
-     * @param numDocs         number of documents to wait for
-     * @param maxWaitTime     if not progress have been made during this time, fail the test
-     * @param maxWaitTimeUnit the unit in which maxWaitTime is specified
-     * @param indexer         If supplied it will be first checked for documents indexed.
-     *                        This saves on unneeded searches.
-     * @return the actual number of docs seen.
-     */
-    public long waitForDocs(final long numDocs, int maxWaitTime, TimeUnit maxWaitTimeUnit, @Nullable final BackgroundIndexer indexer) {
+    public long waitForDocs(final long numDocs, @Nullable final BackgroundIndexer indexer) throws Exception {
         final AtomicLong lastKnownCount = new AtomicLong(-1);
-        long lastStartCount = -1;
 
-        final CheckedRunnable<Exception> testDocs = () -> {
-            if (indexer != null) {
-                lastKnownCount.set(indexer.totalIndexedDocs());
-            }
-            if (lastKnownCount.get() >= numDocs) {
-                try {
-                    long count = client().prepareSearch()
-                        .setTrackTotalHits(true)
-                        .setSize(0)
-                        .setQuery(matchAllQuery())
-                        .get()
-                        .getHits().getTotalHits().value;
+        // indexing threads can wait for up to ~1m before retrying when they first try to index into a shard which is not STARTED.
+        final long maxWaitTimeMs = Math.max(90 * 1000, 200 * numDocs);
 
-                    if (count == lastKnownCount.get()) {
-                        // no progress - try to refresh for the next time
-                        client().admin().indices().prepareRefresh().get();
-                    }
-                    lastKnownCount.set(count);
-                } catch (Exception e) { // count now acts like search and barfs if all shards failed...
-                    logger.debug("failed to executed count", e);
-                    throw e;
+        assertBusy(
+            () -> {
+                if (indexer != null) {
+                    lastKnownCount.set(indexer.totalIndexedDocs());
                 }
-                logger.debug("[{}] docs visible for search. waiting for [{}]", lastKnownCount.get(), numDocs);
-            } else {
-                logger.debug("[{}] docs indexed. waiting for [{}]", lastKnownCount.get(), numDocs);
-            }
 
-            assertThat(lastKnownCount.get(), greaterThanOrEqualTo(numDocs));
-        };
+                // Have we managed to count enough docs yet?
+                if (lastKnownCount.get() < numDocs) {
+                    try {
+                        long count = client().prepareSearch()
+                            .setTrackTotalHits(true)
+                            .setSize(0)
+                            .setQuery(matchAllQuery())
+                            .get()
+                            .getHits().getTotalHits().value;
 
-        while (true) {
-            try {
-                assertBusy(testDocs, maxWaitTime, maxWaitTimeUnit);
-                break; // The previous line didn't throw, so we can exit the loop
-            }
-            catch (Exception e) {
-                // don't care
-            }
+                        if (count == lastKnownCount.get()) {
+                            // no progress - try to refresh for the next time
+                            client().admin().indices().prepareRefresh().get();
+                        }
+                        lastKnownCount.set(count);
+                    } catch (Exception e) { // count now acts like search and barfs if all shards failed...
+                        logger.debug("failed to executed count", e);
+                        throw e;
+                    }
+                }
 
-            if (lastStartCount == lastKnownCount.get()) {
-                // we didn't make any progress
-                fail("failed to reach " + numDocs + " docs");
-            }
-            lastStartCount = lastKnownCount.get();
-        }
+                if (logger.isDebugEnabled()) {
+                    if (lastKnownCount.get() < numDocs) {
+                        logger.debug("[{}] docs indexed. waiting for [{}]", lastKnownCount.get(), numDocs);
+                    } else {
+                        logger.debug("[{}] docs visible for search (needed [{}])", lastKnownCount.get(), numDocs);
+                    }
+                }
+
+                assertThat(lastKnownCount.get(), greaterThanOrEqualTo(numDocs));
+            },
+            maxWaitTimeMs,
+            TimeUnit.MILLISECONDS
+        );
+
         return lastKnownCount.get();
     }
 

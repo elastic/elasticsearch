@@ -10,9 +10,11 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.After;
 
@@ -130,13 +132,17 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
     }
 
     public static String generatePolicySource(String index) throws IOException {
-        return Strings.toString(jsonBuilder().startObject()
-            .startObject("exact_match")
-            .field("indices", index)
-            .field("match_field", "host")
-            .field("enrich_fields", new String[] {"globalRank", "tldRank", "tld"})
-            .endObject()
-            .endObject());
+        XContentBuilder source = jsonBuilder().startObject().startObject("exact_match");
+        {
+            source.field("indices", index);
+            if (randomBoolean()) {
+                source.field("query", QueryBuilders.matchAllQuery());
+            }
+            source.field("match_field", "host");
+            source.field("enrich_fields", new String[] {"globalRank", "tldRank", "tld"});
+        }
+        source.endObject().endObject();
+        return Strings.toString(source);
     }
 
     private static Map<String, Object> toMap(Response response) throws IOException {

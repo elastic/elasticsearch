@@ -285,7 +285,7 @@ public class AnalyticsProcessManager {
             // If we have no rows, that means there is no data so no point in starting the native process
             // just finish the task
             if (analyticsProcessConfig.rows() == 0) {
-                LOGGER.info("[{}] no data found to analyze. Will not starting analytics native process.", config.getId());
+                LOGGER.info("[{}] no data found to analyze. Will not start analytics native process.", config.getId());
                 return false;
             }
             process = createProcess(task, analyticsProcessConfig);

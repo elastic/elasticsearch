@@ -54,7 +54,8 @@ public class GeoTileGridParserTests extends ESTestCase {
         assertSame(XContentParser.Token.START_OBJECT, token);
         XContentParseException e = expectThrows(XContentParseException.class,
                 () -> GeoTileGridAggregationBuilder.parse("geotile_grid", stParser));
-        assertThat(e.getMessage(), containsString("[geotile_grid] precision doesn't support values of type: VALUE_BOOLEAN"));
+        assertThat(ExceptionsHelper.stackTrace(e),
+                containsString("[geotile_grid] precision doesn't support values of type: VALUE_BOOLEAN"));
     }
 
     public void testParseErrorOnPrecisionOutOfRange() throws Exception {

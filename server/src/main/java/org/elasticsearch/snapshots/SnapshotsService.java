@@ -551,7 +551,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                        .finalizeSnapshot(snapshot.snapshot().getSnapshotId(),
                                                          snapshot.indices(),
                                                          snapshot.startTime(),
-                                                         exception.getMessage(),
+                                                         ExceptionsHelper.stackTrace(exception),
                                                          0,
                                                          Collections.emptyList(),
                                                          snapshot.getRepositoryStateId(),

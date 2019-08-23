@@ -681,7 +681,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             }
             builder.append(' ');
         }
-        return builder.append(this.getMessage()).toString();
+        return builder.append(super.toString().trim()).toString();
     }
 
     /**

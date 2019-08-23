@@ -337,7 +337,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         if (message == null) {
             return null;
         }
-        return message + (failure == null ? "" : ", failure " + failure.getMessage());
+        return message + (failure == null ? "" : ", failure " + ExceptionsHelper.stackTrace(failure));
     }
 
     /**

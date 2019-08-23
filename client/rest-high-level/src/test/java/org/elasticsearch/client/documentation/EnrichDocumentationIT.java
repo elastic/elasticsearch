@@ -26,12 +26,24 @@ import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.enrich.DeletePolicyRequest;
 import org.elasticsearch.client.enrich.PutPolicyRequest;
+import org.junit.After;
 
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 public class EnrichDocumentationIT extends ESRestHighLevelClientTestCase {
+
+    @After
+    public void cleanup() {
+        RestHighLevelClient client = highLevelClient();
+        DeletePolicyRequest deletePolicyRequest = new DeletePolicyRequest("users-policy");
+        try {
+            client.enrich().deletePolicy(deletePolicyRequest, RequestOptions.DEFAULT);
+        } catch (Exception e) {
+            // ignore... it is ok if policy has already been removed
+        }
+    }
 
     public void testPutPolicy() throws Exception {
         RestHighLevelClient client = highLevelClient();

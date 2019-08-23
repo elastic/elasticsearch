@@ -180,9 +180,9 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         final MockTerminal terminal = getTerminalPossiblyWithPassword(usedKeyStore);
         final UserException userException = expectThrows(UserException.class, () -> command.buildEntityDescriptor(terminal, options, env));
         assertThat(userException.getMessage(), containsString("multiple SAML realms"));
-        assertThat(terminal.getOutput(), containsString("saml_a"));
-        assertThat(terminal.getOutput(), containsString("saml_b"));
-        assertThat(terminal.getOutput(), containsString("Use the -realm option"));
+        assertThat(terminal.getErrorOutput(), containsString("saml_a"));
+        assertThat(terminal.getErrorOutput(), containsString("saml_b"));
+        assertThat(terminal.getErrorOutput(), containsString("Use the -realm option"));
     }
 
     public void testSpecifyRealmNameAsParameter() throws Exception {
@@ -440,7 +440,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         final UserException userException = expectThrows(UserException.class, () -> command.possiblySignDescriptor(terminal, options,
                 descriptor, env));
         assertThat(userException.getMessage(), containsString("Unable to create metadata document"));
-        assertThat(terminal.getOutput(), containsString("Error parsing Private Key from"));
+        assertThat(terminal.getErrorOutput(), containsString("Error parsing Private Key from"));
     }
 
     public void testSigningMetadataWithPem() throws Exception {

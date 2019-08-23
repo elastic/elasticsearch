@@ -104,7 +104,7 @@ public abstract class VagrantShellTask extends DefaultTask {
                     spec.setProgressHandler(progressHandler);
                 });
             } catch (Exception e) {
-                getLogger().error("Failed command, dumping dmesg", e);
+                /*getLogger().error("Failed command, dumping dmesg", e);
                 service.execute(spec -> {
                     spec.setCommand("ssh");
                     spec.setArgs("--command", "dmesg");
@@ -112,7 +112,7 @@ public abstract class VagrantShellTask extends DefaultTask {
                         getLogger().error(line);
                         return null;
                     });
-                });
+                });*/
                 throw e;
             }
         }

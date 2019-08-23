@@ -480,7 +480,8 @@ public class AvgAggregatorTests extends AggregatorTestCase {
                 Document document = new Document();
                 document.add(new SortedNumericDocValuesField("values", i + 2));
                 document.add(new SortedNumericDocValuesField("values", i + 3));
-                iw.addDocument(document);            }
+                iw.addDocument(document);
+            }
         }, avg -> {
             assertEquals((double) (3+4+4+5+5+6+6+7+7+8+8+9+9+10+10+11+11+12+12+13) / 20, avg.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(avg));
@@ -501,7 +502,8 @@ public class AvgAggregatorTests extends AggregatorTestCase {
                 Document document = new Document();
                 document.add(new SortedNumericDocValuesField("values", i + 2));
                 document.add(new SortedNumericDocValuesField("values", i + 3));
-                iw.addDocument(document);            }
+                iw.addDocument(document);
+            }
         }, avg -> {
             assertEquals((double) (2+3+3+4+4+5+5+6+6+7+7+8+8+9+9+10+10+11+11+12) / 20, avg.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(avg));
@@ -588,5 +590,96 @@ public class AvgAggregatorTests extends AggregatorTestCase {
 
         indexReader.close();
         directory.close();
+    }
+
+    /**
+     * Make sure that an aggregation not using a script does get cached.
+     */
+    public void testCacheAggregation() throws IOException {
+        Directory directory = newDirectory();
+        RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
+        final int numDocs = 10;
+        for (int i = 0; i < numDocs; i++) {
+            indexWriter.addDocument(singleton(new NumericDocValuesField("value", i + 1)));
+        }
+        indexWriter.close();
+
+        Directory unmappedDirectory = newDirectory();
+        RandomIndexWriter unmappedIndexWriter = new RandomIndexWriter(random(), unmappedDirectory);
+        unmappedIndexWriter.close();
+
+        IndexReader indexReader = DirectoryReader.open(directory);
+        IndexReader unamappedIndexReader = DirectoryReader.open(unmappedDirectory);
+        MultiReader multiReader = new MultiReader(indexReader, unamappedIndexReader);
+        IndexSearcher indexSearcher = newSearcher(multiReader, true, true);
+
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
+        fieldType.setName("value");
+        AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("avg")
+            .field("value");
+
+        AvgAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
+        aggregator.preCollection();
+        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        aggregator.postCollection();
+
+        InternalAvg avg = (InternalAvg) aggregator.buildAggregation(0L);
+
+        assertEquals(5.5, avg.getValue(), 0);
+        assertEquals("avg", avg.getName());
+        assertTrue(AggregationInspectionHelper.hasValue(avg));
+
+        // Test that an aggregation not using a script does get cached
+        assertTrue(aggregator.context().getQueryShardContext().isCacheable());
+
+        multiReader.close();
+        directory.close();
+        unmappedDirectory.close();
+    }
+
+    /**
+     * Make sure that an aggregation using a script does not get cached.
+     */
+    public void testDontCacheScripts() throws IOException {
+        Directory directory = newDirectory();
+        RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
+        final int numDocs = 10;
+        for (int i = 0; i < numDocs; i++) {
+            indexWriter.addDocument(singleton(new NumericDocValuesField("value", i + 1)));
+        }
+        indexWriter.close();
+
+        Directory unmappedDirectory = newDirectory();
+        RandomIndexWriter unmappedIndexWriter = new RandomIndexWriter(random(), unmappedDirectory);
+        unmappedIndexWriter.close();
+
+        IndexReader indexReader = DirectoryReader.open(directory);
+        IndexReader unamappedIndexReader = DirectoryReader.open(unmappedDirectory);
+        MultiReader multiReader = new MultiReader(indexReader, unamappedIndexReader);
+        IndexSearcher indexSearcher = newSearcher(multiReader, true, true);
+
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
+        fieldType.setName("value");
+        AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("avg")
+            .field("value")
+            .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT, Collections.emptyMap()));
+
+        AvgAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
+        aggregator.preCollection();
+        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        aggregator.postCollection();
+
+        InternalAvg avg = (InternalAvg) aggregator.buildAggregation(0L);
+
+        assertEquals(5.5, avg.getValue(), 0);
+        assertEquals("avg", avg.getName());
+        assertTrue(AggregationInspectionHelper.hasValue(avg));
+
+        // Test that an aggregation using a script does not get cached
+        assertFalse(aggregator.context().getQueryShardContext().isCacheable());
+
+        multiReader.close();
+        directory.close();
+        unmappedDirectory.close();
     }
 }

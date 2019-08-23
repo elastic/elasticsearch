@@ -38,12 +38,6 @@ public class InternalGeoTileGridBucket extends InternalGeoGridBucket<InternalGeo
     }
 
     @Override
-    InternalGeoTileGridBucket buildBucket(InternalGeoGridBucket bucket, long hashAsLong, long docCount,
-                                          InternalAggregations aggregations) {
-        return new InternalGeoTileGridBucket(hashAsLong, docCount, aggregations);
-    }
-
-    @Override
     public String getKeyAsString() {
         return GeoTileUtils.stringEncode(hashAsLong);
     }

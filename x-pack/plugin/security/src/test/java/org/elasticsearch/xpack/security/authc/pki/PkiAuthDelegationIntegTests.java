@@ -26,7 +26,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheRequestBuilder;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.junit.Before;
 import org.elasticsearch.test.SecuritySettingsSource;
 
 import java.io.InputStream;
@@ -118,6 +120,11 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
     @Override
     protected boolean addMockHttpTransport() {
         return false; // enable http
+    }
+
+    @Before
+    void clearRealmCache() {
+        new ClearRealmCacheRequestBuilder(client()).get();
     }
 
     public void testDelegateThenAuthenticate() throws Exception {

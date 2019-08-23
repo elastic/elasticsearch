@@ -23,7 +23,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -132,7 +131,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
 
     /** Create a new builder with the given name. */
     public DateHistogramAggregationBuilder(String name) {
-        super(name, ValuesSourceType.ANY, null);
+        super(name, ValuesSourceType.ANY, ValueType.DATE);
     }
 
     protected DateHistogramAggregationBuilder(DateHistogramAggregationBuilder clone,
@@ -168,12 +167,6 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         return ValuesSourceType.NUMERIC;
     }
 
-
-    @Override
-    protected boolean serializeTargetValueType(Version version) {
-        // TODO: Update version number after backport
-        return version.onOrAfter(Version.V_7_4_0);
-    }
 
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
@@ -489,11 +482,6 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
             }
         }
         return tz;
-    }
-
-    @Override
-    protected ValueType defaultValueType(Script script) {
-        return ValueType.DATE;
     }
 
     @Override

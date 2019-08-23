@@ -55,7 +55,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         Object missing,
         ZoneId timeZone,
         String format) {
-        return resolve(context, valueType, field, script, missing, timeZone, format, s -> ValuesSourceType.BYTES, s -> null);
+        return resolve(context, valueType, field, script, missing, timeZone, format, s -> ValuesSourceType.BYTES);
     }
 
     /**
@@ -68,14 +68,10 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         Object missing,
         ZoneId timeZone,
         String format,
-        Function<Script, ValuesSourceType> resolveScriptAny,
-        Function<Script, ValueType> defaultScriptValueType
-        ) {
+        Function<Script, ValuesSourceType> resolveScriptAny
+    ) {
 
         if (field == null) {
-            if (valueType == null) {
-                valueType = defaultScriptValueType.apply(script);
-            }
             if (script == null) {
                 ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(ValuesSourceType.ANY);
                 config.format(resolveFormat(null, valueType, timeZone));
@@ -100,9 +96,6 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
 
         MappedFieldType fieldType = context.fieldMapper(field);
         if (fieldType == null) {
-            if (valueType == null) {
-                valueType = defaultScriptValueType.apply(script);
-            }
             ValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : ValuesSourceType.ANY;
             ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(valuesSourceType);
             config.missing(missing);
@@ -119,20 +112,20 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         IndexFieldData<?> indexFieldData = context.getForField(fieldType);
 
         ValuesSourceConfig<VS> config;
-        if (valueType == null) {
-            if (indexFieldData instanceof IndexNumericFieldData) {
-                config = new ValuesSourceConfig<>(ValuesSourceType.NUMERIC);
-            } else if (indexFieldData instanceof IndexGeoPointFieldData) {
-                config = new ValuesSourceConfig<>(ValuesSourceType.GEOPOINT);
-            } else if (fieldType instanceof RangeFieldMapper.RangeFieldType) {
-                config = new ValuesSourceConfig<>(ValuesSourceType.RANGE);
-            } else {
-                config = new ValuesSourceConfig<>(ValuesSourceType.BYTES);
-            }
-
+        if (indexFieldData instanceof IndexNumericFieldData) {
+            config = new ValuesSourceConfig<>(ValuesSourceType.NUMERIC);
+        } else if (indexFieldData instanceof IndexGeoPointFieldData) {
+            config = new ValuesSourceConfig<>(ValuesSourceType.GEOPOINT);
+        } else if (fieldType instanceof RangeFieldMapper.RangeFieldType) {
+            config = new ValuesSourceConfig<>(ValuesSourceType.RANGE);
         } else {
-            config = new ValuesSourceConfig<>(valueType.getValuesSourceType());
+            if (valueType == null) {
+                config = new ValuesSourceConfig<>(ValuesSourceType.BYTES);
+            } else {
+                config = new ValuesSourceConfig<>(valueType.getValuesSourceType());
+            }
         }
+
 
         config.fieldContext(new FieldContext(field, indexFieldData, fieldType));
         config.missing(missing);

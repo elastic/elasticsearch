@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -105,7 +104,7 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
 
     /** Create a new builder with the given name. */
     public HistogramAggregationBuilder(String name) {
-        super(name, ValuesSourceType.ANY, null);
+        super(name, ValuesSourceType.ANY, ValueType.NUMERIC);
     }
 
     protected HistogramAggregationBuilder(HistogramAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
@@ -134,12 +133,6 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
         offset = in.readDouble();
         minBound = in.readDouble();
         maxBound = in.readDouble();
-    }
-
-    @Override
-    protected boolean serializeTargetValueType(Version version) {
-        // TODO: Update version number after backport
-        return version.onOrAfter(Version.V_7_4_0);
     }
 
     @Override

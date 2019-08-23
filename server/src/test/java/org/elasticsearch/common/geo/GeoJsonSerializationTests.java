@@ -24,8 +24,8 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geo.GeometryTestUtils;
-import org.elasticsearch.geo.geometry.Geometry;
-import org.elasticsearch.geo.utils.GeographyValidator;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.test.ESTestCase;
 

@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.Set;
 
 public class AnalyticsProcessConfig implements ToXContentObject {
 
@@ -21,21 +22,24 @@ public class AnalyticsProcessConfig implements ToXContentObject {
     private static final String THREADS = "threads";
     private static final String ANALYSIS = "analysis";
     private static final String RESULTS_FIELD = "results_field";
+    private static final String CATEGORICAL_FIELDS = "categorical_fields";
 
     private final long rows;
     private final int cols;
     private final ByteSizeValue memoryLimit;
     private final int threads;
-    private final DataFrameAnalysis analysis;
     private final String resultsField;
+    private final Set<String> categoricalFields;
+    private final DataFrameAnalysis analysis;
 
     public AnalyticsProcessConfig(long rows, int cols, ByteSizeValue memoryLimit, int threads, String resultsField,
-                                  DataFrameAnalysis analysis) {
+                                  Set<String> categoricalFields, DataFrameAnalysis analysis) {
         this.rows = rows;
         this.cols = cols;
         this.memoryLimit = Objects.requireNonNull(memoryLimit);
         this.threads = threads;
         this.resultsField = Objects.requireNonNull(resultsField);
+        this.categoricalFields = Objects.requireNonNull(categoricalFields);
         this.analysis = Objects.requireNonNull(analysis);
     }
 
@@ -51,6 +55,7 @@ public class AnalyticsProcessConfig implements ToXContentObject {
         builder.field(MEMORY_LIMIT, memoryLimit.getBytes());
         builder.field(THREADS, threads);
         builder.field(RESULTS_FIELD, resultsField);
+        builder.field(CATEGORICAL_FIELDS, categoricalFields);
         builder.field(ANALYSIS, new DataFrameAnalysisWrapper(analysis));
         builder.endObject();
         return builder;

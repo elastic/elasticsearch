@@ -504,9 +504,9 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 recoveryStart.countDown();
                 return new RecoveryTarget(indexShard, node, recoveryListener) {
                     @Override
-                    public void finalizeRecovery(long globalCheckpoint, ActionListener<Void> listener) {
+                    public void finalizeRecovery(long globalCheckpoint, long trimAboveSeqNo, ActionListener<Void> listener) {
                         recoveryDone.set(true);
-                        super.finalizeRecovery(globalCheckpoint, listener);
+                        super.finalizeRecovery(globalCheckpoint, trimAboveSeqNo, listener);
                     }
                 };
             });
@@ -868,13 +868,13 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
         }
 
         @Override
-        public void finalizeRecovery(long globalCheckpoint, ActionListener<Void> listener) {
+        public void finalizeRecovery(long globalCheckpoint, long trimAboveSeqNo, ActionListener<Void> listener) {
             if (hasBlocked() == false) {
                 // it maybe that not ops have been transferred, block now
                 blockIfNeeded(RecoveryState.Stage.TRANSLOG);
             }
             blockIfNeeded(RecoveryState.Stage.FINALIZE);
-            super.finalizeRecovery(globalCheckpoint, listener);
+            super.finalizeRecovery(globalCheckpoint, trimAboveSeqNo, listener);
         }
 
     }

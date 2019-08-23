@@ -30,6 +30,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -41,6 +42,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngineFactory;
@@ -80,7 +82,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             shards.startAll();
             final IndexShard replica = shards.getReplicas().get(0);
             boolean softDeletesEnabled = replica.indexSettings().isSoftDeleteEnabled();
-            assertThat(getTranslog(replica).totalOperations(), equalTo(softDeletesEnabled ? moreDocs : docs + moreDocs));
+            assertThat(getTranslog(replica).totalOperations(), equalTo(softDeletesEnabled ? 0 : docs + moreDocs));
             shards.assertAllEqual(docs + moreDocs);
         }
     }
@@ -296,7 +298,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             // file based recovery should be made
             assertThat(newReplica.recoveryState().getIndex().fileDetails(), not(empty()));
             boolean softDeletesEnabled = replica.indexSettings().isSoftDeleteEnabled();
-            assertThat(getTranslog(newReplica).totalOperations(), equalTo(softDeletesEnabled ? nonFlushedDocs : numDocs));
+            assertThat(getTranslog(newReplica).totalOperations(), equalTo(softDeletesEnabled ? 0 : numDocs));
 
             // history uuid was restored
             assertThat(newReplica.getHistoryUUID(), equalTo(historyUUID));
@@ -383,7 +385,12 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             shards.recoverReplica(newReplica);
 
             try (Translog.Snapshot snapshot = getTranslog(newReplica).newSnapshot()) {
-                assertThat("Sequence based recovery should keep existing translog", snapshot, SnapshotMatchers.size(initDocs + moreDocs));
+                if (newReplica.indexSettings().isSoftDeleteEnabled()) {
+                    assertThat(snapshot.totalOperations(), equalTo(0));
+                } else {
+                    assertThat("Sequence based recovery should keep existing translog",
+                        snapshot, SnapshotMatchers.size(initDocs + moreDocs));
+                }
             }
             assertThat(newReplica.recoveryState().getTranslog().recoveredOperations(), equalTo(uncommittedDocs + moreDocs));
             assertThat(newReplica.recoveryState().getIndex().fileDetails(), empty());
@@ -459,6 +466,46 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             group.removeReplica(replica);
             replica.store().close();
             closeShards(replica);
+        }
+    }
+
+    public void testRecoveryTrimsLocalTranslog() throws Exception {
+        try (ReplicationGroup shards = createGroup(between(1, 2))) {
+            shards.startAll();
+            IndexShard oldPrimary = shards.getPrimary();
+            shards.indexDocs(scaledRandomIntBetween(1, 100));
+            if (randomBoolean()) {
+                shards.flush();
+            }
+            int inflightDocs = scaledRandomIntBetween(1, 100);
+            for (int i = 0; i < inflightDocs; i++) {
+                final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "extra_" + i).source("{}", XContentType.JSON);
+                final BulkShardRequest bulkShardRequest = indexOnPrimary(indexRequest, oldPrimary);
+                for (IndexShard replica : randomSubsetOf(shards.getReplicas())) {
+                    indexOnReplica(bulkShardRequest, shards, replica);
+                }
+                if (rarely()) {
+                    shards.flush();
+                }
+            }
+            shards.syncGlobalCheckpoint();
+            shards.promoteReplicaToPrimary(randomFrom(shards.getReplicas())).get();
+            oldPrimary.close("demoted", false);
+            oldPrimary.store().close();
+            oldPrimary = shards.addReplicaWithExistingPath(oldPrimary.shardPath(), oldPrimary.routingEntry().currentNodeId());
+            shards.recoverReplica(oldPrimary);
+            for (IndexShard shard : shards) {
+                assertConsistentHistoryBetweenTranslogAndLucene(shard);
+            }
+            final List<DocIdSeqNoAndSource> docsAfterRecovery = getDocIdAndSeqNos(shards.getPrimary());
+            for (IndexShard shard : shards.getReplicas()) {
+                assertThat(shard.routingEntry().toString(), getDocIdAndSeqNos(shard), equalTo(docsAfterRecovery));
+            }
+            shards.promoteReplicaToPrimary(oldPrimary).get();
+            for (IndexShard shard : shards) {
+                assertThat(shard.routingEntry().toString(), getDocIdAndSeqNos(shard), equalTo(docsAfterRecovery));
+                assertConsistentHistoryBetweenTranslogAndLucene(shard);
+            }
         }
     }
 }

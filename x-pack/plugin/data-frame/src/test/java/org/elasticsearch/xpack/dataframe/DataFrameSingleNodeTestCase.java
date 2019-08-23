@@ -29,8 +29,8 @@ public abstract class DataFrameSingleNodeTestCase extends ESSingleNodeTestCase {
     public void waitForTemplates() throws Exception {
         assertBusy(() -> {
             ClusterState state = client().admin().cluster().prepareState().get().getState();
-            assertTrue("Timed out waiting for the data frame templates to be installed",
-                    TemplateUtils.checkTemplateExistsAndVersionIsGTECurrentVersion(DataFrameInternalIndex.INDEX_TEMPLATE_NAME, state));
+            assertTrue("Timed out waiting for the data frame templates to be installed", TemplateUtils
+                .checkTemplateExistsAndVersionIsGTECurrentVersion(DataFrameInternalIndex.LATEST_INDEX_VERSIONED_NAME, state));
         });
     }
 
@@ -63,6 +63,7 @@ public abstract class DataFrameSingleNodeTestCase extends ESSingleNodeTestCase {
             }
         }, e -> {
             if (onException == null) {
+                logger.error("got unexpected exception", e);
                 fail("got unexpected exception: " + e.getMessage());
             } else {
                 onException.accept(e);
@@ -70,7 +71,7 @@ public abstract class DataFrameSingleNodeTestCase extends ESSingleNodeTestCase {
         }), latch);
 
         function.accept(listener);
-        latch.await(10, TimeUnit.SECONDS);
+        assertTrue("timed out after 20s", latch.await(20, TimeUnit.SECONDS));
     }
 
 }

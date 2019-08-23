@@ -2535,7 +2535,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             } else {
                 assertThat(profileBoundAddresses.get("some_other_profile").boundAddresses(), arrayWithSize(1));
             }
-            assertThat(profileBoundAddresses.get("some_other_profile").publishAddress().address().getAddress(), instanceOf(Inet4Address.class));
+            assertThat(
+                profileBoundAddresses.get("some_other_profile").publishAddress().address().getAddress(),
+                instanceOf(Inet4Address.class));
         }
     }
 

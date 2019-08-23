@@ -30,7 +30,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
             "setting [processors] is deprecated in favor of setting [node.processors]",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/7.4/breaking_74_plugin_changes.html#breaking_74_settings_changes",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.x/breaking-changes-7.4.html#deprecate-processors",
             "the setting [processors] is currently set to [" + processors + "], instead set [node.processors] to [" + processors + "]");
         assertThat(issues, contains(expected));
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{EsExecutors.PROCESSORS_SETTING});

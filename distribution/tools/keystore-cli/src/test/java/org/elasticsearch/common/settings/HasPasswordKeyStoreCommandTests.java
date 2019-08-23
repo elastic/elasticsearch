@@ -48,7 +48,7 @@ public class HasPasswordKeyStoreCommandTests extends KeyStoreCommandTestCase {
         createKeystore("");
         UserException e = expectThrows(UserException.class, this::execute);
         assertEquals(e.getMessage(), HasPasswordKeyStoreCommand.NO_PASSWORD_EXIT_CODE, e.exitCode);
-        assertThat(e.getMessage(), containsString("Keystore is password protected"));
+        assertThat(e.getMessage(), containsString("Keystore is not password protected"));
     }
 
     public void testSucceedsWhenKeystoreHasPassword() throws Exception {

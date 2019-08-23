@@ -42,10 +42,9 @@ public class HasPasswordKeyStoreCommand extends KeyStoreAwareCommand {
         if (keyStore == null) {
             throw new UserException(NO_PASSWORD_EXIT_CODE, "Elasticsearch keystore not found");
         }
-        if (keyStore.hasPassword()) {
-            terminal.println(Terminal.Verbosity.NORMAL, "Keystore is password-protected");
-            return;
+        if (keyStore.hasPassword() == false) {
+            throw new UserException(NO_PASSWORD_EXIT_CODE, "Keystore is not password protected");
         }
-        throw new UserException(NO_PASSWORD_EXIT_CODE, "Keystore is password protected");
+        terminal.println(Terminal.Verbosity.NORMAL, "Keystore is password-protected");
     }
 }

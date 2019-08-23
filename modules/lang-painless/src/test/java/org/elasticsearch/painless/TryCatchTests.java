@@ -55,4 +55,47 @@ public class TryCatchTests extends ScriptTestCase {
         });
         assertEquals("test", exception.getMessage());
     }
+
+    public void testNoCatchBlock() {
+        assertEquals(0, exec("try { return Integer.parseInt('f') } catch (NumberFormatException nfe) {} return 0;"));
+
+        assertEquals(0, exec("try { return Integer.parseInt('f') } " +
+                "catch (NumberFormatException nfe) {}" +
+                "catch (Exception e) {}" +
+                " return 0;"));
+
+        assertEquals(0, exec("try { throw new IllegalArgumentException('test') } " +
+                "catch (NumberFormatException nfe) {}" +
+                "catch (Exception e) {}" +
+                " return 0;"));
+
+        assertEquals(0, exec("try { throw new IllegalArgumentException('test') } " +
+                "catch (NumberFormatException nfe) {}" +
+                "catch (IllegalArgumentException iae) {}" +
+                "catch (Exception e) {}" +
+                " return 0;"));
+    }
+
+    public void testMultiCatch() {
+        assertEquals(1, exec(
+                "try { return Integer.parseInt('f') } " +
+                "catch (NumberFormatException nfe) {return 1;} " +
+                "catch (ArrayIndexOutOfBoundsException aioobe) {return 2;} " +
+                "catch (Exception e) {return 3;}"
+        ));
+
+        assertEquals(2, exec(
+                "try { return new int[] {}[0] } " +
+                "catch (NumberFormatException nfe) {return 1;} " +
+                "catch (ArrayIndexOutOfBoundsException aioobe) {return 2;} " +
+                "catch (Exception e) {return 3;}"
+        ));
+
+        assertEquals(3, exec(
+                "try { throw new IllegalArgumentException('test'); } " +
+                "catch (NumberFormatException nfe) {return 1;} " +
+                "catch (ArrayIndexOutOfBoundsException aioobe) {return 2;} " +
+                "catch (Exception e) {return 3;}"
+        ));
+    }
 }

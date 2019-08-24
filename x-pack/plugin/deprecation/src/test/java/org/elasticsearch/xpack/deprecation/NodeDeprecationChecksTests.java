@@ -10,6 +10,7 @@ import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
@@ -20,6 +21,29 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 
 public class NodeDeprecationChecksTests extends ESTestCase {
+
+    public void testCheckDefaults() {
+        final Settings settings = Settings.EMPTY;
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+        final List<DeprecationIssue> issues =
+            DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS, c -> c.apply(settings, pluginsAndModules));
+        assertThat(issues, empty());
+    }
+
+    public void testCheckPidfile() {
+        final String pidfile = randomAlphaOfLength(16);
+        final Settings settings = Settings.builder().put(Environment.PIDFILE_SETTING.getKey(), pidfile).build();
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+        final List<DeprecationIssue> issues =
+            DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS, c -> c.apply(settings, pluginsAndModules));
+        final DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            "setting [pidfile] is deprecated in favor of setting [node.pidfile]",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.4/breaking-changes-7.4.html#deprecate-pidfile",
+            "the setting [pidfile] is currently set to [" + pidfile + "], instead set [node.pidfile] to [" + pidfile + "]");
+        assertThat(issues, contains(expected));
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{Environment.PIDFILE_SETTING});
+    }
 
     public void testCheckProcessors() {
         final int processors = randomIntBetween(1, 4);
@@ -34,14 +58,6 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             "the setting [processors] is currently set to [" + processors + "], instead set [node.processors] to [" + processors + "]");
         assertThat(issues, contains(expected));
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{EsExecutors.PROCESSORS_SETTING});
-    }
-
-    public void testCheckProcessorsNotSet() {
-        final Settings settings = Settings.EMPTY;
-        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
-        final List<DeprecationIssue> issues =
-            DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS, c -> c.apply(settings, pluginsAndModules));
-        assertThat(issues, empty());
     }
 
 }

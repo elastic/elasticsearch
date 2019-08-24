@@ -41,6 +41,7 @@ public class DeprecationChecks {
 
     static List<BiFunction<Settings, PluginsAndModules, DeprecationIssue>> NODE_SETTINGS_CHECKS =
         Collections.unmodifiableList(Arrays.asList(
+            NodeDeprecationChecks::checkPidfile,
             NodeDeprecationChecks::checkProcessors
         ));
 

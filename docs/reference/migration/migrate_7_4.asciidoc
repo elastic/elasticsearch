@@ -120,6 +120,13 @@ be disabled by setting the system property
 === Settings changes
 
 [discrete]
+[[deprecate-pidfile]]
+==== `pidfile` setting is being replaced by `node.pidfile`
+
+To ensure that all settings are in a proper namespace, the `pidfile` setting is
+deprecated, and will be removed in version 8.0.0. Instead, use `node.pidfile`.
+
+[discrete]
 [[deprecate-processors]]
 ==== `processors` setting is being replaced by `node.processors`
 

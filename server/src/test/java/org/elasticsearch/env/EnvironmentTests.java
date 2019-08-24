@@ -19,6 +19,7 @@
 package org.elasticsearch.env;
 
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
@@ -174,13 +175,20 @@ public class EnvironmentTests extends ESTestCase {
 
     // test that environment paths are absolute and normalized
     public void testPathNormalization() throws IOException {
+        final Setting<String> pidFileSetting;
+        if (randomBoolean()) {
+            pidFileSetting = Environment.NODE_PIDFILE_SETTING;
+        } else {
+            pidFileSetting = Environment.PIDFILE_SETTING;
+        }
+
         final Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), "home")
             .put(Environment.PATH_DATA_SETTING.getKey(), "./home/../home/data")
             .put(Environment.PATH_LOGS_SETTING.getKey(), "./home/../home/logs")
             .put(Environment.PATH_REPO_SETTING.getKey(), "./home/../home/repo")
             .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), "./home/../home/shared_data")
-            .put(Environment.PIDFILE_SETTING.getKey(), "./home/../home/pidfile")
+            .put(pidFileSetting.getKey(), "./home/../home/pidfile")
             .build();
 
         // the above paths will be treated as relative to the working directory
@@ -205,6 +213,13 @@ public class EnvironmentTests extends ESTestCase {
 
         final String sharedDataPath = Environment.PATH_SHARED_DATA_SETTING.get(environment.settings());
         assertPath(sharedDataPath, home.resolve("shared_data"));
+
+        final String pidFile = pidFileSetting.get(environment.settings());
+        assertPath(pidFile, home.resolve("pidfile"));
+
+        if (pidFileSetting.isDeprecated()) {
+            assertSettingDeprecationsAndWarnings(new Setting<?>[] { pidFileSetting });
+        }
     }
 
     private void assertPath(final String actual, final Path expected) {

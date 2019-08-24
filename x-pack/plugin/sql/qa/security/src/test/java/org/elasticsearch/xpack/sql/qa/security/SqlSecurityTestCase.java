@@ -641,7 +641,9 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
                                 assertThat(log.containsKey("user.name"), is(true));
                                 List<String> indices = new ArrayList<>();
                                 if (log.containsKey("indices")) {
-                                    indices = (ArrayList<String>) log.get("indices");
+                                    @SuppressWarnings("unchecked")
+                                    List<String> castIndices = (ArrayList<String>) log.get("indices");
+                                    indices = castIndices;
                                     if ("test_admin".equals(log.get("user.name"))) {
                                         /*
                                          * Sometimes we accidentally sneak access to the security tables. This is fine,

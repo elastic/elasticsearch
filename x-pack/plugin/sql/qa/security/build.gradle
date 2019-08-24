@@ -1,6 +1,4 @@
 
-apply plugin: 'elasticsearch.build'
-
 dependencies {
   testCompile project(':x-pack:plugin:core')
 }
@@ -11,7 +9,7 @@ group = "${group}.x-pack.qa.sql.security"
 
 configurations.create('testClasses')
 
-String classesDir = project.file(project.sourceSets.main.output.classesDirs.singleFile).toString()
+String classesDir = project.file(project.sourceSets.test.output.classesDirs.singleFile).toString()
 artifacts.add('testClasses', project.layout.projectDirectory.dir(classesDir)) {
   builtBy tasks.named('testClasses')
 } 
@@ -25,7 +23,6 @@ subprojects {
 
   dependencies {
     testCompile project(":x-pack:plugin:core")
-    testCompile project(":test:framework")
     testClasses project(path: mainProject.path, configuration: 'testClasses')
   }
 

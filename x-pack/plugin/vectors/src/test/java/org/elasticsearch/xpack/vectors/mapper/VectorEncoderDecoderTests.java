@@ -31,7 +31,7 @@ public class VectorEncoderDecoderTests extends ESTestCase {
         BytesRef encodedDenseVector = mockEncodeDenseVector(expectedValues);
         float[] decodedValues = VectorEncoderDecoder.decodeDenseVector(indexVersion, encodedDenseVector);
         float decodedMagnitude = VectorEncoderDecoder.getVectorMagnitude(indexVersion, encodedDenseVector, decodedValues);
-        assertEquals(expectedMagnitude, decodedMagnitude, 0.001f);
+        assertEquals(expectedMagnitude, decodedMagnitude, 0.0f);
         assertArrayEquals(
             "Decoded dense vector values are not equal to their original.",
             expectedValues,
@@ -85,7 +85,7 @@ public class VectorEncoderDecoderTests extends ESTestCase {
         int[] decodedDims = VectorEncoderDecoder.decodeSparseVectorDims(indexVersion, encodedSparseVector);
         float[] decodedValues = VectorEncoderDecoder.decodeSparseVector(indexVersion, encodedSparseVector);
         float decodedMagnitude = VectorEncoderDecoder.getVectorMagnitude(indexVersion, encodedSparseVector, decodedValues);
-        assertEquals(expectedMagnitude, decodedMagnitude, 0.001f);
+        assertEquals(expectedMagnitude, decodedMagnitude, 0.0f);
         assertArrayEquals(
             "Decoded sparse vector dims are not equal to their original!",
             expectedDims,
@@ -139,26 +139,26 @@ public class VectorEncoderDecoderTests extends ESTestCase {
     public static BytesRef mockEncodeDenseVector(float[] values) {
         final short INT_BYTES = VectorEncoderDecoder.INT_BYTES;
         byte[] buf = new byte[INT_BYTES * values.length + INT_BYTES];
-        int offset = 4;
+        int offset = 0;
         double dotProduct = 0f;
         int intValue;
         for (float value: values) {
             dotProduct += value * value;
             intValue = Float.floatToIntBits(value);
-            buf[offset++] =  (byte) (intValue >> 24);
+            buf[offset++] = (byte) (intValue >> 24);
             buf[offset++] = (byte) (intValue >> 16);
             buf[offset++] = (byte) (intValue >>  8);
             buf[offset++] = (byte) intValue;
         }
-        // encode vector magnitude at the beginning
+        // encode vector magnitude at the end
         float vectorMagnitude = (float) Math.sqrt(dotProduct);
         int vectorMagnitudeIntValue = Float.floatToIntBits(vectorMagnitude);
-        buf[0] = (byte) (vectorMagnitudeIntValue >> 24);
-        buf[1] = (byte) (vectorMagnitudeIntValue >> 16);
-        buf[2] = (byte) (vectorMagnitudeIntValue >>  8);
-        buf[3] = (byte) vectorMagnitudeIntValue;
+        buf[offset++] = (byte) (vectorMagnitudeIntValue >> 24);
+        buf[offset++] = (byte) (vectorMagnitudeIntValue >> 16);
+        buf[offset++] = (byte) (vectorMagnitudeIntValue >>  8);
+        buf[offset++] = (byte) vectorMagnitudeIntValue;
 
-        return new BytesRef(buf, 0, offset);
+        return new BytesRef(buf);
     }
 
     // imitates the code in DenseVectorFieldMapper::parse before version 7.4

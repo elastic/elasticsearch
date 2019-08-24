@@ -181,15 +181,8 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
 
         // encode array of floats as array of integers and store into buf
         // this code is here and not int the VectorEncoderDecoder so not to create extra arrays
-        byte[] buf;
-        int offset;
-        if (indexCreatedVersion.onOrAfter(Version.V_7_4_0)) {
-            buf = new byte[dims * INT_BYTES + INT_BYTES]; // extra 4 bytes to store the vector's magnitude
-            offset = 4;
-        } else {
-            buf = new byte[dims * INT_BYTES];
-            offset = 0;
-        }
+        byte[] buf = indexCreatedVersion.onOrAfter(Version.V_7_4_0) ? new byte[dims * INT_BYTES + INT_BYTES] : new byte[dims * INT_BYTES];
+        int offset = 0;
         double dotProduct = 0f;
         int dim = 0;
         for (Token token = context.parser().nextToken(); token != Token.END_ARRAY; token = context.parser().nextToken()) {
@@ -212,15 +205,15 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
                 "] less than defined in the mapping [" +  dims +"]");
         }
         if (indexCreatedVersion.onOrAfter(Version.V_7_4_0)) {
-            // encode vector magnitude at the beginning
+            // encode vector magnitude at the end
             float vectorMagnitude = (float) Math.sqrt(dotProduct);
             int vectorMagnitudeIntValue = Float.floatToIntBits(vectorMagnitude);
-            buf[0] = (byte) (vectorMagnitudeIntValue >> 24);
-            buf[1] = (byte) (vectorMagnitudeIntValue >> 16);
-            buf[2] = (byte) (vectorMagnitudeIntValue >> 8);
-            buf[3] = (byte) vectorMagnitudeIntValue;
+            buf[offset++] = (byte) (vectorMagnitudeIntValue >> 24);
+            buf[offset++] = (byte) (vectorMagnitudeIntValue >> 16);
+            buf[offset++] = (byte) (vectorMagnitudeIntValue >> 8);
+            buf[offset++] = (byte) vectorMagnitudeIntValue;
         }
-        BinaryDocValuesField field = new BinaryDocValuesField(fieldType().name(), new BytesRef(buf, 0, offset));
+        BinaryDocValuesField field = new BinaryDocValuesField(fieldType().name(), new BytesRef(buf));
         if (context.doc().getByKey(fieldType().name()) != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() +
                 "] doesn't not support indexing multiple values for the same field in the same document");

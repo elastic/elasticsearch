@@ -20,7 +20,7 @@ public final class VectorEncoderDecoder {
 
     /**
      * Encodes a sparse array represented by values, dims and dimCount into a bytes array - BytesRef
-     * BytesRef: int[] floats encoded as integers values, 2 bytes for each dimension
+     * BytesRef: int[] floats encoded as integers values, 2 bytes for each dimension, length of vector
      * @param indexVersion - index version
      * @param dims - dims of the sparse array
      * @param values - values of the sparse array
@@ -34,15 +34,9 @@ public final class VectorEncoderDecoder {
 
         // 2. Encode dimensions
         // as each dimension is a positive value that doesn't exceed 65535, 2 bytes is enough for encoding it
-        byte[] buf;
-        int offset;
-        if (indexVersion.onOrAfter(Version.V_7_4_0)) {
-            buf = new byte[dimCount * (INT_BYTES + SHORT_BYTES) + INT_BYTES];
-            offset = 4;
-        } else {
-            buf = new byte[dimCount * (INT_BYTES + SHORT_BYTES)];
-            offset = 0;
-        }
+        byte[] buf = indexVersion.onOrAfter(Version.V_7_4_0) ? new byte[dimCount * (INT_BYTES + SHORT_BYTES) + INT_BYTES] :
+            new byte[dimCount * (INT_BYTES + SHORT_BYTES)];
+        int offset = 0;
         for (int dim = 0; dim < dimCount; dim++) {
             buf[offset++] = (byte) (dims[dim] >>  8);
             buf[offset++] = (byte) dims[dim];
@@ -59,14 +53,14 @@ public final class VectorEncoderDecoder {
             dotProduct += values[dim] * values[dim];
         }
 
-        // 4. Encode vector magnitude
+        // 4. Encode vector magnitude at the end
         if (indexVersion.onOrAfter(Version.V_7_4_0)) {
             float vectorMagnitude = (float) Math.sqrt(dotProduct);
             int vectorMagnitudeIntValue = Float.floatToIntBits(vectorMagnitude);
-            buf[0] = (byte) (vectorMagnitudeIntValue >> 24);
-            buf[1] = (byte) (vectorMagnitudeIntValue >> 16);
-            buf[2] = (byte) (vectorMagnitudeIntValue >> 8);
-            buf[3] = (byte) vectorMagnitudeIntValue;
+            buf[offset++] = (byte) (vectorMagnitudeIntValue >> 24);
+            buf[offset++] = (byte) (vectorMagnitudeIntValue >> 16);
+            buf[offset++] = (byte) (vectorMagnitudeIntValue >> 8);
+            buf[offset++] = (byte) vectorMagnitudeIntValue;
         }
 
         return new BytesRef(buf);
@@ -81,19 +75,12 @@ public final class VectorEncoderDecoder {
         if (vectorBR == null) {
             throw new IllegalArgumentException("A document doesn't have a value for a vector field!");
         }
-        int dimCount;
-        int offset;
-        if (indexVersion.onOrAfter(Version.V_7_4_0)) {
-            dimCount = (vectorBR.length - INT_BYTES) / (INT_BYTES + SHORT_BYTES);
-            offset = vectorBR.offset + INT_BYTES; // first 4 bytes are allocated for vector length
-        } else {
-            dimCount = (vectorBR.length) / (INT_BYTES + SHORT_BYTES);
-            offset = vectorBR.offset;
-        }
+        int dimCount = indexVersion.onOrAfter(Version.V_7_4_0) ? (vectorBR.length - INT_BYTES) / (INT_BYTES + SHORT_BYTES) :
+            vectorBR.length / (INT_BYTES + SHORT_BYTES);
+        int offset = vectorBR.offset;
         int[] dims = new int[dimCount];
         for (int dim = 0; dim < dimCount; dim++) {
-            dims[dim] = ((vectorBR.bytes[offset] & 0xFF) << 8) | (vectorBR.bytes[offset+1] & 0xFF);
-            offset += SHORT_BYTES;
+            dims[dim] = ((vectorBR.bytes[offset++] & 0xFF) << 8) | (vectorBR.bytes[offset++] & 0xFF);
         }
         return dims;
     }
@@ -107,23 +94,16 @@ public final class VectorEncoderDecoder {
         if (vectorBR == null) {
             throw new IllegalArgumentException("A document doesn't have a value for a vector field!");
         }
-        int dimCount;
-        int offset;
-        if (indexVersion.onOrAfter(Version.V_7_4_0)) {
-            dimCount = (vectorBR.length - INT_BYTES) / (INT_BYTES + SHORT_BYTES);
-            offset =  vectorBR.offset + INT_BYTES + SHORT_BYTES * dimCount;
-        } else {
-            dimCount = (vectorBR.length) / (INT_BYTES + SHORT_BYTES);
-            offset =  vectorBR.offset + SHORT_BYTES * dimCount;
-        }
+        int dimCount = indexVersion.onOrAfter(Version.V_7_4_0) ? (vectorBR.length - INT_BYTES) / (INT_BYTES + SHORT_BYTES) :
+            vectorBR.length / (INT_BYTES + SHORT_BYTES);
+        int offset = vectorBR.offset + SHORT_BYTES * dimCount;
         float[] vector = new float[dimCount];
         for (int dim = 0; dim < dimCount; dim++) {
-            int intValue = ((vectorBR.bytes[offset] & 0xFF) << 24)   |
-                ((vectorBR.bytes[offset+1] & 0xFF) << 16) |
-                ((vectorBR.bytes[offset+2] & 0xFF) <<  8) |
-                (vectorBR.bytes[offset+3] & 0xFF);
+            int intValue = ((vectorBR.bytes[offset++] & 0xFF) << 24)   |
+                ((vectorBR.bytes[offset++] & 0xFF) << 16) |
+                ((vectorBR.bytes[offset++] & 0xFF) <<  8) |
+                (vectorBR.bytes[offset++] & 0xFF);
             vector[dim] = Float.intBitsToFloat(intValue);
-            offset = offset + INT_BYTES;
         }
         return vector;
     }
@@ -194,15 +174,8 @@ public final class VectorEncoderDecoder {
         if (vectorBR == null) {
             throw new IllegalArgumentException("A document doesn't have a value for a vector field!");
         }
-        int dimCount;
-        int offset;
-        if (indexVersion.onOrAfter(Version.V_7_4_0)) {
-            dimCount = (vectorBR.length - INT_BYTES) / INT_BYTES;
-            offset = vectorBR.offset + INT_BYTES; // first 4 bytes are allocated for vector length
-        } else {
-            dimCount = vectorBR.length/ INT_BYTES;
-            offset = vectorBR.offset;
-        }
+        int dimCount = indexVersion.onOrAfter(Version.V_7_4_0) ? (vectorBR.length - INT_BYTES) / INT_BYTES : vectorBR.length/ INT_BYTES;
+        int offset = vectorBR.offset;
         float[] vector = new float[dimCount];
         for (int dim = 0; dim < dimCount; dim++) {
             int intValue = ((vectorBR.bytes[offset++] & 0xFF) << 24)   |
@@ -216,7 +189,7 @@ public final class VectorEncoderDecoder {
 
     /**
      * Calculates vector magnitude either by
-     * decoding first 4 bytes of BytesRef into a vector magnitude or calculating it
+     * decoding last 4 bytes of BytesRef into a vector magnitude or calculating it
      * @param indexVersion - index Version
      * @param vectorBR - vector encoded in BytesRef
      * @param vector - float vector
@@ -226,10 +199,11 @@ public final class VectorEncoderDecoder {
             throw new IllegalArgumentException("A document doesn't have a value for a vector field!");
         }
         if (indexVersion.onOrAfter(Version.V_7_4_0)) { // decode vector magnitude
-            int vectorMagnitudeIntValue = ((vectorBR.bytes[0] & 0xFF) << 24)   |
-                ((vectorBR.bytes[1] & 0xFF) << 16) |
-                ((vectorBR.bytes[2] & 0xFF) <<  8) |
-                (vectorBR.bytes[3] & 0xFF);
+            int offset = vectorBR.offset + vectorBR.length - 4;
+            int vectorMagnitudeIntValue = ((vectorBR.bytes[offset++] & 0xFF) << 24)   |
+                ((vectorBR.bytes[offset++] & 0xFF) << 16) |
+                ((vectorBR.bytes[offset++] & 0xFF) <<  8) |
+                (vectorBR.bytes[offset++] & 0xFF);
             float vectorMagnitude = Float.intBitsToFloat(vectorMagnitudeIntValue);
             return vectorMagnitude;
         } else { // calculate vector magnitude

@@ -11,7 +11,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
@@ -31,7 +30,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 public class AnalyticsProcessManager {
@@ -90,14 +88,15 @@ public class AnalyticsProcessManager {
                              Consumer<Exception> finishHandler) {
 
         try {
+            ProcessContext processContext = processContextByAllocation.get(task.getAllocationId());
             writeHeaderRecord(dataExtractor, process);
-            writeDataRows(dataExtractor, process);
+            writeDataRows(dataExtractor, process, task.getProgressTracker());
             process.writeEndOfDataMessage();
             process.flushStream();
 
             LOGGER.info("[{}] Waiting for result processor to complete", config.getId());
             resultProcessor.awaitForCompletion();
-            processContextByAllocation.get(task.getAllocationId()).setFailureReason(resultProcessor.getFailure());
+            processContext.setFailureReason(resultProcessor.getFailure());
 
             refreshDest(config);
             LOGGER.info("[{}] Result processor has completed", config.getId());
@@ -122,11 +121,15 @@ public class AnalyticsProcessManager {
         }
     }
 
-    private void writeDataRows(DataFrameDataExtractor dataExtractor, AnalyticsProcess<AnalyticsResult> process) throws IOException {
+    private void writeDataRows(DataFrameDataExtractor dataExtractor, AnalyticsProcess<AnalyticsResult> process,
+                               DataFrameAnalyticsTask.ProgressTracker progressTracker) throws IOException {
         // The extra fields are for the doc hash and the control field (should be an empty string)
         String[] record = new String[dataExtractor.getFieldNames().size() + 2];
         // The value of the control field should be an empty string for data frame rows
         record[record.length - 1] = "";
+
+        long totalRows = process.getConfig().rows();
+        long rowsProcessed = 0;
 
         while (dataExtractor.hasNext()) {
             Optional<List<DataFrameDataExtractor.Row>> rows = dataExtractor.next();
@@ -139,6 +142,8 @@ public class AnalyticsProcessManager {
                         process.writeRecord(record);
                     }
                 }
+                rowsProcessed += rows.get().size();
+                progressTracker.loadingDataPercent.set(rowsProcessed >= totalRows ? 100 : (int) (rowsProcessed * 100.0 / totalRows));
             }
         }
     }
@@ -179,12 +184,6 @@ public class AnalyticsProcessManager {
         };
     }
 
-    @Nullable
-    public Integer getProgressPercent(long allocationId) {
-        ProcessContext processContext = processContextByAllocation.get(allocationId);
-        return processContext == null ? null : processContext.progressPercent.get();
-    }
-
     private void refreshDest(DataFrameAnalyticsConfig config) {
         ClientHelper.executeWithHeaders(config.getHeaders(), ClientHelper.ML_ORIGIN, client,
             () -> client.execute(RefreshAction.INSTANCE, new RefreshRequest(config.getDest().getIndex())).actionGet());
@@ -222,7 +221,6 @@ public class AnalyticsProcessManager {
         private volatile AnalyticsProcess<AnalyticsResult> process;
         private volatile DataFrameDataExtractor dataExtractor;
         private volatile AnalyticsResultProcessor resultProcessor;
-        private final AtomicInteger progressPercent = new AtomicInteger(0);
         private volatile boolean processKilled;
         private volatile String failureReason;
 
@@ -236,10 +234,6 @@ public class AnalyticsProcessManager {
 
         public boolean isProcessKilled() {
             return processKilled;
-        }
-
-        void setProgressPercent(int progressPercent) {
-            this.progressPercent.set(progressPercent);
         }
 
         private synchronized void setFailureReason(String failureReason) {
@@ -282,7 +276,7 @@ public class AnalyticsProcessManager {
             process = createProcess(task, createProcessConfig(config, dataExtractor));
             DataFrameRowsJoiner dataFrameRowsJoiner = new DataFrameRowsJoiner(config.getId(), client,
                 dataExtractorFactory.newExtractor(true));
-            resultProcessor = new AnalyticsResultProcessor(id, dataFrameRowsJoiner, this::isProcessKilled, this::setProgressPercent);
+            resultProcessor = new AnalyticsResultProcessor(id, dataFrameRowsJoiner, this::isProcessKilled, task.getProgressTracker());
             return true;
         }
 

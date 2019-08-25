@@ -392,14 +392,7 @@ public class EsExecutorsTests extends ESTestCase {
     }
 
     public void testNodeProcessorsBound() {
-        runProcessorsBoundTest(EsExecutors.NODE_PROCESSORS_SETTING);
-    }
-
-    public void testProcessorsBound() {
-        runProcessorsBoundTest(EsExecutors.PROCESSORS_SETTING);
-    }
-
-    private void runProcessorsBoundTest(final Setting<Integer> processorsSetting) {
+        final Setting<Integer> processorsSetting = EsExecutors.NODE_PROCESSORS_SETTING;
         final int available = Runtime.getRuntime().availableProcessors();
         final int processors = randomIntBetween(available + 1, Integer.MAX_VALUE);
         final Settings settings = Settings.builder().put(processorsSetting.getKey(), processors).build();
@@ -412,9 +405,6 @@ public class EsExecutorsTests extends ESTestCase {
             processorsSetting.getKey(),
             available);
         assertThat(e, hasToString(containsString(expected)));
-        if (processorsSetting.getProperties().contains(Setting.Property.Deprecated)) {
-            assertSettingDeprecationsAndWarnings(new Setting<?>[]{processorsSetting});
-        }
     }
 
 }

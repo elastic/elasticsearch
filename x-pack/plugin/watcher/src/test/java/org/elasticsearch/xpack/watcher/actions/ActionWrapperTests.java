@@ -201,11 +201,12 @@ public class ActionWrapperTests extends ESTestCase {
     }
 
     public void testConfiguredLimitOfNumberOfActionsExecuted() throws Exception {
+        int randomMaxIterations = randomIntBetween(1, 1000);
         ActionWrapper wrapper = new ActionWrapper("_action", null, InternalAlwaysCondition.INSTANCE, null, executableAction,
-            "ctx.payload.my_path", 50);
+            "ctx.payload.my_path", randomMaxIterations);
         WatchExecutionContext ctx = mockExecutionContent(watch);
         List<Map<String, String>> itemsPayload = new ArrayList<>();
-        for (int i = 0; i < 51; i++) {
+        for (int i = 0; i < randomMaxIterations + 1; i++) {
             final Action.Result actionResult = new LoggingAction.Result.Success("log_message " + i);;
             final Payload singleItemPayload = new Payload.Simple(Map.of("key", String.valueOf(i)));
             itemsPayload.add(Map.of("key", String.valueOf(i)));
@@ -227,11 +228,11 @@ public class ActionWrapperTests extends ESTestCase {
             assertThat(map, hasKey("foreach"));
             assertThat(map.get("foreach"), instanceOf(List.class));
             List<Map<String, Object>> actions = (List) map.get("foreach");
-            assertThat(actions, hasSize(50));
+            assertThat(actions, hasSize(randomMaxIterations));
             assertThat(map, hasKey("max_iterations"));
-            assertThat(map.get("max_iterations"), is(50));
+            assertThat(map.get("max_iterations"), is(randomMaxIterations));
             assertThat(map, hasKey("number_of_actions_executed"));
-            assertThat(map.get("number_of_actions_executed"), is(50)); 
+            assertThat(map.get("number_of_actions_executed"), is(randomMaxIterations)); 
         }
     }
 

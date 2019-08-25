@@ -26,6 +26,7 @@ import org.hamcrest.Matchers;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
@@ -190,27 +191,26 @@ public class SettingsModuleTests extends ModuleTestCase {
     }
 
     public void testPluginSettingWithoutNamespace() {
-        final Setting<String> setting = Setting.simpleString("key", Property.NodeScope);
-        final IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> new SettingsModule(Settings.EMPTY, List.of(setting), List.of(), Set.of(), Set.of(), Set.of()));
-        assertThat(e, hasToString(containsString("setting [key] is not in any namespace, its name must contain a dot")));
+        final String key = randomAlphaOfLength(8);
+        final Setting<String> setting = Setting.simpleString(key, Property.NodeScope);
+        runSettingWithoutNamespaceTest(key, () -> new SettingsModule(Settings.EMPTY, List.of(setting), List.of(), Set.of(), Set.of(), Set.of()));
     }
 
     public void testClusterSettingWithoutNamespace() {
-        final Setting<String> setting = Setting.simpleString("key", Property.NodeScope);
-        final IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> new SettingsModule(Settings.EMPTY, List.of(), List.of(), Set.of(), Set.of(setting), Set.of()));
-        assertThat(e, hasToString(containsString("setting [key] is not in any namespace, its name must contain a dot")));
+        final String key = randomAlphaOfLength(8);
+        final Setting<String> setting = Setting.simpleString(key, Property.NodeScope);
+        runSettingWithoutNamespaceTest(key, () -> new SettingsModule(Settings.EMPTY, List.of(), List.of(), Set.of(), Set.of(setting), Set.of()));
     }
 
     public void testIndexSettingWithoutNamespace() {
-        final Setting<String> setting = Setting.simpleString("key", Property.IndexScope);
-        final IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> new SettingsModule(Settings.EMPTY, List.of(), List.of(), Set.of(), Set.of(), Set.of(setting)));
-        assertThat(e, hasToString(containsString("setting [key] is not in any namespace, its name must contain a dot")));
+        final String key = randomAlphaOfLength(8);
+        final Setting<String> setting = Setting.simpleString(key, Property.IndexScope);
+        runSettingWithoutNamespaceTest(key, () -> new SettingsModule(Settings.EMPTY, List.of(), List.of(), Set.of(), Set.of(), Set.of(setting)));
+    }
+
+    private void runSettingWithoutNamespaceTest(final String key, final Supplier<SettingsModule> supplier) {
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, supplier::get);
+        assertThat(e, hasToString(containsString("setting [" + key + "] is not in any namespace, its name must contain a dot")));
     }
 
 }

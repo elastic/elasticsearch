@@ -71,10 +71,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
     private final CircuitBreakerService circuitBreakerService;
 
     /** Rest headers that are copied to internal requests made during a rest request. */
-    private final Set<String> headersToCopy;
+    private final Set<RestHeaderDefinition> headersToCopy;
     private final UsageService usageService;
 
-    public RestController(Set<String> headersToCopy, UnaryOperator<RestHandler> handlerWrapper,
+    public RestController(Set<RestHeaderDefinition> headersToCopy, UnaryOperator<RestHandler> handlerWrapper,
             NodeClient client, CircuitBreakerService circuitBreakerService, UsageService usageService) {
         this.headersToCopy = headersToCopy;
         this.usageService = usageService;
@@ -255,11 +255,19 @@ public class RestController implements HttpServerTransport.Dispatcher {
     }
 
     private void tryAllHandlers(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) throws Exception {
-        for (String key : headersToCopy) {
-            String httpHeader = request.header(key);
-            if (httpHeader != null) {
-                threadContext.putHeader(key, httpHeader);
+        try {
+            for (RestHeaderDefinition restHeader : headersToCopy) {
+                final String name = restHeader.getName();
+                String httpHeader = restHeader.isMultiValueAllowed() ? request.getAllHeaderValuesAsString(name) :
+                    request.getSingleValuedHeader(name);
+                if (httpHeader != null) {
+                    threadContext.putHeader(name, httpHeader);
+                }
             }
+        } catch (IllegalStateException e){
+            channel.sendResponse(
+                BytesRestResponse.createSimpleErrorResponse(channel, BAD_REQUEST, e.getMessage()));
+            return;
         }
         // error_trace cannot be used when we disable detailed errors
         // we consume the error_trace parameter first to ensure that it is always consumed

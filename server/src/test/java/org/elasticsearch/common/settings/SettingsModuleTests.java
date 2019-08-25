@@ -24,9 +24,12 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.hamcrest.Matchers;
 
 import java.util.Arrays;
+import java.util.List;
+import java.util.Set;
 
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
 
 public class SettingsModuleTests extends ModuleTestCase {
@@ -185,4 +188,29 @@ public class SettingsModuleTests extends ModuleTestCase {
             assertThat(e.getMessage(), containsString("Cannot register setting [foo.bar] twice"));
         }
     }
+
+    public void testPluginSettingWithoutNamespace() {
+        final Setting<String> setting = Setting.simpleString("key", Property.NodeScope);
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new SettingsModule(Settings.EMPTY, List.of(setting), List.of(), Set.of(), Set.of(), Set.of()));
+        assertThat(e, hasToString(containsString("setting [key] is not in any namespace, its name must contain a dot")));
+    }
+
+    public void testClusterSettingWithoutNamespace() {
+        final Setting<String> setting = Setting.simpleString("key", Property.NodeScope);
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new SettingsModule(Settings.EMPTY, List.of(), List.of(), Set.of(), Set.of(setting), Set.of()));
+        assertThat(e, hasToString(containsString("setting [key] is not in any namespace, its name must contain a dot")));
+    }
+
+    public void testIndexSettingWithoutNamespace() {
+        final Setting<String> setting = Setting.simpleString("key", Property.IndexScope);
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new SettingsModule(Settings.EMPTY, List.of(), List.of(), Set.of(), Set.of(), Set.of(setting)));
+        assertThat(e, hasToString(containsString("setting [key] is not in any namespace, its name must contain a dot")));
+    }
+
 }

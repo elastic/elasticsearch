@@ -193,19 +193,22 @@ public class SettingsModuleTests extends ModuleTestCase {
     public void testPluginSettingWithoutNamespace() {
         final String key = randomAlphaOfLength(8);
         final Setting<String> setting = Setting.simpleString(key, Property.NodeScope);
-        runSettingWithoutNamespaceTest(key, () -> new SettingsModule(Settings.EMPTY, List.of(setting), List.of(), Set.of(), Set.of(), Set.of()));
+        runSettingWithoutNamespaceTest(
+            key, () -> new SettingsModule(Settings.EMPTY, List.of(setting), List.of(), Set.of(), Set.of(), Set.of()));
     }
 
     public void testClusterSettingWithoutNamespace() {
         final String key = randomAlphaOfLength(8);
         final Setting<String> setting = Setting.simpleString(key, Property.NodeScope);
-        runSettingWithoutNamespaceTest(key, () -> new SettingsModule(Settings.EMPTY, List.of(), List.of(), Set.of(), Set.of(setting), Set.of()));
+        runSettingWithoutNamespaceTest(
+            key, () -> new SettingsModule(Settings.EMPTY, List.of(), List.of(), Set.of(), Set.of(setting), Set.of()));
     }
 
     public void testIndexSettingWithoutNamespace() {
         final String key = randomAlphaOfLength(8);
         final Setting<String> setting = Setting.simpleString(key, Property.IndexScope);
-        runSettingWithoutNamespaceTest(key, () -> new SettingsModule(Settings.EMPTY, List.of(), List.of(), Set.of(), Set.of(), Set.of(setting)));
+        runSettingWithoutNamespaceTest(
+            key, () -> new SettingsModule(Settings.EMPTY, List.of(), List.of(), Set.of(), Set.of(), Set.of(setting)));
     }
 
     private void runSettingWithoutNamespaceTest(final String key, final Supplier<SettingsModule> supplier) {

@@ -56,12 +56,12 @@ public class BuildPluginIT extends GradleIntegrationTestCase {
         assertTaskSuccessful(result, ":check");
     }
 
-    public void testInsecureMavenRepository() throws IOException {
+    public void testInsecureArtifactRepository() throws IOException {
         final File projectDir = getProjectDir("elasticsearch.build");
         FileUtils.copyDirectory(projectDir, tmpDir.getRoot(), pathname -> pathname.getPath().contains("/build/") == false);
         final List<String> buildGradleLines =
             Files.readAllLines(tmpDir.getRoot().toPath().resolve("build.gradle"), StandardCharsets.UTF_8);
-        // add an insecure repository to the build.gradle
+        // add an insecure artifact repository to the build.gradle
         final String url = "http://s3.amazonaws.com/artifacts.elastic.co/maven";
         buildGradleLines.addAll(Arrays.asList(
             "repositories {",

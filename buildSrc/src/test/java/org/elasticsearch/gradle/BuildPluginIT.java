@@ -56,7 +56,7 @@ public class BuildPluginIT extends GradleIntegrationTestCase {
         assertTaskSuccessful(result, ":check");
     }
 
-    public void testInsecure() throws IOException {
+    public void testInsecureMavenRepository() throws IOException {
         final File projectDir = getProjectDir("elasticsearch.build");
         FileUtils.copyDirectory(projectDir, tmpDir.getRoot(), pathname -> pathname.getPath().contains("/build/") == false);
         final List<String> buildGradleLines =

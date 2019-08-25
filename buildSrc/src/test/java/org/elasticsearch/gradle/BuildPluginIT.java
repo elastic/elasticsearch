@@ -56,20 +56,40 @@ public class BuildPluginIT extends GradleIntegrationTestCase {
         assertTaskSuccessful(result, ":check");
     }
 
-    public void testInsecureArtifactRepository() throws IOException {
+    public void testInsecureMavenRepository() throws IOException {
+        final String name = "elastic-maven";
+        final String url = "http://s3.amazonaws.com/artifacts.elastic.co/maven";
+        // add an insecure maven repository to the build.gradle
+        final List<String> lines = Arrays.asList(
+            "repositories {",
+            "  maven {",
+            "    name \"elastic-maven\"",
+            "    url \"" +  url + "\"\n",
+            "  }",
+            "}");
+        runInsecureArtifactRepositoryTest(name, url, lines);
+    }
+
+    public void testInsecureIvyRepository() throws IOException {
+        final String name = "elastic-ivy";
+        final String url = "http://s3.amazonaws.com/artifacts.elastic.co/ivy";
+        // add an insecure ivy repository to the build.gradle
+        final List<String> lines = Arrays.asList(
+            "repositories {",
+            "  maven {",
+            "    name \"elastic-ivy\"",
+            "    url \"" +  url + "\"\n",
+            "  }",
+            "}");
+        runInsecureArtifactRepositoryTest(name, url, lines);
+    }
+
+    private void runInsecureArtifactRepositoryTest(final String name, final String url, final List<String> lines) throws IOException {
         final File projectDir = getProjectDir("elasticsearch.build");
         FileUtils.copyDirectory(projectDir, tmpDir.getRoot(), pathname -> pathname.getPath().contains("/build/") == false);
         final List<String> buildGradleLines =
             Files.readAllLines(tmpDir.getRoot().toPath().resolve("build.gradle"), StandardCharsets.UTF_8);
-        // add an insecure artifact repository to the build.gradle
-        final String url = "http://s3.amazonaws.com/artifacts.elastic.co/maven";
-        buildGradleLines.addAll(Arrays.asList(
-            "repositories {",
-                "  maven {",
-                "    name \"elastic-maven\"",
-                "    url \"" +  url + "\"\n",
-                "  }",
-                "}"));
+        buildGradleLines.addAll(lines);
         Files.write(tmpDir.getRoot().toPath().resolve("build.gradle"), buildGradleLines, StandardCharsets.UTF_8);
         final BuildResult result = GradleRunner.create()
             .withProjectDir(tmpDir.getRoot())
@@ -78,7 +98,7 @@ public class BuildPluginIT extends GradleIntegrationTestCase {
             .buildAndFail();
         assertOutputContains(
             result.getOutput(),
-            "repository [elastic-maven] on project with path [:] is not using a secure protocol for artifacts on [" + url + "]");
+            "repository [" + name + "] on project with path [:] is not using a secure protocol for artifacts on [" + url + "]");
     }
 
     public void testLicenseAndNotice() throws IOException {

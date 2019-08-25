@@ -76,7 +76,7 @@ public class BuildPluginIT extends GradleIntegrationTestCase {
         // add an insecure ivy repository to the build.gradle
         final List<String> lines = Arrays.asList(
             "repositories {",
-            "  maven {",
+            "  ivy {",
             "    name \"elastic-ivy\"",
             "    url \"" +  url + "\"\n",
             "  }",

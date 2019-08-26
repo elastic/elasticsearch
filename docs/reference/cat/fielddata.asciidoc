@@ -11,13 +11,13 @@ in the cluster.
 [[cat-fielddata-api-request]]
 ==== {api-request-title}
 
-`GET /_cat/fielddata/{fields}`
+`GET /_cat/fielddata/<field>`
 
 
 [[cat-fielddata-api-path-params]]
 ==== {api-path-parms-title}
 
-`{fields}`::
+`<field>`::
 (Optional, string) Comma-separated list of fields used to limit returned
 information.
 

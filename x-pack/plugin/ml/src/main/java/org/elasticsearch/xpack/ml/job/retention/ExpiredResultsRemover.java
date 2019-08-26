@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeSta
 import org.elasticsearch.xpack.core.ml.job.results.Forecast;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -46,9 +46,9 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
     private static final Logger LOGGER = LogManager.getLogger(ExpiredResultsRemover.class);
 
     private final Client client;
-    private final Auditor auditor;
+    private final AnomalyDetectionAuditor auditor;
 
-    public ExpiredResultsRemover(Client client, Auditor auditor) {
+    public ExpiredResultsRemover(Client client, AnomalyDetectionAuditor auditor) {
         super(client);
         this.client = Objects.requireNonNull(client);
         this.auditor = Objects.requireNonNull(auditor);

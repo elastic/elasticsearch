@@ -9,6 +9,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -66,7 +67,9 @@ public class MemoryUsageEstimationProcessManager {
             new AnalyticsProcessConfig(
                 dataSummary.rows,
                 dataSummary.cols,
-                DataFrameAnalyticsConfig.MIN_MODEL_MEMORY_LIMIT,
+                // For memory estimation the model memory limit here should be set high enough not to trigger an error when C++ code
+                // compares the limit to the result of estimation.
+                new ByteSizeValue(1, ByteSizeUnit.PB),
                 1,
                 "",
                 categoricalFields,
@@ -80,7 +83,8 @@ public class MemoryUsageEstimationProcessManager {
                 onProcessCrash(jobId, processHolder));
         processHolder.process = process;
         if (process.isProcessAlive() == false) {
-            String errorMsg = new ParameterizedMessage("[{}] Error while starting process", jobId).getFormattedMessage();
+            String errorMsg =
+                new ParameterizedMessage("[{}] Error while starting process: {}", jobId, process.readError()).getFormattedMessage();
             throw ExceptionsHelper.serverError(errorMsg);
         }
         try {

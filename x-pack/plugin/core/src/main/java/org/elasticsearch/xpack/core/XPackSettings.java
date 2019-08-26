@@ -122,7 +122,7 @@ public class XPackSettings {
     public static final Setting<Boolean> VECTORS_ENABLED = Setting.boolSetting("xpack.vectors.enabled", true, Setting.Property.NodeScope);
 
     /** Setting for enabling or disabling data science plugin. Defaults to true. */
-    public static final Setting<Boolean> DATA_SCIENCE_ENABLED = Setting.boolSetting("xpack.datascience.enabled",
+    public static final Setting<Boolean> DATA_SCIENCE_ENABLED = Setting.boolSetting("xpack.data-science.enabled",
         true, Setting.Property.NodeScope);
 
     /*
@@ -217,6 +217,7 @@ public class XPackSettings {
         settings.add(DATA_FRAME_ENABLED);
         settings.add(FLATTENED_ENABLED);
         settings.add(VECTORS_ENABLED);
+        settings.add(DATA_SCIENCE_ENABLED);
         return Collections.unmodifiableList(settings);
     }
 

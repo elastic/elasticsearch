@@ -117,19 +117,19 @@ public class SearchRedStateIndexIT extends ESIntegTestCase {
             client().prepareIndex("test", "type1", ""+i).setSource("field1", "value1").get();
         }
         refresh();
-
-        internalCluster().stopRandomDataNode();
-
+                
+        internalCluster().stopRandomDataNode();        
+        
         client().admin().cluster().prepareHealth().setWaitForStatus(ClusterHealthStatus.RED).get();
 
         assertBusy(() -> {
             ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
             List<ShardRouting> unassigneds = clusterState.getRoutingTable().shardsWithState(ShardRoutingState.UNASSIGNED);
             assertThat(unassigneds.size(), greaterThan(0));
-        });
-
+        }); 
+        
     }
-
+    
     @After
     public void cleanup() throws Exception {
         assertAcked(client().admin().cluster().prepareUpdateSettings()

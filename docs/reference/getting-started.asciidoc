@@ -447,7 +447,7 @@ GET /bank/_search
 Now that you've seen how to submit a basic search request, you can start to
 construct queries that are a bit more interesting than `match_all`.
 
-To search for specific _terms_ within a field, you can use a `match` query. 
+To search for specific terms within a field, you can use a `match` query. 
 For example, the following request searches the `address` field to find 
 customers whose addresses contain `mill` or `lane`:
 

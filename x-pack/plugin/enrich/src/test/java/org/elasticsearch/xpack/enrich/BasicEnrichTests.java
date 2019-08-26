@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetRequest;
@@ -29,10 +30,11 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.enrich.EnrichMultiNodeIT.DECORATE_FIELDS;
-import static org.elasticsearch.xpack.enrich.EnrichMultiNodeIT.KEY_FIELD;
+import static org.elasticsearch.xpack.enrich.EnrichMultiNodeIT.MATCH_FIELD;
 import static org.elasticsearch.xpack.enrich.EnrichMultiNodeIT.SOURCE_INDEX_NAME;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class BasicEnrichTests extends ESSingleNodeTestCase {
 
@@ -47,17 +49,14 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
 
         String policyName = "my-policy";
         EnrichPolicy enrichPolicy =
-            new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, List.of(SOURCE_INDEX_NAME), KEY_FIELD, List.of(DECORATE_FIELDS));
+            new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, List.of(SOURCE_INDEX_NAME), MATCH_FIELD, List.of(DECORATE_FIELDS));
         PutEnrichPolicyAction.Request request = new PutEnrichPolicyAction.Request(policyName, enrichPolicy);
         client().execute(PutEnrichPolicyAction.INSTANCE, request).actionGet();
         client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(policyName)).actionGet();
 
         String pipelineName = "my-pipeline";
         String pipelineBody = "{\"processors\": [{\"enrich\": {\"policy_name\":\"" + policyName +
-            "\", \"set_from\": [{\"source\": \"" + DECORATE_FIELDS[0] + "\", \"target\": \"" + DECORATE_FIELDS[0] + "\"}," +
-            "{\"source\": \"" + DECORATE_FIELDS[1] + "\", \"target\": \"" + DECORATE_FIELDS[1] + "\"}," +
-            "{\"source\": \"" + DECORATE_FIELDS[2] + "\", \"target\": \"" + DECORATE_FIELDS[2] + "\"}" +
-            "]}}]}";
+            "\", \"field\": \"" + MATCH_FIELD + "\", \"target_field\": \"user\"}}]}";
         PutPipelineRequest putPipelineRequest = new PutPipelineRequest(pipelineName, new BytesArray(pipelineBody), XContentType.JSON);
         client().admin().cluster().putPipeline(putPipelineRequest).actionGet();
 
@@ -66,21 +65,27 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
             IndexRequest indexRequest = new IndexRequest();
             indexRequest.id(Integer.toString(i));
             indexRequest.setPipeline(pipelineName);
-            indexRequest.source(Map.of(KEY_FIELD, keys.get(i)));
+            indexRequest.source(Map.of(MATCH_FIELD, keys.get(i)));
             bulkRequest.add(indexRequest);
         }
         BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
         assertThat("Expected no failure, but " + bulkResponse.buildFailureMessage(), bulkResponse.hasFailures(), is(false));
-        client().admin().indices().refresh(new RefreshRequest("my-index")).actionGet();
+        int expectedId = 0;
+        for (BulkItemResponse itemResponse : bulkResponse) {
+            assertThat(itemResponse.getId(), equalTo(Integer.toString(expectedId++)));
+        }
 
         for (int i = 0; i < numDocs; i++) {
             GetResponse getResponse = client().get(new GetRequest("my-index", Integer.toString(i))).actionGet();
             Map<String, Object> source = getResponse.getSourceAsMap();
-            assertThat(source.size(), equalTo(1 + DECORATE_FIELDS.length));
+            Map<?, ?> userEntry = (Map<?, ?>) source.get("user");
+            assertThat(userEntry, notNullValue());
+            assertThat(userEntry.size(), equalTo(DECORATE_FIELDS.length + 1));
             for (int j = 0; j < 3; j++) {
                 String field = DECORATE_FIELDS[j];
-                assertThat(source.get(field), equalTo(keys.get(i) + j));
+                assertThat(userEntry.get(field), equalTo(keys.get(i) + j));
             }
+            assertThat(keys.contains(userEntry.get(MATCH_FIELD)), is(true));
         }
     }
 
@@ -102,8 +107,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
 
             String pipelineName = "pipeline" + i;
             String pipelineBody = "{\"processors\": [{\"enrich\": {\"policy_name\":\"" + policyName +
-                "\", \"set_from\": [{\"source\": \"value\", \"target\": \"value\"}" +
-                "]}}]}";
+                "\", \"field\": \"key\", \"target_field\": \"target\"}}]}";
             PutPipelineRequest putPipelineRequest = new PutPipelineRequest(pipelineName, new BytesArray(pipelineBody), XContentType.JSON);
             client().admin().cluster().putPipeline(putPipelineRequest).actionGet();
         }
@@ -123,7 +127,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
             GetResponse getResponse = client().get(new GetRequest("my-index", Integer.toString(i))).actionGet();
             Map<String, Object> source = getResponse.getSourceAsMap();
             assertThat(source.size(), equalTo(2));
-            assertThat(source.get("value"), equalTo("val" + i));
+            assertThat(source.get("target"), equalTo(Map.of("key", "key", "value", "val" + i)));
         }
     }
 
@@ -138,7 +142,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
             IndexRequest indexRequest = new IndexRequest(SOURCE_INDEX_NAME);
             indexRequest.create(true);
             indexRequest.id(key);
-            indexRequest.source(Map.of(KEY_FIELD, key, DECORATE_FIELDS[0], key + "0",
+            indexRequest.source(Map.of(MATCH_FIELD, key, DECORATE_FIELDS[0], key + "0",
                 DECORATE_FIELDS[1], key + "1", DECORATE_FIELDS[2], key + "2"));
             client().index(indexRequest).actionGet();
         }

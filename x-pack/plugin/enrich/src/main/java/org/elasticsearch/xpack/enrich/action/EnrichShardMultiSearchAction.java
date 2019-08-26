@@ -79,7 +79,7 @@ import java.util.Set;
  * handles multi search requests targeting enrich indices more efficiently by executing them in a bulk using the same
  * searcher and query shard context.
  *
- * This action (plus some coordination logic in {@link CoordinatorProxyAction}) can be removed when msearch can
+ * This action (plus some coordination logic in {@link EnrichCoordinatorProxyAction}) can be removed when msearch can
  * execute search requests targeted to the same shard more efficiently in a bulk like style.
  *
  * Note that this 'msearch' implementation only supports executing a query, pagination and source filtering.
@@ -203,13 +203,12 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
 
         @Override
         protected MultiSearchResponse shardOperation(Request request, ShardId shardId) throws IOException {
-            final long nowInMillis = System.currentTimeMillis();
             final IndexService indexService = indicesService.indexService(shardId.getIndex());
             final IndexShard indexShard = indicesService.getShardOrNull(shardId);
             try (Engine.Searcher searcher = indexShard.acquireSearcher("enrich_msearch")) {
                 final FieldsVisitor visitor = new FieldsVisitor(true);
-                final QueryShardContext context =
-                    indexService.newQueryShardContext(shardId.id(), searcher.getIndexReader(), () -> nowInMillis, null);
+                final QueryShardContext context = indexService.newQueryShardContext(shardId.id(),
+                    searcher.getIndexReader(), () -> {throw new UnsupportedOperationException();}, null);
                 final MapperService mapperService = context.getMapperService();
                 final Text typeText = mapperService.documentMapper().typeText();
 
@@ -246,6 +245,10 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
     }
 
     private static BytesReference filterSource(FetchSourceContext fetchSourceContext, BytesReference source) throws IOException {
+        if (fetchSourceContext.includes().length == 0 && fetchSourceContext.excludes().length == 0) {
+            return source;
+        }
+
         Set<String> includes = Set.of(fetchSourceContext.includes());
         Set<String> excludes = Set.of(fetchSourceContext.excludes());
 

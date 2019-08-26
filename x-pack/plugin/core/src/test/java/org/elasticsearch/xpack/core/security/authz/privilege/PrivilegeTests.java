@@ -11,7 +11,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.GetEnrichPolicyAction;
-import org.elasticsearch.xpack.core.enrich.action.ListEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
@@ -185,7 +184,6 @@ public class PrivilegeTests extends ESTestCase {
         verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_ENRICH, DeleteEnrichPolicyAction.NAME);
         verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_ENRICH, ExecuteEnrichPolicyAction.NAME);
         verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_ENRICH, GetEnrichPolicyAction.NAME);
-        verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_ENRICH, ListEnrichPolicyAction.NAME);
         verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_ENRICH, PutEnrichPolicyAction.NAME);
         verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_ENRICH, "cluster:admin/xpack/enrich/brand_new_api");
         verifyClusterActionDenied(ClusterPrivilegeResolver.MANAGE_ENRICH, "cluster:admin/xpack/whatever");

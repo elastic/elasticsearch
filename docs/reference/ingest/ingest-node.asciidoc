@@ -858,10 +858,11 @@ Create an enrich policy:
 --------------------------------------------------
 PUT /_enrich/policy/users-policy
 {
-    "type": "exact_match",
-    "indices": "users",
-    "match_field": "email",
-    "enrich_fields": ["first_name", "last_name", "address", "city", "zip", "state"]
+    "exact_match": {
+        "indices": "users",
+        "match_field": "email",
+        "enrich_fields": ["first_name", "last_name", "address", "city", "zip", "state"]
+    }
 }
 --------------------------------------------------
 // CONSOLE
@@ -907,8 +908,8 @@ PUT _ingest/pipeline/user_lookup
     {
       "enrich" : {
         "policy_name": "users-policy",
-        "enrich_key" : "email",
-        "targets": ["address", "city", "zip", "state"]
+        "field" : "email",
+        "target_field": "user"
       }
     }
   ]
@@ -937,10 +938,15 @@ Which returns:
   "_seq_no": 55,
   "_primary_term": 1,
   "_source": {
-    "zip": 70116,
-    "address": "6649 N Blue Gum St",
-    "city": "New Orleans",
-    "state": "LA",
+    "user": {
+      "email": "mardy.brown@email.me",
+      "first_name": "Mardy",
+      "last_name": "Brown",
+      "zip": 70116,
+      "address": "6649 N Blue Gum St",
+      "city": "New Orleans",
+      "state": "LA"
+    },
     "email": "mardy.brown@email.me"
   }
 }
@@ -968,7 +974,6 @@ Also there are several APIs in order to manage and execute enrich policies:
 * <<get-policy-api,Get policy api>>.
 * <<delete-policy-api,Delete policy api>>.
 * <<execute-policy-api,Execute policy api>>.
-* <<list-policies-api,List policies api>>.
 
 If security is enabled then the user managing enrich policies will need to have
 the `enrich_user` builtin role. Also the user will need to have read privileges
@@ -986,10 +991,11 @@ Request:
 --------------------------------------------------
 PUT /_enrich/policy/my-policy
 {
-    "type": "exact_match",
-    "indices": "users",
-    "match_field": "email",
-    "enrich_fields": ["first_name", "last_name", "address", "city", "zip", "state"]
+    "exact_match": {
+        "indices": "users",
+        "match_field": "email",
+        "enrich_fields": ["first_name", "last_name", "address", "city", "zip", "state"]
+    }
 }
 --------------------------------------------------
 // CONSOLE
@@ -1009,7 +1015,7 @@ Response:
 
 The get policy api allows a policy to be retrieved by id.
 
-Request"
+Request:
 
 [source,js]
 --------------------------------------------------
@@ -1023,18 +1029,28 @@ Response:
 [source,js]
 --------------------------------------------------
 {
-    "type": "exact_match",
-    "indices": ["users"],
-    "match_field": "email",
-    "enrich_fields": ["first_name", "last_name", "address", "city", "zip", "state"]
+    "policies": [
+        {
+            "exact_match": {
+                "name" : "my-policy",
+                "indices" : ["users"],
+                "match_field" : "email",
+                "enrich_fields" : [
+                    "first_name",
+                    "last_name",
+                    "address",
+                    "city",
+                    "zip",
+                    "state"
+                ]
+            }
+        }
+    ]
 }
 --------------------------------------------------
 // TESTRESPONSE
 
-[[list-policies-api]]
-==== List Policies API
-
-The list policies api allows all policies to be returned.
+The get policy api allows all policies to be returned.
 
 Request:
 
@@ -1052,18 +1068,19 @@ Response:
 {
     "policies": [
         {
-            "name" : "my-policy",
-            "type" : "exact_match",
-            "indices" : ["users"],
-            "match_field" : "email",
-            "enrich_fields" : [
-                "first_name",
-                "last_name",
-                "address",
-                "city",
-                "zip",
-                "state"
-            ]
+            "exact_match": {
+                "name" : "my-policy",
+                "indices" : ["users"],
+                "match_field" : "email",
+                "enrich_fields" : [
+                    "first_name",
+                    "last_name",
+                    "address",
+                    "city",
+                    "zip",
+                    "state"
+                ]
+            }
         }
     ]
 }

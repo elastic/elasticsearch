@@ -20,9 +20,11 @@ package org.elasticsearch.client;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.core.AcknowledgedResponse;
+import org.elasticsearch.client.enrich.DeletePolicyRequest;
 import org.elasticsearch.client.enrich.PutPolicyRequest;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
 import java.io.IOException;
 import java.util.List;
@@ -45,10 +47,26 @@ public class EnrichIT extends ESRestHighLevelClientTestCase {
         Response getPolicyResponse = highLevelClient().getLowLevelClient().performRequest(getPolicyRequest);
         assertThat(getPolicyResponse.getHttpResponse().getStatusLine().getStatusCode(), equalTo(200));
         Map<String, Object> responseBody = toMap(getPolicyResponse);
-        assertThat(responseBody.get("type"), equalTo(putPolicyRequest.getType()));
-        assertThat(responseBody.get("indices"), equalTo(putPolicyRequest.getIndices()));
-        assertThat(responseBody.get("match_field"), equalTo(putPolicyRequest.getMatchField()));
-        assertThat(responseBody.get("enrich_fields"), equalTo(putPolicyRequest.getEnrichFields()));
+        List<?> responsePolicies = (List<?>) responseBody.get("policies");
+        assertThat(responsePolicies.size(), equalTo(1));
+        Map<?, ?> responsePolicy = (Map<?, ?>) responsePolicies.get(0);
+        assertThat(XContentMapValues.extractValue("exact_match.indices", responsePolicy), equalTo(putPolicyRequest.getIndices()));
+        assertThat(XContentMapValues.extractValue("exact_match.match_field", responsePolicy), equalTo(putPolicyRequest.getMatchField()));
+        assertThat(XContentMapValues.extractValue("exact_match.enrich_fields", responsePolicy),
+            equalTo(putPolicyRequest.getEnrichFields()));
+
+        DeletePolicyRequest deletePolicyRequest = new DeletePolicyRequest("my-policy");
+        AcknowledgedResponse deletePolicyResponse =
+            execute(deletePolicyRequest, enrichClient::deletePolicy, enrichClient::deletePolicyAsync);
+        assertThat(deletePolicyResponse.isAcknowledged(), is(true));
+
+        // TODO: Replace with get policy hlrc code:
+        getPolicyRequest = new Request("get", "/_enrich/policy");
+        getPolicyResponse = highLevelClient().getLowLevelClient().performRequest(getPolicyRequest);
+        assertThat(getPolicyResponse.getHttpResponse().getStatusLine().getStatusCode(), equalTo(200));
+        responseBody = toMap(getPolicyResponse);
+        responsePolicies = (List<?>) responseBody.get("policies");
+        assertThat(responsePolicies.size(), equalTo(0));
     }
 
     private static Map<String, Object> toMap(Response response) throws IOException {

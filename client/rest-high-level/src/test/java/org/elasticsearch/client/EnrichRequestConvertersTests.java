@@ -18,12 +18,15 @@
  */
 package org.elasticsearch.client;
 
+import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpPut;
+import org.elasticsearch.client.enrich.DeletePolicyRequest;
 import org.elasticsearch.client.enrich.PutPolicyRequest;
 import org.elasticsearch.client.enrich.PutPolicyRequestTests;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class EnrichRequestConvertersTests extends ESTestCase {
 
@@ -33,7 +36,18 @@ public class EnrichRequestConvertersTests extends ESTestCase {
 
         assertThat(result.getMethod(), equalTo(HttpPut.METHOD_NAME));
         assertThat(result.getEndpoint(), equalTo("/_enrich/policy/" + request.getName()));
+        assertThat(result.getParameters().size(), equalTo(0));
         RequestConvertersTests.assertToXContentBody(request, result.getEntity());
+    }
+
+    public void testDeletePolicy() throws Exception {
+        DeletePolicyRequest request = new DeletePolicyRequest(randomAlphaOfLength(4));
+        Request result = EnrichRequestConverters.deletePolicy(request);
+
+        assertThat(result.getMethod(), equalTo(HttpDelete.METHOD_NAME));
+        assertThat(result.getEndpoint(), equalTo("/_enrich/policy/" + request.getName()));
+        assertThat(result.getParameters().size(), equalTo(0));
+        assertThat(result.getEntity(), nullValue());
     }
 
 }

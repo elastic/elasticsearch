@@ -41,7 +41,7 @@ Linux, macOS, or Windows machine.
 [[run-elasticsearch-hosted]]
 === Run {es} on Elastic Cloud
 
-When you create a deployment on the Elasticsearch Service, the service provisions
+When you create a deployment on the {es} Service, the service provisions
 a three node Elasticsearch cluster along with Kibana and APM.
 
 To create a deployment:

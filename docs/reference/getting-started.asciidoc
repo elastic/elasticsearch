@@ -423,7 +423,7 @@ succeeded, failed, or were skipped.
 * `hits.sort` - the document's sort position (when not sorting by relevance score)
 * `hits._score` - the document's relevance score (not applicable when using `match_all`)
 
-Each search request is self-contained: Elasticsearch does not maintain any
+Each search request is self-contained: {es} does not maintain any
 state information across requests. To page through the search hits, you specify
 the `from` and `size` parameters in your request. 
 

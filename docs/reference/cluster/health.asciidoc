@@ -6,7 +6,7 @@ Returns the health status of a cluster.
 [[cluster-health-api-request]]
 ==== {api-request-title}
 
-`GET _cluster/health/{index}`
+`GET _cluster/health/<index>`
 
 [[cluster-health-api-desc]]
 ==== {api-description-title}

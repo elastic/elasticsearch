@@ -83,7 +83,8 @@ public class MemoryUsageEstimationProcessManager {
                 onProcessCrash(jobId, processHolder));
         processHolder.process = process;
         if (process.isProcessAlive() == false) {
-            String errorMsg = new ParameterizedMessage("[{}] Error while starting process", jobId).getFormattedMessage();
+            String errorMsg =
+                new ParameterizedMessage("[{}] Error while starting process: {}", jobId, process.readError()).getFormattedMessage();
             throw ExceptionsHelper.serverError(errorMsg);
         }
         try {

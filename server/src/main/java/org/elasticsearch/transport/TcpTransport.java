@@ -601,15 +601,15 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 "cancelled key exception caught on transport layer [{}], disconnecting from relevant node", channel), e);
             // close the channel as safe measure, which will cause a node to be disconnected if relevant
             CloseableChannel.closeChannel(channel);
-        } else if (e instanceof HttpResponseOnTransportException) {
-            logger.warn(() -> new ParameterizedMessage("{} [{}], closing connection", e.getMessage(), channel));
-            CloseableChannel.closeChannel(channel);
         } else if (e instanceof HttpRequestOnTransportException) {
             // in case we are able to return data, serialize the exception content and sent it back to the client
             if (channel.isOpen()) {
                 BytesArray message = new BytesArray(e.getMessage().getBytes(StandardCharsets.UTF_8));
                 outboundHandler.sendBytes(channel, message, ActionListener.wrap(() -> CloseableChannel.closeChannel(channel)));
             }
+        } else if (e instanceof StreamCorruptedException) {
+            logger.warn(() -> new ParameterizedMessage("{} [{}], closing connection", e.getMessage(), channel));
+            CloseableChannel.closeChannel(channel);
         } else {
             logger.warn(() -> new ParameterizedMessage("exception caught on transport layer [{}], closing connection", channel), e);
             // close the channel, which will cause a node to be disconnected if relevant
@@ -742,7 +742,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             }
 
             if (appearsToBeHTTPResponse(headerBuffer)) {
-                throw new HttpResponseOnTransportException("Received HTTP response on transport port, ensure that transport port (not " +
+                throw new StreamCorruptedException("Received HTTP response on transport port, ensure that transport port (not " +
                         "HTTP port) of remote node is specified in the configuration");
             }
 
@@ -814,16 +814,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
         public HttpRequestOnTransportException(StreamInput in) throws IOException {
             super(in);
-        }
-    }
-
-    /**
-     * A helper exception to mark a remote end of the connection as HTTP
-     */
-    public static class HttpResponseOnTransportException extends ElasticsearchException {
-
-        private HttpResponseOnTransportException(String msg) {
-            super(msg);
         }
     }
 

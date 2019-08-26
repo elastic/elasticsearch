@@ -11,6 +11,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
@@ -273,7 +274,15 @@ public class AnalyticsProcessManager {
             }
 
             dataExtractor = dataExtractorFactory.newExtractor(false);
-            process = createProcess(task, createProcessConfig(config, dataExtractor));
+            AnalyticsProcessConfig analyticsProcessConfig = createProcessConfig(config, dataExtractor);
+            LOGGER.trace("[{}] creating analytics process with config [{}]", config.getId(), Strings.toString(analyticsProcessConfig));
+            // If we have no rows, that means there is no data so no point in starting the native process
+            // just finish the task
+            if (analyticsProcessConfig.rows() == 0) {
+                LOGGER.info("[{}] no data found to analyze. Will not start analytics native process.", config.getId());
+                return false;
+            }
+            process = createProcess(task, analyticsProcessConfig);
             DataFrameRowsJoiner dataFrameRowsJoiner = new DataFrameRowsJoiner(config.getId(), client,
                 dataExtractorFactory.newExtractor(true));
             resultProcessor = new AnalyticsResultProcessor(id, dataFrameRowsJoiner, this::isProcessKilled, task.getProgressTracker());

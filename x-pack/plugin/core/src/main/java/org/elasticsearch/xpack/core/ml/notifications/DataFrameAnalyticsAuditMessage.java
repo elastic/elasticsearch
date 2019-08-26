@@ -13,19 +13,19 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.util.Date;
 
-public class AnomalyDetectionAuditMessage extends AbstractAuditMessage {
+public class DataFrameAnalyticsAuditMessage extends AbstractAuditMessage {
 
     private static final ParseField JOB_ID = Job.ID;
-    public static final ConstructingObjectParser<AnomalyDetectionAuditMessage, Void> PARSER =
-        createParser("ml_audit_message", AnomalyDetectionAuditMessage::new, JOB_ID);
+    public static final ConstructingObjectParser<DataFrameAnalyticsAuditMessage, Void> PARSER =
+        createParser("ml_analytics_audit_message", DataFrameAnalyticsAuditMessage::new, JOB_ID);
 
-    public AnomalyDetectionAuditMessage(String resourceId, String message, Level level, Date timestamp, String nodeName) {
+    public DataFrameAnalyticsAuditMessage(String resourceId, String message, Level level, Date timestamp, String nodeName) {
         super(resourceId, message, level, timestamp, nodeName);
     }
 
     @Override
     public final String getJobType() {
-        return "anomaly_detector";
+        return "ml_analytics";
     }
 
     @Override

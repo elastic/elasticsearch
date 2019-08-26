@@ -205,6 +205,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
         indices.add(AnomalyDetectorsIndex.configIndexName());
         indices.add(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX);
         indices.add(MlMetaIndex.INDEX_NAME);
+        indices.add(AuditorField.NOTIFICATIONS_INDEX_LEGACY);
         indices.add(AuditorField.NOTIFICATIONS_INDEX);
         indices.add(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT);
         for (String indexName : indices) {

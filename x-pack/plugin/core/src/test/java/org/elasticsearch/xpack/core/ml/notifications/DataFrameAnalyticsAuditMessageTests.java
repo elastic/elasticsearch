@@ -13,16 +13,16 @@ import java.util.Date;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class AnomalyDetectionAuditMessageTests extends AbstractXContentTestCase<AnomalyDetectionAuditMessage> {
+public class DataFrameAnalyticsAuditMessageTests extends AbstractXContentTestCase<DataFrameAnalyticsAuditMessage> {
 
     public void testGetJobType() {
-        AnomalyDetectionAuditMessage message = createTestInstance();
-        assertThat(message.getJobType(), equalTo("anomaly_detector"));
+        DataFrameAnalyticsAuditMessage message = createTestInstance();
+        assertThat(message.getJobType(), equalTo("ml_analytics"));
     }
-
+    
     @Override
-    protected AnomalyDetectionAuditMessage doParseInstance(XContentParser parser) {
-        return AnomalyDetectionAuditMessage.PARSER.apply(parser, null);
+    protected DataFrameAnalyticsAuditMessage doParseInstance(XContentParser parser) {
+        return DataFrameAnalyticsAuditMessage.PARSER.apply(parser, null);
     }
 
     @Override
@@ -31,8 +31,8 @@ public class AnomalyDetectionAuditMessageTests extends AbstractXContentTestCase<
     }
 
     @Override
-    protected AnomalyDetectionAuditMessage createTestInstance() {
-        return new AnomalyDetectionAuditMessage(
+    protected DataFrameAnalyticsAuditMessage createTestInstance() {
+        return new DataFrameAnalyticsAuditMessage(
             randomBoolean() ? null : randomAlphaOfLength(10),
             randomAlphaOfLengthBetween(1, 20),
             randomFrom(Level.values()),

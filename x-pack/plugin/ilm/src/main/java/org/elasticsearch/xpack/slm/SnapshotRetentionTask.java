@@ -18,6 +18,9 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.RepositoryCleanupInProgress;
+import org.elasticsearch.cluster.RestoreInProgress;
+import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -280,19 +283,21 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
         }
 
         ClusterState state = clusterService.state();
-        if (snapshotInProgress(state)) {
+        if (okayToDeleteSnapshots(state)) {
+            deleteSnapshots(snapshotsToDelete, maximumTime, slmStats);
+        } else {
             logger.debug("a snapshot is currently running, rescheduling SLM retention for after snapshot has completed");
             ClusterStateObserver observer = new ClusterStateObserver(clusterService, maximumTime, logger, threadPool.getThreadContext());
             CountDownLatch latch = new CountDownLatch(1);
             observer.waitForNextChange(
                 new NoSnapshotRunningListener(observer,
                     newState -> threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(() -> {
-                            try {
-                                deleteSnapshots(snapshotsToDelete, maximumTime, slmStats);
-                            } finally {
-                                latch.countDown();
-                            }
-                        }),
+                        try {
+                            deleteSnapshots(snapshotsToDelete, maximumTime, slmStats);
+                        } finally {
+                            latch.countDown();
+                        }
+                    }),
                     e -> {
                         latch.countDown();
                         throw new ElasticsearchException(e);
@@ -302,8 +307,6 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
             } catch (InterruptedException e) {
                 throw new ElasticsearchException(e);
             }
-        } else {
-            deleteSnapshots(snapshotsToDelete, maximumTime, slmStats);
         }
     }
 
@@ -412,14 +415,32 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
         clusterService.submitStateUpdateTask("update_slm_stats", new UpdateSnapshotLifecycleStatsTask(newStats));
     }
 
-    public static boolean snapshotInProgress(ClusterState state) {
-        SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE);
-        if (snapshotsInProgress == null || snapshotsInProgress.entries().isEmpty()) {
-            // No snapshots are running, new state is acceptable to proceed
+    public static boolean okayToDeleteSnapshots(ClusterState state) {
+        // Cannot delete during a snapshot
+        final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE);
+        if (snapshotsInProgress != null && snapshotsInProgress.entries().size() > 1) {
             return false;
         }
 
-        // There are snapshots
+        // Cannot delete during an existing delete
+        final SnapshotDeletionsInProgress deletionsInProgress = state.custom(SnapshotDeletionsInProgress.TYPE);
+        if (deletionsInProgress != null && deletionsInProgress.hasDeletionsInProgress()) {
+            return false;
+        }
+
+        // Cannot delete while a repository is being cleaned
+        final RepositoryCleanupInProgress repositoryCleanupInProgress = state.custom(RepositoryCleanupInProgress.TYPE);
+        if (repositoryCleanupInProgress != null && repositoryCleanupInProgress.cleanupInProgress() == false) {
+            return false;
+        }
+
+        // Cannot delete during a restore
+        final RestoreInProgress restoreInProgress = state.custom(RestoreInProgress.TYPE);
+        if (restoreInProgress != null) {
+            return false;
+        }
+
+        // It's okay to delete snapshots
         return true;
     }
 
@@ -445,11 +466,11 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
         @Override
         public void onNewClusterState(ClusterState state) {
             try {
-                if (snapshotInProgress(state)) {
-                    observer.waitForNextChange(this);
-                } else {
-                    logger.debug("retrying SLM snapshot retention deletion after snapshot has completed");
+                if (okayToDeleteSnapshots(state)) {
+                    logger.debug("retrying SLM snapshot retention deletion after snapshot operation has completed");
                     reRun.accept(state);
+                } else {
+                    observer.waitForNextChange(this);
                 }
             } catch (Exception e) {
                 exceptionConsumer.accept(e);
@@ -464,7 +485,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
         @Override
         public void onTimeout(TimeValue timeout) {
             exceptionConsumer.accept(
-                new IllegalStateException("slm retention snapshot deletion out while waiting for ongoing snapshots to complete"));
+                new IllegalStateException("slm retention snapshot deletion out while waiting for ongoing snapshot operations to complete"));
         }
     }
 }

@@ -20,6 +20,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.Reader;
+import java.math.BigDecimal;
 import java.sql.Blob;
 import java.sql.Clob;
 import java.sql.Connection;
@@ -65,7 +66,7 @@ import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.asTime;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.of;
 
 public class ResultSetTestCase extends JdbcIntegrationTestCase {
-    
+
     static final Set<String> fieldsNames = Stream.of("test_byte", "test_integer", "test_long", "test_short", "test_double",
             "test_float", "test_keyword")
             .collect(Collectors.toCollection(HashSet::new));
@@ -790,7 +791,74 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
                     sqle.getMessage());
         });
     }
-    
+
+    public void testGettingValidBigDecimalWithoutCasting() throws Exception {
+        BigDecimal random1 = randomBigDecimal();
+        BigDecimal random2 = randomValueOtherThan(random1, () -> randomBigDecimal());
+        BigDecimal random3 = randomValueOtherThanMany(Arrays.asList(random1, random2)::contains, () -> randomBigDecimal());
+
+        createTestDataForBigDecimalValueTests(random1, random2, random3);
+
+        doWithQuery("SELECT test_BigDecimal, test_null_BigDecimal, test_keyword FROM test", (results) -> {
+            ResultSetMetaData resultSetMetaData = results.getMetaData();
+
+            results.next();
+            assertEquals(3, resultSetMetaData.getColumnCount());
+            assertEquals(Types.DOUBLE, resultSetMetaData.getColumnType(1));
+            assertEquals(Types.DOUBLE, resultSetMetaData.getColumnType(2));
+            assertEquals(random1, results.getBigDecimal(1));
+            assertEquals(random1, results.getBigDecimal("test_BigDecimal"));
+            assertEquals(random1, results.getObject("test_BigDecimal", BigDecimal.class));
+
+            assertNull(results.getBigDecimal(2));
+            assertTrue(results.wasNull());
+            assertNull(results.getObject("test_null_BigDecimal"));
+            assertTrue(results.wasNull());
+
+            assertTrue(results.next());
+            assertEquals(random2, results.getBigDecimal(1));
+            assertEquals(random2, results.getBigDecimal("test_BigDecimal"));
+            assertEquals(random3, results.getBigDecimal("test_keyword"));
+
+            assertFalse(results.next());
+        });
+    }
+
+    public void testGettingInvalidBigDecimal() throws Exception {
+        createIndex("test");
+        updateMappingForNumericValuesTests("test");
+        updateMapping("test", builder -> {
+            builder.startObject("test_keyword").field("type", "keyword").endObject();
+            builder.startObject("test_date").field("type", "date").endObject();
+        });
+
+        String randomString = randomUnicodeOfCodepointLengthBetween(128, 256);
+        long randomDate = randomNonNegativeLong();
+
+        index("test", "1", builder -> {
+            builder.field("test_keyword", randomString);
+            builder.field("test_date", randomDate);
+        });
+
+        doWithQuery(SELECT_WILDCARD, (results) -> {
+            results.next();
+
+            SQLException sqle = expectThrows(SQLException.class, () -> results.getBigDecimal("test_keyword"));
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [KEYWORD] to [BigDecimal]", randomString),
+                sqle.getMessage());
+            sqle = expectThrows(SQLException.class, () -> results.getObject("test_keyword", BigDecimal.class));
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [KEYWORD] to [BigDecimal]", randomString),
+                sqle.getMessage());
+
+            sqle = expectThrows(SQLException.class, () -> results.getBigDecimal("test_date"));
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATETIME] to [BigDecimal]", asDateString(randomDate)),
+                sqle.getMessage());
+            sqle = expectThrows(SQLException.class, () -> results.getObject("test_date", BigDecimal.class));
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATETIME] to [BigDecimal]", asDateString(randomDate)),
+                sqle.getMessage());
+        });
+    }
+
     public void testGettingBooleanValues() throws Exception {
         createIndex("test");
         updateMappingForNumericValuesTests("test");
@@ -1636,6 +1704,24 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         });
         index("test", "2", builder -> {
             builder.field("test_float", random2);
+            builder.field("test_keyword", random3);
+        });
+    }
+
+    private void createTestDataForBigDecimalValueTests(BigDecimal random1, BigDecimal random2, BigDecimal random3) throws Exception {
+        createIndex("test");
+        updateMapping("test", builder -> {
+            builder.startObject("test_BigDecimal").field("type", "double").endObject();
+            builder.startObject("test_null_BigDecimal").field("type", "double").endObject();
+            builder.startObject("test_keyword").field("type", "keyword").endObject();
+        });
+
+        index("test", "1", builder -> {
+            builder.field("test_BigDecimal", random1);
+            builder.field("test_null_BigDecimal", (BigDecimal)null);
+        });
+        index("test", "2", builder -> {
+            builder.field("test_BigDecimal", random2);
             builder.field("test_keyword", random3);
         });
     }

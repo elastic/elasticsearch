@@ -117,6 +117,7 @@ import org.junit.rules.RuleChain;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.security.Security;
 import java.time.ZoneId;
@@ -621,6 +622,11 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static float randomFloat() {
         return random().nextFloat();
+    }
+
+    public static BigDecimal randomBigDecimal()
+    {
+        return BigDecimal.valueOf(random().nextDouble());
     }
 
     public static double randomDouble() {

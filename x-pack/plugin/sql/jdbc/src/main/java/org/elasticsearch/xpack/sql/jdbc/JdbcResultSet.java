@@ -518,7 +518,8 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
     @Override
     @Deprecated
     public BigDecimal getBigDecimal(int columnIndex, int scale) throws SQLException {
-        throw new SQLFeatureNotSupportedException("BigDecimal not supported");
+        BigDecimal bigDecimal=getBigDecimal(columnIndex);
+        return bigDecimal.setScale(scale, BigDecimal.ROUND_HALF_UP);
     }
 
     @Override
@@ -540,7 +541,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
     @Override
     @Deprecated
     public BigDecimal getBigDecimal(String columnLabel, int scale) throws SQLException {
-        throw new SQLFeatureNotSupportedException("BigDecimal not supported");
+        return getBigDecimal(column(columnLabel),scale);
     }
 
     @Override
@@ -587,12 +588,12 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     @Override
     public BigDecimal getBigDecimal(int columnIndex) throws SQLException {
-        throw new SQLFeatureNotSupportedException("BigDecimal not supported");
+        return getObject(columnIndex, BigDecimal.class);
     }
 
     @Override
     public BigDecimal getBigDecimal(String columnLabel) throws SQLException {
-        throw new SQLFeatureNotSupportedException("BigDecimal not supported");
+        return getBigDecimal(column(columnLabel));
     }
 
     @Override

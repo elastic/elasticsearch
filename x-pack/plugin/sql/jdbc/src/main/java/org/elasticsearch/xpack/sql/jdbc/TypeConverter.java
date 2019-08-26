@@ -10,6 +10,7 @@ import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.sql.Date;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
@@ -195,6 +196,9 @@ final class TypeConverter {
         }
         if (type == OffsetDateTime.class) {
             return (T) asOffsetDateTime(val, columnType, typeString);
+        }
+        if (type == BigDecimal.class) {
+            return (T) asBigDecimal(val, columnType, typeString);
         }
 
         return failConversion(val, columnType, typeString, type);
@@ -546,6 +550,32 @@ final class TypeConverter {
 
     private static OffsetDateTime asOffsetDateTime(Object val, EsType columnType, String typeString) throws SQLException {
         throw new SQLFeatureNotSupportedException();
+    }
+
+    private static BigDecimal asBigDecimal(Object val, EsType columnType, String typeString) throws SQLException {
+        switch (columnType) {
+            case BOOLEAN:
+            case BYTE:
+            case SHORT:
+            case INTEGER:
+            case LONG:
+                return BigDecimal.valueOf(((Number) val).longValue());
+            case FLOAT:
+            case HALF_FLOAT:
+            case SCALED_FLOAT:
+            case DOUBLE:
+                return BigDecimal.valueOf(((Number) val).doubleValue());
+            case KEYWORD:
+            case TEXT:
+                try {
+                    return new BigDecimal((String) val);
+                } catch (NumberFormatException e) {
+                    return failConversion(val, columnType, typeString, BigDecimal.class, e);
+                }
+            default:
+        }
+        return failConversion(val, columnType, typeString, BigDecimal.class);
+//        throw new SQLFeatureNotSupportedException();
     }
 
     private static byte safeToByte(long x) throws SQLException {

@@ -49,8 +49,8 @@ public class ScoreScriptUtilsTests extends ESTestCase {
         List<Number> queryVector = Arrays.asList(0.5f, 111.3f, -13.0f, 14.8f, -156.0f);
 
         // test dotProduct
-        DotProduct dotProduct = new DotProduct(scoreScript);
-        double result = dotProduct.dotProduct(queryVector, dvs);
+        DotProduct dotProduct = new DotProduct(scoreScript, queryVector);
+        double result = dotProduct.dotProduct(dvs);
         assertEquals("dotProduct result is not equal to the expected value!", 65425.624, result, 0.001);
 
         // test cosineSimilarity
@@ -59,32 +59,35 @@ public class ScoreScriptUtilsTests extends ESTestCase {
         assertEquals("cosineSimilarity result is not equal to the expected value!", 0.790, result2, 0.001);
 
         // test l1Norm
-        L1Norm l1norm = new L1Norm(scoreScript);
-        double result3 = l1norm.l1norm(queryVector, dvs);
+        L1Norm l1norm = new L1Norm(scoreScript, queryVector);
+        double result3 = l1norm.l1norm(dvs);
         assertEquals("l1norm result is not equal to the expected value!", 485.184, result3, 0.001);
 
         // test l2norm
-        L2Norm l2norm = new L2Norm(scoreScript);
-        double result4 = l2norm.l2norm(queryVector, dvs);
+        L2Norm l2norm = new L2Norm(scoreScript, queryVector);
+        double result4 = l2norm.l2norm(dvs);
         assertEquals("l2norm result is not equal to the expected value!", 301.361, result4, 0.001);
 
         // test dotProduct fails when queryVector has wrong number of dims
         List<Number> invalidQueryVector = Arrays.asList(0.5, 111.3);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> dotProduct.dotProduct(invalidQueryVector, dvs));
-        assertThat(e.getMessage(), containsString("dimensions of the query vector [2] is different from the documents' vectors [5]"));
+        DotProduct dotProduct2 = new DotProduct(scoreScript, invalidQueryVector);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> dotProduct2.dotProduct(dvs));
+        assertThat(e.getMessage(), containsString("query vector has a different number of dimensions [2] than the document vectors [5]"));
 
         // test cosineSimilarity fails when queryVector has wrong number of dims
         CosineSimilarity cosineSimilarity2 = new CosineSimilarity(scoreScript, invalidQueryVector);
         e = expectThrows(IllegalArgumentException.class, () -> cosineSimilarity2.cosineSimilarity(dvs));
-        assertThat(e.getMessage(), containsString("dimensions of the query vector [2] is different from the documents' vectors [5]"));
+        assertThat(e.getMessage(), containsString("query vector has a different number of dimensions [2] than the document vectors [5]"));
 
         // test l1norm fails when queryVector has wrong number of dims
-        e = expectThrows(IllegalArgumentException.class, () -> l1norm.l1norm(invalidQueryVector, dvs));
-        assertThat(e.getMessage(), containsString("dimensions of the query vector [2] is different from the documents' vectors [5]"));
+        L1Norm l1norm2 = new L1Norm(scoreScript, invalidQueryVector);
+        e = expectThrows(IllegalArgumentException.class, () -> l1norm2.l1norm(dvs));
+        assertThat(e.getMessage(), containsString("query vector has a different number of dimensions [2] than the document vectors [5]"));
 
         // test l2norm fails when queryVector has wrong number of dims
-        e = expectThrows(IllegalArgumentException.class, () -> l2norm.l2norm(invalidQueryVector, dvs));
-        assertThat(e.getMessage(), containsString("dimensions of the query vector [2] is different from the documents' vectors [5]"));
+        L2Norm l2norm2 = new L2Norm(scoreScript, invalidQueryVector);
+        e = expectThrows(IllegalArgumentException.class, () -> l2norm2.l2norm(dvs));
+        assertThat(e.getMessage(), containsString("query vector has a different number of dimensions [2] than the document vectors [5]"));
     }
 
     public void testSparseVectorFunctions() {

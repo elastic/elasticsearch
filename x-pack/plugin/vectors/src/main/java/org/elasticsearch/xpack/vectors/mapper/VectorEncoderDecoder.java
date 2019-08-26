@@ -69,12 +69,9 @@ public final class VectorEncoderDecoder {
      * @param vectorBR - sparse vector encoded in BytesRef
      */
     public static int[] decodeSparseVectorDims(Version indexVersion, BytesRef vectorBR) {
-        if (vectorBR == null) {
-            throw new IllegalArgumentException("A document doesn't have a value for a vector field!");
-        }
-
-        int dimCount = indexVersion.onOrAfter(Version.V_7_4_0) ? (vectorBR.length - INT_BYTES) / (INT_BYTES + SHORT_BYTES) :
-            vectorBR.length / (INT_BYTES + SHORT_BYTES);
+        int dimCount = indexVersion.onOrAfter(Version.V_7_4_0)
+            ? (vectorBR.length - INT_BYTES) / (INT_BYTES + SHORT_BYTES)
+            : vectorBR.length / (INT_BYTES + SHORT_BYTES);
         ByteBuffer byteBuffer = ByteBuffer.wrap(vectorBR.bytes, vectorBR.offset, dimCount * SHORT_BYTES);
 
         int[] dims = new int[dimCount];
@@ -90,13 +87,10 @@ public final class VectorEncoderDecoder {
      * @param vectorBR - sparse vector encoded in BytesRef
      */
     public static float[] decodeSparseVector(Version indexVersion, BytesRef vectorBR) {
-        if (vectorBR == null) {
-            throw new IllegalArgumentException("A document doesn't have a value for a vector field!");
-        }
-
-        int dimCount = indexVersion.onOrAfter(Version.V_7_4_0) ? (vectorBR.length - INT_BYTES) / (INT_BYTES + SHORT_BYTES) :
-            vectorBR.length / (INT_BYTES + SHORT_BYTES);
-        int offset = vectorBR.offset + SHORT_BYTES * dimCount;
+        int dimCount = indexVersion.onOrAfter(Version.V_7_4_0)
+            ? (vectorBR.length - INT_BYTES) / (INT_BYTES + SHORT_BYTES)
+            : vectorBR.length / (INT_BYTES + SHORT_BYTES);
+        int offset =  vectorBR.offset + SHORT_BYTES * dimCount;
         float[] vector = new float[dimCount];
 
         ByteBuffer byteBuffer = ByteBuffer.wrap(vectorBR.bytes, offset, dimCount * INT_BYTES);
@@ -177,6 +171,5 @@ public final class VectorEncoderDecoder {
         assert indexVersion.onOrAfter(Version.V_7_4_0);
         ByteBuffer byteBuffer = ByteBuffer.wrap(vectorBR.bytes, vectorBR.offset, vectorBR.length);
         return byteBuffer.getFloat(vectorBR.offset + vectorBR.length - 4);
-
     }
 }

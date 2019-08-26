@@ -13,7 +13,6 @@ import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.xpack.vectors.mapper.VectorEncoderDecoder;
 
 import java.nio.ByteBuffer;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -26,55 +25,68 @@ public class ScoreScriptUtils {
     // Also, constructors for some functions accept queryVector to calculate and cache queryVectorMagnitude only once
     // per script execution for all documents.
 
-    // Calculate l1 norm (Manhattan distance) between a query's dense vector and documents' dense vectors
-    public static final class L1Norm {
-        private final ScoreScript scoreScript;
-        public L1Norm(ScoreScript scoreScript) {
+    public static class DenseVectorFunction {
+        final ScoreScript scoreScript;
+        final float[] queryVector;
+
+        // prepare queryVector once per script execution
+        // queryVector represents a map of dimensions to values
+        public DenseVectorFunction(ScoreScript scoreScript, List<Number> queryVector) {
             this.scoreScript = scoreScript;
+            this.queryVector = new float[queryVector.size()];
+            for (int i = 0; i < queryVector.size(); i++) {
+                this.queryVector[i] = queryVector.get(i).floatValue();
+            }
         }
 
-        public double l1norm(List<Number> queryVector, VectorScriptDocValues.DenseVectorScriptDocValues dvs){
-            BytesRef vector = dvs.getEncodedValue();
-            int vectorLength = VectorEncoderDecoder.denseVectorLength(scoreScript._getIndexVersion(), vector);
-            if (queryVector.size() != vectorLength) {
-                throw new IllegalArgumentException("Can't calculate l1norm! The number of dimensions of the query vector [" +
-                    queryVector.size() + "] is different from the documents' vectors [" + vectorLength + "].");
+        public void validateDocVector(BytesRef vector) {
+            if (vector == null) {
+                throw new IllegalArgumentException("A document doesn't have a value for a vector field!");
             }
 
-            Iterator<Number> queryVectorIter = queryVector.iterator();
-            ByteBuffer byteBuffer = ByteBuffer.wrap(vector.bytes, vector.offset, vector.length);
+            int vectorLength = VectorEncoderDecoder.denseVectorLength(scoreScript._getIndexVersion(), vector);
+            if (queryVector.length != vectorLength) {
+                throw new IllegalArgumentException("The query vector has a different number of dimensions [" +
+                    queryVector.length + "] than the document vectors [" + vectorLength + "].");
+            }
+        }
+    }
 
+    // Calculate l1 norm (Manhattan distance) between a query's dense vector and documents' dense vectors
+    public static final class L1Norm extends DenseVectorFunction {
+
+        public L1Norm(ScoreScript scoreScript, List<Number> queryVector) {
+            super(scoreScript, queryVector);
+        }
+
+        public double l1norm(VectorScriptDocValues.DenseVectorScriptDocValues dvs) {
+            BytesRef vector = dvs.getEncodedValue();
+            validateDocVector(vector);
+            ByteBuffer byteBuffer = ByteBuffer.wrap(vector.bytes, vector.offset, vector.length);
             double l1norm = 0;
-            for (int dim = 0; dim < vectorLength; dim++) {
-                double queryValue = queryVectorIter.next().floatValue();
-                double docValue = byteBuffer.getFloat();
-                l1norm += Math.abs(queryValue - docValue);
+
+            for (float queryValue : queryVector) {
+                l1norm += Math.abs(queryValue - byteBuffer.getFloat());
             }
             return l1norm;
         }
     }
 
     // Calculate l2 norm (Euclidean distance) between a query's dense vector and documents' dense vectors
-    public static final class L2Norm {
-        private final ScoreScript scoreScript;
-        public L2Norm(ScoreScript scoreScript) {
-            this.scoreScript = scoreScript;
+    public static final class L2Norm extends DenseVectorFunction {
+
+        public L2Norm(ScoreScript scoreScript, List<Number> queryVector) {
+            super(scoreScript, queryVector);
         }
 
-        public double l2norm(List<Number> queryVector, VectorScriptDocValues.DenseVectorScriptDocValues dvs){
+        public double l2norm(VectorScriptDocValues.DenseVectorScriptDocValues dvs) {
             BytesRef vector = dvs.getEncodedValue();
-            int vectorLength = VectorEncoderDecoder.denseVectorLength(scoreScript._getIndexVersion(), vector);
-            if (queryVector.size() != vectorLength) {
-                throw new IllegalArgumentException("Can't calculate l2norm! The number of dimensions of the query vector [" +
-                    queryVector.size() + "] is different from the documents' vectors [" + vectorLength + "].");
-            }
-
+            validateDocVector(vector);
             ByteBuffer byteBuffer = ByteBuffer.wrap(vector.bytes, vector.offset, vector.length);
-            Iterator<Number> queryVectorIter = queryVector.iterator();
 
             double l2norm = 0;
-            for (int dim = 0; dim < vectorLength; dim++) {
-                double diff = queryVectorIter.next().floatValue() - byteBuffer.getFloat();
+            for (float queryValue : queryVector) {
+                double diff = queryValue - byteBuffer.getFloat();
                 l2norm += diff * diff;
             }
             return Math.sqrt(l2norm);
@@ -82,42 +94,32 @@ public class ScoreScriptUtils {
     }
 
     // Calculate a dot product between a query's dense vector and documents' dense vectors
-    public static final class DotProduct {
-        private final ScoreScript scoreScript;
-        public DotProduct(ScoreScript scoreScript){
-            this.scoreScript = scoreScript;
+    public static final class DotProduct extends DenseVectorFunction {
+
+        public DotProduct(ScoreScript scoreScript, List<Number> queryVector) {
+            super(scoreScript, queryVector);
         }
 
-        public double dotProduct(List<Number> queryVector, VectorScriptDocValues.DenseVectorScriptDocValues dvs){
+        public double dotProduct(VectorScriptDocValues.DenseVectorScriptDocValues dvs){
             BytesRef vector = dvs.getEncodedValue();
-            int vectorLength = VectorEncoderDecoder.denseVectorLength(scoreScript._getIndexVersion(), vector);
-            if (queryVector.size() != vectorLength) {
-                throw new IllegalArgumentException("Can't calculate dotPRoduct! The number of dimensions of the query vector [" +
-                    queryVector.size() + "] is different from the documents' vectors [" + vectorLength + "].");
-            }
-
-            Iterator<Number> queryVectorIter = queryVector.iterator();
+            validateDocVector(vector);
             ByteBuffer byteBuffer = ByteBuffer.wrap(vector.bytes, vector.offset, vector.length);
 
             double dotProduct = 0;
-            for (int dim = 0; dim < vectorLength; dim++) {
-                dotProduct += queryVectorIter.next().floatValue() * byteBuffer.getFloat();
+            for (float queryValue : queryVector) {
+                dotProduct += queryValue * byteBuffer.getFloat();
             }
             return dotProduct;
         }
     }
 
     // Calculate cosine similarity between a query's dense vector and documents' dense vectors
-    public static final class CosineSimilarity {
-        private final ScoreScript scoreScript;
+    public static final class CosineSimilarity extends DenseVectorFunction {
         final double queryVectorMagnitude;
-        final List<Number> queryVector;
 
         // calculate queryVectorMagnitude once per query execution
         public CosineSimilarity(ScoreScript scoreScript, List<Number> queryVector) {
-            this.scoreScript = scoreScript;
-            this.queryVector = queryVector;
-
+            super(scoreScript, queryVector);
             double dotProduct = 0;
             for (Number value : queryVector) {
                 float floatValue = value.floatValue();
@@ -128,26 +130,21 @@ public class ScoreScriptUtils {
 
         public double cosineSimilarity(VectorScriptDocValues.DenseVectorScriptDocValues dvs) {
             BytesRef vector = dvs.getEncodedValue();
-            int vectorLength = VectorEncoderDecoder.denseVectorLength(scoreScript._getIndexVersion(), vector);
-            if (queryVector.size() != vectorLength) {
-                throw new IllegalArgumentException("Can't calculate cosineSimilarity! The number of dimensions of the query vector [" +
-                    queryVector.size() + "] is different from the documents' vectors [" + vectorLength + "].");
-            }
+            validateDocVector(vector);
 
-            Iterator<Number> queryVectorIter = queryVector.iterator();
             ByteBuffer byteBuffer = ByteBuffer.wrap(vector.bytes, vector.offset, vector.length);
 
             double dotProduct = 0.0;
             double docVectorMagnitude = 0.0f;
             if (scoreScript._getIndexVersion().onOrAfter(Version.V_7_4_0)) {
-                for (int dim = 0; dim < vectorLength; dim++) {
-                    dotProduct += queryVectorIter.next().floatValue() * byteBuffer.getFloat();
+                for (float queryValue : queryVector) {
+                    dotProduct += queryValue * byteBuffer.getFloat();
                 }
                 docVectorMagnitude = VectorEncoderDecoder.decodeVectorMagnitude(scoreScript._getIndexVersion(), vector);
             } else {
-                for (int dim = 0; dim < vectorLength; dim++) {
+                for (float queryValue : queryVector) {
                     float docValue = byteBuffer.getFloat();
-                    dotProduct += queryVectorIter.next().floatValue() * docValue;
+                    dotProduct += queryValue * docValue;
                     docVectorMagnitude += docValue * docValue;
                 }
                 docVectorMagnitude = (float) Math.sqrt(docVectorMagnitude);
@@ -161,14 +158,14 @@ public class ScoreScriptUtils {
     // Also, constructors for some functions accept queryVector to calculate and cache queryVectorMagnitude only once
     // per script execution for all documents.
 
-    public static class VectorSparseFunctions {
+    public static class SparseVectorFunction {
         final ScoreScript scoreScript;
         final float[] queryValues;
         final int[] queryDims;
 
         // prepare queryVector once per script execution
         // queryVector represents a map of dimensions to values
-        public VectorSparseFunctions(ScoreScript scoreScript, Map<String, Number> queryVector) {
+        public SparseVectorFunction(ScoreScript scoreScript, Map<String, Number> queryVector) {
             this.scoreScript = scoreScript;
             //break vector into two arrays dims and values
             int n = queryVector.size();
@@ -187,18 +184,26 @@ public class ScoreScriptUtils {
             // Sort dimensions in the ascending order and sort values in the same order as their corresponding dimensions
             sortSparseDimsFloatValues(queryDims, queryValues, n);
         }
+
+        public void validateDocVector(BytesRef vector) {
+            if (vector == null) {
+                throw new IllegalArgumentException("A document doesn't have a value for a vector field!");
+            }
+        }
     }
 
     // Calculate l1 norm (Manhattan distance) between a query's sparse vector and documents' sparse vectors
-    public static final class L1NormSparse extends VectorSparseFunctions {
+    public static final class L1NormSparse extends SparseVectorFunction {
         public L1NormSparse(ScoreScript scoreScript,Map<String, Number> queryVector) {
             super(scoreScript, queryVector);
         }
 
         public double l1normSparse(VectorScriptDocValues.SparseVectorScriptDocValues dvs) {
-            BytesRef value = dvs.getEncodedValue();
-            int[] docDims = VectorEncoderDecoder.decodeSparseVectorDims(scoreScript._getIndexVersion(), value);
-            float[] docValues = VectorEncoderDecoder.decodeSparseVector(scoreScript._getIndexVersion(), value);
+            BytesRef vector = dvs.getEncodedValue();
+            validateDocVector(vector);
+
+            int[] docDims = VectorEncoderDecoder.decodeSparseVectorDims(scoreScript._getIndexVersion(), vector);
+            float[] docValues = VectorEncoderDecoder.decodeSparseVector(scoreScript._getIndexVersion(), vector);
             int queryIndex = 0;
             int docIndex = 0;
             double l1norm = 0;
@@ -228,15 +233,17 @@ public class ScoreScriptUtils {
     }
 
     // Calculate l2 norm (Euclidean distance) between a query's sparse vector and documents' sparse vectors
-    public static final class L2NormSparse extends VectorSparseFunctions {
+    public static final class L2NormSparse extends SparseVectorFunction {
         public L2NormSparse(ScoreScript scoreScript, Map<String, Number> queryVector) {
            super(scoreScript, queryVector);
         }
 
         public double l2normSparse(VectorScriptDocValues.SparseVectorScriptDocValues dvs) {
-            BytesRef value = dvs.getEncodedValue();
-            int[] docDims = VectorEncoderDecoder.decodeSparseVectorDims(scoreScript._getIndexVersion(), value);
-            float[] docValues = VectorEncoderDecoder.decodeSparseVector(scoreScript._getIndexVersion(), value);
+            BytesRef vector = dvs.getEncodedValue();
+            validateDocVector(vector);
+
+            int[] docDims = VectorEncoderDecoder.decodeSparseVectorDims(scoreScript._getIndexVersion(), vector);
+            float[] docValues = VectorEncoderDecoder.decodeSparseVector(scoreScript._getIndexVersion(), vector);
             int queryIndex = 0;
             int docIndex = 0;
             double l2norm = 0;
@@ -269,21 +276,23 @@ public class ScoreScriptUtils {
     }
 
     // Calculate a dot product between a query's sparse vector and documents' sparse vectors
-    public static final class DotProductSparse extends VectorSparseFunctions {
+    public static final class DotProductSparse extends SparseVectorFunction {
         public DotProductSparse(ScoreScript scoreScript, Map<String, Number> queryVector) {
            super(scoreScript, queryVector);
         }
 
         public double dotProductSparse(VectorScriptDocValues.SparseVectorScriptDocValues dvs) {
-            BytesRef value = dvs.getEncodedValue();
-            int[] docDims = VectorEncoderDecoder.decodeSparseVectorDims(scoreScript._getIndexVersion(), value);
-            float[] docValues = VectorEncoderDecoder.decodeSparseVector(scoreScript._getIndexVersion(), value);
+            BytesRef vector = dvs.getEncodedValue();
+            validateDocVector(vector);
+
+            int[] docDims = VectorEncoderDecoder.decodeSparseVectorDims(scoreScript._getIndexVersion(), vector);
+            float[] docValues = VectorEncoderDecoder.decodeSparseVector(scoreScript._getIndexVersion(), vector);
             return intDotProductSparse(queryValues, queryDims, docValues, docDims);
         }
     }
 
     // Calculate cosine similarity between a query's sparse vector and documents' sparse vectors
-    public static final class CosineSimilaritySparse extends VectorSparseFunctions {
+    public static final class CosineSimilaritySparse extends SparseVectorFunction {
         final double queryVectorMagnitude;
 
         public CosineSimilaritySparse(ScoreScript scoreScript, Map<String, Number> queryVector) {
@@ -296,14 +305,16 @@ public class ScoreScriptUtils {
         }
 
         public double cosineSimilaritySparse(VectorScriptDocValues.SparseVectorScriptDocValues dvs) {
-            BytesRef value = dvs.getEncodedValue();
-            int[] docDims = VectorEncoderDecoder.decodeSparseVectorDims(scoreScript._getIndexVersion(), value);
-            float[] docValues = VectorEncoderDecoder.decodeSparseVector(scoreScript._getIndexVersion(), value);
+            BytesRef vector = dvs.getEncodedValue();
+            validateDocVector(vector);
+
+            int[] docDims = VectorEncoderDecoder.decodeSparseVectorDims(scoreScript._getIndexVersion(), vector);
+            float[] docValues = VectorEncoderDecoder.decodeSparseVector(scoreScript._getIndexVersion(), vector);
 
             double docQueryDotProduct = intDotProductSparse(queryValues, queryDims, docValues, docDims);
             double docVectorMagnitude = 0.0f;
             if (scoreScript._getIndexVersion().onOrAfter(Version.V_7_4_0)) {
-                docVectorMagnitude = VectorEncoderDecoder.decodeVectorMagnitude(scoreScript._getIndexVersion(), value);
+                docVectorMagnitude = VectorEncoderDecoder.decodeVectorMagnitude(scoreScript._getIndexVersion(), vector);
             } else {
                 for (float docValue : docValues) {
                     docVectorMagnitude += docValue * docValue;

@@ -3,7 +3,7 @@
 [[xpack-ccr]]
 = {ccr-cap}
 
-[partintro]	
+[partintro]
 --
 
 The {ccr} (CCR) feature enables replication of indices in remote clusters to a

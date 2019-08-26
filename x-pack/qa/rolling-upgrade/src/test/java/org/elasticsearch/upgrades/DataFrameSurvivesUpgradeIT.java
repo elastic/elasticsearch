@@ -40,6 +40,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -81,12 +82,12 @@ public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
      */
     public void testDataFramesRollingUpgrade() throws Exception {
         assumeTrue("Continuous data frames not supported until 7.3", UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_3_0));
-        Request addFailureRetrySetting = new Request("PUT", "/_cluster/settings");
-        addFailureRetrySetting.setJsonEntity(
+        Request adjustLoggingLevels = new Request("PUT", "/_cluster/settings");
+        adjustLoggingLevels.setJsonEntity(
             "{\"transient\": {" +
                 "\"logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer\": \"trace\"," +
                 "\"logger.org.elasticsearch.xpack.dataframe\": \"trace\"}}");
-        client().performRequest(addFailureRetrySetting);
+        client().performRequest(adjustLoggingLevels);
         Request waitForYellow = new Request("GET", "/_cluster/health");
         waitForYellow.addParameter("wait_for_nodes", "3");
         waitForYellow.addParameter("wait_for_status", "yellow");
@@ -148,6 +149,8 @@ public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
             DataFrameTransformStats stateAndStats = getTransformStats(CONTINUOUS_DATA_FRAME_ID);
             assertThat(stateAndStats.getIndexerStats().getOutputDocuments(), equalTo((long)ENTITIES.size()));
             assertThat(stateAndStats.getIndexerStats().getNumDocuments(), equalTo(totalDocsWritten));
+            // Even if we get back to started, we may periodically get set back to `indexing` when triggered.
+            // Though short lived due to no changes on the source indices, it could result in flaky test behavior
             assertThat(stateAndStats.getState(), oneOf(DataFrameTransformStats.State.STARTED, DataFrameTransformStats.State.INDEXING));
         }, 120, TimeUnit.SECONDS);
 
@@ -156,6 +159,7 @@ public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         awaitWrittenIndexerState(CONTINUOUS_DATA_FRAME_ID, IndexerState.STARTED.value());
     }
 
+    @SuppressWarnings("unchecked")
     private void verifyContinuousDataFrameHandlesData(long expectedLastCheckpoint) throws Exception {
 
         // A continuous data frame should automatically become started when it gets assigned to a node
@@ -190,14 +194,18 @@ public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
 
         assertThat(stateAndStats.getState(),
             oneOf(DataFrameTransformStats.State.STARTED, DataFrameTransformStats.State.INDEXING));
-        assertThat(stateAndStats.getIndexerStats().getOutputDocuments(),
-            greaterThan(previousStateAndStats.getIndexerStats().getOutputDocuments()));
-        assertThat(stateAndStats.getIndexerStats().getNumDocuments(),
-            greaterThanOrEqualTo(docs + previousStateAndStats.getIndexerStats().getNumDocuments()));
-        awaitWrittenIndexerState(CONTINUOUS_DATA_FRAME_ID, IndexerState.STARTED.value());
+        awaitWrittenIndexerState(CONTINUOUS_DATA_FRAME_ID, (responseBody) -> {
+            Map<String, Object> indexerStats = (Map<String,Object>)((List<?>)XContentMapValues.extractValue("hits.hits._source.stats",
+                responseBody))
+                .get(0);
+            assertThat((Long)indexerStats.get("documents_indexed"),
+                greaterThan(previousStateAndStats.getIndexerStats().getOutputDocuments()));
+            assertThat((Long)indexerStats.get("documents_processed"),
+                greaterThan(previousStateAndStats.getIndexerStats().getOutputDocuments()));
+        });
     }
 
-    private void awaitWrittenIndexerState(String id, String indexerState) throws Exception {
+    private void awaitWrittenIndexerState(String id, Consumer<Map<?, ?>> responseAssertion) throws Exception {
         Request getStatsDocsRequest = new Request("GET", ".data-frame-internal-*/_search");
         getStatsDocsRequest.setJsonEntity("{\n" +
             "  \"query\": {\n" +
@@ -224,11 +232,17 @@ public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
             assertEquals(200, response.getStatusLine().getStatusCode());
             Map<String, Object> responseBody = entityAsMap(response);
             assertEquals(1, XContentMapValues.extractValue("hits.total.value", responseBody));
+            responseAssertion.accept(responseBody);
+        }, 60, TimeUnit.SECONDS);
+    }
+
+    private void awaitWrittenIndexerState(String id, String indexerState) throws Exception {
+        awaitWrittenIndexerState(id, (responseBody) -> {
             String storedState = ((List<?>)XContentMapValues.extractValue("hits.hits._source.state.indexer_state", responseBody))
                 .get(0)
                 .toString();
             assertThat(storedState, equalTo(indexerState));
-        }, 60, TimeUnit.SECONDS);
+        });
     }
 
     private void putTransform(String id, DataFrameTransformConfig config) throws IOException {

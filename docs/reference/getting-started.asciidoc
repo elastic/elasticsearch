@@ -414,7 +414,7 @@ that match the search criteria:
 
 The response also provides the following information about the search request:
 
-* `took` – how long it took Elasticssearch to run the query, in milliseconds
+* `took` – how long it took {es} to run the query, in milliseconds
 * `timed_out` – whether or not the search request timed out
 * `_shards` – how many shards were searched and a breakdown of how many shards
 succeeded, failed, or were skipped. 

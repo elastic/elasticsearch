@@ -70,7 +70,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
 
     private static final Logger logger = LogManager.getLogger(TransportCleanupRepositoryAction.class);
 
-    private static final Version MIN_VERSION = Version.V_8_0_0;
+    private static final Version MIN_VERSION = Version.V_7_4_0;
 
     private final RepositoriesService repositoriesService;
 

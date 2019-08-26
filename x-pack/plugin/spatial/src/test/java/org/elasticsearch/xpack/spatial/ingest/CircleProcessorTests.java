@@ -36,6 +36,9 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.spatial.SpatialUtils;
+import org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper;
+import org.elasticsearch.xpack.spatial.index.mapper.ShapeIndexer;
+import org.elasticsearch.xpack.spatial.index.query.ShapeQueryProcessor;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -204,11 +207,12 @@ public class CircleProcessorTests extends ESTestCase {
         }
     }
 
-    public void testQueryAcrossDateline(int i) throws IOException {
+    public void testGeoShapeQueryAcrossDateline() throws IOException {
         String fieldName = "circle";
         Circle circle = new Circle(179.999746, 67.1726, 100000);
         int numSides = randomIntBetween(4, 1000);
         Geometry geometry = SpatialUtils.createRegularGeoShapePolygon(circle, numSides);
+        System.out.println(WKT.toWKT(geometry));
 
         MappedFieldType shapeType = new GeoShapeFieldMapper.GeoShapeFieldType();
         shapeType.setHasDocValues(false);
@@ -225,6 +229,7 @@ public class CircleProcessorTests extends ESTestCase {
             Document doc = new Document();
             GeoShapeIndexer indexer = new GeoShapeIndexer(true, fieldName);
             Geometry normalized = indexer.prepareForIndexing(geometry);
+            System.out.println(WKT.toWKT(normalized));
             for (IndexableField field : indexer.indexShape(null, normalized)) {
                 doc.add(field);
             }
@@ -234,6 +239,40 @@ public class CircleProcessorTests extends ESTestCase {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 assertThat(searcher.search(sameShapeQuery, 1).totalHits.value, equalTo(1L));
                 assertThat(searcher.search(pointOnDatelineQuery, 1).totalHits.value, equalTo(1L));
+            }
+        }
+    }
+
+    public void testShapeQuery() throws IOException {
+        String fieldName = "circle";
+        Circle circle = new Circle(179.999746, 67.1726, 100);
+        int numSides = randomIntBetween(4, 1000);
+        Geometry geometry = SpatialUtils.createRegularShapePolygon(circle, numSides);
+
+        MappedFieldType shapeType = new ShapeFieldMapper.ShapeFieldType();
+        shapeType.setHasDocValues(false);
+        shapeType.setName(fieldName);
+
+        ShapeQueryProcessor processor = new ShapeQueryProcessor();
+        QueryShardContext mockedContext = mock(QueryShardContext.class);
+        when(mockedContext.fieldMapper(any())).thenReturn(shapeType);
+        Query sameShapeQuery = processor.process(geometry, fieldName, ShapeRelation.INTERSECTS, mockedContext);
+        Query centerPointQuery = processor.process(new Point(circle.getLon(), circle.getLat()), fieldName,
+            ShapeRelation.INTERSECTS, mockedContext);
+
+        try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+            Document doc = new Document();
+            ShapeIndexer indexer = new ShapeIndexer(fieldName);
+            Geometry normalized = indexer.prepareForIndexing(geometry);
+            for (IndexableField field : indexer.indexShape(null, normalized)) {
+                doc.add(field);
+            }
+            w.addDocument(doc);
+
+            try (IndexReader reader = w.getReader()) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+                assertThat(searcher.search(sameShapeQuery, 1).totalHits.value, equalTo(1L));
+                assertThat(searcher.search(centerPointQuery, 1).totalHits.value, equalTo(1L));
             }
         }
     }

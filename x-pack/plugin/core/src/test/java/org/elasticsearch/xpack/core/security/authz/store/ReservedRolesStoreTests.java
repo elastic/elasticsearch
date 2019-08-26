@@ -264,6 +264,9 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(ingestAdminRole.cluster().check(PutPipelineAction.NAME, request, authentication), is(true));
         assertThat(ingestAdminRole.cluster().check(GetPipelineAction.NAME, request, authentication), is(true));
         assertThat(ingestAdminRole.cluster().check(DeletePipelineAction.NAME, request, authentication), is(true));
+        assertThat(ingestAdminRole.cluster().check(ClusterRerouteAction.NAME, request, authentication), is(false));
+        assertThat(ingestAdminRole.cluster().check(ClusterUpdateSettingsAction.NAME, request, authentication), is(false));
+        assertThat(ingestAdminRole.cluster().check(MonitoringBulkAction.NAME, request, authentication), is(false));
         assertThat(ingestAdminRole.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(false));
 
         assertThat(ingestAdminRole.indices().allowedIndicesMatcher(IndexAction.NAME).test("foo"), is(false));

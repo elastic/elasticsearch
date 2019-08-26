@@ -19,11 +19,7 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
-
-import java.io.IOException;
-import java.util.function.Function;
 
 public interface TransportResponseHandler<T extends TransportResponse> extends Writeable.Reader<T> {
 
@@ -32,29 +28,4 @@ public interface TransportResponseHandler<T extends TransportResponse> extends W
     void handleException(TransportException exp);
 
     String executor();
-
-    default <Q extends TransportResponse> TransportResponseHandler<Q> wrap(Function<Q, T> converter, Writeable.Reader<Q> reader) {
-        final TransportResponseHandler<T> self = this;
-        return new TransportResponseHandler<Q>() {
-            @Override
-            public void handleResponse(Q response) {
-                self.handleResponse(converter.apply(response));
-            }
-
-            @Override
-            public void handleException(TransportException exp) {
-                self.handleException(exp);
-            }
-
-            @Override
-            public String executor() {
-                return self.executor();
-            }
-
-            @Override
-            public Q read(StreamInput in) throws IOException {
-                return reader.read(in);
-            }
-        };
-    }
 }

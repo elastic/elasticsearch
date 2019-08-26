@@ -350,7 +350,7 @@ yellow open   bank  l7sSYV2cQXmu6_4rJWVIww   5   1       1000            0    12
 
 Once you have ingested some data into an {es} index, you can search it
 by sending requests to the `_search` endpoint. To access the full suite of
-search capabilities, you use the Elasticsearch Query DSL to specify the
+search capabilities, you use the {es} Query DSL to specify the
 search criteria in the request body. You specify the name of the index you 
 want to search in the request URI.
 

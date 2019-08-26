@@ -11,7 +11,7 @@ API.
 [[cat-segments-api-request]]
 ==== {api-request-title}
 
-`GET /_cat/segments/{index}`
+`GET /_cat/segments/<index>`
 
 
 [[cat-segments-path-params]]

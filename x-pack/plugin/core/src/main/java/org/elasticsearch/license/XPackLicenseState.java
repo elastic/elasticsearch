@@ -70,6 +70,9 @@ public class XPackLicenseState {
             "Creating and Starting rollup jobs will no longer be allowed.",
             "Stopping/Deleting existing jobs, RollupCaps API and RollupSearch continue to function."
         });
+        messages.put(XPackField.DATA_SCIENCE, new String[] {
+            "Aggregations provided by Data Science plugin are no longer usable."
+        });
         EXPIRATION_MESSAGES = Collections.unmodifiableMap(messages);
     }
 
@@ -742,6 +745,15 @@ public class XPackLicenseState {
         Status localStatus = status;
         // Should work on all active licenses
         return localStatus.active;
+    }
+
+    /**
+     * Datascience is always available as long as there is a valid license
+     *
+     * @return true if the license is active
+     */
+    public synchronized boolean isDataScienceAllowed() {
+        return status.active;
     }
 
     public synchronized boolean isTrialLicense() {

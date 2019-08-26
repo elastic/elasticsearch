@@ -11,7 +11,7 @@ Adds or removes master-eligible nodes from the
 [[voting-config-exclusions-api-request]]
 ==== {api-request-title}
 
-`POST _cluster/voting_config_exclusions/{node_name}` +
+`POST _cluster/voting_config_exclusions/<node_name>` +
 
 `DELETE _cluster/voting_config_exclusions`
 
@@ -46,7 +46,7 @@ For more information, see <<modules-discovery-removing-nodes>>.
 [[voting-config-exclusions-api-path-params]]
 ==== {api-path-parms-title}
 
-`{node_name}`::
+`<node_name>`::
   A <<cluster-nodes,node filter>> that identifies {es} nodes.
 
 

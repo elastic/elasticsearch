@@ -285,12 +285,12 @@ public class CertificateGenerateTool extends EnvironmentAwareCommand {
             final List<String> errors = certInfo.validate();
             if (errors.size() > 0) {
                 hasError = true;
-                terminal.println(Terminal.Verbosity.SILENT, "Configuration for instance " + certInfo.name.originalName
+                terminal.errorPrintln(Terminal.Verbosity.SILENT, "Configuration for instance " + certInfo.name.originalName
                     + " has invalid details");
                 for (String message : errors) {
-                    terminal.println(Terminal.Verbosity.SILENT, " * " + message);
+                    terminal.errorPrintln(Terminal.Verbosity.SILENT, " * " + message);
                 }
-                terminal.println("");
+                terminal.errorPrintln("");
             }
         }
         if (hasError) {

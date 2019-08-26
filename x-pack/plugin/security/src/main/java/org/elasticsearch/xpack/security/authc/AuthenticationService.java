@@ -140,8 +140,8 @@ public class AuthenticationService {
     }
 
     /**
-     * Authenticates the username and password that are provided as parameters. This will not look
-     * at the values in the ThreadContext for Authentication.
+     * Authenticates the user based on the contents of the token that is provided as parameter. This will not look at the values in the
+     * ThreadContext for Authentication.
      *
      * @param action  The action of the message
      * @param message The message that resulted in this authenticate call
@@ -347,9 +347,10 @@ public class AuthenticationService {
 
         /**
          * Consumes the {@link AuthenticationToken} provided by the caller. In the case of a {@code null} token, {@link #handleNullToken()}
-         * is called. In the case of a {@code non-null} token, the realms are iterated over and the first realm that returns a non-null
-         * {@link User} is the authenticating realm and iteration is stopped. This user is then passed to {@link #consumeUser(User, Map)}
-         * if no exception was caught while trying to authenticate the token
+         * is called. In the case of a {@code non-null} token, the realms are iterated over in the order defined in the configuration
+         * while possibly also taking into consideration the last realm that authenticated this principal. When consulting multiple realms,
+         * the first realm that returns a non-null {@link User} is the authenticating realm and iteration is stopped. This user is then
+         * passed to {@link #consumeUser(User, Map)} if no exception was caught while trying to authenticate the token
          */
         private void consumeToken(AuthenticationToken token) {
             if (token == null) {
@@ -411,6 +412,12 @@ public class AuthenticationService {
             }
         }
 
+        /**
+         * Possibly reorders the realm list depending on whether this principal has been recently authenticated by a specific realm
+         *
+         * @param principal The principal of the {@link AuthenticationToken} to be authenticated by a realm
+         * @return a list of realms ordered based on which realm should authenticate the current {@link AuthenticationToken}
+         */
         private List<Realm> getRealmList(String principal) {
             final List<Realm> orderedRealmList = this.defaultOrderedRealmList;
             if (lastSuccessfulAuthCache != null) {

@@ -42,6 +42,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
@@ -72,7 +73,7 @@ import java.util.function.Supplier;
 import static java.util.Collections.emptyMap;
 
 public class AzureStorageService {
-    
+
     private static final Logger logger = LogManager.getLogger(AzureStorageService.class);
 
     public static final ByteSizeValue MIN_CHUNK_SIZE = new ByteSizeValue(1, ByteSizeUnit.BYTES);
@@ -192,13 +193,15 @@ public class AzureStorageService {
         });
     }
 
-    void deleteBlobDirectory(String account, String container, String path, Executor executor)
+    DeleteResult deleteBlobDirectory(String account, String container, String path, Executor executor)
             throws URISyntaxException, StorageException, IOException {
         final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client(account);
         final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);
         final Collection<Exception> exceptions = Collections.synchronizedList(new ArrayList<>());
         final AtomicLong outstanding = new AtomicLong(1L);
         final PlainActionFuture<Void> result = PlainActionFuture.newFuture();
+        final AtomicLong blobsDeleted = new AtomicLong();
+        final AtomicLong bytesDeleted = new AtomicLong();
         SocketAccess.doPrivilegedVoidException(() -> {
             for (final ListBlobItem blobItem : blobContainer.listBlobs(path, true)) {
                 // uri.getPath is of the form /container/keyPath.* and we want to strip off the /container/
@@ -208,7 +211,17 @@ public class AzureStorageService {
                 executor.execute(new AbstractRunnable() {
                     @Override
                     protected void doRun() throws Exception {
+                        final long len;
+                        if (blobItem instanceof CloudBlob) {
+                            len = ((CloudBlob) blobItem).getProperties().getLength();
+                        } else {
+                            len = -1L;
+                        }
                         deleteBlob(account, container, blobPath);
+                        blobsDeleted.incrementAndGet();
+                        if (len >= 0) {
+                            bytesDeleted.addAndGet(len);
+                        }
                     }
 
                     @Override
@@ -234,6 +247,7 @@ public class AzureStorageService {
             exceptions.forEach(ex::addSuppressed);
             throw ex;
         }
+        return new DeleteResult(blobsDeleted.get(), bytesDeleted.get());
     }
 
     public InputStream getInputStream(String account, String container, String blob)

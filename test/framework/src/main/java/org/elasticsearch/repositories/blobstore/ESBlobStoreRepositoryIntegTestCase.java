@@ -23,15 +23,9 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotReq
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
-import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.seqno.RetentionLeaseActions;
-import org.elasticsearch.index.seqno.RetentionLeases;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -49,7 +43,6 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
@@ -276,60 +269,6 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
                 assertFalse(BlobStoreTestUtil.blobExists(indicesBlobContainer.get(), indexId.getId())); // deleted index
             }
         }
-    }
-
-    public void testRetentionLeasesClearedOnRestore() throws Exception {
-        final String repoName = randomAsciiName();
-        logger.info("-->  creating repository {}", repoName);
-        createAndCheckTestRepository(repoName);
-
-        final String indexName = randomAsciiName();
-        final int shardCount = randomIntBetween(1, 5);
-        assertAcked(client().admin().indices().prepareCreate(indexName).setSettings(
-            Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, shardCount)).get());
-        final ShardId shardId = new ShardId(resolveIndex(indexName), randomIntBetween(0, shardCount - 1));
-
-        final int snapshotDocCount = iterations(10, 1000);
-        logger.info("--> indexing {} docs into {}", snapshotDocCount, indexName);
-        addRandomDocuments(indexName, snapshotDocCount);
-        assertHitCount(client().prepareSearch(indexName).setSize(0).get(), snapshotDocCount);
-
-        final String leaseId = randomAsciiName();
-        logger.info("--> adding retention lease with id {} to {}", leaseId, shardId);
-        client().execute(RetentionLeaseActions.Add.INSTANCE, new RetentionLeaseActions.AddRequest(
-            shardId, leaseId, RETAIN_ALL, "test")).actionGet();
-
-        final ShardStats shardStats = Arrays.stream(client().admin().indices().prepareStats(indexName).get().getShards())
-            .filter(s -> s.getShardRouting().shardId().equals(shardId)).findFirst().get();
-        final RetentionLeases retentionLeases = shardStats.getRetentionLeaseStats().retentionLeases();
-        assertTrue(shardStats + ": " + retentionLeases, retentionLeases.contains(leaseId));
-
-        final String snapshotName = randomAsciiName();
-        logger.info("-->  create snapshot {}:{}", repoName, snapshotName);
-        assertSuccessfulSnapshot(client().admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
-            .setWaitForCompletion(true).setIndices(indexName));
-
-        if (randomBoolean()) {
-            final int extraDocCount = iterations(10, 1000);
-            logger.info("--> indexing {} extra docs into {}", extraDocCount, indexName);
-            addRandomDocuments(indexName, extraDocCount);
-        }
-
-        // Wait for green so the close does not fail in the edge case of coinciding with a shard recovery that hasn't fully synced yet
-        ensureGreen();
-        logger.info("-->  close index {}", indexName);
-        assertAcked(client().admin().indices().prepareClose(indexName));
-
-        logger.info("--> restore index {} from snapshot", indexName);
-        assertSuccessfulRestore(client().admin().cluster().prepareRestoreSnapshot(repoName, snapshotName).setWaitForCompletion(true));
-
-        ensureGreen();
-        assertHitCount(client().prepareSearch(indexName).setSize(0).get(), snapshotDocCount);
-
-        final RetentionLeases restoredRetentionLeases = Arrays.stream(client().admin().indices().prepareStats(indexName).get()
-            .getShards()).filter(s -> s.getShardRouting().shardId().equals(shardId)).findFirst().get()
-            .getRetentionLeaseStats().retentionLeases();
-        assertFalse(restoredRetentionLeases.toString() + " has no " + leaseId, restoredRetentionLeases.contains(leaseId));
     }
 
     protected void addRandomDocuments(String name, int numDocs) throws ExecutionException, InterruptedException {

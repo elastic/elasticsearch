@@ -20,13 +20,13 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.common.Rounding;
+import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
@@ -36,7 +36,7 @@ import java.util.List;
 import java.util.Map;
 
 public final class DateHistogramAggregatorFactory
-        extends ValuesSourceAggregatorFactory<ValuesSource.Numeric> {
+        extends ValuesSourceAggregatorFactory<ValuesSource> {
 
     private final long offset;
     private final BucketOrder order;
@@ -46,7 +46,7 @@ public final class DateHistogramAggregatorFactory
     private final Rounding rounding;
     private final Rounding shardRounding;
 
-    public DateHistogramAggregatorFactory(String name, ValuesSourceConfig<Numeric> config,
+    public DateHistogramAggregatorFactory(String name, ValuesSourceConfig<ValuesSource> config,
             long offset, BucketOrder order, boolean keyed, long minDocCount,
             Rounding rounding, Rounding shardRounding, ExtendedBounds extendedBounds, SearchContext context,
             AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
@@ -66,18 +66,47 @@ public final class DateHistogramAggregatorFactory
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, Aggregator parent, boolean collectsFromSingleBucket,
+    protected ValuesSource resolveMissingAny(Object missing) {
+        if (missing instanceof Number) {
+            return ValuesSource.Numeric.EMPTY;
+        }
+        throw new IllegalArgumentException("Only numeric missing values are supported for date histogram aggregation, found ["
+            + missing + "]");
+    }
+
+    @Override
+    protected Aggregator doCreateInternal(ValuesSource valuesSource, Aggregator parent, boolean collectsFromSingleBucket,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         if (collectsFromSingleBucket == false) {
             return asMultiBucketAggregator(this, context, parent);
         }
-        return createAggregator(valuesSource, parent, pipelineAggregators, metaData);
+        if (valuesSource instanceof ValuesSource.Numeric) {
+            return createAggregator((ValuesSource.Numeric) valuesSource, parent, pipelineAggregators, metaData);
+        } else if (valuesSource instanceof ValuesSource.Range) {
+            ValuesSource.Range rangeValueSource = (ValuesSource.Range) valuesSource;
+            if (rangeValueSource.rangeType() != RangeType.DATE) {
+                throw new IllegalArgumentException("Expected date range type but found range type [" + rangeValueSource.rangeType().name
+                    + "]");
+            }
+            return createRangeAggregator((ValuesSource.Range) valuesSource, parent, pipelineAggregators, metaData);
+        }
+        else {
+            throw new IllegalArgumentException("Expected one of [Date, Range] values source, found ["
+                + valuesSource.toString() + "]");
+        }
     }
 
     private Aggregator createAggregator(ValuesSource.Numeric valuesSource, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) throws IOException {
         return new DateHistogramAggregator(name, factories, rounding, shardRounding, offset, order, keyed, minDocCount, extendedBounds,
                 valuesSource, config.format(), context, parent, pipelineAggregators, metaData);
+    }
+
+    private Aggregator createRangeAggregator(ValuesSource.Range valuesSource, Aggregator parent,
+                                             List<PipelineAggregator> pipelineAggregators,
+                                             Map<String, Object> metaData) throws IOException {
+        return new DateRangeHistogramAggregator(name, factories, rounding, shardRounding, offset, order, keyed, minDocCount, extendedBounds,
+            valuesSource, config.format(), context, parent, pipelineAggregators, metaData);
     }
 
     @Override

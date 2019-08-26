@@ -163,10 +163,15 @@ end::doc-version-type[]
 
 tag::doc-wait-for-active-shards[]
 `wait_for_active_shards`::
++
+--
 (Optional, string) The number of shard copies that must be active before
 proceeding with the operation. Set to `all` or any positive integer up
 to the total number of shards in the index (`number_of_replicas+1`).
 Default: 1, the primary shard.
+
+See <<index-wait-for-active-shards>>.
+--
 end::doc-wait-for-active-shards[]
 
 tag::timeoutparms[]

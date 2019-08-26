@@ -2158,7 +2158,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
     }
 
     private SamlToken token(byte[] content) {
-        return new SamlToken(content, singletonList(requestId));
+        return new SamlToken(content, singletonList(requestId), null);
     }
 
 }

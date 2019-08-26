@@ -167,7 +167,6 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
                 assertThat(snapshotName, startsWith("snap-"));
             }
             assertHistoryIsPresent(policyName, false, repoName);
-            assertHistoryIndexWaitingForRollover();
         });
     }
 

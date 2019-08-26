@@ -84,13 +84,9 @@ public class ExtractedFieldsDetector {
         checkRequiredFieldsArePresent(fields);
 
         if (fields.isEmpty()) {
-            Set<String> supportedTypes = new HashSet<>(NUMERICAL_TYPES);
-            if (config.getAnalysis().supportsCategoricalFields()) {
-                supportedTypes.addAll(CATEGORICAL_TYPES);
-            }
             throw ExceptionsHelper.badRequestException("No compatible fields could be detected in index {}. Supported types are {}.",
                 Arrays.toString(index),
-                supportedTypes);
+                getSupportedTypes());
         }
 
         List<String> sortedFields = new ArrayList<>(fields);
@@ -149,12 +145,20 @@ public class ExtractedFieldsDetector {
                 } else if (config.getAnalysis().supportsCategoricalFields() && CATEGORICAL_TYPES.containsAll(fieldTypes)) {
                     LOGGER.debug("[{}] field [{}] is compatible as it is categorical", config.getId(), field);
                 } else {
-                    LOGGER.debug("[{}] Removing field [{}] because its types are not supported; types {}",
-                        config.getId(), field, fieldTypes);
+                    LOGGER.debug("[{}] Removing field [{}] because its types are not supported; types {}; supported {}",
+                        config.getId(), field, fieldTypes, getSupportedTypes());
                     fieldsIterator.remove();
                 }
             }
         }
+    }
+
+    private Set<String> getSupportedTypes() {
+        Set<String> supportedTypes = new HashSet<>(NUMERICAL_TYPES);
+        if (config.getAnalysis().supportsCategoricalFields()) {
+            supportedTypes.addAll(CATEGORICAL_TYPES);
+        }
+        return supportedTypes;
     }
 
     private void includeAndExcludeFields(Set<String> fields) {

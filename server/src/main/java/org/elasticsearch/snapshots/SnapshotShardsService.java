@@ -294,13 +294,16 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
     }
 
     private void startNewShards(SnapshotsInProgress.Entry entry, Map<ShardId, IndexShardSnapshotStatus> startedShards) {
-        final Snapshot snapshot = entry.snapshot();
-        final Map<String, IndexId> indicesMap = entry.indices().stream().collect(Collectors.toMap(IndexId::getName, Function.identity()));
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
+            final Snapshot snapshot = entry.snapshot();
+            final Map<String, IndexId> indicesMap =
+                entry.indices().stream().collect(Collectors.toMap(IndexId::getName, Function.identity()));
             for (final Map.Entry<ShardId, IndexShardSnapshotStatus> shardEntry : startedShards.entrySet()) {
                 final ShardId shardId = shardEntry.getKey();
                 final IndexShardSnapshotStatus snapshotStatus = shardEntry.getValue();
-                final ActionListener<Void> listener = new ActionListener<>() {
+                final IndexId indexId = indicesMap.get(shardId.getIndexName());
+                assert indexId != null;
+                snapshot(shardId, snapshot, indexId, snapshotStatus, new ActionListener<>() {
                     @Override
                     public void onResponse(final Void aVoid) {
                         if (logger.isDebugEnabled()) {
@@ -315,15 +318,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                         logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to snapshot shard", shardId, snapshot), e);
                         notifyFailedSnapshotShard(snapshot, shardId, ExceptionsHelper.detailedMessage(e));
                     }
-                };
-                try {
-                    final IndexId indexId = indicesMap.get(shardId.getIndexName());
-                    assert indexId != null;
-                    snapshot(indicesService.indexServiceSafe(
-                        shardId.getIndex()).getShardOrNull(shardId.id()), snapshot, indexId, snapshotStatus, listener);
-                } catch (Exception e) {
-                    listener.onFailure(e);
-                }
+                });
             }
         });
     }
@@ -334,27 +329,30 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
      * @param snapshot       snapshot
      * @param snapshotStatus snapshot status
      */
-    private void snapshot(final IndexShard indexShard, final Snapshot snapshot, final IndexId indexId,
+    private void snapshot(final ShardId shardId, final Snapshot snapshot, final IndexId indexId,
                           final IndexShardSnapshotStatus snapshotStatus, ActionListener<Void> listener) {
-        final ShardId shardId = indexShard.shardId();
-        if (indexShard.routingEntry().primary() == false) {
-            throw new IndexShardSnapshotFailedException(shardId, "snapshot should be performed only on primary");
-        }
-        if (indexShard.routingEntry().relocating()) {
-            // do not snapshot when in the process of relocation of primaries so we won't get conflicts
-            throw new IndexShardSnapshotFailedException(shardId, "cannot snapshot while relocating");
-        }
+        try {
+            final IndexShard indexShard = indicesService.indexServiceSafe(shardId.getIndex()).getShardOrNull(shardId.id());
+            if (indexShard.routingEntry().primary() == false) {
+                throw new IndexShardSnapshotFailedException(shardId, "snapshot should be performed only on primary");
+            }
+            if (indexShard.routingEntry().relocating()) {
+                // do not snapshot when in the process of relocation of primaries so we won't get conflicts
+                throw new IndexShardSnapshotFailedException(shardId, "cannot snapshot while relocating");
+            }
 
-        final IndexShardState indexShardState = indexShard.state();
-        if (indexShardState == IndexShardState.CREATED || indexShardState == IndexShardState.RECOVERING) {
-            // shard has just been created, or still recovering
-            throw new IndexShardSnapshotFailedException(shardId, "shard didn't fully recover yet");
-        }
+            final IndexShardState indexShardState = indexShard.state();
+            if (indexShardState == IndexShardState.CREATED || indexShardState == IndexShardState.RECOVERING) {
+                // shard has just been created, or still recovering
+                throw new IndexShardSnapshotFailedException(shardId, "shard didn't fully recover yet");
+            }
 
-        final Repository repository = repositoriesService.repository(snapshot.getRepository());
-        // we flush first to make sure we get the latest writes snapshotted
-        repository.snapshotShard(indexShard.mapperService(), snapshot.getSnapshotId(), indexId,
-            new ShardSnapshotContext(indexShard, snapshotStatus, listener));
+            final Repository repository = repositoriesService.repository(snapshot.getRepository());
+            repository.snapshotShard(indexShard.mapperService(), snapshot.getSnapshotId(), indexId,
+                new ShardSnapshotContext(indexShard, snapshotStatus, listener));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     /**

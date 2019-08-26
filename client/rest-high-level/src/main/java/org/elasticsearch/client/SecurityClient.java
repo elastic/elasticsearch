@@ -999,11 +999,10 @@ public final class SecurityClient {
      * @param request the request containing the certificate chain
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
-     * @return cancellable that may be used to cancel the request
      */
-    public Cancellable delegatePkiAuthenticationAsync(DelegatePkiAuthenticationRequest request, RequestOptions options,
+    public void delegatePkiAuthenticationAsync(DelegatePkiAuthenticationRequest request, RequestOptions options,
             ActionListener<DelegatePkiAuthenticationResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::delegatePkiAuthentication, options,
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::delegatePkiAuthentication, options,
                 DelegatePkiAuthenticationResponse::fromXContent, listener, emptySet());
     }
 }

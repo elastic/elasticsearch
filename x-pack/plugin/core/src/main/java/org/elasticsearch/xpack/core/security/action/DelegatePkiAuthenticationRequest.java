@@ -25,6 +25,7 @@ import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -63,14 +64,14 @@ public final class DelegatePkiAuthenticationRequest extends ActionRequest implem
     private List<X509Certificate> certificateChain;
 
     public DelegatePkiAuthenticationRequest(List<X509Certificate> certificateChain) {
-        this.certificateChain = List.copyOf(certificateChain);
+        this.certificateChain = Collections.unmodifiableList(certificateChain);
     }
 
     public DelegatePkiAuthenticationRequest(StreamInput input) throws IOException {
         super(input);
         try {
             final CertificateFactory certificateFactory = CertificateFactory.getInstance("X.509");
-            certificateChain = List.copyOf(input.readList(in -> {
+            certificateChain = Collections.unmodifiableList(input.readList(in -> {
                 try (ByteArrayInputStream bis = new ByteArrayInputStream(in.readByteArray())) {
                     return (X509Certificate) certificateFactory.generateCertificate(bis);
                 } catch (CertificateException e) {

@@ -101,7 +101,7 @@ public class ClusterPrivilegeResolver {
     public static final NamedClusterPrivilege TRANSPORT_CLIENT = new ActionClusterPrivilege("transport_client",
         TRANSPORT_CLIENT_PATTERN);
     public static final NamedClusterPrivilege MANAGE_SECURITY = new ActionClusterPrivilege("manage_security", ALL_SECURITY_PATTERN,
-            Set.of(DelegatePkiAuthenticationAction.NAME));
+            Collections.singleton(DelegatePkiAuthenticationAction.NAME));
     public static final NamedClusterPrivilege MANAGE_SAML = new ActionClusterPrivilege("manage_saml", MANAGE_SAML_PATTERN);
     public static final NamedClusterPrivilege MANAGE_OIDC = new ActionClusterPrivilege("manage_oidc", MANAGE_OIDC_PATTERN);
     public static final NamedClusterPrivilege MANAGE_API_KEY = new ActionClusterPrivilege("manage_api_key", MANAGE_API_KEY_PATTERN);
@@ -115,7 +115,7 @@ public class ClusterPrivilegeResolver {
     public static final NamedClusterPrivilege MANAGE_SLM = new ActionClusterPrivilege("manage_slm", MANAGE_SLM_PATTERN);
     public static final NamedClusterPrivilege READ_SLM = new ActionClusterPrivilege("read_slm", READ_SLM_PATTERN);
     public static final NamedClusterPrivilege DELEGATE_PKI = new ActionClusterPrivilege("delegate_pki",
-            Set.of(DelegatePkiAuthenticationAction.NAME, InvalidateTokenAction.NAME));
+            Sets.newHashSet(DelegatePkiAuthenticationAction.NAME, InvalidateTokenAction.NAME));
 
     private static final Map<String, NamedClusterPrivilege> VALUES = Collections.unmodifiableMap(
         Stream.of(

@@ -212,7 +212,6 @@ public class CircleProcessorTests extends ESTestCase {
         Circle circle = new Circle(179.999746, 67.1726, 100000);
         int numSides = randomIntBetween(4, 1000);
         Geometry geometry = SpatialUtils.createRegularGeoShapePolygon(circle, numSides);
-        System.out.println(WKT.toWKT(geometry));
 
         MappedFieldType shapeType = new GeoShapeFieldMapper.GeoShapeFieldType();
         shapeType.setHasDocValues(false);
@@ -245,7 +244,7 @@ public class CircleProcessorTests extends ESTestCase {
 
     public void testShapeQuery() throws IOException {
         String fieldName = "circle";
-        Circle circle = new Circle(179.999746, 67.1726, 100);
+        Circle circle = new Circle(0, 0, 10);
         int numSides = randomIntBetween(4, 1000);
         Geometry geometry = SpatialUtils.createRegularShapePolygon(circle, numSides);
 

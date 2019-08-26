@@ -17,7 +17,7 @@ Follow this getting started tutorial to:
 Need more context?
 
 Check out the <<elasticsearch-intro,
-Elasticsearch Introduction>> to learn the lingo and understand the basics of
+{es} Introduction>> to learn the lingo and understand the basics of
 how {es} works. If you're already familiar with {es} and want to see how it works
 with the rest of the stack, you might want to jump to the
 {stack-gs}/get-started-elastic-stack.html[Elastic Stack
@@ -26,7 +26,7 @@ Tutorial] to see how to set up a system monitoring solution with {es}, {kib},
 
 TIP: The fastest way to get started with {es} is to
 https://www.elastic.co/cloud/elasticsearch-service/signup[start a free 14-day
-trial of Elasticsearch Service] in the cloud.
+trial of {ess}] in the cloud.
 --
 
 [[getting-started-install]]
@@ -34,7 +34,7 @@ trial of Elasticsearch Service] in the cloud.
 
 To take {es} for a test drive, you can create a 
 https://www.elastic.co/cloud/elasticsearch-service/signup[hosted deployment]  on 
-the {es} Service or set up a multi-node {es} cluster on your own
+the {ess} or set up a multi-node {es} cluster on your own
 Linux, macOS, or Windows machine.
 
 [float]
@@ -57,14 +57,14 @@ Once you've created a deployment, you're ready to <<getting-started-index>>.
 [[run-elasticsearch-local]]
 === Run {es} locally on Linux, macOS, or Windows
 
-When you create a deployment on the {es} Service, a master node and
+When you create a deployment on the {ess}, a master node and
 two data nodes are provisioned automatically. By installing from the tar or zip 
 archive, you can start multiple instances of {es} locally to see how a multi-node 
 cluster behaves.
 
 To run a three-node {es} cluster locally:
 
-. Download the Elasticsearch archive for your OS:
+. Download the {es} archive for your OS:
 +
 Linux: https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-linux-x86_64.tar.gz[elasticsearch-{version}-linux-x86_64.tar.gz]
 +
@@ -108,7 +108,7 @@ Windows PowerShell:
 Expand-Archive elasticsearch-{version}-windows-x86_64.zip
 --------------------------------------------------
 
-. Start elasticsearch from the `bin` directory:
+. Start {es} from the `bin` directory:
 +
 Linux and macOS:
 +
@@ -354,7 +354,7 @@ search capabilities, you use the {es} Query DSL to specify the
 search criteria in the request body. You specify the name of the index you 
 want to search in the request URI.
 
-For example, the following request retrieves all of the documents in the `bank`
+For example, the following request retrieves all documents in the `bank`
 index sorted by account number:
 
 [source,js]
@@ -424,7 +424,7 @@ succeeded, failed, or were skipped.
 * `hits._score` - the document's relevance score (not applicable when using `match_all`)
 
 Each search request is self-contained: {es} does not maintain any
-state information across requests. To page through the search hits, you specify
+state information across requests. To page through the search hits, specify
 the `from` and `size` parameters in your request. 
 
 For example, the following request gets hits 10 through 19:
@@ -447,7 +447,7 @@ GET /bank/_search
 Now that you've seen how to submit a basic search request, you can start to
 construct queries that are a bit more interesting than `match_all`.
 
-To search for specific _terms_ within a field, you can use a `match` query. 
+To search for specific terms within a field, you can use a `match` query. 
 For example, the following request searches the `address` field to find 
 customers whose addresses contain `mill` or `lane`:
 
@@ -541,9 +541,15 @@ GET /bank/_search
 [[getting-started-aggregations]]
 == Analyze results with aggregations
 
-Aggregations provide the ability to group and extract statistics from your data. The easiest way to think about aggregations is by roughly equating it to the SQL GROUP BY and the SQL aggregate functions. In Elasticsearch, you have the ability to execute searches returning hits and at the same time return aggregated results separate from the hits all in one response. This is very powerful and efficient in the sense that you can run queries and multiple aggregations and get the results back of both (or either) operations in one shot avoiding network roundtrips using a concise and simplified API.
+{es} aggregations enable you to get meta-information about your search results
+and answer questions like, "How many account holders are in Texas?" or 
+"What's the average balance of accounts in Tennessee?" You can search 
+documents, filter hits, and use aggregations to analyze the results all in one
+request. 
 
-To start with, this example groups all the accounts by state, and then returns the top 10 (default) states sorted by count descending (also default):
+For example, the following request uses a `terms` aggregation to group
+all of the accounts in the `bank` index by state, and returns the ten states
+with the most accounts in descending order:
 
 [source,js]
 --------------------------------------------------
@@ -562,14 +568,10 @@ GET /bank/_search
 // CONSOLE
 // TEST[continued]
 
-In SQL, the above aggregation is similar in concept to:
-
-[source,sh]
---------------------------------------------------
-SELECT state, COUNT(*) FROM bank GROUP BY state ORDER BY COUNT(*) DESC LIMIT 10;
---------------------------------------------------
-
-And the response (partially shown):
+The `buckets` in the response are the values of the `state` field. The 
+`doc_count` shows the number of accounts in each state. For example, you
+can see that there are 27 accounts in `ID` (Idaho). Because the request
+set `size=0`, the response only contains the aggregation results.
 
 [source,js]
 --------------------------------------------------
@@ -631,12 +633,11 @@ And the response (partially shown):
 --------------------------------------------------
 // TESTRESPONSE[s/"took": 29/"took": $body.took/]
 
-We can see that there are 27 accounts in `ID` (Idaho), followed by 27 accounts
-in `TX` (Texas), followed by 25 accounts in `AL` (Alabama), and so forth.
 
-Note that we set `size=0` to not show search hits because we only want to see the aggregation results in the response.
-
-Building on the previous aggregation, this example calculates the average account balance by state (again only for the top 10 states sorted by count in descending order):
+You can combine aggregations to build more complex summaries of your data. For 
+example, the following request nests an `avg` aggregation within the previous
+`group_by_state` aggregation to calculate the average account balances for
+each state.
 
 [source,js]
 --------------------------------------------------
@@ -662,9 +663,8 @@ GET /bank/_search
 // CONSOLE
 // TEST[continued]
 
-Notice how we nested the `average_balance` aggregation inside the `group_by_state` aggregation. This is a common pattern for all the aggregations. You can nest aggregations inside aggregations arbitrarily to extract pivoted summarizations that you require from your data.
-
-Building on the previous aggregation, let's now sort on the average balance in descending order:
+Instead of sorting the results by count, you could sort using the result of
+the nested aggregation by specifying the order within the `terms` aggregation:
 
 [source,js]
 --------------------------------------------------
@@ -693,54 +693,14 @@ GET /bank/_search
 // CONSOLE
 // TEST[continued]
 
-This example demonstrates how we can group by age brackets (ages 20-29, 30-39, and 40-49), then by gender, and then finally get the average account balance, per age bracket, per gender:
+In addition to basic bucketing and metrics aggregations like these, {es}
+provides specialized aggregations for operating on multiple fields and 
+analyzing particular types of data Such as dates, IP addresses, and geo 
+data. You can also feed the results of individual aggregations into pipeline
+aggregations for further analysis.
 
-[source,js]
---------------------------------------------------
-GET /bank/_search
-{
-  "size": 0,
-  "aggs": {
-    "group_by_age": {
-      "range": {
-        "field": "age",
-        "ranges": [
-          {
-            "from": 20,
-            "to": 30
-          },
-          {
-            "from": 30,
-            "to": 40
-          },
-          {
-            "from": 40,
-            "to": 50
-          }
-        ]
-      },
-      "aggs": {
-        "group_by_gender": {
-          "terms": {
-            "field": "gender.keyword"
-          },
-          "aggs": {
-            "average_balance": {
-              "avg": {
-                "field": "balance"
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-}
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-There are many other aggregations capabilities that we won't go into detail here. The {ref}/search-aggregations.html[aggregations reference guide] is a great starting point if you want to do further experimentation.
+The core analysis capabilities provided by aggregations enable advanced
+features such as using machine learning to detect anomalies. 
 
 [[getting-started-next-steps]]
 == Where to go from here

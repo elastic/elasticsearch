@@ -306,7 +306,7 @@ public class TcpTransportTests extends ESTestCase {
             TcpTransport.decodeFrame(bytes);
             fail("Expected exception");
         } catch (Exception ex) {
-            assertThat(ex, instanceOf(TcpTransport.TLSOnNonSecureTransportException.class));
+            assertThat(ex, instanceOf(StreamCorruptedException.class));
             String expected = "SSL/TLS request received but SSL/TLS is not enabled on this node, got (16,3,"
                     + Integer.toHexString(byte1 & 0xFF) + ","
                     + Integer.toHexString(byte2 & 0xFF) + ")";

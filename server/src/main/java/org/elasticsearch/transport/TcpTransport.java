@@ -607,12 +607,10 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 BytesArray message = new BytesArray(e.getMessage().getBytes(StandardCharsets.UTF_8));
                 outboundHandler.sendBytes(channel, message, ActionListener.wrap(() -> CloseableChannel.closeChannel(channel)));
             }
-        } else if (e instanceof  TcpTransport.TLSOnNonSecureTransportException) {
+        } else if (e instanceof StreamCorruptedException) {
             logger.warn(() -> new ParameterizedMessage("{}, [{}], closing connection", e.getMessage(), channel));
             CloseableChannel.closeChannel(channel);
-        }
-
-        else {
+        } else {
             logger.warn(() -> new ParameterizedMessage("exception caught on transport layer [{}], closing connection", channel), e);
             // close the channel, which will cause a node to be disconnected if relevant
             CloseableChannel.closeChannel(channel);
@@ -750,8 +748,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                     + Integer.toHexString(headerBuffer.get(3) & 0xFF) + ")";
 
             if (appearsToBeTLS(headerBuffer)) {
-                throw new TLSOnNonSecureTransportException("SSL/TLS request received but SSL/TLS is not enabled on this node, got "
-                        + firstBytes);
+                throw new StreamCorruptedException("SSL/TLS request received but SSL/TLS is not enabled on this node, got " + firstBytes);
             }
 
             throw new StreamCorruptedException("invalid internal transport message format, got " + firstBytes);
@@ -820,18 +817,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             super(in);
         }
     }
-
-
-    /**
-     * A helper exception to mark an incoming connection as potentially being encrypted.
-     */
-    public static class TLSOnNonSecureTransportException extends ElasticsearchException {
-
-        private TLSOnNonSecureTransportException(String msg) {
-            super(msg);
-        }
-    }
-
 
     public void executeHandshake(DiscoveryNode node, TcpChannel channel, ConnectionProfile profile, ActionListener<Version> listener) {
         long requestId = inboundHandler.getResponseHandlers().newRequestId();

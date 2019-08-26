@@ -30,6 +30,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
@@ -39,9 +40,7 @@ import java.io.InputStream;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
-import java.security.Provider;
 import java.security.SecureRandom;
-import java.security.Security;
 import java.security.spec.InvalidKeySpecException;
 import java.util.Map;
 import java.util.function.Function;
@@ -64,7 +63,7 @@ public class EncryptedRepository extends BlobStoreRepository {
     private static final Setting<String> PASSWORD = new Setting<>("password", "", Function.identity(),
             Setting.Property.NodeScope);
     private static final String ENCRYPTION_METADATA_PREFIX = "encryption-metadata-";
-    // always the same IV because the key is generated everytime (Key-IV pair never repeats)
+    // always the same IV because the key is randomly generated anew (Key-IV pair is never repeated)
     private static final GCMParameterSpec gcmParameterSpec = new GCMParameterSpec(128, new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 });
 
     private final BlobStoreRepository delegatedRepository;
@@ -98,6 +97,10 @@ public class EncryptedRepository extends BlobStoreRepository {
     protected void doClose() {
         super.doClose();
         this.delegatedRepository.close();
+    }
+
+    protected ByteSizeValue chunkSize() {
+        return ByteSizeValue.parseBytesSizeValue("32gb", "encrypted blob store repository max chunk size");
     }
 
     private static SecretKey generateSecretKeyFromPassword(String password) throws NoSuchAlgorithmException, InvalidKeySpecException {

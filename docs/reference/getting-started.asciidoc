@@ -26,7 +26,7 @@ Tutorial] to see how to set up a system monitoring solution with {es}, {kib},
 
 TIP: The fastest way to get started with {es} is to
 https://www.elastic.co/cloud/elasticsearch-service/signup[start a free 14-day
-trial of {es} Service] in the cloud.
+trial of {ess}] in the cloud.
 --
 
 [[getting-started-install]]
@@ -34,14 +34,14 @@ trial of {es} Service] in the cloud.
 
 To take {es} for a test drive, you can create a 
 https://www.elastic.co/cloud/elasticsearch-service/signup[hosted deployment]  on 
-the {es} Service or set up a multi-node {es} cluster on your own
+the {ess} or set up a multi-node {es} cluster on your own
 Linux, macOS, or Windows machine.
 
 [float]
 [[run-elasticsearch-hosted]]
 === Run {es} on Elastic Cloud
 
-When you create a deployment on the {es} Service, the service provisions
+When you create a deployment on the {ess}, the service provisions
 a three node {es} cluster along with Kibana and APM.
 
 To create a deployment:
@@ -57,7 +57,7 @@ Once you've created a deployment, you're ready to <<getting-started-index>>.
 [[run-elasticsearch-local]]
 === Run {es} locally on Linux, macOS, or Windows
 
-When you create a deployment on the {es} Service, a master node and
+When you create a deployment on the {ess}, a master node and
 two data nodes are provisioned automatically. By installing from the tar or zip 
 archive, you can start multiple instances of {es} locally to see how a multi-node 
 cluster behaves.

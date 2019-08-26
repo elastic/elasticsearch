@@ -199,9 +199,10 @@ public class AwarenessAllocationDecider extends AllocationDecider {
 
             if (currentNodeCount == maximumNodeCount && shardCount > numberOfAttributes) {
                 for (ObjectCursor<String> cursor : nodesPerAttribute.keys()) {
-                    if (shardPerAttribute.get(cursor.value) == 0) {
+                    if (shardPerAttribute.get(cursor.value) < maximumNodeCount - 1) {
                         return allocation.decision(Decision.NO, NAME,
-                            "there are too many copies of the shard allocated to nodes with attribute [%s=%s], but the awareness attribute [%s] has not allocated",
+                            "there are too many copies of the shard allocated to nodes with attribute [%s=%s], " +
+                            "but the awareness attribute [%s] less than average",
                             awarenessAttribute, node.node().getAttributes().get(awarenessAttribute), cursor.value);
                     }
                 }

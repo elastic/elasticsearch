@@ -86,7 +86,6 @@ import org.elasticsearch.repositories.RepositoryCleanupResult;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryVerificationException;
-import org.elasticsearch.snapshots.InvalidSnapshotNameException;
 import org.elasticsearch.snapshots.SnapshotCreationException;
 import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -357,17 +356,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     public void initializeSnapshot(SnapshotId snapshotId, List<IndexId> indices, MetaData clusterMetaData) {
-        if (isReadOnly()) {
-            throw new RepositoryException(metadata.name(), "cannot create snapshot in a readonly repository");
-        }
         try {
-            final String snapshotName = snapshotId.getName();
-            // check if the snapshot name already exists in the repository
-            final RepositoryData repositoryData = getRepositoryData();
-            if (repositoryData.getSnapshotIds().stream().anyMatch(s -> s.getName().equals(snapshotName))) {
-                throw new InvalidSnapshotNameException(metadata.name(), snapshotId.getName(), "snapshot with the same name already exists");
-            }
-
             // Write Global MetaData
             globalMetaDataFormat.write(clusterMetaData, blobContainer(), snapshotId.getUUID(), true);
 

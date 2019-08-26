@@ -407,18 +407,16 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 assert initializingSnapshots.contains(snapshot.snapshot());
                 Repository repository = repositoriesService.repository(snapshot.snapshot().getRepository());
 
-                if (clusterState.nodes().getMinNodeVersion().onOrAfter(NO_REPO_INITIALIZE_VERSION)) {
-                    final String snapshotName = snapshot.snapshot().getSnapshotId().getName();
-                    if (repository.isReadOnly()) {
-                        throw new RepositoryException(repository.getMetadata().name(), "cannot create snapshot in a readonly repository");
-                    }
-                    // check if the snapshot name already exists in the repository
-                    final RepositoryData repositoryData = repository.getRepositoryData();
-                    if (repositoryData.getSnapshotIds().stream().anyMatch(s -> s.getName().equals(snapshotName))) {
-                        throw new InvalidSnapshotNameException(
-                            repository.getMetadata().name(), snapshotName, "snapshot with the same name already exists");
-                    }
-                } else {
+                if (repository.isReadOnly()) {
+                    throw new RepositoryException(repository.getMetadata().name(), "cannot create snapshot in a readonly repository");
+                }
+                final String snapshotName = snapshot.snapshot().getSnapshotId().getName();
+                // check if the snapshot name already exists in the repository
+                if (repository.getRepositoryData().getSnapshotIds().stream().anyMatch(s -> s.getName().equals(snapshotName))) {
+                    throw new InvalidSnapshotNameException(
+                        repository.getMetadata().name(), snapshotName, "snapshot with the same name already exists");
+                }
+                if (clusterState.nodes().getMinNodeVersion().onOrAfter(NO_REPO_INITIALIZE_VERSION) == false) {
                     // In mixed version clusters we initialize the snapshot in the repository so that in case of a master failover to an
                     // older version master node snapshot finalization (that assumes initializeSnapshot was called) produces a valid
                     // snapshot.

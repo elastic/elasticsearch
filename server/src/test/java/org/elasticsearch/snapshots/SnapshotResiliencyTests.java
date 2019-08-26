@@ -512,8 +512,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
         continueOrDie(createRepoAndIndex(masterNode, repoName, index, shards), createIndexResponse -> {
             final AtomicBoolean initiatedSnapshot = new AtomicBoolean(false);
             for (int i = 0; i < documents; ++i) {
+                // Index a few documents with different field names so we trigger a dynamic mapping update for each of them
                 masterNode.client.bulk(
-                    new BulkRequest().add(new IndexRequest(index).source(Map.of("foo" + i, "bar", "num", i)))
+                    new BulkRequest().add(new IndexRequest(index).source(Map.of("foo" + i, "bar")))
                         .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE),
                     assertNoFailureListener(
                         bulkResponse -> {
@@ -549,7 +550,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             final long hitCount = r.getHits().getTotalHits().value;
             assertThat(
                 "Documents were restored but the restored index mapping was older than some documents and misses some of their fields",
-                (int) hitCount + 1,
+                (int) hitCount,
                 lessThanOrEqualTo(((Map<?, ?>) masterNode.clusterService.state().metaData().index(restoredIndex).mapping()
                     .sourceAsMap().get("properties")).size())
             );

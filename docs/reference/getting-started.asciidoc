@@ -502,7 +502,7 @@ GET /bank/_search
 // CONSOLE
 // TEST[continued]
 
-Each `must`, `should`, and `must_not` element in a Boolean query is referred
+Each `must`, `should`, and `must_not` element in a `bool` query is referred
 to as a query clause. How well a document meets the criteria in each `must` or
 `should` clause contributes to the document's _relevance score_. The higher the
 score, the better the document matches your search criteria. By default, {es}

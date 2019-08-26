@@ -45,6 +45,11 @@ public class BuildPluginTests extends GradleUnitTestCase {
         BuildPlugin.assertRepositoryURIIsSecure("test", "test", uri);
     }
 
+    public void testRepositoryThatUsesFileScheme() throws URISyntaxException {
+        final URI uri = new URI("file:/tmp/maven");
+        BuildPlugin.assertRepositoryURIIsSecure("test", "test", uri);
+    }
+
     public void testRepositoryURIThatUsesHttpsScheme() throws URISyntaxException {
         final URI uri = new URI("https://s3.amazonaws.com/artifacts.elastic.co/maven");
         BuildPlugin.assertRepositoryURIIsSecure("test", "test", uri);

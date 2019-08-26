@@ -20,7 +20,6 @@
 package org.elasticsearch.client;
 
 import com.fasterxml.jackson.core.JsonParseException;
-
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
@@ -713,6 +712,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         assertTrue(names.contains(SetPriorityAction.NAME));
         assertEquals(Integer.valueOf(1), categories.get(DataFrameAnalysis.class));
         assertTrue(names.contains(OutlierDetection.NAME.getPreferredName()));
+        assertTrue(names.contains(org.elasticsearch.client.ml.dataframe.Regression.NAME.getPreferredName()));
         assertEquals(Integer.valueOf(1), categories.get(SyncConfig.class));
         assertTrue(names.contains(TimeSyncConfig.NAME));
         assertEquals(Integer.valueOf(2), categories.get(org.elasticsearch.client.ml.dataframe.evaluation.Evaluation.class));

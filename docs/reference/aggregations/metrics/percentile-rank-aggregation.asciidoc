@@ -18,7 +18,7 @@ value.  For example, if a value is greater than or equal to 95% of the observed 
 it is said to be at the 95th percentile rank.
 
 Assume your data consists of website load times.  You may have a service agreement that
-95% of page loads completely within 500ms and 99% of page loads complete within 600ms.
+95% of page loads finish within 500ms and 99% of page loads finish within 600ms.
 
 Let's look at a range of percentiles representing load time:
 
@@ -51,8 +51,8 @@ The response will look like this:
    "aggregations": {
       "load_time_ranks": {
          "values" : {
-            "500.0": 55.00000000000001,
-            "600.0": 64.0
+            "500.0": 94.8,
+            "600.0": 99.3
          }
       }
    }
@@ -61,7 +61,7 @@ The response will look like this:
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 From this information you can determine you are hitting the 99% load time target but not quite
-hitting the 95% load time target
+hitting the 95% load time target.
 
 ==== Keyed Response
 
@@ -98,11 +98,11 @@ Response:
             "values": [
                 {
                     "key": 500.0,
-                    "value": 55.00000000000001
+                    "value": 94.8
                 },
                 {
                     "key": 600.0,
-                    "value": 64.0
+                    "value": 99.3
                 }
             ]
         }

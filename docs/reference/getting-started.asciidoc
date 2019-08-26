@@ -17,7 +17,7 @@ Follow this getting started tutorial to:
 Need more context?
 
 Check out the <<elasticsearch-intro,
-Elasticsearch Introduction>> to learn the lingo and understand the basics of
+{es} Introduction>> to learn the lingo and understand the basics of
 how {es} works. If you're already familiar with {es} and want to see how it works
 with the rest of the stack, you might want to jump to the
 {stack-gs}/get-started-elastic-stack.html[Elastic Stack
@@ -26,7 +26,7 @@ Tutorial] to see how to set up a system monitoring solution with {es}, {kib},
 
 TIP: The fastest way to get started with {es} is to
 https://www.elastic.co/cloud/elasticsearch-service/signup[start a free 14-day
-trial of Elasticsearch Service] in the cloud.
+trial of {es} Service] in the cloud.
 --
 
 [[getting-started-install]]
@@ -34,15 +34,15 @@ trial of Elasticsearch Service] in the cloud.
 
 To take {es} for a test drive, you can create a 
 https://www.elastic.co/cloud/elasticsearch-service/signup[hosted deployment]  on 
-the Elasticsearch Service or set up a multi-node {es} cluster on your own
+the {es} Service or set up a multi-node {es} cluster on your own
 Linux, macOS, or Windows machine.
 
 [float]
 [[run-elasticsearch-hosted]]
 === Run {es} on Elastic Cloud
 
-When you create a deployment on the Elasticsearch Service, the service provisions
-a three node Elasticsearch cluster along with Kibana and APM.
+When you create a deployment on the {es} Service, the service provisions
+a three node {es} cluster along with Kibana and APM.
 
 To create a deployment:
 
@@ -57,14 +57,14 @@ Once you've created a deployment, you're ready to <<getting-started-index>>.
 [[run-elasticsearch-local]]
 === Run {es} locally on Linux, macOS, or Windows
 
-When you create a deployment on the Elasticsearch Service, a master node and
+When you create a deployment on the {es} Service, a master node and
 two data nodes are provisioned automatically. By installing from the tar or zip 
 archive, you can start multiple instances of {es} locally to see how a multi-node 
 cluster behaves.
 
 To run a three-node {es} cluster locally:
 
-. Download the Elasticsearch archive for your OS:
+. Download the {es} archive for your OS:
 +
 Linux: https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-linux-x86_64.tar.gz[elasticsearch-{version}-linux-x86_64.tar.gz]
 +
@@ -108,7 +108,7 @@ Windows PowerShell:
 Expand-Archive elasticsearch-{version}-windows-x86_64.zip
 --------------------------------------------------
 
-. Start elasticsearch from the `bin` directory:
+. Start {es} from the `bin` directory:
 +
 Linux and macOS:
 +
@@ -350,7 +350,7 @@ yellow open   bank  l7sSYV2cQXmu6_4rJWVIww   5   1       1000            0    12
 
 Once you have ingested some data into an {es} index, you can search it
 by sending requests to the `_search` endpoint. To access the full suite of
-search capabilities, you use the Elasticsearch Query DSL to specify the
+search capabilities, you use the {es} Query DSL to specify the
 search criteria in the request body. You specify the name of the index you 
 want to search in the request URI.
 
@@ -423,7 +423,7 @@ succeeded, failed, or were skipped.
 * `hits.sort` - the document's sort position (when not sorting by relevance score)
 * `hits._score` - the document's relevance score (not applicable when using `match_all`)
 
-Each search request is self-contained: Elasticsearch does not maintain any
+Each search request is self-contained: {es} does not maintain any
 state information across requests. To page through the search hits, you specify
 the `from` and `size` parameters in your request. 
 

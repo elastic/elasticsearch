@@ -228,7 +228,6 @@ public class CircleProcessorTests extends ESTestCase {
             Document doc = new Document();
             GeoShapeIndexer indexer = new GeoShapeIndexer(true, fieldName);
             Geometry normalized = indexer.prepareForIndexing(geometry);
-            System.out.println(WKT.toWKT(normalized));
             for (IndexableField field : indexer.indexShape(null, normalized)) {
                 doc.add(field);
             }

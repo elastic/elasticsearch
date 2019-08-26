@@ -66,6 +66,7 @@ A successful call returns an object with "cluster" and "index" fields.
   "cluster" : [
     "all",
     "create_snapshot",
+    "delegate_pki",
     "manage",
     "manage_api_key",
     "manage_ccr",

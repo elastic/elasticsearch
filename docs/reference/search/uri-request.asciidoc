@@ -14,7 +14,7 @@ GET twitter/_search?q=user:kimchy
 [[search-uri-request-api-request]]
 ==== {api-request-title}
 
-`GET {index}/_search?q={parameter}`
+`GET /<index>/_search?q=<parameter>`
 
 
 [[search-uri-request-api-desc]]

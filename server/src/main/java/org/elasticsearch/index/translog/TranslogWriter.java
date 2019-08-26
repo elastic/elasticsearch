@@ -262,9 +262,11 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
      *
      * Note: any exception during the sync process will be interpreted as a tragic exception and the writer will be closed before
      * raising the exception.
+     *
+     * @return {@code true} if this call caused an actual sync operation
      */
-    public void sync() throws IOException {
-        syncUpTo(Long.MAX_VALUE);
+    public boolean sync() throws IOException {
+        return syncUpTo(Long.MAX_VALUE);
     }
 
     /**

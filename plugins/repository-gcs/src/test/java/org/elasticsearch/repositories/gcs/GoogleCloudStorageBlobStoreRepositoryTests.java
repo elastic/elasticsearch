@@ -87,7 +87,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESBlobStoreRepos
     public static class MockGoogleCloudStorageService extends GoogleCloudStorageService {
         @Override
         public Storage client(String clientName) {
-            return new MockStorage(BUCKET, blobs);
+            return new MockStorage(BUCKET, blobs, random());
         }
     }
 

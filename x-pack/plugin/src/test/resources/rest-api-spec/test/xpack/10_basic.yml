@@ -25,3 +25,4 @@
     - contains:  { nodes.$master.modules: { name: x-pack-security } }
     - contains:  { nodes.$master.modules: { name: x-pack-sql } }
     - contains:  { nodes.$master.modules: { name: x-pack-watcher } }
+    - contains:  { nodes.$master.modules: { name: x-pack-data-science } }

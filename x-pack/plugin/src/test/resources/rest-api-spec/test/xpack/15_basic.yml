@@ -28,6 +28,8 @@
   - is_true:    features.monitoring
   - is_true:    features.monitoring.enabled
 #  - is_false:   features.monitoring.available  TODO fix once licensing is fixed
+  - is_true:    features.data_science
+  - is_true:    features.data_science.enabled
 
   - do:
       license.post:
@@ -77,6 +79,8 @@
   - is_true:    features.monitoring
   - is_true:    features.monitoring.enabled
   - is_true:    features.monitoring.available
+  - is_true:    features.data_science.enabled
+  - is_true:    features.data_science.available
   - is_true:    tagline
 
   - do:
@@ -89,6 +93,7 @@
   - is_true:    graph.available
   - is_true:    monitoring.enabled
   - is_true:    monitoring.available
+  - is_true:    data_science.available
 
   - do:
       xpack.info:

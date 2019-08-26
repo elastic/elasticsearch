@@ -1064,7 +1064,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             } else {
                 return metaData -> {
                     final Repository repository = new MockEventuallyConsistentRepository(
-                        metaData, environment, xContentRegistry(), deterministicTaskQueue.getThreadPool(), blobStoreContext);
+                        metaData, xContentRegistry(), deterministicTaskQueue.getThreadPool(), blobStoreContext);
                     repository.start();
                     return repository;
                 };

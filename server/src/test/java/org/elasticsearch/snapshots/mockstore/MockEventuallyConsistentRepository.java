@@ -33,7 +33,6 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.ESTestCase;
@@ -68,9 +67,12 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
 
     private final NamedXContentRegistry namedXContentRegistry;
 
-    public MockEventuallyConsistentRepository(RepositoryMetaData metadata, Environment environment,
-        NamedXContentRegistry namedXContentRegistry, ThreadPool threadPool, Context context) {
-        super(metadata, environment.settings(), false, namedXContentRegistry, threadPool);
+    public MockEventuallyConsistentRepository(
+        RepositoryMetaData metadata,
+        NamedXContentRegistry namedXContentRegistry,
+        ThreadPool threadPool,
+        Context context) {
+        super(metadata,false, namedXContentRegistry, threadPool);
         this.context = context;
         this.namedXContentRegistry = namedXContentRegistry;
     }

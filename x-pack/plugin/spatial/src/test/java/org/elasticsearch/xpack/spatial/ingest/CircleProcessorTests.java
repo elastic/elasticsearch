@@ -23,10 +23,9 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
-import org.elasticsearch.geometry.utils.GeographyValidator;
+import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
@@ -36,6 +35,7 @@ import org.elasticsearch.index.query.VectorGeoShapeQueryProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.spatial.SpatialUtils;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -44,6 +44,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
+import static org.elasticsearch.xpack.spatial.ingest.CircleProcessor.CircleShapeFieldType;
+import static org.elasticsearch.xpack.spatial.ingest.CircleProcessor.CircleShapeFieldType.GEO_SHAPE;
+import static org.elasticsearch.xpack.spatial.ingest.CircleProcessor.CircleShapeFieldType.SHAPE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -52,11 +55,12 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class CircleProcessorTests extends ESTestCase {
-    private static final WellKnownText WKT = new WellKnownText(true, new GeographyValidator(true));
+    private static final WellKnownText WKT = new WellKnownText(true, new StandardValidator(true));
 
     public void testNumSides() {
         double radiusDistanceMeters = randomDoubleBetween(0.01, 6371000, true);
-        CircleProcessor processor = new CircleProcessor("tag", "field", "field", false, radiusDistanceMeters);
+        CircleShapeFieldType shapeType = randomFrom(SHAPE, GEO_SHAPE);
+        CircleProcessor processor = new CircleProcessor("tag", "field", "field", false, radiusDistanceMeters, shapeType);
 
         // radius is same as error distance
         assertThat(processor.numSides(radiusDistanceMeters), equalTo(4));
@@ -70,14 +74,14 @@ public class CircleProcessorTests extends ESTestCase {
     }
 
     public void testFieldNotFound() throws Exception {
-        CircleProcessor processor = new CircleProcessor("tag", "field", "field", false, 10);
+        CircleProcessor processor = new CircleProcessor("tag", "field", "field", false, 10, GEO_SHAPE);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         Exception e = expectThrows(Exception.class, () -> processor.execute(ingestDocument));
         assertThat(e.getMessage(), containsString("not present as part of path [field]"));
     }
 
     public void testFieldNotFoundWithIgnoreMissing() throws Exception {
-        CircleProcessor processor = new CircleProcessor("tag", "field", "field", true, 10);
+        CircleProcessor processor = new CircleProcessor("tag", "field", "field", true, 10, GEO_SHAPE);
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
         processor.execute(ingestDocument);
@@ -85,14 +89,14 @@ public class CircleProcessorTests extends ESTestCase {
     }
 
     public void testNullValue() throws Exception {
-        CircleProcessor processor = new CircleProcessor("tag", "field", "field", false, 10);
+        CircleProcessor processor = new CircleProcessor("tag", "field", "field", false, 10, GEO_SHAPE);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("field", null));
         Exception e = expectThrows(Exception.class, () -> processor.execute(ingestDocument));
         assertThat(e.getMessage(), equalTo("field [field] is null, cannot process it."));
     }
 
     public void testNullValueWithIgnoreMissing() throws Exception {
-        CircleProcessor processor = new CircleProcessor("tag", "field", "field", true, 10);
+        CircleProcessor processor = new CircleProcessor("tag", "field", "field", true, 10, GEO_SHAPE);
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("field", null));
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
         processor.execute(ingestDocument);
@@ -108,34 +112,12 @@ public class CircleProcessorTests extends ESTestCase {
         circleMap.put("coordinates", List.of(circle.getLon(), circle.getLat()));
         circleMap.put("radius", circle.getRadiusMeters() + "m");
         map.put("field", circleMap);
-        Geometry expectedPoly = CircleProcessor.createRegularPolygon(circle.getLat(), circle.getLon(), circle.getRadiusMeters(), 4);
+        Geometry expectedPoly = SpatialUtils.createRegularGeoShapePolygon(circle, 4);
         assertThat(expectedPoly, instanceOf(Polygon.class));
         IngestDocument ingestDocument = new IngestDocument(map, Collections.emptyMap());
-        CircleProcessor processor = new CircleProcessor("tag", "field", "field", false, 10);
+        CircleProcessor processor = new CircleProcessor("tag", "field", "field", false, 10, GEO_SHAPE);
         processor.execute(ingestDocument);
         Map<String, Object> polyMap = ingestDocument.getFieldValue("field", Map.class);
-        XContentBuilder builder = XContentFactory.jsonBuilder();
-        GeoJson.toXContent(expectedPoly, builder, ToXContent.EMPTY_PARAMS);
-        Tuple<XContentType, Map<String, Object>> expected = XContentHelper.convertToMap(BytesReference.bytes(builder),
-            true, XContentType.JSON);
-        assertThat(polyMap, equalTo(expected.v2()));
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testJsonAcrossDateline() throws IOException {
-        Circle circle = new Circle(179.999746, 67.1726, 1000);
-        HashMap<String, Object> map = new HashMap<>();
-        HashMap<String, Object> circleMap = new HashMap<>();
-        circleMap.put("type", "Circle");
-        circleMap.put("coordinates", List.of(circle.getLon(), circle.getLat()));
-        circleMap.put("radius", circle.getRadiusMeters() + "m");
-        map.put("field", circleMap);
-        Geometry expectedPoly = CircleProcessor.createRegularPolygon(circle.getLat(), circle.getLon(), circle.getRadiusMeters(), 1000);
-        assertThat(expectedPoly, instanceOf(MultiPolygon.class));
-        IngestDocument ingestDocument = new IngestDocument(map, Collections.emptyMap());
-        CircleProcessor processor = new CircleProcessor("tag", "field", "field", false, 0.002);
-        processor.execute(ingestDocument);
-        Map<String, Object> polyMap = (Map<String, Object>) ingestDocument.getFieldValue("field", Map.class);
         XContentBuilder builder = XContentFactory.jsonBuilder();
         GeoJson.toXContent(expectedPoly, builder, ToXContent.EMPTY_PARAMS);
         Tuple<XContentType, Map<String, Object>> expected = XContentHelper.convertToMap(BytesReference.bytes(builder),
@@ -147,9 +129,9 @@ public class CircleProcessorTests extends ESTestCase {
         Circle circle = new Circle(101.0, 0.0, 2);
         HashMap<String, Object> map = new HashMap<>();
         map.put("field", WKT.toWKT(circle));
-        Geometry expectedPoly = CircleProcessor.createRegularPolygon(circle.getLat(), circle.getLon(), circle.getRadiusMeters(), 4);
+        Geometry expectedPoly = SpatialUtils.createRegularGeoShapePolygon(circle, 4);
         IngestDocument ingestDocument = new IngestDocument(map, Collections.emptyMap());
-        CircleProcessor processor = new CircleProcessor("tag", "field", "field",false, 2);
+        CircleProcessor processor = new CircleProcessor("tag", "field", "field",false, 2, GEO_SHAPE);
         processor.execute(ingestDocument);
         String polyString = ingestDocument.getFieldValue("field", String.class);
         assertThat(polyString, equalTo(WKT.toWKT(expectedPoly)));
@@ -159,7 +141,7 @@ public class CircleProcessorTests extends ESTestCase {
         HashMap<String, Object> map = new HashMap<>();
         map.put("field", "invalid");
         IngestDocument ingestDocument = new IngestDocument(map, Collections.emptyMap());
-        CircleProcessor processor = new CircleProcessor("tag", "field", "field", false, 10);
+        CircleProcessor processor = new CircleProcessor("tag", "field", "field", false, 10, GEO_SHAPE);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
         assertThat(e.getMessage(), equalTo("invalid circle definition"));
         map.put("field", "POINT (30 10)");
@@ -169,7 +151,7 @@ public class CircleProcessorTests extends ESTestCase {
 
     public void testMissingField() {
         IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), Collections.emptyMap());
-        CircleProcessor processor = new CircleProcessor("tag", "field", "field", false, 10);
+        CircleProcessor processor = new CircleProcessor("tag", "field", "field", false, 10, GEO_SHAPE);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
         assertThat(e.getMessage(), equalTo("field [field] not present as part of path [field]"));
     }
@@ -181,7 +163,7 @@ public class CircleProcessorTests extends ESTestCase {
         Map<String, Object> map = new HashMap<>();
         map.put("field", field);
         IngestDocument ingestDocument = new IngestDocument(map, Collections.emptyMap());
-        CircleProcessor processor = new CircleProcessor("tag", "field", "field", false, 10);
+        CircleProcessor processor = new CircleProcessor("tag", "field", "field", false, 10, GEO_SHAPE);
 
         for (Object value : new Object[] { null, 4.0, "not_circle"}) {
             field.put("type", value);
@@ -197,7 +179,7 @@ public class CircleProcessorTests extends ESTestCase {
         Map<String, Object> map = new HashMap<>();
         map.put("field", field);
         IngestDocument ingestDocument = new IngestDocument(map, Collections.emptyMap());
-        CircleProcessor processor = new CircleProcessor("tag", "field", "field", false, 10);
+        CircleProcessor processor = new CircleProcessor("tag", "field", "field", false, 10, GEO_SHAPE);
 
         for (Object value : new Object[] { null, "not_circle"}) {
             field.put("coordinates", value);
@@ -213,7 +195,7 @@ public class CircleProcessorTests extends ESTestCase {
         Map<String, Object> map = new HashMap<>();
         map.put("field", field);
         IngestDocument ingestDocument = new IngestDocument(map, Collections.emptyMap());
-        CircleProcessor processor = new CircleProcessor("tag", "field", "field", false, 10);
+        CircleProcessor processor = new CircleProcessor("tag", "field", "field", false, 10, GEO_SHAPE);
 
         for (Object value : new Object[] { null, "NotNumber", "10.0fs"}) {
             field.put("radius", value);
@@ -222,11 +204,11 @@ public class CircleProcessorTests extends ESTestCase {
         }
     }
 
-    public void testQueryAcrossDateline() throws IOException {
+    public void testQueryAcrossDateline(int i) throws IOException {
         String fieldName = "circle";
-        Circle circle = new Circle(179.999746, 67.1726, 1000);
-        Geometry geometry = CircleProcessor.createRegularPolygon(circle.getLat(), circle.getLon(),
-            circle.getRadiusMeters(), randomIntBetween(3, 150));
+        Circle circle = new Circle(179.999746, 67.1726, 100000);
+        int numSides = randomIntBetween(4, 1000);
+        Geometry geometry = SpatialUtils.createRegularGeoShapePolygon(circle, numSides);
 
         MappedFieldType shapeType = new GeoShapeFieldMapper.GeoShapeFieldType();
         shapeType.setHasDocValues(false);

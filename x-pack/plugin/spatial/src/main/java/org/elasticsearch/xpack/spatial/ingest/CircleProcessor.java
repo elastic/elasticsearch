@@ -5,9 +5,7 @@
  */
 package org.elasticsearch.xpack.spatial.ingest;
 
-import org.apache.lucene.util.SloppyMath;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.GeometryFormat;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
@@ -20,15 +18,16 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.MapXContentParser;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.geometry.LinearRing;
-import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.ShapeType;
-import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.xpack.spatial.SpatialUtils;
 
+import java.util.Arrays;
+import java.util.EnumSet;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -43,14 +42,17 @@ public final class CircleProcessor extends AbstractProcessor {
     private final String field;
     private final String targetField;
     private final boolean ignoreMissing;
-    private final double errorDistanceMeters;
+    private final double errorDistance;
+    private final CircleShapeFieldType circleShapeFieldType;
 
-    CircleProcessor(String tag, String field, String targetField, boolean ignoreMissing, double errorDistanceMeters) {
+    CircleProcessor(String tag, String field, String targetField, boolean ignoreMissing, double errorDistance,
+                    CircleShapeFieldType circleShapeFieldType) {
         super(tag);
         this.field = field;
         this.targetField = targetField;
         this.ignoreMissing = ignoreMissing;
-        this.errorDistanceMeters = errorDistanceMeters;
+        this.errorDistance = errorDistance;
+        this.circleShapeFieldType = circleShapeFieldType;
     }
 
 
@@ -86,7 +88,17 @@ public final class CircleProcessor extends AbstractProcessor {
             if (ShapeType.CIRCLE.equals(geometry.type())) {
                 Circle circle = (Circle) geometry;
                 int numSides = numSides(circle.getRadiusMeters());
-                Geometry polygonizedCircle = createRegularPolygon(circle.getLat(), circle.getLon(), circle.getRadiusMeters(), numSides);
+                final Geometry polygonizedCircle;
+                switch (circleShapeFieldType) {
+                    case GEO_SHAPE:
+                        polygonizedCircle = SpatialUtils.createRegularGeoShapePolygon(circle, numSides);
+                        break;
+                    case SHAPE:
+                        polygonizedCircle = SpatialUtils.createRegularShapePolygon(circle, numSides);
+                        break;
+                    default:
+                        throw new IllegalStateException("invalid shape_type [" + circleShapeFieldType + "]");
+                }
                 XContentBuilder newValueBuilder = XContentFactory.jsonBuilder().startObject().field("val");
                 geometryFormat.toXContent(polygonizedCircle, newValueBuilder, ToXContent.EMPTY_PARAMS);
                 newValueBuilder.endObject();
@@ -116,73 +128,19 @@ public final class CircleProcessor extends AbstractProcessor {
         return targetField;
     }
 
-    double errorDistanceMeters() {
-        return errorDistanceMeters;
+    double errorDistance() {
+        return errorDistance;
+    }
+
+    CircleShapeFieldType shapeType() {
+        return circleShapeFieldType;
     }
 
     int numSides(double radiusMeters) {
-        int val = (int) Math.ceil(2 * Math.PI / Math.acos(1 - errorDistanceMeters / radiusMeters));
+        int val = (int) Math.ceil(2 * Math.PI / Math.acos(1 - errorDistance / radiusMeters));
         return Math.min(MAXIMUM_NUMBER_OF_SIDES, Math.max(MINIMUM_NUMBER_OF_SIDES, val));
     }
 
-
-    /**
-     * Makes an n-gon, centered at the provided lat/lon, and each vertex approximately
-     * radiusMeters away from the center.
-     *
-     * This does not split the polygon across the date-line. Relies on {@link GeoShapeIndexer} to
-     * split prepare polygon for indexing.
-     *
-     * Adapted from from org.apache.lucene.geo.GeoTestUtil
-     * */
-    public static Polygon createRegularPolygon(double centerLat, double centerLon, double radiusMeters, int gons) {
-        double[][] result = new double[2][];
-        result[0] = new double[gons+1];
-        result[1] = new double[gons+1];
-        for(int i=0;i<gons;i++) {
-            double angle = i*(360.0/gons);
-            double x = Math.cos(SloppyMath.toRadians(angle));
-            double y = Math.sin(SloppyMath.toRadians(angle));
-            double factor = 2.0;
-            double step = 1.0;
-            int last = 0;
-
-            // Iterate out along one spoke until we hone in on the point that's nearly exactly radiusMeters from the center:
-            while (true) {
-                double lat = centerLat + y * factor;
-                double lon = centerLon + x * factor;
-                double distanceMeters = SloppyMath.haversinMeters(centerLat, centerLon, lat, lon);
-
-                if (Math.abs(distanceMeters - radiusMeters) < 0.1) {
-                    // Within 10 cm: close enough!
-                    result[0][i] = GeoUtils.normalizeLon(lon);
-                    result[1][i] = GeoUtils.normalizeLat(lat);
-                    break;
-                }
-
-                if (distanceMeters > radiusMeters) {
-                    // too big
-                    factor -= step;
-                    if (last == 1) {
-                        step /= 2.0;
-                    }
-                    last = -1;
-                } else if (distanceMeters < radiusMeters) {
-                    // too small
-                    factor += step;
-                    if (last == -1) {
-                        step /= 2.0;
-                    }
-                    last = 1;
-                }
-            }
-        }
-
-        // close poly
-        result[0][gons] = result[0][0];
-        result[1][gons] = result[1][0];
-        return new Polygon(new LinearRing(result[0], result[1]));
-    }
 
     public static final class Factory implements Processor.Factory {
 
@@ -190,9 +148,24 @@ public final class CircleProcessor extends AbstractProcessor {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field", field);
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
-            double radiusDistanceMeters = Math.abs(ConfigurationUtils.readDoubleProperty(TYPE, processorTag, config,
-                "error_distance_in_meters"));
-            return new CircleProcessor(processorTag, field, targetField, ignoreMissing, radiusDistanceMeters);
+            double radiusDistance = Math.abs(ConfigurationUtils.readDoubleProperty(TYPE, processorTag, config, "error_distance"));
+            CircleShapeFieldType circleFieldType = CircleShapeFieldType.parse(
+                ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "shape_type"));
+            return new CircleProcessor(processorTag, field, targetField, ignoreMissing, radiusDistance, circleFieldType);
+        }
+    }
+
+    enum CircleShapeFieldType {
+        SHAPE, GEO_SHAPE;
+
+        public static CircleShapeFieldType parse(String value) {
+            EnumSet<CircleShapeFieldType> validValues = EnumSet.allOf(CircleShapeFieldType.class);
+            try {
+                return valueOf(value.toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("illegal [shape_type] value [" + value + "]. valid values are " +
+                    Arrays.toString(validValues.toArray()));
+            }
         }
     }
 }

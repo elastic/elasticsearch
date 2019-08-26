@@ -12,12 +12,13 @@ Converts circle definitions of shapes to regular polygons which approximate them
 | `field`                     | yes       | -        | The string-valued field to trim whitespace from
 | `target_field`              | no        | `field`  | The field to assign the polygon shape to, by default `field` is updated in-place
 | `ignore_missing`            | no        | `false`  | If `true` and `field` does not exist, the processor quietly exits without modifying the document
-| `error_distance_in_meters`  | no        | -        | The difference between the resulting inscribed distance from center to side and the circle's radius
+| `error_distance`            | yes       | -        | The difference between the resulting inscribed distance from center to side and the circle's radius (measured in meters for `geo_shape`, unitless for `shape`)
+| `shape_type`                | yes       | -        | which field mapping type is to be used when processing the circle: `geo_shape` or `shape`
 include::common-options.asciidoc[]
 |======
 
 
-image:images/spatial/error_distance_in_meters.png[]
+image:images/spatial/error_distance.png[]
 
 [source,js]
 --------------------------------------------------
@@ -39,7 +40,7 @@ PUT _ingest/pipeline/polygonize_circles
       {
         "circle": {
           "field": "circle",
-          "error_distance_in_meters": 28.0
+          "error_distance": 28.0
         }
       }
     ]
@@ -141,7 +142,7 @@ The response from the above index request:
 
 ==== Notes on Accuracy
 
-Accuracy of the polygon that represents the circle is defined as `error_distance_in_meters`. The smaller this
+Accuracy of the polygon that represents the circle is defined as `error_distance`. The smaller this
 difference is, the closer to a perfect circle the polygon is.
 
 Below is a table that aims to help capture how the radius of the circle affects the resulting number of sides
@@ -153,17 +154,11 @@ The minimum number of sides is `4` and the maximum is `1000`.
 .Circle Processor Accuracy
 [options="header"]
 |======
-| error_distance_in_meters | radius in meters   | number of sides of polygon
-| 0.01                     | 0.001              | 4
-| 0.01                     | 0.1                | 14
-| 0.01                     | 1.0                | 45
-| 0.01                     | 10.0               | 141
-| 0.01                     | 100.0              | 445
-| 0.01                     | 1000.0             | 1000
-| 1.00                     | 1.0                | 4
-| 1.00                     | 10.0               | 14
-| 1.00                     | 100.0              | 45
-| 1.00                     | 1000.0             | 141
-| 1.00                     | 10000.0            | 445
-| 1.00                     | 100000.0           | 1000
+| error_distance | radius in meters   | number of sides of polygon
+| 1.00           | 1.0                | 4
+| 1.00           | 10.0               | 14
+| 1.00           | 100.0              | 45
+| 1.00           | 1000.0             | 141
+| 1.00           | 10000.0            | 445
+| 1.00           | 100000.0           | 1000
 |======

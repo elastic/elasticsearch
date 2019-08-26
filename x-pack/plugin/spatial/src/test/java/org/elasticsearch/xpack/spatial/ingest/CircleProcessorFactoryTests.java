@@ -24,16 +24,42 @@ public class CircleProcessorFactoryTests extends ESTestCase {
         factory = new CircleProcessor.Factory();
     }
 
-    public void testCreate() {
+    public void testCreateGeoShape() {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "field1");
-        config.put("error_distance_in_meters", 0.002);
+        config.put("error_distance", 0.002);
+        config.put("shape_type", "geo_shape");
         String processorTag = randomAlphaOfLength(10);
         CircleProcessor processor = factory.create(null, processorTag, config);
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.field(), equalTo("field1"));
         assertThat(processor.targetField(), equalTo("field1"));
-        assertThat(processor.errorDistanceMeters(), equalTo(0.002));
+        assertThat(processor.errorDistance(), equalTo(0.002));
+        assertThat(processor.shapeType(), equalTo(CircleProcessor.CircleShapeFieldType.GEO_SHAPE));
+    }
+
+    public void testCreateShape() {
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "field1");
+        config.put("error_distance", 0.002);
+        config.put("shape_type", "shape");
+        String processorTag = randomAlphaOfLength(10);
+        CircleProcessor processor = factory.create(null, processorTag, config);
+        assertThat(processor.getTag(), equalTo(processorTag));
+        assertThat(processor.field(), equalTo("field1"));
+        assertThat(processor.targetField(), equalTo("field1"));
+        assertThat(processor.errorDistance(), equalTo(0.002));
+        assertThat(processor.shapeType(), equalTo(CircleProcessor.CircleShapeFieldType.SHAPE));
+    }
+
+    public void testCreateInvalidShapeType() {
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "field1");
+        config.put("error_distance", 0.002);
+        config.put("shape_type", "invalid");
+        String processorTag = randomAlphaOfLength(10);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> factory.create(null, processorTag, config));
+        assertThat(e.getMessage(), equalTo("illegal [shape_type] value [invalid]. valid values are [SHAPE, GEO_SHAPE]"));
     }
 
     public void testCreateMissingField() {
@@ -47,13 +73,15 @@ public class CircleProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "field1");
         config.put("target_field", "other");
-        config.put("error_distance_in_meters", 0.002);
+        config.put("error_distance", 0.002);
+        config.put("shape_type", "geo_shape");
         String processorTag = randomAlphaOfLength(10);
         CircleProcessor processor = factory.create(null, processorTag, config);
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.field(), equalTo("field1"));
         assertThat(processor.targetField(), equalTo("other"));
-        assertThat(processor.errorDistanceMeters(), equalTo(0.002));
+        assertThat(processor.errorDistance(), equalTo(0.002));
+        assertThat(processor.shapeType(), equalTo(CircleProcessor.CircleShapeFieldType.GEO_SHAPE));
     }
 
     public void testCreateWithNoErrorDistanceDefined() {
@@ -61,6 +89,6 @@ public class CircleProcessorFactoryTests extends ESTestCase {
         config.put("field", "field1");
         String processorTag = randomAlphaOfLength(10);
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, processorTag, config));
-        assertThat(e.getMessage(), equalTo("[error_distance_in_meters] required property is missing"));
+        assertThat(e.getMessage(), equalTo("[error_distance] required property is missing"));
     }
 }

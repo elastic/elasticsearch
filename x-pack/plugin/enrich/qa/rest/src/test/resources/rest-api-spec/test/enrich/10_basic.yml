@@ -5,10 +5,10 @@
       enrich.put_policy:
         name: policy-crud
         body:
-          type: exact_match
-          indices: ["bar*"]
-          match_field: baz
-          enrich_fields: ["a", "b"]
+          exact_match:
+            indices: ["bar*"]
+            match_field: baz
+            enrich_fields: ["a", "b"]
   - is_true: acknowledged
 
   - do:
@@ -20,20 +20,18 @@
       enrich.get_policy:
         name: policy-crud
   - length: { policies: 1 }
-  - match: { policies.0.name: policy-crud }
-  - match: { policies.0.type: exact_match }
-  - match: { policies.0.indices: ["bar*"] }
-  - match: { policies.0.match_field: baz }
-  - match: { policies.0.enrich_fields: ["a", "b"] }
+  - match: { policies.0.exact_match.name: policy-crud }
+  - match: { policies.0.exact_match.indices: ["bar*"] }
+  - match: { policies.0.exact_match.match_field: baz }
+  - match: { policies.0.exact_match.enrich_fields: ["a", "b"] }
 
   - do:
       enrich.get_policy: {}
   - length: { policies: 1 }
-  - match: { policies.0.name: policy-crud }
-  - match: { policies.0.type: exact_match }
-  - match: { policies.0.indices: ["bar*"] }
-  - match: { policies.0.match_field: baz }
-  - match: { policies.0.enrich_fields: ["a", "b"] }
+  - match: { policies.0.exact_match.name: policy-crud }
+  - match: { policies.0.exact_match.indices: ["bar*"] }
+  - match: { policies.0.exact_match.match_field: baz }
+  - match: { policies.0.exact_match.enrich_fields: ["a", "b"] }
 
   - do:
       enrich.delete_policy:

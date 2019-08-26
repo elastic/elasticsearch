@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.enrich;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -19,6 +20,7 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
@@ -36,7 +38,6 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
     public static final String EXACT_MATCH_TYPE = "exact_match";
     public static final String[] SUPPORTED_POLICY_TYPES = new String[]{EXACT_MATCH_TYPE};
 
-    private static final ParseField TYPE = new ParseField("type");
     private static final ParseField QUERY = new ParseField("query");
     private static final ParseField INDICES = new ParseField("indices");
     private static final ParseField MATCH_FIELD = new ParseField("match_field");
@@ -44,14 +45,16 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
     private static final ParseField ELASTICSEARCH_VERSION = new ParseField("elasticsearch_version");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<EnrichPolicy, Void> PARSER = new ConstructingObjectParser<>("policy",
-        args -> new EnrichPolicy(
-            (String) args[0],
-            (QuerySource) args[1],
-            (List<String>) args[2],
-            (String) args[3],
-            (List<String>) args[4],
-            (Version) args[5]
+    private static final ConstructingObjectParser<EnrichPolicy, String> PARSER = new ConstructingObjectParser<>(
+        "policy",
+        false,
+        (args, policyType) -> new EnrichPolicy(
+            policyType,
+            (QuerySource) args[0],
+            (List<String>) args[1],
+            (String) args[2],
+            (List<String>) args[3],
+            (Version) args[4]
         )
     );
 
@@ -60,7 +63,6 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
     }
 
     private static <T> void declareCommonConstructorParsingOptions(ConstructingObjectParser<T, ?> parser) {
-        parser.declareString(ConstructingObjectParser.constructorArg(), TYPE);
         parser.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
             XContentBuilder contentBuilder = XContentBuilder.builder(p.contentType().xContent());
             contentBuilder.generator().copyCurrentStructure(p);
@@ -74,7 +76,24 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
     }
 
     public static EnrichPolicy fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
+        Token token = parser.currentToken();
+        if (token != Token.START_OBJECT) {
+            token = parser.nextToken();
+        }
+        if (token != Token.START_OBJECT) {
+            throw new ParsingException(parser.getTokenLocation(), "unexpected token");
+        }
+        token = parser.nextToken();
+        if (token != Token.FIELD_NAME) {
+            throw new ParsingException(parser.getTokenLocation(), "unexpected token");
+        }
+        String policyType = parser.currentName();
+        EnrichPolicy policy = PARSER.parse(parser, policyType);
+        token = parser.nextToken();
+        if (token != Token.END_OBJECT) {
+            throw new ParsingException(parser.getTokenLocation(), "unexpected token");
+        }
+        return policy;
     }
 
     private final String type;
@@ -157,7 +176,15 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(TYPE.getPreferredName(), type);
+        builder.startObject(type);
+        {
+            toInnerXContent(builder, params);
+        }
+        builder.endObject();
+        return builder;
+    }
+
+    private void toInnerXContent(XContentBuilder builder, Params params) throws IOException {
         if (query != null) {
             builder.field(QUERY.getPreferredName(), query.getQueryAsMap());
         }
@@ -167,7 +194,6 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         if (params.paramAsBoolean("include_version", false) && elasticsearchVersion != null) {
             builder.field(ELASTICSEARCH_VERSION.getPreferredName(), elasticsearchVersion.toString());
         }
-        return builder;
     }
 
     @Override
@@ -250,15 +276,17 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
 
         static final ParseField NAME = new ParseField("name");
         @SuppressWarnings("unchecked")
-        static final ConstructingObjectParser<NamedPolicy, Void> PARSER = new ConstructingObjectParser<>("named_policy",
-            args -> new NamedPolicy(
+        static final ConstructingObjectParser<NamedPolicy, String> PARSER = new ConstructingObjectParser<>(
+            "named_policy",
+            false,
+            (args, policyType) -> new NamedPolicy(
                 (String) args[0],
-                new EnrichPolicy((String) args[1],
-                    (QuerySource) args[2],
-                    (List<String>) args[3],
-                    (String) args[4],
-                    (List<String>) args[5],
-                    (Version) args[6])
+                new EnrichPolicy(policyType,
+                    (QuerySource) args[1],
+                    (List<String>) args[2],
+                    (String) args[3],
+                    (List<String>) args[4],
+                    (Version) args[5])
             )
         );
 
@@ -297,16 +325,39 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
+            builder.startObject(policy.type);
             {
                 builder.field(NAME.getPreferredName(), name);
-                policy.toXContent(builder, params);
+                policy.toInnerXContent(builder, params);
             }
+            builder.endObject();
             builder.endObject();
             return builder;
         }
 
         public static NamedPolicy fromXContent(XContentParser parser) throws IOException {
-            return PARSER.parse(parser, null);
+            Token token = parser.currentToken();
+            if (token != Token.START_OBJECT) {
+                token = parser.nextToken();
+            }
+            if (token != Token.START_OBJECT) {
+                throw new ParsingException(parser.getTokenLocation(), "unexpected token");
+            }
+            token = parser.nextToken();
+            if (token != Token.FIELD_NAME) {
+                throw new ParsingException(parser.getTokenLocation(), "unexpected token");
+            }
+            String policyType = parser.currentName();
+            token = parser.nextToken();
+            if (token != Token.START_OBJECT) {
+                throw new ParsingException(parser.getTokenLocation(), "unexpected token");
+            }
+            NamedPolicy policy = PARSER.parse(parser, policyType);
+            token = parser.nextToken();
+            if (token != Token.END_OBJECT) {
+                throw new ParsingException(parser.getTokenLocation(), "unexpected token");
+            }
+            return policy;
         }
 
         @Override

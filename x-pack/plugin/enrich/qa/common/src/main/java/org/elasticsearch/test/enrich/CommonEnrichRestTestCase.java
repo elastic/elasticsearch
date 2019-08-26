@@ -9,8 +9,12 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.After;
 
@@ -18,6 +22,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
@@ -29,15 +34,14 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
         List<Map<?,?>> policies = (List<Map<?,?>>) responseMap.get("policies");
 
         for (Map<?, ?> entry: policies) {
-            client().performRequest(new Request("DELETE", "/_enrich/policy/" + entry.get("name")));
+            client().performRequest(new Request("DELETE", "/_enrich/policy/" + XContentMapValues.extractValue("exact_match.name", entry)));
         }
     }
 
     private void setupGenericLifecycleTest(boolean deletePipeilne) throws Exception {
         // Create the policy:
         Request putPolicyRequest = new Request("PUT", "/_enrich/policy/my_policy");
-        putPolicyRequest.setJsonEntity("{\"type\": \"exact_match\",\"indices\": [\"my-source-index\"], \"match_field\": \"host\", " +
-            "\"enrich_fields\": [\"globalRank\", \"tldRank\", \"tld\"]}");
+        putPolicyRequest.setJsonEntity(generatePolicySource("my-source-index"));
         assertOK(client().performRequest(putPolicyRequest));
 
         // Add entry to source index and then refresh:
@@ -86,8 +90,7 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
 
     public void testImmutablePolicy() throws IOException {
         Request putPolicyRequest = new Request("PUT", "/_enrich/policy/my_policy");
-        putPolicyRequest.setJsonEntity("{\"type\": \"exact_match\",\"indices\": [\"my-source-index\"], \"match_field\": \"host\", " +
-            "\"enrich_fields\": [\"globalRank\", \"tldRank\", \"tld\"]}");
+        putPolicyRequest.setJsonEntity(generatePolicySource("my-source-index"));
         assertOK(client().performRequest(putPolicyRequest));
 
         ResponseException exc = expectThrows(ResponseException.class, () -> client().performRequest(putPolicyRequest));
@@ -96,8 +99,7 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
 
     public void testDeleteIsCaseSensitive() throws Exception {
         Request putPolicyRequest = new Request("PUT", "/_enrich/policy/my_policy");
-        putPolicyRequest.setJsonEntity("{\"type\": \"exact_match\",\"indices\": [\"my-source-index\"], \"match_field\": \"host\", " +
-            "\"enrich_fields\": [\"globalRank\", \"tldRank\", \"tld\"]}");
+        putPolicyRequest.setJsonEntity(generatePolicySource("my-source-index"));
         assertOK(client().performRequest(putPolicyRequest));
 
         ResponseException exc = expectThrows(ResponseException.class,
@@ -127,6 +129,20 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
         // verify the delete did not happen
         Request getRequest = new Request("GET", "/_enrich/policy/my_policy");
         assertOK(client().performRequest(getRequest));
+    }
+
+    public static String generatePolicySource(String index) throws IOException {
+        XContentBuilder source = jsonBuilder().startObject().startObject("exact_match");
+        {
+            source.field("indices", index);
+            if (randomBoolean()) {
+                source.field("query", QueryBuilders.matchAllQuery());
+            }
+            source.field("match_field", "host");
+            source.field("enrich_fields", new String[] {"globalRank", "tldRank", "tld"});
+        }
+        source.endObject().endObject();
+        return Strings.toString(source);
     }
 
     private static Map<String, Object> toMap(Response response) throws IOException {

@@ -273,6 +273,7 @@ public class NodeTests extends ESTestCase {
     }
 
     public void testCloseOnLeakedStoreReference() throws Exception {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/42350", Constants.WINDOWS);
         Node node = new MockNode(baseSettings().build(), basePlugins());
         node.start();
         IndicesService indicesService = node.injector().getInstance(IndicesService.class);

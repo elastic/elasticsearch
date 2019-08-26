@@ -541,7 +541,7 @@ GET /bank/_search
 [[getting-started-aggregations]]
 == Analyze results with aggregations
 
-{es} aggregations enble you to get meta-information about your search results
+{es} aggregations enable you to get meta-information about your search results
 and answer questions like, "How many account holders are in Texas?" or 
 "What's the average balance of accounts in Tennessee?" You can search 
 documents, filter hits, and use aggregations to analyze the results all in one

@@ -18,7 +18,9 @@
  */
 package org.elasticsearch.client;
 
+import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpPut;
+import org.elasticsearch.client.enrich.DeletePolicyRequest;
 import org.elasticsearch.client.enrich.PutPolicyRequest;
 
 import java.io.IOException;
@@ -36,6 +38,14 @@ final class EnrichRequestConverters {
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
         request.setEntity(createEntity(putPolicyRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
+    }
+
+    static Request deletePolicy(DeletePolicyRequest deletePolicyRequest) {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_enrich", "policy")
+            .addPathPart(deletePolicyRequest.getName())
+            .build();
+        return new Request(HttpDelete.METHOD_NAME, endpoint);
     }
 
 }

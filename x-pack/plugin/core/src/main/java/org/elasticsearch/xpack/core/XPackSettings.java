@@ -121,6 +121,10 @@ public class XPackSettings {
     /** Setting for enabling or disabling vectors. Defaults to true. */
     public static final Setting<Boolean> VECTORS_ENABLED = Setting.boolSetting("xpack.vectors.enabled", true, Setting.Property.NodeScope);
 
+    /** Setting for enabling or disabling data science plugin. Defaults to true. */
+    public static final Setting<Boolean> DATA_SCIENCE_ENABLED = Setting.boolSetting("xpack.datascience.enabled",
+        true, Setting.Property.NodeScope);
+
     /*
      * SSL settings. These are the settings that are specifically registered for SSL. Many are private as we do not explicitly use them
      * but instead parse based on a prefix (eg *.ssl.*)

@@ -123,7 +123,7 @@ public class SnippetsTask extends DefaultTask {
                     }
                 }
                 if (snippet.testResponse
-                        && 'js' == snippet.language
+                        && ('js' == snippet.language || 'console-result' == snippet.language)
                         && null == snippet.skip) {
                     String quoted = snippet.contents
                         // quote values starting with $
@@ -162,7 +162,7 @@ public class SnippetsTask extends DefaultTask {
                     }
                     return
                 }
-                matcher = line =~ /\["?source"?,\s*"?(\w+)"?(,.*)?].*/
+                matcher = line =~ /\["?source"?,\s*"?([-\w]+)"?(,.*)?].*/
                 if (matcher.matches()) {
                     lastLanguage = matcher.group(1)
                     lastLanguageLine = lineNumber

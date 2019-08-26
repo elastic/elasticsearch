@@ -57,7 +57,7 @@ Once you've created a deployment, you're ready to <<getting-started-index>>.
 [[run-elasticsearch-local]]
 === Run {es} locally on Linux, macOS, or Windows
 
-When you create a deployment on the Elasticsearch Service, a master node and
+When you create a deployment on the {es} Service, a master node and
 two data nodes are provisioned automatically. By installing from the tar or zip 
 archive, you can start multiple instances of {es} locally to see how a multi-node 
 cluster behaves.

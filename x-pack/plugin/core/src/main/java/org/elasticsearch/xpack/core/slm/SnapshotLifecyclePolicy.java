@@ -128,11 +128,9 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
         ActionRequestValidationException err = new ActionRequestValidationException();
 
         // ID validation
-        if (id.contains(",")) {
-            err.addValidationError("invalid policy id [" + id + "]: must not contain ','");
-        }
-        if (id.contains(" ")) {
-            err.addValidationError("invalid policy id [" + id + "]: must not contain spaces");
+        if (Strings.validFileName(id) == false) {
+            err.addValidationError("invalid policy id [" + id + "]: must not contain the following characters " +
+                Strings.INVALID_FILENAME_CHARS);
         }
         if (id.charAt(0) == '_') {
             err.addValidationError("invalid policy id [" + id + "]: must not start with '_'");

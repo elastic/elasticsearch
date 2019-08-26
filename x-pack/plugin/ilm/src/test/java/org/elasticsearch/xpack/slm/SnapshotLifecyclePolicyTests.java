@@ -56,7 +56,8 @@ public class SnapshotLifecyclePolicyTests extends AbstractSerializingTestCase<Sn
 
         ValidationException e = policy.validate();
         assertThat(e.validationErrors(),
-            containsInAnyOrder("invalid policy id [a,b]: must not contain ','",
+            containsInAnyOrder(
+                "invalid policy id [a,b]: must not contain the following characters [ , \", *, \\, <, |, ,, >, /, ?]",
                 "invalid snapshot name [<my, snapshot-{now/M}>]: must not contain contain" +
                     " the following characters [ , \", *, \\, <, |, ,, >, /, ?]",
                 "invalid repository name [  ]: cannot be empty",

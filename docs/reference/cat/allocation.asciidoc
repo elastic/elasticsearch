@@ -12,7 +12,7 @@ and their disk space.
 [[cat-allocation-api-request]]
 ==== {api-request-title}
 
-`GET /_cat/allocation/{node_id}`
+`GET /_cat/allocation/<node_id>`
 
 [[cat-allocation-api-path-params]]
 ==== {api-path-parms-title}

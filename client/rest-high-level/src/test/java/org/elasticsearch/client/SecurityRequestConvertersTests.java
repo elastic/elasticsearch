@@ -26,6 +26,7 @@ import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.security.ChangePasswordRequest;
 import org.elasticsearch.client.security.CreateApiKeyRequest;
 import org.elasticsearch.client.security.CreateTokenRequest;
+import org.elasticsearch.client.security.DelegatePkiAuthenticationRequest;
 import org.elasticsearch.client.security.DeletePrivilegesRequest;
 import org.elasticsearch.client.security.DeleteRoleMappingRequest;
 import org.elasticsearch.client.security.DeleteRoleRequest;
@@ -58,6 +59,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -67,6 +69,8 @@ import java.util.Map;
 
 import static org.elasticsearch.client.RequestConvertersTests.assertToXContentBody;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class SecurityRequestConvertersTests extends ESTestCase {
 
@@ -302,6 +306,18 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         assertEquals("/_security/oauth2/token", request.getEndpoint());
         assertEquals(0, request.getParameters().size());
         assertToXContentBody(createTokenRequest, request.getEntity());
+    }
+
+    public void testDelegatePkiAuthentication() throws Exception {
+        X509Certificate mockCertificate = mock(X509Certificate.class);
+        when(mockCertificate.getEncoded()).thenReturn(new byte[0]);
+        DelegatePkiAuthenticationRequest delegatePkiAuthenticationRequest = new DelegatePkiAuthenticationRequest(
+                Arrays.asList(mockCertificate));
+        Request request = SecurityRequestConverters.delegatePkiAuthentication(delegatePkiAuthenticationRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_security/delegate_pki", request.getEndpoint());
+        assertEquals(0, request.getParameters().size());
+        assertToXContentBody(delegatePkiAuthenticationRequest, request.getEntity());
     }
 
     public void testGetApplicationPrivilege() throws Exception {

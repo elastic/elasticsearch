@@ -2353,9 +2353,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void activateWithPrimaryContext(final ReplicationTracker.PrimaryContext primaryContext) {
         assert shardRouting.primary() && shardRouting.isRelocationTarget() :
             "only primary relocation target can update allocation IDs from primary context: " + shardRouting;
-        assert primaryContext.getCheckpointStates().containsKey(routingEntry().allocationId().getId()) &&
-            getLocalCheckpoint() == primaryContext.getCheckpointStates().get(routingEntry().allocationId().getId())
-                .getLocalCheckpoint() || indexSettings().getTranslogDurability() == Translog.Durability.ASYNC;
+        assert primaryContext.getCheckpointStates().containsKey(routingEntry().allocationId().getId()) :
+            "primary context [" + primaryContext + "] does not contain relocation target [" + routingEntry() + "]";
+        assert getLocalCheckpoint() == primaryContext.getCheckpointStates().get(routingEntry().allocationId().getId())
+            .getLocalCheckpoint() || indexSettings().getTranslogDurability() == Translog.Durability.ASYNC :
+            "local checkpoint [" + getLocalCheckpoint() + "] does not match checkpoint from primary context [" + primaryContext + "]";
         synchronized (mutex) {
             replicationTracker.activateWithPrimaryContext(primaryContext); // make changes to primaryMode flag only under mutex
         }

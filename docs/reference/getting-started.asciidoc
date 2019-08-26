@@ -354,7 +354,7 @@ search capabilities, you use the {es} Query DSL to specify the
 search criteria in the request body. You specify the name of the index you 
 want to search in the request URI.
 
-For example, the following request retrieves all of the documents in the `bank`
+For example, the following request retrieves all documents in the `bank`
 index sorted by account number:
 
 [source,js]

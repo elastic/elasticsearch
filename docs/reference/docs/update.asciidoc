@@ -333,19 +333,6 @@ Allows to control if and how the updated source should be returned in the respon
 By default the updated source is not returned.
 See <<request-body-search-source-filtering, Source filtering>> for details.
 
-
-`version`::
-
-The update API uses the Elasticsearch versioning support internally to make
-sure the document doesn't change during the update. You can use the `version`
-parameter to specify that the document should only be updated if its version
-matches the one specified.
-+
-NOTE: Update only supports `internal` versioning. External version types 
-(`external` and `external_gte`) or forced versioning are not supported, as it
-would result in Elasticsearch version numbers being out of sync with the 
-external system.  Use the <<docs-index_,`index` API>> instead.
-
 `if_seq_no` and `if_primary_term`::
 
 Update operations can be made conditional and only performed if the last

@@ -10,6 +10,7 @@ import io.netty.handler.codec.DecoderException;
 import io.netty.handler.ssl.NotSslRecordException;
 
 import javax.net.ssl.SSLException;
+import javax.net.ssl.SSLHandshakeException;
 
 public class SSLExceptionHelper {
 
@@ -17,8 +18,8 @@ public class SSLExceptionHelper {
     }
 
     public static boolean isNotSslRecordException(Throwable e) {
-        return e instanceof DecoderException &&
-                e.getCause() instanceof NotSslRecordException;
+        return e instanceof DecoderException
+                && e.getCause() instanceof NotSslRecordException;
     }
 
     public static boolean isCloseDuringHandshakeException(Throwable e) {
@@ -31,5 +32,11 @@ public class SSLExceptionHelper {
         return e instanceof DecoderException
                 && e.getCause() instanceof SSLException
                 && "Received fatal alert: certificate_unknown".equals(e.getCause().getMessage());
+    }
+
+    public static boolean isNoCertificateException(Throwable e) {
+        return e instanceof DecoderException
+                && e.getCause() instanceof SSLHandshakeException
+                && "null cert chain".equals(e.getCause().getMessage());
     }
 }

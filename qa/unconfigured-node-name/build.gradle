@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.OS
-
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -28,13 +26,6 @@ integTestCluster {
   // "out-of-the-box" configuration can automatically bootstrap a cluster
   autoSetInitialMasterNodes = false
   autoSetHostsProvider = false
-}
-
-// https://github.com/elastic/elasticsearch/issues/44656
-if ( OS.WINDOWS.equals(OS.current()) ) {
-    integTestRunner.enabled = false
-    integTest.enabled = false
-    testingConventions.enabled = false
 }
 
 integTestRunner {

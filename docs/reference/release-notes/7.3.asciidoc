@@ -17,7 +17,7 @@ Infra/Settings::
 * Normalize environment paths {pull}45179[#45179] (issue: {issue}45176[#45176])
 
 Machine Learning::
-* Outlier detection should only fetch docs that have the analyzed fields{pull}44944[#44944]
+* Outlier detection should only fetch docs that have the analyzed fields {pull}44944[#44944]
 
 SQL::
 * Remove deprecated use of "interval" from date_histogram usage {pull}45501[#45501] (issue: {issue}43922[#43922])
@@ -68,6 +68,10 @@ MULTIPLE AREA LABELS::
 Machine Learning::
 * Check dest index is empty when starting DF analytics {pull}45094[#45094]
 * Catch any error thrown while closing data frame analytics process {pull}44958[#44958]
+* Only trap the case where more rows are supplied to outlier detection than
+expected. Previously, if rows were excluded from the {dataframe-transform} after supplying the row count in the configuration, we detected the inconsistency and
+failed outlier detection. However, this situation legitimately happens in cases
+where the field values are non-numeric or array valued. {ml-pull}569[#569]
 
 Mapping::
 * Make sure to validate the type before attempting to merge a new mapping. {pull}45157[#45157] (issues: {issue}29316[#29316], {issue}43012[#43012])

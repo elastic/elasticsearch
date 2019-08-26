@@ -3,10 +3,13 @@ package org.elasticsearch.packaging.test;
 import org.elasticsearch.packaging.util.Archives;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Installation;
+import org.elasticsearch.packaging.util.Packages;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -18,10 +21,6 @@ import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
 import static org.elasticsearch.packaging.util.FileMatcher.file;
 import static org.elasticsearch.packaging.util.FileMatcher.p660;
 import static org.elasticsearch.packaging.util.FileUtils.rm;
-import static org.elasticsearch.packaging.util.Packages.assertRemoved;
-import static org.elasticsearch.packaging.util.Packages.startElasticsearch;
-import static org.elasticsearch.packaging.util.Packages.stopElasticsearch;
-import static org.elasticsearch.packaging.util.ServerUtils.runElasticsearchTests;
 import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
@@ -32,10 +31,13 @@ import static org.junit.Assume.assumeTrue;
 
 public class KeystoreManagementTests extends PackagingTestCase {
 
+    @Rule
+    public ExpectedException exceptionRule = ExpectedException.none();
+
     /** We need an initially installed package */
     public void test10InstallDistribution() throws Exception {
         if (distribution.isPackage()) {
-            assertRemoved(distribution());
+            Packages.assertRemoved(distribution());
         }
         installation = installAndVerify(distribution());
         final Installation.Executables bin = installation.executables();
@@ -51,28 +53,10 @@ public class KeystoreManagementTests extends PackagingTestCase {
         createKeystore();
 
         final Installation.Executables bin = installation.executables();
-        verifyCorrectPermissions();
+        verifyKeystorePermissions();
 
-        Platforms.onLinux(() -> {
-            Shell.Result r = sh.run(bin.elasticsearchKeystore + " list");
-            assertThat(r.stdout, containsString("keystore.seed"));
-        });
-
-        Platforms.onWindows(() -> {
-            final Shell.Result r = sh.run(bin.elasticsearchKeystore + " list");
-            assertThat(r.stdout, containsString("keystore.seed"));
-        });
-    }
-
-    private void verifyCorrectPermissions() {
-        Path keystore = installation.config("elasticsearch.keystore");
-        if (distribution.isPackage()) {
-            assertThat(keystore, file(File, "root", "elasticsearch", p660));
-        } else if (distribution.isArchive()) {
-            assertThat(keystore, file(File, ARCHIVE_OWNER, ARCHIVE_OWNER, p660));
-        } else {
-            throw new AssertionError("Fix this message");
-        }
+        Shell.Result r = sh.run(bin.elasticsearchKeystore + " list");
+        assertThat(r.stdout, containsString("keystore.seed"));
     }
 
     public void test30AutoCreateKeystore() throws Exception {
@@ -82,23 +66,17 @@ public class KeystoreManagementTests extends PackagingTestCase {
         Archives.runElasticsearch(installation, sh);
         Archives.stopElasticsearch(installation);
 
-        verifyCorrectPermissions();
+        verifyKeystorePermissions();
 
         final Installation.Executables bin = installation.executables();
-        Platforms.onLinux(() -> {
-            Shell.Result result = sh.run(bin.elasticsearchKeystore + " list");
-            assertThat(result.stdout, containsString("keystore.seed"));
-        });
-
-        Platforms.onWindows(() -> {
-            final Shell.Result result = sh.run(bin.elasticsearchKeystore + " list");
-            assertThat(result.stdout, containsString("keystore.seed"));
-        });
+        Shell.Result result = sh.run(bin.elasticsearchKeystore + " list");
+        assertThat(result.stdout, containsString("keystore.seed"));
     }
 
+    // TODO[wrb]: remove all timeouts before merging PR
     @Test(timeout = 5 * 60 * 1000)
     public void test40keystorePasswordOnStandardInput() throws Exception {
-        assumeTrue("packages will use systemd, which doesnt' handle stdin",
+        assumeTrue("packages will use systemd, which doesn't handle stdin",
             distribution.isArchive());
         assumeThat(installation, is(notNullValue()));
 
@@ -122,18 +100,13 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
     @Test(timeout = 5 * 60 * 1000)
     public void test41wrongKeystorePasswordOnStandardInput() throws Exception {
-        assumeTrue("packages will use systemd, which doesnt' handle stdin",
+        assumeTrue("packages will use systemd, which doesn't handle stdin",
             distribution.isArchive());
         assumeThat(installation, is(notNullValue()));
 
-        RuntimeException expected = null;
-        try {
-            Archives.runElasticsearch(installation, sh, "wrong");
-        } catch (RuntimeException e) {
-            expected = e;
-        }
-        assertThat(expected, notNullValue());
-        assertThat(expected.getMessage(), containsString("Elasticsearch did not start"));
+        exceptionRule.expect(RuntimeException.class);
+        exceptionRule.expectMessage("Elasticsearch did not start");
+        Archives.runElasticsearch(installation, sh, "wrong");
     }
 
     @Test(timeout = 5 * 60 * 1000)
@@ -152,17 +125,9 @@ public class KeystoreManagementTests extends PackagingTestCase {
                 passwordWithNewline.getBytes(StandardCharsets.UTF_8),
                 StandardOpenOption.WRITE);
 
-            if (distribution.isArchive()) {
-                Archives.runElasticsearch(installation, sh);
-                runElasticsearchTests();
-                Archives.stopElasticsearch(installation);
-            } else if (distribution.isPackage()) {
-                startElasticsearch(sh);
-                runElasticsearchTests();
-                stopElasticsearch(sh);
-            } else {
-                throw new AssertionError("uh oh");
-            }
+            startElasticsearch();
+            ServerUtils.runElasticsearchTests();
+            stopElasticsearch();
         } finally {
             Files.write(esEnv, originalEnvFile);
             rm(esKeystorePassphraseFile);
@@ -178,7 +143,6 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         final Installation.Executables bin = installation.executables();
 
-        RuntimeException expected = null;
         try {
             Files.createFile(esKeystorePassphraseFile);
             Files.write(esEnv,
@@ -193,36 +157,20 @@ public class KeystoreManagementTests extends PackagingTestCase {
             sh.run("echo $\'" + passwordWithNewline + passwordWithNewline + "\' | "
                 + bin.elasticsearchKeystore + " passwd");
 
-            if (distribution.isArchive()) {
-                Archives.runElasticsearch(installation, sh);
-            } else if (distribution.isPackage()) {
-                startElasticsearch(sh);
-            } else {
-                throw new AssertionError("uh oh");
-            }
-        } catch (RuntimeException e) {
-            expected = e;
+            assertElasticsearchFailsToStart();
         } finally {
             Files.write(esEnv, originalEnvFile);
             rm(esKeystorePassphraseFile);
         }
-
-        assertNotNull(expected);
-        assertThat(expected.getMessage(), anyOf(
-            containsString("Elasticsearch did not start"),
-            containsString("Command was not successful")));
     }
+
     private void createKeystore() throws Exception {
         Path keystore = installation.config("elasticsearch.keystore");
         final Installation.Executables bin = installation.executables();
         Platforms.onLinux(() -> {
-            if (distribution.isPackage()) {
-                sh.run(bin.elasticsearchKeystore + " create");
-            } else if (distribution.isArchive()) {
-                sh.run("sudo -u " + ARCHIVE_OWNER + " " + bin.elasticsearchKeystore + " create");
-            } else {
-                throw new AssertionError("Fix this message");
-            }
+            selectOnPackaging(
+                () -> sh.run(bin.elasticsearchKeystore + " create"),
+                () -> sh.run("sudo -u " + ARCHIVE_OWNER + " " + bin.elasticsearchKeystore + " create"));
         });
 
         // this is a hack around the fact that we can't run a command in the same session as the same user but not as administrator.
@@ -245,4 +193,47 @@ public class KeystoreManagementTests extends PackagingTestCase {
         }
     }
 
+    @FunctionalInterface
+    private interface ExceptionalRunnable {
+        void run() throws Exception;
+    }
+
+    // TODO: This screams "polymorphism," but we don't quite have the right
+    // structure in the Distribution class yet...
+    private static void selectOnPackaging(ExceptionalRunnable forPackage, ExceptionalRunnable forArchive) throws Exception {
+        assertTrue("Distribution must be package or archive",
+            distribution.isPackage() || distribution.isArchive());
+        if (distribution.isPackage()) {
+            forPackage.run();
+        } else {
+            forArchive.run();
+        }
+    }
+
+    private void assertElasticsearchFailsToStart() throws Exception {
+        exceptionRule.expect(RuntimeException.class);
+        selectOnPackaging(
+            () -> exceptionRule.expectMessage(containsString("Command was not successful")),
+            () -> exceptionRule.expectMessage(containsString("Elasticsearch did not start")));
+        startElasticsearch();
+    }
+
+    private void verifyKeystorePermissions() throws Exception {
+        Path keystore = installation.config("elasticsearch.keystore");
+        selectOnPackaging(
+            () -> assertThat(keystore, file(File, "root", "elasticsearch", p660)),
+            () -> assertThat(keystore, file(File, ARCHIVE_OWNER, ARCHIVE_OWNER, p660)));
+    }
+
+    private void stopElasticsearch() throws Exception {
+        selectOnPackaging(
+            () -> Packages.stopElasticsearch(sh),
+            () -> Archives.stopElasticsearch(installation));
+    }
+
+    private void startElasticsearch() throws Exception {
+        selectOnPackaging(
+            () -> Packages.startElasticsearch(sh),
+            () -> Archives.runElasticsearch(installation, sh));
+    }
 }

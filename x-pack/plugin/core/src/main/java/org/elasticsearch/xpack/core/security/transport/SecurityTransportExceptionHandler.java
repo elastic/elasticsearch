@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.security.transport;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.transport.TcpChannel;

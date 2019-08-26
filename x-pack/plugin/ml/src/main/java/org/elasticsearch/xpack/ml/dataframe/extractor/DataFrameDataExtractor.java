@@ -235,22 +235,13 @@ public class DataFrameDataExtractor {
     }
 
     public DataSummary collectDataSummary() {
-        SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client, SearchAction.INSTANCE)
-            .setIndices(context.indices)
-            .setSize(0)
-            .setQuery(context.query)
-            .setTrackTotalHits(true);
-
+        SearchRequestBuilder searchRequestBuilder = buildDataSummarySearchRequestBuilder();
         SearchResponse searchResponse = executeSearchRequest(searchRequestBuilder);
         return new DataSummary(searchResponse.getHits().getTotalHits().value, context.extractedFields.getAllFields().size());
     }
 
     public void collectDataSummaryAsync(ActionListener<DataSummary> dataSummaryActionListener) {
-        SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client, SearchAction.INSTANCE)
-            .setIndices(context.indices)
-            .setSize(0)
-            .setQuery(context.query)
-            .setTrackTotalHits(true);
+        SearchRequestBuilder searchRequestBuilder = buildDataSummarySearchRequestBuilder();
         final int numberOfFields = context.extractedFields.getAllFields().size();
 
         ClientHelper.executeWithHeadersAsync(context.headers,
@@ -263,6 +254,14 @@ public class DataFrameDataExtractor {
                     new DataSummary(searchResponse.getHits().getTotalHits().value, numberOfFields)),
             dataSummaryActionListener::onFailure
         ));
+    }
+
+    private SearchRequestBuilder buildDataSummarySearchRequestBuilder() {
+        return new SearchRequestBuilder(client, SearchAction.INSTANCE)
+            .setIndices(context.indices)
+            .setSize(0)
+            .setQuery(context.query)
+            .setTrackTotalHits(true);
     }
 
     public Set<String> getCategoricalFields() {

@@ -23,6 +23,7 @@ import org.apache.lucene.search.Scorable;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.Version;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -56,6 +57,7 @@ public abstract class ScoreScript {
     private int docId;
     private int shardId = -1;
     private String indexName = null;
+    private Version indexVersion = null;
 
     public ScoreScript(Map<String, Object> params, SearchLookup lookup, LeafReaderContext leafContext) {
         // null check needed b/c of expression engine subclass
@@ -157,6 +159,19 @@ public abstract class ScoreScript {
 
     /**
      *  Starting a name with underscore, so that the user cannot access this function directly through a script
+     *  It is only used within predefined painless functions.
+     * @return index version or throws an exception if the index version is not set up for this script instance
+     */
+    public Version _getIndexVersion() {
+        if (indexVersion != null) {
+            return indexVersion;
+        } else {
+            throw new IllegalArgumentException("index version can not be looked up!");
+        }
+    }
+
+    /**
+     *  Starting a name with underscore, so that the user cannot access this function directly through a script
      */
     public void _setShard(int shardId) {
         this.shardId = shardId;
@@ -167,6 +182,13 @@ public abstract class ScoreScript {
      */
     public void _setIndexName(String indexName) {
         this.indexName = indexName;
+    }
+
+    /**
+     *  Starting a name with underscore, so that the user cannot access this function directly through a script
+     */
+    public void _setIndexVersion(Version indexVersion) {
+        this.indexVersion = indexVersion;
     }
 
 

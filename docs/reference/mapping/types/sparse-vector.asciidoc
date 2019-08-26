@@ -56,5 +56,5 @@ PUT my_index/_doc/2
 
 Internally, each document's sparse vector is encoded as a binary
 doc value. Its size in bytes is equal to
-`6 * NUMBER_OF_DIMENSIONS`, where `NUMBER_OF_DIMENSIONS` -
+`6 * NUMBER_OF_DIMENSIONS + 4`, where `NUMBER_OF_DIMENSIONS` -
 number of the vector's dimensions.

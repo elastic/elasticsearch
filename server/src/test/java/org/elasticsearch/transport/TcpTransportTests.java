@@ -324,8 +324,8 @@ public class TcpTransportTests extends ESTestCase {
             fail("Expected exception");
         } catch (Exception ex) {
             assertThat(ex, instanceOf(StreamCorruptedException.class));
-            assertEquals("Received HTTP response on transport port, ensure that transport port " +
-                    "(not HTTP port) of remote node is specified in the configuration", ex.getMessage());
+            assertEquals("received HTTP response on transport port, ensure that transport port " +
+                    "(not HTTP port) of a remote node is specified in the configuration", ex.getMessage());
         }
     }
 }

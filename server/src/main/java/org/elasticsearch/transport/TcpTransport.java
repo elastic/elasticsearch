@@ -742,8 +742,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             }
 
             if (appearsToBeHTTPResponse(headerBuffer)) {
-                throw new StreamCorruptedException("Received HTTP response on transport port, ensure that transport port (not " +
-                        "HTTP port) of remote node is specified in the configuration");
+                throw new StreamCorruptedException("received HTTP response on transport port, ensure that transport port (not " +
+                        "HTTP port) of a remote node is specified in the configuration");
             }
 
             throw new StreamCorruptedException("invalid internal transport message format, got ("

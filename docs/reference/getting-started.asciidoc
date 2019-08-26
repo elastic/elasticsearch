@@ -34,7 +34,7 @@ trial of Elasticsearch Service] in the cloud.
 
 To take {es} for a test drive, you can create a 
 https://www.elastic.co/cloud/elasticsearch-service/signup[hosted deployment]  on 
-the Elasticsearch Service or set up a multi-node {es} cluster on your own
+the {es} Service or set up a multi-node {es} cluster on your own
 Linux, macOS, or Windows machine.
 
 [float]

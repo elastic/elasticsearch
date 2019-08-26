@@ -31,7 +31,9 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -226,4 +228,35 @@ public class GlobalCheckpointSyncIT extends ESIntegTestCase {
         }
     }
 
+    public void testPersistGlobalCheckpoint() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        Settings.Builder indexSettings = Settings.builder()
+            .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), randomTimeValue(100, 1000, "ms"))
+            .put("index.number_of_replicas", randomIntBetween(0, 1));
+        if (randomBoolean()) {
+            indexSettings.put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)
+                .put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), randomTimeValue(100, 1000, "ms"));
+        }
+        prepareCreate("test", indexSettings).get();
+        if (randomBoolean()) {
+            ensureGreen("test");
+        }
+        int numDocs = randomIntBetween(1, 20);
+        for (int i = 0; i < numDocs; i++) {
+            client().prepareIndex("test", "test", Integer.toString(i)).setSource("{}", XContentType.JSON).get();
+        }
+        ensureGreen("test");
+        assertBusy(() -> {
+            for (IndicesService indicesService : internalCluster().getDataNodeInstances(IndicesService.class)) {
+                for (IndexService indexService : indicesService) {
+                    for (IndexShard shard : indexService) {
+                        final SeqNoStats seqNoStats = shard.seqNoStats();
+                        assertThat(seqNoStats.getLocalCheckpoint(), equalTo(seqNoStats.getMaxSeqNo()));
+                        assertThat(shard.getLastKnownGlobalCheckpoint(), equalTo(seqNoStats.getMaxSeqNo()));
+                        assertThat(shard.getLastSyncedGlobalCheckpoint(), equalTo(seqNoStats.getMaxSeqNo()));
+                    }
+                }
+            }
+        });
+    }
 }

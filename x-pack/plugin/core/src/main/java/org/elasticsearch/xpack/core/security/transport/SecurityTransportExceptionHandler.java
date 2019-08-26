@@ -13,6 +13,8 @@ import org.elasticsearch.transport.TcpChannel;
 
 import java.util.function.BiConsumer;
 
+import static org.elasticsearch.xpack.core.security.transport.SSLExceptionHelper.isNoCertificateException;
+
 public final class SecurityTransportExceptionHandler implements BiConsumer<TcpChannel, Exception> {
 
     private final Lifecycle lifecycle;
@@ -45,6 +47,9 @@ public final class SecurityTransportExceptionHandler implements BiConsumer<TcpCh
             } else {
                 logger.warn("client did not trust this server's certificate, closing connection {}", channel);
             }
+            CloseableChannel.closeChannel(channel);
+        }  else if (isNoCertificateException(e)) {
+            logger.warn("client did not provide client certificate, closing connection {}", channel);
             CloseableChannel.closeChannel(channel);
         } else {
             fallback.accept(channel, e);

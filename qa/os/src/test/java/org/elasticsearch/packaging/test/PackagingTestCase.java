@@ -138,14 +138,14 @@ public abstract class PackagingTestCase extends Assert {
 
     protected Installation installAndVerify(Distribution distribution) throws Exception {
         Installation installation;
-        if (distribution().isArchive()) {
-            installation = installArchive(distribution());
+        if (distribution.isArchive()) {
+            installation = installArchive(distribution);
             verifyArchiveInstallation(installation, distribution());
-        } else if (distribution().isPackage()) {
-            assertRemoved(distribution());
-            installation = installPackage(distribution());
-            assertInstalled(distribution());
-            verifyPackageInstallation(installation, distribution(), sh);
+        } else if (distribution.isPackage()) {
+            assertRemoved(distribution);
+            installation = installPackage(distribution);
+            assertInstalled(distribution);
+            verifyPackageInstallation(installation, distribution, sh);
         } else {
             throw new AssertionError("We should have only two installation types");
         }

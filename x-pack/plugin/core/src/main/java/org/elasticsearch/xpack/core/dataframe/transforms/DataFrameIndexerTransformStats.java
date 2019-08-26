@@ -111,7 +111,7 @@ public class DataFrameIndexerTransformStats extends IndexerJobStats {
         if (in.getVersion().before(Version.V_7_4_0)) {
             in.readString(); // was transformId
         }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
             this.expAvgCheckpointDurationMs = in.readDouble();
             this.expAvgDocumentsIndexed = in.readDouble();
             this.expAvgDocumentsProcessed = in.readDouble();
@@ -124,7 +124,7 @@ public class DataFrameIndexerTransformStats extends IndexerJobStats {
         if (out.getVersion().before(Version.V_7_4_0)) {
             out.writeString(DEFAULT_TRANSFORM_ID);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
             out.writeDouble(this.expAvgCheckpointDurationMs);
             out.writeDouble(this.expAvgDocumentsIndexed);
             out.writeDouble(this.expAvgDocumentsProcessed);

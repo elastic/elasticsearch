@@ -36,6 +36,7 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
@@ -91,6 +92,7 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.engine.MockEngineSupport;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
@@ -855,6 +857,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         }
     }
 
+    @TestIssueLogging(value = "org.elasticsearch:DEBUG", issueUrl = "https://github.com/elastic/elasticsearch/issues/45953")
     public void testHistoryRetention() throws Exception {
         internalCluster().startNodes(3);
 
@@ -906,8 +909,9 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         recoveryStates.removeIf(r -> r.getTimer().getStartNanoTime() <= desyncNanoTime);
 
         assertThat(recoveryStates, hasSize(1));
-        assertThat(recoveryStates.get(0).getIndex().totalFileCount(), is(0));
-        assertThat(recoveryStates.get(0).getTranslog().recoveredOperations(), greaterThan(0));
+        final RecoveryState recoveryState = recoveryStates.get(0);
+        assertThat(recoveryState.toString(), recoveryState.getIndex().totalFileCount(), is(0));
+        assertThat(recoveryState.getTranslog().recoveredOperations(), greaterThan(0));
     }
 
     public void testDoNotInfinitelyWaitForMapping() {
@@ -1485,5 +1489,21 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             indexer.join();
         }
         ensureGreen(indexName);
+    }
+
+    public void testCancelRecoveryWithAutoExpandReplicas() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        assertAcked(client().admin().indices().prepareCreate("test")
+            .setSettings(Settings.builder().put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-all"))
+            .setWaitForActiveShards(ActiveShardCount.NONE));
+        internalCluster().startNode();
+        internalCluster().startNode();
+        client().admin().cluster().prepareReroute().setRetryFailed(true).get();
+        assertAcked(client().admin().indices().prepareDelete("test")); // cancel recoveries
+        assertBusy(() -> {
+            for (PeerRecoverySourceService recoveryService : internalCluster().getDataNodeInstances(PeerRecoverySourceService.class)) {
+                assertThat(recoveryService.numberOfOngoingRecoveries(), equalTo(0));
+            }
+        });
     }
 }

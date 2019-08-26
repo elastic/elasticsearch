@@ -12,7 +12,7 @@ docs, the bytes it takes on disk, and the node where it's located.
 [[cat-shards-api-request]]
 ==== {api-request-title}
 
-`GET /_cat/shards/{index}`
+`GET /_cat/shards/<index>`
 
 
 [[cat-shards-path-params]]

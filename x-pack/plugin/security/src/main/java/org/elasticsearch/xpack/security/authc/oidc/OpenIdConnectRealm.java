@@ -143,6 +143,14 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
         return token instanceof OpenIdConnectToken;
     }
 
+    private boolean isTokenForRealm(OpenIdConnectToken oidcToken) {
+        if (oidcToken.getAuthenticatingRealm() == null) {
+            return true;
+        } else {
+            return oidcToken.getAuthenticatingRealm().equals(this.name());
+        }
+    }
+
     @Override
     public AuthenticationToken token(ThreadContext context) {
         return null;
@@ -150,7 +158,7 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
 
     @Override
     public void authenticate(AuthenticationToken token, ActionListener<AuthenticationResult> listener) {
-        if (token instanceof OpenIdConnectToken) {
+        if (token instanceof OpenIdConnectToken && isTokenForRealm((OpenIdConnectToken) token)) {
             OpenIdConnectToken oidcToken = (OpenIdConnectToken) token;
             openIdConnectAuthenticator.authenticate(oidcToken, ActionListener.wrap(
                 jwtClaimsSet -> {

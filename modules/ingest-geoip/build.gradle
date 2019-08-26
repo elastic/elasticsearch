@@ -17,6 +17,8 @@
  * under the License.
  */
 
+import org.apache.tools.ant.taskdefs.condition.Os
+
 esplugin {
   description 'Ingest processor that uses looksup geo data based on ip adresses using the Maxmind geo database'
   classname 'org.elasticsearch.ingest.geoip.IngestGeoIpPlugin'
@@ -64,3 +66,11 @@ thirdPartyAudit.ignoreMissingClasses (
   'org.apache.http.impl.client.HttpClientBuilder',
   'org.apache.http.util.EntityUtils'
 )
+
+test {
+  if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+    // Windows cannot cleanup database files properly unless it loads everything on heap.
+    // See https://github.com/maxmind/MaxMind-DB-Reader-java#file-lock-on-windows for more information
+    systemProperty 'es.geoip.load_db_on_heap', 'true'
+  }
+}

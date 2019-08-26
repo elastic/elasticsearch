@@ -1010,6 +1010,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertOnlyReadAllowed(role, MlMetaIndex.INDEX_NAME);
         assertOnlyReadAllowed(role, AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX);
         assertOnlyReadAllowed(role, AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT);
+        assertOnlyReadAllowed(role, AuditorField.NOTIFICATIONS_INDEX_LEGACY);
         assertOnlyReadAllowed(role, AuditorField.NOTIFICATIONS_INDEX);
         assertReadWriteDocsButNotDeleteIndexAllowed(role, AnnotationIndex.INDEX_NAME);
 
@@ -1096,6 +1097,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNoAccessAllowed(role, MlMetaIndex.INDEX_NAME);
         assertNoAccessAllowed(role, AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX);
         assertOnlyReadAllowed(role, AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT);
+        assertOnlyReadAllowed(role, AuditorField.NOTIFICATIONS_INDEX_LEGACY);
         assertOnlyReadAllowed(role, AuditorField.NOTIFICATIONS_INDEX);
         assertReadWriteDocsButNotDeleteIndexAllowed(role, AnnotationIndex.INDEX_NAME);
 

@@ -1117,7 +1117,7 @@ public class ElasticsearchMappings {
         .endObject();
     }
 
-    public static XContentBuilder auditMessageMapping() throws IOException {
+    public static XContentBuilder auditMessageMappingLegacy() throws IOException {
         XContentBuilder builder = jsonBuilder().startObject();
         builder.startObject(SINGLE_MAPPING_NAME);
         addMetaInformation(builder);
@@ -1140,6 +1140,42 @@ public class ElasticsearchMappings {
                     .field(TYPE, DATE)
                 .endObject()
                 .startObject(AnomalyDetectionAuditMessage.NODE_NAME.getPreferredName())
+                    .field(TYPE, KEYWORD)
+                .endObject()
+        .endObject()
+        .endObject()
+        .endObject();
+
+        return builder;
+    }
+
+    public static XContentBuilder auditMessageMapping() throws IOException {
+        XContentBuilder builder = jsonBuilder().startObject();
+        builder.startObject(SINGLE_MAPPING_NAME);
+        addMetaInformation(builder);
+        builder.field(DYNAMIC, "false");
+        builder.startObject(PROPERTIES)
+                .startObject(Job.ID.getPreferredName())
+                    .field(TYPE, KEYWORD)
+                .endObject()
+                .startObject(AnomalyDetectionAuditMessage.LEVEL.getPreferredName())
+                    .field(TYPE, KEYWORD)
+                .endObject()
+                .startObject(AnomalyDetectionAuditMessage.MESSAGE.getPreferredName())
+                    .field(TYPE, TEXT)
+                    .startObject(FIELDS)
+                        .startObject(RAW)
+                            .field(TYPE, KEYWORD)
+                        .endObject()
+                    .endObject()
+                .endObject()
+                .startObject(AnomalyDetectionAuditMessage.TIMESTAMP.getPreferredName())
+                    .field(TYPE, DATE)
+                .endObject()
+                .startObject(AnomalyDetectionAuditMessage.NODE_NAME.getPreferredName())
+                    .field(TYPE, KEYWORD)
+                .endObject()
+                .startObject(AnomalyDetectionAuditMessage.JOB_TYPE.getPreferredName())
                     .field(TYPE, KEYWORD)
                 .endObject()
         .endObject()

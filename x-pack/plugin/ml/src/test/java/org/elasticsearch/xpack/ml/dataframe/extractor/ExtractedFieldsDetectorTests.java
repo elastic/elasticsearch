@@ -75,7 +75,8 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             SOURCE_INDEX, buildOutlierDetectionConfig(), RESULTS_FIELD, false, 100, fieldCapabilities);
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> extractedFieldsDetector.detect());
 
-        assertThat(e.getMessage(), equalTo("No compatible fields could be detected in index [source_index]"));
+        assertThat(e.getMessage(), equalTo("No compatible fields could be detected in index [source_index]." +
+            " Supported types are [scaled_float, double, byte, short, half_float, integer, float, long]."));
     }
 
     public void testDetect_GivenOutlierDetectionAndFieldWithNumericAndNonNumericTypes() {
@@ -86,7 +87,8 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             SOURCE_INDEX, buildOutlierDetectionConfig(), RESULTS_FIELD, false, 100, fieldCapabilities);
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> extractedFieldsDetector.detect());
 
-        assertThat(e.getMessage(), equalTo("No compatible fields could be detected in index [source_index]"));
+        assertThat(e.getMessage(), equalTo("No compatible fields could be detected in index [source_index]. " +
+            "Supported types are [scaled_float, double, byte, short, half_float, integer, float, long]."));
     }
 
     public void testDetect_GivenOutlierDetectionAndMultipleFields() {
@@ -150,7 +152,8 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             SOURCE_INDEX, buildOutlierDetectionConfig(), RESULTS_FIELD, false, 100, fieldCapabilities);
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> extractedFieldsDetector.detect());
 
-        assertThat(e.getMessage(), equalTo("No compatible fields could be detected in index [source_index]"));
+        assertThat(e.getMessage(), equalTo("No compatible fields could be detected in index [source_index]. " +
+            "Supported types are [scaled_float, double, byte, short, half_float, integer, float, long]."));
     }
 
     public void testDetect_ShouldSortFieldsAlphabetically() {
@@ -203,7 +206,8 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
             SOURCE_INDEX, buildOutlierDetectionConfig(desiredFields), RESULTS_FIELD, false, 100, fieldCapabilities);
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> extractedFieldsDetector.detect());
-        assertThat(e.getMessage(), equalTo("No compatible fields could be detected in index [source_index]"));
+        assertThat(e.getMessage(), equalTo("No compatible fields could be detected in index [source_index]. " +
+            "Supported types are [scaled_float, double, byte, short, half_float, integer, float, long]."));
     }
 
     public void testDetectedExtractedFields_GivenInclusionsAndExclusions() {

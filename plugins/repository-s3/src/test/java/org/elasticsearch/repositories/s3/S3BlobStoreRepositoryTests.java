@@ -103,7 +103,7 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
         public Map<String, Repository.Factory> getRepositories(final Environment env, final NamedXContentRegistry registry,
                                                                final ThreadPool threadPool) {
             return Collections.singletonMap(S3Repository.TYPE,
-                    metadata -> new S3Repository(metadata, env.settings(), registry, new S3Service() {
+                    metadata -> new S3Repository(metadata, registry, new S3Service() {
                         @Override
                         AmazonS3 buildClient(S3ClientSettings clientSettings) {
                             return new MockAmazonS3(blobs, bucket, serverSideEncryption, cannedACL, storageClass);

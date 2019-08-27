@@ -113,7 +113,7 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
             decodedValues,
             0.001f
         );
-        float decodedMagnitude = VectorEncoderDecoder.getVectorMagnitude(indexVersion, vectorBR, decodedValues);
+        float decodedMagnitude = VectorEncoderDecoder.decodeVectorMagnitude(indexVersion, vectorBR);
         assertEquals(expectedMagnitude, decodedMagnitude, 0.001f);
     }
 

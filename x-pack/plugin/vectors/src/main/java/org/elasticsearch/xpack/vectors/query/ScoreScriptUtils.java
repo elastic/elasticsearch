@@ -8,9 +8,11 @@
 package org.elasticsearch.xpack.vectors.query;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.xpack.vectors.mapper.VectorEncoderDecoder;
 
+import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -32,16 +34,21 @@ public class ScoreScriptUtils {
         }
 
         public double l1norm(List<Number> queryVector, VectorScriptDocValues.DenseVectorScriptDocValues dvs){
-            BytesRef value = dvs.getEncodedValue();
-            float[] docVector = VectorEncoderDecoder.decodeDenseVector(scoreScript._getIndexVersion(), value);
-            if (queryVector.size() != docVector.length) {
+            BytesRef vector = dvs.getEncodedValue();
+            int vectorLength = VectorEncoderDecoder.denseVectorLength(scoreScript._getIndexVersion(), vector);
+            if (queryVector.size() != vectorLength) {
                 throw new IllegalArgumentException("Can't calculate l1norm! The number of dimensions of the query vector [" +
-                    queryVector.size() + "] is different from the documents' vectors [" + docVector.length + "].");
+                    queryVector.size() + "] is different from the documents' vectors [" + vectorLength + "].");
             }
+
             Iterator<Number> queryVectorIter = queryVector.iterator();
+            ByteBuffer byteBuffer = ByteBuffer.wrap(vector.bytes, vector.offset, vector.length);
+
             double l1norm = 0;
-            for (int dim = 0; dim < docVector.length; dim++){
-                l1norm += Math.abs(queryVectorIter.next().floatValue() - docVector[dim]);
+            for (int dim = 0; dim < vectorLength; dim++) {
+                double queryValue = queryVectorIter.next().floatValue();
+                double docValue = byteBuffer.getFloat();
+                l1norm += Math.abs(queryValue - docValue);
             }
             return l1norm;
         }
@@ -55,16 +62,19 @@ public class ScoreScriptUtils {
         }
 
         public double l2norm(List<Number> queryVector, VectorScriptDocValues.DenseVectorScriptDocValues dvs){
-            BytesRef value = dvs.getEncodedValue();
-            float[] docVector = VectorEncoderDecoder.decodeDenseVector(scoreScript._getIndexVersion(), value);
-            if (queryVector.size() != docVector.length) {
+            BytesRef vector = dvs.getEncodedValue();
+            int vectorLength = VectorEncoderDecoder.denseVectorLength(scoreScript._getIndexVersion(), vector);
+            if (queryVector.size() != vectorLength) {
                 throw new IllegalArgumentException("Can't calculate l2norm! The number of dimensions of the query vector [" +
-                    queryVector.size() + "] is different from the documents' vectors [" + docVector.length + "].");
+                    queryVector.size() + "] is different from the documents' vectors [" + vectorLength + "].");
             }
+
+            ByteBuffer byteBuffer = ByteBuffer.wrap(vector.bytes, vector.offset, vector.length);
             Iterator<Number> queryVectorIter = queryVector.iterator();
+
             double l2norm = 0;
-            for (int dim = 0; dim < docVector.length; dim++){
-                double diff = queryVectorIter.next().floatValue() - docVector[dim];
+            for (int dim = 0; dim < vectorLength; dim++) {
+                double diff = queryVectorIter.next().floatValue() - byteBuffer.getFloat();
                 l2norm += diff * diff;
             }
             return Math.sqrt(l2norm);
@@ -77,14 +87,23 @@ public class ScoreScriptUtils {
         public DotProduct(ScoreScript scoreScript){
             this.scoreScript = scoreScript;
         }
+
         public double dotProduct(List<Number> queryVector, VectorScriptDocValues.DenseVectorScriptDocValues dvs){
-            BytesRef value = dvs.getEncodedValue();
-            float[] docVector = VectorEncoderDecoder.decodeDenseVector(scoreScript._getIndexVersion(), value);
-            if (queryVector.size() != docVector.length) {
-                throw new IllegalArgumentException("Can't calculate dotProduct! The number of dimensions of the query vector [" +
-                    queryVector.size() + "] is different from the documents' vectors [" + docVector.length + "].");
+            BytesRef vector = dvs.getEncodedValue();
+            int vectorLength = VectorEncoderDecoder.denseVectorLength(scoreScript._getIndexVersion(), vector);
+            if (queryVector.size() != vectorLength) {
+                throw new IllegalArgumentException("Can't calculate dotPRoduct! The number of dimensions of the query vector [" +
+                    queryVector.size() + "] is different from the documents' vectors [" + vectorLength + "].");
             }
-            return intDotProduct(queryVector, docVector);
+
+            Iterator<Number> queryVectorIter = queryVector.iterator();
+            ByteBuffer byteBuffer = ByteBuffer.wrap(vector.bytes, vector.offset, vector.length);
+
+            double dotProduct = 0;
+            for (int dim = 0; dim < vectorLength; dim++) {
+                dotProduct += queryVectorIter.next().floatValue() * byteBuffer.getFloat();
+            }
+            return dotProduct;
         }
     }
 
@@ -108,27 +127,34 @@ public class ScoreScriptUtils {
         }
 
         public double cosineSimilarity(VectorScriptDocValues.DenseVectorScriptDocValues dvs) {
-            BytesRef value = dvs.getEncodedValue();
-            float[] docVector = VectorEncoderDecoder.decodeDenseVector(scoreScript._getIndexVersion(), value);
-            if (queryVector.size() != docVector.length) {
+            BytesRef vector = dvs.getEncodedValue();
+            int vectorLength = VectorEncoderDecoder.denseVectorLength(scoreScript._getIndexVersion(), vector);
+            if (queryVector.size() != vectorLength) {
                 throw new IllegalArgumentException("Can't calculate cosineSimilarity! The number of dimensions of the query vector [" +
-                    queryVector.size() + "] is different from the documents' vectors [" + docVector.length + "].");
+                    queryVector.size() + "] is different from the documents' vectors [" + vectorLength + "].");
             }
-            float docVectorMagnitude = VectorEncoderDecoder.getVectorMagnitude(scoreScript._getIndexVersion(), value, docVector);
-            double docQueryDotProduct = intDotProduct(queryVector, docVector);
-            return docQueryDotProduct / (docVectorMagnitude * queryVectorMagnitude);
+
+            Iterator<Number> queryVectorIter = queryVector.iterator();
+            ByteBuffer byteBuffer = ByteBuffer.wrap(vector.bytes, vector.offset, vector.length);
+
+            double dotProduct = 0.0;
+            float docVectorMagnitude = 0.0f;
+            if (scoreScript._getIndexVersion().onOrAfter(Version.V_7_4_0)) {
+                for (int dim = 0; dim < vectorLength; dim++) {
+                    dotProduct += queryVectorIter.next().floatValue() * byteBuffer.getFloat();
+                }
+                docVectorMagnitude = VectorEncoderDecoder.decodeVectorMagnitude(scoreScript._getIndexVersion(), vector);
+            } else {
+                for (int dim = 0; dim < vectorLength; dim++) {
+                    float docValue = byteBuffer.getFloat();
+                    dotProduct += queryVectorIter.next().floatValue() * docValue;
+                    docVectorMagnitude += docValue * docValue;
+                }
+                docVectorMagnitude = (float) Math.sqrt(docVectorMagnitude);
+            }
+            return dotProduct / (docVectorMagnitude * queryVectorMagnitude);
         }
     }
-
-    private static double intDotProduct(List<Number> v1, float[] v2){
-        double v1v2DotProduct = 0;
-        Iterator<Number> v1Iter = v1.iterator();
-        for (int dim = 0; dim < v2.length; dim++) {
-            v1v2DotProduct += v1Iter.next().floatValue() * v2[dim];
-        }
-        return v1v2DotProduct;
-    }
-
 
     //**************FUNCTIONS FOR SPARSE VECTORS
     // Functions are implemented as classes to accept a hidden parameter scoreScript that contains some index settings.
@@ -273,8 +299,18 @@ public class ScoreScriptUtils {
             BytesRef value = dvs.getEncodedValue();
             int[] docDims = VectorEncoderDecoder.decodeSparseVectorDims(scoreScript._getIndexVersion(), value);
             float[] docValues = VectorEncoderDecoder.decodeSparseVector(scoreScript._getIndexVersion(), value);
-            float docVectorMagnitude = VectorEncoderDecoder.getVectorMagnitude(scoreScript._getIndexVersion(), value, docValues);
+
             double docQueryDotProduct = intDotProductSparse(queryValues, queryDims, docValues, docDims);
+            float docVectorMagnitude = 0.0f;
+            if (scoreScript._getIndexVersion().onOrAfter(Version.V_7_4_0)) {
+                docVectorMagnitude = VectorEncoderDecoder.decodeVectorMagnitude(scoreScript._getIndexVersion(), value);
+            } else {
+                for (float docValue : docValues) {
+                    docVectorMagnitude += docValue * docValue;
+                }
+                docVectorMagnitude = (float) Math.sqrt(docVectorMagnitude);
+            }
+
             return docQueryDotProduct / (docVectorMagnitude * queryVectorMagnitude);
         }
     }

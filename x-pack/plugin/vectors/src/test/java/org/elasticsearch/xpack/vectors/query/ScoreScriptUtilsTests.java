@@ -9,15 +9,15 @@ package org.elasticsearch.xpack.vectors.query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.script.ScoreScript;
-import org.elasticsearch.xpack.vectors.mapper.VectorEncoderDecoder;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.vectors.query.ScoreScriptUtils.DotProduct;
+import org.elasticsearch.xpack.vectors.mapper.VectorEncoderDecoder;
 import org.elasticsearch.xpack.vectors.query.ScoreScriptUtils.CosineSimilarity;
-import org.elasticsearch.xpack.vectors.query.ScoreScriptUtils.L1Norm;
-import org.elasticsearch.xpack.vectors.query.ScoreScriptUtils.L2Norm;
-import org.elasticsearch.xpack.vectors.query.ScoreScriptUtils.DotProductSparse;
 import org.elasticsearch.xpack.vectors.query.ScoreScriptUtils.CosineSimilaritySparse;
+import org.elasticsearch.xpack.vectors.query.ScoreScriptUtils.DotProduct;
+import org.elasticsearch.xpack.vectors.query.ScoreScriptUtils.DotProductSparse;
+import org.elasticsearch.xpack.vectors.query.ScoreScriptUtils.L1Norm;
 import org.elasticsearch.xpack.vectors.query.ScoreScriptUtils.L1NormSparse;
+import org.elasticsearch.xpack.vectors.query.ScoreScriptUtils.L2Norm;
 import org.elasticsearch.xpack.vectors.query.ScoreScriptUtils.L2NormSparse;
 
 import java.util.Arrays;
@@ -26,21 +26,25 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.vectors.mapper.VectorEncoderDecoderTests.mockEncodeDenseVector;
-
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-
 public class ScoreScriptUtilsTests extends ESTestCase {
+
     public void testDenseVectorFunctions() {
+        testDenseVectorFunctions(Version.V_7_3_0);
+        testDenseVectorFunctions(Version.CURRENT);
+    }
+
+    public void testDenseVectorFunctions(Version indexVersion) {
         float[] docVector = {230.0f, 300.33f, -34.8988f, 15.555f, -200.0f};
-        BytesRef encodedDocVector =  mockEncodeDenseVector(docVector);
+        BytesRef encodedDocVector = mockEncodeDenseVector(docVector, indexVersion);
         VectorScriptDocValues.DenseVectorScriptDocValues dvs = mock(VectorScriptDocValues.DenseVectorScriptDocValues.class);
         when(dvs.getEncodedValue()).thenReturn(encodedDocVector);
 
         ScoreScript scoreScript = mock(ScoreScript.class);
-        when(scoreScript._getIndexVersion()).thenReturn(Version.CURRENT);
+        when(scoreScript._getIndexVersion()).thenReturn(indexVersion);
 
         List<Number> queryVector = Arrays.asList(0.5f, 111.3f, -13.0f, 14.8f, -156.0f);
 
@@ -84,14 +88,19 @@ public class ScoreScriptUtilsTests extends ESTestCase {
     }
 
     public void testSparseVectorFunctions() {
+        testSparseVectorFunctions(Version.V_7_3_0);
+        testSparseVectorFunctions(Version.CURRENT);
+    }
+
+    public void testSparseVectorFunctions(Version indexVersion) {
         int[] docVectorDims = {2, 10, 50, 113, 4545};
         float[] docVectorValues = {230.0f, 300.33f, -34.8988f, 15.555f, -200.0f};
         BytesRef encodedDocVector = VectorEncoderDecoder.encodeSparseVector(
-            Version.CURRENT, docVectorDims, docVectorValues, docVectorDims.length);
+            indexVersion, docVectorDims, docVectorValues, docVectorDims.length);
         VectorScriptDocValues.SparseVectorScriptDocValues dvs = mock(VectorScriptDocValues.SparseVectorScriptDocValues.class);
         when(dvs.getEncodedValue()).thenReturn(encodedDocVector);
         ScoreScript scoreScript = mock(ScoreScript.class);
-        when(scoreScript._getIndexVersion()).thenReturn(Version.CURRENT);
+        when(scoreScript._getIndexVersion()).thenReturn(indexVersion);
 
         Map<String, Number> queryVector = new HashMap<String, Number>() {{
             put("2", 0.5);

@@ -162,47 +162,21 @@ public final class VectorEncoderDecoder {
         }.sort(0, n);
     }
 
-    /**
-     * Decodes a BytesRef into an array of floats
-     * @param indexVersion - index Version
-     * @param vectorBR - dense vector encoded in BytesRef
-     */
-    public static float[] decodeDenseVector(Version indexVersion, BytesRef vectorBR) {
-        if (vectorBR == null) {
-            throw new IllegalArgumentException("A document doesn't have a value for a vector field!");
-        }
-
-        int dimCount = indexVersion.onOrAfter(Version.V_7_4_0) ? (vectorBR.length - INT_BYTES) / INT_BYTES : vectorBR.length/ INT_BYTES;
-        float[] vector = new float[dimCount];
-
-        ByteBuffer byteBuffer = ByteBuffer.wrap(vectorBR.bytes, vectorBR.offset, vectorBR.length);
-        for (int dim = 0; dim < dimCount; dim++) {
-            vector[dim] = byteBuffer.getFloat();
-        }
-        return vector;
+    public static int denseVectorLength(Version indexVersion, BytesRef vectorBR) {
+        return indexVersion.onOrAfter(Version.V_7_4_0)
+            ? (vectorBR.length - INT_BYTES) / INT_BYTES
+            : vectorBR.length/ INT_BYTES;
     }
 
     /**
-     * Calculates vector magnitude either by
-     * decoding last 4 bytes of BytesRef into a vector magnitude or calculating it
-     * @param indexVersion - index Version
-     * @param vectorBR - vector encoded in BytesRef
-     * @param vector - float vector
+     * Decodes the last 4 bytes of the encoded vector, which contains the vector magnitude.
+     * NOTE: this function can only be called on vectors from an index version greater than or
+     * equal to 7.4.0, since vectors created prior to that do not store the magnitude.
      */
-    public static float getVectorMagnitude(Version indexVersion, BytesRef vectorBR, float[] vector) {
-        if (vectorBR == null) {
-            throw new IllegalArgumentException("A document doesn't have a value for a vector field!");
-        }
+    public static float decodeVectorMagnitude(Version indexVersion, BytesRef vectorBR) {
+        assert indexVersion.onOrAfter(Version.V_7_4_0);
+        ByteBuffer byteBuffer = ByteBuffer.wrap(vectorBR.bytes, vectorBR.offset, vectorBR.length);
+        return byteBuffer.getFloat(vectorBR.offset + vectorBR.length - 4);
 
-        if (indexVersion.onOrAfter(Version.V_7_4_0)) { // decode vector magnitude
-            ByteBuffer byteBuffer = ByteBuffer.wrap(vectorBR.bytes, vectorBR.offset, vectorBR.length);
-            return byteBuffer.getFloat(vectorBR.offset + vectorBR.length - 4);
-        } else { // calculate vector magnitude
-            double dotProduct = 0f;
-            for (int dim = 0; dim < vector.length; dim++) {
-                dotProduct += (double) vector[dim] * vector[dim];
-            }
-            return (float) Math.sqrt(dotProduct);
-        }
     }
 }

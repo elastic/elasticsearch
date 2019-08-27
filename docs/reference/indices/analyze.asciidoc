@@ -45,7 +45,7 @@ the `analyzer` or `field` parameter overrides this value.
 If the `analyzer` and `field` parameters are not specified,
 the analyze API uses the default analyzer for the `<index>`.
 
-If the `<index>` parameter is not specified
+If no `<index>` is specified 
 or the `<index>` does not have a default analyzer,
 the analyze API uses the <<analysis-standard-analyzer,standard analyzer>>.
 --
@@ -69,7 +69,7 @@ the analyze API uses the analyzer defined in the `field`'s mapping.
 If the `field` parameter is not specified,
 the analyze API uses the default analyzer for the `<index>`.
 
-If the `<index>` parameter is not specified
+If no `<index>` is specified 
 or the `<index>` does not have a default analyzer,
 the analyze API uses the <<analysis-standard-analyzer,standard analyzer>>.
 --

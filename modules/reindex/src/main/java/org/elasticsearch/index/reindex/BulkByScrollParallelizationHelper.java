@@ -68,7 +68,7 @@ class BulkByScrollParallelizationHelper {
         Client client,
         DiscoveryNode node,
         Runnable workerAction) {
-        initTaskState(task, request, client, new ActionListener<>() {
+        initTaskState(task, request, client, new ActionListener<Void>() {
             @Override
             public void onResponse(Void aVoid) {
                 executeSlicedAction(task, request, action, listener, client, node, workerAction);
@@ -125,7 +125,7 @@ class BulkByScrollParallelizationHelper {
         if (configuredSlices == AbstractBulkByScrollRequest.AUTO_SLICES) {
             ClusterSearchShardsRequest shardsRequest = new ClusterSearchShardsRequest();
             shardsRequest.indices(request.getSearchRequest().indices());
-            client.admin().cluster().searchShards(shardsRequest, new ActionListener<>() {
+            client.admin().cluster().searchShards(shardsRequest, new ActionListener<ClusterSearchShardsResponse>() {
                 @Override
                 public void onResponse(ClusterSearchShardsResponse response) {
                     setWorkerCount(request, task, countSlicesBasedOnShards(response));

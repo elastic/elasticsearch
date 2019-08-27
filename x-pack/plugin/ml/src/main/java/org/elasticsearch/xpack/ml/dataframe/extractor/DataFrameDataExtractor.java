@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.dataframe.extractor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.SearchAction;
@@ -234,14 +235,33 @@ public class DataFrameDataExtractor {
     }
 
     public DataSummary collectDataSummary() {
-        SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client, SearchAction.INSTANCE)
+        SearchRequestBuilder searchRequestBuilder = buildDataSummarySearchRequestBuilder();
+        SearchResponse searchResponse = executeSearchRequest(searchRequestBuilder);
+        return new DataSummary(searchResponse.getHits().getTotalHits().value, context.extractedFields.getAllFields().size());
+    }
+
+    public void collectDataSummaryAsync(ActionListener<DataSummary> dataSummaryActionListener) {
+        SearchRequestBuilder searchRequestBuilder = buildDataSummarySearchRequestBuilder();
+        final int numberOfFields = context.extractedFields.getAllFields().size();
+
+        ClientHelper.executeWithHeadersAsync(context.headers,
+            ClientHelper.ML_ORIGIN,
+            client,
+            SearchAction.INSTANCE,
+            searchRequestBuilder.request(),
+            ActionListener.wrap(
+                searchResponse -> dataSummaryActionListener.onResponse(
+                    new DataSummary(searchResponse.getHits().getTotalHits().value, numberOfFields)),
+            dataSummaryActionListener::onFailure
+        ));
+    }
+
+    private SearchRequestBuilder buildDataSummarySearchRequestBuilder() {
+        return new SearchRequestBuilder(client, SearchAction.INSTANCE)
             .setIndices(context.indices)
             .setSize(0)
             .setQuery(context.query)
             .setTrackTotalHits(true);
-
-        SearchResponse searchResponse = executeSearchRequest(searchRequestBuilder);
-        return new DataSummary(searchResponse.getHits().getTotalHits().value, context.extractedFields.getAllFields().size());
     }
 
     public Set<String> getCategoricalFields() {

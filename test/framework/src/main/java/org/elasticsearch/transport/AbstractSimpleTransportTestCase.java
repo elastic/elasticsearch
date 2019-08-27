@@ -2533,7 +2533,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 assertThat("num ipv4 is wrong: " + ipv4, ipv4, greaterThanOrEqualTo(1));
                 assertThat("num ipv6 is wrong: " + ipv6, ipv6, greaterThanOrEqualTo(1));
             } else {
-                assertThat(profileBoundAddresses.get("some_other_profile").boundAddresses(), arrayWithSize(1));
+                assertThat(profileBoundAddresses.get("some_other_profile").boundAddresses().length, greaterThanOrEqualTo(1));
             }
             assertThat(
                 profileBoundAddresses.get("some_other_profile").publishAddress().address().getAddress(),

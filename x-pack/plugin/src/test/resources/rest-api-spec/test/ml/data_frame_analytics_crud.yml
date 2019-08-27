@@ -1143,6 +1143,52 @@ setup:
           }
 
 ---
+"Test put regression given training_percent is less than one":
+
+  - do:
+      catch: /\[training_percent\] must be a double in \[1, 100\]/
+      ml.put_data_frame_analytics:
+        id: "regression-training-percent-is-less-than-one"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "regression": {
+                "dependent_variable": "foo",
+                "training_percent": 0.999
+              }
+            }
+          }
+
+---
+"Test put regression given training_percent is greater than hundred":
+
+  - do:
+      catch: /\[training_percent\] must be a double in \[1, 100\]/
+      ml.put_data_frame_analytics:
+        id: "regression-training-percent-is-greater-than-hundred"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "regression": {
+                "dependent_variable": "foo",
+                "training_percent": 100.1
+              }
+            }
+          }
+
+---
 "Test put regression given valid":
 
   - do:
@@ -1163,7 +1209,8 @@ setup:
                 "gamma": 0.42,
                 "eta": 0.5,
                 "maximum_number_trees": 400,
-                "feature_bag_fraction": 0.3
+                "feature_bag_fraction": 0.3,
+                "training_percent": 60.3
               }
             }
           }
@@ -1177,7 +1224,8 @@ setup:
       "gamma": 0.42,
       "eta": 0.5,
       "maximum_number_trees": 400,
-      "feature_bag_fraction": 0.3
+      "feature_bag_fraction": 0.3,
+      "training_percent": 60.3
     }
   }}
   - is_true: create_time
@@ -1210,7 +1258,8 @@ setup:
   - match: { dest.index: "index-dest" }
   - match: { analysis: {
     "regression":{
-      "dependent_variable": "foo"
+      "dependent_variable": "foo",
+      "training_percent": 100.0
     }
   }}
   - is_true: create_time

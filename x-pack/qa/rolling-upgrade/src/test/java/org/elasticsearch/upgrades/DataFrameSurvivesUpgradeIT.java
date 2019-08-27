@@ -198,10 +198,10 @@ public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
             Map<String, Object> indexerStats = (Map<String,Object>)((List<?>)XContentMapValues.extractValue("hits.hits._source.stats",
                 responseBody))
                 .get(0);
-            assertThat((Long)indexerStats.get("documents_indexed"),
-                greaterThan(previousStateAndStats.getIndexerStats().getOutputDocuments()));
-            assertThat((Long)indexerStats.get("documents_processed"),
-                greaterThan(previousStateAndStats.getIndexerStats().getOutputDocuments()));
+            assertThat((Integer)indexerStats.get("documents_indexed"),
+                greaterThan(Long.valueOf(previousStateAndStats.getIndexerStats().getOutputDocuments()).intValue()));
+            assertThat((Integer)indexerStats.get("documents_processed"),
+                greaterThan(Long.valueOf(previousStateAndStats.getIndexerStats().getNumDocuments()).intValue()));
         });
     }
 

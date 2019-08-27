@@ -161,7 +161,7 @@ asynchronous variant. The difference is that the asynchronous ones use asynchron
 httpclient requests. This is useful if you are doing multiple requests or are using e.g.
 rx java, Kotlin co-routines, or similar frameworks.
 
-The asynchrouns calls are recognizable by the fact that they have the word Async in their name 
+The asynchronous calls are recognizable by the fact that they have the word "Async" in their name 
 and return a Cancellable instance. The asynchronous methods accept the same request object 
 as the synchronous variant and accept a generic `ActionListener<T>` where `T` is the return 
 type of the synchronous method. 

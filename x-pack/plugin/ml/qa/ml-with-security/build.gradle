@@ -146,6 +146,7 @@ integTest.runner  {
     'ml/start_data_frame_analytics/Test start given source index has no compatible fields',
     'ml/start_data_frame_analytics/Test start with inconsistent body/param ids',
     'ml/start_data_frame_analytics/Test start given dest index is not empty',
+    'ml/start_data_frame_analytics/Test start with compatible fields but no data',
     'ml/start_stop_datafeed/Test start datafeed job, but not open',
     'ml/start_stop_datafeed/Test start non existing datafeed',
     'ml/start_stop_datafeed/Test stop non existing datafeed',

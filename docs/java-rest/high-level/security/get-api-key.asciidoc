@@ -21,6 +21,8 @@ The +{request}+ supports retrieving API key information for
 
 . All API keys for a specific user in a specific realm
 
+. A specific key or all API keys owned by the current authenticated user
+
 ===== Retrieve a specific API key by its id
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -49,6 +51,12 @@ include-tagged::{doc-tests-file}[get-user-api-keys-request]
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[get-user-realm-api-keys-request]
+--------------------------------------------------
+
+===== Retrieve all API keys for the current authenticated user
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[get-api-keys-owned-by-authenticated-user-request]
 --------------------------------------------------
 
 include::../execution.asciidoc[]

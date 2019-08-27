@@ -28,6 +28,7 @@ import org.elasticsearch.client.security.ClearRealmCacheRequest;
 import org.elasticsearch.client.security.ClearRolesCacheRequest;
 import org.elasticsearch.client.security.CreateApiKeyRequest;
 import org.elasticsearch.client.security.CreateTokenRequest;
+import org.elasticsearch.client.security.DelegatePkiAuthenticationRequest;
 import org.elasticsearch.client.security.DeletePrivilegesRequest;
 import org.elasticsearch.client.security.DeleteRoleMappingRequest;
 import org.elasticsearch.client.security.DeleteRoleRequest;
@@ -221,6 +222,12 @@ final class SecurityRequestConverters {
         return request;
     }
 
+    static Request delegatePkiAuthentication(DelegatePkiAuthenticationRequest delegatePkiAuthenticationRequest) throws IOException {
+        Request request = new Request(HttpPost.METHOD_NAME, "/_security/delegate_pki");
+        request.setEntity(createEntity(delegatePkiAuthenticationRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
     static Request invalidateToken(InvalidateTokenRequest invalidateTokenRequest) throws IOException {
         Request request = new Request(HttpDelete.METHOD_NAME, "/_security/oauth2/token");
         request.setEntity(createEntity(invalidateTokenRequest, REQUEST_BODY_CONTENT_TYPE));
@@ -294,7 +301,7 @@ final class SecurityRequestConverters {
         if (Strings.hasText(getApiKeyRequest.getRealmName())) {
             request.addParameter("realm_name", getApiKeyRequest.getRealmName());
         }
-
+        request.addParameter("owner", Boolean.toString(getApiKeyRequest.ownedByAuthenticatedUser()));
         return request;
     }
 

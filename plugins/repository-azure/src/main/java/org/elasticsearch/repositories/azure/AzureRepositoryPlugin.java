@@ -57,7 +57,7 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
     public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
                                                            ThreadPool threadPool) {
         return Collections.singletonMap(AzureRepository.TYPE,
-                (metadata) -> new AzureRepository(metadata, env, namedXContentRegistry, azureStoreService, threadPool));
+                (metadata) -> new AzureRepository(metadata, namedXContentRegistry, azureStoreService, threadPool));
     }
 
     @Override

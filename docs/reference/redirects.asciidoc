@@ -829,5 +829,9 @@ See <<getting-started-search>>.
 See <<getting-started-next-steps>>.
 
 [role="exclude", id="es-monitoring"]
-=== Conclusion
+=== Monitor an {es} cluster
 See <<monitor-elasticsearch-cluster>>.
+
+[role="exclude", id="pause-export"]
+=== Pausing Data Collection
+See <<monitoring-disable-collection>>.

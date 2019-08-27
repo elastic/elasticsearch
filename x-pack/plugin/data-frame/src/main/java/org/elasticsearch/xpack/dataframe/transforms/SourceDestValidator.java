@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
@@ -76,7 +77,8 @@ public final class SourceDestValidator {
                 String[] concreteNames = indexNameExpressionResolver.concreteIndexNames(clusterState,
                     IndicesOptions.lenientExpandOpen(),
                     src);
-                if (concreteNames.length == 0) {
+                // We will not have concrete index data about a remote index
+                if (concreteNames.length == 0 && RemoteClusterLicenseChecker.isRemoteIndex(src) == false) {
                     throw new ElasticsearchStatusException(
                         DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_SOURCE_INDEX_MISSING, src),
                         RestStatus.BAD_REQUEST);

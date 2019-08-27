@@ -24,14 +24,18 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
@@ -50,11 +54,16 @@ import org.elasticsearch.xpack.dataframe.transforms.pivot.Pivot;
 
 import java.io.IOException;
 import java.time.Clock;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+
+import static org.elasticsearch.xpack.core.dataframe.DataFrameMessages.TRANSFORM_NEEDS_REMOTE_CLUSTER_SEARCH;
 
 public class TransportStartDataFrameTransformAction extends
     TransportMasterNodeAction<StartDataFrameTransformAction.Request, StartDataFrameTransformAction.Response> {
@@ -65,6 +74,7 @@ public class TransportStartDataFrameTransformAction extends
     private final PersistentTasksService persistentTasksService;
     private final Client client;
     private final DataFrameAuditor auditor;
+    private final boolean isRemoteSearchEnabled;
 
     @Inject
     public TransportStartDataFrameTransformAction(TransportService transportService, ActionFilters actionFilters,
@@ -72,7 +82,7 @@ public class TransportStartDataFrameTransformAction extends
                                                   ThreadPool threadPool, IndexNameExpressionResolver indexNameExpressionResolver,
                                                   DataFrameTransformsConfigManager dataFrameTransformsConfigManager,
                                                   PersistentTasksService persistentTasksService, Client client,
-                                                  DataFrameAuditor auditor) {
+                                                  DataFrameAuditor auditor, Settings settings) {
         super(StartDataFrameTransformAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 StartDataFrameTransformAction.Request::new, indexNameExpressionResolver);
         this.licenseState = licenseState;
@@ -80,6 +90,7 @@ public class TransportStartDataFrameTransformAction extends
         this.persistentTasksService = persistentTasksService;
         this.client = client;
         this.auditor = auditor;
+        this.isRemoteSearchEnabled = RemoteClusterService.ENABLE_REMOTE_CLUSTERS.get(settings);
     }
 
     @Override
@@ -102,7 +113,7 @@ public class TransportStartDataFrameTransformAction extends
         }
         final AtomicReference<DataFrameTransform> transformTaskHolder = new AtomicReference<>();
 
-        // <4> Wait for the allocated task's state to STARTED
+        // <5> Wait for the allocated task's state to STARTED
         ActionListener<PersistentTasksCustomMetaData.PersistentTask<DataFrameTransform>> newPersistentTaskActionListener =
             ActionListener.wrap(
                 task -> {
@@ -118,7 +129,7 @@ public class TransportStartDataFrameTransformAction extends
             listener::onFailure
         );
 
-        // <3> Create the task in cluster state so that it will start executing on the node
+        // <4> Create the task in cluster state so that it will start executing on the node
         ActionListener<Void> createOrGetIndexListener = ActionListener.wrap(
             unused -> {
                 DataFrameTransform transformTask = transformTaskHolder.get();
@@ -171,7 +182,7 @@ public class TransportStartDataFrameTransformAction extends
             listener::onFailure
         );
 
-        // <2> If the destination index exists, start the task, otherwise deduce our mappings for the destination index and create it
+        // <3> If the destination index exists, start the task, otherwise deduce our mappings for the destination index and create it
         ActionListener<DataFrameTransformConfig> getTransformListener = ActionListener.wrap(
             config -> {
                 if (config.isValid() == false) {
@@ -225,8 +236,21 @@ public class TransportStartDataFrameTransformAction extends
             listener::onFailure
         );
 
+        // <2> Verify remote cluster license if necessary
+        ActionListener<DataFrameTransformConfig> getDataFrameTransformListener =
+            ActionListener.wrap(
+                transformConfig ->
+                    checkRemoteClusterLicense(transformConfig,
+                        client,
+                        transportService,
+                        clusterService.getNodeName(),
+                        isRemoteSearchEnabled,
+                        getTransformListener),
+                listener::onFailure
+            );
+
         // <1> Get the config to verify it exists and is valid
-        dataFrameTransformsConfigManager.getTransformConfiguration(request.getId(), getTransformListener);
+        dataFrameTransformsConfigManager.getTransformConfiguration(request.getId(), getDataFrameTransformListener);
     }
 
     private void createDestinationIndex(final DataFrameTransformConfig config, final ActionListener<Void> listener) {
@@ -255,6 +279,88 @@ public class TransportStartDataFrameTransformAction extends
 
     private static DataFrameTransform createDataFrameTransform(String transformId, Version transformVersion, TimeValue frequency) {
         return new DataFrameTransform(transformId, transformVersion, frequency);
+    }
+
+    static ElasticsearchStatusException createUnlicensedError(final String transformid,
+                                                               final RemoteClusterLicenseChecker.LicenseCheck licenseCheck) {
+    final String message = String.format(
+            Locale.ROOT,
+            "cannot start transform [%s] as it is configured to use indices on remote cluster [%s] that is not licensed for transforms; %s",
+            transformid,
+            licenseCheck.remoteClusterLicenseInfo().clusterAlias(),
+            RemoteClusterLicenseChecker.buildErrorMessage(
+                "transforms",
+                licenseCheck.remoteClusterLicenseInfo(),
+                licenseInfo -> License.OperationMode.resolve(licenseInfo.getMode()) != License.OperationMode.MISSING));
+        return new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST);
+    }
+
+    static ElasticsearchStatusException createUnknownLicenseError(final String transformId,
+                                                                  final List<String> remoteIndices,
+                                                                  final Exception cause,
+                                                                  final int numberOfRemoteClusters) {
+        assert numberOfRemoteClusters > 0;
+        final String remoteClusterQualifier = numberOfRemoteClusters == 1 ? "a remote cluster" : "remote clusters";
+        final String licenseTypeQualifier = numberOfRemoteClusters == 1 ? "" : "s";
+        final String message = String.format(
+            Locale.ROOT,
+            "cannot start transform [%s] as it uses indices on %s %s but the license type%s could not be verified",
+            transformId,
+            remoteClusterQualifier,
+            remoteIndices,
+            licenseTypeQualifier);
+
+        return new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST, cause);
+    }
+
+    static void checkRemoteClusterLicense(final DataFrameTransformConfig transformConfig,
+                                          Client client,
+                                          TransportService transportService,
+                                          String nodeName,
+                                          boolean isRemoteSearchEnabled,
+                                          ActionListener<DataFrameTransformConfig> listener) {
+        final List<String> indicesList = Arrays.asList(transformConfig.getSource().getIndex());
+        final List<String> remoteIndices = RemoteClusterLicenseChecker.remoteIndices(indicesList);
+        if (remoteIndices.isEmpty() == false) {
+            final RemoteClusterLicenseChecker remoteClusterLicenseChecker =
+                new RemoteClusterLicenseChecker(client, (operationMode -> operationMode != License.OperationMode.MISSING));
+            remoteClusterLicenseChecker.checkRemoteClusterLicenses(
+                RemoteClusterLicenseChecker.remoteClusterAliases(
+                    transportService.getRemoteClusterService().getRegisteredRemoteClusterNames(),
+                    indicesList),
+                ActionListener.wrap(
+                    response -> {
+                        if (response.isSuccess() == false) {
+                            listener.onFailure(createUnlicensedError(transformConfig.getId(), response));
+                        } else if (isRemoteSearchEnabled == false) {
+                            listener.onFailure(
+                                new ElasticsearchStatusException(
+                                    DataFrameMessages.getMessage(TRANSFORM_NEEDS_REMOTE_CLUSTER_SEARCH,
+                                        transformConfig.getId(),
+                                        remoteIndices,
+                                        nodeName),
+                                    RestStatus.BAD_REQUEST)
+                            );
+                        } else {
+                            listener.onResponse(transformConfig);
+                        }
+                    },
+                    e -> {
+                        final int numberOfRemoteClusters = RemoteClusterLicenseChecker.remoteClusterAliases(
+                            transportService.getRemoteClusterService().getRegisteredRemoteClusterNames(),
+                            remoteIndices).size();
+                        listener.onFailure(
+                            createUnknownLicenseError(
+                                transformConfig.getId(),
+                                RemoteClusterLicenseChecker.remoteIndices(indicesList),
+                                e,
+                                numberOfRemoteClusters));
+                    }
+                )
+            );
+        } else {
+            listener.onResponse(transformConfig);
+        }
     }
 
     @SuppressWarnings("unchecked")

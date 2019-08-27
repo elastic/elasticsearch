@@ -31,6 +31,10 @@ public class DataFrameMessages {
     public static final String DATA_FRAME_FAILED_TO_PERSIST_STATS = "Failed to persist data frame statistics for transform [{0}]";
     public static final String DATA_FRAME_UNKNOWN_TRANSFORM_STATS = "Statistics for transform [{0}] could not be found";
 
+    public static final String TRANSFORM_NEEDS_REMOTE_CLUSTER_SEARCH = "Transform [{0}] is configured with a remote index pattern(s) {1}" +
+        " but the current node is not allowed to connect to remote clusters." +
+        " Please enable cluster.remote.connect for all data nodes (currently disabled on [{2}]).";
+
     public static final String DATA_FRAME_CANNOT_STOP_FAILED_TRANSFORM =
         "Unable to stop data frame transform [{0}] as it is in a failed state with reason [{1}]." +
             " Use force stop to stop the data frame transform.";

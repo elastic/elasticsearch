@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -30,12 +31,14 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
@@ -52,9 +55,11 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.dataframe.action.TransportStartDataFrameTransformAction.checkRemoteClusterLicense;
 import static org.elasticsearch.xpack.dataframe.transforms.DataFrameIndexer.COMPOSITE_AGGREGATION_NAME;
 
 public class TransportPreviewDataFrameTransformAction extends
@@ -67,18 +72,22 @@ public class TransportPreviewDataFrameTransformAction extends
     private final ThreadPool threadPool;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final ClusterService clusterService;
+    private final TransportService transportService;
+    private final boolean isRemoteSearchEnabled;
 
     @Inject
     public TransportPreviewDataFrameTransformAction(TransportService transportService, ActionFilters actionFilters,
                                                     Client client, ThreadPool threadPool, XPackLicenseState licenseState,
                                                     IndexNameExpressionResolver indexNameExpressionResolver,
-                                                    ClusterService clusterService) {
+                                                    ClusterService clusterService, Settings settings) {
         super(PreviewDataFrameTransformAction.NAME,transportService, actionFilters, PreviewDataFrameTransformAction.Request::new);
         this.licenseState = licenseState;
         this.client = client;
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.transportService = transportService;
+        this.isRemoteSearchEnabled = RemoteClusterService.ENABLE_REMOTE_CLUSTERS.get(settings);
     }
 
     @Override
@@ -95,7 +104,7 @@ public class TransportPreviewDataFrameTransformAction extends
         final DataFrameTransformConfig config = request.getConfig();
         for(String src : config.getSource().getIndex()) {
             String[] concreteNames = indexNameExpressionResolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), src);
-            if (concreteNames.length == 0) {
+            if (concreteNames.length == 0 && RemoteClusterLicenseChecker.isRemoteIndex(src) == false) {
                 listener.onFailure(new ElasticsearchStatusException(
                     DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_SOURCE_INDEX_MISSING, src),
                     RestStatus.BAD_REQUEST));
@@ -117,8 +126,20 @@ public class TransportPreviewDataFrameTransformAction extends
                 DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION, RestStatus.INTERNAL_SERVER_ERROR, e));
             return;
         }
+        Consumer<DataFrameTransformConfig> validConfigConsumer = (transformConfig) -> {
+            getPreview(pivot,
+                transformConfig.getSource(),
+                transformConfig.getDestination().getPipeline(),
+                transformConfig.getDestination().getIndex(),
+                listener);
+        };
 
-        getPreview(pivot, config.getSource(), config.getDestination().getPipeline(), config.getDestination().getIndex(), listener);
+        checkRemoteClusterLicense(config,
+            client,
+            transportService,
+            clusterService.getNodeName(),
+            isRemoteSearchEnabled,
+            ActionListener.wrap(validConfigConsumer::accept, listener::onFailure));
     }
 
     @SuppressWarnings("unchecked")

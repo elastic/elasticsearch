@@ -21,12 +21,14 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
 import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformTaskAction;
@@ -45,10 +47,13 @@ import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigMa
 import org.elasticsearch.xpack.dataframe.transforms.pivot.SchemaUtil;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+
+import static org.elasticsearch.xpack.core.dataframe.DataFrameMessages.TRANSFORM_NEEDS_REMOTE_CLUSTER_SEARCH;
 
 public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksExecutor<DataFrameTransform> {
 
@@ -63,6 +68,8 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
     private final ThreadPool threadPool;
     private final DataFrameAuditor auditor;
     private volatile int numFailureRetries;
+    private final boolean isRemoteSearchEnabled;
+    private final String nodeName;
 
     public DataFrameTransformPersistentTasksExecutor(Client client,
                                                      DataFrameTransformsConfigManager transformsConfigManager,
@@ -80,6 +87,8 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
         this.auditor = auditor;
         this.threadPool = threadPool;
         this.numFailureRetries = DataFrameTransformTask.NUM_FAILURE_RETRIES_SETTING.get(settings);
+        this.isRemoteSearchEnabled = RemoteClusterService.ENABLE_REMOTE_CLUSTERS.get(settings);
+        this.nodeName = clusterService.getNodeName();
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DataFrameTransformTask.NUM_FAILURE_RETRIES_SETTING, this::setNumFailureRetries);
     }
@@ -242,6 +251,15 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
         ActionListener<DataFrameTransformConfig> getTransformConfigListener = ActionListener.wrap(
             config -> {
                 if (config.isValid()) {
+                    List<String> remoteindices = RemoteClusterLicenseChecker.remoteIndices(Arrays.asList(config.getSource().getIndex()));
+                    if (remoteindices.isEmpty() == false && isRemoteSearchEnabled == false) {
+                        markAsFailed(buildTask,
+                            DataFrameMessages.getMessage(TRANSFORM_NEEDS_REMOTE_CLUSTER_SEARCH,
+                                config.getId(),
+                                remoteindices,
+                                nodeName));
+                        return;
+                    }
                     indexerBuilder.setTransformConfig(config);
                     SchemaUtil.getDestinationFieldMappings(client, config.getDestination().getIndex(), getFieldMappingsListener);
                 } else {

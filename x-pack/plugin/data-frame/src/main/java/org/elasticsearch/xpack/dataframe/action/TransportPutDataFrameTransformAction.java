@@ -25,6 +25,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.rest.RestStatus;
@@ -54,6 +55,7 @@ import org.elasticsearch.xpack.dataframe.transforms.pivot.Pivot;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -109,7 +111,10 @@ public class TransportPutDataFrameTransformAction extends TransportMasterNodeAct
             .build();
 
         RoleDescriptor.IndicesPrivileges sourceIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
-            .indices(config.getSource().getIndex())
+            // We can only really do permission checks against local indices.
+            .indices(Arrays.stream(config.getSource().getIndex())
+                .filter(i -> RemoteClusterLicenseChecker.isRemoteIndex(i) == false)
+                .toArray(String[]::new))
             .privileges(srcPrivileges)
             .build();
 

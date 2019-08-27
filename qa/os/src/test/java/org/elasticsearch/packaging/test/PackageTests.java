@@ -22,7 +22,6 @@ package org.elasticsearch.packaging.test;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.FileUtils;
-import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Shell.Result;
 import org.hamcrest.CoreMatchers;
 import org.junit.BeforeClass;

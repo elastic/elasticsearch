@@ -46,6 +46,7 @@ import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.Collections;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -200,10 +201,11 @@ public class PkiRealm extends Realm implements CachingRealm {
     private void buildUser(X509AuthenticationToken token, String principal, ActionListener<AuthenticationResult> listener) {
         final Map<String, Object> metadata;
         if (token.isDelegated()) {
-            metadata = new HashMap<>();
-            metadata.put("pki_dn", token.dn());
-            metadata.put("pki_delegated_by_user", token.getDelegateeAuthentication().getUser().principal());
-            metadata.put("pki_delegated_by_realm", token.getDelegateeAuthentication().getAuthenticatedBy().getName());
+            Map<String, Object> delegatedMetadata = new HashMap<>();
+            delegatedMetadata.put("pki_dn", token.dn());
+            delegatedMetadata.put("pki_delegated_by_user", token.getDelegateeAuthentication().getUser().principal());
+            delegatedMetadata.put("pki_delegated_by_realm", token.getDelegateeAuthentication().getAuthenticatedBy().getName());
+            metadata = Collections.unmodifiableMap(delegatedMetadata);
         } else {
             metadata = Collections.singletonMap("pki_dn", token.dn());
         }

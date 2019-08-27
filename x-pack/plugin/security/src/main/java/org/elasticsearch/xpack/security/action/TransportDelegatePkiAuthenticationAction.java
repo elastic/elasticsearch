@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.pki.X509AuthenticationToken;
 
 import java.security.cert.X509Certificate;
-import java.util.Map;
+import java.util.Collections;
 
 /**
  * Implements the exchange of an {@code X509Certificate} chain into an access token. The certificate chain is represented as an array where
@@ -77,7 +77,7 @@ public final class TransportDelegatePkiAuthenticationAction
             authenticationService.authenticate(DelegatePkiAuthenticationAction.NAME, request, x509DelegatedToken,
                     ActionListener.wrap(authentication -> {
                         assert authentication != null : "authentication should never be null at this point";
-                        tokenService.createOAuth2Tokens(authentication, delegateeAuthentication, Map.of(), false,
+                        tokenService.createOAuth2Tokens(authentication, delegateeAuthentication, Collections.emptyMap(), false,
                                 ActionListener.wrap(tuple -> {
                                     final TimeValue expiresIn = tokenService.getExpirationDelay();
                                     listener.onResponse(new DelegatePkiAuthenticationResponse(tuple.v1(), expiresIn));

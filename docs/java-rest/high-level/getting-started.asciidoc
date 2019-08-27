@@ -157,7 +157,7 @@ more examples of customizing the options.
 === Asynchronous usage
 
 All of the the methods across the different clients exist in a traditional synchronous and 
-asynchronous variant. The difference is that the asynchronous ones use asynchrous apache 
+asynchronous variant. The difference is that the asynchronous ones use asynchronous Apache 
 httpclient requests. This is useful if you are doing multiple requests or are using e.g.
 rx java, Kotlin co-routines, or similar frameworks.
 

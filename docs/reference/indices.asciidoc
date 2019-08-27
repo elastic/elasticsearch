@@ -34,6 +34,7 @@ index settings, aliases, mappings, and index templates.
 [float]
 [[alias-management]]
 === Alias management:
+* <<indices-get-alias>>
 * <<indices-alias-exists>>
 * <<indices-aliases>>
 
@@ -92,6 +93,8 @@ include::indices/get-mapping.asciidoc[]
 include::indices/get-field-mapping.asciidoc[]
 
 include::indices/types-exists.asciidoc[]
+
+include::indices/get-alias.asciidoc[]
 
 include::indices/alias-exists.asciidoc[]
 

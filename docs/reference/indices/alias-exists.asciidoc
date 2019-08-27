@@ -37,15 +37,13 @@ HEAD /_alias/alias1
 
 `<index>`::
 (Optional, string)
-Comma-separated list
-or wildcard expression of index names
+Comma-separated list or wildcard expression of index names
 used to limit the request.
 
 
 `<alias>`::
 (Required, string)
-Comma-separated list
-or wildcard expression of index alias names
+Comma-separated list or wildcard expression of index alias names
 used to limit the request.
 
 [[alias-exists-api-query-params]]

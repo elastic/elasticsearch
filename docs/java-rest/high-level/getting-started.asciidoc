@@ -168,7 +168,7 @@ type of the synchronous method.
 
 All asynchronous methods return a `Cancellable` object with a cancel method that you may call 
 in case of an error, or in case you wish to abort the request. Cancelling
-no longer needed requests is a good way too avoid putting unnecessary 
+no longer needed requests is a good way to avoid putting unnecessary 
 load on Elasticsearch.
 
 Using the `Cancellable` instance is optional and you can safely ignore this if you have 

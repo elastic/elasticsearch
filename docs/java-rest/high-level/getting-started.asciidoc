@@ -167,7 +167,7 @@ as the synchronous variant and accept a generic `ActionListener<T>` where `T` is
 type of the synchronous method. 
 
 All asynchronous methods return a `Cancellable` object with a cancel method that you may call 
-in case of e.g. an error or in case you wish to abort the request. Cancelling
+in case of an error, or in case you wish to abort the request. Cancelling
 no longer needed requests is a good way too avoid putting unnecessary 
 load on Elasticsearch.
 

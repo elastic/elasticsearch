@@ -18,30 +18,30 @@ The following table shows the recommended upgrade paths to {version}.
 |Upgrade from   
 |Recommended upgrade path  to {version}
 
-|5.0–5.5
-a|
-
-. <<rolling-upgrades,Rolling upgrade>> to 5.6
-. Rolling upgrade to 6.8
-. Rolling upgrade to {version}
-
-|5.6
-a|
-
-. <<rolling-upgrades,Rolling upgrade>> to 6.8
-. Rolling upgrade to {version}
-
-|6.0–6.7
-a|
-
-. <<rolling-upgrades,Rolling upgrade>> to 6.8
-. Rolling upgrade to {version}
+|7.0–7.2
+|<<rolling-upgrades,Rolling upgrade>> to {version}
 
 |6.8
 |<<rolling-upgrades,Rolling upgrade>> to {version}
 
-|7.0–7.2
-|<<rolling-upgrades,Rolling upgrade>> to {version}
+|6.0–6.7
+a|
+
+. https://www.elastic.co/guide/en/elasticsearch/reference/6.8/rolling-upgrades.html[Rolling upgrade] to 6.8
+. <<rolling-upgrades,Rolling upgrade>> to {version}
+
+|5.6
+a|
+
+. https://www.elastic.co/guide/en/elasticsearch/reference/6.8/rolling-upgrades.html[Rolling upgrade] to 6.8
+. <<rolling-upgrades,Rolling upgrade>> to {version}
+
+|5.0–5.5
+a|
+
+. https://www.elastic.co/guide/en/elasticsearch/reference/5.6/rolling-upgrades.html[Rolling upgrade] to 5.6
+. https://www.elastic.co/guide/en/elasticsearch/reference/6.8/rolling-upgrades.html[Rolling upgrade] to 6.8
+. <<rolling-upgrades,Rolling upgrade>> to {version}
 |====
 
 

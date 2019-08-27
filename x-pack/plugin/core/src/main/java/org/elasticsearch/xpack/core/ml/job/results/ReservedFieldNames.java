@@ -286,6 +286,7 @@ public final class ReservedFieldNames {
             ChunkingConfig.TIME_SPAN_FIELD.getPreferredName(),
 
             DataFrameAnalyticsConfig.ID.getPreferredName(),
+            DataFrameAnalyticsConfig.DESCRIPTION.getPreferredName(),
             DataFrameAnalyticsConfig.SOURCE.getPreferredName(),
             DataFrameAnalyticsConfig.DEST.getPreferredName(),
             DataFrameAnalyticsConfig.ANALYSIS.getPreferredName(),

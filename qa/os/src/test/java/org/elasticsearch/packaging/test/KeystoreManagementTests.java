@@ -1,3 +1,22 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 package org.elasticsearch.packaging.test;
 
 import org.elasticsearch.packaging.util.Archives;
@@ -136,7 +155,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
     @Test(timeout = 5 * 60 * 1000)
     public void test51wrongKeystorePasswordFromFile() throws Exception {
-        String passwordWithNewline = "keystorepass\n";
+        String password = "keystorepass";
         Path esKeystorePassphraseFile = installation.config.resolve("eks");
         Path esEnv = installation.bin.resolve("elasticsearch-env");
         byte[] originalEnvFile = Files.readAllBytes(esEnv);
@@ -154,8 +173,13 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
             sh.run("yes | " + bin.elasticsearchKeystore + " create");
             // set the password by passing it to stdin twice
-            sh.run("echo $\'" + passwordWithNewline + passwordWithNewline + "\' | "
-                + bin.elasticsearchKeystore + " passwd");
+            Platforms.onLinux(() ->
+                sh.run("echo $\'" + password + "\n" + password + "\n\' | sudo -u " + ARCHIVE_OWNER + " "
+                    + bin.elasticsearchKeystore + " passwd")
+            );
+            Platforms.onWindows(() -> {
+                sh.run("echo \"" + password + "`r`n" + password + "`r`n\" | " + bin.elasticsearchKeystore + " passwd");
+            });
 
             assertElasticsearchFailsToStart();
         } finally {

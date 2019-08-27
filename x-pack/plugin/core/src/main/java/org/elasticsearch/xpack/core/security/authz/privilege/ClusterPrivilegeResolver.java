@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.GetStatusAction;
 import org.elasticsearch.xpack.core.ilm.action.StartILMAction;
 import org.elasticsearch.xpack.core.ilm.action.StopILMAction;
+import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.RefreshTokenAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
@@ -37,7 +38,7 @@ import java.util.stream.Stream;
  */
 public class ClusterPrivilegeResolver {
     // shared automatons
-    private static final Set<String> MANAGE_SECURITY_PATTERN = Collections.singleton("cluster:admin/xpack/security/*");
+    private static final Set<String> ALL_SECURITY_PATTERN = Collections.singleton("cluster:admin/xpack/security/*");
     private static final Set<String> MANAGE_SAML_PATTERN = Collections.unmodifiableSet(
         Sets.newHashSet("cluster:admin/xpack/security/saml/*",
             InvalidateTokenAction.NAME, RefreshTokenAction.NAME));
@@ -86,8 +87,7 @@ public class ClusterPrivilegeResolver {
         new ActionClusterPrivilege("monitor_data_frame_transforms", MONITOR_DATA_FRAME_PATTERN);
     public static final NamedClusterPrivilege MONITOR_WATCHER = new ActionClusterPrivilege("monitor_watcher", MONITOR_WATCHER_PATTERN);
     public static final NamedClusterPrivilege MONITOR_ROLLUP = new ActionClusterPrivilege("monitor_rollup", MONITOR_ROLLUP_PATTERN);
-    public static final NamedClusterPrivilege MANAGE = new ActionClusterPrivilege("manage",
-        ALL_CLUSTER_PATTERN, MANAGE_SECURITY_PATTERN);
+    public static final NamedClusterPrivilege MANAGE = new ActionClusterPrivilege("manage", ALL_CLUSTER_PATTERN, ALL_SECURITY_PATTERN);
     public static final NamedClusterPrivilege MANAGE_ML = new ActionClusterPrivilege("manage_ml", MANAGE_ML_PATTERN);
     public static final NamedClusterPrivilege MANAGE_DATA_FRAME =
         new ActionClusterPrivilege("manage_data_frame_transforms", MANAGE_DATA_FRAME_PATTERN);
@@ -100,7 +100,8 @@ public class ClusterPrivilegeResolver {
         new ActionClusterPrivilege("manage_ingest_pipelines", MANAGE_INGEST_PIPELINE_PATTERN);
     public static final NamedClusterPrivilege TRANSPORT_CLIENT = new ActionClusterPrivilege("transport_client",
         TRANSPORT_CLIENT_PATTERN);
-    public static final NamedClusterPrivilege MANAGE_SECURITY = new ActionClusterPrivilege("manage_security", MANAGE_SECURITY_PATTERN);
+    public static final NamedClusterPrivilege MANAGE_SECURITY = new ActionClusterPrivilege("manage_security", ALL_SECURITY_PATTERN,
+            Collections.singleton(DelegatePkiAuthenticationAction.NAME));
     public static final NamedClusterPrivilege MANAGE_SAML = new ActionClusterPrivilege("manage_saml", MANAGE_SAML_PATTERN);
     public static final NamedClusterPrivilege MANAGE_OIDC = new ActionClusterPrivilege("manage_oidc", MANAGE_OIDC_PATTERN);
     public static final NamedClusterPrivilege MANAGE_API_KEY = new ActionClusterPrivilege("manage_api_key", MANAGE_API_KEY_PATTERN);
@@ -113,6 +114,8 @@ public class ClusterPrivilegeResolver {
     public static final NamedClusterPrivilege READ_ILM = new ActionClusterPrivilege("read_ilm", READ_ILM_PATTERN);
     public static final NamedClusterPrivilege MANAGE_SLM = new ActionClusterPrivilege("manage_slm", MANAGE_SLM_PATTERN);
     public static final NamedClusterPrivilege READ_SLM = new ActionClusterPrivilege("read_slm", READ_SLM_PATTERN);
+    public static final NamedClusterPrivilege DELEGATE_PKI = new ActionClusterPrivilege("delegate_pki",
+            Sets.newHashSet(DelegatePkiAuthenticationAction.NAME, InvalidateTokenAction.NAME));
 
     private static final Map<String, NamedClusterPrivilege> VALUES = Collections.unmodifiableMap(
         Stream.of(
@@ -143,7 +146,8 @@ public class ClusterPrivilegeResolver {
         MANAGE_ILM,
         READ_ILM,
         MANAGE_SLM,
-        READ_SLM).collect(Collectors.toMap(cp -> cp.name(), cp -> cp)));
+        READ_SLM,
+        DELEGATE_PKI).collect(Collectors.toMap(cp -> cp.name(), cp -> cp)));
 
     /**
      * Resolves a {@link NamedClusterPrivilege} from a given name if it exists.

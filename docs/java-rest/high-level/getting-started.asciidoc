@@ -158,16 +158,16 @@ more examples of customizing the options.
 
 All of the the methods across the different clients exist in a traditional synchronous and 
 asynchronous variant. The difference is that the asynchronous ones use asynchronous requests 
-in the Rest Low Level Client. This is useful if you are doing multiple requests or are using e.g.
+in the REST Low Level Client. This is useful if you are doing multiple requests or are using e.g.
 rx java, Kotlin co-routines, or similar frameworks.
 
 The asynchronous methods are recognizable by the fact that they have the word "Async" in their name 
-and return a Cancellable instance. The asynchronous methods accept the same request object 
+and return a `Cancellable` instance. The asynchronous methods accept the same request object 
 as the synchronous variant and accept a generic `ActionListener<T>` where `T` is the return 
 type of the synchronous method. 
 
 All asynchronous methods return a `Cancellable` object with a `cancel` method that you may call 
-in case of an error, or in case you wish to abort the request. Cancelling
+in case you want to abort the request. Cancelling
 no longer needed requests is a good way to avoid putting unnecessary 
 load on Elasticsearch.
 

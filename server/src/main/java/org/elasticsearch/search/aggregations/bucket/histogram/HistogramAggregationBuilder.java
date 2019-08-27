@@ -125,7 +125,7 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
 
     /** Read from a stream, for internal use only. */
     public HistogramAggregationBuilder(StreamInput in) throws IOException {
-        super(in, ValuesSourceType.NUMERIC, ValueType.DOUBLE);
+        super(in, ValuesSourceType.ANY, ValueType.NUMERIC);
         order = InternalOrder.Streams.readHistogramOrder(in, true);
         keyed = in.readBoolean();
         minDocCount = in.readVLong();

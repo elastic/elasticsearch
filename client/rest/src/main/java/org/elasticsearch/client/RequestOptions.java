@@ -170,10 +170,11 @@ public final class RequestOptions {
         /**
          * Add the provided header to the request.
          */
-        public void addHeader(String name, String value) {
+        public Builder addHeader(String name, String value) {
             Objects.requireNonNull(name, "header name cannot be null");
             Objects.requireNonNull(value, "header value cannot be null");
             this.headers.add(new ReqHeader(name, value));
+            return this;
         }
 
         /**

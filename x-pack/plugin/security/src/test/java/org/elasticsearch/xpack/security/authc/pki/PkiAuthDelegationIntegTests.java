@@ -256,10 +256,10 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
         } else {
             delegatePkiRequest = new DelegatePkiAuthenticationRequest(Arrays.asList(clientCertificate, intermediateCA, rootCA));
         }
-        final RequestOptions testUserOptions = RequestOptions.DEFAULT.toBuilder()
-                .addHeader("Authorization", basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
-                        new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())))
-                .build();
+        final RequestOptions.Builder testUserOptionsBuilder = RequestOptions.DEFAULT.toBuilder();
+        testUserOptionsBuilder.addHeader("Authorization", basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
+                new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())));
+        final RequestOptions testUserOptions = testUserOptionsBuilder.build();
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
             // put role mappings for delegated PKI
             PutRoleMappingRequest request = new PutRoleMappingRequest("role_by_delegated_user", true,

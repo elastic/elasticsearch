@@ -53,7 +53,6 @@ public class AnalyticsResultProcessor {
 
     public void process(AnalyticsProcess<AnalyticsResult> process) {
         long totalRows = process.getConfig().rows();
-        LOGGER.info("Total rows = {}", totalRows);
         long processedRows = 0;
 
         // TODO When java 9 features can be used, we will not need the local variable here

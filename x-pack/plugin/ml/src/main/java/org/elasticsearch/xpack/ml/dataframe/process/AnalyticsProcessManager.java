@@ -16,11 +16,14 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.TransportStartDataFrameAnalyticsAction.DataFrameAnalyticsTask;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractor;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractorFactory;
+import org.elasticsearch.xpack.ml.dataframe.process.customprocessing.CustomProcessor;
+import org.elasticsearch.xpack.ml.dataframe.process.customprocessing.CustomProcessorFactory;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 
 import java.io.IOException;
@@ -91,7 +94,7 @@ public class AnalyticsProcessManager {
         try {
             ProcessContext processContext = processContextByAllocation.get(task.getAllocationId());
             writeHeaderRecord(dataExtractor, process);
-            writeDataRows(dataExtractor, process, task.getProgressTracker());
+            writeDataRows(dataExtractor, process, config.getAnalysis(), task.getProgressTracker());
             process.writeEndOfDataMessage();
             process.flushStream();
 
@@ -123,7 +126,10 @@ public class AnalyticsProcessManager {
     }
 
     private void writeDataRows(DataFrameDataExtractor dataExtractor, AnalyticsProcess<AnalyticsResult> process,
-                               DataFrameAnalyticsTask.ProgressTracker progressTracker) throws IOException {
+                               DataFrameAnalysis analysis, DataFrameAnalyticsTask.ProgressTracker progressTracker) throws IOException {
+
+        CustomProcessor customProcessor = new CustomProcessorFactory(dataExtractor.getFieldNames()).create(analysis);
+
         // The extra fields are for the doc hash and the control field (should be an empty string)
         String[] record = new String[dataExtractor.getFieldNames().size() + 2];
         // The value of the control field should be an empty string for data frame rows
@@ -140,6 +146,7 @@ public class AnalyticsProcessManager {
                         String[] rowValues = row.getValues();
                         System.arraycopy(rowValues, 0, record, 0, rowValues.length);
                         record[record.length - 2] = String.valueOf(row.getChecksum());
+                        customProcessor.process(record);
                         process.writeRecord(record);
                     }
                 }

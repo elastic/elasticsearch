@@ -24,7 +24,7 @@ POST /twitter/_open
 [[open-index-api-desc]]
 ==== {api-description-title}
 
-You can use the open index API to re-open a closed index.
+You use the open index API to re-open closed indices.
 
 // tag:closed-index
 
@@ -42,7 +42,7 @@ data of opened/closed indices is automatically replicated by the
 cluster to ensure that enough shard copies are safely kept around
 at all times.
 
-It is possible to open and close multiple indices. An error is thrown
+You can open and close multiple indices. An error is thrown
 if the request explicitly refers to a missing index. This behaviour can be
 disabled using the `ignore_unavailable=true` parameter.
 

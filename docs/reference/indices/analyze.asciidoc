@@ -66,11 +66,11 @@ You can also provide a <<analysis-custom-analyzer,custom analyzer>>.
 If this parameter is not specified,
 the analyze API uses the analyzer defined in the field's mapping.
 
-If the `field` parameter is not specified,
-the analyze API uses the default analyzer for the `<index>`.
+If no field is specified,
+the analyze API uses the default analyzer for the index.
 
-If no `<index>` is specified 
-or the `<index>` does not have a default analyzer,
+If no index is specified,
+or the index does not have a default analyzer,
 the analyze API uses the <<analysis-standard-analyzer,standard analyzer>>.
 --
 
@@ -104,7 +104,7 @@ If no field is specified,
 the analyze API uses the default analyzer for the index.
 
 If no index is specified
-or the `<index>` does not have a default analyzer,
+or the index does not have a default analyzer,
 the analyze API uses the <<analysis-standard-analyzer,standard analyzer>>.
 --
 
@@ -121,11 +121,11 @@ See <<analysis-normalizers>> for a list of normalizers.
 `text`::
 (Required, string or array of strings)
 Text to analyze.
-If an array of strings is provided, it is analyzed as a multi-valued field.
+If an array of strings is provided, it is analyzed as a multi-value field.
 
 `tokenizer`::
 (Optional, string)
-Tokenizer used to convert text into tokens.
+Tokenizer to use to convert text into tokens.
 See <<analysis-tokenizers>> for a list of tokenizers.
 
 [[analyze-api-example]]
@@ -134,8 +134,8 @@ See <<analysis-tokenizers>> for a list of tokenizers.
 [[analyze-api-no-index-ex]]
 ===== No index specified
 
-You can use the analyze API without specifying an `<index>` against one of the
-many built-in analyzers:
+You can apply any of the built-in analyzers to the text string without
+specifying an index.
 
 [source,js]
 --------------------------------------------------
@@ -150,7 +150,7 @@ GET /_analyze
 [[analyze-api-text-array-ex]]
 ===== Array of text strings
 
-If the `text` parameter is provided as array of strings, it is analyzed as a multi-valued field.
+If the `text` parameter is provided as array of strings, it is analyzed as a multi-value field.
 
 [source,js]
 --------------------------------------------------
@@ -355,7 +355,7 @@ The request returns the following result:
 <1> Output only "keyword" attribute, since specify "attributes" in the request.
 
 [[tokens-limit-settings]]
-===== Settings to prevent tokens explosion
+===== Setting a token limit
 Generating excessive amount of tokens may cause a node to run out of memory.
 The following setting allows to limit the number of tokens that can be produced:
 

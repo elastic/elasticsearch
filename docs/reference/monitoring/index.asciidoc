@@ -1,7 +1,10 @@
 [role="xpack"]
 [testenv="basic"]
-[[es-monitoring]]
-== Monitor a cluster
+[[monitor-elasticsearch-cluster]]
+== Monitor an {es} cluster
+++++
+<titleabbrev>Monitor a cluster</titleabbrev>
+++++
 
 The Elastic {monitor-features} enable you to easily monitor the health of 
 your {es} cluster. The monitoring metrics are collected from each node and 

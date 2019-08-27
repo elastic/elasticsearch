@@ -224,3 +224,7 @@ NOTE: The size of scripts is limited to 65,535 bytes. This can be
 changed by setting `script.max_size_in_bytes` setting to increase that soft
 limit, but if scripts are really large then a
 <<modules-scripting-engine,native script engine>> should be considered.
+
+Scripts can be supplied with compile-time parameters via the `options` argument,
+which works similarly to the `params` argument. Each set of options caches a different
+compiled script.

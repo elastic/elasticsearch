@@ -834,4 +834,7 @@ See <<monitor-elasticsearch-cluster>>.
 
 [role="exclude", id="pause-export"]
 === Pausing Data Collection
-See <<monitoring-disable-collection>>.
+
+[role="exclude",id="ccs-reduction"]
+=== {ccs-cap} reduction
+See <<ccs-works>>.

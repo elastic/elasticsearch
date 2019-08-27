@@ -67,10 +67,12 @@ public final class ClusterClient {
      * @param clusterUpdateSettingsRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void putSettingsAsync(ClusterUpdateSettingsRequest clusterUpdateSettingsRequest, RequestOptions options,
-                                 ActionListener<ClusterUpdateSettingsResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(clusterUpdateSettingsRequest, ClusterRequestConverters::clusterPutSettings,
+    public Cancellable putSettingsAsync(ClusterUpdateSettingsRequest clusterUpdateSettingsRequest, RequestOptions options,
+                                        ActionListener<ClusterUpdateSettingsResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(clusterUpdateSettingsRequest,
+                ClusterRequestConverters::clusterPutSettings,
                 options, ClusterUpdateSettingsResponse::fromXContent, listener, emptySet());
     }
 
@@ -96,10 +98,12 @@ public final class ClusterClient {
      * @param clusterGetSettingsRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void getSettingsAsync(ClusterGetSettingsRequest clusterGetSettingsRequest, RequestOptions options,
-                                 ActionListener<ClusterGetSettingsResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(clusterGetSettingsRequest, ClusterRequestConverters::clusterGetSettings,
+    public Cancellable getSettingsAsync(ClusterGetSettingsRequest clusterGetSettingsRequest, RequestOptions options,
+                                        ActionListener<ClusterGetSettingsResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            clusterGetSettingsRequest, ClusterRequestConverters::clusterGetSettings,
             options, ClusterGetSettingsResponse::fromXContent, listener, emptySet());
     }
 
@@ -127,9 +131,11 @@ public final class ClusterClient {
      * @param healthRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void healthAsync(ClusterHealthRequest healthRequest, RequestOptions options, ActionListener<ClusterHealthResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(healthRequest, ClusterRequestConverters::clusterHealth, options,
+    public Cancellable healthAsync(ClusterHealthRequest healthRequest, RequestOptions options,
+                                   ActionListener<ClusterHealthResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(healthRequest, ClusterRequestConverters::clusterHealth, options,
                 ClusterHealthResponse::fromXContent, listener, singleton(RestStatus.REQUEST_TIMEOUT.getStatus()));
     }
 }

@@ -112,6 +112,11 @@ public class PeerRecoverySourceService implements IndexEventListener {
         }
     }
 
+    // exposed for testing
+    final int numberOfOngoingRecoveries() {
+        return ongoingRecoveries.ongoingRecoveries.size();
+    }
+
     final class OngoingRecoveries {
         private final Map<IndexShard, ShardRecoveryContext> ongoingRecoveries = new HashMap<>();
 

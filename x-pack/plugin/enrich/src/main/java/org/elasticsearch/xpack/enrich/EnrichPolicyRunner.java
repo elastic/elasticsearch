@@ -192,9 +192,9 @@ public class EnrichPolicyRunner implements Runnable {
     }
 
     private XContentBuilder resolveEnrichMapping(final EnrichPolicy policy) {
-        // Currently the only supported policy type is EnrichPolicy.EXACT_MATCH_TYPE, which is a keyword type
+        // Currently the only supported policy type is EnrichPolicy.MATCH_TYPE, which is a keyword type
         String keyType;
-        if (EnrichPolicy.EXACT_MATCH_TYPE.equals(policy.getType())) {
+        if (EnrichPolicy.MATCH_TYPE.equals(policy.getType())) {
             keyType = "keyword";
         } else {
             throw new ElasticsearchException("Unrecognized enrich policy type [{}]", policy.getType());

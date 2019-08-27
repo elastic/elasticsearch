@@ -32,7 +32,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
-import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.EXACT_MATCH_TYPE;
+import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 
@@ -113,7 +113,7 @@ public class EnrichPolicyMaintenanceServiceTests extends ESSingleNodeTestCase {
         for (int i = 0; i < randomIntBetween(1, 3); i++) {
             enrichKeys.add(randomAlphaOfLength(10));
         }
-        return new EnrichPolicy(EXACT_MATCH_TYPE, null, List.of(randomAlphaOfLength(10)), randomAlphaOfLength(10), enrichKeys);
+        return new EnrichPolicy(MATCH_TYPE, null, List.of(randomAlphaOfLength(10)), randomAlphaOfLength(10), enrichKeys);
     }
 
     private void addPolicy(String policyName, EnrichPolicy policy) throws InterruptedException {

@@ -34,7 +34,7 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
         List<Map<?,?>> policies = (List<Map<?,?>>) responseMap.get("policies");
 
         for (Map<?, ?> entry: policies) {
-            client().performRequest(new Request("DELETE", "/_enrich/policy/" + XContentMapValues.extractValue("exact_match.name", entry)));
+            client().performRequest(new Request("DELETE", "/_enrich/policy/" + XContentMapValues.extractValue("match.name", entry)));
         }
     }
 
@@ -132,7 +132,7 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
     }
 
     public static String generatePolicySource(String index) throws IOException {
-        XContentBuilder source = jsonBuilder().startObject().startObject("exact_match");
+        XContentBuilder source = jsonBuilder().startObject().startObject("match");
         {
             source.field("indices", index);
             if (randomBoolean()) {

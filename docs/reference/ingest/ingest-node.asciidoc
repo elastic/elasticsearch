@@ -826,7 +826,7 @@ The policy type of the policy determines what kind of enrichment an `enrich` pro
 
 The following policy types are currently supported:
 
-* `exact_match` - Can lookup exactly one document and use its content to enrich the document being ingested.
+* `match` - Can lookup documents by running a term query and use the retrieved content to enrich the document being ingested.
 
 [[enrich-processor-getting-started]]
 === Getting started
@@ -858,7 +858,7 @@ Create an enrich policy:
 --------------------------------------------------
 PUT /_enrich/policy/users-policy
 {
-    "exact_match": {
+    "match": {
         "indices": "users",
         "match_field": "email",
         "enrich_fields": ["first_name", "last_name", "address", "city", "zip", "state"]
@@ -991,7 +991,7 @@ Request:
 --------------------------------------------------
 PUT /_enrich/policy/my-policy
 {
-    "exact_match": {
+    "match": {
         "indices": "users",
         "match_field": "email",
         "enrich_fields": ["first_name", "last_name", "address", "city", "zip", "state"]
@@ -1031,7 +1031,7 @@ Response:
 {
     "policies": [
         {
-            "exact_match": {
+            "match": {
                 "name" : "my-policy",
                 "indices" : ["users"],
                 "match_field" : "email",
@@ -1068,7 +1068,7 @@ Response:
 {
     "policies": [
         {
-            "exact_match": {
+            "match": {
                 "name" : "my-policy",
                 "indices" : ["users"],
                 "match_field" : "email",

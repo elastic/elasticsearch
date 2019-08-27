@@ -328,7 +328,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         // Everything else
         assertThat(kibanaRole.runAs().check(randomAlphaOfLengthBetween(1, 12)), is(false));
-        assertThat(kibanaRole.cluster().check(DelegatePkiAuthenticationAction.NAME, request), is(true));
+        assertThat(kibanaRole.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(true));
 
         assertThat(kibanaRole.indices().allowedIndicesMatcher(IndexAction.NAME).test("foo"), is(false));
         assertThat(kibanaRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(".reporting"), is(false));
@@ -925,6 +925,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     public void testAPMUserRole() {
         final TransportRequest request = mock(TransportRequest.class);
+        final Authentication authentication = mock(Authentication.class);
 
         final RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("apm_user");
         assertNotNull(roleDescriptor);
@@ -932,7 +933,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         Role role = Role.builder(roleDescriptor, null).build();
 
-        assertThat(role.cluster().check(DelegatePkiAuthenticationAction.NAME, request), is(false));
+        assertThat(role.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(false));
         assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 12)), is(false));
 
         assertNoAccessAllowed(role, "foo");
@@ -1341,7 +1342,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         Role codeAdminRole = Role.builder(roleDescriptor, null).build();
 
-        assertThat(codeAdminRole.cluster().check(DelegatePkiAuthenticationAction.NAME, mock(TransportRequest.class)), is(false));
+        assertThat(codeAdminRole.cluster().check(DelegatePkiAuthenticationAction.NAME, mock(TransportRequest.class),
+            mock(Authentication.class)), is(false));
 
         assertThat(codeAdminRole.indices().allowedIndicesMatcher(IndexAction.NAME).test("foo"), is(false));
         assertThat(codeAdminRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(".reporting"), is(false));
@@ -1368,7 +1370,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         Role codeUserRole = Role.builder(roleDescriptor, null).build();
 
-        assertThat(codeUserRole.cluster().check(DelegatePkiAuthenticationAction.NAME, mock(TransportRequest.class)), is(false));
+        assertThat(codeUserRole.cluster().check(DelegatePkiAuthenticationAction.NAME, mock(TransportRequest.class),
+            mock(Authentication.class)), is(false));
 
         assertThat(codeUserRole.indices().allowedIndicesMatcher(SearchAction.NAME).test("foo"), is(false));
         assertThat(codeUserRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(".reporting"), is(false));

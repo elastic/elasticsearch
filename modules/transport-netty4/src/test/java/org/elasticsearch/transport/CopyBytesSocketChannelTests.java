@@ -66,11 +66,11 @@ public class CopyBytesSocketChannelTests extends ESTestCase {
         serverBootstrap.group(eventLoopGroup);
         serverBootstrap.option(ChannelOption.ALLOCATOR, alloc);
         serverBootstrap.childOption(ChannelOption.ALLOCATOR, alloc);
-        serverBootstrap.childHandler(new ChannelInitializer<>() {
+        serverBootstrap.childHandler(new ChannelInitializer<Channel>() {
             @Override
             protected void initChannel(Channel ch) {
                 accepted.set((CopyBytesSocketChannel) ch);
-                ch.pipeline().addLast(new SimpleChannelInboundHandler<>() {
+                ch.pipeline().addLast(new SimpleChannelInboundHandler<Object>() {
                     @Override
                     protected void channelRead0(ChannelHandlerContext ctx, Object msg) {
                         ByteBuf buffer = (ByteBuf) msg;
@@ -103,10 +103,10 @@ public class CopyBytesSocketChannelTests extends ESTestCase {
         bootstrap.group(eventLoopGroup);
         bootstrap.channel(VerifyingCopyChannel.class);
         bootstrap.option(ChannelOption.ALLOCATOR, alloc);
-        bootstrap.handler(new ChannelInitializer<>() {
+        bootstrap.handler(new ChannelInitializer<Channel>() {
             @Override
             protected void initChannel(Channel ch) {
-                ch.pipeline().addLast(new SimpleChannelInboundHandler<>() {
+                ch.pipeline().addLast(new SimpleChannelInboundHandler<Object>() {
                     @Override
                     protected void channelRead0(ChannelHandlerContext ctx, Object msg) {
                         ByteBuf buffer = (ByteBuf) msg;

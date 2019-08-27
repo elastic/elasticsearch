@@ -100,7 +100,7 @@ you must specify an `<index>`.
 If specified,
 the `analyzer` parameter overrides this value.
 
-If the `field` parameter is not specified,
+If no `<field>` is specified,
 the analyze API uses the default analyzer for the `<index>`.
 
 If the `<index>` parameter is not specified

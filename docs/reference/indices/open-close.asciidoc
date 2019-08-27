@@ -42,7 +42,7 @@ data of opened/closed indices is automatically replicated by the
 cluster to ensure that enough shard copies are safely kept around
 at all times.
 
-It is possible to open and close multiple indices. An error will be thrown
+It is possible to open and close multiple indices. An error is thrown
 if the request explicitly refers to a missing index. This behaviour can be
 disabled using the `ignore_unavailable=true` parameter.
 

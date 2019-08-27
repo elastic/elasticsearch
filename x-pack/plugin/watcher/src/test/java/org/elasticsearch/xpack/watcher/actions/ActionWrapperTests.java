@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.actions;
 
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -208,12 +209,12 @@ public class ActionWrapperTests extends ESTestCase {
         List<Map<String, String>> itemsPayload = new ArrayList<>();
         for (int i = 0; i < randomMaxIterations + 1; i++) {
             final Action.Result actionResult = new LoggingAction.Result.Success("log_message " + i);;
-            final Payload singleItemPayload = new Payload.Simple(Map.of("key", String.valueOf(i)));
-            itemsPayload.add(Map.of("key", String.valueOf(i)));
+            final Payload singleItemPayload = new Payload.Simple(ImmutableMap.of("key", String.valueOf(i)));
+            itemsPayload.add(ImmutableMap.of("key", String.valueOf(i)));
             when(executableAction.execute(eq("_action"), eq(ctx), eq(singleItemPayload))).thenReturn(actionResult);
         }
 
-        Payload.Simple payload = new Payload.Simple(Map.of("my_path", itemsPayload));
+        Payload.Simple payload = new Payload.Simple(ImmutableMap.of("my_path", itemsPayload));
         when(ctx.payload()).thenReturn(payload);
         when(executableAction.logger()).thenReturn(logger);
 

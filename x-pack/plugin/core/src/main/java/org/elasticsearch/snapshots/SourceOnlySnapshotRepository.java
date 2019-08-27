@@ -15,6 +15,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.SimpleFSDirectory;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -24,17 +25,19 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.repositories.FilterRepository;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
-import org.elasticsearch.repositories.ShardSnapshotContext;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
@@ -107,14 +110,15 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
     }
 
     @Override
-    public void snapshotShard(MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
-                              ShardSnapshotContext context) {
+    public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
+                              IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus, ActionListener<Void> listener) {
         if (mapperService.documentMapper() != null // if there is no mapping this is null
             && mapperService.documentMapper().sourceMapper().isComplete() == false) {
-            throw new IllegalStateException("Can't snapshot _source only on an index that has incomplete source ie. has _source disabled " +
-                "or filters the source");
+            listener.onFailure(
+                new IllegalStateException("Can't snapshot _source only on an index that has incomplete source ie. has _source disabled " +
+                    "or filters the source"));
+            return;
         }
-        final Store store = context.store();
         Directory unwrap = FilterDirectory.unwrap(store.directory());
         if (unwrap instanceof FSDirectory == false) {
             throw new AssertionError("expected FSDirectory but got " + unwrap.toString());
@@ -134,33 +138,40 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             Supplier<Query> querySupplier = mapperService.hasNested() ? Queries::newNestedFilter : null;
             // SourceOnlySnapshot will take care of soft- and hard-deletes no special casing needed here
             SourceOnlySnapshot snapshot = new SourceOnlySnapshot(tempStore.directory(), querySupplier);
-            snapshot.syncSnapshot(context.indexCommit());
+            snapshot.syncSnapshot(snapshotIndexCommit);
             // we will use the lucene doc ID as the seq ID so we set the local checkpoint to maxDoc with a new index UUID
             SegmentInfos segmentInfos = tempStore.readLastCommittedSegmentsInfo();
             final long maxDoc = segmentInfos.totalMaxDoc();
             tempStore.bootstrapNewHistory(maxDoc, maxDoc);
-            super.snapshotShard(mapperService, snapshotId, indexId,
-                new ShardSnapshotContext(tempStore, context.completionListener(), context.status(),
-                    new ShardSnapshotContext.IndexCommitProvider() {
-                        private DirectoryReader reader;
-
-                        @Override
-                        public IndexCommit get() throws IOException {
-                            if (reader == null) {
-                                reader = DirectoryReader.open(tempStore.directory(), Collections.singletonMap(
-                                    BlockTreeTermsReader.FST_MODE_KEY, BlockTreeTermsReader.FSTLoadMode.OFF_HEAP.name()));
-                                return reader.getIndexCommit();
-                            }
-                            throw new AssertionError("Should not be called twice, the caller should cache the index commit");
+            store.incRef();
+            DirectoryReader reader = DirectoryReader.open(tempStore.directory(),
+                Collections.singletonMap(BlockTreeTermsReader.FST_MODE_KEY, BlockTreeTermsReader.FSTLoadMode.OFF_HEAP.name()));
+            IndexCommit indexCommit = reader.getIndexCommit();
+            final Directory finalDirectory = directory;
+            final Closeable closeable = () -> IOUtils.close(finalDirectory, reader);
+            super.snapshotShard(tempStore, mapperService, snapshotId, indexId, indexCommit, snapshotStatus, ActionListener.runAfter(
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(Void aVoid) {
+                        try {
+                            closeable.close();
+                        } catch (Exception e) {
+                            listener.onFailure(e);
+                            return;
                         }
+                        listener.onResponse(null);
+                    }
 
-                        @Override
-                        public void close() throws IOException {
-                            if (reader != null) {
-                                reader.close();
-                            }
+                    @Override
+                    public void onFailure(Exception e) {
+                        try {
+                            closeable.close();
+                        } catch (Exception ex) {
+                            e.addSuppressed(ex);
                         }
-                    }));
+                        listener.onFailure(e);
+                    }
+                }, store::decRef));
         } catch (IOException e) {
             if (directory != null) {
                 try {
@@ -169,8 +180,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                     e.addSuppressed(ex);
                 }
             }
-            // why on earth does this super method not declare IOException
-            throw new UncheckedIOException(e);
+            listener.onFailure(e);
         }
     }
 

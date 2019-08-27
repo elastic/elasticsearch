@@ -80,7 +80,6 @@ import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.indices.recovery.StartRecoveryRequest;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
-import org.elasticsearch.repositories.ShardSnapshotContext;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
@@ -829,16 +828,19 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     /** Snapshot a shard using a given repository **/
-    protected static void snapshotShard(final IndexShard shard,
-                                        final Snapshot snapshot,
-                                        final Repository repository) throws IOException {
+    protected void snapshotShard(final IndexShard shard,
+                                 final Snapshot snapshot,
+                                 final Repository repository) throws IOException {
         final IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing();
-        Index index = shard.shardId().getIndex();
-        IndexId indexId = new IndexId(index.getName(), index.getUUID());
         final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-        repository.snapshotShard(shard.mapperService(), snapshot.getSnapshotId(), indexId,
-            new ShardSnapshotContext(shard, snapshotStatus, future));
-        future.actionGet();
+        try (Engine.IndexCommitRef indexCommitRef = shard.acquireLastIndexCommit(true)) {
+            Index index = shard.shardId().getIndex();
+            IndexId indexId = new IndexId(index.getName(), index.getUUID());
+
+            repository.snapshotShard(shard.store(), shard.mapperService(), snapshot.getSnapshotId(), indexId,
+                indexCommitRef.getIndexCommit(), snapshotStatus, future);
+            future.actionGet();
+        }
 
         final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.asCopy();
         assertEquals(IndexShardSnapshotStatus.Stage.DONE, lastSnapshotStatus.getStage());

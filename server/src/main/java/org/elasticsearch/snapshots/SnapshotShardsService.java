@@ -52,6 +52,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -63,7 +64,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
-import org.elasticsearch.repositories.ShardSnapshotContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportException;
@@ -348,8 +348,30 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             }
 
             final Repository repository = repositoriesService.repository(snapshot.getRepository());
-            repository.snapshotShard(indexShard.mapperService(), snapshot.getSnapshotId(), indexId,
-                new ShardSnapshotContext(indexShard, snapshotStatus, listener));
+            final Engine.IndexCommitRef snapshotRef = indexShard.acquireLastIndexCommit(true);
+            repository.snapshotShard(indexShard.store(), indexShard.mapperService(), snapshot.getSnapshotId(), indexId,
+                snapshotRef.getIndexCommit(), snapshotStatus, new ActionListener<>() {
+                    @Override
+                    public void onResponse(Void aVoid) {
+                        try {
+                            snapshotRef.close();
+                        } catch (Exception ex) {
+                            listener.onFailure(ex);
+                            return;
+                        }
+                        listener.onResponse(null);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        try {
+                            snapshotRef.close();
+                        } catch (Exception ex) {
+                            e.addSuppressed(ex);
+                        }
+                        listener.onFailure(e);
+                    }
+                });
         } catch (Exception e) {
             listener.onFailure(e);
         }

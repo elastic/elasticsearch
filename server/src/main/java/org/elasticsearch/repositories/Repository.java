@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.repositories;
 
+import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -197,12 +198,16 @@ public interface Repository extends LifecycleComponent {
      * <p>
      * As snapshot process progresses, implementation of this method should update {@link IndexShardSnapshotStatus} object and check
      * {@link IndexShardSnapshotStatus#isAborted()} to see if the snapshot process should be aborted.
+     * @param store               store to be snapshotted
      * @param mapperService       the shards mapper service
      * @param snapshotId          snapshot id
      * @param indexId             id for the index being snapshotted
-     * @param context             shard snapshot context
+     * @param snapshotIndexCommit commit point
+     * @param snapshotStatus      snapshot status
+     * @param listener            listener invoked on completion
      */
-    void snapshotShard(MapperService mapperService, SnapshotId snapshotId, IndexId indexId, ShardSnapshotContext context);
+    void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit,
+                       IndexShardSnapshotStatus snapshotStatus, ActionListener<Void> listener);
 
     /**
      * Restores snapshot of the shard.

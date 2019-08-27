@@ -86,7 +86,6 @@ import org.elasticsearch.repositories.RepositoryCleanupResult;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryVerificationException;
-import org.elasticsearch.repositories.ShardSnapshotContext;
 import org.elasticsearch.snapshots.InvalidSnapshotNameException;
 import org.elasticsearch.snapshots.SnapshotCreationException;
 import org.elasticsearch.snapshots.SnapshotException;
@@ -885,14 +884,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     @Override
-    public void snapshotShard(MapperService mapperService, SnapshotId snapshotId, IndexId indexId, ShardSnapshotContext context) {
-        final Store store = context.store();
+    public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
+                              IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus, ActionListener<Void> listener) {
         final ShardId shardId = store.shardId();
-        final IndexShardSnapshotStatus snapshotStatus = context.status();
         final long startTime = threadPool.absoluteTimeInMillis();
-        final Consumer<Exception> onFailure = e -> context.finish(threadPool.absoluteTimeInMillis(), ExceptionsHelper.detailedMessage(e),
-            e instanceof IndexShardSnapshotFailedException ? (IndexShardSnapshotFailedException) e
+        final Consumer<Exception> onFailure = e -> {
+            snapshotStatus.moveToFailed(threadPool.absoluteTimeInMillis(), ExceptionsHelper.detailedMessage(e));
+            listener.onFailure(e instanceof IndexShardSnapshotFailedException ? (IndexShardSnapshotFailedException) e
                 : new IndexShardSnapshotFailedException(store.shardId(), e));
+        };
         try {
             logger.debug("[{}] [{}] snapshot to [{}] ...", shardId, snapshotId, metadata.name());
 
@@ -916,7 +916,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final List<BlobStoreIndexShardSnapshot.FileInfo> indexCommitPointFiles = new ArrayList<>();
             ArrayList<BlobStoreIndexShardSnapshot.FileInfo> filesToSnapshot = new ArrayList<>();
             store.incRef();
-            final IndexCommit snapshotIndexCommit = context.indexCommit();
             final Collection<String> fileNames;
             final Store.MetadataSnapshot metadataFromStore;
             try {
@@ -980,7 +979,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
             final GroupedActionListener<Void> filesListener = new GroupedActionListener<>(
                 ActionListener.wrap(v -> {
-                    final IndexShardSnapshotStatus.Copy lastSnapshotStatus = context.prepareFinalize();
+                    final IndexShardSnapshotStatus.Copy lastSnapshotStatus =
+                        snapshotStatus.moveToFinalize(snapshotIndexCommit.getGeneration());
 
                     // now create and write the commit point
                     final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(snapshotId.getName(),
@@ -1028,7 +1028,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to delete old index-N blobs during finalization",
                             snapshotId, shardId), e);
                     }
-                    context.finish(threadPool.absoluteTimeInMillis());
+                    snapshotStatus.moveToDone(threadPool.absoluteTimeInMillis());
+                    listener.onResponse(null);
                 }, onFailure), indexIncrementalFileCount + 1);
             filesListener.onResponse(null);
             final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);

@@ -23,7 +23,7 @@ POST /twitter/_close
 [[close-index-api-desc]]
 ==== {api-description-title}
 
-You can use the close index API to close an open index.
+You use the close index API to close open indices.
 
 include::{docdir}/indices/open-close.asciidoc[tag=closed-index]
 

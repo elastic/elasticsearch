@@ -26,7 +26,7 @@ POST /twitter/_open
 
 You use the open index API to re-open closed indices.
 
-// tag:closed-index
+// tag::closed-index[]
 
 A closed index is blocked for read/write operations and does not allow
 all operations that opened indices allow. It is not possible to index
@@ -62,7 +62,7 @@ Because opening or closing an index allocates its shards, the
 <<create-index-wait-for-active-shards,`wait_for_active_shards`>> setting on
 index creation applies to the `_open` and `_close` index actions as well.
 
-// end:closed-index
+// end::closed-index[]
 
 
 [[open-index-api-path-params]]

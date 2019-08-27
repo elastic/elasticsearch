@@ -17,6 +17,8 @@
  * under the License.
  */
 
+import org.elasticsearch.gradle.test.RestIntegTestTask
+
 /*
  TODOs:
    * fix permissions such that only netty4 can open sockets etc?
@@ -66,6 +68,35 @@ integTestRunner {
     // Disable direct buffer pooling as it is disabled by default in Elasticsearch
     systemProperty 'io.netty.allocator.numDirectArenas', '0'
 }
+
+TaskProvider<Test> unpooledTest = tasks.register("unpooledTest", Test) {
+  include '**/*Tests.class'
+  systemProperty 'es.set.netty.runtime.available.processors', 'false'
+  systemProperty 'io.netty.allocator.type', 'unpooled'
+}
+TaskProvider<Test> directBufferPoolingTest = tasks.register("directBufferPoolingTest", Test) {
+  include '**/*Tests.class'
+  systemProperty 'es.set.netty.runtime.available.processors', 'false'
+  systemProperty 'io.netty.allocator.numDirectArenas', '2'
+}
+// TODO: we can't use task avoidance here because RestIntegTestTask does the testcluster creation
+RestIntegTestTask unpooledIntegTest = tasks.create("unpooledIntegTest", RestIntegTestTask) {
+  runner {
+    systemProperty 'es.set.netty.runtime.available.processors', 'false'
+  }
+}
+testClusters.unpooledIntegTest {
+  systemProperty 'io.netty.allocator.type', 'unpooled'
+}
+RestIntegTestTask directBufferPoolingIntegTest = tasks.create("directBufferPoolingIntegTest", RestIntegTestTask) {
+  runner {
+    systemProperty 'es.set.netty.runtime.available.processors', 'false'
+  }
+}
+testClusters.directBufferPoolingIntegTest {
+  systemProperty 'io.netty.allocator.numDirectArenas', '2'
+}
+check.dependsOn(unpooledTest, directBufferPoolingTest, unpooledIntegTest, directBufferPoolingIntegTest)
 
 thirdPartyAudit {
     ignoreMissingClasses (

@@ -40,13 +40,13 @@ GET /_analyze
 Index used to derive the analyzer.
 
 If specified,
-the `analyzer` or `field` parameter overrides this value.
+the `analyzer` or `<field>` parameter overrides this value.
 
-If the `analyzer` and `field` parameters are not specified,
-the analyze API uses the default analyzer for the `<index>`.
+If no analyzer or field are specified,
+the analyze API uses the default analyzer for the index.
 
-If no `<index>` is specified 
-or the `<index>` does not have a default analyzer,
+If no index is specified 
+or the index does not have a default analyzer,
 the analyze API uses the <<analysis-standard-analyzer,standard analyzer>>.
 --
 
@@ -64,7 +64,7 @@ See <<analysis-analyzers>> for a list of built-in analyzers.
 You can also provide a <<analysis-custom-analyzer,custom analyzer>>.
 
 If this parameter is not specified,
-the analyze API uses the analyzer defined in the `field`'s mapping.
+the analyze API uses the analyzer defined in the field's mapping.
 
 If the `field` parameter is not specified,
 the analyze API uses the default analyzer for the `<index>`.
@@ -95,15 +95,15 @@ experimental:[The format of the additional detail information is labelled as exp
 (Optional, string)
 Field used to derive the analyzer.
 To use this parameter,
-you must specify an `<index>`.
+you must specify an index.
 
 If specified,
 the `analyzer` parameter overrides this value.
 
-If no `<field>` is specified,
-the analyze API uses the default analyzer for the `<index>`.
+If no field is specified,
+the analyze API uses the default analyzer for the index.
 
-If the `<index>` parameter is not specified
+If no index is specified
 or the `<index>` does not have a default analyzer,
 the analyze API uses the <<analysis-standard-analyzer,standard analyzer>>.
 --

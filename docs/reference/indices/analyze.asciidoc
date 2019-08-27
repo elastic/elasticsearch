@@ -64,7 +64,7 @@ See <<analysis-analyzers>> for a list of built-in analyzers.
 You can also provide a <<analysis-custom-analyzer,custom analyzer>>.
 
 If this parameter is not specified,
-the analyze API uses the analyzer for the `field`'s mapping.
+the analyze API uses the analyzer defined in the `field`'s mapping.
 
 If the `field` parameter is not specified,
 the analyze API uses the default analyzer for the `<index>`.

@@ -33,7 +33,7 @@ public class RegressionTests extends AbstractSerializingTestCase<Regression> {
         Integer maximumNumberTrees = randomBoolean() ? null : randomIntBetween(1, 2000);
         Double featureBagFraction = randomBoolean() ? null : randomDoubleBetween(0.0, 1.0, false);
         String predictionFieldName = randomBoolean() ? null : randomAlphaOfLength(10);
-        Double trainingPercent = randomBoolean() ? null : randomDoubleBetween(0.0, 100.0, true);
+        Double trainingPercent = randomBoolean() ? null : randomDoubleBetween(1.0, 100.0, true);
         return new Regression(randomAlphaOfLength(10), lambda, gamma, eta, maximumNumberTrees, featureBagFraction,
             predictionFieldName, trainingPercent);
     }

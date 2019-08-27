@@ -100,7 +100,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             ProfileResult histoAggResult = aggProfileResultsList.get(0);
             assertThat(histoAggResult, notNullValue());
             assertThat(histoAggResult.getQueryName(),
-                    equalTo("HistogramAggregator"));
+                    equalTo("NumericHistogramAggregator"));
             assertThat(histoAggResult.getLuceneDescription(), equalTo("histo"));
             assertThat(histoAggResult.getProfiledChildren().size(), equalTo(0));
             assertThat(histoAggResult.getTime(), greaterThan(0L));
@@ -145,7 +145,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             ProfileResult histoAggResult = aggProfileResultsList.get(0);
             assertThat(histoAggResult, notNullValue());
             assertThat(histoAggResult.getQueryName(),
-                    equalTo("HistogramAggregator"));
+                    equalTo("NumericHistogramAggregator"));
             assertThat(histoAggResult.getLuceneDescription(), equalTo("histo"));
             assertThat(histoAggResult.getTime(), greaterThan(0L));
             Map<String, Long> histoBreakdown = histoAggResult.getTimeBreakdown();
@@ -215,7 +215,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             ProfileResult histoAggResult = aggProfileResultsList.get(0);
             assertThat(histoAggResult, notNullValue());
             assertThat(histoAggResult.getQueryName(),
-                    equalTo("HistogramAggregator"));
+                    equalTo("NumericHistogramAggregator"));
             assertThat(histoAggResult.getLuceneDescription(), equalTo("histo"));
             assertThat(histoAggResult.getTime(), greaterThan(0L));
             Map<String, Long> histoBreakdown = histoAggResult.getTimeBreakdown();
@@ -346,7 +346,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             ProfileResult histoAggResult = aggProfileResultsList.get(0);
             assertThat(histoAggResult, notNullValue());
             assertThat(histoAggResult.getQueryName(),
-                    equalTo("HistogramAggregator"));
+                    equalTo("NumericHistogramAggregator"));
             assertThat(histoAggResult.getLuceneDescription(), equalTo("histo"));
             assertThat(histoAggResult.getTime(), greaterThan(0L));
             Map<String, Long> histoBreakdown = histoAggResult.getTimeBreakdown();

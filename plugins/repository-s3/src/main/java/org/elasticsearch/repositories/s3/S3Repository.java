@@ -29,7 +29,6 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -159,11 +158,12 @@ class S3Repository extends BlobStoreRepository {
     /**
      * Constructs an s3 backed repository
      */
-    S3Repository(final RepositoryMetaData metadata,
-                 final Settings settings,
-                 final NamedXContentRegistry namedXContentRegistry,
-                 final S3Service service, final ThreadPool threadPool) {
-        super(metadata, settings, namedXContentRegistry, threadPool, buildBasePath(metadata));
+    S3Repository(
+        final RepositoryMetaData metadata,
+        final NamedXContentRegistry namedXContentRegistry,
+        final S3Service service,
+        final ThreadPool threadPool) {
+        super(metadata, namedXContentRegistry, threadPool, buildBasePath(metadata));
         this.service = service;
 
         // Parse and validate the user's S3 Storage Class setting

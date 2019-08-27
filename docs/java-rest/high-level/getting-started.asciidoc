@@ -156,7 +156,7 @@ executes the request. For example, this is the place where you'd specify a
 more examples of customizing the options.
 === Asynchronous usage
 
-All of the the methods accross the different clients exist in a traditional synchronous and 
+All of the the methods across the different clients exist in a traditional synchronous and 
 asynchronous variant. The difference is that the asynchronous ones use asynchrous apache 
 httpclient requests. This is useful if you are doing multiple requests or are using e.g.
 rx java, Kotlin co-routines, or similar frameworks.

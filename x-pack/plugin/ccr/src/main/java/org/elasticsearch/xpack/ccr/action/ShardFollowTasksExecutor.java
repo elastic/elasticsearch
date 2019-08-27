@@ -439,7 +439,6 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                                                      * going on. Log it, and renew again after another renew interval has passed.
                                                      */
                                                     final Throwable innerCause = ExceptionsHelper.unwrapCause(inner);
-                                                    assert innerCause instanceof RetentionLeaseAlreadyExistsException == false;
                                                     logRetentionLeaseFailure(retentionLeaseId, innerCause);
                                                 }));
                             } else {

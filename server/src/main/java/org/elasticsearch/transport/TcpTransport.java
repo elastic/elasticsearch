@@ -674,7 +674,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      * @param bytesReference the bytes available to consume
      * @return the number of bytes consumed
      * @throws StreamCorruptedException              if the message header format is not recognized
-     * @throws HttpRequestOnTransportException if the message header appears to be an HTTP message
+     * @throws HttpRequestOnTransportException       if the message header appears to be an HTTP message
      * @throws IllegalArgumentException              if the message length is greater that the maximum allowed frame size.
      *                                               This is dependent on the available memory.
      */
@@ -696,7 +696,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      * @param networkBytes the will be read
      * @return the message decoded
      * @throws StreamCorruptedException              if the message header format is not recognized
-     * @throws HttpRequestOnTransportException if the message header appears to be an HTTP message
+     * @throws HttpRequestOnTransportException       if the message header appears to be an HTTP message
      * @throws IllegalArgumentException              if the message length is greater that the maximum allowed frame size.
      *                                               This is dependent on the available memory.
      */
@@ -723,7 +723,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      * @param networkBytes the will be read
      * @return the length of the message
      * @throws StreamCorruptedException              if the message header format is not recognized
-     * @throws HttpRequestOnTransportException if the message header appears to be an HTTP message
+     * @throws HttpRequestOnTransportException       if the message header appears to be an HTTP message
      * @throws IllegalArgumentException              if the message length is greater that the maximum allowed frame size.
      *                                               This is dependent on the available memory.
      */

@@ -90,7 +90,7 @@ a:focus, a:hover, a:active {
 
 #attributeRelease table {
     border-collapse: collapse;
-    border: none 0px white;
+    border: none 0 white;
     width: 100%;
 }
 
@@ -103,7 +103,7 @@ a:focus, a:hover, a:active {
     text-align: left;
     font-size: 18px;
     padding: 5px 7px;
-    background-color:#00247D;
+    background-color: #00247D;
     color: white;
 }
 

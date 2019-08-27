@@ -135,12 +135,14 @@ POST /twitter/_forcemerge?max_num_segments=5
 [[update-settings-analysis]]
 ===== Update index analysis
 
-It is also possible to define new <<analysis,analyzers>> for the index.
-But it is required to <<indices-open-close,close>> the index
-first and <<indices-open-close,open>> it after the changes are made.
+You can only define new analyzers on closed indices.
 
-For example if `content` analyzer hasn't been defined on `myindex` yet
-you can use the following commands to add it:
+To add an analyzer,
+you must close the index,
+define the analyzer,
+and reopen the index.
+For example,
+the following commands add the content analyzer to `myindex`:
 
 [source,js]
 --------------------------------------------------

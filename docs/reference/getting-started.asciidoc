@@ -695,7 +695,7 @@ GET /bank/_search
 
 In addition to basic bucketing and metrics aggregations like these, {es}
 provides specialized aggregations for operating on multiple fields and 
-analyzing particular types of data Such as dates, IP addresses, and geo 
+analyzing particular types of data such as dates, IP addresses, and geo 
 data. You can also feed the results of individual aggregations into pipeline
 aggregations for further analysis.
 

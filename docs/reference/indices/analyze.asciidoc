@@ -4,8 +4,8 @@
 <titleabbrev>Analyze</titleabbrev>
 ++++
 
-Performs the <<analysis,analysis>> process on a text
-and returns a token breakdown of the text.
+Performs <<analysis,analysis>> on a text string
+and returns the resulting tokens.
 
 [source,js]
 --------------------------------------------------

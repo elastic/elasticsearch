@@ -142,7 +142,7 @@ you must close the index,
 define the analyzer,
 and reopen the index.
 For example,
-the following commands add the content analyzer to `myindex`:
+the following commands add the `content` analyzer to `myindex`:
 
 [source,js]
 --------------------------------------------------

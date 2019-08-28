@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.dataframe.extractor;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
@@ -17,6 +18,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetection;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedField;
 import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedFields;
+import org.elasticsearch.xpack.ml.test.SearchHitBuilder;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -26,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -67,7 +70,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         assertThat(allFields.get(0).getExtractionMethod(), equalTo(ExtractedField.ExtractionMethod.DOC_VALUE));
     }
 
-    public void testDetect_GivenNonNumericField() {
+    public void testDetect_GivenOutlierDetectionAndNonNumericField() {
         FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
             .addAggregatableField("some_keyword", "keyword").build();
 
@@ -76,7 +79,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> extractedFieldsDetector.detect());
 
         assertThat(e.getMessage(), equalTo("No compatible fields could be detected in index [source_index]." +
-            " Supported types are [scaled_float, double, byte, short, half_float, integer, float, long]."));
+            " Supported types are [boolean, byte, double, float, half_float, integer, long, scaled_float, short]."));
     }
 
     public void testDetect_GivenOutlierDetectionAndFieldWithNumericAndNonNumericTypes() {
@@ -88,7 +91,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> extractedFieldsDetector.detect());
 
         assertThat(e.getMessage(), equalTo("No compatible fields could be detected in index [source_index]. " +
-            "Supported types are [scaled_float, double, byte, short, half_float, integer, float, long]."));
+            "Supported types are [boolean, byte, double, float, half_float, integer, long, scaled_float, short]."));
     }
 
     public void testDetect_GivenOutlierDetectionAndMultipleFields() {
@@ -96,6 +99,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             .addAggregatableField("some_float", "float")
             .addAggregatableField("some_long", "long")
             .addAggregatableField("some_keyword", "keyword")
+            .addAggregatableField("some_boolean", "boolean")
             .build();
 
         ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
@@ -103,9 +107,9 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         ExtractedFields extractedFields = extractedFieldsDetector.detect();
 
         List<ExtractedField> allFields = extractedFields.getAllFields();
-        assertThat(allFields.size(), equalTo(2));
+        assertThat(allFields.size(), equalTo(3));
         assertThat(allFields.stream().map(ExtractedField::getName).collect(Collectors.toSet()),
-            containsInAnyOrder("some_float", "some_long"));
+            containsInAnyOrder("some_float", "some_long", "some_boolean"));
         assertThat(allFields.stream().map(ExtractedField::getExtractionMethod).collect(Collectors.toSet()),
             contains(equalTo(ExtractedField.ExtractionMethod.DOC_VALUE)));
     }
@@ -115,6 +119,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             .addAggregatableField("some_float", "float")
             .addAggregatableField("some_long", "long")
             .addAggregatableField("some_keyword", "keyword")
+            .addAggregatableField("some_boolean", "boolean")
             .addAggregatableField("foo", "keyword")
             .build();
 
@@ -123,9 +128,9 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         ExtractedFields extractedFields = extractedFieldsDetector.detect();
 
         List<ExtractedField> allFields = extractedFields.getAllFields();
-        assertThat(allFields.size(), equalTo(4));
+        assertThat(allFields.size(), equalTo(5));
         assertThat(allFields.stream().map(ExtractedField::getName).collect(Collectors.toList()),
-            contains("foo", "some_float", "some_keyword", "some_long"));
+            containsInAnyOrder("foo", "some_float", "some_keyword", "some_long", "some_boolean"));
         assertThat(allFields.stream().map(ExtractedField::getExtractionMethod).collect(Collectors.toSet()),
             contains(equalTo(ExtractedField.ExtractionMethod.DOC_VALUE)));
     }
@@ -153,7 +158,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> extractedFieldsDetector.detect());
 
         assertThat(e.getMessage(), equalTo("No compatible fields could be detected in index [source_index]. " +
-            "Supported types are [scaled_float, double, byte, short, half_float, integer, float, long]."));
+            "Supported types are [boolean, byte, double, float, half_float, integer, long, scaled_float, short]."));
     }
 
     public void testDetect_ShouldSortFieldsAlphabetically() {
@@ -207,7 +212,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             SOURCE_INDEX, buildOutlierDetectionConfig(desiredFields), RESULTS_FIELD, false, 100, fieldCapabilities);
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> extractedFieldsDetector.detect());
         assertThat(e.getMessage(), equalTo("No compatible fields could be detected in index [source_index]. " +
-            "Supported types are [scaled_float, double, byte, short, half_float, integer, float, long]."));
+            "Supported types are [boolean, byte, double, float, half_float, integer, long, scaled_float, short]."));
     }
 
     public void testDetectedExtractedFields_GivenInclusionsAndExclusions() {
@@ -334,6 +339,37 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         assertThat(extractedFieldNames, equalTo(Arrays.asList("field_1", "field_2", "field_3")));
         assertThat(extractedFields.getAllFields().stream().map(ExtractedField::getExtractionMethod).collect(Collectors.toSet()),
             contains(equalTo(ExtractedField.ExtractionMethod.SOURCE)));
+    }
+
+    public void testDetect_GivenBooleanField() {
+        FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
+            .addAggregatableField("some_boolean", "boolean")
+            .build();
+
+        ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
+            SOURCE_INDEX, buildOutlierDetectionConfig(), RESULTS_FIELD, false, 100, fieldCapabilities);
+        ExtractedFields extractedFields = extractedFieldsDetector.detect();
+
+        List<ExtractedField> allFields = extractedFields.getAllFields();
+        assertThat(allFields.size(), equalTo(1));
+        ExtractedField booleanField = allFields.get(0);
+        assertThat(booleanField.getTypes(), contains("boolean"));
+        assertThat(booleanField.getExtractionMethod(), equalTo(ExtractedField.ExtractionMethod.DOC_VALUE));
+
+        SearchHit hit = new SearchHitBuilder(42).addField("some_boolean", true).build();
+        Object[] values = booleanField.value(hit);
+        assertThat(values.length, equalTo(1));
+        assertThat(values[0], equalTo(1));
+
+        hit = new SearchHitBuilder(42).addField("some_boolean", false).build();
+        values = booleanField.value(hit);
+        assertThat(values.length, equalTo(1));
+        assertThat(values[0], equalTo(0));
+
+        hit = new SearchHitBuilder(42).addField("some_boolean", Arrays.asList(false, true, false)).build();
+        values = booleanField.value(hit);
+        assertThat(values.length, equalTo(3));
+        assertThat(values, arrayContaining(0, 1, 0));
     }
 
     private static DataFrameAnalyticsConfig buildOutlierDetectionConfig() {

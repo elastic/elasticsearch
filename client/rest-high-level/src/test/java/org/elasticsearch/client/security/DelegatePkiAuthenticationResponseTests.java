@@ -23,6 +23,7 @@ import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.client.security.DelegatePkiAuthenticationResponse;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 
@@ -33,7 +34,8 @@ public class DelegatePkiAuthenticationResponseTests extends
         DelegatePkiAuthenticationResponse> {
 
     @Override
-    protected org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationResponse createServerTestInstance() {
+    protected org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationResponse createServerTestInstance(
+        XContentType xContentType) {
         return new org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationResponse(randomAlphaOfLength(6),
                 TimeValue.parseTimeValue(randomTimeValue(), getClass().getSimpleName() + ".expiresIn"));
     }

@@ -71,8 +71,8 @@ public class InvalidateApiKeyResponseTests extends ESTestCase {
                 containsInAnyOrder(previouslyInvalidatedApiKeys.toArray(Strings.EMPTY_ARRAY)));
         assertThat(response.getErrors(), is(notNullValue()));
         assertThat(response.getErrors().size(), is(errors.size()));
-        assertThat(response.getErrors().get(0).toString(), containsString("type=illegal_argument_exception"));
-        assertThat(response.getErrors().get(1).toString(), containsString("type=illegal_argument_exception"));
+        assertThat(response.getErrors().get(0).getCause().toString(), containsString("type=illegal_argument_exception"));
+        assertThat(response.getErrors().get(1).getCause().toString(), containsString("type=illegal_argument_exception"));
     }
 
     public void testEqualsHashCode() {

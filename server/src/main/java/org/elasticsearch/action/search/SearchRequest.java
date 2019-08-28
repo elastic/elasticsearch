@@ -445,6 +445,9 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
      * If set, will enable scrolling of the search request.
      */
     public SearchRequest scroll(Scroll scroll) {
+        if (scroll != null && this.source != null && this.source.from() > 0) {
+            throw new IllegalArgumentException("scroll cannot be used with a search using [from]");
+        }
         this.scroll = scroll;
         return this;
     }

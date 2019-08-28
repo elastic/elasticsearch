@@ -38,6 +38,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.hamcrest.Matchers.equalTo;
 
 public class SearchRequestTests extends AbstractSearchTestCase {
 
@@ -163,6 +164,14 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         }
     }
 
+    public void testSettingScrollWithFromThrowsException() throws IOException {
+        SearchRequest searchRequest = createSearchRequest().source(new SearchSourceBuilder().size(0));
+        searchRequest.source().from(1);
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+            () -> searchRequest.scroll(new Scroll(TimeValue.timeValueSeconds(10))));
+        assertThat(exception.getMessage(), equalTo("scroll cannot be used with a search using [from]"));
+    }
+
     public void testCopyConstructor() throws IOException {
         SearchRequest searchRequest = createSearchRequest();
         SearchRequest deserializedRequest = copyWriteable(searchRequest, namedWriteableRegistry, SearchRequest::new);
@@ -184,8 +193,10 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         mutators.add(() -> mutation.preference(randomValueOtherThan(searchRequest.preference(), () -> randomAlphaOfLengthBetween(3, 10))));
         mutators.add(() -> mutation.routing(randomValueOtherThan(searchRequest.routing(), () -> randomAlphaOfLengthBetween(3, 10))));
         mutators.add(() -> mutation.requestCache((randomValueOtherThan(searchRequest.requestCache(), ESTestCase::randomBoolean))));
-        mutators.add(() -> mutation
+        if (searchRequest.source() != null && searchRequest.source().from() <= 0) {
+            mutators.add(() -> mutation
                 .scroll(randomValueOtherThan(searchRequest.scroll(), () -> new Scroll(new TimeValue(randomNonNegativeLong() % 100000)))));
+        }
         mutators.add(() -> mutation.searchType(randomValueOtherThan(searchRequest.searchType(),
             () -> randomFrom(SearchType.DFS_QUERY_THEN_FETCH, SearchType.QUERY_THEN_FETCH))));
         mutators.add(() -> mutation.source(randomValueOtherThan(searchRequest.source(), this::createSearchSourceBuilder)));

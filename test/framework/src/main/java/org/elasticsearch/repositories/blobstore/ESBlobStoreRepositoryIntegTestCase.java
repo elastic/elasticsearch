@@ -67,7 +67,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         settings.put("compress", randomBoolean());
         if (randomBoolean()) {
             long size = 1 << randomIntBetween(7, 10);
-            settings.put("chunk_size", new ByteSizeValue(size, randomFrom(ByteSizeUnit.BYTES, ByteSizeUnit.KB, ByteSizeUnit.MB)));
+            settings.put("chunk_size", new ByteSizeValue(size, randomFrom(ByteSizeUnit.BYTES, ByteSizeUnit.KB)));
         }
         return settings.build();
     }

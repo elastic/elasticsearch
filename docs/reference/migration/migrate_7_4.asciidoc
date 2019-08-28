@@ -16,33 +16,34 @@ coming[7.4.0]
 
 //tag::notable-breaking-changes[]
 
-// end::notable-breaking-changes[]
+//end::notable-breaking-changes[]
 
+[discrete]
 [[breaking_74_plugin_changes]]
 === Plugins changes
 
-[float]
+[discrete]
 ==== TokenizerFactory changes
 
 TokenizerFactory now has a `name()` method that must be implemented.  Most
 plugin-provided TokenizerFactory implementations will extend `AbstractTokenizerFactory`,
 which now takes a `name` parameter in its constructor.
 
-[float]
+[discrete]
 [[breaking_74_search_changes]]
 === Search Changes
 
-[float]
+[discrete]
 ==== Forbid empty doc values in vector functions
 If a document doesn't have a value for a vector field (dense_vector
 or sparse_vector) on which a vector function is executed, an error will
 be thrown.
 
-[float]
+[discrete]
 [[breaking_74_snapshots_changes]]
 === Snapshot and Restore changes
 
-[float]
+[discrete]
 ==== The S3 repository plugin uses the DNS style access pattern by default
 
 Starting in version 7.4 the `repository-s3` plugin does not use the
@@ -57,11 +58,11 @@ https://aws.amazon.com/blogs/aws/amazon-s3-path-deprecation-plan-the-rest-of-the
 announcement] that the path-style access pattern is deprecated and will be
 unsupported on buckets created after September 30th 2020.
 
-[float]
-[[breaking_80_http_changes]]
+[discrete]
+[[breaking_74_http_changes]]
 === HTTP changes
 
-[float]
+[discrete]
 ==== Changes to Encoding Plus Signs in URLs
 
 Starting in version 7.4, a `+` in a URL will be encoded as `%2B` by all REST API functionality. Prior versions handled a `+` as a single space.
@@ -69,11 +70,11 @@ If your application requires handling `+` as a single space you can return to th
 `es.rest.url_plus_as_space` to `true`. Note that this behaviour is deprecated and setting this system property to `true` will cease
 to be supported in version 8.
 
-[float]
+[discrete]
 [[breaking_74_cluster_changes]]
 === Cluster changes
 
-[float]
+[discrete]
 ==== Rerouting after starting a shard runs at lower priority
 
 After starting each shard the elected master node must perform a reroute to
@@ -92,11 +93,11 @@ pending reroutes have completed too, but starting in version 7.4 if you want to
 wait for the rerouting process to completely finish you should add the
 `wait_for_events=languid` query parameter when calling these APIs.
 
-[float]
+[discrete]
 [[breaking_74_allocation_changes]]
 === Allocation changes
 
-[float]
+[discrete]
 ==== Auto-release of read-only-allow-delete block
 
 If a node exceeds the flood-stage disk watermark then {es} adds the
@@ -113,3 +114,22 @@ can no longer rely on adding this block manually to prevent writes to an index.
 You should use the `index.blocks.read_only` block instead. This behaviour can
 be disabled by setting the system property
 `es.disk.auto_release_flood_stage_block` to `false`.
+
+[discrete]
+[[breaking_74_settings_changes]]
+=== Settings changes
+
+[discrete]
+[[deprecate-pidfile]]
+==== `pidfile` setting is being replaced by `node.pidfile`
+
+To ensure that all settings are in a proper namespace, the `pidfile` setting is
+deprecated, and will be removed in version 8.0.0. Instead, use `node.pidfile`.
+
+[discrete]
+[[deprecate-processors]]
+==== `processors` setting is being replaced by `node.processors`
+
+To ensure that all settings are in a proper namespace, the `processors` setting
+is deprecated, and will be removed in version 8.0.0. Instead, use
+`node.processors`.

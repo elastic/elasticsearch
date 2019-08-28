@@ -40,6 +40,14 @@ subprojects {
         // filter out non-existent classes directories from empty source sets
         final FileCollection classDirectories = project.files(files).filter { it.exists() }
 
+        onlyIf {
+          /*
+           * The latest version of ASM does not understand JDK 14. However, Gradle can not distinguish between JDK 13 and JDK 14 (treating
+           * anything above JDK 12 as JDK 13). So, to exclude JDK 14 until a newer version of ASM is available, we also have to exclude JDK
+           * 13. See https://github.com/elastic/elasticsearch/issues/45927.
+           */
+          Integer.parseInt(project.runtimeJavaVersion.getMajorVersion()) < 13
+        }
         doFirst {
           args('-cp', project.configurations.featureAwarePlugin.asPath, 'org.elasticsearch.xpack.test.feature_aware.FeatureAwareCheck')
           classDirectories.each { args it.getAbsolutePath() }

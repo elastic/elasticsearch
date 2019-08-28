@@ -24,4 +24,9 @@ public class NativeMemoryUsageEstimationProcess extends AbstractNativeAnalyticsP
         super(NAME, MemoryUsageEstimationResult.PARSER, jobId, logStream, processInStream, processOutStream, processRestoreStream,
             numberOfFields, filesToDelete, onProcessCrash);
     }
+
+    @Override
+    public AnalyticsProcessConfig getConfig() {
+        throw new UnsupportedOperationException();
+    }
 }

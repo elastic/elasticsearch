@@ -387,7 +387,7 @@ class ClusterFormationTasks {
         Map esConfig = [
                 'cluster.name'                 : node.clusterName,
                 'node.name'                    : "node-" + node.nodeNum,
-                'pidfile'                      : node.pidFile,
+                (node.nodeVersion.onOrAfter('7.4.0') ? 'node.pidfile' : 'pidfile') : node.pidFile,
                 'path.repo'                    : "${node.sharedDir}/repo",
                 'path.shared_data'             : "${node.sharedDir}/",
                 // Define a node attribute so we can test that it exists

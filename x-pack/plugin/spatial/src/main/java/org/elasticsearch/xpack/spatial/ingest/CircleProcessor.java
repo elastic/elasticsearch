@@ -68,10 +68,7 @@ public final class CircleProcessor extends AbstractProcessor {
         }
 
         final Map<String, Object> valueWrapper;
-        if (obj instanceof Map) {
-            Map<String, Object> fieldValue = (Map<String, Object>) obj;
-            valueWrapper = Map.of("shape", fieldValue);
-        } else if (obj instanceof String) {
+        if (obj instanceof Map || obj instanceof String) {
             valueWrapper = Map.of("shape", obj);
         } else {
             throw new IllegalArgumentException("field [" + field + "] must be a WKT Circle or a GeoJSON Circle value");

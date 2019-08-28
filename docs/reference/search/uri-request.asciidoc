@@ -38,7 +38,7 @@ using this mode, but it can be handy for quick "curl tests".
 (Optional, boolean)  Should wildcard and prefix queries be analyzed or not. Defaults to `false`.
   
 `analyzer`:: 
-  The analyzer name to be used when analyzing the query string.
+(Optional, string) The analyzer name to be used when analyzing the query string.
 
 `batched_reduce_size`:: 
   The number of shard results that should be reduced at once on the coordinating 

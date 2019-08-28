@@ -102,9 +102,11 @@ public interface BlobContainer {
 
     /**
      * Deletes this container and all its contents from the repository.
+     *
+     * @return delete result
      * @throws IOException on failure
      */
-    void delete() throws IOException;
+    DeleteResult delete() throws IOException;
 
     /**
      * Deletes the blobs with given names. Unlike {@link #deleteBlob(String)} this method will not throw an exception

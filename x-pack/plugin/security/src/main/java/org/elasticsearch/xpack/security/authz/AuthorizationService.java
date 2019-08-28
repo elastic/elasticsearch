@@ -64,6 +64,7 @@ import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
+import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authz.interceptor.RequestInterceptor;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
@@ -571,6 +572,14 @@ public class AuthorizationService {
                     authentication.getUser().principal());
             return authorizationError("action [{}] is unauthorized for user [{}] run as [{}]", cause, action, authUser.principal(),
                     authentication.getUser().principal());
+        }
+        // check for authentication by API key
+        if (authentication.getAuthenticatedBy().getType().equals(ApiKeyService.API_KEY_REALM_TYPE)) {
+            final String apiKeyId = (String) authentication.getMetadata().get(ApiKeyService.API_KEY_ID_KEY);
+            assert apiKeyId != null : "api key id must be present in the metadata";
+            logger.debug("action [{}] is unauthorized for API key id [{}] of user [{}]", action, apiKeyId, authUser.principal());
+            return authorizationError("action [{}] is unauthorized for API key id [{}] of user [{}]", cause, action, apiKeyId,
+                authUser.principal());
         }
         logger.debug("action [{}] is unauthorized for user [{}]", action, authUser.principal());
         return authorizationError("action [{}] is unauthorized for user [{}]", cause, action, authUser.principal());

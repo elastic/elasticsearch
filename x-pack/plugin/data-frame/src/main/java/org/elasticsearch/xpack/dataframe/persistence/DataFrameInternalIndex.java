@@ -40,10 +40,11 @@ public final class DataFrameInternalIndex {
      *                  progress::docs_processed, progress::docs_indexed,
      *                  stats::exponential_avg_checkpoint_duration_ms, stats::exponential_avg_documents_indexed,
      *                  stats::exponential_avg_documents_processed
+     * version 3 (7.5): state::should_stop_at_checkpoint
      */
 
     // constants for the index
-    public static final String INDEX_VERSION = "2";
+    public static final String INDEX_VERSION = "3";
     public static final String INDEX_PATTERN = ".data-frame-internal-";
     public static final String LATEST_INDEX_VERSIONED_NAME = INDEX_PATTERN + INDEX_VERSION;
     public static final String LATEST_INDEX_NAME = LATEST_INDEX_VERSIONED_NAME;
@@ -68,6 +69,7 @@ public final class DataFrameInternalIndex {
     public static final String DOUBLE = "double";
     public static final String LONG = "long";
     public static final String KEYWORD = "keyword";
+    public static final String BOOLEAN = "boolean";
 
     public static IndexTemplateMetaData getIndexTemplateMetaData() throws IOException {
         IndexTemplateMetaData dataFrameTemplate = IndexTemplateMetaData.builder(LATEST_INDEX_VERSIONED_NAME)
@@ -166,6 +168,9 @@ public final class DataFrameInternalIndex {
                     .endObject()
                     .startObject(DataFrameTransformState.INDEXER_STATE.getPreferredName())
                         .field(TYPE, KEYWORD)
+                    .endObject()
+                    .startObject(DataFrameTransformState.SHOULD_STOP_AT_NEXT_CHECKPOINT.getPreferredName())
+                        .field(TYPE, BOOLEAN)
                     .endObject()
                     .startObject(DataFrameTransformState.CURRENT_POSITION.getPreferredName())
                         .field(ENABLED, false)

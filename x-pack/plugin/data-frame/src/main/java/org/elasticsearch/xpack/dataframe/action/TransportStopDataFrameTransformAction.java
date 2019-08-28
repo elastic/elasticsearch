@@ -141,20 +141,18 @@ public class TransportStopDataFrameTransformAction extends TransportTasksAction<
         }
 
         if (ids.contains(transformTask.getTransformId())) {
-            // To cover strange state race conditions, we adjust the variable first (which writes to cluster state if it is different)
+            // To cover strange state race conditions, we attempt which writes to cluster state if it is different
             // then we stop the transform
-            transformTask.setShouldStopAtCheckpoint(request.isWaitForCheckpoint(), ActionListener.wrap(
-                r -> {
+            transformTask.setShouldStopAtCheckpoint(request.isWaitForCheckpoint(), () -> {
                     try {
-                        transformTask.stop(request.isForce());
+                        transformTask.stop(request.isForce(), request.isWaitForCheckpoint());
                     } catch (ElasticsearchException ex) {
                         listener.onFailure(ex);
                         return;
                     }
-                    listener.onResponse(new StopDataFrameTransformAction.Response(Boolean.TRUE));
-                },
-                listener::onFailure
-            ));
+                    listener.onResponse(new StopDataFrameTransformAction.Response(true));
+                }
+            );
         } else {
             listener.onFailure(new RuntimeException("ID of data frame indexer task [" + transformTask.getTransformId()
                     + "] does not match request's ID [" + request.getId() + "]"));

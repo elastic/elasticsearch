@@ -1510,9 +1510,14 @@ public class InternalEngine extends Engine {
                             : "Noop tombstone document but _tombstone field is not set [" + doc + " ]";
                         doc.add(softDeletesField);
                         indexWriter.addDocument(doc);
-                    } catch (Exception ex) {
+                    } catch (final Exception ex) {
+                        /*
+                         * Document level failures when adding a no-op are unexpected, we likely hit something fatal such as the Lucene
+                         * index being corrupt, or the Lucene document limit. We have already issued a sequence number here so this is
+                         * fatal, fail the engine.
+                         */
                         if (ex instanceof AlreadyClosedException == false && indexWriter.getTragicException() == null) {
-                            throw new AssertionError("noop operation should never fail at document level", ex);
+                            failEngine("no-op origin[" + noOp.origin() + "] seq#[" + noOp.seqNo() + "] failed at document level", ex);
                         }
                         throw ex;
                     }
@@ -2844,4 +2849,5 @@ public class InternalEngine extends Engine {
         // remove live entries in the version map
         refresh("restore_version_map_and_checkpoint_tracker", SearcherScope.INTERNAL, true);
     }
+
 }

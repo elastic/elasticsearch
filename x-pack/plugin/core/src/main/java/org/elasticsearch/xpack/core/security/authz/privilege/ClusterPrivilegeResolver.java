@@ -106,6 +106,8 @@ public class ClusterPrivilegeResolver {
     public static final NamedClusterPrivilege DELEGATE_PKI = new ActionClusterPrivilege("delegate_pki",
             Set.of(DelegatePkiAuthenticationAction.NAME, InvalidateTokenAction.NAME));
 
+    public static final NamedClusterPrivilege MANAGE_OWN_API_KEY = ManageOwnApiKeyClusterPrivilege.INSTANCE;
+
     private static final Map<String, NamedClusterPrivilege> VALUES = Stream.of(
         NONE,
         ALL,
@@ -135,7 +137,8 @@ public class ClusterPrivilegeResolver {
         READ_ILM,
         MANAGE_SLM,
         READ_SLM,
-        DELEGATE_PKI).collect(Collectors.toUnmodifiableMap(NamedClusterPrivilege::name, Function.identity()));
+        DELEGATE_PKI,
+        MANAGE_OWN_API_KEY).collect(Collectors.toUnmodifiableMap(NamedClusterPrivilege::name, Function.identity()));
 
     /**
      * Resolves a {@link NamedClusterPrivilege} from a given name if it exists.

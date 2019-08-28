@@ -116,12 +116,12 @@ public class CumulativeCardinalityAggregatorTests extends AggregatorTestCase {
     }
 
     public void testParentValidations() throws IOException {
-        ValuesSourceConfig<ValuesSource.Numeric> numericVS = new ValuesSourceConfig<>(ValuesSourceType.NUMERIC);
+        ValuesSourceConfig<ValuesSource> valuesSource = new ValuesSourceConfig<>(ValuesSourceType.NUMERIC);
 
         // Histogram
         Set<PipelineAggregationBuilder> aggBuilders = new HashSet<>();
         aggBuilders.add(new CumulativeCardinalityPipelineAggregationBuilder("cumulative_card", "sum"));
-        AggregatorFactory parent = new HistogramAggregatorFactory("name", numericVS, 0.0d, 0.0d,
+        AggregatorFactory parent = new HistogramAggregatorFactory("name", valuesSource, 0.0d, 0.0d,
             mock(InternalOrder.class), false, 0L, 0.0d, 1.0d, mock(SearchContext.class), null,
             new AggregatorFactories.Builder(), Collections.emptyMap());
         CumulativeCardinalityPipelineAggregationBuilder builder
@@ -131,7 +131,7 @@ public class CumulativeCardinalityAggregatorTests extends AggregatorTestCase {
         // Date Histogram
         aggBuilders.clear();
         aggBuilders.add(new CumulativeCardinalityPipelineAggregationBuilder("cumulative_card", "sum"));
-        parent = new DateHistogramAggregatorFactory("name", numericVS, 0L,
+        parent = new DateHistogramAggregatorFactory("name", valuesSource, 0L,
             mock(InternalOrder.class), false, 0L, mock(Rounding.class), mock(Rounding.class),
             mock(ExtendedBounds.class), mock(SearchContext.class), mock(AggregatorFactory.class),
             new AggregatorFactories.Builder(), Collections.emptyMap());
@@ -139,6 +139,7 @@ public class CumulativeCardinalityAggregatorTests extends AggregatorTestCase {
         builder.validate(parent, Collections.emptySet(), aggBuilders);
 
         // Auto Date Histogram
+        ValuesSourceConfig<ValuesSource.Numeric> numericVS = new ValuesSourceConfig<>(ValuesSourceType.NUMERIC);
         aggBuilders.clear();
         aggBuilders.add(new CumulativeCardinalityPipelineAggregationBuilder("cumulative_card", "sum"));
         AutoDateHistogramAggregationBuilder.RoundingInfo[] roundings = new AutoDateHistogramAggregationBuilder.RoundingInfo[1];
@@ -229,15 +230,16 @@ public class CumulativeCardinalityAggregatorTests extends AggregatorTestCase {
 
     private static AggregatorFactory getRandomSequentiallyOrderedParentAgg() throws IOException {
         AggregatorFactory factory;
+        ValuesSourceConfig<ValuesSource> valuesSource = new ValuesSourceConfig<>(ValuesSourceType.NUMERIC);
         ValuesSourceConfig<ValuesSource.Numeric> numericVS = new ValuesSourceConfig<>(ValuesSourceType.NUMERIC);
         switch (randomIntBetween(0, 2)) {
             case 0:
-                factory = new HistogramAggregatorFactory("name", numericVS, 0.0d, 0.0d,
+                factory = new HistogramAggregatorFactory("name", valuesSource, 0.0d, 0.0d,
                     mock(InternalOrder.class), false, 0L, 0.0d, 1.0d, mock(SearchContext.class), null,
                     new AggregatorFactories.Builder(), Collections.emptyMap());
                 break;
             case 1:
-                factory = new DateHistogramAggregatorFactory("name", numericVS, 0L,
+                factory = new DateHistogramAggregatorFactory("name", valuesSource, 0L,
                     mock(InternalOrder.class), false, 0L, mock(Rounding.class), mock(Rounding.class),
                     mock(ExtendedBounds.class), mock(SearchContext.class), mock(AggregatorFactory.class),
                     new AggregatorFactories.Builder(), Collections.emptyMap());

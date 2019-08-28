@@ -1925,7 +1925,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
                 Instant.now().plusMillis(expiration.getMillis()), false, "test_user", "default_file");
         {
             // tag::get-api-key-id-request
-            GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.usingApiKeyId(createApiKeyResponse1.getId());
+            GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.usingApiKeyId(createApiKeyResponse1.getId(), false);
             // end::get-api-key-id-request
 
             // tag::get-api-key-execute
@@ -1939,7 +1939,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
         {
             // tag::get-api-key-name-request
-            GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.usingApiKeyName(createApiKeyResponse1.getName());
+            GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.usingApiKeyName(createApiKeyResponse1.getName(), false);
             // end::get-api-key-name-request
 
             GetApiKeyResponse getApiKeyResponse = client.security().getApiKey(getApiKeyRequest, RequestOptions.DEFAULT);
@@ -1974,6 +1974,18 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
 
         {
+            // tag::get-api-keys-owned-by-authenticated-user-request
+            GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.forOwnedApiKeys();
+            // end::get-api-keys-owned-by-authenticated-user-request
+
+            GetApiKeyResponse getApiKeyResponse = client.security().getApiKey(getApiKeyRequest, RequestOptions.DEFAULT);
+
+            assertThat(getApiKeyResponse.getApiKeyInfos(), is(notNullValue()));
+            assertThat(getApiKeyResponse.getApiKeyInfos().size(), is(1));
+            verifyApiKey(getApiKeyResponse.getApiKeyInfos().get(0), expectedApiKeyInfo);
+        }
+
+        {
             // tag::get-user-realm-api-keys-request
             GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.usingRealmAndUserName("default_file", "test_user");
             // end::get-user-realm-api-keys-request
@@ -1988,7 +2000,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
 
         {
-            GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.usingApiKeyId(createApiKeyResponse1.getId());
+            GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.usingApiKeyId(createApiKeyResponse1.getId(), false);
 
             ActionListener<GetApiKeyResponse> listener;
             // tag::get-api-key-execute-listener
@@ -2049,7 +2061,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
         {
             // tag::invalidate-api-key-id-request
-            InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingApiKeyId(createApiKeyResponse1.getId());
+            InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingApiKeyId(createApiKeyResponse1.getId(), false);
             // end::invalidate-api-key-id-request
 
             // tag::invalidate-api-key-execute
@@ -2074,7 +2086,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertNotNull(createApiKeyResponse2.getKey());
 
             // tag::invalidate-api-key-name-request
-            InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingApiKeyName(createApiKeyResponse2.getName());
+            InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingApiKeyName(createApiKeyResponse2.getName(),
+                false);
             // end::invalidate-api-key-name-request
 
             InvalidateApiKeyResponse invalidateApiKeyResponse = client.security().invalidateApiKey(invalidateApiKeyRequest,
@@ -2167,7 +2180,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(createApiKeyResponse6.getName(), equalTo("k6"));
             assertNotNull(createApiKeyResponse6.getKey());
 
-            InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingApiKeyId(createApiKeyResponse6.getId());
+            InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingApiKeyId(createApiKeyResponse6.getId(), false);
 
             ActionListener<InvalidateApiKeyResponse> listener;
             // tag::invalidate-api-key-execute-listener
@@ -2203,6 +2216,30 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(invalidatedApiKeyIds, containsInAnyOrder(expectedInvalidatedApiKeyIds.toArray(Strings.EMPTY_ARRAY)));
             assertThat(response.getPreviouslyInvalidatedApiKeys().size(), equalTo(0));
         }
+
+        {
+            createApiKeyRequest = new CreateApiKeyRequest("k7", roles, expiration, refreshPolicy);
+            CreateApiKeyResponse createApiKeyResponse7 = client.security().createApiKey(createApiKeyRequest, RequestOptions.DEFAULT);
+            assertThat(createApiKeyResponse7.getName(), equalTo("k7"));
+            assertNotNull(createApiKeyResponse7.getKey());
+
+            // tag::invalidate-api-keys-owned-by-authenticated-user-request
+            InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.forOwnedApiKeys();
+            // end::invalidate-api-keys-owned-by-authenticated-user-request
+
+            InvalidateApiKeyResponse invalidateApiKeyResponse = client.security().invalidateApiKey(invalidateApiKeyRequest,
+                RequestOptions.DEFAULT);
+
+            final List<ElasticsearchException> errors = invalidateApiKeyResponse.getErrors();
+            final List<String> invalidatedApiKeyIds = invalidateApiKeyResponse.getInvalidatedApiKeys();
+            final List<String> previouslyInvalidatedApiKeyIds = invalidateApiKeyResponse.getPreviouslyInvalidatedApiKeys();
+
+            assertTrue(errors.isEmpty());
+            List<String> expectedInvalidatedApiKeyIds = Arrays.asList(createApiKeyResponse7.getId());
+            assertThat(invalidatedApiKeyIds, containsInAnyOrder(expectedInvalidatedApiKeyIds.toArray(Strings.EMPTY_ARRAY)));
+            assertThat(previouslyInvalidatedApiKeyIds.size(), equalTo(0));
+        }
+
     }
 
     public void testDelegatePkiAuthentication() throws Exception {

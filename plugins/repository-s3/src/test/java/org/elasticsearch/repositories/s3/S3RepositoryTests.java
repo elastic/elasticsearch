@@ -120,7 +120,7 @@ public class S3RepositoryTests extends ESTestCase {
     }
 
     private S3Repository createS3Repo(RepositoryMetaData metadata) {
-        return new S3Repository(metadata, Settings.EMPTY, NamedXContentRegistry.EMPTY, new DummyS3Service(), mock(ThreadPool.class)) {
+        return new S3Repository(metadata, NamedXContentRegistry.EMPTY, new DummyS3Service(), mock(ThreadPool.class)) {
             @Override
             protected void assertSnapshotOrGenericThread() {
                 // eliminate thread name check as we create repo manually on test/main threads

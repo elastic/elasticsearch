@@ -43,6 +43,10 @@ public class AnalyticsProcessConfig implements ToXContentObject {
         this.analysis = Objects.requireNonNull(analysis);
     }
 
+    public long rows() {
+        return rows;
+    }
+
     public int cols() {
         return cols;
     }

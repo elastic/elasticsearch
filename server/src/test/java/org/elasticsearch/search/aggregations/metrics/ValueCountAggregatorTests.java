@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
@@ -41,12 +42,15 @@ import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.RangeFieldMapper;
+import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.ValueType;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import static java.util.Collections.singleton;
@@ -162,6 +166,25 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
         }, null);
     }
 
+    public void testRangeFieldValues() throws IOException {
+        RangeType rangeType = RangeType.DOUBLE;
+        final RangeFieldMapper.Range range1 = new RangeFieldMapper.Range(rangeType, 1.0D, 5.0D, true, true);
+        final RangeFieldMapper.Range range2 = new RangeFieldMapper.Range(rangeType, 6.0D, 10.0D, true, true);
+        final String fieldName = "rangeField";
+        MappedFieldType fieldType = new RangeFieldMapper.Builder(fieldName, rangeType).fieldType();
+        fieldType.setName(fieldName);
+        final ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("_name", null).field(fieldName);
+        testCase(aggregationBuilder,  new MatchAllDocsQuery(), iw -> {
+            iw.addDocument(singleton(new BinaryDocValuesField(fieldName, rangeType.encodeRanges(singleton(range1)))));
+            iw.addDocument(singleton(new BinaryDocValuesField(fieldName, rangeType.encodeRanges(singleton(range1)))));
+            iw.addDocument(singleton(new BinaryDocValuesField(fieldName, rangeType.encodeRanges(singleton(range2)))));
+            iw.addDocument(singleton(new BinaryDocValuesField(fieldName, rangeType.encodeRanges(Set.of(range1, range2)))));
+        }, count -> {
+            assertEquals(4.0, count.getValue(), 0);
+            assertTrue(AggregationInspectionHelper.hasValue(count));
+        }, fieldType);
+    }
+
     private void testCase(Query query,
                           ValueType valueType,
                           CheckedConsumer<RandomIndexWriter, IOException> indexer,
@@ -215,6 +238,8 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
                 return new IpFieldMapper.Builder("_name").fieldType();
             case GEOPOINT:
                 return new GeoPointFieldMapper.Builder("_name").fieldType();
+            case RANGE:
+                return new RangeFieldMapper.Builder("_name", RangeType.DOUBLE).fieldType();
             default:
                 throw new IllegalArgumentException("Test does not support value type [" + valueType + "]");
         }

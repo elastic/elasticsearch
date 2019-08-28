@@ -48,7 +48,7 @@ public final class XPackField {
     /** Name constant for spatial features. */
     public static final String SPATIAL = "spatial";
     /** Name constant for the data science plugin. */
-    public static final String DATA_SCIENCE = "data_science";
+    public static final String ANALYTICS = "analytics";
 
     private XPackField() {}
 

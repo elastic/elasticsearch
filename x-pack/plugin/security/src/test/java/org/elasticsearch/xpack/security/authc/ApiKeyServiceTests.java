@@ -191,6 +191,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         sourceMap.put("limited_by_role_descriptors", Collections.singletonMap("limited role", Collections.singletonMap("cluster", "all")));
         Map<String, Object> creatorMap = new HashMap<>();
         creatorMap.put("principal", "test_user");
+        creatorMap.put("realm", "realm1");
         creatorMap.put("metadata", Collections.emptyMap());
         sourceMap.put("creator", creatorMap);
         sourceMap.put("api_key_invalidated", false);
@@ -209,6 +210,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(result.getMetadata().get(ApiKeyService.API_KEY_ROLE_DESCRIPTORS_KEY), equalTo(sourceMap.get("role_descriptors")));
         assertThat(result.getMetadata().get(ApiKeyService.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY),
             equalTo(sourceMap.get("limited_by_role_descriptors")));
+        assertThat(result.getMetadata().get(ApiKeyService.API_KEY_CREATOR_REALM), is("realm1"));
 
         sourceMap.put("expiration_time", Clock.systemUTC().instant().plus(1L, ChronoUnit.HOURS).toEpochMilli());
         future = new PlainActionFuture<>();
@@ -222,6 +224,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(result.getMetadata().get(ApiKeyService.API_KEY_ROLE_DESCRIPTORS_KEY), equalTo(sourceMap.get("role_descriptors")));
         assertThat(result.getMetadata().get(ApiKeyService.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY),
             equalTo(sourceMap.get("limited_by_role_descriptors")));
+        assertThat(result.getMetadata().get(ApiKeyService.API_KEY_CREATOR_REALM), is("realm1"));
 
         sourceMap.put("expiration_time", Clock.systemUTC().instant().minus(1L, ChronoUnit.HOURS).toEpochMilli());
         future = new PlainActionFuture<>();

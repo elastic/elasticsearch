@@ -198,8 +198,10 @@ image::images/action-throttling.jpg[align="center"]
 You can use the `foreach` field in an action to trigger the configured action
 for every element within that array.
 
-In order to protect from long running watches, after one hundred runs with an
-foreach loop the execution is gracefully stopped.
+In order to protect from long running watches, you can use the `max_iterations` 
+field to limit the maximum amount of runs that each watch executes. If this limit 
+is reached, the execution is gracefully stopped. If not set, this field defaults 
+to one hundred.
 
 [source,js]
 --------------------------------------------------
@@ -224,6 +226,7 @@ PUT _watcher/watch/log_event_watch
   "actions" : {
     "log_hits" : {
       "foreach" : "ctx.payload.hits.hits", <1>
+      "max_iterations" : 500,
       "logging" : {
         "text" : "Found id {{ctx.payload._id}} with field {{ctx.payload._source.my_field}}"
       }

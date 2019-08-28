@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.test.rest;
 
-
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
@@ -13,9 +12,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -24,7 +21,6 @@ import static org.elasticsearch.test.ESTestCase.assertBusy;
 import static org.elasticsearch.test.rest.ESRestTestCase.allowTypesRemovalWarnings;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
 public final class XPackRestTestHelper {

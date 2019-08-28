@@ -74,7 +74,7 @@ public class InternalEngineMergeIT extends ESIntegTestCase {
             long current = stats.getPrimaries().getMerge().getCurrent();
             long count = stats.getPrimaries().getSegments().getCount();
             assertThat(count, lessThan(upperNumberSegments));
-            assertThat(current, equalTo(0));
+            assertThat(current, equalTo(0L));
         });
 
         IndicesStatsResponse stats = client().admin().indices().prepareStats().setSegments(true).setMerge(true).get();

@@ -40,9 +40,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.instanceOf;
-
 public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCase {
 
     private static final ConcurrentMap<String, byte[]> blobs = new ConcurrentHashMap<>();
@@ -71,21 +68,19 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
     }
 
     @Override
-    protected void createTestRepository(final String name, boolean verify) {
-        assertAcked(client().admin().cluster().preparePutRepository(name)
-            .setType(S3Repository.TYPE)
-            .setVerify(verify)
-            .setSettings(Settings.builder()
-                .put(S3Repository.BUCKET_SETTING.getKey(), bucket)
-                .put(S3Repository.BUFFER_SIZE_SETTING.getKey(), bufferSize)
-                .put(S3Repository.SERVER_SIDE_ENCRYPTION_SETTING.getKey(), serverSideEncryption)
-                .put(S3Repository.CANNED_ACL_SETTING.getKey(), cannedACL)
-                .put(S3Repository.STORAGE_CLASS_SETTING.getKey(), storageClass)));
+    protected String repositoryType() {
+        return S3Repository.TYPE;
     }
 
     @Override
-    protected void afterCreationCheck(Repository repository) {
-        assertThat(repository, instanceOf(S3Repository.class));
+    protected Settings repositorySettings() {
+        return Settings.builder()
+            .put(S3Repository.BUCKET_SETTING.getKey(), bucket)
+            .put(S3Repository.BUFFER_SIZE_SETTING.getKey(), bufferSize)
+            .put(S3Repository.SERVER_SIDE_ENCRYPTION_SETTING.getKey(), serverSideEncryption)
+            .put(S3Repository.CANNED_ACL_SETTING.getKey(), cannedACL)
+            .put(S3Repository.STORAGE_CLASS_SETTING.getKey(), storageClass)
+            .build();
     }
 
     @Override

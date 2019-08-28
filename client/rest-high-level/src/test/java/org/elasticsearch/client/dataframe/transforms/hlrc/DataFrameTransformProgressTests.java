@@ -21,6 +21,7 @@ package org.elasticsearch.client.dataframe.transforms.hlrc;
 
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformProgress;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -51,7 +52,7 @@ public class DataFrameTransformProgressTests extends AbstractResponseTestCase<
     }
 
     @Override
-    protected DataFrameTransformProgress createServerTestInstance() {
+    protected DataFrameTransformProgress createServerTestInstance(XContentType xContentType) {
         return randomDataFrameTransformProgress();
     }
 

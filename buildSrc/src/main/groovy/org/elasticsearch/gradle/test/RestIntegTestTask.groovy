@@ -75,12 +75,7 @@ class RestIntegTestTask extends DefaultTask {
 
         runner.include('**/*IT.class')
         runner.systemProperty('tests.rest.load_packaged', 'false')
-//        TODO fix this hack
-//        if (System.getProperty("runtime.java").equals("8")) {
-//            runner.nonInputProperties.systemProperty('java.locale.providers', 'SPI,JRE')
-//        } else {
-//            runner.nonInputProperties.systemProperty('java.locale.providers', 'SPI,COMPAT')
-//        }
+
         if (System.getProperty("tests.rest.cluster") == null) {
             if (System.getProperty("tests.cluster") != null) {
                 throw new IllegalArgumentException("tests.rest.cluster and tests.cluster must both be null or non-null")

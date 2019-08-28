@@ -837,9 +837,9 @@ class BuildPlugin implements Plugin<Project> {
                         test.jvmArgs '--illegal-access=warn'
                     }
                     if ((ext.get('runtimeJavaVersion') as JavaVersion) == JavaVersion.VERSION_1_8) {
-                        test.jvmArgs '-Djava.locale.providers=SPI,JRE'
+                        test.systemProperty ('java.locale.providers','SPI,JRE')
                     } else if ((ext.get('runtimeJavaVersion') as JavaVersion) >= JavaVersion.VERSION_1_9) {
-                        test.jvmArgs '-Djava.locale.providers=SPI,COMPAT'
+                        test.systemProperty ('java.locale.providers','SPI,COMPAT')
                     }
 
                 }
@@ -889,7 +889,6 @@ class BuildPlugin implements Plugin<Project> {
                 nonInputProperties.systemProperty('gradle.user.home', project.gradle.getGradleUserHomeDir())
 
                 nonInputProperties.systemProperty('compiler.java', "${-> (ext.get('compilerJavaVersion') as JavaVersion).getMajorVersion()}")
-//                nonInputProperties.systemProperty('java.locale.providers', "SPI,JRE")
 
                 // TODO: remove setting logging level via system property
                 test.systemProperty 'tests.logger.level', 'WARN'

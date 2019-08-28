@@ -53,7 +53,7 @@ using this mode, but it can be handy for quick "curl tests".
   The default field to use when no field prefix is defined within the query.
 
 `explain`:: 
-  For each hit, contain an explanation of how scoring of the hits was computed.
+  For each hit, include an explanation of how the score was computed.
 
 `from`:: 
   The starting from index of the hits to return. Defaults to `0`.

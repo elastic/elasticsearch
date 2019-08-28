@@ -119,6 +119,11 @@ public final class ThreadContext implements Closeable, Writeable {
         this.maxWarningHeaderSize = SETTING_HTTP_MAX_WARNING_HEADER_SIZE.get(settings).getBytes();
     }
 
+    /**
+     * In order to prevent accessing a closed ThreadContext in DeprecationLogger in tests,
+     * it should be removed from DeprecationLogger.THREAD_CONTEXT static set of ThreadContexts.
+     * @see org.elasticsearch.common.logging.DeprecationLogger#removeThreadContext(ThreadContext)
+     */
     @Override
     public void close() {
         threadLocal.close();

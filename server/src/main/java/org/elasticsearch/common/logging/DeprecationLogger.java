@@ -39,6 +39,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -61,6 +63,13 @@ public class DeprecationLogger {
     private static final CopyOnWriteArraySet<ThreadContext> THREAD_CONTEXT = new CopyOnWriteArraySet<>();
 
     /**
+     * In order to prevent accessing closed ThreadContext in test environment
+     * when iterate <code>THREAD_CONTEXT</code> Set, read lock has to be acquired
+     * when ThreadContext is closed it has to be removed from the Set first, and removing should acquire write lock
+     */
+    private static ReadWriteLock threadContextLock = new ReentrantReadWriteLock(true);
+
+    /**
      * Set the {@link ThreadContext} used to add deprecation headers to network responses.
      * <p>
      * This is expected to <em>only</em> be invoked by the {@code Node}'s constructor (therefore once outside of tests).
@@ -81,16 +90,21 @@ public class DeprecationLogger {
      * Remove the {@link ThreadContext} used to add deprecation headers to network responses.
      * <p>
      * This is expected to <em>only</em> be invoked by the {@code Node}'s {@code close} method (therefore once outside of tests).
-     *
+     * Node: This method should be called before closing a <code>ThreadContext</code>.
+     * @see ThreadContext#close()
      * @param threadContext The thread context owned by the {@code ThreadPool} (and implicitly a {@code Node})
      * @throws IllegalStateException if this {@code threadContext} is unknown (and presumably already unset before)
      */
     public static void removeThreadContext(ThreadContext threadContext) {
         assert threadContext != null;
-
-        // remove returning false means it did not have it already
-        if (THREAD_CONTEXT.remove(threadContext) == false) {
-            throw new IllegalStateException("Removing unknown ThreadContext not allowed!");
+        threadContextLock.writeLock().lock();
+        try{
+            // remove returning false means it did not have it already
+            if (THREAD_CONTEXT.remove(threadContext) == false) {
+                throw new IllegalStateException("Removing unknown ThreadContext not allowed!");
+            }
+        } finally {
+            threadContextLock.writeLock().unlock();
         }
     }
 
@@ -227,53 +241,57 @@ public class DeprecationLogger {
     }
 
     void deprecated(final Set<ThreadContext> threadContexts, final String message, final boolean log, final Object... params) {
-        final Iterator<ThreadContext> iterator = threadContexts.iterator();
-        if (iterator.hasNext()) {
-            final String formattedMessage = LoggerMessageFormat.format(message, params);
-            final String warningHeaderValue = formatWarning(formattedMessage);
-            assert WARNING_HEADER_PATTERN.matcher(warningHeaderValue).matches();
-            assert extractWarningValueFromWarningHeader(warningHeaderValue).equals(escapeAndEncode(formattedMessage));
-            while (iterator.hasNext()) {
-                try {
-                    final ThreadContext next = iterator.next();
-                    next.addResponseHeader("Warning", warningHeaderValue);
-                } catch (final IllegalStateException e) {
-                    // ignored; it should be removed shortly
+        threadContextLock.readLock().lock();
+        try{
+            final Iterator<ThreadContext> iterator = threadContexts.iterator();
+            if (iterator.hasNext()) {
+                final String formattedMessage = LoggerMessageFormat.format(message, params);
+                final String warningHeaderValue = formatWarning(formattedMessage);
+                assert WARNING_HEADER_PATTERN.matcher(warningHeaderValue).matches();
+                assert extractWarningValueFromWarningHeader(warningHeaderValue).equals(escapeAndEncode(formattedMessage));
+                while (iterator.hasNext()) {
+                        final ThreadContext next = iterator.next();
+                        next.addResponseHeader("Warning", warningHeaderValue);
                 }
             }
+
+            if (log) {
+                AccessController.doPrivileged(new PrivilegedAction<Void>() {
+                    @SuppressLoggerChecks(reason = "safely delegates to logger")
+                    @Override
+                    public Void run() {
+                        /**
+                         * There should be only one threadContext (in prod env), @see DeprecationLogger#setThreadContext
+                         */
+                        String opaqueId = getXOpaqueId(threadContexts);
+
+                        logger.warn(new DeprecatedMessage(message, opaqueId, params));
+                        return null;
+                    }
+                });
+            }
+
+        }finally {
+            threadContextLock.readLock().unlock();
         }
 
-        if (log) {
-            AccessController.doPrivileged(new PrivilegedAction<Void>() {
-                @SuppressLoggerChecks(reason = "safely delegates to logger")
-                @Override
-                public Void run() {
-                    /**
-                     * There should be only one threadContext (in prod env), @see DeprecationLogger#setThreadContext
-                     */
-                    String opaqueId = getXOpaqueId(threadContexts);
-
-                    logger.warn(new DeprecatedMessage(message, opaqueId, params));
-                    return null;
-                }
-            });
-        }
     }
 
     public String getXOpaqueId(Set<ThreadContext> threadContexts) {
-        for (ThreadContext threadContext : threadContexts) {
-            try {
+        threadContextLock.readLock().lock();
+        try {
+            for (ThreadContext threadContext : threadContexts) {
                 if (threadContext.isClosed() == false) {
                     String header = threadContext.getHeader(Task.X_OPAQUE_ID);
                     if (header != null) {
                         return header;
                     }
                 }
-            } catch (IllegalStateException e) {
-                // ignore exception as this is due to a race condition  between isClosed and getHeader. Only in test env.
             }
+            return "";
+        } finally {
+            threadContextLock.readLock().unlock();
         }
-        return "";
     }
 
     /**

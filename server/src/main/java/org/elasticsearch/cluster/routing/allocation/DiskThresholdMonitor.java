@@ -221,6 +221,8 @@ public class DiskThresholdMonitor {
             .collect(Collectors.toSet());
 
         if (indicesToAutoRelease.isEmpty() == false) {
+            logger.info("releasing read-only block on indices " + indicesToAutoRelease
+                + " since they are now allocated to nodes with sufficient disk space");
             updateIndicesReadOnly(indicesToAutoRelease, listener, false);
         } else {
             listener.onResponse(null);

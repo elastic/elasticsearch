@@ -275,6 +275,11 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
         }
     }
 
+    // allow tests to adjust the node stats on receipt
+    List<NodeStats> adjustNodesStats(List<NodeStats> nodeStats) {
+        return nodeStats;
+    }
+
     /**
      * Refreshes the ClusterInfo in a blocking fashion
      */
@@ -284,12 +289,13 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
         }
         final CountDownLatch nodeLatch = updateNodeStats(new ActionListener<NodesStatsResponse>() {
             @Override
-            public void onResponse(NodesStatsResponse nodeStatses) {
-                ImmutableOpenMap.Builder<String, DiskUsage> newLeastAvaiableUsages = ImmutableOpenMap.builder();
-                ImmutableOpenMap.Builder<String, DiskUsage> newMostAvaiableUsages = ImmutableOpenMap.builder();
-                fillDiskUsagePerNode(logger, nodeStatses.getNodes(), newLeastAvaiableUsages, newMostAvaiableUsages);
-                leastAvailableSpaceUsages = newLeastAvaiableUsages.build();
-                mostAvailableSpaceUsages = newMostAvaiableUsages.build();
+            public void onResponse(NodesStatsResponse nodesStatsResponse) {
+                ImmutableOpenMap.Builder<String, DiskUsage> leastAvailableUsagesBuilder = ImmutableOpenMap.builder();
+                ImmutableOpenMap.Builder<String, DiskUsage> mostAvailableUsagesBuilder = ImmutableOpenMap.builder();
+                fillDiskUsagePerNode(logger, adjustNodesStats(nodesStatsResponse.getNodes()),
+                    leastAvailableUsagesBuilder, mostAvailableUsagesBuilder);
+                leastAvailableSpaceUsages = leastAvailableUsagesBuilder.build();
+                mostAvailableSpaceUsages = mostAvailableUsagesBuilder.build();
             }
 
             @Override
@@ -358,13 +364,15 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
         }
         ClusterInfo clusterInfo = getClusterInfo();
         boolean anyListeners = false;
-        for (final Consumer<ClusterInfo> listener : listeners) {
-            anyListeners = true;
-            try {
-                logger.trace("notifying [{}] of new cluster info", listener);
-                listener.accept(clusterInfo);
-            } catch (Exception e) {
-                logger.info(new ParameterizedMessage("failed to notify [{}] of new cluster info", listener), e);
+        synchronized (listeners) {
+            for (final Consumer<ClusterInfo> listener : listeners) {
+                anyListeners = true;
+                try {
+                    logger.trace("notifying [{}] of new cluster info", listener);
+                    listener.accept(clusterInfo);
+                } catch (Exception e) {
+                    logger.info(new ParameterizedMessage("failed to notify [{}] of new cluster info", listener), e);
+                }
             }
         }
         assert anyListeners : "expected to notify at least one listener";
@@ -402,7 +410,7 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
                     if (leastAvailablePath == null) {
                         assert mostAvailablePath == null;
                         mostAvailablePath = leastAvailablePath = info;
-                    } else if (leastAvailablePath.getAvailable().getBytes() > info.getAvailable().getBytes()){
+                    } else if (leastAvailablePath.getAvailable().getBytes() > info.getAvailable().getBytes()) {
                         leastAvailablePath = info;
                     } else if (mostAvailablePath.getAvailable().getBytes() < info.getAvailable().getBytes()) {
                         mostAvailablePath = info;

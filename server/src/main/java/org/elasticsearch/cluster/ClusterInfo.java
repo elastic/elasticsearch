@@ -67,6 +67,10 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         this.routingToDataPath = routingToDataPath;
     }
 
+    protected ClusterInfo(ClusterInfo delegate) {
+        this(delegate.leastAvailableSpaceUsage, delegate.mostAvailableSpaceUsage, delegate.shardSizes, delegate.routingToDataPath);
+    }
+
     public ClusterInfo(StreamInput in) throws IOException {
         Map<String, DiskUsage> leastMap = in.readMap(StreamInput::readString, DiskUsage::new);
         Map<String, DiskUsage> mostMap = in.readMap(StreamInput::readString, DiskUsage::new);

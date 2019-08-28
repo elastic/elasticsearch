@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.ESAllocationTestCase;
-import org.elasticsearch.cluster.MockInternalClusterInfoService.DevNullClusterInfo;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -689,11 +688,12 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         clusterState = strategy.reroute(clusterState, "reroute");
         logShardStates(clusterState);
 
-        // shards should be initializing
-        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(4));
+        // 3 shards should be initializing, the 4th isn't since that would push the node over the watermark
+        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(3));
 
         logger.info("--> start the shards");
-        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState); // start the first 3 shards and start recovering the 4th
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState); // complete the recovery of the last shard
 
         logShardStates(clusterState);
         // Assert that we're able to start the primary and replicas
@@ -1001,5 +1001,21 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 rn.shardsWithState(INITIALIZING),
                 rn.shardsWithState(RELOCATING),
                 rn.shardsWithState(STARTED));
+    }
+
+    /**
+     * ClusterInfo that always reports /dev/null for the shards' data paths.
+     */
+    static class DevNullClusterInfo extends ClusterInfo {
+        DevNullClusterInfo(ImmutableOpenMap<String, DiskUsage> leastAvailableSpaceUsage,
+                           ImmutableOpenMap<String, DiskUsage> mostAvailableSpaceUsage,
+                           ImmutableOpenMap<String, Long> shardSizes) {
+            super(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, null);
+        }
+
+        @Override
+        public String getDataPath(ShardRouting shardRouting) {
+            return "/dev/null";
+        }
     }
 }

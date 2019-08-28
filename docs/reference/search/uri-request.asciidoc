@@ -41,13 +41,9 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
   requests by setting `search.default_allow_partial_results` to `false` in the 
   cluster settings.
 
-`analyze_wildcard`:: 
-  (Optional, boolean) Should wildcard and prefix queries be analyzed or not. 
-  Defaults to `false`.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=analyze_wildcard]
   
-`analyzer`:: 
-  (Optional, string) The analyzer name to be used when analyzing the query 
-  string.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=analyzer]
 
 `batched_reduce_size`:: 
   (Optional, integer) The number of shard results that should be reduced at once 
@@ -55,45 +51,30 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
   to reduce the memory overhead per search request if the potential number of 
   shards in the request can be large.
 
-`default_operator`:: 
-  (Optional, string) The default operator to be used, can be `AND` or `OR`. 
-  Defaults to `OR`.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=default_operator]
 
-`df`:: 
-  (Optional, string) The default field to use when no field prefix is defined 
-  within the query.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=df]
 
 `explain`:: 
   (Optional, string) For each hit, include an explanation of how the score was 
   computed.
 
-`from`:: 
-  (Optional, integer) The starting from index of the hits to return. 
-  Defaults to `0`.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=from]
 
-`lenient`:: 
-  (Optional, boolean) If set to true will cause format based failures (like 
-  providing text to a numeric field) to be ignored. Defaults to false.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=lenient]
 
-`q`:: 
-  (Optional, string) The query string (maps to the `query_string` query, see 
-  <<query-dsl-query-string-query,Query String Query>> for more details.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=search-q]
 
-`search_type`:: 
-  (Optional, string) The type of the search operation to perform. Can be 
-  `dfs_query_then_fetch` or `query_then_fetch`. Defaults to `query_then_fetch`. 
-  See <<request-body-search-search-type,Search Type>> for more details on the 
-  different types of search that can be performed.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=search_type]
 
 `size`:: 
   (Optional, integer) The number of hits to return. Defaults to `10`.
 
-`_source`:: 
-  (Optional, boolean) Set to `false` to disable retrieval of the `_source` 
-  field. You can also retrieve part of the document by using `_source_includes` 
-  and `_source_excludes`(see the 
-  <<request-body-search-source-filtering, request body>> documentation for more 
-  details).
+include::{docdir}/rest-api/common-parms.asciidoc[tag=source]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=source_excludes]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=source_includes]
 
 `stored_fields`:: 
   (Optional, string) The selective stored fields of the document to return for 
@@ -123,11 +104,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
   request to be executed within the specified time value and bail with the hits 
   accumulated up to that point when expired. Defaults to no timeout.
 
-`terminate_after`:: 
-  (Optional, integer) The maximum number of documents to collect for each shard, 
-  upon reaching which the query execution will terminate early. If set, the 
-  response will have a boolean field `terminated_early` to indicate whether the 
-  query execution has actually terminated_early. Defaults to no terminate_after.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=terminate_after]
 
 
 [[search-uri-request-api-example]]

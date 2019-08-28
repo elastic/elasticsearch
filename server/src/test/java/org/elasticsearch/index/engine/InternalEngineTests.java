@@ -4515,7 +4515,6 @@ public class InternalEngineTests extends EngineTestCase {
             final EngineConfig engineConfig;
             final SeqNoStats prevSeqNoStats;
             final List<DocIdSeqNoAndSource> prevDocs;
-            final int totalTranslogOps;
             try (InternalEngine engine = createEngine(store, createTempDir(), globalCheckpoint::get)) {
                 engineConfig = engine.config();
                 for (final long seqNo : seqNos) {
@@ -4534,16 +4533,19 @@ public class InternalEngineTests extends EngineTestCase {
                 engine.syncTranslog();
                 prevSeqNoStats = engine.getSeqNoStats(globalCheckpoint.get());
                 prevDocs = getDocIds(engine, true);
-                totalTranslogOps = engine.getTranslog().totalOperations();
             }
             try (InternalEngine engine = new InternalEngine(engineConfig)) {
+                final Translog.TranslogGeneration currrentTranslogGeneration = new Translog.TranslogGeneration(
+                    engine.getTranslog().getTranslogUUID(), engine.getTranslog().currentFileGeneration());
                 engine.recoverFromTranslog(translogHandler, globalCheckpoint.get());
                 engine.restoreLocalHistoryFromTranslog(translogHandler);
                 assertThat(getDocIds(engine, true), equalTo(prevDocs));
                 SeqNoStats seqNoStats = engine.getSeqNoStats(globalCheckpoint.get());
                 assertThat(seqNoStats.getLocalCheckpoint(), equalTo(prevSeqNoStats.getLocalCheckpoint()));
                 assertThat(seqNoStats.getMaxSeqNo(), equalTo(prevSeqNoStats.getMaxSeqNo()));
-                assertThat(engine.getTranslog().totalOperations(), equalTo(totalTranslogOps));
+                try (Translog.Snapshot snapshot = engine.getTranslog().newSnapshotFromGen(currrentTranslogGeneration, Long.MAX_VALUE)) {
+                    assertThat("restore from local translog must not add operations to translog", snapshot, SnapshotMatchers.size(0));
+                }
             }
             assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, createMapperService("test"));
         }
@@ -5978,4 +5980,29 @@ public class InternalEngineTests extends EngineTestCase {
                 equalTo(seqNos));
         }
     }
+
+    public void testNoOpFailure() throws IOException {
+        engine.close();
+        final Settings settings = Settings.builder()
+            .put(defaultSettings.getSettings())
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
+            IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build());
+        try (Store store = createStore();
+             Engine engine = createEngine((dir, iwc) -> new IndexWriter(dir, iwc) {
+            @Override
+            public long addDocument(Iterable<? extends IndexableField> doc) throws IOException {
+                throw new IllegalArgumentException("fatal");
+            }
+        }, null, null, config(indexSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null))) {
+            final Engine.NoOp op = new Engine.NoOp(0, 0, PRIMARY, System.currentTimeMillis(), "test");
+            final IllegalArgumentException e = expectThrows(IllegalArgumentException. class, () -> engine.noOp(op));
+            assertThat(e.getMessage(), equalTo("fatal"));
+            assertTrue(engine.isClosed.get());
+            assertThat(engine.failedEngine.get(), not(nullValue()));
+            assertThat(engine.failedEngine.get(), instanceOf(IllegalArgumentException.class));
+            assertThat(engine.failedEngine.get().getMessage(), equalTo("fatal"));
+        }
+    }
+
 }

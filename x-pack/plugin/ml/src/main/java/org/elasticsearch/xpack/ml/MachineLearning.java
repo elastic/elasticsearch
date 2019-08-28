@@ -546,7 +546,9 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 jobConfigProvider,
                 jobResultsProvider,
                 datafeedConfigProvider,
-                jobResultsPersister);
+                jobResultsPersister,
+                settings,
+                clusterService.getNodeName());
         DatafeedManager datafeedManager = new DatafeedManager(threadPool, client, clusterService, datafeedJobBuilder,
                 System::currentTimeMillis, auditor, autodetectProcessManager);
         this.datafeedManager.set(datafeedManager);

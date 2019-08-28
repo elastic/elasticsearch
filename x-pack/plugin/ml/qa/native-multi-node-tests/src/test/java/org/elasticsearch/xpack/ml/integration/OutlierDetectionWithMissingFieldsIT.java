@@ -31,7 +31,6 @@ public class OutlierDetectionWithMissingFieldsIT extends MlNativeDataFrameAnalyt
         cleanUp();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/45741")
     public void testMissingFields() throws Exception {
         String sourceIndex = "test-outlier-detection-with-missing-fields";
 
@@ -74,6 +73,7 @@ public class OutlierDetectionWithMissingFieldsIT extends MlNativeDataFrameAnalyt
         putAnalytics(config);
 
         assertState(id, DataFrameAnalyticsState.STOPPED);
+        assertProgress(id, 0, 0, 0, 0);
 
         startAnalytics(id);
         waitUntilAnalyticsIsStopped(id);
@@ -100,5 +100,8 @@ public class OutlierDetectionWithMissingFieldsIT extends MlNativeDataFrameAnalyt
                 assertThat(destDoc.containsKey("ml"), is(false));
             }
         }
+
+        assertProgress(id, 100, 100, 100, 100);
+        assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
     }
 }

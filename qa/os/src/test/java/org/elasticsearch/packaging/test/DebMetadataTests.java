@@ -21,7 +21,7 @@ package org.elasticsearch.packaging.test;
 
 import junit.framework.TestCase;
 import org.elasticsearch.packaging.util.Distribution;
-import org.elasticsearch.packaging.util.Platforms;
+import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.junit.Before;
 
@@ -30,21 +30,18 @@ import java.util.regex.Pattern;
 import static org.elasticsearch.packaging.util.FileUtils.getDistributionFile;
 import static org.junit.Assume.assumeTrue;
 
-public class PackageConflictTests extends PackagingTestCase {
-
-    private Shell sh;
+public class DebMetadataTests extends PackagingTestCase {
 
     @Before
-    public void onlyCompatibleDistributions() throws Exception {
-        assumeTrue("only compatible distributions", distribution().packaging.compatible);
-        assumeTrue("rpm or deb",
-            distribution().packaging == Distribution.Packaging.DEB || distribution().packaging == Distribution.Packaging.RPM);
-        sh = newShell();
+    public void filterDistros() {
+        assumeTrue("only deb", distribution.packaging == Distribution.Packaging.DEB);
     }
 
-    public void test11DebDependencies() {
-        // TODO: rewrite this test to not use a real second distro to try and install
-        assumeTrue(Platforms.isDPKG());
+    public void test05CheckLintian() {
+        sh.run("lintian --fail-on-warnings " + FileUtils.getDistributionFile(distribution()));
+    }
+
+    public void test06Dependencies() {
 
         final Shell sh = new Shell();
 
@@ -58,25 +55,5 @@ public class PackageConflictTests extends PackagingTestCase {
         }
 
         TestCase.assertTrue(Pattern.compile("(?m)^ Conflicts: " + oppositePackageName + "$").matcher(result.stdout).find());
-    }
-
-    public void test11RpmDependencies() {
-        // TODO: rewrite this test to not use a real second distro to try and install
-        assumeTrue(Platforms.isRPM());
-
-        final Shell sh = new Shell();
-
-        final Shell.Result deps = sh.run("rpm -qpR " + getDistributionFile(distribution()));
-
-        TestCase.assertTrue(Pattern.compile("(?m)^/bin/bash\\s*$").matcher(deps.stdout).find());
-
-        final Shell.Result conflicts = sh.run("rpm -qp --conflicts " + getDistributionFile(distribution()));
-
-        String oppositePackageName = "elasticsearch";
-        if (distribution().isDefault()) {
-            oppositePackageName += "-oss";
-        }
-
-        TestCase.assertTrue(Pattern.compile("(?m)^" + oppositePackageName + "\\s*$").matcher(conflicts.stdout).find());
     }
 }

@@ -31,6 +31,7 @@ import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.MultiGeoValues;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.script.Script;
@@ -51,12 +52,27 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
      * Resolve a {@link ValuesSourceConfig} given configuration parameters.
      */
     public static <VS extends ValuesSource> ValuesSourceConfig<VS> resolve(
-            QueryShardContext context,
-            ValueType valueType,
-            String field, Script script,
-            Object missing,
-            ZoneId timeZone,
-            String format) {
+        QueryShardContext context,
+        ValueType valueType,
+        String field, Script script,
+        Object missing,
+        ZoneId timeZone,
+        String format) {
+        return resolve(context, valueType, field, script, missing, timeZone, format, s -> ValuesSourceType.BYTES);
+    }
+
+    /**
+     * Resolve a {@link ValuesSourceConfig} given configuration parameters.
+     */
+    public static <VS extends ValuesSource> ValuesSourceConfig<VS> resolve(
+        QueryShardContext context,
+        ValueType valueType,
+        String field, Script script,
+        Object missing,
+        ZoneId timeZone,
+        String format,
+        Function<Script, ValuesSourceType> resolveScriptAny
+    ) {
 
         if (field == null) {
             if (script == null) {
@@ -70,7 +86,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
                 // we need to have a specific value source
                 // type to know how to handle the script values, so we fallback
                 // on Bytes
-                valuesSourceType = ValuesSourceType.BYTES;
+                valuesSourceType = resolveScriptAny.apply(script);
             }
             ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(valuesSourceType);
             config.missing(missing);
@@ -99,19 +115,22 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         IndexFieldData<?> indexFieldData = context.getForField(fieldType);
 
         ValuesSourceConfig<VS> config;
-        if (valueType == null) {
-            if (indexFieldData instanceof IndexNumericFieldData) {
-                config = new ValuesSourceConfig<>(ValuesSourceType.NUMERIC);
-            } else if (indexFieldData instanceof IndexGeoPointFieldData) {
-                config = new ValuesSourceConfig<>(ValuesSourceType.GEOPOINT);
-            } else if (indexFieldData instanceof IndexGeoShapeFieldData) {
-                config = new ValuesSourceConfig<>(ValuesSourceType.GEOSHAPE);
-            } else {
-                config = new ValuesSourceConfig<>(ValuesSourceType.BYTES);
-            }
+        if (indexFieldData instanceof IndexNumericFieldData) {
+            config = new ValuesSourceConfig<>(ValuesSourceType.NUMERIC);
+        } else if (indexFieldData instanceof IndexGeoPointFieldData) {
+            config = new ValuesSourceConfig<>(ValuesSourceType.GEOPOINT);
+        } else if (fieldType instanceof RangeFieldMapper.RangeFieldType) {
+            config = new ValuesSourceConfig<>(ValuesSourceType.RANGE);
+        } else if (indexFieldData instanceof IndexGeoShapeFieldData) {
+            config = new ValuesSourceConfig<>(ValuesSourceType.GEOSHAPE);
         } else {
-            config = new ValuesSourceConfig<>(valueType.getValuesSourceType());
+            if (valueType == null) {
+                config = new ValuesSourceConfig<>(ValuesSourceType.BYTES);
+            } else {
+                config = new ValuesSourceConfig<>(valueType.getValuesSourceType());
+            }
         }
+
 
         config.fieldContext(new FieldContext(field, indexFieldData, fieldType));
         config.missing(missing);
@@ -328,6 +347,9 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         if (valueSourceType() == ValuesSourceType.GEOPOINT) {
             return (VS) geoPointField();
         }
+        if (valueSourceType() == ValuesSourceType.RANGE) {
+            return (VS) rangeField();
+        }
         if (valueSourceType() == ValuesSourceType.GEOSHAPE) {
             return (VS) geoShapeField();
         }
@@ -394,6 +416,16 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         }
 
         return new ValuesSource.GeoPoint.Fielddata((IndexGeoPointFieldData) fieldContext().indexFieldData());
+    }
+
+    private ValuesSource rangeField() {
+        MappedFieldType fieldType = fieldContext.fieldType();
+
+        if (fieldType instanceof RangeFieldMapper.RangeFieldType == false) {
+            throw new IllegalStateException("Asked for range ValuesSource, but field is of type " + fieldType.name());
+        }
+        RangeFieldMapper.RangeFieldType rangeFieldType = (RangeFieldMapper.RangeFieldType)fieldType;
+        return new ValuesSource.Range(fieldContext().indexFieldData(), rangeFieldType.rangeType());
     }
 
     private ValuesSource.GeoShape geoShapeField() {

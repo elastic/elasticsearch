@@ -37,8 +37,9 @@ public class ValuesSourceTypeTests extends AbstractWriteableEnumTestCase {
         assertThat(ValuesSourceType.NUMERIC.ordinal(), equalTo(1));
         assertThat(ValuesSourceType.BYTES.ordinal(), equalTo(2));
         assertThat(ValuesSourceType.GEOPOINT.ordinal(), equalTo(3));
-        assertThat(ValuesSourceType.GEOSHAPE.ordinal(), equalTo(4));
-        assertThat(ValuesSourceType.GEO.ordinal(), equalTo(5));
+        assertThat(ValuesSourceType.RANGE.ordinal(), equalTo(4));
+        assertThat(ValuesSourceType.GEOSHAPE.ordinal(), equalTo(5));
+        assertThat(ValuesSourceType.GEO.ordinal(), equalTo(6));
     }
 
     @Override
@@ -47,6 +48,7 @@ public class ValuesSourceTypeTests extends AbstractWriteableEnumTestCase {
         assertThat(ValuesSourceType.fromString("numeric"), equalTo(ValuesSourceType.NUMERIC));
         assertThat(ValuesSourceType.fromString("bytes"), equalTo(ValuesSourceType.BYTES));
         assertThat(ValuesSourceType.fromString("geopoint"), equalTo(ValuesSourceType.GEOPOINT));
+        assertThat(ValuesSourceType.fromString("range"), equalTo(ValuesSourceType.RANGE));
         assertThat(ValuesSourceType.fromString("geoshape"), equalTo(ValuesSourceType.GEOSHAPE));
         assertThat(ValuesSourceType.fromString("geo"), equalTo(ValuesSourceType.GEO));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ValuesSourceType.fromString("does_not_exist"));
@@ -61,8 +63,9 @@ public class ValuesSourceTypeTests extends AbstractWriteableEnumTestCase {
         assertReadFromStream(1, ValuesSourceType.NUMERIC);
         assertReadFromStream(2, ValuesSourceType.BYTES);
         assertReadFromStream(3, ValuesSourceType.GEOPOINT);
-        assertReadFromStream(4, ValuesSourceType.GEOSHAPE);
-        assertReadFromStream(5, ValuesSourceType.GEO);
+        assertReadFromStream(4, ValuesSourceType.RANGE);
+        assertReadFromStream(5, ValuesSourceType.GEOSHAPE);
+        assertReadFromStream(6, ValuesSourceType.GEO);
     }
 
     @Override
@@ -71,7 +74,8 @@ public class ValuesSourceTypeTests extends AbstractWriteableEnumTestCase {
         assertWriteToStream(ValuesSourceType.NUMERIC, 1);
         assertWriteToStream(ValuesSourceType.BYTES, 2);
         assertWriteToStream(ValuesSourceType.GEOPOINT, 3);
-        assertWriteToStream(ValuesSourceType.GEOSHAPE, 4);
-        assertWriteToStream(ValuesSourceType.GEO, 5);
+        assertWriteToStream(ValuesSourceType.RANGE, 4);
+        assertWriteToStream(ValuesSourceType.GEOSHAPE, 5);
+        assertWriteToStream(ValuesSourceType.GEO, 6);
     }
 }

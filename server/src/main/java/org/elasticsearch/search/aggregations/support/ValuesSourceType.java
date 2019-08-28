@@ -31,6 +31,7 @@ public enum ValuesSourceType implements Writeable {
     NUMERIC,
     BYTES,
     GEOPOINT,
+    RANGE,
     GEOSHAPE,
     GEO; // GEO is an abstract value-type that represents either GEOPOINT or GEOSHAPE in aggregations
 

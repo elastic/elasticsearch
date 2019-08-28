@@ -17,7 +17,8 @@ public class SSLExceptionHelper {
     }
 
     public static boolean isNotSslRecordException(Throwable e) {
-        return e instanceof NotSslRecordException && e.getCause() == null;
+        return e instanceof DecoderException &&
+                e.getCause() instanceof NotSslRecordException;
     }
 
     public static boolean isCloseDuringHandshakeException(Throwable e) {

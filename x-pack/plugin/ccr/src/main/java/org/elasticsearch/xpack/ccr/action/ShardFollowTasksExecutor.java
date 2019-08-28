@@ -44,7 +44,6 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
-import org.elasticsearch.index.seqno.RetentionLeaseAlreadyExistsException;
 import org.elasticsearch.index.seqno.RetentionLeaseNotFoundException;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.ShardId;
@@ -439,7 +438,6 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                                                      * going on. Log it, and renew again after another renew interval has passed.
                                                      */
                                                     final Throwable innerCause = ExceptionsHelper.unwrapCause(inner);
-                                                    assert innerCause instanceof RetentionLeaseAlreadyExistsException == false;
                                                     logRetentionLeaseFailure(retentionLeaseId, innerCause);
                                                 }));
                             } else {

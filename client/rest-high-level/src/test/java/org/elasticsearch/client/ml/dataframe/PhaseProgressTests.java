@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,26 +16,31 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.client.ml.dataframe;
 
-package org.elasticsearch.transport;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractXContentTestCase;
 
-import org.elasticsearch.threadpool.ThreadPool;
+import java.io.IOException;
 
-/**
- * A response handler to be used when all interaction will be done through the {@link TransportFuture}.
- */
-public abstract class FutureTransportResponseHandler<T extends TransportResponse> implements TransportResponseHandler<T> {
+public class PhaseProgressTests extends AbstractXContentTestCase<PhaseProgress> {
 
-    @Override
-    public void handleResponse(T response) {
+    public static PhaseProgress createRandom() {
+        return new PhaseProgress(randomAlphaOfLength(20), randomIntBetween(0, 100));
     }
 
     @Override
-    public void handleException(TransportException exp) {
+    protected PhaseProgress createTestInstance() {
+        return createRandom();
     }
 
     @Override
-    public String executor() {
-        return ThreadPool.Names.SAME;
+    protected PhaseProgress doParseInstance(XContentParser parser) throws IOException {
+        return PhaseProgress.PARSER.apply(parser, null);
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return true;
     }
 }

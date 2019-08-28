@@ -48,6 +48,11 @@ public enum MissingValues {
                 SortedBinaryDocValues values = valuesSource.bytesValues(context);
                 return replaceMissing(values, missing);
             }
+
+            @Override
+            public String toString() {
+                return "anon ValuesSource.Bytes of [" + super.toString() + "]";
+            }
         };
     }
 
@@ -81,6 +86,10 @@ public enum MissingValues {
                     return missing;
                 }
             }
+            @Override
+            public String toString() {
+                return "anon SortedBinaryDocValues of [" + super.toString() + "]";
+            }
         };
     }
 
@@ -109,6 +118,10 @@ public enum MissingValues {
             public SortedNumericDoubleValues doubleValues(LeafReaderContext context) throws IOException {
                 final SortedNumericDoubleValues values = valuesSource.doubleValues(context);
                 return replaceMissing(values, missing.doubleValue());
+            }
+            @Override
+            public String toString() {
+                return "anon ValuesSource.Numeric of [" + super.toString() + "]";
             }
         };
     }
@@ -142,6 +155,11 @@ public enum MissingValues {
                 // always return true because we want to return a value even if
                 // the document does not have a value
                 return true;
+            }
+
+            @Override
+            public String toString() {
+                return "anon SortedNumericDocValues of [" + super.toString() + "]";
             }
 
         };
@@ -178,6 +196,11 @@ public enum MissingValues {
                 return count == 0 ? 1 : count;
             }
 
+            @Override
+            public String toString() {
+                return "anon SortedNumericDoubleValues of [" + super.toString() + "]";
+            }
+
         };
     }
 
@@ -208,6 +231,12 @@ public enum MissingValues {
                         valuesSource.globalOrdinalsValues(context),
                         valuesSource.globalOrdinalsMapping(context), missing);
             }
+
+            @Override
+            public String toString() {
+                return "anon ValuesSource.Bytes.WithOrdinals of [" + super.toString() + "]";
+            }
+
         };
     }
 
@@ -262,6 +291,12 @@ public enum MissingValues {
                 // the document does not have a value
                 return true;
             }
+
+            @Override
+            public String toString() {
+                return "anon AbstractSortedDocValues of [" + super.toString() + "]";
+            }
+
         };
     }
 
@@ -314,6 +349,11 @@ public enum MissingValues {
                 // always return true because we want to return a value even if
                 // the document does not have a value
                 return true;
+            }
+
+            @Override
+            public String toString() {
+                return "anon AbstractSortedDocValues of [" + super.toString() + "]";
             }
         };
     }
@@ -384,6 +424,11 @@ public enum MissingValues {
                 } else {
                     return missing;
                 }
+            }
+
+            @Override
+            public String toString() {
+                return "anon MultiGeoPointValues of [" + super.toString() + "]";
             }
         };
     }

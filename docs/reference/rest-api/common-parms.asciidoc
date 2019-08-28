@@ -50,17 +50,13 @@ tag::help[]
 to `false`.
 end::help[]
 
+
 tag::index-alias-filter[]
-`filter`::
-+
---
-(Required, query object)
 <<query-dsl-bool-query, Filter query>>
 used to limit the index alias.
-
++
 If specified,
 the index alias only applies to documents returned by the filter.
---
 end::index-alias-filter[]
 
 tag::http-format[]

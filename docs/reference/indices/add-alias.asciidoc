@@ -53,6 +53,8 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 [[add-alias-api-request-body]]
 ==== {api-request-body-title}
 
+`filter`::
+(Required, query object)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=index-alias-filter]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=index-routing]

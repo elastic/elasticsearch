@@ -137,6 +137,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING,
             EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING,
             EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING,
+            IndexSettings.INDEX_FLUSH_AFTER_MERGE_THRESHOLD_SIZE_SETTING,
             IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING,
             IndexSettings.INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING,
             IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING,

@@ -25,7 +25,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
 import org.junit.After;
 
@@ -33,9 +32,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.instanceOf;
 
 public class GoogleCloudStorageBlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCase {
 
@@ -46,25 +42,22 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESBlobStoreRepos
     private static final ConcurrentMap<String, byte[]> blobs = new ConcurrentHashMap<>();
 
     @Override
+    protected String repositoryType() {
+        return GoogleCloudStorageRepository.TYPE;
+    }
+
+    @Override
+    protected Settings repositorySettings() {
+        return Settings.builder()
+            .put(super.repositorySettings())
+            .put("bucket", BUCKET)
+            .put("base_path", GoogleCloudStorageBlobStoreRepositoryTests.class.getSimpleName())
+            .build();
+    }
+
+    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singletonList(MockGoogleCloudStoragePlugin.class);
-    }
-
-    @Override
-    protected void createTestRepository(String name, boolean verify) {
-        assertAcked(client().admin().cluster().preparePutRepository(name)
-                .setType(GoogleCloudStorageRepository.TYPE)
-                .setVerify(verify)
-                .setSettings(Settings.builder()
-                        .put("bucket", BUCKET)
-                        .put("base_path", GoogleCloudStorageBlobStoreRepositoryTests.class.getSimpleName())
-                        .put("compress", randomBoolean())
-                        .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
-    }
-
-    @Override
-    protected void afterCreationCheck(Repository repository) {
-        assertThat(repository, instanceOf(GoogleCloudStorageRepository.class));
     }
 
     @After

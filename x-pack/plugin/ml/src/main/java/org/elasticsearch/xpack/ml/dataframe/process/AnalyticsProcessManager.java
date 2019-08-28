@@ -11,16 +11,19 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.TransportStartDataFrameAnalyticsAction.DataFrameAnalyticsTask;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractor;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractorFactory;
+import org.elasticsearch.xpack.ml.dataframe.process.customprocessing.CustomProcessor;
+import org.elasticsearch.xpack.ml.dataframe.process.customprocessing.CustomProcessorFactory;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 
 import java.io.IOException;
@@ -31,7 +34,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 public class AnalyticsProcessManager {
@@ -90,14 +92,15 @@ public class AnalyticsProcessManager {
                              Consumer<Exception> finishHandler) {
 
         try {
+            ProcessContext processContext = processContextByAllocation.get(task.getAllocationId());
             writeHeaderRecord(dataExtractor, process);
-            writeDataRows(dataExtractor, process);
+            writeDataRows(dataExtractor, process, config.getAnalysis(), task.getProgressTracker());
             process.writeEndOfDataMessage();
             process.flushStream();
 
             LOGGER.info("[{}] Waiting for result processor to complete", config.getId());
             resultProcessor.awaitForCompletion();
-            processContextByAllocation.get(task.getAllocationId()).setFailureReason(resultProcessor.getFailure());
+            processContext.setFailureReason(resultProcessor.getFailure());
 
             refreshDest(config);
             LOGGER.info("[{}] Result processor has completed", config.getId());
@@ -122,11 +125,18 @@ public class AnalyticsProcessManager {
         }
     }
 
-    private void writeDataRows(DataFrameDataExtractor dataExtractor, AnalyticsProcess<AnalyticsResult> process) throws IOException {
+    private void writeDataRows(DataFrameDataExtractor dataExtractor, AnalyticsProcess<AnalyticsResult> process,
+                               DataFrameAnalysis analysis, DataFrameAnalyticsTask.ProgressTracker progressTracker) throws IOException {
+
+        CustomProcessor customProcessor = new CustomProcessorFactory(dataExtractor.getFieldNames()).create(analysis);
+
         // The extra fields are for the doc hash and the control field (should be an empty string)
         String[] record = new String[dataExtractor.getFieldNames().size() + 2];
         // The value of the control field should be an empty string for data frame rows
         record[record.length - 1] = "";
+
+        long totalRows = process.getConfig().rows();
+        long rowsProcessed = 0;
 
         while (dataExtractor.hasNext()) {
             Optional<List<DataFrameDataExtractor.Row>> rows = dataExtractor.next();
@@ -136,9 +146,12 @@ public class AnalyticsProcessManager {
                         String[] rowValues = row.getValues();
                         System.arraycopy(rowValues, 0, record, 0, rowValues.length);
                         record[record.length - 2] = String.valueOf(row.getChecksum());
+                        customProcessor.process(record);
                         process.writeRecord(record);
                     }
                 }
+                rowsProcessed += rows.get().size();
+                progressTracker.loadingDataPercent.set(rowsProcessed >= totalRows ? 100 : (int) (rowsProcessed * 100.0 / totalRows));
             }
         }
     }
@@ -179,12 +192,6 @@ public class AnalyticsProcessManager {
         };
     }
 
-    @Nullable
-    public Integer getProgressPercent(long allocationId) {
-        ProcessContext processContext = processContextByAllocation.get(allocationId);
-        return processContext == null ? null : processContext.progressPercent.get();
-    }
-
     private void refreshDest(DataFrameAnalyticsConfig config) {
         ClientHelper.executeWithHeaders(config.getHeaders(), ClientHelper.ML_ORIGIN, client,
             () -> client.execute(RefreshAction.INSTANCE, new RefreshRequest(config.getDest().getIndex())).actionGet());
@@ -222,7 +229,6 @@ public class AnalyticsProcessManager {
         private volatile AnalyticsProcess<AnalyticsResult> process;
         private volatile DataFrameDataExtractor dataExtractor;
         private volatile AnalyticsResultProcessor resultProcessor;
-        private final AtomicInteger progressPercent = new AtomicInteger(0);
         private volatile boolean processKilled;
         private volatile String failureReason;
 
@@ -236,10 +242,6 @@ public class AnalyticsProcessManager {
 
         public boolean isProcessKilled() {
             return processKilled;
-        }
-
-        void setProgressPercent(int progressPercent) {
-            this.progressPercent.set(progressPercent);
         }
 
         private synchronized void setFailureReason(String failureReason) {
@@ -279,10 +281,18 @@ public class AnalyticsProcessManager {
             }
 
             dataExtractor = dataExtractorFactory.newExtractor(false);
-            process = createProcess(task, createProcessConfig(config, dataExtractor));
+            AnalyticsProcessConfig analyticsProcessConfig = createProcessConfig(config, dataExtractor);
+            LOGGER.trace("[{}] creating analytics process with config [{}]", config.getId(), Strings.toString(analyticsProcessConfig));
+            // If we have no rows, that means there is no data so no point in starting the native process
+            // just finish the task
+            if (analyticsProcessConfig.rows() == 0) {
+                LOGGER.info("[{}] no data found to analyze. Will not start analytics native process.", config.getId());
+                return false;
+            }
+            process = createProcess(task, analyticsProcessConfig);
             DataFrameRowsJoiner dataFrameRowsJoiner = new DataFrameRowsJoiner(config.getId(), client,
                 dataExtractorFactory.newExtractor(true));
-            resultProcessor = new AnalyticsResultProcessor(id, dataFrameRowsJoiner, this::isProcessKilled, this::setProgressPercent);
+            resultProcessor = new AnalyticsResultProcessor(id, dataFrameRowsJoiner, this::isProcessKilled, task.getProgressTracker());
             return true;
         }
 

@@ -3,7 +3,101 @@
 
 Also see <<breaking-changes-7.3,Breaking changes in 7.3>>.
 
-coming[7.3.1]
+[[enhancement-7.3.1]]
+[float]
+=== Enhancements
+
+CCR::
+* Include leases in error message when operations are no longer available {pull}45681[#45681]
+
+Infra/Core::
+* Add OCI annotations and adjust existing annotations {pull}45167[#45167] (issues: {issue}45162[#45162], {issue}45166[#45166])
+
+Infra/Settings::
+* Normalize environment paths {pull}45179[#45179] (issue: {issue}45176[#45176])
+
+Machine Learning::
+* Outlier detection should only fetch docs that have the analyzed fields {pull}44944[#44944]
+
+SQL::
+* Remove deprecated use of "interval" from date_histogram usage {pull}45501[#45501] (issue: {issue}43922[#43922])
+
+
+[[bug-7.3.1]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Fix early termination of aggregators that run with breadth-first mode {pull}44963[#44963] (issue: {issue}44909[#44909])
+
+Analysis::
+* Enable reloading of synonym_graph filters {pull}45135[#45135] (issue: {issue}45127[#45127])
+
+Authentication::
+* Do not use scroll when finding duplicate API key {pull}45026[#45026]
+* Fix broken short-circuit in getUnlicensedRealms {pull}44399[#44399]
+
+CCR::
+* Clean up ShardFollowTasks for deleted indices {pull}44702[#44702] (issue: {issue}34404[#34404])
+
+CRUD::
+* Allow _update on write alias {pull}45318[#45318] (issue: {issue}31520[#31520])
+
+Data Frame::
+* Fix starting a batch {dataframe-transform} after stopping at runtime
+{pull}45340[#45340] (issues: {issue}44219[#44219], {issue}45339[#45339])
+* Fix null aggregation handling in indexer {pull}45061[#45061] (issue: {issue}44906[#44906])
+
+Distributed::
+* Ensure AsyncTask#isScheduled remains false after close {pull}45687[#45687] (issue: {issue}45576[#45576])
+* Fix clock used in update requests {pull}45262[#45262] (issue: {issue}45254[#45254])
+* Restore DefaultShardOperationFailedException's reason during deserialization {pull}45203[#45203]
+
+Features/Watcher::
+* Fix watcher HttpClient URL creation {pull}45207[#45207] (issue: {issue}44970[#44970])
+
+Infra/Packaging::
+* Use bundled JDK in Sys V init {pull}45593[#45593] (issue: {issue}45542[#45542])
+
+Infra/Settings::
+* Fix a bug with elasticsearch.common.settings.Settings.processSetting {pull}44047[#44047] (issue: {issue}43791[#43791])
+
+MULTIPLE AREA LABELS::
+* Fix a bug where mappings are dropped from rollover requests. {pull}45411[#45411] (issue: {issue}45399[#45399])
+* Sparse role queries can throw an NPE {pull}45053[#45053]
+
+Machine Learning::
+* Check dest index is empty when starting {dfanalytics} {pull}45094[#45094]
+* Catch any error thrown while closing {dfanalytics} process {pull}44958[#44958]
+* Only trap the case where more rows are supplied to outlier detection than
+expected. Previously, if rows were excluded from the {dataframe-transform} after supplying the row count in the configuration, we detected the inconsistency and
+failed outlier detection. However, this situation legitimately happens in cases
+where the field values are non-numeric or array valued. {ml-pull}569[#569]
+
+Mapping::
+* Make sure to validate the type before attempting to merge a new mapping. {pull}45157[#45157] (issues: {issue}29316[#29316], {issue}43012[#43012])
+
+SQL::
+* Adds format parameter to range queries for constant date comparisons {pull}45326[#45326] (issue: {issue}45139[#45139])
+* Uniquely named inner_hits sections for each nested field condition {pull}45039[#45039] (issues: {issue}33080[#33080], {issue}44544[#44544])
+* Fix URI path being lost in case of hosted ES scenario {pull}44776[#44776] (issue: {issue}44721[#44721])
+
+Search::
+* Prevent Leaking Search Tasks on Exceptions in FetchSearchPhase and DfsQueryPhase {pull}45500[#45500]
+* Fix an NPE when requesting inner hits and _source is disabled. {pull}44836[#44836] (issue: {issue}43517[#43517])
+
+Security::
+* Fix .security-* indices auto-create {pull}44918[#44918]
+* Use system context for looking up connected nodes {pull}43991[#43991] (issue: {issue}43974[#43974])
+
+
+[[upgrade-7.3.1]]
+[float]
+=== Upgrades
+
+Infra/Packaging::
+* Upgrade to JDK 12.0.2 {pull}45172[#45172]
+
 
 [[release-notes-7.3.0]]
 == {es} version 7.3.0

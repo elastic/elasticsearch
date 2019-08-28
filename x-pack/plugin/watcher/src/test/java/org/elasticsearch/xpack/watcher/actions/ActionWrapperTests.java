@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.actions;
 
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -54,7 +55,7 @@ public class ActionWrapperTests extends ESTestCase {
     private Watch watch = mock(Watch.class);
     @SuppressWarnings("unchecked")
     private ExecutableAction<Action> executableAction = mock(ExecutableAction.class);
-    private ActionWrapper actionWrapper = new ActionWrapper("_action", null, NeverCondition.INSTANCE, null, executableAction, null);
+    private ActionWrapper actionWrapper = new ActionWrapper("_action", null, NeverCondition.INSTANCE, null, executableAction, null, null);
 
     public void testThatUnmetActionConditionResetsAckStatus() throws Exception {
         WatchStatus watchStatus = new WatchStatus(now, Collections.singletonMap("_action", createActionStatus(State.ACKED)));
@@ -84,7 +85,7 @@ public class ActionWrapperTests extends ESTestCase {
         final ExecutableAction<LoggingAction> executableAction =
             new ExecutableLoggingAction(loggingAction, logger, new MockTextTemplateEngine());
         ActionWrapper wrapper = new ActionWrapper("_action", null, InternalAlwaysCondition.INSTANCE, null, executableAction,
-            "ctx.payload.my_path");
+            "ctx.payload.my_path", null);
 
         WatchExecutionContext ctx = mockExecutionContent(watch);
 
@@ -111,7 +112,7 @@ public class ActionWrapperTests extends ESTestCase {
 
     public void testThatSpecifiedPathIsNotCollection() {
         ActionWrapper wrapper = new ActionWrapper("_action", null, InternalAlwaysCondition.INSTANCE, null, executableAction,
-            "ctx.payload.my_path");
+            "ctx.payload.my_path", null);
         WatchExecutionContext ctx = mockExecutionContent(watch);
         Payload.Simple payload = new Payload.Simple(Collections.singletonMap("my_path", "not a map"));
         when(ctx.payload()).thenReturn(payload);
@@ -127,7 +128,7 @@ public class ActionWrapperTests extends ESTestCase {
 
     public void testEmptyCollection() {
         ActionWrapper wrapper = new ActionWrapper("_action", null, InternalAlwaysCondition.INSTANCE, null, executableAction,
-            "ctx.payload.my_path");
+            "ctx.payload.my_path", null);
         WatchExecutionContext ctx = mockExecutionContent(watch);
         Payload.Simple payload = new Payload.Simple(Collections.singletonMap("my_path", Collections.emptyList()));
         when(ctx.payload()).thenReturn(payload);
@@ -143,7 +144,7 @@ public class ActionWrapperTests extends ESTestCase {
 
     public void testPartialFailure() throws Exception {
         ActionWrapper wrapper = new ActionWrapper("_action", null, InternalAlwaysCondition.INSTANCE, null, executableAction,
-            "ctx.payload.my_path");
+            "ctx.payload.my_path", null);
         WatchExecutionContext ctx = mockExecutionContent(watch);
 
         List<Map<String, String>> payloads = new ArrayList<>();
@@ -165,9 +166,9 @@ public class ActionWrapperTests extends ESTestCase {
         assertThat(result.action().status(), is(Action.Result.Status.PARTIAL_FAILURE));
     }
 
-    public void testLimitOfNumberOfActionsExecuted() throws Exception {
+    public void testDefaultLimitOfNumberOfActionsExecuted() throws Exception {
         ActionWrapper wrapper = new ActionWrapper("_action", null, InternalAlwaysCondition.INSTANCE, null, executableAction,
-            "ctx.payload.my_path");
+            "ctx.payload.my_path", null);
         WatchExecutionContext ctx = mockExecutionContent(watch);
         List<Map<String, String>> itemsPayload = new ArrayList<>();
         for (int i = 0; i < 101; i++) {
@@ -193,8 +194,46 @@ public class ActionWrapperTests extends ESTestCase {
             assertThat(map.get("foreach"), instanceOf(List.class));
             List<Map<String, Object>> actions = (List) map.get("foreach");
             assertThat(actions, hasSize(100));
+            assertThat(map, hasKey("max_iterations"));
+            assertThat(map.get("max_iterations"), is(100));
             assertThat(map, hasKey("number_of_actions_executed"));
             assertThat(map.get("number_of_actions_executed"), is(100));
+        }
+    }
+
+    public void testConfiguredLimitOfNumberOfActionsExecuted() throws Exception {
+        int randomMaxIterations = randomIntBetween(1, 1000);
+        ActionWrapper wrapper = new ActionWrapper("_action", null, InternalAlwaysCondition.INSTANCE, null, executableAction,
+            "ctx.payload.my_path", randomMaxIterations);
+        WatchExecutionContext ctx = mockExecutionContent(watch);
+        List<Map<String, String>> itemsPayload = new ArrayList<>();
+        for (int i = 0; i < randomMaxIterations + 1; i++) {
+            final Action.Result actionResult = new LoggingAction.Result.Success("log_message " + i);;
+            final Payload singleItemPayload = new Payload.Simple(ImmutableMap.of("key", String.valueOf(i)));
+            itemsPayload.add(ImmutableMap.of("key", String.valueOf(i)));
+            when(executableAction.execute(eq("_action"), eq(ctx), eq(singleItemPayload))).thenReturn(actionResult);
+        }
+
+        Payload.Simple payload = new Payload.Simple(ImmutableMap.of("my_path", itemsPayload));
+        when(ctx.payload()).thenReturn(payload);
+        when(executableAction.logger()).thenReturn(logger);
+
+        ActionWrapperResult result = wrapper.execute(ctx);
+        assertThat(result.action().status(), is(Action.Result.Status.SUCCESS));
+
+        // check that action toXContent contains all the results
+        try (XContentBuilder builder = jsonBuilder()) {
+            result.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            final String json = Strings.toString(builder);
+            final Map<String, Object> map = XContentHelper.convertToMap(JsonXContent.jsonXContent, json, true);
+            assertThat(map, hasKey("foreach"));
+            assertThat(map.get("foreach"), instanceOf(List.class));
+            List<Map<String, Object>> actions = (List) map.get("foreach");
+            assertThat(actions, hasSize(randomMaxIterations));
+            assertThat(map, hasKey("max_iterations"));
+            assertThat(map.get("max_iterations"), is(randomMaxIterations));
+            assertThat(map, hasKey("number_of_actions_executed"));
+            assertThat(map.get("number_of_actions_executed"), is(randomMaxIterations)); 
         }
     }
 

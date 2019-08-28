@@ -101,10 +101,6 @@ public abstract class ScrollableHitSource {
         }
     }
 
-    private final long restartFromValue() {
-        return restartFromValue;
-    }
-
     public final void start() {
         if (logger.isDebugEnabled()) {
             logger.debug("executing initial scroll against {}",
@@ -125,7 +121,7 @@ public abstract class ScrollableHitSource {
     private void restart(TimeValue extraKeepAlive, RejectAwareActionListener<Response> searchListener) {
         if (logger.isDebugEnabled()) {
             logger.debug("restarting search against {} from resume marker {}",
-                isEmpty(indices()) ? "all indices" : indices(), restartFromValue());
+                isEmpty(indices()) ? "all indices" : indices(), restartFromValue);
         }
         restartNoLogging(extraKeepAlive, searchListener);
     }

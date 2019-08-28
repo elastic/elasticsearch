@@ -141,8 +141,8 @@ public class TransportStopDataFrameTransformAction extends TransportTasksAction<
         }
 
         if (ids.contains(transformTask.getTransformId())) {
-            // To cover strange state race conditions, we attempt which writes to cluster state if it is different
-            // then we stop the transform
+            // To cover for node failure while waiting for the checkpoint to stop
+            // we write to cluster state if it is different and then we stop the transform
             transformTask.setShouldStopAtCheckpoint(request.isWaitForCheckpoint(), () -> {
                     try {
                         transformTask.stop(request.isForce(), request.isWaitForCheckpoint());

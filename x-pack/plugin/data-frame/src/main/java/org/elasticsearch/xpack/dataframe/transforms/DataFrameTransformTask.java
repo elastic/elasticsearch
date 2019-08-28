@@ -63,7 +63,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.core.dataframe.DataFrameMessages.DATA_FRAME_CANNOT_START_FAILED_TRANSFORM;
 import static org.elasticsearch.xpack.core.dataframe.DataFrameMessages.DATA_FRAME_CANNOT_STOP_FAILED_TRANSFORM;
@@ -382,13 +381,15 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
         stateReason.set(null);
         this.shouldStopAtCheckpoint = shouldStopAtCheckpoint;
-        // shouldStopAtCheckpoint only comes into play when onFinish is called (or doSaveState right after), if the indexerState is STARTED and are on an initialRun,
-        // that is a good indication that the indexer is not running and has previously finished a checkpoint, or has yet to even start one.
-        // Either way, this means that we won't get to have onFinish called down stream. We should just stop the indexer
+        // shouldStopAtCheckpoint only comes into play when onFinish is called (or doSaveState right after).
+        // If the indexerState is STARTED and it is on an initialRun, that means that the indexer has previously finished a checkpoint,
+        // or has yet to even start one.
+        // Either way, this means that we won't get to have onFinish called down stream (or at least won't for some time).
+        // We should just stop the indexer
         if (shouldStopAtCheckpoint == false || (getIndexer().getState() == IndexerState.STARTED && getIndexer().initialRun())) {
             IndexerState state = getIndexer().stop();
             // No reason to keep it in the potentially failed state.
-            // Since we have called `stop` against the indexer, we have no more fear of triggering again accidentally.
+            // Since we have called `stop` against the indexer, we have no more fear of triggering again.
             // But, since `doSaveState` is asynchronous, it is best to set the state as STARTED so that another `start` call cannot be
             // executed while we are wrapping up.
             taskState.compareAndSet(DataFrameTransformTaskState.FAILED, DataFrameTransformTaskState.STARTED);

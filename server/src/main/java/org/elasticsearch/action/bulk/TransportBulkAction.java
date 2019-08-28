@@ -147,149 +147,208 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
     @Override
     protected void doExecute(Task task, BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
-        final long startTime = relativeTime();
-        final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
+        new BulkExecutor(task, bulkRequest, listener).run();
+    }
 
-        boolean hasIndexRequestsWithPipelines = false;
-        final MetaData metaData = clusterService.state().getMetaData();
-        ImmutableOpenMap<String, IndexMetaData> indicesMetaData = metaData.indices();
-        for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
-            IndexRequest indexRequest = getIndexWriteRequest(actionRequest);
-            if (indexRequest != null) {
-                // get pipeline from request
-                String pipeline = indexRequest.getPipeline();
-                if (pipeline == null) {
-                    // start to look for default pipeline via settings found in the index meta data
-                    IndexMetaData indexMetaData = indicesMetaData.get(actionRequest.index());
-                    // check the alias for the index request (this is how normal index requests are modeled)
-                    if (indexMetaData == null && indexRequest.index() != null) {
-                        AliasOrIndex indexOrAlias = metaData.getAliasAndIndexLookup().get(indexRequest.index());
-                        if (indexOrAlias != null && indexOrAlias.isAlias()) {
-                            AliasOrIndex.Alias alias = (AliasOrIndex.Alias) indexOrAlias;
-                            indexMetaData = alias.getWriteIndex();
-                        }
-                    }
-                    // check the alias for the action request (this is how upserts are modeled)
-                    if (indexMetaData == null && actionRequest.index() != null) {
-                        AliasOrIndex indexOrAlias = metaData.getAliasAndIndexLookup().get(actionRequest.index());
-                        if (indexOrAlias != null && indexOrAlias.isAlias()) {
-                            AliasOrIndex.Alias alias = (AliasOrIndex.Alias) indexOrAlias;
-                            indexMetaData = alias.getWriteIndex();
-                        }
-                    }
-                    if (indexMetaData != null) {
-                        // Find the default pipeline if one is defined from and existing index.
-                        String defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(indexMetaData.getSettings());
-                        indexRequest.setPipeline(defaultPipeline);
-                        if (IngestService.NOOP_PIPELINE_NAME.equals(defaultPipeline) == false) {
-                            hasIndexRequestsWithPipelines = true;
-                        }
-                    } else if (indexRequest.index() != null) {
-                        // No index exists yet (and is valid request), so matching index templates to look for a default pipeline
-                        List<IndexTemplateMetaData> templates = MetaDataIndexTemplateService.findTemplates(metaData, indexRequest.index());
-                        assert (templates != null);
-                        String defaultPipeline = IngestService.NOOP_PIPELINE_NAME;
-                        // order of templates are highest order first, break if we find a default_pipeline
-                        for (IndexTemplateMetaData template : templates) {
-                            final Settings settings = template.settings();
-                            if (IndexSettings.DEFAULT_PIPELINE.exists(settings)) {
-                                defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(settings);
-                                break;
-                            }
-                        }
-                        indexRequest.setPipeline(defaultPipeline);
-                        if (IngestService.NOOP_PIPELINE_NAME.equals(defaultPipeline) == false) {
-                            hasIndexRequestsWithPipelines = true;
-                        }
-                    }
-                } else if (IngestService.NOOP_PIPELINE_NAME.equals(pipeline) == false) {
-                    hasIndexRequestsWithPipelines = true;
-                }
-            }
+    /**
+     * A runnable that will ensure the cluster state has been recovered enough to
+     * read index metadata and templates/pipelines.  Will retry up to the bulk's timeout
+     */
+    private final class BulkExecutor extends ActionRunnable<BulkResponse> {
+        private final ClusterStateObserver recoveredObserver;
+        private final BulkRequest bulkRequest;
+        private final Task task;
+        long startTime = -1;
+
+        BulkExecutor(Task task, BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
+            super(listener);
+            this.recoveredObserver = new ClusterStateObserver(clusterService, bulkRequest.timeout(), logger, threadPool.getThreadContext());
+            this.bulkRequest = bulkRequest;
+            this.task = task;
         }
 
-        if (hasIndexRequestsWithPipelines) {
-            // this method (doExecute) will be called again, but with the bulk requests updated from the ingest node processing but
-            // also with IngestService.NOOP_PIPELINE_NAME on each request. This ensures that this on the second time through this method,
-            // this path is never taken.
-            try {
-                if (clusterService.localNode().isIngestNode()) {
-                    processBulkIndexIngestRequest(task, bulkRequest, listener);
-                } else {
-                    ingestForwarder.forwardIngestRequest(BulkAction.INSTANCE, bulkRequest, listener);
-                }
-            } catch (Exception e) {
-                listener.onFailure(e);
+        @Override
+        protected void doRun() {
+            if (startTime == -1) {
+               startTime = relativeTime();
             }
-            return;
+            ClusterBlockException blockException = clusterService.state().blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+            if (blockException != null) {
+                if (recoveredObserver.isTimedOut()) {
+                    // we running as a last attempt after a timeout has happened. don't retry
+                    listener.onFailure(blockException);
+                    return;
+                }
+                recoveredObserver.waitForNextChange(new ClusterStateObserver.Listener() {
+                    @Override
+                    public void onNewClusterState(ClusterState state) {
+                        run();
+                    }
+
+                    @Override
+                    public void onClusterServiceClose() {
+                        listener.onFailure(new NodeClosedException(clusterService.localNode()));
+                    }
+
+                    @Override
+                    public void onTimeout(TimeValue timeout) {
+                        // Try one more time...
+                        run();
+                    }
+                });
+                return;
+            }
+
+            // All good, begin preparing for the bulk request
+            prepForBulk();
         }
 
-        if (needToCheck()) {
-            // Attempt to create all the indices that we're going to need during the bulk before we start.
-            // Step 1: collect all the indices in the request
-            final Set<String> indices = bulkRequest.requests.stream()
-                    // delete requests should not attempt to create the index (if the index does not
-                    // exists), unless an external versioning is used
-                .filter(request -> request.opType() != DocWriteRequest.OpType.DELETE
-                        || request.versionType() == VersionType.EXTERNAL
-                        || request.versionType() == VersionType.EXTERNAL_GTE)
-                .map(DocWriteRequest::index)
-                .collect(Collectors.toSet());
-            /* Step 2: filter that to indices that don't exist and we can create. At the same time build a map of indices we can't create
-             * that we'll use when we try to run the requests. */
-            final Map<String, IndexNotFoundException> indicesThatCannotBeCreated = new HashMap<>();
-            Set<String> autoCreateIndices = new HashSet<>();
-            ClusterState state = clusterService.state();
-            for (String index : indices) {
-                boolean shouldAutoCreate;
-                try {
-                    shouldAutoCreate = shouldAutoCreate(index, state);
-                } catch (IndexNotFoundException e) {
-                    shouldAutoCreate = false;
-                    indicesThatCannotBeCreated.put(index, e);
-                }
-                if (shouldAutoCreate) {
-                    autoCreateIndices.add(index);
-                }
-            }
-            // Step 3: create all the indices that are missing, if there are any missing. start the bulk after all the creates come back.
-            if (autoCreateIndices.isEmpty()) {
-                executeBulk(task, bulkRequest, startTime, listener, responses, indicesThatCannotBeCreated);
-            } else {
-                final AtomicInteger counter = new AtomicInteger(autoCreateIndices.size());
-                for (String index : autoCreateIndices) {
-                    createIndex(index, bulkRequest.timeout(), new ActionListener<CreateIndexResponse>() {
-                        @Override
-                        public void onResponse(CreateIndexResponse result) {
-                            if (counter.decrementAndGet() == 0) {
-                                threadPool.executor(ThreadPool.Names.WRITE).execute(
-                                    () -> executeBulk(task, bulkRequest, startTime, listener, responses, indicesThatCannotBeCreated));
+        private void prepForBulk() {
+            final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
+
+            boolean hasIndexRequestsWithPipelines = false;
+            final MetaData metaData = clusterService.state().getMetaData();
+            ImmutableOpenMap<String, IndexMetaData> indicesMetaData = metaData.indices();
+            for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
+                IndexRequest indexRequest = getIndexWriteRequest(actionRequest);
+                if (indexRequest != null) {
+                    // get pipeline from request
+                    String pipeline = indexRequest.getPipeline();
+                    if (pipeline == null) {
+                        // start to look for default pipeline via settings found in the index meta data
+                        IndexMetaData indexMetaData = indicesMetaData.get(actionRequest.index());
+                        // check the alias for the index request (this is how normal index requests are modeled)
+                        if (indexMetaData == null && indexRequest.index() != null) {
+                            AliasOrIndex indexOrAlias = metaData.getAliasAndIndexLookup().get(indexRequest.index());
+                            if (indexOrAlias != null && indexOrAlias.isAlias()) {
+                                AliasOrIndex.Alias alias = (AliasOrIndex.Alias) indexOrAlias;
+                                indexMetaData = alias.getWriteIndex();
                             }
                         }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            if (!(ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException)) {
-                                // fail all requests involving this index, if create didn't work
-                                for (int i = 0; i < bulkRequest.requests.size(); i++) {
-                                    DocWriteRequest<?> request = bulkRequest.requests.get(i);
-                                    if (request != null && setResponseFailureIfIndexMatches(responses, i, request, index, e)) {
-                                        bulkRequest.requests.set(i, null);
-                                    }
+                        // check the alias for the action request (this is how upserts are modeled)
+                        if (indexMetaData == null && actionRequest.index() != null) {
+                            AliasOrIndex indexOrAlias = metaData.getAliasAndIndexLookup().get(actionRequest.index());
+                            if (indexOrAlias != null && indexOrAlias.isAlias()) {
+                                AliasOrIndex.Alias alias = (AliasOrIndex.Alias) indexOrAlias;
+                                indexMetaData = alias.getWriteIndex();
+                            }
+                        }
+                        if (indexMetaData != null) {
+                            // Find the default pipeline if one is defined from and existing index.
+                            String defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(indexMetaData.getSettings());
+                            indexRequest.setPipeline(defaultPipeline);
+                            if (IngestService.NOOP_PIPELINE_NAME.equals(defaultPipeline) == false) {
+                                hasIndexRequestsWithPipelines = true;
+                            }
+                        } else if (indexRequest.index() != null) {
+                            // No index exists yet (and is valid request), so matching index templates to look for a default pipeline
+                            List<IndexTemplateMetaData> templates
+                                = MetaDataIndexTemplateService.findTemplates(metaData, indexRequest.index());
+                            assert (templates != null);
+                            String defaultPipeline = IngestService.NOOP_PIPELINE_NAME;
+                            // order of templates are highest order first, break if we find a default_pipeline
+                            for (IndexTemplateMetaData template : templates) {
+                                final Settings settings = template.settings();
+                                if (IndexSettings.DEFAULT_PIPELINE.exists(settings)) {
+                                    defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(settings);
+                                    break;
                                 }
                             }
-                            if (counter.decrementAndGet() == 0) {
-                                executeBulk(task, bulkRequest, startTime, ActionListener.wrap(listener::onResponse, inner -> {
-                                    inner.addSuppressed(e);
-                                    listener.onFailure(inner);
-                                }), responses, indicesThatCannotBeCreated);
+                            indexRequest.setPipeline(defaultPipeline);
+                            if (IngestService.NOOP_PIPELINE_NAME.equals(defaultPipeline) == false) {
+                                hasIndexRequestsWithPipelines = true;
                             }
                         }
-                    });
+                    } else if (IngestService.NOOP_PIPELINE_NAME.equals(pipeline) == false) {
+                        hasIndexRequestsWithPipelines = true;
+                    }
                 }
             }
-        } else {
-            executeBulk(task, bulkRequest, startTime, listener, responses, emptyMap());
+
+            if (hasIndexRequestsWithPipelines) {
+                // this method (doExecute) will be called again, but with the bulk requests updated from the ingest node processing but
+                // also with IngestService.NOOP_PIPELINE_NAME on each request. This ensures that this on the second time through
+                // this method, this path is never taken.
+                try {
+                    if (clusterService.localNode().isIngestNode()) {
+                        processBulkIndexIngestRequest(task, bulkRequest, listener);
+                    } else {
+                        ingestForwarder.forwardIngestRequest(BulkAction.INSTANCE, bulkRequest, listener);
+                    }
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                }
+                return;
+            }
+
+            if (needToCheck()) {
+                // Attempt to create all the indices that we're going to need during the bulk before we start.
+                // Step 1: collect all the indices in the request
+                final Set<String> indices = bulkRequest.requests.stream()
+                    // delete requests should not attempt to create the index (if the index does not
+                    // exists), unless an external versioning is used
+                    .filter(request -> request.opType() != DocWriteRequest.OpType.DELETE
+                        || request.versionType() == VersionType.EXTERNAL
+                        || request.versionType() == VersionType.EXTERNAL_GTE)
+                    .map(DocWriteRequest::index)
+                    .collect(Collectors.toSet());
+                /* Step 2: filter that to indices that don't exist and we can create. At the same time build a map of
+                   indices we can't create that we'll use when we try to run the requests. */
+                final Map<String, IndexNotFoundException> indicesThatCannotBeCreated = new HashMap<>();
+                Set<String> autoCreateIndices = new HashSet<>();
+                ClusterState state = clusterService.state();
+                for (String index : indices) {
+                    boolean shouldAutoCreate;
+                    try {
+                        shouldAutoCreate = shouldAutoCreate(index, state);
+                    } catch (IndexNotFoundException e) {
+                        shouldAutoCreate = false;
+                        indicesThatCannotBeCreated.put(index, e);
+                    }
+                    if (shouldAutoCreate) {
+                        autoCreateIndices.add(index);
+                    }
+                }
+                // Step 3: create all the indices that are missing, if there are any missing.
+                // start the bulk after all the creates come back.
+                if (autoCreateIndices.isEmpty()) {
+                    executeBulk(task, bulkRequest, startTime, listener, responses, indicesThatCannotBeCreated);
+                } else {
+                    final AtomicInteger counter = new AtomicInteger(autoCreateIndices.size());
+                    for (String index : autoCreateIndices) {
+                        createIndex(index, bulkRequest.timeout(), new ActionListener<CreateIndexResponse>() {
+                            @Override
+                            public void onResponse(CreateIndexResponse result) {
+                                if (counter.decrementAndGet() == 0) {
+                                    threadPool.executor(ThreadPool.Names.WRITE).execute(
+                                        () -> executeBulk(task, bulkRequest, startTime, listener, responses, indicesThatCannotBeCreated));
+                                }
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                if (!(ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException)) {
+                                    // fail all requests involving this index, if create didn't work
+                                    for (int i = 0; i < bulkRequest.requests.size(); i++) {
+                                        DocWriteRequest<?> request = bulkRequest.requests.get(i);
+                                        if (request != null && setResponseFailureIfIndexMatches(responses, i, request, index, e)) {
+                                            bulkRequest.requests.set(i, null);
+                                        }
+                                    }
+                                }
+                                if (counter.decrementAndGet() == 0) {
+                                    executeBulk(task, bulkRequest, startTime, ActionListener.wrap(listener::onResponse, inner -> {
+                                        inner.addSuppressed(e);
+                                        listener.onFailure(inner);
+                                    }), responses, indicesThatCannotBeCreated);
+                                }
+                            }
+                        });
+                    }
+                }
+            } else {
+                executeBulk(task, bulkRequest, startTime, listener, responses, emptyMap());
+            }
         }
     }
 

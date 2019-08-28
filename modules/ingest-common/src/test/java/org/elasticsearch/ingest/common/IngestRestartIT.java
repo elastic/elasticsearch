@@ -19,13 +19,20 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -35,6 +42,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -175,6 +184,98 @@ public class IngestRestartIT extends ESIntegTestCase {
         assertThat(source.get("x"), equalTo(0));
         assertThat(source.get("y"), equalTo(0));
         assertThat(source.get("z"), equalTo(0));
+    }
+
+    public void testDefaultPipelineBeforeCSRecovered() throws Exception {
+        internalCluster().startNode();
+
+        BytesReference pipeline = new BytesArray("{\n" +
+            "  \"processors\" : [\n" +
+            "    {\n" +
+            "      \"remove\": {\n" +
+            "        \"field\": \"_type\"\n" +
+            "      }\n" +
+            "    }" +
+            "  ]\n" +
+            "}");
+        client().admin().cluster().preparePutPipeline("test_pipeline", pipeline, XContentType.JSON).get();
+        client().admin().indices().preparePutTemplate("pipeline_template")
+            .setPatterns(Collections.singletonList("*"))
+            .setSettings(
+                "{\n" +
+                "  \"index\" : {\n" +
+                "     \"default_pipeline\" : \"test_pipeline\"" +
+                "   }\n" +
+                "}\n", XContentType.JSON).get();
+
+
+        internalCluster().fullRestart(new InternalTestCluster.RestartCallback() {
+            @Override
+            public Settings onNodeStopped(String nodeName) {
+                return Settings.builder().put(GatewayService.RECOVER_AFTER_NODES_SETTING.getKey(), "2").build();
+            }
+
+            @Override
+            public boolean validateClusterForming() {
+                return false;
+            }
+        });
+
+        CountDownLatch latch = new CountDownLatch(1);
+
+        // this one should fail
+        assertThat(expectThrows(ClusterBlockException.class, () -> client().prepareIndex("index", "foo", "fails")
+            .setSource("x", 1)
+            .setTimeout(TimeValue.timeValueMillis(100)) // 100ms, to fail quickly
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get()).getMessage(), equalTo("blocked by: [SERVICE_UNAVAILABLE/1/state not recovered / initialized];"));
+
+        // but this one should pass since it has a longer timeout
+        client().prepareIndex("index", "foo", "passes1")
+            .setSource("x", 2)
+            .setTimeout(TimeValue.timeValueSeconds(60)) // wait for second node to start
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .execute(new ActionListener<IndexResponse>() {
+                @Override
+                public void onResponse(IndexResponse indexResponse) {
+                    assertThat(indexResponse.status(), equalTo(RestStatus.CREATED));
+                    assertThat(indexResponse.getResult(), equalTo(DocWriteResponse.Result.CREATED));
+                    latch.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail("Should not have failed with exception: " + e.getMessage());
+                }
+            });
+
+        // so the cluster state can be recovered
+        internalCluster()
+            .startNode(Settings.builder().put(GatewayService.RECOVER_AFTER_NODES_SETTING.getKey(), "1"));
+        ensureYellow("index");
+
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+
+        client().prepareIndex("index", "bar", "passes2")
+            .setSource("x", 3)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        client().admin().indices().prepareRefresh("index").get();
+
+        // note that the types are _doc not `foo` or `bar`
+        Map<String, Object> source = client().prepareGet("index", "_doc", "passes1").get().getSource();
+        assertThat(source.get("x"), equalTo(2));
+
+        source = client().prepareGet("index", "_doc", "passes2").get().getSource();
+        assertThat(source.get("x"), equalTo(3));
+
+        // and make sure this failed doc didn't get through
+        source = client().prepareGet("index", "foo", "fails").get().getSource();
+        assertNull(source);
+        source = client().prepareGet("index", "_doc", "fails").get().getSource();
+        assertNull(source);
+
     }
 
     public void testWithDedicatedIngestNode() throws Exception {

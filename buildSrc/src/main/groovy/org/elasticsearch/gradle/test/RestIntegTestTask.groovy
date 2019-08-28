@@ -24,6 +24,7 @@ import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin
 import org.elasticsearch.gradle.tool.ClasspathUtils
 import org.gradle.api.DefaultTask
+import org.gradle.api.JavaVersion
 import org.gradle.api.Task
 import org.gradle.api.execution.TaskExecutionAdapter
 import org.gradle.api.logging.Logger
@@ -74,7 +75,12 @@ class RestIntegTestTask extends DefaultTask {
 
         runner.include('**/*IT.class')
         runner.systemProperty('tests.rest.load_packaged', 'false')
-
+//        TODO fix this hack
+//        if (System.getProperty("runtime.java").equals("8")) {
+//            runner.nonInputProperties.systemProperty('java.locale.providers', 'SPI,JRE')
+//        } else {
+//            runner.nonInputProperties.systemProperty('java.locale.providers', 'SPI,COMPAT')
+//        }
         if (System.getProperty("tests.rest.cluster") == null) {
             if (System.getProperty("tests.cluster") != null) {
                 throw new IllegalArgumentException("tests.rest.cluster and tests.cluster must both be null or non-null")

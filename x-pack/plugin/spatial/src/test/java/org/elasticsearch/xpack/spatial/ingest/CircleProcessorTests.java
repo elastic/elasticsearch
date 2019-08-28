@@ -209,7 +209,7 @@ public class CircleProcessorTests extends ESTestCase {
 
     public void testGeoShapeQueryAcrossDateline() throws IOException {
         String fieldName = "circle";
-        Circle circle = new Circle(179.999746, 67.1726, 100000);
+        Circle circle = new Circle(179.999746, 67.1726, randomDoubleBetween(1000, 300000, true));
         int numSides = randomIntBetween(4, 1000);
         Geometry geometry = SpatialUtils.createRegularGeoShapePolygon(circle, numSides);
 

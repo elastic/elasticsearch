@@ -32,8 +32,8 @@ public class SpatialUtils {
         double[][] result = new double[2][];
         result[0] = new double[gons+1];
         result[1] = new double[gons+1];
-        for(int i=0;i<gons;i++) {
-            double angle = i * (360.0/gons);
+        for(int i=0; i<gons; i++) {
+            double angle = i * (360.0 / gons);
             double x = Math.cos(SloppyMath.toRadians(angle));
             double y = Math.sin(SloppyMath.toRadians(angle));
             double factor = 2.0;
@@ -48,8 +48,9 @@ public class SpatialUtils {
 
                 if (Math.abs(distanceMeters - circle.getRadiusMeters()) < 0.1) {
                     // Within 10 cm: close enough!
-                    result[0][i] = GeoUtils.normalizeLon(lon);
-                    result[1][i] = GeoUtils.normalizeLat(lat);
+                    // lon/lat are left de-normalized so that indexing can properly detect dateline crossing.
+                    result[0][i] = lon;
+                    result[1][i] = lat;
                     break;
                 }
 
@@ -85,8 +86,8 @@ public class SpatialUtils {
         double[][] result = new double[2][];
         result[0] = new double[gons+1];
         result[1] = new double[gons+1];
-        for(int i=0;i<gons;i++) {
-            double angle = i*(360.0/gons);
+        for(int i=0; i<gons; i++) {
+            double angle = i * (360.0 / gons);
             double x = circle.getRadiusMeters() * Math.cos(SloppyMath.toRadians(angle));
             double y = circle.getRadiusMeters() * Math.sin(SloppyMath.toRadians(angle));
 

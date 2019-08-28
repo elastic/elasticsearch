@@ -152,7 +152,7 @@ public class ContextIndexSearcher extends IndexSearcher {
     }
 
     @Override
-    public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
+    protected void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
         for (LeafReaderContext ctx : leaves) { // search each subreader
             searchLeaf(ctx, weight, collector);
         }
@@ -164,7 +164,7 @@ public class ContextIndexSearcher extends IndexSearcher {
      * {@link LeafCollector#collect(int)} is called for every matching document in
      * the provided <code>ctx</code>.
      */
-    public void searchLeaf(LeafReaderContext ctx, Weight weight, Collector collector) throws IOException {
+    private void searchLeaf(LeafReaderContext ctx, Weight weight, Collector collector) throws IOException {
         checkCancelled();
         weight = wrapWeight(weight);
         final LeafCollector leafCollector;

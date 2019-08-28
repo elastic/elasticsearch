@@ -234,10 +234,15 @@ public class QueryPhase implements SearchPhase {
                     // modify sorts: add sort on _score as 1st sort, and move the sort on the original field as the 2nd sort
                     SortField[] oldSortFields = searchContext.sort().sort.getSort();
                     DocValueFormat[] oldFormats = searchContext.sort().formats;
-                    SortField[] newSortFields = new SortField[oldSortFields.length + 1];
-                    DocValueFormat[] newFormats = new DocValueFormat[oldSortFields.length + 1];
+                    SortField[] newSortFields = new SortField[oldSortFields.length + 2];
+                    DocValueFormat[] newFormats = new DocValueFormat[oldSortFields.length + 2];
                     newSortFields[0] = SortField.FIELD_SCORE;
                     newFormats[0] = DocValueFormat.RAW;
+                    // Add a tiebreak on _doc in order to be able to search
+                    // the leaves in any order. This is needed since we reorder
+                    // the leaves based on the minimum/maxim value in each segment.
+                    newSortFields[newSortFields.length-1] = SortField.FIELD_DOC;
+                    newFormats[newSortFields.length-1] = DocValueFormat.RAW;
                     System.arraycopy(oldSortFields, 0, newSortFields, 1, oldSortFields.length);
                     System.arraycopy(oldFormats, 0, newFormats, 1, oldFormats.length);
                     sortAndFormatsForRewrittenNumericSort = searchContext.sort(); // stash SortAndFormats to restore it later
@@ -334,8 +339,7 @@ public class QueryPhase implements SearchPhase {
         }
         QuerySearchResult queryResult = searchContext.queryResult();
         try {
-            Weight weight = searcher.createWeight(searcher.rewrite(query), queryCollector.scoreMode(), 1f);
-            searcher.search(searcher.getIndexReader().leaves(), weight, queryCollector);
+            searcher.search(query, queryCollector);
         } catch (EarlyTerminatingCollector.EarlyTerminationException e) {
             queryResult.terminatedEarly(true);
         } catch (TimeExceededException e) {
@@ -367,16 +371,21 @@ public class QueryPhase implements SearchPhase {
         final int numHits = Math.min(searchContext.from() + searchContext.size(),  Math.max(1, reader.numDocs()));
         final SortAndFormats sortAndFormats = searchContext.sort();
 
-        ScoreMode scoreMode = ScoreMode.TOP_SCORES;
-        int hitCount = 0;
-        if (searchContext.trackTotalHitsUpTo() != SearchContext.TRACK_TOTAL_HITS_DISABLED) {
-            hitCount = shortcutTotalHitCount(reader, query);
-            if (searchContext.trackTotalHitsUpTo() == Integer.MAX_VALUE) {
-                scoreMode = ScoreMode.COMPLETE; //TODO: not sure if scoreMode should always be TOP_SCORES
+        int totalHitsThreshold;
+        TotalHits totalHits;
+        if (searchContext.trackTotalHitsUpTo() == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
+            totalHitsThreshold = 1;
+            totalHits = new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
+        } else {
+            int hitCount = shortcutTotalHitCount(reader, query);
+            if (hitCount == -1) {
+                totalHitsThreshold = searchContext.trackTotalHitsUpTo();
+                totalHits = null; // will be computed via the collector
+            } else {
+                totalHitsThreshold = 1;
+                totalHits = new TotalHits(hitCount, TotalHits.Relation.EQUAL_TO); // don't compute hit counts via the collector
             }
         }
-        final int totalHitsThreshold = hitCount == -1 ? searchContext.trackTotalHitsUpTo() : 1;
-        final TotalHits totalHits = hitCount == -1 ? null : new TotalHits(hitCount, TotalHits.Relation.EQUAL_TO);
 
         CollectorManager<TopFieldCollector, Void> manager = new CollectorManager<>() {
             @Override
@@ -407,7 +416,7 @@ public class QueryPhase implements SearchPhase {
         List<LeafReaderContext> leaves = new ArrayList<>(searcher.getIndexReader().leaves());
         leafSorter.accept(leaves);
         try {
-            Weight weight = searcher.createWeight(searcher.rewrite(query), scoreMode, 1f);
+            Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.TOP_SCORES, 1f);
             searcher.search(leaves, weight, manager);
         } catch (TimeExceededException e) {
             assert timeoutSet : "TimeExceededException thrown even though timeout wasn't set";
@@ -533,7 +542,7 @@ public class QueryPhase implements SearchPhase {
         TopDocs topDocs = result.topDocs().topDocs;
         for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
             FieldDoc fieldDoc = (FieldDoc) scoreDoc;
-            fieldDoc.fields = Arrays.copyOfRange(fieldDoc.fields, 1, fieldDoc.fields.length);
+            fieldDoc.fields = Arrays.copyOfRange(fieldDoc.fields, 1, fieldDoc.fields.length-1);
         }
         TopFieldDocs newTopDocs = new TopFieldDocs(topDocs.totalHits, topDocs.scoreDocs, originalSortAndFormats.sort.getSort());
         result.topDocs(new TopDocsAndMaxScore(newTopDocs, Float.NaN), originalSortAndFormats.formats);

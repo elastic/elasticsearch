@@ -88,13 +88,9 @@ public class SearchCancellationTests extends ESTestCase {
                 throw new TaskCancelledException("cancelled");
             }
         });
-        LeafReaderContext leafContext = reader.leaves().get(0);
-        final Weight weight = searcher.createWeight(new MatchAllDocsQuery(), ScoreMode.COMPLETE, 1f);
-        searcher.searchLeaf(searcher.getIndexReader().leaves().get(0), weight, collector);
-        assertThat(collector.getTotalHits(), equalTo(leafContext.reader().numDocs()));
+        searcher.search(new MatchAllDocsQuery(), collector);
+        assertThat(collector.getTotalHits(), equalTo(reader.numDocs()));
         cancelled.set(true);
-        expectThrows(TaskCancelledException.class,
-            () -> searcher.searchLeaf(searcher.getIndexReader().leaves().get(0), weight, collector));
         expectThrows(TaskCancelledException.class,
             () -> searcher.search(new MatchAllDocsQuery(), collector));
     }

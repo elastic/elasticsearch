@@ -42,6 +42,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.FieldComparator;
@@ -890,12 +891,6 @@ public class QueryPhaseTests extends IndexShardTestCase {
                 final Collector in = new AssertingEarlyTerminationFilterCollector(collector, size);
                 super.search(leaves, weight, in);
             }
-
-            @Override
-            public void searchLeaf(LeafReaderContext ctx, Weight weight, Collector collector) throws IOException {
-                collector = new AssertingEarlyTerminationFilterCollector(collector, size);
-                super.searchLeaf(ctx, weight, collector);
-            }
         };
     }
 
@@ -905,12 +900,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy()) {
 
             @Override
-            public void search(Query query, Collector results) throws IOException {
-                throw new AssertionError();
-            }
-
-            @Override
-            public void searchLeaf(LeafReaderContext ctx, Weight weight, Collector collector) throws IOException {
+            public void search(List<LeafReaderContext> leaves, Weight weight, CollectorManager manager) throws IOException {
                 final Query query = weight.getQuery();
                 assertTrue(query instanceof BooleanQuery);
                 List<BooleanClause> clauses = ((BooleanQuery) query).clauses();
@@ -923,7 +913,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
                     );
                 }
                 if (queryType == 1) assertTrue(clauses.get(1).getQuery() instanceof DocValuesFieldExistsQuery);
-                super.searchLeaf(ctx, weight, collector);
+                super.search(leaves, weight, manager);
             }
         };
     }

@@ -8,7 +8,7 @@ Deletes documents that match the specified query.
 
 [source,js]
 --------------------------------------------------
-POST twitter/_delete_by_query
+POST /twitter/_delete_by_query
 {
   "query": {
     "match": {

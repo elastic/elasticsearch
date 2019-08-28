@@ -143,7 +143,7 @@ public class ReindexFailoverIT extends ReindexTestCase {
             } catch (Exception e) {
                 throw new AssertionError(e);
             }
-        });
+        }, 30, TimeUnit.SECONDS);
 
         for (int i = 0; i < docCount; i++) {
             int docId = i;

@@ -57,7 +57,7 @@ import java.util.concurrent.ConcurrentMap;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.hamcrest.Matchers.nullValue;
 
-@SuppressForbidden(reason = "this test uses a HttpServer to emulate a S3 endpoint")
+@SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
 public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCase {
 
     private static HttpServer httpServer;
@@ -143,6 +143,7 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
     /**
      * Minimal HTTP handler that acts as a S3 compliant server
      */
+    @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
     private static class InternalHttpHandler implements HttpHandler {
 
         private final ConcurrentMap<String, BytesReference> blobs = new ConcurrentHashMap<>();

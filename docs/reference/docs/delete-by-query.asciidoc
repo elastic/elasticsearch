@@ -23,7 +23,7 @@ POST /twitter/_delete_by_query
 [[docs-delete-by-query-api-request]]
 ==== {api-request-title}
 
-`POST <index>/_delete_by_query`
+`POST /<index>/_delete_by_query`
 
 ////
 
@@ -106,6 +106,7 @@ specify the `scroll` parameter to control how long it keeps the "search context"
 alive, for example `?scroll=10m`. By default it's 5 minutes.
 
 ===== Throttling delete requests
+
 To control the rate at which delete by query issues batches of delete operations,
 you can set `requests_per_second` to any positive decimal number. This pads each
 batch with a wait time to throttle the rate. Set `requests_per_second` to `-1` 
@@ -166,37 +167,28 @@ or omit to search all indices.
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 
-`analyzer`::
-  (Optional, string) Defines the analyzer to use for the query string.
-  
-`analyze_wildcard`::
-  (Optional, boolean) If `true`, wildcard and prefix queries will also be 
-  analyzed. Defaults to `false`.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=analyzer]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=analyze_wildcard]
   
 `conflicts`::
-  (Optional, string) What to do if delete by query hits version conflicts: `abort`
-  or `proceed`. Defaults to `abort`.
+  (Optional, string) What to do if delete by query hits version conflicts: 
+  `abort` or `proceed`. Defaults to `abort`.
 
-`default_operator`::
-  (Optional, string) The default operator for query string query: AND or OR. 
-  Defaults to `OR`.
-  
-`df`::
-  (Optional, string) Defines the field to use as default where no field prefix 
-  is given in the query string.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=default_operator]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=df]
   
 include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
-`from`::
-  (Optional, integer) Defines the starting offset. Defaults to `0`.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=from]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
   
-`lenient`::
-  (Optional, boolean) If `true`, format-based query failures (such as 
-  providing text to a numeric field) will be ignored. Defaults to `false`.
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=lenient]
   
 `max_docs`::
   (Optional, integer) Maximum number of documents to process. Defaults to all

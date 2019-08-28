@@ -23,6 +23,7 @@ import org.elasticsearch.common.SuppressForbidden;
 
 import java.io.FilePermission;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.Permissions;
 
@@ -40,13 +41,15 @@ public class FilePermissionUtils {
     @SuppressForbidden(reason = "only place where creating Java-9 compatible FilePermission objects is possible")
     public static void addSingleFilePath(Permissions policy, Path path, String permissions) throws IOException {
         policy.add(new FilePermission(path.toString(), permissions));
-        /*
-         * The file permission model since JDK 9 requires this due to the removal of pathname canonicalization. See also
-         * https://github.com/elastic/elasticsearch/issues/21534.
-         */
-        final Path realPath = path.toRealPath();
-        if (path.toString().equals(realPath.toString()) == false) {
-            policy.add(new FilePermission(realPath.toString(), permissions));
+        if (Files.exists(path)) {
+            /*
+             * The file permission model since JDK 9 requires this due to the removal of pathname canonicalization. See also
+             * https://github.com/elastic/elasticsearch/issues/21534.
+             */
+            final Path realPath = path.toRealPath();
+            if (path.toString().equals(realPath.toString()) == false) {
+                policy.add(new FilePermission(realPath.toString(), permissions));
+            }
         }
     }
 

@@ -49,6 +49,9 @@ public final class Messages {
     public static final String DATAFEED_FREQUENCY_MUST_BE_MULTIPLE_OF_AGGREGATIONS_INTERVAL =
             "Datafeed frequency [{0}] must be a multiple of the aggregation interval [{1}]";
     public static final String DATAFEED_ID_ALREADY_TAKEN = "A datafeed with id [{0}] already exists";
+    public static final String DATAFEED_NEEDS_REMOTE_CLUSTER_SEARCH = "Datafeed [{0}] is configured with a remote index pattern(s) {1}" +
+        " but the current node [{2}] is not allowed to connect to remote clusters." +
+        " Please enable cluster.remote.connect for all machine learning nodes.";
 
     public static final String DATA_FRAME_ANALYTICS_BAD_QUERY_FORMAT = "Data Frame Analytics config query is not parsable";
     public static final String DATA_FRAME_ANALYTICS_BAD_FIELD_FILTER = "No field [{0}] could be detected";

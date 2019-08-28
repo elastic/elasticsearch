@@ -35,6 +35,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -106,8 +107,9 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testIngestPlugin() {
         ThreadPool tp = mock(ThreadPool.class);
+        Client client = mock(Client.class);
         IngestService ingestService = new IngestService(mock(ClusterService.class), tp, null, null,
-            null, Collections.singletonList(DUMMY_PLUGIN));
+            null, Collections.singletonList(DUMMY_PLUGIN), client);
         Map<String, Processor.Factory> factories = ingestService.getProcessorFactories();
         assertTrue(factories.containsKey("foo"));
         assertEquals(1, factories.size());
@@ -115,18 +117,20 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testIngestPluginDuplicate() {
         ThreadPool tp = mock(ThreadPool.class);
+        Client client = mock(Client.class);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
             new IngestService(mock(ClusterService.class), tp, null, null,
-            null, Arrays.asList(DUMMY_PLUGIN, DUMMY_PLUGIN)));
+            null, Arrays.asList(DUMMY_PLUGIN, DUMMY_PLUGIN), client));
         assertTrue(e.getMessage(), e.getMessage().contains("already registered"));
     }
 
     public void testExecuteIndexPipelineDoesNotExist() {
         ThreadPool threadPool = mock(ThreadPool.class);
+        Client client = mock(Client.class);
         final ExecutorService executorService = EsExecutors.newDirectExecutorService();
         when(threadPool.executor(anyString())).thenReturn(executorService);
         IngestService ingestService = new IngestService(mock(ClusterService.class), threadPool, null, null,
-            null, Collections.singletonList(DUMMY_PLUGIN));
+            null, Collections.singletonList(DUMMY_PLUGIN), client);
         final IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(emptyMap()).setPipeline("_id");
 
         final SetOnce<Boolean> failure = new SetOnce<>();
@@ -1138,6 +1142,7 @@ public class IngestServiceTests extends ESTestCase {
 
     private static IngestService createWithProcessors(Map<String, Processor.Factory> processors) {
         ThreadPool threadPool = mock(ThreadPool.class);
+        Client client = mock(Client.class);
         final ExecutorService executorService = EsExecutors.newDirectExecutorService();
         when(threadPool.executor(anyString())).thenReturn(executorService);
         return new IngestService(mock(ClusterService.class), threadPool, null, null,
@@ -1146,7 +1151,7 @@ public class IngestServiceTests extends ESTestCase {
             public Map<String, Processor.Factory> getProcessors(final Processor.Parameters parameters) {
                 return processors;
             }
-        }));
+        }), client);
     }
 
     private class IngestDocumentMatcher extends ArgumentMatcher<IngestDocument> {

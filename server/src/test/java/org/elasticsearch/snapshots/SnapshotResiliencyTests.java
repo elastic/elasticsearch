@@ -964,7 +964,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     new IngestService(
                         clusterService, threadPool, environment, scriptService,
                         new AnalysisModule(environment, Collections.emptyList()).getAnalysisRegistry(),
-                        Collections.emptyList()),
+                        Collections.emptyList(), client),
                     client, actionFilters, indexNameExpressionResolver,
                     new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver)
                 ));

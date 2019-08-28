@@ -71,7 +71,7 @@ Example response:
           "available" : true,
           "enabled" : true
       },
-      "data_science" : {
+      "analytics" : {
           "available" : true,
           "enabled" : true
       },

@@ -185,6 +185,11 @@ public class Regression implements DataFrameAnalysis {
     }
 
     @Override
+    public boolean supportsMissingValues() {
+        return true;
+    }
+
+    @Override
     public int hashCode() {
         return Objects.hash(dependentVariable, lambda, gamma, eta, maximumNumberTrees, featureBagFraction, predictionFieldName);
     }

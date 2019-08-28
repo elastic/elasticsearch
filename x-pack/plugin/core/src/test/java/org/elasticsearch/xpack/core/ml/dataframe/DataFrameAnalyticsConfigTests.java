@@ -113,6 +113,9 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
         if (randomBoolean()) {
             builder.setModelMemoryLimit(new ByteSizeValue(randomIntBetween(1, 16), randomFrom(ByteSizeUnit.MB, ByteSizeUnit.GB)));
         }
+        if (randomBoolean()) {
+            builder.setDescription(randomAlphaOfLength(20));
+        }
         if (withGeneratedFields) {
             if (randomBoolean()) {
                 builder.setCreateTime(Instant.now());

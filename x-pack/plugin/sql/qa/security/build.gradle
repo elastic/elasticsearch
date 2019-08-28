@@ -9,9 +9,9 @@ group = "${group}.x-pack.qa.sql.security"
 
 configurations.create('testClasses')
 
-String classesDir = project.file(project.sourceSets.test.output.classesDirs.singleFile).toString()
+String classesDir = sourceSets.test.output.classesDirs.singleFile.toString()
 artifacts.add('testClasses', project.layout.projectDirectory.dir(classesDir)) {
-  builtBy tasks.named('testClasses')
+  builtBy sourceSets.test.output
 } 
 
 // Tests are pushed down to subprojects and will be checked there.
@@ -40,8 +40,7 @@ subprojects {
   }
 
   integTest.runner {
-    dependsOn configurations.testClasses
-    testClassesDirs += project.files(configurations.testClasses.singleFile)
+    testClassesDirs += configurations.testClasses
     nonInputProperties.systemProperty 'tests.audit.logfile',
         "${ -> testClusters.integTest.singleNode().getAuditLog()}"
     nonInputProperties.systemProperty 'tests.audit.yesterday.logfile',

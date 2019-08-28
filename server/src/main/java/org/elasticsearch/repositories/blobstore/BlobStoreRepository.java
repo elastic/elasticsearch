@@ -977,61 +977,65 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
             assert indexIncrementalFileCount == filesToSnapshot.size();
 
+            final Runnable afterUploads = () -> {
+                final IndexShardSnapshotStatus.Copy lastSnapshotStatus =
+                    snapshotStatus.moveToFinalize(snapshotIndexCommit.getGeneration());
+
+                // now create and write the commit point
+                final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(snapshotId.getName(),
+                    lastSnapshotStatus.getIndexVersion(),
+                    indexCommitPointFiles,
+                    lastSnapshotStatus.getStartTime(),
+                    threadPool.absoluteTimeInMillis() - lastSnapshotStatus.getStartTime(),
+                    lastSnapshotStatus.getIncrementalFileCount(),
+                    lastSnapshotStatus.getIncrementalSize()
+                );
+
+                logger.trace("[{}] [{}] writing shard snapshot file", shardId, snapshotId);
+                try {
+                    indexShardSnapshotFormat.write(snapshot, shardContainer, snapshotId.getUUID());
+                } catch (IOException e) {
+                    throw new IndexShardSnapshotFailedException(shardId, "Failed to write commit point", e);
+                }
+                // delete all files that are not referenced by any commit point
+                // build a new BlobStoreIndexShardSnapshot, that includes this one and all the saved ones
+                List<SnapshotFiles> newSnapshotsList = new ArrayList<>();
+                newSnapshotsList.add(new SnapshotFiles(snapshot.snapshot(), snapshot.indexFiles()));
+                for (SnapshotFiles point : snapshots) {
+                    newSnapshotsList.add(point);
+                }
+                final String indexGeneration = Long.toString(fileListGeneration + 1);
+                final List<String> blobsToDelete;
+                try {
+                    final BlobStoreIndexShardSnapshots updatedSnapshots = new BlobStoreIndexShardSnapshots(newSnapshotsList);
+                    indexShardSnapshotsFormat.writeAtomic(updatedSnapshots, shardContainer, indexGeneration);
+                    // Delete all previous index-N blobs
+                    blobsToDelete =
+                        blobs.keySet().stream().filter(blob -> blob.startsWith(SNAPSHOT_INDEX_PREFIX)).collect(Collectors.toList());
+                    assert blobsToDelete.stream().mapToLong(b -> Long.parseLong(b.replaceFirst(SNAPSHOT_INDEX_PREFIX, "")))
+                        .max().orElse(-1L) < Long.parseLong(indexGeneration)
+                        : "Tried to delete an index-N blob newer than the current generation [" + indexGeneration
+                        + "] when deleting index-N blobs " + blobsToDelete;
+                } catch (IOException e) {
+                    throw new IndexShardSnapshotFailedException(shardId,
+                        "Failed to finalize snapshot creation [" + snapshotId + "] with shard index ["
+                            + indexShardSnapshotsFormat.blobName(indexGeneration) + "]", e);
+                }
+                try {
+                    shardContainer.deleteBlobsIgnoringIfNotExists(blobsToDelete);
+                } catch (IOException e) {
+                    logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to delete old index-N blobs during finalization",
+                        snapshotId, shardId), e);
+                }
+                snapshotStatus.moveToDone(threadPool.absoluteTimeInMillis());
+                listener.onResponse(null);
+            };
+            if (indexIncrementalFileCount == 0) {
+                afterUploads.run();
+                return;
+            }
             final GroupedActionListener<Void> filesListener = new GroupedActionListener<>(
-                ActionListener.wrap(v -> {
-                    final IndexShardSnapshotStatus.Copy lastSnapshotStatus =
-                        snapshotStatus.moveToFinalize(snapshotIndexCommit.getGeneration());
-
-                    // now create and write the commit point
-                    final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(snapshotId.getName(),
-                        lastSnapshotStatus.getIndexVersion(),
-                        indexCommitPointFiles,
-                        lastSnapshotStatus.getStartTime(),
-                        threadPool.absoluteTimeInMillis() - lastSnapshotStatus.getStartTime(),
-                        lastSnapshotStatus.getIncrementalFileCount(),
-                        lastSnapshotStatus.getIncrementalSize()
-                    );
-
-                    logger.trace("[{}] [{}] writing shard snapshot file", shardId, snapshotId);
-                    try {
-                        indexShardSnapshotFormat.write(snapshot, shardContainer, snapshotId.getUUID());
-                    } catch (IOException e) {
-                        throw new IndexShardSnapshotFailedException(shardId, "Failed to write commit point", e);
-                    }
-                    // delete all files that are not referenced by any commit point
-                    // build a new BlobStoreIndexShardSnapshot, that includes this one and all the saved ones
-                    List<SnapshotFiles> newSnapshotsList = new ArrayList<>();
-                    newSnapshotsList.add(new SnapshotFiles(snapshot.snapshot(), snapshot.indexFiles()));
-                    for (SnapshotFiles point : snapshots) {
-                        newSnapshotsList.add(point);
-                    }
-                    final String indexGeneration = Long.toString(fileListGeneration + 1);
-                    final List<String> blobsToDelete;
-                    try {
-                        final BlobStoreIndexShardSnapshots updatedSnapshots = new BlobStoreIndexShardSnapshots(newSnapshotsList);
-                        indexShardSnapshotsFormat.writeAtomic(updatedSnapshots, shardContainer, indexGeneration);
-                        // Delete all previous index-N blobs
-                        blobsToDelete =
-                            blobs.keySet().stream().filter(blob -> blob.startsWith(SNAPSHOT_INDEX_PREFIX)).collect(Collectors.toList());
-                        assert blobsToDelete.stream().mapToLong(b -> Long.parseLong(b.replaceFirst(SNAPSHOT_INDEX_PREFIX, "")))
-                            .max().orElse(-1L) < Long.parseLong(indexGeneration)
-                            : "Tried to delete an index-N blob newer than the current generation [" + indexGeneration
-                            + "] when deleting index-N blobs " + blobsToDelete;
-                    } catch (IOException e) {
-                        throw new IndexShardSnapshotFailedException(shardId,
-                            "Failed to finalize snapshot creation [" + snapshotId + "] with shard index ["
-                                + indexShardSnapshotsFormat.blobName(indexGeneration) + "]", e);
-                    }
-                    try {
-                        shardContainer.deleteBlobsIgnoringIfNotExists(blobsToDelete);
-                    } catch (IOException e) {
-                        logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to delete old index-N blobs during finalization",
-                            snapshotId, shardId), e);
-                    }
-                    snapshotStatus.moveToDone(threadPool.absoluteTimeInMillis());
-                    listener.onResponse(null);
-                }, onFailure), indexIncrementalFileCount + 1);
-            filesListener.onResponse(null);
+                ActionListener.wrap(v -> afterUploads.run(), onFailure), indexIncrementalFileCount);
             final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
             for (BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo : filesToSnapshot) {
                 executor.execute(new ActionRunnable<>(filesListener) {

@@ -35,7 +35,7 @@ using this mode, but it can be handy for quick "curl tests".
   cluster-level setting `search.default_allow_partial_results`.
 
 `analyze_wildcard`:: 
-  Should wildcard and prefix queries be analyzed or not. Defaults to `false`.
+(Optional, boolean)  Should wildcard and prefix queries be analyzed or not. Defaults to `false`.
   
 `analyzer`:: 
   The analyzer name to be used when analyzing the query string.

@@ -12,7 +12,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.ilm.RolloverAction;
+import org.elasticsearch.client.indexlifecycle.RolloverAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;

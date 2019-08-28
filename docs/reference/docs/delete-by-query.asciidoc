@@ -418,7 +418,7 @@ Delete documents from multiple indices:
 
 [source,js]
 --------------------------------------------------
-POST twitter,blog/_delete_by_query
+POST /twitter,blog/_delete_by_query
 {
   "query": {
     "match_all": {}

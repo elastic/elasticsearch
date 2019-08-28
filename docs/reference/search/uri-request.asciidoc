@@ -50,7 +50,7 @@ using this mode, but it can be handy for quick "curl tests".
   (Optional, string) The default operator to be used, can be `AND` or `OR`. Defaults to `OR`.
 
 `df`:: 
-  The default field to use when no field prefix is defined within the query.
+  (Optional, string) The default field to use when no field prefix is defined within the query.
 
 `explain`:: 
   For each hit, include an explanation of how the score was computed.

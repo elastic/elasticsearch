@@ -8,17 +8,22 @@ package org.elasticsearch.xpack.ml.datafeed;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.license.RemoteClusterLicenseChecker;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedJobValidator;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
@@ -30,6 +35,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -45,11 +51,13 @@ public class DatafeedJobBuilder {
     private final JobResultsProvider jobResultsProvider;
     private final DatafeedConfigProvider datafeedConfigProvider;
     private final JobResultsPersister jobResultsPersister;
+    private final boolean remoteClusterSearchSupported;
+    private final String nodeName;
 
     public DatafeedJobBuilder(Client client, NamedXContentRegistry xContentRegistry, AnomalyDetectionAuditor auditor,
                               Supplier<Long> currentTimeSupplier, JobConfigProvider jobConfigProvider,
                               JobResultsProvider jobResultsProvider, DatafeedConfigProvider datafeedConfigProvider,
-                              JobResultsPersister jobResultsPersister) {
+                              JobResultsPersister jobResultsPersister, Settings settings, String nodeName) {
         this.client = client;
         this.xContentRegistry = Objects.requireNonNull(xContentRegistry);
         this.auditor = Objects.requireNonNull(auditor);
@@ -58,6 +66,8 @@ public class DatafeedJobBuilder {
         this.jobResultsProvider = Objects.requireNonNull(jobResultsProvider);
         this.datafeedConfigProvider = Objects.requireNonNull(datafeedConfigProvider);
         this.jobResultsPersister = Objects.requireNonNull(jobResultsPersister);
+        this.remoteClusterSearchSupported = RemoteClusterService.ENABLE_REMOTE_CLUSTERS.get(settings);
+        this.nodeName = nodeName;
     }
 
     void build(String datafeedId, ActionListener<DatafeedJob> listener) {
@@ -168,6 +178,18 @@ public class DatafeedJobBuilder {
                 configBuilder -> {
                     try {
                         datafeedConfigHolder.set(configBuilder.build());
+                        if (remoteClusterSearchSupported == false) {
+                            List<String> remoteIndices = RemoteClusterLicenseChecker.remoteIndices(datafeedConfigHolder.get().getIndices());
+                            if (remoteIndices.isEmpty() == false) {
+                                listener.onFailure(
+                                    ExceptionsHelper.badRequestException(Messages.getMessage(
+                                        Messages.DATAFEED_NEEDS_REMOTE_CLUSTER_SEARCH,
+                                        configBuilder.getId(),
+                                        remoteIndices,
+                                        nodeName)));
+                                return;
+                            }
+                        }
                         jobConfigProvider.getJob(datafeedConfigHolder.get().getJobId(), jobConfigListener);
                     } catch (Exception e) {
                         listener.onFailure(e);

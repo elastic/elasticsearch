@@ -1749,6 +1749,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         highLevelClient().indices().create(new CreateIndexRequest(indexName).mapping(mapping), RequestOptions.DEFAULT);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/45787")
     public void testEstimateMemoryUsage() throws IOException {
         String indexName = "estimate-test-index";
         createIndex(indexName, mappingForClassification());

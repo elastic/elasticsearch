@@ -115,7 +115,7 @@ See <<analysis-tokenfilters>> for a list of token filters.
 
 `normalizer`::
 (Optional, string)
-Normalizer used to convert text into a single token.
+Normalizer to use to convert text into a single token.
 See <<analysis-normalizers>> for a list of normalizers.
 
 `text`::

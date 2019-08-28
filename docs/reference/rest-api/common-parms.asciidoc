@@ -50,6 +50,19 @@ tag::help[]
 to `false`.
 end::help[]
 
+tag::index-alias-filter[]
+`filter`::
++
+--
+(Required, query object)
+<<query-dsl-bool-query, Filter query>>
+used to limit the index alias.
+
+If specified,
+the index alias only applies to documents returned by the filter.
+--
+end::index-alias-filter[]
+
 tag::http-format[]
 `format`::
 (Optional, string) Short version of the
@@ -147,6 +160,13 @@ tag::doc-routing[]
 `routing`::
 (Optional, string) Target the specified primary shard.
 end::doc-routing[]
+
+tag::index-routing[]
+`routing`::
+(Optional, string)
+Custom <<mapping-routing-field, routing value>>
+used to route operations to a specific shard.
+end::index-routing[]
 
 tag::doc-version[]
 `version`::

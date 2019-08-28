@@ -41,7 +41,7 @@ The key used for signing the metadata file need not necessarily be the same as
 the keys already used in the saml realm configuration for SAML message signing.
 
 If your {es} keystore is password protected, you
-will be prompted to enter the password to decrypt it when running the
+are prompted to enter the password when you run the
 `elasticsearch-saml-metadata` command.
 
 [float]

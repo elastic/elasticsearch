@@ -92,6 +92,13 @@ public class DiskThresholdDecider extends AllocationDecider {
         long totalSize = 0;
 
         for (ShardRouting routing : node.shardsWithState(ShardRoutingState.INITIALIZING)) {
+            if (routing.relocatingNodeId() == null) {
+                // in practice the only initializing-but-not-relocating shards with a nonzero expected shard size will be ones created
+                // by a resize (shrink/split/clone) operation which we expect to happen using hard links, so they shouldn't be taking
+                // any additional space and can be ignored here
+                continue;
+            }
+
             final String actualPath = clusterInfo.getDataPath(routing);
             // if we don't yet know the actual path of the incoming shard then conservatively assume it's going to the path with the least
             // free space

@@ -3,7 +3,7 @@
 
 Elasticsearch allows you to configure a scoring algorithm or _similarity_ per
 field. The `similarity` setting provides a simple way of choosing a similarity
-algorithm other than the default `BM25`, such as `TF/IDF`.
+algorithm other than the default `BM25`, such as `boolean`.
 
 Similarities are mostly useful for <<text,`text`>> fields, but can also apply
 to other field types.
@@ -18,11 +18,6 @@ configuration are:
 `BM25`::
         The Okapi BM25 algorithm. The algorithm used by default in Elasticsearch and Lucene.
         See {defguide}/pluggable-similarites.html[Pluggable Similarity Algorithms]
-        for more information.
-
-`classic`::
-        The TF/IDF algorithm which used to be the default in Elasticsearch and
-        Lucene. See {defguide}/practical-scoring-function.html[Lucene’s Practical Scoring Function]
         for more information.
 
 `boolean`::

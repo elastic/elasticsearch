@@ -503,7 +503,7 @@ public abstract class EngineTestCase extends ESTestCase {
         return createEngine(null, null, null, config);
     }
 
-    private InternalEngine createEngine(@Nullable IndexWriterFactory indexWriterFactory,
+    protected InternalEngine createEngine(@Nullable IndexWriterFactory indexWriterFactory,
                                         @Nullable BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier,
                                         @Nullable ToLongBiFunction<Engine, Engine.Operation> seqNoForOperation,
                                         EngineConfig config) throws IOException {

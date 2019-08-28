@@ -75,24 +75,44 @@ include-tagged::{doc-tests-file}[{api}-dest-config]
 ==== Analysis
 
 The analysis to be performed.
-Currently, only one analysis is supported: +OutlierDetection+.
+Currently, the supported analyses include : +OutlierDetection+, +Regression+.
+
+===== Outlier Detection
 
 +OutlierDetection+ analysis can be created in one of two ways:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-file}[{api}-analysis-default]
+include-tagged::{doc-tests-file}[{api}-outlier-detection-default]
 --------------------------------------------------
 <1> Constructing a new OutlierDetection object with default strategy to determine outliers
 
 or
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-file}[{api}-analysis-customized]
+include-tagged::{doc-tests-file}[{api}-outlier-detection-customized]
 --------------------------------------------------
 <1> Constructing a new OutlierDetection object
 <2> The method used to perform the analysis
 <3> Number of neighbors taken into account during analysis
+
+===== Regression
+
++Regression+ analysis requires to set which is the +dependent_variable+ and
+has a number of other optional parameters:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-regression]
+--------------------------------------------------
+<1> Constructing a new Regression builder object with the required dependent variable
+<2> The lambda regularization parameter. A non-negative double.
+<3> The gamma regularization parameter. A non-negative double.
+<4> The applied shrinkage. A double in [0.001, 1].
+<5> The maximum number of trees the forest is allowed to contain. An integer in [1, 2000].
+<6> The fraction of features which will be used when selecting a random bag for each candidate split. A double in (0, 1].
+<7> The name of the prediction field in the results object.
+<8> The percentage of training-eligible rows to be used in training. Defaults to 100%.
 
 ==== Analyzed fields
 

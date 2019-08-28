@@ -70,7 +70,7 @@ public class PeerRecoverySourceService implements IndexEventListener {
         this.transportService = transportService;
         this.indicesService = indicesService;
         this.recoverySettings = recoverySettings;
-        transportService.registerRequestHandler(Actions.START_RECOVERY, ThreadPool.Names.GENERIC, StartRecoveryRequest::new,
+        transportService.registerRequestHandler(Actions.START_RECOVERY, ThreadPool.Names.GENERIC, false, false, StartRecoveryRequest::new,
             new StartRecoveryTransportRequestHandler());
     }
 

@@ -105,21 +105,22 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         this.clusterService = clusterService;
         this.onGoingRecoveries = new RecoveriesCollection(logger, threadPool);
 
-        transportService.registerRequestHandler(Actions.FILES_INFO, ThreadPool.Names.GENERIC, RecoveryFilesInfoRequest::new,
+        transportService.registerRequestHandler(Actions.FILES_INFO, ThreadPool.Names.GENERIC, false, false, RecoveryFilesInfoRequest::new,
             new FilesInfoRequestHandler());
-        transportService.registerRequestHandler(Actions.FILE_CHUNK, ThreadPool.Names.GENERIC, RecoveryFileChunkRequest::new,
+        transportService.registerRequestHandler(Actions.FILE_CHUNK, ThreadPool.Names.GENERIC, false, false, RecoveryFileChunkRequest::new,
             new FileChunkTransportRequestHandler());
-        transportService.registerRequestHandler(Actions.CLEAN_FILES, ThreadPool.Names.GENERIC,
+        transportService.registerRequestHandler(Actions.CLEAN_FILES, ThreadPool.Names.GENERIC, false, false,
             RecoveryCleanFilesRequest::new, new CleanFilesRequestHandler());
-        transportService.registerRequestHandler(Actions.PREPARE_TRANSLOG, ThreadPool.Names.GENERIC,
+        transportService.registerRequestHandler(Actions.PREPARE_TRANSLOG, ThreadPool.Names.GENERIC, false, false,
                 RecoveryPrepareForTranslogOperationsRequest::new, new PrepareForTranslogOperationsRequestHandler());
-        transportService.registerRequestHandler(Actions.TRANSLOG_OPS, ThreadPool.Names.GENERIC, RecoveryTranslogOperationsRequest::new,
-            new TranslogOperationsRequestHandler());
-        transportService.registerRequestHandler(Actions.FINALIZE, ThreadPool.Names.GENERIC, RecoveryFinalizeRecoveryRequest::new,
-            new FinalizeRecoveryRequestHandler());
+        transportService.registerRequestHandler(Actions.TRANSLOG_OPS, ThreadPool.Names.GENERIC, false, false,
+            RecoveryTranslogOperationsRequest::new, new TranslogOperationsRequestHandler());
+        transportService.registerRequestHandler(Actions.FINALIZE, ThreadPool.Names.GENERIC, false, false,
+            RecoveryFinalizeRecoveryRequest::new, new FinalizeRecoveryRequestHandler());
         transportService.registerRequestHandler(
                 Actions.HANDOFF_PRIMARY_CONTEXT,
                 ThreadPool.Names.GENERIC,
+                false, false,
                 RecoveryHandoffPrimaryContextRequest::new,
                 new HandoffPrimaryContextRequestHandler());
     }

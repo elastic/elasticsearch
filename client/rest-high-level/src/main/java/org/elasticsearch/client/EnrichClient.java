@@ -71,11 +71,12 @@ public final class EnrichClient {
      * @param request the {@link PutPolicyRequest}
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void putPolicyAsync(PutPolicyRequest request,
-                               RequestOptions options,
-                               ActionListener<AcknowledgedResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(
+    public Cancellable putPolicyAsync(PutPolicyRequest request,
+                                      RequestOptions options,
+                                      ActionListener<AcknowledgedResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
             request,
             EnrichRequestConverters::putPolicy,
             options,
@@ -115,11 +116,12 @@ public final class EnrichClient {
      * @param request the {@link DeletePolicyRequest}
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void deletePolicyAsync(DeletePolicyRequest request,
-                                  RequestOptions options,
-                                  ActionListener<AcknowledgedResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(
+    public Cancellable deletePolicyAsync(DeletePolicyRequest request,
+                                         RequestOptions options,
+                                         ActionListener<AcknowledgedResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
             request,
             EnrichRequestConverters::deletePolicy,
             options,

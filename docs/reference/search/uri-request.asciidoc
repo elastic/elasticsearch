@@ -47,7 +47,7 @@ using this mode, but it can be handy for quick "curl tests".
   can be large.
 
 `default_operator`:: 
-  The default operator to be used, can be `AND` or `OR`. Defaults to `OR`.
+  (Optional, string) The default operator to be used, can be `AND` or `OR`. Defaults to `OR`.
 
 `df`:: 
   The default field to use when no field prefix is defined within the query.

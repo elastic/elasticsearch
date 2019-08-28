@@ -21,6 +21,7 @@ package org.elasticsearch.repositories.s3;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.regex.Regex;
@@ -56,6 +57,7 @@ import java.util.concurrent.ConcurrentMap;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.hamcrest.Matchers.nullValue;
 
+@SuppressForbidden(reason = "this test uses a HttpServer to emulate a S3 endpoint")
 public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCase {
 
     private static HttpServer httpServer;

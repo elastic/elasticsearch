@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.core.ml.dataframe.analyses;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 
+import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 public interface DataFrameAnalysis extends ToXContentObject, NamedWriteable {
 
@@ -24,9 +24,9 @@ public interface DataFrameAnalysis extends ToXContentObject, NamedWriteable {
     boolean supportsCategoricalFields();
 
     /**
-     * @return The set of fields that analyzed documents must have for the analysis to operate
+     * @return The names and types of the fields that analyzed documents must have for the analysis to operate
      */
-    Set<String> getRequiredFields();
+    List<RequiredField> getRequiredFields();
 
     /**
      * @return {@code true} if this analysis supports data frame rows with missing values

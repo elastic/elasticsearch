@@ -120,7 +120,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             .addAggregatableField("some_long", "long")
             .addAggregatableField("some_keyword", "keyword")
             .addAggregatableField("some_boolean", "boolean")
-            .addAggregatableField("foo", "keyword")
+            .addAggregatableField("foo", "double")
             .build();
 
         ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
@@ -146,7 +146,23 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             SOURCE_INDEX, buildRegressionConfig("foo"), RESULTS_FIELD, false, 100, fieldCapabilities);
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> extractedFieldsDetector.detect());
 
-        assertThat(e.getMessage(), equalTo("required fields [foo] are missing"));
+        assertThat(e.getMessage(), equalTo("required field [foo] is missing; analysis requires fields [foo]"));
+    }
+
+    public void testDetect_GivenRegressionAndRequiredFieldHasInvalidType() {
+        FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
+            .addAggregatableField("some_float", "float")
+            .addAggregatableField("some_long", "long")
+            .addAggregatableField("some_keyword", "keyword")
+            .addAggregatableField("foo", "keyword")
+            .build();
+
+        ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
+            SOURCE_INDEX, buildRegressionConfig("foo"), RESULTS_FIELD, false, 100, fieldCapabilities);
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> extractedFieldsDetector.detect());
+
+        assertThat(e.getMessage(), equalTo("invalid types [keyword] for required field [foo]; " +
+            "expected types are [byte, double, float, half_float, integer, long, scaled_float, short]"));
     }
 
     public void testDetect_GivenIgnoredField() {

@@ -15,11 +15,12 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.RequiredField;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.Types;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.NameResolver;
@@ -38,7 +39,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class ExtractedFieldsDetector {
 
@@ -49,18 +49,6 @@ public class ExtractedFieldsDetector {
      */
     private static final List<String> IGNORE_FIELDS = Arrays.asList("_id", "_field_names", "_index", "_parent", "_routing", "_seq_no",
         "_source", "_type", "_uid", "_version", "_feature", "_ignored", DataFrameAnalyticsIndex.ID_COPY);
-
-    public static final Set<String> CATEGORICAL_TYPES = Collections.unmodifiableSet(new HashSet<>(Arrays.asList("text", "keyword", "ip")));
-
-    private static final Set<String> NUMERICAL_TYPES;
-
-    static {
-        Set<String> numericalTypes = Stream.of(NumberFieldMapper.NumberType.values())
-            .map(NumberFieldMapper.NumberType::typeName)
-            .collect(Collectors.toSet());
-        numericalTypes.add("scaled_float");
-        NUMERICAL_TYPES = Collections.unmodifiableSet(numericalTypes);
-    }
 
     private final String[] index;
     private final DataFrameAnalyticsConfig config;
@@ -85,7 +73,7 @@ public class ExtractedFieldsDetector {
         removeFieldsUnderResultsField(fields);
         includeAndExcludeFields(fields);
         removeFieldsWithIncompatibleTypes(fields);
-        checkRequiredFieldsArePresent(fields);
+        checkRequiredFields();
 
         if (fields.isEmpty()) {
             throw ExceptionsHelper.badRequestException("No compatible fields could be detected in index {}. Supported types are {}.",
@@ -145,9 +133,9 @@ public class ExtractedFieldsDetector {
                 fieldsIterator.remove();
             } else {
                 Set<String> fieldTypes = fieldCaps.keySet();
-                if (NUMERICAL_TYPES.containsAll(fieldTypes)) {
+                if (Types.numerical().containsAll(fieldTypes)) {
                     LOGGER.debug("[{}] field [{}] is compatible as it is numerical", config.getId(), field);
-                } else if (config.getAnalysis().supportsCategoricalFields() && CATEGORICAL_TYPES.containsAll(fieldTypes)) {
+                } else if (config.getAnalysis().supportsCategoricalFields() && Types.categorical().containsAll(fieldTypes)) {
                     LOGGER.debug("[{}] field [{}] is compatible as it is categorical", config.getId(), field);
                 } else if (isBoolean(fieldTypes)) {
                     LOGGER.debug("[{}] field [{}] is compatible as it is boolean", config.getId(), field);
@@ -161,9 +149,9 @@ public class ExtractedFieldsDetector {
     }
 
     private Set<String> getSupportedTypes() {
-        Set<String> supportedTypes = new TreeSet<>(NUMERICAL_TYPES);
+        Set<String> supportedTypes = new TreeSet<>(Types.numerical());
         if (config.getAnalysis().supportsCategoricalFields()) {
-            supportedTypes.addAll(CATEGORICAL_TYPES);
+            supportedTypes.addAll(Types.categorical());
         }
         supportedTypes.add(BooleanFieldMapper.CONTENT_TYPE);
         return supportedTypes;
@@ -202,13 +190,20 @@ public class ExtractedFieldsDetector {
         }
     }
 
-    private void checkRequiredFieldsArePresent(Set<String> fields) {
-        List<String> missingFields = config.getAnalysis().getRequiredFields()
-            .stream()
-            .filter(f -> fields.contains(f) == false)
-            .collect(Collectors.toList());
-        if (missingFields.isEmpty() == false) {
-            throw ExceptionsHelper.badRequestException("required fields {} are missing", missingFields);
+    private void checkRequiredFields() {
+        List<RequiredField> requiredFields = config.getAnalysis().getRequiredFields();
+        for (RequiredField requiredField : requiredFields) {
+            Map<String, FieldCapabilities> fieldCaps = fieldCapabilitiesResponse.getField(requiredField.getName());
+            if (fieldCaps == null || fieldCaps.isEmpty()) {
+                List<String> requiredFieldNames = requiredFields.stream().map(RequiredField::getName).collect(Collectors.toList());
+                throw ExceptionsHelper.badRequestException("required field [{}] is missing; analysis requires fields {}",
+                    requiredField.getName(), requiredFieldNames);
+            }
+            Set<String> fieldTypes = fieldCaps.keySet();
+            if (requiredField.getTypes().containsAll(fieldTypes) == false) {
+                throw ExceptionsHelper.badRequestException("invalid types {} for required field [{}]; expected types are {}",
+                    fieldTypes, requiredField.getName(), requiredField.getTypes());
+            }
         }
     }
 

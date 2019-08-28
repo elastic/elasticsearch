@@ -45,9 +45,8 @@ public class FsBlobStoreRepositoryIT extends ESBlobStoreRepositoryIntegTestCase 
     @Override
     protected Settings repositorySettings() {
         return Settings.builder()
+            .put(super.repositorySettings())
             .put("location", randomRepoPath())
-            .put("compress", randomBoolean())
-            .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
             .build();
     }
 

@@ -49,10 +49,9 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESBlobStoreRepos
     @Override
     protected Settings repositorySettings() {
         return Settings.builder()
+            .put(super.repositorySettings())
             .put("bucket", BUCKET)
             .put("base_path", GoogleCloudStorageBlobStoreRepositoryTests.class.getSimpleName())
-            .put("compress", randomBoolean())
-            .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
             .build();
     }
 

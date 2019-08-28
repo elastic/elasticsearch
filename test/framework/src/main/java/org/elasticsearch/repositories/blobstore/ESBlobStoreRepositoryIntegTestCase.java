@@ -28,6 +28,8 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryData;
@@ -61,7 +63,13 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
     protected abstract String repositoryType();
 
     protected Settings repositorySettings() {
-        return Settings.EMPTY;
+        final Settings.Builder settings = Settings.builder();
+        settings.put("compress", randomBoolean());
+        if (randomBoolean()) {
+            long size = 1 << randomIntBetween(7, 10);
+            settings.put("chunk_size", new ByteSizeValue(size, randomFrom(ByteSizeUnit.BYTES, ByteSizeUnit.KB, ByteSizeUnit.MB)));
+        }
+        return settings.build();
     }
 
     protected final String createRepository(final String name) {
@@ -71,7 +79,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         assertAcked(client().admin().cluster().preparePutRepository(name)
             .setType(repositoryType())
             .setVerify(verify)
-            .setSettings(Settings.builder().put(repositorySettings())));
+            .setSettings(repositorySettings()));
 
         internalCluster().getDataOrMasterNodeInstances(RepositoriesService.class).forEach(repositories -> {
             assertThat(repositories.repository(name), notNullValue());

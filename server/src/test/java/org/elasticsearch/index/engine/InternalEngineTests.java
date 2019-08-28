@@ -4515,7 +4515,6 @@ public class InternalEngineTests extends EngineTestCase {
             final EngineConfig engineConfig;
             final SeqNoStats prevSeqNoStats;
             final List<DocIdSeqNoAndSource> prevDocs;
-            final int totalTranslogOps;
             try (InternalEngine engine = createEngine(store, createTempDir(), globalCheckpoint::get)) {
                 engineConfig = engine.config();
                 for (final long seqNo : seqNos) {
@@ -4534,16 +4533,19 @@ public class InternalEngineTests extends EngineTestCase {
                 engine.syncTranslog();
                 prevSeqNoStats = engine.getSeqNoStats(globalCheckpoint.get());
                 prevDocs = getDocIds(engine, true);
-                totalTranslogOps = engine.getTranslog().totalOperations();
             }
             try (InternalEngine engine = new InternalEngine(engineConfig)) {
+                final Translog.TranslogGeneration currrentTranslogGeneration = new Translog.TranslogGeneration(
+                    engine.getTranslog().getTranslogUUID(), engine.getTranslog().currentFileGeneration());
                 engine.recoverFromTranslog(translogHandler, globalCheckpoint.get());
                 engine.restoreLocalHistoryFromTranslog(translogHandler);
                 assertThat(getDocIds(engine, true), equalTo(prevDocs));
                 SeqNoStats seqNoStats = engine.getSeqNoStats(globalCheckpoint.get());
                 assertThat(seqNoStats.getLocalCheckpoint(), equalTo(prevSeqNoStats.getLocalCheckpoint()));
                 assertThat(seqNoStats.getMaxSeqNo(), equalTo(prevSeqNoStats.getMaxSeqNo()));
-                assertThat(engine.getTranslog().totalOperations(), equalTo(totalTranslogOps));
+                try (Translog.Snapshot snapshot = engine.getTranslog().newSnapshotFromGen(currrentTranslogGeneration, Long.MAX_VALUE)) {
+                    assertThat("restore from local translog must not add operations to translog", snapshot, SnapshotMatchers.size(0));
+                }
             }
             assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, createMapperService("test"));
         }

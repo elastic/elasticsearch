@@ -608,20 +608,16 @@ public abstract class CcrIntegTestCase extends ESTestCase {
      * @param numDocs number of documents to wait for
      * @param indexer a {@link org.elasticsearch.test.BackgroundIndexer}. Will be first checked for documents indexed.
      *                This saves on unneeded searches.
-     * @return the actual number of docs seen.
      */
-    public long waitForDocs(final long numDocs, final BackgroundIndexer indexer) throws Exception {
-        final AtomicLong lastKnownCount = new AtomicLong(-1);
-
+    public void waitForDocs(final long numDocs, final BackgroundIndexer indexer) throws Exception {
         // indexing threads can wait for up to ~1m before retrying when they first try to index into a shard which is not STARTED.
         final long maxWaitTimeMs = Math.max(90 * 1000, 200 * numDocs);
 
         assertBusy(
             () -> {
-                lastKnownCount.set(indexer.totalIndexedDocs());
+                long lastKnownCount = indexer.totalIndexedDocs();
 
-                // Have we managed to count enough docs yet?
-                if (lastKnownCount.get() < numDocs) {
+                if (lastKnownCount >= numDocs) {
                     try {
                         long count = indexer.getClient().prepareSearch()
                             .setTrackTotalHits(true)
@@ -630,11 +626,11 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                             .get()
                             .getHits().getTotalHits().value;
 
-                        if (count == lastKnownCount.get()) {
+                        if (count == lastKnownCount) {
                             // no progress - try to refresh for the next time
                             indexer.getClient().admin().indices().prepareRefresh().get();
                         }
-                        lastKnownCount.set(count);
+                        lastKnownCount = count;
                     } catch (Exception e) { // count now acts like search and barfs if all shards failed...
                         logger.debug("failed to executed count", e);
                         throw e;
@@ -642,20 +638,18 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                 }
 
                 if (logger.isDebugEnabled()) {
-                    if (lastKnownCount.get() < numDocs) {
-                        logger.debug("[{}] docs indexed. waiting for [{}]", lastKnownCount.get(), numDocs);
+                    if (lastKnownCount < numDocs) {
+                        logger.debug("[{}] docs indexed. waiting for [{}]", lastKnownCount, numDocs);
                     } else {
-                        logger.debug("[{}] docs visible for search (needed [{}])", lastKnownCount.get(), numDocs);
+                        logger.debug("[{}] docs visible for search (needed [{}])", lastKnownCount, numDocs);
                     }
                 }
 
-                assertThat(lastKnownCount.get(), greaterThanOrEqualTo(numDocs));
+                assertThat(lastKnownCount, greaterThanOrEqualTo(numDocs));
             },
             maxWaitTimeMs,
             TimeUnit.MILLISECONDS
         );
-
-        return lastKnownCount.get();
     }
 
     protected ActionListener<RestoreService.RestoreCompletionResponse> waitForRestore(

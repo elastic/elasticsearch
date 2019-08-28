@@ -33,13 +33,20 @@ public class InboundDecoderTests extends ESTestCase {
         super.tearDown();
     }
 
-    public void testThing() throws IOException {
+    public void testDecode() throws IOException {
         String action = "test-request";
-        boolean isCompressed = true;
+        boolean isCompressed = randomBoolean();
         long requestId = randomNonNegativeLong();
-        OutboundMessage.Request request = new OutboundMessage.Request(threadPool.getThreadContext(),
-            new TestRequest(randomAlphaOfLength(100)), version, action, requestId, false, isCompressed);
-        final BytesReference bytes = request.serialize(new BytesStreamOutput());
+        OutboundMessage message;
+        if (randomBoolean()) {
+            message = new OutboundMessage.Request(threadPool.getThreadContext(), new TestRequest(randomAlphaOfLength(100)), version,
+                action, requestId, false, isCompressed);
+        } else {
+            message = new OutboundMessage.Response(threadPool.getThreadContext(), new TestResponse(randomAlphaOfLength(100)), version,
+                requestId, false, isCompressed);
+        }
+
+        final BytesReference bytes = message.serialize(new BytesStreamOutput());
 
         InboundAggregator aggregator = mock(InboundAggregator.class);
         InboundDecoder decoder = new InboundDecoder(aggregator);
@@ -69,6 +76,25 @@ public class InboundDecoderTests extends ESTestCase {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
+            out.writeString(value);
+        }
+    }
+
+    private static class TestResponse extends TransportResponse {
+
+        String value;
+
+        private TestResponse(String value) {
+            this.value = value;
+        }
+
+        private TestResponse(StreamInput in) throws IOException {
+            super(in);
+            this.value = in.readString();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             out.writeString(value);
         }
     }

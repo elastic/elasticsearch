@@ -58,7 +58,6 @@ public class InboundAggregator {
         } else if (content.getReference().length() != 0) {
             contentAggregation.add(content);
         } else {
-            currentHeader = null;
             BytesReference[] references = new BytesReference[contentAggregation.size()];
             int i = 0;
             for (ReleasableBytesReference reference : contentAggregation) {
@@ -70,6 +69,7 @@ public class InboundAggregator {
                 messageConsumer.accept(currentHeader, input);
             } finally {
                 Releasables.close(contentAggregation);
+                contentAggregation.clear();
                 currentHeader = null;
             }
         }

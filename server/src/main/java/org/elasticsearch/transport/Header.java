@@ -28,6 +28,26 @@ public class Header {
         return remoteVersion;
     }
 
+    long getRequestId() {
+        return requestId;
+    }
+
+    boolean isRequest() {
+        return TransportStatus.isRequest(status);
+    }
+
+    boolean isResponse() {
+        return TransportStatus.isRequest(status) == false;
+    }
+
+    boolean isError() {
+        return TransportStatus.isError(status);
+    }
+
+    String getAction() {
+        return action;
+    }
+
     boolean isCompressed() {
         return TransportStatus.isCompress(status);
     }
@@ -65,5 +85,4 @@ public class Header {
             final String action = in.readString();
         }
     }
-
 }

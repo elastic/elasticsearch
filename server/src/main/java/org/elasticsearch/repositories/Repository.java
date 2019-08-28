@@ -234,4 +234,5 @@ public interface Repository extends LifecycleComponent {
      */
     IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, Version version, IndexId indexId, ShardId shardId);
 
+
 }

@@ -95,7 +95,8 @@ public class DatafeedJobBuilderTests extends ESTestCase {
                 jobResultsProvider,
                 datafeedConfigProvider,
                 jobResultsPersister,
-                Settings.EMPTY);
+                Settings.EMPTY,
+                "test_node");
     }
 
     public void testBuild_GivenScrollDatafeedAndNewJob() throws Exception {
@@ -217,7 +218,8 @@ public class DatafeedJobBuilderTests extends ESTestCase {
                 jobResultsProvider,
                 datafeedConfigProvider,
                 jobResultsPersister,
-                settings);
+                settings,
+                "test_node");
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeField("time");
         Job.Builder jobBuilder = DatafeedManagerTests.createDatafeedJob();
@@ -228,11 +230,12 @@ public class DatafeedJobBuilderTests extends ESTestCase {
 
         AtomicBoolean wasHandlerCalled = new AtomicBoolean(false);
         ActionListener<DatafeedJob> datafeedJobHandler = ActionListener.wrap(
-            datafeedJob -> fail("datafeed builder did not fail when remote index was given and remote clusters were not enabled")
-            , e -> {
+            datafeedJob -> fail("datafeed builder did not fail when remote index was given and remote clusters were not enabled"),
+            e -> {
                 assertThat(e.getMessage(), equalTo(Messages.getMessage(Messages.DATAFEED_NEEDS_REMOTE_CLUSTER_SEARCH,
                     "datafeed1",
-                    "remotecluster:index-*")));
+                    "[remotecluster:index-*]",
+                    "test_node")));
                 wasHandlerCalled.compareAndSet(false, true);
             }
         );

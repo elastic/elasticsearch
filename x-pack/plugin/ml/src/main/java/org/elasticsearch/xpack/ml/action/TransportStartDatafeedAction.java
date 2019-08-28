@@ -202,7 +202,8 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                                                 ExceptionsHelper.badRequestException(Messages.getMessage(
                                                     Messages.DATAFEED_NEEDS_REMOTE_CLUSTER_SEARCH,
                                                     datafeedConfigHolder.get().getId(),
-                                                    RemoteClusterLicenseChecker.remoteIndices(datafeedConfigHolder.get().getIndices()))));
+                                                    RemoteClusterLicenseChecker.remoteIndices(datafeedConfigHolder.get().getIndices()),
+                                                    clusterService.getNodeName())));
                                         } else {
                                             createDataExtractor(job, datafeedConfigHolder.get(), params, waitForTaskListener);
                                         }

@@ -52,11 +52,12 @@ public class DatafeedJobBuilder {
     private final DatafeedConfigProvider datafeedConfigProvider;
     private final JobResultsPersister jobResultsPersister;
     private final boolean remoteClusterSearchSupported;
+    private final String nodeName;
 
     public DatafeedJobBuilder(Client client, NamedXContentRegistry xContentRegistry, AnomalyDetectionAuditor auditor,
                               Supplier<Long> currentTimeSupplier, JobConfigProvider jobConfigProvider,
                               JobResultsProvider jobResultsProvider, DatafeedConfigProvider datafeedConfigProvider,
-                              JobResultsPersister jobResultsPersister, Settings settings) {
+                              JobResultsPersister jobResultsPersister, Settings settings, String nodeName) {
         this.client = client;
         this.xContentRegistry = Objects.requireNonNull(xContentRegistry);
         this.auditor = Objects.requireNonNull(auditor);
@@ -66,6 +67,7 @@ public class DatafeedJobBuilder {
         this.datafeedConfigProvider = Objects.requireNonNull(datafeedConfigProvider);
         this.jobResultsPersister = Objects.requireNonNull(jobResultsPersister);
         this.remoteClusterSearchSupported = RemoteClusterService.ENABLE_REMOTE_CLUSTERS.get(settings);
+        this.nodeName = nodeName;
     }
 
     void build(String datafeedId, ActionListener<DatafeedJob> listener) {
@@ -183,7 +185,8 @@ public class DatafeedJobBuilder {
                                     ExceptionsHelper.badRequestException(Messages.getMessage(
                                         Messages.DATAFEED_NEEDS_REMOTE_CLUSTER_SEARCH,
                                         configBuilder.getId(),
-                                        remoteIndices)));
+                                        remoteIndices,
+                                        nodeName)));
                                 return;
                             }
                         }

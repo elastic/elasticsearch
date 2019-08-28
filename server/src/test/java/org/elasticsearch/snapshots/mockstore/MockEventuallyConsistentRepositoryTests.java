@@ -62,7 +62,7 @@ public class MockEventuallyConsistentRepositoryTests extends ESTestCase {
     public void testReadAfterWriteConsistently() throws IOException {
         MockEventuallyConsistentRepository.Context blobStoreContext = new MockEventuallyConsistentRepository.Context();
         try (BlobStoreRepository repository = new MockEventuallyConsistentRepository(
-            new RepositoryMetaData("testRepo", "mockEventuallyConsistent", Settings.EMPTY), environment,
+            new RepositoryMetaData("testRepo", "mockEventuallyConsistent", Settings.EMPTY),
             xContentRegistry(), mock(ThreadPool.class), blobStoreContext)) {
             repository.start();
             final BlobContainer blobContainer = repository.blobStore().blobContainer(repository.basePath());
@@ -82,7 +82,7 @@ public class MockEventuallyConsistentRepositoryTests extends ESTestCase {
     public void testReadAfterWriteAfterReadThrows() throws IOException {
         MockEventuallyConsistentRepository.Context blobStoreContext = new MockEventuallyConsistentRepository.Context();
         try (BlobStoreRepository repository = new MockEventuallyConsistentRepository(
-            new RepositoryMetaData("testRepo", "mockEventuallyConsistent", Settings.EMPTY), environment,
+            new RepositoryMetaData("testRepo", "mockEventuallyConsistent", Settings.EMPTY),
             xContentRegistry(), mock(ThreadPool.class), blobStoreContext)) {
             repository.start();
             final BlobContainer blobContainer = repository.blobStore().blobContainer(repository.basePath());
@@ -98,7 +98,7 @@ public class MockEventuallyConsistentRepositoryTests extends ESTestCase {
     public void testReadAfterDeleteAfterWriteThrows() throws IOException {
         MockEventuallyConsistentRepository.Context blobStoreContext = new MockEventuallyConsistentRepository.Context();
         try (BlobStoreRepository repository = new MockEventuallyConsistentRepository(
-            new RepositoryMetaData("testRepo", "mockEventuallyConsistent", Settings.EMPTY), environment,
+            new RepositoryMetaData("testRepo", "mockEventuallyConsistent", Settings.EMPTY),
             xContentRegistry(), mock(ThreadPool.class), blobStoreContext)) {
             repository.start();
             final BlobContainer blobContainer = repository.blobStore().blobContainer(repository.basePath());
@@ -116,7 +116,7 @@ public class MockEventuallyConsistentRepositoryTests extends ESTestCase {
     public void testOverwriteRandomBlobFails() throws IOException {
         MockEventuallyConsistentRepository.Context blobStoreContext = new MockEventuallyConsistentRepository.Context();
         try (BlobStoreRepository repository = new MockEventuallyConsistentRepository(
-            new RepositoryMetaData("testRepo", "mockEventuallyConsistent", Settings.EMPTY), environment,
+            new RepositoryMetaData("testRepo", "mockEventuallyConsistent", Settings.EMPTY),
             xContentRegistry(), mock(ThreadPool.class), blobStoreContext)) {
             repository.start();
             final BlobContainer container = repository.blobStore().blobContainer(repository.basePath());
@@ -133,7 +133,7 @@ public class MockEventuallyConsistentRepositoryTests extends ESTestCase {
     public void testOverwriteShardSnapBlobFails() throws IOException {
         MockEventuallyConsistentRepository.Context blobStoreContext = new MockEventuallyConsistentRepository.Context();
         try (BlobStoreRepository repository = new MockEventuallyConsistentRepository(
-            new RepositoryMetaData("testRepo", "mockEventuallyConsistent", Settings.EMPTY), environment,
+            new RepositoryMetaData("testRepo", "mockEventuallyConsistent", Settings.EMPTY),
             xContentRegistry(), mock(ThreadPool.class), blobStoreContext)) {
             repository.start();
             final BlobContainer container =
@@ -151,7 +151,7 @@ public class MockEventuallyConsistentRepositoryTests extends ESTestCase {
     public void testOverwriteSnapshotInfoBlob() {
         MockEventuallyConsistentRepository.Context blobStoreContext = new MockEventuallyConsistentRepository.Context();
         try (BlobStoreRepository repository = new MockEventuallyConsistentRepository(
-            new RepositoryMetaData("testRepo", "mockEventuallyConsistent", Settings.EMPTY), environment,
+            new RepositoryMetaData("testRepo", "mockEventuallyConsistent", Settings.EMPTY),
             xContentRegistry(), mock(ThreadPool.class), blobStoreContext)) {
             repository.start();
 

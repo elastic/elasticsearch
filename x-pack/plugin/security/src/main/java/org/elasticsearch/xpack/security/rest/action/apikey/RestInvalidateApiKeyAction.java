@@ -31,7 +31,8 @@ import java.io.IOException;
 public final class RestInvalidateApiKeyAction extends ApiKeyBaseRestHandler {
     static final ConstructingObjectParser<InvalidateApiKeyRequest, Void> PARSER = new ConstructingObjectParser<>("invalidate_api_key",
             a -> {
-                return new InvalidateApiKeyRequest((String) a[0], (String) a[1], (String) a[2], (String) a[3]);
+                return new InvalidateApiKeyRequest((String) a[0], (String) a[1], (String) a[2], (String) a[3], (a[4] == null) ? false :
+                    (Boolean) a[4]);
             });
 
     static {
@@ -39,6 +40,7 @@ public final class RestInvalidateApiKeyAction extends ApiKeyBaseRestHandler {
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("username"));
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("id"));
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("name"));
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), new ParseField("owner"));
     }
 
     public RestInvalidateApiKeyAction(Settings settings, RestController controller, XPackLicenseState licenseState) {

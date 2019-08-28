@@ -36,9 +36,10 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
 
 `allow_partial_search_results`:: 
   (Optional, boolean) Set to `false` to fail the request if only partial results 
-  are available. Defaults to true, which will allow partial results in the case 
-  of timeouts or partial failures. This default can be controlled using the 
-  cluster-level setting `search.default_allow_partial_results`.
+  are available. Defaults to `true`, which returns partial results in the event 
+  of timeouts or partial failures You can override the default behavior for all 
+  requests by setting `search.default_allow_partial_results` to `false` in the 
+  cluster settings.
 
 `analyze_wildcard`:: 
   (Optional, boolean) Should wildcard and prefix queries be analyzed or not. 

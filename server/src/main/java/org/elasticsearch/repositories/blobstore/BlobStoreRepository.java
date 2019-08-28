@@ -32,6 +32,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -110,7 +111,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executor;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo.canonicalName;
@@ -888,11 +888,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                               IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus, ActionListener<Void> listener) {
         final ShardId shardId = store.shardId();
         final long startTime = threadPool.absoluteTimeInMillis();
-        final Consumer<Exception> onFailure = e -> {
+        final StepListener<Void> snapshotDoneListener = new StepListener<>();
+        snapshotDoneListener.whenComplete(listener::onResponse, e -> {
             snapshotStatus.moveToFailed(threadPool.absoluteTimeInMillis(), ExceptionsHelper.detailedMessage(e));
             listener.onFailure(e instanceof IndexShardSnapshotFailedException ? (IndexShardSnapshotFailedException) e
                 : new IndexShardSnapshotFailedException(store.shardId(), e));
-        };
+        });
         try {
             logger.debug("[{}] [{}] snapshot to [{}] ...", shardId, snapshotId, metadata.name());
 
@@ -977,7 +978,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
             assert indexIncrementalFileCount == filesToSnapshot.size();
 
-            final Runnable afterUploads = () -> {
+            final StepListener<Collection<Void>> allFilesUploadedListener = new StepListener<>();
+            allFilesUploadedListener.whenComplete(v -> {
                 final IndexShardSnapshotStatus.Copy lastSnapshotStatus =
                     snapshotStatus.moveToFinalize(snapshotIndexCommit.getGeneration());
 
@@ -1028,14 +1030,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         snapshotId, shardId), e);
                 }
                 snapshotStatus.moveToDone(threadPool.absoluteTimeInMillis());
-                listener.onResponse(null);
-            };
+                snapshotDoneListener.onResponse(null);
+            }, snapshotDoneListener::onFailure);
             if (indexIncrementalFileCount == 0) {
-                afterUploads.run();
+                allFilesUploadedListener.onResponse(Collections.emptyList());
                 return;
             }
-            final GroupedActionListener<Void> filesListener = new GroupedActionListener<>(
-                ActionListener.wrap(v -> afterUploads.run(), onFailure), indexIncrementalFileCount);
+            final GroupedActionListener<Void> filesListener =
+                new GroupedActionListener<>(allFilesUploadedListener, indexIncrementalFileCount);
             final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
             for (BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo : filesToSnapshot) {
                 executor.execute(new ActionRunnable<>(filesListener) {
@@ -1051,7 +1053,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 });
             }
         } catch (Exception e) {
-            onFailure.accept(e);
+            snapshotDoneListener.onFailure(e);
         }
     }
 

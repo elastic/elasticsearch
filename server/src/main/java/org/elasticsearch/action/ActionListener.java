@@ -229,7 +229,7 @@ public interface ActionListener<Response> {
 
     /**
      * Wraps a given listener and returns a new listener which executes the provided {@code runBefore}
-     * callback before the listener is notified ia either {@code #onResponse} or {@code #onFailure}.
+     * callback before the listener is notified via either {@code #onResponse} or {@code #onFailure}.
      * If the callback throws an exception then it will be passed to the listener's {@code #onFailure} and its {@code #onResponse} will
      * not be executed.
      */

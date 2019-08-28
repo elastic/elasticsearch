@@ -276,6 +276,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         if (shouldStopAtCheckpoint) {
             listener.onFailure(new ElasticsearchException("Cannot start task for data frame transform [{}], " +
                 "because it is stopping at the next checkpoint.", transform.getId()));
+            return;
         }
         final IndexerState newState = getIndexer().start();
         if (Arrays.stream(RUNNING_STATES).noneMatch(newState::equals)) {
@@ -340,36 +341,25 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             getIndexer() == null ||
             getIndexer().getState() == IndexerState.STOPPED ||
             getIndexer().getState() == IndexerState.STOPPING) {
-        }
-        if (this.shouldStopAtCheckpoint != shouldStopAtCheckpoint
-            && taskState.get() != DataFrameTransformTaskState.FAILED
-            && getIndexer() != null
-            && getIndexer().getState() != IndexerState.STOPPED) {
-            this.shouldStopAtCheckpoint = shouldStopAtCheckpoint;
-            DataFrameTransformState state = new DataFrameTransformState(
-                taskState.get(),
-                indexer.get().getState(),
-                indexer.get().getPosition(),
-                currentCheckpoint.get(),
-                stateReason.get(),
-                getIndexer().getProgress(),
-                null, //Node attributes
-                shouldStopAtCheckpoint);
-            getIndexer().transformsConfigManager.putOrUpdateTransformStoredDoc(
-                new DataFrameTransformStoredDoc(getTransformId(), state, getStats()),
-                ActionListener.wrap(
-                    r -> {
-                        // for auto stop shutdown the task
-                        shouldStopAtCheckpointListener.onResponse(null);
-                    },
-                    statsExc -> {
-                        logger.error("Updating stats of transform [" + getTransformId() + "] failed", statsExc);
-                        shouldStopAtCheckpointListener.onFailure(statsExc);
-                    }
-                ));
-        } else {
             shouldStopAtCheckpointListener.onResponse(null);
+            return;
         }
+        this.shouldStopAtCheckpoint = shouldStopAtCheckpoint;
+        DataFrameTransformState state = getState();
+        getIndexer().transformsConfigManager.putOrUpdateTransformStoredDoc(
+            new DataFrameTransformStoredDoc(getTransformId(), state, getStats()),
+            ActionListener.wrap(
+                r -> {
+                    // for auto stop shutdown the task
+                    shouldStopAtCheckpointListener.onResponse(null);
+                },
+                statsExc -> {
+                    logger.error("Updating stats of transform [" + getTransformId() + "] failed", statsExc);
+                    // TODO do we want to unset it if we are returning a failure here?
+                    this.shouldStopAtCheckpoint = !shouldStopAtCheckpoint;
+                    shouldStopAtCheckpointListener.onFailure(statsExc);
+                }
+            ));
     }
 
     public synchronized void setShouldStopAtCheckpoint(boolean shouldStopAtCheckpoint) {

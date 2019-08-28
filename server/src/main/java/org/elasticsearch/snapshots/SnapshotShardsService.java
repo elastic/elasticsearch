@@ -52,6 +52,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
@@ -348,30 +349,15 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             }
 
             final Repository repository = repositoriesService.repository(snapshot.getRepository());
-            final Engine.IndexCommitRef snapshotRef = indexShard.acquireLastIndexCommit(true);
-            repository.snapshotShard(indexShard.store(), indexShard.mapperService(), snapshot.getSnapshotId(), indexId,
-                snapshotRef.getIndexCommit(), snapshotStatus, new ActionListener<>() {
-                    @Override
-                    public void onResponse(Void aVoid) {
-                        try {
-                            snapshotRef.close();
-                        } catch (Exception ex) {
-                            listener.onFailure(ex);
-                            return;
-                        }
-                        listener.onResponse(null);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        try {
-                            snapshotRef.close();
-                        } catch (Exception ex) {
-                            e.addSuppressed(ex);
-                        }
-                        listener.onFailure(e);
-                    }
-                });
+            Engine.IndexCommitRef snapshotRef = null;
+            try {
+                snapshotRef = indexShard.acquireLastIndexCommit(true);
+                repository.snapshotShard(indexShard.store(), indexShard.mapperService(), snapshot.getSnapshotId(), indexId,
+                    snapshotRef.getIndexCommit(), snapshotStatus, ActionListener.runBefore(listener, snapshotRef::close));
+            } catch (Exception e) {
+                IOUtils.close(snapshotRef);
+                throw e;
+            }
         } catch (Exception e) {
             listener.onFailure(e);
         }

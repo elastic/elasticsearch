@@ -41,6 +41,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -126,9 +127,10 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
         Path dataPath = ((FSDirectory) unwrap).getDirectory().getParent();
         // TODO should we have a snapshot tmp directory per shard that is maintained by the system?
         Path snapPath = dataPath.resolve(SNAPSHOT_DIR_NAME);
-        FSDirectory directory = null;
+        final List<Closeable> toClose = new ArrayList<>(3);
         try {
-            directory = new SimpleFSDirectory(snapPath);
+            FSDirectory directory = new SimpleFSDirectory(snapPath);
+            toClose.add(directory);
             Store tempStore = new Store(store.shardId(), store.indexSettings(), directory, new ShardLock(store.shardId()) {
                 @Override
                 protected void closeInternal() {
@@ -144,41 +146,18 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             final long maxDoc = segmentInfos.totalMaxDoc();
             tempStore.bootstrapNewHistory(maxDoc, maxDoc);
             store.incRef();
+            toClose.add(store::decRef);
             DirectoryReader reader = DirectoryReader.open(tempStore.directory(),
                 Collections.singletonMap(BlockTreeTermsReader.FST_MODE_KEY, BlockTreeTermsReader.FSTLoadMode.OFF_HEAP.name()));
+            toClose.add(reader);
             IndexCommit indexCommit = reader.getIndexCommit();
-            final Directory finalDirectory = directory;
-            final Closeable closeable = () -> IOUtils.close(finalDirectory, reader);
-            super.snapshotShard(tempStore, mapperService, snapshotId, indexId, indexCommit, snapshotStatus, ActionListener.runAfter(
-                new ActionListener<>() {
-                    @Override
-                    public void onResponse(Void aVoid) {
-                        try {
-                            closeable.close();
-                        } catch (Exception e) {
-                            listener.onFailure(e);
-                            return;
-                        }
-                        listener.onResponse(null);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        try {
-                            closeable.close();
-                        } catch (Exception ex) {
-                            e.addSuppressed(ex);
-                        }
-                        listener.onFailure(e);
-                    }
-                }, store::decRef));
+            super.snapshotShard(tempStore, mapperService, snapshotId, indexId, indexCommit, snapshotStatus,
+                ActionListener.runBefore(listener, () -> IOUtils.close(toClose)));
         } catch (IOException e) {
-            if (directory != null) {
-                try {
-                    directory.close();
-                } catch (IOException ex) {
-                    e.addSuppressed(ex);
-                }
+            try {
+                IOUtils.close(toClose);
+            } catch (IOException ex) {
+                e.addSuppressed(ex);
             }
             listener.onFailure(e);
         }

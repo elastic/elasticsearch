@@ -10,6 +10,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.test.ESTestCase;
 
+import java.nio.ByteBuffer;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.Arrays;
@@ -137,44 +138,28 @@ public class VectorEncoderDecoderTests extends ESTestCase {
 
     // imitates the code in DenseVectorFieldMapper::parse
     public static BytesRef mockEncodeDenseVector(float[] values) {
-        final short INT_BYTES = VectorEncoderDecoder.INT_BYTES;
-        byte[] buf = new byte[INT_BYTES * values.length + INT_BYTES];
-        int offset = 0;
+        byte[] bytes = new byte[VectorEncoderDecoder.INT_BYTES * values.length + VectorEncoderDecoder.INT_BYTES];
         double dotProduct = 0f;
-        int intValue;
-        for (float value: values) {
+        ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);
+        for (float value : values) {
+            byteBuffer.putFloat(value);
             dotProduct += value * value;
-            intValue = Float.floatToIntBits(value);
-            buf[offset++] = (byte) (intValue >> 24);
-            buf[offset++] = (byte) (intValue >> 16);
-            buf[offset++] = (byte) (intValue >>  8);
-            buf[offset++] = (byte) intValue;
         }
         // encode vector magnitude at the end
         float vectorMagnitude = (float) Math.sqrt(dotProduct);
-        int vectorMagnitudeIntValue = Float.floatToIntBits(vectorMagnitude);
-        buf[offset++] = (byte) (vectorMagnitudeIntValue >> 24);
-        buf[offset++] = (byte) (vectorMagnitudeIntValue >> 16);
-        buf[offset++] = (byte) (vectorMagnitudeIntValue >>  8);
-        buf[offset++] = (byte) vectorMagnitudeIntValue;
-
-        return new BytesRef(buf);
+        byteBuffer.putFloat(vectorMagnitude);
+        return new BytesRef(bytes);
     }
 
     // imitates the code in DenseVectorFieldMapper::parse before version 7.4
     public static BytesRef mockEncodeDenseVectorBefore7_4(float[] values) {
-        final short INT_BYTES = VectorEncoderDecoder.INT_BYTES;
-        byte[] buf = new byte[INT_BYTES * values.length];
-        int offset = 0;
-        int intValue;
-        for (float value: values) {
-            intValue = Float.floatToIntBits(value);
-            buf[offset++] = (byte) (intValue >> 24);
-            buf[offset++] = (byte) (intValue >> 16);
-            buf[offset++] = (byte) (intValue >> 8);
-            buf[offset++] = (byte) intValue;
+        byte[] bytes = new byte[VectorEncoderDecoder.INT_BYTES * values.length];
+        ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);
+        for (float value : values) {
+            byteBuffer.putFloat(value);
         }
-        return new BytesRef(buf, 0, offset);
+        return new BytesRef(bytes);
+
     }
 
     // generate unique random dims

@@ -35,6 +35,7 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -43,6 +44,9 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class ReindexFailoverIT extends ReindexTestCase {
@@ -102,16 +106,34 @@ public class ReindexFailoverIT extends ReindexTestCase {
         reindexRequest.setScroll(TimeValue.timeValueSeconds(scrollTimeout));
         StartReindexJobAction.Request request = new StartReindexJobAction.Request(reindexRequest, false);
 
-        copy.source().setSize(100);
+        copy.source().setSize(10);
+        copy.setRequestsPerSecond(1000);
         StartReindexJobAction.Response response = client().execute(StartReindexJobAction.INSTANCE, request).get();
         TaskId taskId = new TaskId(response.getTaskId());
 
         String nodeId = taskId.getNodeId();
         String nodeName = nodeIdToName.get(nodeId);
 
+        assertBusy(() -> {
+            try {
+                assertThat(((BulkByScrollTask.Status) client().admin().cluster()
+                    .prepareGetTask(taskId).get().getTask().getTask().getStatus()).getCreated(),
+                    greaterThanOrEqualTo(10L));
+
+            } catch (Exception e) {
+                throw new AssertionError(e);
+            }
+        });
+        client().admin().indices().prepareRefresh("dest").get();
+        assertThat(client().prepareSearch("dest").get().getHits().getTotalHits().value, greaterThanOrEqualTo(10L));
+
         logger.info("--> restarting node: " + nodeName);
         ensureGreen(ReindexIndexClient.REINDEX_INDEX);
         internalCluster().restartNode(nodeName, new InternalTestCluster.RestartCallback());
+        client().admin().indices().prepareRefresh("dest").get();
+        long hitsAfterRestart = client().prepareSearch("dest").get().getHits().getTotalHits().value;
+
+        // todo: once we can rethrottle, make it slow initially and speed it up here and verify that hitsAfterRestart < docsCount
 
         ensureYellow("dest");
 
@@ -134,6 +156,26 @@ public class ReindexFailoverIT extends ReindexTestCase {
                 }
             });
         }
+
+        assertBusy(() -> {
+            BitSet seqNos = new BitSet();
+            client().prepareSearch("dest").setSize(5000).seqNoAndPrimaryTerm(true).get().getHits()
+                .forEach(hit -> seqNos.set(Math.toIntExact(hit.getSeqNo())));
+            assertEquals(docCount, seqNos.cardinality());
+
+            // first 9 should not be replayed.
+            for (int i = 0; i < 9 ; ++i) {
+                assertTrue("index: " + i, seqNos.get(i));
+            }
+
+            if (hitsAfterRestart < docCount) {
+                // at least one overlapped seqNo.
+                assertThat(seqNos.length(), greaterThan(docCount));
+            }
+            // The first 9 should not be replayed, we restart from at least seqNo 9.
+            assertThat(seqNos.length(), lessThan(Math.toIntExact(docCount + hitsAfterRestart - 9)));
+
+        });
 
         assertBusy(MockSearchService::assertNoInFlightContext, 10 + scrollTimeout, TimeUnit.SECONDS);
 

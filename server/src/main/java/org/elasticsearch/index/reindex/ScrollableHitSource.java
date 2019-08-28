@@ -27,14 +27,17 @@ import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -70,7 +73,8 @@ public abstract class ScrollableHitSource {
     private long restartFromValue = Long.MIN_VALUE; // need refinement if we support descending.
 
     public ScrollableHitSource(Logger logger, BackoffPolicy backoffPolicy, ThreadPool threadPool, Runnable countSearchRetry,
-                               Consumer<AsyncResponse> onResponse, Consumer<Exception> fail, String restartFromField) {
+                               Consumer<AsyncResponse> onResponse, Consumer<Exception> fail,
+                               String restartFromField, Checkpoint checkpoint) {
         this.logger = logger;
         this.backoffPolicy = backoffPolicy;
         this.threadPool = threadPool;
@@ -80,7 +84,11 @@ public abstract class ScrollableHitSource {
         if (restartFromField != null) {
             if (SeqNoFieldMapper.NAME.equals(restartFromField)) {
                 restartFromValueFunction = Hit::getSeqNo;
+                if (checkpoint != null) {
+                    restartFromValue = checkpoint.restartFromValue;
+                }
             } else {
+                assert checkpoint == null;
                 restartFromValueFunction = hit -> Long.MIN_VALUE;
                 // todo: non-seqno field support.
                 // need to extract field, either from source or by asking for it explicitly.
@@ -88,16 +96,13 @@ public abstract class ScrollableHitSource {
                 // hit -> ((Number) hit.field(restartFromField).getValue()).longValue();
             }
         } else {
+            assert checkpoint == null;
             restartFromValueFunction = hit -> Long.MIN_VALUE;
         }
     }
 
-    public final long restartFromValue() {
+    private final long restartFromValue() {
         return restartFromValue;
-    }
-
-    public final void restartFromValue(long restartFromValue) {
-        this.restartFromValue = restartFromValue;
     }
 
     public final void start() {
@@ -190,7 +195,8 @@ public abstract class ScrollableHitSource {
         logger.debug("scroll returned [{}] documents with a scroll id of [{}]", response.getHits().size(), response.getScrollId());
         setScroll(response.getScrollId());
         onResponse.accept(new AsyncResponse() {
-            private AtomicBoolean alreadyDone = new AtomicBoolean();
+            private final AtomicBoolean alreadyDone = new AtomicBoolean();
+            private final Checkpoint checkpoint = new Checkpoint(extractRestartFromValue(response.getHits(), restartFromValue));
             @Override
             public Response response() {
                 return response;
@@ -199,14 +205,18 @@ public abstract class ScrollableHitSource {
             @Override
             public void done(TimeValue extraKeepAlive) {
                 assert alreadyDone.compareAndSet(false, true);
-                restartFromValue = extractRestartFromValue(response, restartFromValue);
+                restartFromValue = checkpoint.restartFromValue;
                 startNextScroll(extraKeepAlive);
+            }
+
+            @Override
+            public Checkpoint getCheckpoint() {
+                return checkpoint;
             }
         });
     }
 
-    private long extractRestartFromValue(Response response, long defaultValue) {
-        List<? extends Hit> hits = response.hits;
+    private long extractRestartFromValue(List<? extends Hit> hits, long defaultValue) {
         if (hits.size() != 0) {
             return restartFromValueFunction.applyAsLong(hits.get(hits.size() - 1));
         } else {
@@ -261,6 +271,11 @@ public abstract class ScrollableHitSource {
          * The response data made available.
          */
         Response response();
+
+        /**
+         * The checkpoint to use when the response data have been safely handled.
+         */
+        Checkpoint getCheckpoint();
 
         /**
          * Called when done processing response to signal more data is needed.
@@ -563,6 +578,38 @@ public abstract class ScrollableHitSource {
         @Override
         public String toString() {
             return Strings.toString(this);
+        }
+    }
+
+    /**
+     * An opaque object representing the checkpoint state to resume from.
+     */
+    public static class Checkpoint implements ToXContentObject {
+        private static final String RESTART_FROM_VALUE = "restartFromValue";
+
+        private static final ConstructingObjectParser<Checkpoint, Void> PARSER =
+            new ConstructingObjectParser<>("reindex/checkpoint", a -> new Checkpoint((long) a[0]));
+
+        static {
+            PARSER.declareLong(ConstructingObjectParser.constructorArg(), new ParseField(RESTART_FROM_VALUE));
+        }
+
+        // todo: slice handling could complicate this
+        private final long restartFromValue;
+
+        protected Checkpoint(long restartFromValue) {
+            this.restartFromValue = restartFromValue;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(RESTART_FROM_VALUE, restartFromValue);
+            return builder.endObject();
+        }
+
+        public static Checkpoint fromXContent(XContentParser parser) {
+            return PARSER.apply(parser, null);
         }
     }
 }

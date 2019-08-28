@@ -96,7 +96,13 @@ public class Reindexer {
         BulkByScrollParallelizationHelper.initTaskState(task, request, client, listener);
     }
 
-    public void execute(BulkByScrollTask task, ReindexRequest request, ActionListener<BulkByScrollResponse> listener) {
+    // todo: this may need a way to relay back that it failed and this reindex instance should stand down?
+    public interface CheckpointListener {
+        void onCheckpoint(ScrollableHitSource.Checkpoint checkpoint, BulkByScrollTask.Status status);
+    }
+
+    public void execute(BulkByScrollTask task, ReindexRequest request, ActionListener<BulkByScrollResponse> listener,
+                        ScrollableHitSource.Checkpoint checkpoint, CheckpointListener checkpointListener) {
         request.getSearchRequest().allowPartialSearchResults(false);
         // Notice that this is called both on leader and workers when slicing.
         String resumableSortingField = request.getRemoteInfo() == null ? getOrAddRestartFromField(request.getSearchRequest()) : null;
@@ -106,7 +112,7 @@ public class Reindexer {
             () -> {
                 ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(), task);
                 AsyncIndexBySearchAction searchAction = new AsyncIndexBySearchAction(task, logger, assigningClient, threadPool,
-                    scriptService, reindexSslConfig, request, resumableSortingField, listener);
+                    scriptService, reindexSslConfig, request, resumableSortingField, listener, checkpoint, checkpointListener);
                 searchAction.start();
             });
 
@@ -200,7 +206,8 @@ public class Reindexer {
 
         AsyncIndexBySearchAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
                                  ThreadPool threadPool, ScriptService scriptService, ReindexSslConfig sslConfig, ReindexRequest request,
-                                 String restartFromField, ActionListener<BulkByScrollResponse> listener) {
+                                 String restartFromField, ActionListener<BulkByScrollResponse> listener,
+                                 ScrollableHitSource.Checkpoint checkpoint, CheckpointListener checkpointListener) {
             super(task,
                 /*
                  * We only need the source version if we're going to use it when write and we only do that when the destination request uses
@@ -208,12 +215,12 @@ public class Reindexer {
                  */
                 request.getDestination().versionType() != VersionType.INTERNAL,
                 SeqNoFieldMapper.NAME.equals(restartFromField), logger, client, threadPool, request, listener,
-                scriptService, sslConfig, restartFromField);
+                scriptService, sslConfig, restartFromField, checkpoint, checkpointListener);
         }
 
         @Override
         protected ScrollableHitSource buildScrollableResultSource(BackoffPolicy backoffPolicy,
-                                                                  String restartFromField) {
+                                                                  String restartFromField, ScrollableHitSource.Checkpoint checkpoint) {
             if (mainRequest.getRemoteInfo() != null) {
                 RemoteInfo remoteInfo = mainRequest.getRemoteInfo();
                 createdThreads = synchronizedList(new ArrayList<>());
@@ -223,7 +230,7 @@ public class Reindexer {
                     this::onScrollResponse, this::finishHim,
                     restClient, remoteInfo.getQuery(), mainRequest.getSearchRequest());
             }
-            return super.buildScrollableResultSource(backoffPolicy, restartFromField);
+            return super.buildScrollableResultSource(backoffPolicy, restartFromField, checkpoint);
         }
 
         @Override

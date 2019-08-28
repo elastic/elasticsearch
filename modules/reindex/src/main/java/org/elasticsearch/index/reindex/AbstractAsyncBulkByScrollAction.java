@@ -114,13 +114,16 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      * {@link RequestWrapper} completely.
      */
     private final BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> scriptApplier;
+    private final Reindexer.CheckpointListener checkpointListener;
     private int lastBatchSize;
 
     AbstractAsyncBulkByScrollAction(BulkByScrollTask task, boolean needsSourceDocumentVersions,
                                     boolean needsSourceDocumentSeqNoAndPrimaryTerm, Logger logger, ParentTaskAssigningClient client,
                                     ThreadPool threadPool, Request mainRequest, ActionListener<BulkByScrollResponse> listener,
                                     @Nullable ScriptService scriptService, @Nullable ReindexSslConfig sslConfig,
-                                    @Nullable String restartFromField) {
+                                    @Nullable String restartFromField,
+                                    @Nullable ScrollableHitSource.Checkpoint checkpoint,
+                                    @Nullable Reindexer.CheckpointListener checkpointListener) {
         this.task = task;
         this.scriptService = scriptService;
         this.sslConfig = sslConfig;
@@ -134,11 +137,12 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         this.threadPool = threadPool;
         this.mainRequest = mainRequest;
         this.listener = listener;
+        this.checkpointListener = checkpointListener == null ? (c, s) -> {} : checkpointListener;
         BackoffPolicy backoffPolicy = buildBackoffPolicy();
         bulkRetry = new Retry(BackoffPolicy.wrap(backoffPolicy, worker::countBulkRetry), threadPool);
         // todo: this is trappy, since if a subclass override relies on subclass fields, they are not initialized. We should fix
         // to simply pass in the hit-source.
-        scrollSource = buildScrollableResultSource(backoffPolicy, restartFromField);
+        scrollSource = buildScrollableResultSource(backoffPolicy, restartFromField, checkpoint);
         scriptApplier = Objects.requireNonNull(buildScriptApplier(), "script applier must not be null");
         /*
          * Default to sorting by doc. We can't do this in the request itself because it is normal to *add* to the sorts rather than replace
@@ -217,10 +221,10 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     }
 
     protected ScrollableHitSource buildScrollableResultSource(BackoffPolicy backoffPolicy,
-                                                              String restartFromField) {
+                                                              String restartFromField, ScrollableHitSource.Checkpoint checkpoint) {
         return new ClientScrollableHitSource(logger, backoffPolicy, threadPool, worker::countSearchRetry,
             this::onScrollResponse, this::finishHim, client,
-                mainRequest.getSearchRequest(), restartFromField);
+                mainRequest.getSearchRequest(), restartFromField, checkpoint);
     }
 
     /**
@@ -228,7 +232,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      */
     protected BulkByScrollResponse buildResponse(TimeValue took, List<BulkItemResponse.Failure> indexingFailures,
                                                       List<SearchFailure> searchFailures, boolean timedOut) {
-        return new BulkByScrollResponse(took, task.getStatus(), indexingFailures, searchFailures, timedOut);
+        return new BulkByScrollResponse(took, task.getUncommittedStatus(), indexingFailures, searchFailures, timedOut);
     }
 
     /**
@@ -429,6 +433,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             finishHim(null);
             return;
         }
+        checkpointListener.onCheckpoint(asyncResponse.getCheckpoint(), task.getUncommittedStatus());
         this.lastBatchSize = batchSize;
         asyncResponse.done(worker.throttleWaitTime(thisBatchStartTime, timeValueNanos(System.nanoTime()), batchSize));
     }

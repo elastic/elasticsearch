@@ -42,6 +42,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.Semaphore;
 import java.util.function.Supplier;
 
 public class ReindexTask extends AllocatedPersistentTask {
@@ -118,7 +119,7 @@ public class ReindexTask extends AllocatedPersistentTask {
             @Override
             public void onResponse(ReindexTaskIndexState reindexTaskIndexState) {
                 ReindexRequest reindexRequest = reindexTaskIndexState.getReindexRequest();
-                Runnable performReindex = () -> performReindex(reindexJob, reindexRequest);
+                Runnable performReindex = () -> performReindex(reindexJob, reindexTaskIndexState);
                 reindexer.initTask(childTask, reindexRequest, new ActionListener<>() {
                     @Override
                     public void onResponse(Void aVoid) {
@@ -155,9 +156,14 @@ public class ReindexTask extends AllocatedPersistentTask {
         });
     }
 
-    private void performReindex(ReindexJob reindexJob, ReindexRequest reindexRequest) {
+    private void performReindex(ReindexJob reindexJob, ReindexTaskIndexState state) {
         ThreadContext threadContext = client.threadPool().getThreadContext();
 
+        // todo: need to store status in state so we can continue from it.
+        if (childTask.isWorker()) { // only unsliced supports restarts.
+            childTask.setCommittedStatus(childTask.getStatus());
+        }
+        ReindexRequest reindexRequest = state.getReindexRequest();
         boolean shouldStoreResult = reindexJob.shouldStoreResult();
         Supplier<ThreadContext.StoredContext> context = threadContext.newRestorableContext(false);
         // TODO: Eventually we only want to retain security context
@@ -172,7 +178,7 @@ public class ReindexTask extends AllocatedPersistentTask {
                 public void onFailure(Exception ex) {
                     handleError(shouldStoreResult, reindexRequest, ex);
                 }
-            }));
+            }), state.getCheckpoint(), new CheckpointHandler(state));
         }
     }
 
@@ -180,7 +186,7 @@ public class ReindexTask extends AllocatedPersistentTask {
         TaskManager taskManager = getTaskManager();
         assert taskManager != null : "TaskManager should have been set before reindex started";
 
-        ReindexTaskIndexState reindexState = new ReindexTaskIndexState(reindexRequest, response, null, (RestStatus) null);
+        ReindexTaskIndexState reindexState = new ReindexTaskIndexState(reindexRequest, response, null, (RestStatus) null, null);
         reindexIndexClient.updateReindexTaskDoc(getPersistentTaskId(), reindexState, new ActionListener<>() {
             @Override
             public void onResponse(Void v) {
@@ -226,7 +232,7 @@ public class ReindexTask extends AllocatedPersistentTask {
         assert taskManager != null : "TaskManager should have been set before reindex started";
 
         ElasticsearchException exception = wrapException(ex);
-        ReindexTaskIndexState reindexState = new ReindexTaskIndexState(reindexRequest, null, exception, exception.status());
+        ReindexTaskIndexState reindexState = new ReindexTaskIndexState(reindexRequest, null, exception, exception.status(), null);
 
         reindexIndexClient.updateReindexTaskDoc(getPersistentTaskId(), reindexState, new ActionListener<>() {
             @Override
@@ -287,5 +293,38 @@ public class ReindexTask extends AllocatedPersistentTask {
         }
         threadContext.copyHeaders(headers.entrySet());
         return storedContext;
+    }
+
+    private class CheckpointHandler implements Reindexer.CheckpointListener {
+        private ReindexTaskIndexState lastState;
+        private Semaphore semaphore = new Semaphore(1);
+
+        CheckpointHandler(ReindexTaskIndexState lastState) {
+            this.lastState = lastState;
+        }
+
+        @Override
+        public void onCheckpoint(ScrollableHitSource.Checkpoint checkpoint, BulkByScrollTask.Status status) {
+            // todo: need some kind of throttling here, no need to do this all the time.
+            // only do one checkpoint at a time, in case checkpointing is too slow.
+            if (semaphore.tryAcquire()) {
+                ReindexTaskIndexState nextState = lastState.withCheckpoint(checkpoint, status);
+                this.lastState = nextState;
+                // todo: clarify whether updateReindexTaskDoc can fail with exception and use conditional update
+                reindexIndexClient.updateReindexTaskDoc(getPersistentTaskId(), nextState,
+                    new ActionListener<Void>() {
+                        @Override
+                        public void onResponse(Void aVoid) {
+                            childTask.setCommittedStatus(status);
+                            semaphore.release();
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            semaphore.release();
+                        }
+                    });
+            }
+        }
     }
 }

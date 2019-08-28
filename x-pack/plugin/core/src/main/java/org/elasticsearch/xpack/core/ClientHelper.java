@@ -51,6 +51,7 @@ public final class ClientHelper {
     public static final String PERSISTENT_TASK_ORIGIN = "persistent_tasks";
     public static final String ROLLUP_ORIGIN = "rollup";
     public static final String DATA_FRAME_ORIGIN = "data_frame";
+    public static final String REINDEX_ORIGIN = "reindex";
 
     private ClientHelper() {}
 

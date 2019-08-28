@@ -8,12 +8,15 @@ package org.elasticsearch.xpack.spatial;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
+import org.elasticsearch.xpack.spatial.ingest.CircleProcessor;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -23,7 +26,7 @@ import java.util.Map;
 
 import static java.util.Collections.singletonList;
 
-public class SpatialPlugin extends Plugin implements MapperPlugin, SearchPlugin {
+public class SpatialPlugin extends Plugin implements MapperPlugin, SearchPlugin, IngestPlugin {
 
     public SpatialPlugin(Settings settings) {
     }
@@ -44,5 +47,10 @@ public class SpatialPlugin extends Plugin implements MapperPlugin, SearchPlugin 
     @Override
     public List<QuerySpec<?>> getQueries() {
         return singletonList(new QuerySpec<>(ShapeQueryBuilder.NAME, ShapeQueryBuilder::new, ShapeQueryBuilder::fromXContent));
+    }
+
+    @Override
+    public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
+        return Collections.singletonMap(CircleProcessor.TYPE, new CircleProcessor.Factory());
     }
 }

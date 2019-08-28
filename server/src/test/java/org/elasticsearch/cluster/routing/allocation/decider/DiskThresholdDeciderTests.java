@@ -688,12 +688,11 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         clusterState = strategy.reroute(clusterState, "reroute");
         logShardStates(clusterState);
 
-        // 3 shards should be initializing, the 4th isn't since that would push the node over the watermark
-        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(3));
+        // shards should be initializing
+        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(4));
 
         logger.info("--> start the shards");
-        clusterState = startInitializingShardsAndReroute(strategy, clusterState); // start the first 3 shards and start recovering the 4th
-        clusterState = startInitializingShardsAndReroute(strategy, clusterState); // complete the recovery of the last shard
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
         logShardStates(clusterState);
         // Assert that we're able to start the primary and replicas

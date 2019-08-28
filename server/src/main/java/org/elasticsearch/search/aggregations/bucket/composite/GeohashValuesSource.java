@@ -27,6 +27,7 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.bucket.geogrid.CellIdSource;
 
 import java.io.IOException;
 import java.util.function.LongUnaryOperator;

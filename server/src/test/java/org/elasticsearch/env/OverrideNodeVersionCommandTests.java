@@ -38,7 +38,6 @@ import static org.elasticsearch.env.NodeMetaData.NODE_VERSION_KEY;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasToString;
 
 public class OverrideNodeVersionCommandTests extends ESTestCase {
 

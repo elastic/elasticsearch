@@ -34,6 +34,7 @@ project.copyRestSpec.from(xpackResources) {
 
 testClusters.integTest {
     extraConfigFile 'op-jwks.json', xpackProject('test:idp-fixture').file("oidc/op-jwks.json")
+    extraConfigFile 'testClient.crt', xpackProject('plugin:security').file("src/test/resources/org/elasticsearch/xpack/security/action/pki_delegation/testClient.crt")
     setting 'xpack.security.enabled', 'true'
     setting 'xpack.security.authc.api_key.enabled', 'true'
     setting 'xpack.security.authc.token.enabled', 'true'
@@ -53,6 +54,9 @@ testClusters.integTest {
     keystore 'xpack.security.authc.realms.oidc.oidc1.rp.client_secret', 'b07efb7a1cf6ec9462afe7b6d3ab55c6c7880262aa61ac28dded292aca47c9a2'
     setting 'xpack.security.authc.realms.oidc.oidc1.rp.response_type', 'id_token'
     setting 'xpack.security.authc.realms.oidc.oidc1.claims.principal', 'sub'
+    setting 'xpack.security.authc.realms.pki.pki1.order', '3'
+    setting 'xpack.security.authc.realms.pki.pki1.certificate_authorities', '[ "testClient.crt" ]'
+    setting 'xpack.security.authc.realms.pki.pki1.delegation.enabled', 'true'
     user username: 'test_admin'
 }
 

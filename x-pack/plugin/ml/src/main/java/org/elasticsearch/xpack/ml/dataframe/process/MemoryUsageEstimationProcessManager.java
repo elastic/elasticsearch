@@ -9,7 +9,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
@@ -18,12 +17,10 @@ import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractor;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractorFactory;
 import org.elasticsearch.xpack.ml.dataframe.process.results.MemoryUsageEstimationResult;
 
-import java.io.IOException;
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
-import java.util.function.Consumer;
 
 public class MemoryUsageEstimationProcessManager {
 
@@ -75,29 +72,21 @@ public class MemoryUsageEstimationProcessManager {
                 "",
                 categoricalFields,
                 config.getAnalysis());
-        ProcessHolder processHolder = new ProcessHolder();
         AnalyticsProcess<MemoryUsageEstimationResult> process =
             processFactory.createAnalyticsProcess(
                 jobId,
                 processConfig,
                 executorServiceForProcess,
-                onProcessCrash(jobId, processHolder));
-        processHolder.process = process;
-        if (process.isProcessAlive() == false) {
-            String processError = process.readError();
-            // Only throw when there was an actual problem with the process reported as error.
-            // Otherwise the process might just have been quick enough to finish before process.isProcessAlive() was called.
-            if (Strings.isNullOrEmpty(processError) == false) {
-                String errorMsg =
-                    new ParameterizedMessage("[{}] Error while starting process: [{}]", jobId, processError).getFormattedMessage();
-                throw ExceptionsHelper.serverError(errorMsg);
-            }
-        }
+                // The handler passed here will never be called as AbstractNativeProcess.detectCrash method returns early when
+                // (processInStream == null) which is the case for MemoryUsageEstimationProcess.
+                reason -> {});
         try {
             return readResult(jobId, process);
         } catch (Exception e) {
             String errorMsg =
-                new ParameterizedMessage("[{}] Error while processing result [{}]", jobId, e.getMessage()).getFormattedMessage();
+                new ParameterizedMessage(
+                    "[{}] Error while processing process output [{}], process errors: [{}]",
+                    jobId, e.getMessage(), process.readError()).getFormattedMessage();
             throw ExceptionsHelper.serverError(errorMsg, e);
         } finally {
             process.consumeAndCloseOutputStream();
@@ -107,29 +96,12 @@ public class MemoryUsageEstimationProcessManager {
                 LOGGER.info("[{}] Closed process", jobId);
             } catch (Exception e) {
                 String errorMsg =
-                    new ParameterizedMessage("[{}] Error while closing process [{}]", jobId, e.getMessage()).getFormattedMessage();
+                    new ParameterizedMessage(
+                        "[{}] Error while closing process [{}], process errors: [{}]",
+                        jobId, e.getMessage(), process.readError()).getFormattedMessage();
                 throw ExceptionsHelper.serverError(errorMsg, e);
             }
         }
-    }
-
-    private static class ProcessHolder {
-        volatile AnalyticsProcess<MemoryUsageEstimationResult> process;
-    }
-
-    private static Consumer<String> onProcessCrash(String jobId, ProcessHolder processHolder) {
-        return reason -> {
-            AnalyticsProcess<MemoryUsageEstimationResult> process = processHolder.process;
-            if (process == null) {
-                LOGGER.error(new ParameterizedMessage("[{}] Process does not exist", jobId));
-                return;
-            }
-            try {
-                process.kill();
-            } catch (IOException e) {
-                LOGGER.error(new ParameterizedMessage("[{}] Failed to kill process", jobId), e);
-            }
-        };
     }
 
     /**

@@ -26,10 +26,11 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.xpack.vectors.query.VectorDVIndexFieldData;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.xpack.vectors.query.VectorDVIndexFieldData;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
@@ -181,9 +182,11 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
 
         // encode array of floats as array of integers and store into buf
         // this code is here and not int the VectorEncoderDecoder so not to create extra arrays
-        byte[] buf = indexCreatedVersion.onOrAfter(Version.V_7_4_0) ? new byte[dims * INT_BYTES + INT_BYTES] : new byte[dims * INT_BYTES];
-        int offset = 0;
+        byte[] bytes = indexCreatedVersion.onOrAfter(Version.V_7_4_0) ? new byte[dims * INT_BYTES + INT_BYTES] : new byte[dims * INT_BYTES];
+
+        ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);
         double dotProduct = 0f;
+
         int dim = 0;
         for (Token token = context.parser().nextToken(); token != Token.END_ARRAY; token = context.parser().nextToken()) {
             if (dim++ >= dims) {
@@ -192,11 +195,8 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
             }
             ensureExpectedToken(Token.VALUE_NUMBER, token, context.parser()::getTokenLocation);
             float value = context.parser().floatValue(true);
-            int intValue = Float.floatToIntBits(value);
-            buf[offset++] = (byte) (intValue >> 24);
-            buf[offset++] = (byte) (intValue >> 16);
-            buf[offset++] = (byte) (intValue >>  8);
-            buf[offset++] = (byte) intValue;
+
+            byteBuffer.putFloat(value);
             dotProduct += value * value;
         }
         if (dim != dims) {
@@ -204,16 +204,13 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
                 context.sourceToParse().id() + "] has number of dimensions [" + dim +
                 "] less than defined in the mapping [" +  dims +"]");
         }
+
         if (indexCreatedVersion.onOrAfter(Version.V_7_4_0)) {
             // encode vector magnitude at the end
             float vectorMagnitude = (float) Math.sqrt(dotProduct);
-            int vectorMagnitudeIntValue = Float.floatToIntBits(vectorMagnitude);
-            buf[offset++] = (byte) (vectorMagnitudeIntValue >> 24);
-            buf[offset++] = (byte) (vectorMagnitudeIntValue >> 16);
-            buf[offset++] = (byte) (vectorMagnitudeIntValue >> 8);
-            buf[offset++] = (byte) vectorMagnitudeIntValue;
+            byteBuffer.putFloat(vectorMagnitude);
         }
-        BinaryDocValuesField field = new BinaryDocValuesField(fieldType().name(), new BytesRef(buf));
+        BinaryDocValuesField field = new BinaryDocValuesField(fieldType().name(), new BytesRef(bytes));
         if (context.doc().getByKey(fieldType().name()) != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() +
                 "] doesn't not support indexing multiple values for the same field in the same document");

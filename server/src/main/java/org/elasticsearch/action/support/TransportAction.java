@@ -25,14 +25,13 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskListener;
 import org.elasticsearch.tasks.TaskManager;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
 public abstract class TransportAction<Request extends ActionRequest, Response extends ActionResponse> {
 
-    protected final String actionName;
+    public final String actionName;
     private final ActionFilter[] filters;
     protected final TaskManager taskManager;
     /**
@@ -45,70 +44,6 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
         this.actionName = actionName;
         this.filters = actionFilters.filters();
         this.taskManager = taskManager;
-    }
-
-    /**
-     * Use this method when the transport action call should result in creation of a new task associated with the call.
-     *
-     * This is a typical behavior.
-     */
-    public final Task execute(Request request, ActionListener<Response> listener) {
-        /*
-         * While this version of execute could delegate to the TaskListener
-         * version of execute that'd add yet another layer of wrapping on the
-         * listener and prevent us from using the listener bare if there isn't a
-         * task. That just seems like too many objects. Thus the two versions of
-         * this method.
-         */
-        Task task = taskManager.register("transport", actionName, request);
-        execute(task, request, new ActionListener<Response>() {
-            @Override
-            public void onResponse(Response response) {
-                try {
-                    taskManager.unregister(task);
-                } finally {
-                    listener.onResponse(response);
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                try {
-                    taskManager.unregister(task);
-                } finally {
-                    listener.onFailure(e);
-                }
-            }
-        });
-        return task;
-    }
-
-    /**
-     * Execute the transport action on the local node, returning the {@link Task} used to track its execution and accepting a
-     * {@link TaskListener} which listens for the completion of the action.
-     */
-    public final Task execute(Request request, TaskListener<Response> listener) {
-        Task task = taskManager.register("transport", actionName, request);
-        execute(task, request, new ActionListener<Response>() {
-            @Override
-            public void onResponse(Response response) {
-                try {
-                    taskManager.unregister(task);
-                } finally {
-                    listener.onResponse(task, response);
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                try {
-                    taskManager.unregister(task);
-                } finally {
-                    listener.onFailure(task, e);
-                }
-            }
-        });
-        return task;
     }
 
     /**

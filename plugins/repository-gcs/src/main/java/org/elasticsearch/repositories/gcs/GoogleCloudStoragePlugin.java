@@ -54,7 +54,7 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
     public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
                                                            ThreadPool threadPool) {
         return Collections.singletonMap(GoogleCloudStorageRepository.TYPE,
-            metadata -> new GoogleCloudStorageRepository(metadata, env, namedXContentRegistry, this.storageService, threadPool));
+            metadata -> new GoogleCloudStorageRepository(metadata, namedXContentRegistry, this.storageService, threadPool));
     }
 
     @Override

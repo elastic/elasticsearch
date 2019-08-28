@@ -339,7 +339,8 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
                     // domainSplit() tests had subdomain, testHighestRegisteredDomainCases() do not
                     if (test.subDomainExpected != null) {
                         assertThat("Expected subdomain [" + test.subDomainExpected + "] but found [" + actualSubDomain
-                            + "]. Actual " + actualTotal + " vs Expected " + expectedTotal, actualSubDomain, equalTo(test.subDomainExpected));
+                            + "]. Actual " + actualTotal + " vs Expected " + expectedTotal, actualSubDomain,
+                            equalTo(test.subDomainExpected));
                     }
 
                     assertThat("Expected domain [" + test.domainExpected + "] but found [" + actualDomain + "].  Actual "

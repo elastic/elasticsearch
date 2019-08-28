@@ -110,7 +110,7 @@ the analyze API uses the <<analysis-standard-analyzer,standard analyzer>>.
 
 `filter`::
 (Optional, Array of strings)
-Array of token filters used to change tokens after the tokenizer.
+Array of token filters used to apply after the tokenizer.
 See <<analysis-tokenfilters>> for a list of token filters.
 
 `normalizer`::

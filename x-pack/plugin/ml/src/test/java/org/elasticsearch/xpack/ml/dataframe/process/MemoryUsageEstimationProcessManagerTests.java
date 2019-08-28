@@ -93,7 +93,25 @@ public class MemoryUsageEstimationProcessManagerTests extends ESTestCase {
         verifyNoMoreInteractions(process, listener);
     }
 
-    public void testRunJob_ProcessNotAlive() {
+    public void testRunJob_ProcessNotAlive_NoError() throws Exception {
+        when(process.isProcessAlive()).thenReturn(false);
+        when(process.readError()).thenReturn("");
+
+        processManager.runJobAsync(TASK_ID, dataFrameAnalyticsConfig, dataExtractorFactory, listener);
+        verify(listener).onResponse(resultCaptor.capture());
+        MemoryUsageEstimationResult result = resultCaptor.getValue();
+        assertThat(result, equalTo(PROCESS_RESULT));
+
+        InOrder inOrder = inOrder(process);
+        inOrder.verify(process).isProcessAlive();
+        inOrder.verify(process).readError();
+        inOrder.verify(process).readAnalyticsResults();
+        inOrder.verify(process).consumeAndCloseOutputStream();
+        inOrder.verify(process).close();
+        verifyNoMoreInteractions(process, listener);
+    }
+
+    public void testRunJob_ProcessNotAlive_Error() {
         when(process.isProcessAlive()).thenReturn(false);
         when(process.readError()).thenReturn("Error from inside the process");
 
@@ -103,11 +121,11 @@ public class MemoryUsageEstimationProcessManagerTests extends ESTestCase {
         ElasticsearchException exception = (ElasticsearchException) exceptionCaptor.getValue();
         assertThat(exception.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
         assertThat(exception.getMessage(), containsString(TASK_ID));
-        assertThat(exception.getMessage(), containsString("Error while starting process"));
-        assertThat(exception.getMessage(), containsString("Error from inside the process"));
+        assertThat(exception.getMessage(), containsString("Error while starting process: [Error from inside the process]"));
 
-        verify(process).isProcessAlive();
-        verify(process).readError();
+        InOrder inOrder = inOrder(process);
+        inOrder.verify(process).isProcessAlive();
+        inOrder.verify(process).readError();
         verifyNoMoreInteractions(process, listener);
     }
 

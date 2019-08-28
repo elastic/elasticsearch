@@ -9,6 +9,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
@@ -83,9 +84,14 @@ public class MemoryUsageEstimationProcessManager {
                 onProcessCrash(jobId, processHolder));
         processHolder.process = process;
         if (process.isProcessAlive() == false) {
-            String errorMsg =
-                new ParameterizedMessage("[{}] Error while starting process: {}", jobId, process.readError()).getFormattedMessage();
-            throw ExceptionsHelper.serverError(errorMsg);
+            String processError = process.readError();
+            // Only throw when there was an actual problem with the process reported as error.
+            // Otherwise the process might just have been quick enough to finish before process.isProcessAlive() was called.
+            if (Strings.isNullOrEmpty(processError) == false) {
+                String errorMsg =
+                    new ParameterizedMessage("[{}] Error while starting process: [{}]", jobId, processError).getFormattedMessage();
+                throw ExceptionsHelper.serverError(errorMsg);
+            }
         }
         try {
             return readResult(jobId, process);

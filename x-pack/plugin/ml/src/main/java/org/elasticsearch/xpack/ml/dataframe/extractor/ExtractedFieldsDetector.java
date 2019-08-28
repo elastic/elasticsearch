@@ -11,9 +11,12 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
@@ -33,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -101,6 +105,7 @@ public class ExtractedFieldsDetector {
                     IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.getKey());
             }
         }
+        extractedFields = fetchBooleanFieldsAsIntegers(extractedFields);
         return extractedFields;
     }
 
@@ -144,6 +149,8 @@ public class ExtractedFieldsDetector {
                     LOGGER.debug("[{}] field [{}] is compatible as it is numerical", config.getId(), field);
                 } else if (config.getAnalysis().supportsCategoricalFields() && CATEGORICAL_TYPES.containsAll(fieldTypes)) {
                     LOGGER.debug("[{}] field [{}] is compatible as it is categorical", config.getId(), field);
+                } else if (isBoolean(fieldTypes)) {
+                    LOGGER.debug("[{}] field [{}] is compatible as it is boolean", config.getId(), field);
                 } else {
                     LOGGER.debug("[{}] Removing field [{}] because its types are not supported; types {}; supported {}",
                         config.getId(), field, fieldTypes, getSupportedTypes());
@@ -154,10 +161,11 @@ public class ExtractedFieldsDetector {
     }
 
     private Set<String> getSupportedTypes() {
-        Set<String> supportedTypes = new HashSet<>(NUMERICAL_TYPES);
+        Set<String> supportedTypes = new TreeSet<>(NUMERICAL_TYPES);
         if (config.getAnalysis().supportsCategoricalFields()) {
             supportedTypes.addAll(CATEGORICAL_TYPES);
         }
+        supportedTypes.add(BooleanFieldMapper.CONTENT_TYPE);
         return supportedTypes;
     }
 
@@ -210,5 +218,47 @@ public class ExtractedFieldsDetector {
             adjusted.add(field.supportsFromSource() ? field.newFromSource() : field);
         }
         return new ExtractedFields(adjusted);
+    }
+
+    private ExtractedFields fetchBooleanFieldsAsIntegers(ExtractedFields extractedFields) {
+        List<ExtractedField> adjusted = new ArrayList<>(extractedFields.getAllFields().size());
+        for (ExtractedField field : extractedFields.getAllFields()) {
+            if (isBoolean(field.getTypes())) {
+                adjusted.add(new BooleanAsInteger(field));
+            } else {
+                adjusted.add(field);
+            }
+        }
+        return new ExtractedFields(adjusted);
+    }
+
+    private static boolean isBoolean(Set<String> types) {
+        return types.size() == 1 && types.contains(BooleanFieldMapper.CONTENT_TYPE);
+    }
+
+    /**
+     * We convert boolean fields to integers with values 0, 1 as this is the preferred
+     * way to consume such features in the analytics process.
+     */
+    private static class BooleanAsInteger extends ExtractedField {
+
+        protected BooleanAsInteger(ExtractedField field) {
+            super(field.getAlias(), field.getName(), Collections.singleton(BooleanFieldMapper.CONTENT_TYPE), ExtractionMethod.DOC_VALUE);
+        }
+
+        @Override
+        public Object[] value(SearchHit hit) {
+            DocumentField keyValue = hit.field(name);
+            if (keyValue != null) {
+                List<Object> values = keyValue.getValues().stream().map(v -> Boolean.TRUE.equals(v) ? 1 : 0).collect(Collectors.toList());
+                return values.toArray(new Object[0]);
+            }
+            return new Object[0];
+        }
+
+        @Override
+        public boolean supportsFromSource() {
+            return false;
+        }
     }
 }

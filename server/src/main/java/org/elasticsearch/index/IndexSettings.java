@@ -196,7 +196,7 @@ public final class IndexSettings {
             Property.Dynamic, Property.IndexScope);
 
     /**
-     * The maximum size of a merge that triggers a flush in order to free resources
+     * The minimum size of a merge that triggers a flush in order to free resources
      */
     public static final Setting<ByteSizeValue> INDEX_FLUSH_AFTER_MERGE_THRESHOLD_SIZE_SETTING =
         Setting.byteSizeSetting("index.flush_after_merge", new ByteSizeValue(512, ByteSizeUnit.MB),

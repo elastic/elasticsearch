@@ -5066,6 +5066,7 @@ public class InternalEngineTests extends EngineTestCase {
         ParsedDocument doc =
             testParsedDocument(Integer.toString(0), null, testDocumentWithTextField(), SOURCE, null);
         engine.index(indexForDoc(doc));
+        engine.refresh("test");
         assertThat("Not exceeded translog flush threshold yet", engine.shouldPeriodicallyFlush(), equalTo(false));
         final IndexSettings indexSettings = engine.config().getIndexSettings();
         final IndexMetaData indexMetaData = IndexMetaData.builder(indexSettings.getIndexMetaData())
@@ -5080,7 +5081,10 @@ public class InternalEngineTests extends EngineTestCase {
         assertThat(engine.getTranslog().stats().getUncommittedOperations(), equalTo(2));
         engine.refresh("test");
         engine.forceMerge(false, 1, false, false, false);
-        assertThat(engine.shouldPeriodicallyFlush(), equalTo(true));
+        assertBusy(() -> {
+            // the merge listner runs concurrently after the force merge returned
+            assertThat(engine.shouldPeriodicallyFlush(), equalTo(true));
+        });
         engine.flush();
         assertThat(engine.shouldPeriodicallyFlush(), equalTo(false));
     }

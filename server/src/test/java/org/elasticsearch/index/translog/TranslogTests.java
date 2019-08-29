@@ -3309,7 +3309,8 @@ public class TranslogTests extends ESTestCase {
                             if (randomBoolean()) {
                                 synced = translog.ensureSynced(location);
                             } else {
-                                synced = translog.sync();
+                                translog.sync();
+                                synced = true;
                             }
                             for (Translog.Operation op : ops) {
                                 assertThat("seq# " + op.seqNo() + " was not marked as persisted", persistedSeqNos, hasItem(op.seqNo()));

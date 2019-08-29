@@ -726,15 +726,12 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     /**
      * Sync's the translog.
-     *
-     * @return {@code true} if this call caused an actual sync operation
      */
-    public boolean sync() throws IOException {
-        try (ReleasableLock ignored = readLock.acquire()) {
-            if (closed.get()) {
-                return false;
+    public void sync() throws IOException {
+        try (ReleasableLock lock = readLock.acquire()) {
+            if (closed.get() == false) {
+                current.sync();
             }
-            return current.sync();
         } catch (final Exception ex) {
             closeOnTragicEvent(ex);
             throw ex;

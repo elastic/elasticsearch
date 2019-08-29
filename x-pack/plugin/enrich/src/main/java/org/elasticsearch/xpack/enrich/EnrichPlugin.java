@@ -58,6 +58,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.core.XPackSettings.ENRICH_ENABLED_SETTING;
 
 public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
@@ -89,10 +90,12 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
 
     private final Settings settings;
     private final Boolean enabled;
+    private final boolean transportClientMode;
 
     public EnrichPlugin(final Settings settings) {
         this.settings = settings;
         this.enabled = ENRICH_ENABLED_SETTING.get(settings);
+        this.transportClientMode = XPackPlugin.transportClientMode(settings);
     }
 
     @Override
@@ -106,7 +109,7 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
 
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         if (enabled == false) {
-            return Collections.emptyList();
+            return emptyList();
         }
 
         return Arrays.asList(
@@ -124,7 +127,7 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
                                              IndexNameExpressionResolver indexNameExpressionResolver,
                                              Supplier<DiscoveryNodes> nodesInCluster) {
         if (enabled == false) {
-            return Collections.emptyList();
+            return emptyList();
         }
 
         return Arrays.asList(
@@ -140,6 +143,9 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
+        if (enabled == false || transportClientMode) {
+            return emptyList();
+        }
         EnrichPolicyLocks enrichPolicyLocks = new EnrichPolicyLocks();
         EnrichPolicyExecutor enrichPolicyExecutor = new EnrichPolicyExecutor(settings, clusterService, client, threadPool,
             new IndexNameExpressionResolver(), enrichPolicyLocks, System::currentTimeMillis);

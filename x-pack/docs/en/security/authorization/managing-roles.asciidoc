@@ -221,8 +221,8 @@ to define roles for all use cases.
 [IMPORTANT]
 ==============================
 You will not be able to view, edit or remove any roles defined in `roles.yml`, by
-using the <<role-management-ui, Role management UI>> or the
-<<role-management-api, Role management API>>.
+using the <<roles-management-ui, Role management UI>> or the
+<<roles-management-api, Role management API>>.
 ==============================
 
 [IMPORTANT]

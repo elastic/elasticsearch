@@ -63,7 +63,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.hamcrest.Matchers.nullValue;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
-public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCase {
+public class S3BlobStoreRepositoryIT extends ESBlobStoreRepositoryIntegTestCase {
 
     private static HttpServer httpServer;
 

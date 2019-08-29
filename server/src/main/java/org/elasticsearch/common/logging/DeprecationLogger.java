@@ -97,7 +97,6 @@ public class DeprecationLogger {
      * @throws IllegalStateException if this {@code threadContext} is unknown (and presumably already unset before)
      */
     public static void removeThreadContext(ThreadContext threadContext) {
-        System.out.println("remove "+threadContext);
         assert threadContext != null;
         threadContextLock.writeLock().lock();
         try {

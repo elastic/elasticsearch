@@ -429,6 +429,7 @@ whatever reason.
 In addition to the `external` version type, Elasticsearch
 also supports other types for specific use cases:
 
+[[_version_types]]
 `internal`:: Only index the document if the given version is identical to the version
 of the stored document.
 

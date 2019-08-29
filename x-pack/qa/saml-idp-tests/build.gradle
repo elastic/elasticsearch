@@ -67,7 +67,15 @@ testClusters.integTest {
     setting 'xpack.security.authc.realms.saml.shibboleth_native.sp.acs', 'http://localhost:54321/saml/acs2'
     setting 'xpack.security.authc.realms.saml.shibboleth_native.attributes.principal', 'uid'
     setting 'xpack.security.authc.realms.saml.shibboleth_native.authorization_realms', 'native'
-    setting 'xpack.security.authc.realms.native.native.order', '3'
+    // SAML realm 3 (used for negative tests with multiple realms)
+    setting 'xpack.security.authc.realms.saml.shibboleth_negative.order', '3'
+    setting 'xpack.security.authc.realms.saml.shibboleth_negative.idp.entity_id', 'https://test.shibboleth.elastic.local/'
+    setting 'xpack.security.authc.realms.saml.shibboleth_negative.idp.metadata.path', 'idp-metadata.xml'
+    setting 'xpack.security.authc.realms.saml.shibboleth_negative.sp.entity_id', 'somethingwronghere'
+    setting 'xpack.security.authc.realms.saml.shibboleth_negative.sp.acs', 'http://localhost:54321/saml/acs3'
+    setting 'xpack.security.authc.realms.saml.shibboleth_negative.attributes.principal', 'uid'
+    setting 'xpack.security.authc.realms.saml.shibboleth_negative.authorization_realms', 'native'
+    setting 'xpack.security.authc.realms.native.native.order', '4'
 
     setting 'xpack.ml.enabled', 'false'
     setting 'logger.org.elasticsearch.xpack.security', 'TRACE'

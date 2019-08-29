@@ -12,6 +12,7 @@ index settings, aliases, mappings, and index templates.
 * <<indices-delete-index>>
 * <<indices-get-index>>
 * <<indices-exists>>
+* <<indices-close>>
 * <<indices-open-close>>
 * <<indices-shrink-index>>
 * <<indices-split-index>>
@@ -33,6 +34,7 @@ index settings, aliases, mappings, and index templates.
 [float]
 [[alias-management]]
 === Alias management:
+* <<indices-alias-exists>>
 * <<indices-aliases>>
 
 [float]
@@ -67,6 +69,8 @@ include::indices/get-index.asciidoc[]
 
 include::indices/indices-exists.asciidoc[]
 
+include::indices/close.asciidoc[]
+
 include::indices/open-close.asciidoc[]
 
 include::indices/shrink-index.asciidoc[]
@@ -88,6 +92,8 @@ include::indices/get-mapping.asciidoc[]
 include::indices/get-field-mapping.asciidoc[]
 
 include::indices/types-exists.asciidoc[]
+
+include::indices/alias-exists.asciidoc[]
 
 include::indices/aliases.asciidoc[]
 

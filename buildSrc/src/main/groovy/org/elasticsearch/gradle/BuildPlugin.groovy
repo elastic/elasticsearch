@@ -48,7 +48,6 @@ import org.gradle.api.artifacts.ModuleVersionIdentifier
 import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.artifacts.ResolvedArtifact
 import org.gradle.api.artifacts.dsl.RepositoryHandler
-import org.gradle.api.artifacts.repositories.ArtifactRepository
 import org.gradle.api.artifacts.repositories.IvyArtifactRepository
 import org.gradle.api.artifacts.repositories.IvyPatternRepositoryLayout
 import org.gradle.api.artifacts.repositories.MavenArtifactRepository
@@ -85,12 +84,10 @@ import org.gradle.util.GradleVersion
 
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
-import java.time.ZoneOffset
-import java.time.ZonedDateTime
 import java.util.regex.Matcher
 
-import static org.elasticsearch.gradle.tool.Boilerplate.maybeConfigure
 import static org.elasticsearch.gradle.tool.Boilerplate.findByName
+import static org.elasticsearch.gradle.tool.Boilerplate.maybeConfigure
 
 /**
  * Encapsulates build configuration for elasticsearch projects.
@@ -411,11 +408,11 @@ class BuildPlugin implements Plugin<Project> {
         project.getRepositories().all { repository ->
             if (repository instanceof MavenArtifactRepository) {
                 final MavenArtifactRepository maven = (MavenArtifactRepository) repository
-                assertRepositoryURIUsesHttps(maven, project, maven.getUrl())
-                repository.getArtifactUrls().each { uri -> assertRepositoryURIUsesHttps(maven, project, uri) }
+                assertRepositoryURIIsSecure(maven.name, project.path, maven.getUrl())
+                repository.getArtifactUrls().each { uri -> assertRepositoryURIIsSecure(maven.name, project.path, uri) }
             } else if (repository instanceof IvyArtifactRepository) {
                 final IvyArtifactRepository ivy = (IvyArtifactRepository) repository
-                assertRepositoryURIUsesHttps(ivy, project, ivy.getUrl())
+                assertRepositoryURIIsSecure(ivy.name, project.path, ivy.getUrl())
             }
         }
         RepositoryHandler repos = project.repositories
@@ -455,9 +452,15 @@ class BuildPlugin implements Plugin<Project> {
         }
     }
 
-    private static void assertRepositoryURIUsesHttps(final ArtifactRepository repository, final Project project, final URI uri) {
-        if (uri != null && uri.toURL().getProtocol().equals("http")) {
-            throw new GradleException("repository [${repository.name}] on project with path [${project.path}] is using http for artifacts on [${uri.toURL()}]")
+    static void assertRepositoryURIIsSecure(final String repositoryName, final String projectPath, final URI uri) {
+        if (uri != null && ["file", "https", "s3"].contains(uri.getScheme()) == false) {
+            final String message = String.format(
+                    Locale.ROOT,
+                    "repository [%s] on project with path [%s] is not using a secure protocol for artifacts on [%s]",
+                    repositoryName,
+                    projectPath,
+                    uri.toURL())
+            throw new GradleException(message)
         }
     }
 

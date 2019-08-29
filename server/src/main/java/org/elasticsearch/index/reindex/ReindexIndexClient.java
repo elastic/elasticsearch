@@ -63,7 +63,7 @@ public class ReindexIndexClient {
         this.xContentRegistry = xContentRegistry;
     }
 
-    public void getReindexTaskDoc(String taskId, ActionListener<ReindexTaskIndexState> listener) {
+    public void getReindexTaskDoc(String taskId, ActionListener<ReindexTaskIndexStateWithSeq> listener) {
         GetRequest getRequest = new GetRequest(REINDEX_INDEX).id(taskId);
         client.get(getRequest, new ActionListener<>() {
             @Override
@@ -72,7 +72,9 @@ public class ReindexIndexClient {
                 try (XContentParser parser = XContentHelper.createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, source,
                     XContentType.JSON)) {
                     ReindexTaskIndexState taskState = ReindexTaskIndexState.fromXContent(parser);
-                    listener.onResponse(taskState);
+                    long term = response.getPrimaryTerm();
+                    long seqNo = response.getSeqNo();
+                    listener.onResponse(new ReindexTaskIndexStateWithSeq(taskState, term, seqNo));
                 } catch (IOException e) {
                     listener.onFailure(e);
                 }
@@ -93,7 +95,7 @@ public class ReindexIndexClient {
     private void createReindexTaskDoc(String taskId, ReindexTaskIndexState reindexState, boolean indexExists,
                                      ActionListener<Void> listener) {
         if (indexExists) {
-            index(taskId, reindexState, DocWriteRequest.OpType.CREATE, listener);
+            index(taskId, reindexState, DocWriteRequest.OpType.CREATE, false, -1, -1, listener);
         } else {
             CreateIndexRequest createIndexRequest = new CreateIndexRequest();
             createIndexRequest.settings(reindexIndexSettings());
@@ -124,14 +126,18 @@ public class ReindexIndexClient {
         }
     }
 
-    // TODO: Potentially add compare-and-set semantics to ensure that another node has not been assigned
-    //  this task
-    public void updateReindexTaskDoc(String taskId, ReindexTaskIndexState reindexState, ActionListener<Void> listener) {
-        index(taskId, reindexState, DocWriteRequest.OpType.INDEX, listener);
+    public void updateReindexTaskDoc(String taskId, ReindexTaskIndexState reindexState, long previousTerm, long previousSeqNo,
+                                     ActionListener<Void> listener) {
+        index(taskId, reindexState, DocWriteRequest.OpType.INDEX, true, previousTerm, previousSeqNo, listener);
     }
 
-    private void index(String taskId, ReindexTaskIndexState reindexState, DocWriteRequest.OpType opType, ActionListener<Void> listener) {
+    private void index(String taskId, ReindexTaskIndexState reindexState, DocWriteRequest.OpType opType, boolean conditional,
+                       long previousTerm, long previousSeqNo, ActionListener<Void> listener) {
         IndexRequest indexRequest = new IndexRequest(REINDEX_INDEX).id(taskId).opType(opType);
+        if (conditional) {
+            indexRequest.setIfPrimaryTerm(previousTerm);
+            indexRequest.setIfSeqNo(previousSeqNo);
+        }
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
             reindexState.toXContent(builder, ToXContent.EMPTY_PARAMS);
             indexRequest.source(builder);

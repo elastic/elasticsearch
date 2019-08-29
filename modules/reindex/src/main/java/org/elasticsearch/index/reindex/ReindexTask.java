@@ -56,6 +56,8 @@ public class ReindexTask extends AllocatedPersistentTask {
     private final Reindexer reindexer;
     private final TaskId taskId;
     private final BulkByScrollTask childTask;
+    private volatile long currentTerm = -1;
+    private volatile long currentSeqNo = -1;
 
     public static class ReindexPersistentTasksExecutor extends PersistentTasksExecutor<ReindexJob> {
 
@@ -116,8 +118,10 @@ public class ReindexTask extends AllocatedPersistentTask {
     private void execute(ReindexJob reindexJob) {
         reindexIndexClient.getReindexTaskDoc(getPersistentTaskId(), new ActionListener<>() {
             @Override
-            public void onResponse(ReindexTaskIndexState reindexTaskIndexState) {
-                ReindexRequest reindexRequest = reindexTaskIndexState.getReindexRequest();
+            public void onResponse(ReindexTaskIndexStateWithSeq taskState) {
+                currentTerm = taskState.getPrimaryTerm();
+                currentSeqNo = taskState.getSeqNo();
+                ReindexRequest reindexRequest = taskState.getTaskIndexState().getReindexRequest();
                 Runnable performReindex = () -> performReindex(reindexJob, reindexRequest);
                 reindexer.initTask(childTask, reindexRequest, new ActionListener<>() {
                     @Override
@@ -181,7 +185,7 @@ public class ReindexTask extends AllocatedPersistentTask {
         assert taskManager != null : "TaskManager should have been set before reindex started";
 
         ReindexTaskIndexState reindexState = new ReindexTaskIndexState(reindexRequest, response, null, (RestStatus) null);
-        reindexIndexClient.updateReindexTaskDoc(getPersistentTaskId(), reindexState, new ActionListener<>() {
+        reindexIndexClient.updateReindexTaskDoc(getPersistentTaskId(), reindexState, currentTerm, currentSeqNo, new ActionListener<>() {
             @Override
             public void onResponse(Void v) {
                 updatePersistentTaskState(new ReindexJobState(taskId, ReindexJobState.Status.DONE), new ActionListener<>() {
@@ -228,7 +232,7 @@ public class ReindexTask extends AllocatedPersistentTask {
         ElasticsearchException exception = wrapException(ex);
         ReindexTaskIndexState reindexState = new ReindexTaskIndexState(reindexRequest, null, exception, exception.status());
 
-        reindexIndexClient.updateReindexTaskDoc(getPersistentTaskId(), reindexState, new ActionListener<>() {
+        reindexIndexClient.updateReindexTaskDoc(getPersistentTaskId(), reindexState, currentTerm, currentSeqNo, new ActionListener<>() {
             @Override
             public void onResponse(Void v) {
                 updateClusterStateToFailed(shouldStoreResult, ReindexJobState.Status.DONE, ex);

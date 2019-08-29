@@ -120,7 +120,8 @@ public class TransportStartReindexJobAction extends HandledTransportAction<Start
                     } else {
                         reindexIndexClient.getReindexTaskDoc(taskId, new ActionListener<>() {
                             @Override
-                            public void onResponse(ReindexTaskIndexState reindexState) {
+                            public void onResponse(ReindexTaskIndexStateWithSeq taskState) {
+                                ReindexTaskIndexState reindexState = taskState.getTaskIndexState();
                                 if (reindexState.getException() == null) {
                                     listener.onResponse(new StartReindexJobAction.Response(taskId, reindexState.getReindexResponse()));
                                 } else {

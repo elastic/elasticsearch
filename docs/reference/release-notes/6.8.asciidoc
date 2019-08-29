@@ -53,17 +53,14 @@ Infra/Plugins::
 * Do not checksum all bytes at once in plugin install {pull}44649[#44649] (issue: {issue}44545[#44545])
 
 SQL::
-* SQL: fix URI path being lost in case of hosted ES scenario {pull}44776[#44776] (issue: {issue}44721[#44721])
-* SQL: Interval arithmetics failure {pull}42014[#42014] (issue: {issue}41200[#41200])
+* Fix URI path being lost in case of hosted ES scenario {pull}44776[#44776] (issue: {issue}44721[#44721])
+* Interval arithmetics failure {pull}42014[#42014] (issue: {issue}41200[#41200])
 
 Search::
 * Prevent Leaking Search Tasks on Exceptions in FetchSearchPhase and DfsQueryPhase {pull}45500[#45500]
 
 Security::
 * Use system context for looking up connected nodes {pull}43991[#43991] (issue: {issue}43974[#43974])
-
-Machine Learning::
-* [DOCS] Adds allow no datafeeds query param to the GET, GET stats and STOP datafeed APIs (7.2-6.1) {pull}44864[#44864]
 
 
 [[upgrade-6.8.3]]

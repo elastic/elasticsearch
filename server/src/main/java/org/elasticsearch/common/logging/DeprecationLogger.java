@@ -66,6 +66,7 @@ public class DeprecationLogger {
      * In order to prevent accessing closed ThreadContext in test environment
      * when iterate <code>THREAD_CONTEXT</code> Set, read lock has to be acquired
      * when ThreadContext is closed it has to be removed from the Set first, and removing should acquire write lock
+     * Since adding closed ThreadContext is not supported, this lock do not need to be acquired before adding to the Set.
      */
     private static ReadWriteLock threadContextLock = new ReentrantReadWriteLock(true);
 
@@ -275,7 +276,6 @@ public class DeprecationLogger {
         }finally {
             threadContextLock.readLock().unlock();
         }
-
     }
 
     public String getXOpaqueId(Set<ThreadContext> threadContexts) {

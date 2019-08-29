@@ -121,7 +121,7 @@ public final class ThreadContext implements Closeable, Writeable {
 
     /**
      * In order to prevent accessing a closed ThreadContext in DeprecationLogger in tests,
-     * it should be removed from DeprecationLogger.THREAD_CONTEXT static set of ThreadContexts.
+     * it should be removed from DeprecationLogger.THREAD_CONTEXT static set of ThreadContexts before being called.
      * @see org.elasticsearch.common.logging.DeprecationLogger#removeThreadContext(ThreadContext)
      */
     @Override

@@ -234,7 +234,7 @@ public class DataFrameIndexerTests extends ESTestCase {
             assertThat(indexer.getState(), equalTo(IndexerState.INDEXING));
 
             latch.countDown();
-            assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STOPPED)));
+            assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STARTED)));
             long pageSizeAfterFirstReduction = indexer.getPageSize();
             assertThat(initialPageSize, greaterThan(pageSizeAfterFirstReduction));
             assertThat(pageSizeAfterFirstReduction, greaterThan((long)DataFrameIndexer.MINIMUM_PAGE_SIZE));
@@ -248,7 +248,7 @@ public class DataFrameIndexerTests extends ESTestCase {
             assertThat(indexer.getState(), equalTo(IndexerState.INDEXING));
 
             secondRunLatch.countDown();
-            assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STOPPED)));
+            assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STARTED)));
 
             // assert that page size has been reduced again
             assertThat(pageSizeAfterFirstReduction, greaterThan((long)indexer.getPageSize()));

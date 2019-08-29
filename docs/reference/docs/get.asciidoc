@@ -240,7 +240,7 @@ GET twitter/_doc/0
 
 The API returns the following result:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "_index" : "twitter",
@@ -359,7 +359,7 @@ GET twitter/_doc/1?stored_fields=tags,counter
 
 The API returns the following result:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "_index": "twitter",
@@ -403,7 +403,7 @@ GET twitter/_doc/2?routing=user1&stored_fields=tags,counter
 
 The API returns the following result:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "_index": "twitter",

@@ -575,16 +575,3 @@ Response:
 }
 --------------------------------------------------
 // TESTRESPONSE
-
-There is also a HEAD variant of the get indices aliases api to check if
-index aliases exist. The indices aliases exists api supports the same
-option as the get indices aliases api. Examples:
-
-[source,js]
---------------------------------------------------
-HEAD /_alias/2016
-HEAD /_alias/20*
-HEAD /logs_20162801/_alias/*
---------------------------------------------------
-// CONSOLE
-// TEST[continued]

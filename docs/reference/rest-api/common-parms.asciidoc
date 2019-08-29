@@ -7,10 +7,33 @@ parameter also applies to <<indices-aliases,index aliases>> that point to a
 missing or closed index.
 end::allow-no-indices[]
 
+tag::analyzer[]
+analyzer`::
+(Optional, string) Defines the analyzer to use for the query string.
+end::analyzer[]
+
+tag::analyze_wildcard[]
+`analyze_wildcard`::
+(Optional, boolean) If `true`, wildcard and prefix queries will also be 
+analyzed. Defaults to `false`.
+end::analyze_wildcard[]
+
 tag::bytes[]
 `bytes`::
 (Optional, <<byte-units,byte size units>>) Unit used to display byte values.
 end::bytes[]
+
+tag::default_operator[]
+`default_operator`::
+(Optional, string) The default operator for query string query: AND or OR. 
+Defaults to `OR`.
+end::default_operator[]
+
+tag::df[]
+`df`::
+(Optional, string) Defines the field to use as default where no field prefix is 
+given in the query string.
+end::df[]
 
 tag::expand-wildcards[]
 `expand_wildcards`::
@@ -43,6 +66,11 @@ tag::flat-settings[]
 (Optional, boolean) If `true`, returns settings in flat format. Defaults to
 `false`.
 end::flat-settings[]
+
+tag::from[]
+`from`::
+(Optional, integer) Defines the starting offset. Defaults to `0`.
+end::from[]
 
 tag::help[]
 `help`::
@@ -88,6 +116,12 @@ tag::index[]
 used to limit the request.
 end::index[]
 
+tag::lenient[]
+`lenient`::
+(Optional, boolean) If `true`, format-based query failures (such as 
+providing text to a numeric field) will be ignored. Defaults to `false`.
+end::lenient[]
+
 tag::local[]
 `local`::
 (Optional, boolean) If `true`, the request retrieves information from the local
@@ -106,17 +140,69 @@ tag::node-id[]
 returned information.
 end::node-id[]
 
+tag::search-q[]
+`q`::
+(Optional, string) Query in the Lucene query string syntax.
+end::search-q[]
+
 tag::cat-s[]
 `s`::
 (Optional, string) Comma-separated list of column names or column aliases used
 to sort the response.
 end::cat-s[]
 
+tag::search_type[]
+`search_type`::
+(Optional, string) Defines the type of the search operation. Available options:
+* `query_then_fetch`
+* `dfs_query_then_fetch`
+end::search_type[]
+
+tag::search_timeout[]
+`search_timeout`::
+(Optional, <<time-units, time units>> Explicit timeout for each search 
+request. Defaults to no timeout.
+end::search_timeout[]
+
+tag::sort[]
+`sort`::
+(Optional, string) A comma-separated list of <field>:<direction> pairs.
+end::sort[]
+
+tag::source[]
+`_source`::
+(Optional, string) True or false to return the `_source` field or not, or a 
+list of fields to return.
+end::source[]
+
+tag::source_excludes[]
+`_source_excludes`::
+(Optional, string) A list of fields to exclude from the returned `_source` 
+field.
+end::source_excludes[]
+
+tag::source_includes[]
+`_source_includes`::
+(Optional, string) A list of fields to extract and return from the `_source` 
+field.
+end::source_includes[]
+
+tag::terminate_after[]
+`terminate_after`::
+(Optional, integer) The maximum number of documents to collect for each shard, 
+upon reaching which the query execution will terminate early.
+end::terminate_after[]
+
 tag::cat-v[]
 `v`::
 (Optional, boolean) If `true`, the response includes column headings. Defaults
 to `false`.
 end::cat-v[]
+
+tag::version[]
+`version`::
+(Optional, boolean) If `true`, returns the document version as part of a hit.
+end::version[]
 
 tag::doc-pipeline[]
 `pipeline`::

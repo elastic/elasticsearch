@@ -415,7 +415,7 @@ POST twitter/_delete_by_query?scroll_size=5000
 ===== Slice manually
 
 Slice a delete by query manually by providing a slice id and total number of
-slices to each request:
+slices:
 
 [source,js]
 ----------------------------------------------------------------

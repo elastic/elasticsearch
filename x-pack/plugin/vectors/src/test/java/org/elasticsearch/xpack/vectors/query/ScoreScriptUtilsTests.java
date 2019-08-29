@@ -37,7 +37,7 @@ public class ScoreScriptUtilsTests extends ESTestCase {
         testDenseVectorFunctions(Version.CURRENT);
     }
 
-    public void testDenseVectorFunctions(Version indexVersion) {
+    private void testDenseVectorFunctions(Version indexVersion) {
         float[] docVector = {230.0f, 300.33f, -34.8988f, 15.555f, -200.0f};
         BytesRef encodedDocVector = mockEncodeDenseVector(docVector, indexVersion);
         VectorScriptDocValues.DenseVectorScriptDocValues dvs = mock(VectorScriptDocValues.DenseVectorScriptDocValues.class);
@@ -92,7 +92,7 @@ public class ScoreScriptUtilsTests extends ESTestCase {
         testSparseVectorFunctions(Version.CURRENT);
     }
 
-    public void testSparseVectorFunctions(Version indexVersion) {
+    private void testSparseVectorFunctions(Version indexVersion) {
         int[] docVectorDims = {2, 10, 50, 113, 4545};
         float[] docVectorValues = {230.0f, 300.33f, -34.8988f, 15.555f, -200.0f};
         BytesRef encodedDocVector = VectorEncoderDecoder.encodeSparseVector(

@@ -138,7 +138,7 @@ public class ScoreScriptUtils {
             ByteBuffer byteBuffer = ByteBuffer.wrap(vector.bytes, vector.offset, vector.length);
 
             double dotProduct = 0.0;
-            float docVectorMagnitude = 0.0f;
+            double docVectorMagnitude = 0.0f;
             if (scoreScript._getIndexVersion().onOrAfter(Version.V_7_4_0)) {
                 for (int dim = 0; dim < vectorLength; dim++) {
                     dotProduct += queryVectorIter.next().floatValue() * byteBuffer.getFloat();
@@ -301,7 +301,7 @@ public class ScoreScriptUtils {
             float[] docValues = VectorEncoderDecoder.decodeSparseVector(scoreScript._getIndexVersion(), value);
 
             double docQueryDotProduct = intDotProductSparse(queryValues, queryDims, docValues, docDims);
-            float docVectorMagnitude = 0.0f;
+            double docVectorMagnitude = 0.0f;
             if (scoreScript._getIndexVersion().onOrAfter(Version.V_7_4_0)) {
                 docVectorMagnitude = VectorEncoderDecoder.decodeVectorMagnitude(scoreScript._getIndexVersion(), value);
             } else {

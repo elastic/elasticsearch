@@ -165,7 +165,7 @@ public final class VectorEncoderDecoder {
     public static int denseVectorLength(Version indexVersion, BytesRef vectorBR) {
         return indexVersion.onOrAfter(Version.V_7_4_0)
             ? (vectorBR.length - INT_BYTES) / INT_BYTES
-            : vectorBR.length/ INT_BYTES;
+            : vectorBR.length / INT_BYTES;
     }
 
     /**

@@ -67,6 +67,14 @@ tag::flat-settings[]
 `false`.
 end::flat-settings[]
 
+tag::index-alias-filter[]
+<<query-dsl-bool-query, Filter query>>
+used to limit the index alias.
++
+If specified,
+the index alias only applies to documents returned by the filter.
+end::index-alias-filter[]
+
 tag::http-format[]
 `format`::
 (Optional, string) Short version of the
@@ -304,6 +312,13 @@ tag::version[]
 `version`::
 (Optional, boolean) If `true`, returns the document version as part of a hit.
 end::version[]
+
+tag::index-routing[]
+`routing`::
+(Optional, string)
+Custom <<mapping-routing-field, routing value>>
+used to route operations to a specific shard.
+end::index-routing[]
 
 tag::doc-version[]
 `version`::

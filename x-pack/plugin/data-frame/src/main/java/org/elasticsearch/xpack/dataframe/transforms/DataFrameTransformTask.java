@@ -22,6 +22,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.TimeValue;
@@ -54,6 +55,7 @@ import org.elasticsearch.xpack.dataframe.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.dataframe.checkpoint.DataFrameTransformsCheckpointService;
 import org.elasticsearch.xpack.dataframe.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
+import org.elasticsearch.xpack.dataframe.persistence.SeqNoPrimaryTermAndIndex;
 import org.elasticsearch.xpack.dataframe.transforms.pivot.AggregationResultUtils;
 
 import java.time.Instant;
@@ -98,6 +100,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
     private final AtomicReference<DataFrameTransformTaskState> taskState;
     private final AtomicReference<String> stateReason;
+    private final AtomicReference<SeqNoPrimaryTermAndIndex> seqNoPrimaryTermAndIndex = new AtomicReference<>(null);
     // the checkpoint of this data frame, storing the checkpoint until data indexing from source to dest is _complete_
     // Note: Each indexer run creates a new future checkpoint which becomes the current checkpoint only after the indexer run finished
     private final AtomicLong currentCheckpoint;
@@ -520,6 +523,19 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         indexer.set(indexerBuilder.build(this));
     }
 
+    void updateSeqNoPrimaryTermAndIndex(SeqNoPrimaryTermAndIndex expectedValue, SeqNoPrimaryTermAndIndex newValue) {
+        boolean updated = seqNoPrimaryTermAndIndex.compareAndSet(expectedValue, newValue);
+        // This should never happen. We ONLY ever update this value if at initialization or we just finished updating the document
+        // famous last words...
+        assert updated :
+            "[" + getTransformId() + "] unexpected change to seqNoPrimaryTermAndIndex.";
+    }
+
+    @Nullable
+    SeqNoPrimaryTermAndIndex getSeqNoPrimaryTermAndIndex() {
+        return seqNoPrimaryTermAndIndex.get();
+    }
+
     static class ClientDataFrameIndexerBuilder {
         private Client client;
         private DataFrameTransformsConfigManager transformsConfigManager;
@@ -869,12 +885,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 next.run();
                 return;
             }
-            // If we are `STOPPED` on a `doSaveState` call, that indicates we transitioned to `STOPPED` from `STOPPING`
-            // OR we called `doSaveState` manually as the indexer was not actively running.
-            // Since we save the state to an index, we should make sure that our task state is in parity with the indexer state
-            if (indexerState.equals(IndexerState.STOPPED)) {
-                transformTask.setTaskStateStopped();
-            }
+
 
             DataFrameTransformTaskState taskState = transformTask.taskState.get();
 
@@ -889,6 +900,13 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 logger.info("[{}] data frame transform finished indexing all data, initiating stop.", transformConfig.getId());
             }
 
+            // If we are `STOPPED` on a `doSaveState` call, that indicates we transitioned to `STOPPED` from `STOPPING`
+            // OR we called `doSaveState` manually as the indexer was not actively running.
+            // Since we save the state to an index, we should make sure that our task state is in parity with the indexer state
+            if (indexerState.equals(IndexerState.STOPPED)) {
+                taskState = DataFrameTransformTaskState.STOPPED;
+            }
+
             final DataFrameTransformState state = new DataFrameTransformState(
                 taskState,
                 indexerState,
@@ -898,13 +916,18 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 getProgress());
             logger.debug("[{}] updating persistent state of transform to [{}].", transformConfig.getId(), state.toString());
 
+            // This could be `null` but the putOrUpdateTransformStoredDoc handles that case just fine
+            SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex = transformTask.getSeqNoPrimaryTermAndIndex();
+
             // Persist the current state and stats in the internal index. The interval of this method being
             // called is controlled by AsyncTwoPhaseIndexer#onBulkResponse which calls doSaveState every so
             // often when doing bulk indexing calls or at the end of one indexing run.
             transformsConfigManager.putOrUpdateTransformStoredDoc(
                     new DataFrameTransformStoredDoc(transformId, state, getStats()),
+                    seqNoPrimaryTermAndIndex,
                     ActionListener.wrap(
                             r -> {
+                                transformTask.updateSeqNoPrimaryTermAndIndex(seqNoPrimaryTermAndIndex, r);
                                 // for auto stop shutdown the task
                                 if (state.getTaskState().equals(DataFrameTransformTaskState.STOPPED)) {
                                     transformTask.shutdown();

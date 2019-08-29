@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
@@ -42,6 +43,7 @@ import org.elasticsearch.xpack.dataframe.checkpoint.DataFrameTransformsCheckpoin
 import org.elasticsearch.xpack.dataframe.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
+import org.elasticsearch.xpack.dataframe.persistence.SeqNoPrimaryTermAndIndex;
 import org.elasticsearch.xpack.dataframe.transforms.pivot.SchemaUtil;
 
 import java.util.ArrayList;
@@ -189,8 +191,12 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
         // <3> Set the previous stats (if they exist), initialize the indexer, start the task (If it is STOPPED)
         // Since we don't create the task until `_start` is called, if we see that the task state is stopped, attempt to start
         // Schedule execution regardless
-        ActionListener<DataFrameTransformStoredDoc> transformStatsActionListener = ActionListener.wrap(
-            stateAndStats -> {
+        ActionListener<Tuple<DataFrameTransformStoredDoc, SeqNoPrimaryTermAndIndex>> transformStatsActionListener = ActionListener.wrap(
+            stateAndStatsAndSeqNoPrimaryTermAndIndex -> {
+                DataFrameTransformStoredDoc stateAndStats = stateAndStatsAndSeqNoPrimaryTermAndIndex.v1();
+                SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex = stateAndStatsAndSeqNoPrimaryTermAndIndex.v2();
+                // Since we have not set the value for this yet, it SHOULD be null
+                buildTask.updateSeqNoPrimaryTermAndIndex(null, seqNoPrimaryTermAndIndex);
                 logger.trace("[{}] initializing state and stats: [{}]", transformId, stateAndStats.toString());
                 indexerBuilder.setInitialStats(stateAndStats.getTransformStats())
                     .setInitialPosition(stateAndStats.getTransformState().getPosition())
@@ -217,10 +223,10 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
                     String msg = DataFrameMessages.getMessage(DataFrameMessages.FAILED_TO_LOAD_TRANSFORM_STATE, transformId);
                     logger.error(msg, error);
                     markAsFailed(buildTask, msg);
+                } else {
+                    logger.trace("[{}] No stats found (new transform), starting the task", transformId);
+                    startTask(buildTask, indexerBuilder, null, startTaskListener);
                 }
-
-                logger.trace("[{}] No stats found(new transform), starting the task", transformId);
-                startTask(buildTask, indexerBuilder, null, startTaskListener);
             }
         );
 

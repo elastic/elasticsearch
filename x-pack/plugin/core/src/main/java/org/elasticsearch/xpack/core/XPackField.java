@@ -47,8 +47,8 @@ public final class XPackField {
     public static final String FROZEN_INDICES = "frozen_indices";
     /** Name constant for spatial features. */
     public static final String SPATIAL = "spatial";
-    /** Name constant for the data science plugin. */
-    public static final String DATA_SCIENCE = "data_science";
+    /** Name constant for the analytics plugin. */
+    public static final String ANALYTICS = "analytics";
 
     private XPackField() {}
 

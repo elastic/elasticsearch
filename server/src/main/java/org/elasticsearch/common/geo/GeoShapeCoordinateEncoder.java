@@ -26,11 +26,23 @@ public final class GeoShapeCoordinateEncoder implements CoordinateEncoder {
 
     @Override
     public int encodeX(double x) {
+        if (x == Double.NEGATIVE_INFINITY) {
+            return Integer.MIN_VALUE;
+        }
+        if (x == Double.POSITIVE_INFINITY) {
+            return Integer.MAX_VALUE;
+        }
         return GeoEncodingUtils.encodeLongitude(x);
     }
 
     @Override
     public int encodeY(double y) {
+        if (y == Double.NEGATIVE_INFINITY) {
+            return Integer.MIN_VALUE;
+        }
+        if (y == Double.POSITIVE_INFINITY) {
+            return Integer.MAX_VALUE;
+        }
         return GeoEncodingUtils.encodeLatitude(y);
     }
 

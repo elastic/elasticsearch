@@ -14,7 +14,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.vectors.mapper.VectorEncoderDecoder.sortSparseDimsDoubleValues;
+import static org.elasticsearch.xpack.vectors.mapper.VectorEncoderDecoder.sortSparseDimsFloatValues;
 
 public class ScoreScriptUtils {
 
@@ -37,7 +37,7 @@ public class ScoreScriptUtils {
         Iterator<Number> queryVectorIter = queryVector.iterator();
         double l1norm = 0;
         for (int dim = 0; dim < docVector.length; dim++){
-            l1norm += Math.abs(queryVectorIter.next().doubleValue() - docVector[dim]);
+            l1norm += Math.abs(queryVectorIter.next().floatValue() - docVector[dim]);
         }
         return l1norm;
     }
@@ -59,7 +59,7 @@ public class ScoreScriptUtils {
         Iterator<Number> queryVectorIter = queryVector.iterator();
         double l2norm = 0;
         for (int dim = 0; dim < docVector.length; dim++){
-            double diff = queryVectorIter.next().doubleValue() - docVector[dim];
+            double diff = queryVectorIter.next().floatValue() - docVector[dim];
             l2norm += diff * diff;
         }
         return Math.sqrt(l2norm);
@@ -97,11 +97,11 @@ public class ScoreScriptUtils {
         // calculate queryVectorMagnitude once per query execution
         public CosineSimilarity(List<Number> queryVector) {
             this.queryVector = queryVector;
-            double doubleValue;
+
             double dotProduct = 0;
             for (Number value : queryVector) {
-                doubleValue = value.doubleValue();
-                dotProduct += doubleValue * doubleValue;
+                float floatValue = value.floatValue();
+                dotProduct += floatValue * floatValue;
             }
             this.queryVectorMagnitude = Math.sqrt(dotProduct);
         }
@@ -130,7 +130,7 @@ public class ScoreScriptUtils {
         double v1v2DotProduct = 0;
         Iterator<Number> v1Iter = v1.iterator();
         for (int dim = 0; dim < v2.length; dim++) {
-            v1v2DotProduct += v1Iter.next().doubleValue() * v2[dim];
+            v1v2DotProduct += v1Iter.next().floatValue() * v2[dim];
         }
         return v1v2DotProduct;
     }
@@ -139,7 +139,7 @@ public class ScoreScriptUtils {
     //**************FUNCTIONS FOR SPARSE VECTORS
 
     public static class VectorSparseFunctions {
-        final double[] queryValues;
+        final float[] queryValues;
         final int[] queryDims;
 
         // prepare queryVector once per script execution
@@ -147,7 +147,7 @@ public class ScoreScriptUtils {
         public VectorSparseFunctions(Map<String, Number> queryVector) {
             //break vector into two arrays dims and values
             int n = queryVector.size();
-            queryValues = new double[n];
+            queryValues = new float[n];
             queryDims = new int[n];
             int i = 0;
             for (Map.Entry<String, Number> dimValue : queryVector.entrySet()) {
@@ -156,11 +156,11 @@ public class ScoreScriptUtils {
                 } catch (final NumberFormatException e) {
                     throw new IllegalArgumentException("Failed to parse a query vector dimension, it must be an integer!", e);
                 }
-                queryValues[i] = dimValue.getValue().doubleValue();
+                queryValues[i] = dimValue.getValue().floatValue();
                 i++;
             }
             // Sort dimensions in the ascending order and sort values in the same order as their corresponding dimensions
-            sortSparseDimsDoubleValues(queryDims, queryValues, n);
+            sortSparseDimsFloatValues(queryDims, queryValues, n);
         }
     }
 
@@ -317,7 +317,7 @@ public class ScoreScriptUtils {
         }
     }
 
-    private static double intDotProductSparse(double[] v1Values, int[] v1Dims, float[] v2Values, int[] v2Dims) {
+    private static double intDotProductSparse(float[] v1Values, int[] v1Dims, float[] v2Values, int[] v2Dims) {
         double v1v2DotProduct = 0;
         int v1Index = 0;
         int v2Index = 0;

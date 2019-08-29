@@ -412,7 +412,7 @@ POST twitter/_delete_by_query?scroll_size=5000
 
 [float]
 [[docs-delete-by-query-manual-slice]]
-===== Manual slicing
+===== Slice manually
 
 Slice a delete by query manually by providing a slice id and total number of
 slices to each request:
@@ -487,7 +487,7 @@ Which results in a sensible `total` like this one:
 
 [float]
 [[docs-delete-by-query-automatic-slice]]
-===== Automatic slicing
+===== Use automatic slicing
 
 You can also let delete-by-query automatically parallelize using
 <<sliced-scroll, sliced scroll>> to slice on `_id`. Use `slices` to specify
@@ -573,7 +573,7 @@ though these are all taken at approximately the same time.
 
 [float]
 [[docs-delete-by-query-rethrottle]]
-===== Rethrottling
+===== Change throttling for a request
 
 The value of `requests_per_second` can be changed on a running delete by query
 using the `_rethrottle` API. Rethrottling that speeds up the
@@ -591,6 +591,10 @@ Use the <<tasks,tasks API>> to get the task ID. Set `requests_per_second`
 to any positive decimal value or `-1` to disable throttling.
 
 ===== Get the status of a delete by query operation
+
+Use the <<tasks,tasks API>> to get the status of a delete by query
+operation:
+
 
 [source,js]
 --------------------------------------------------

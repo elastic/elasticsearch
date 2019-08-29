@@ -158,31 +158,27 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         private final ClusterStateObserver recoveredObserver;
         private final BulkRequest bulkRequest;
         private final Task task;
-        long startTime = -1;
+        long startTime;
 
         BulkExecutor(Task task, BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
             super(listener);
             this.recoveredObserver = new ClusterStateObserver(clusterService, bulkRequest.timeout(), logger, threadPool.getThreadContext());
             this.bulkRequest = bulkRequest;
             this.task = task;
+            startTime = relativeTime();
         }
 
         @Override
         protected void doRun() {
-            if (startTime == -1) {
-               startTime = relativeTime();
-            }
-            ClusterBlockException blockException = clusterService.state().blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+            ClusterState currentState = clusterService.state();
+            ClusterBlockException blockException = currentState.blocks().globalBlockedException(ClusterBlockLevel.WRITE);
+
             if (blockException != null) {
-                if (recoveredObserver.isTimedOut()) {
-                    // we running as a last attempt after a timeout has happened. don't retry
-                    listener.onFailure(blockException);
-                    return;
-                }
                 recoveredObserver.waitForNextChange(new ClusterStateObserver.Listener() {
                     @Override
-                    public void onNewClusterState(ClusterState state) {
-                        run();
+                    public void onNewClusterState(ClusterState newState) {
+                        // predicate passed, begin preparing for the bulk
+                        prepForBulk(newState);
                     }
 
                     @Override
@@ -192,22 +188,21 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
                     @Override
                     public void onTimeout(TimeValue timeout) {
-                        // Try one more time...
-                        run();
+                        listener.onFailure(blockException);
                     }
-                });
+                }, newState -> newState.blocks().global(ClusterBlockLevel.WRITE).isEmpty());
                 return;
             }
 
             // All good, begin preparing for the bulk request
-            prepForBulk();
+            prepForBulk(currentState);
         }
 
-        private void prepForBulk() {
+        private void prepForBulk(ClusterState clusterState) {
             final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
 
             boolean hasIndexRequestsWithPipelines = false;
-            final MetaData metaData = clusterService.state().getMetaData();
+            final MetaData metaData = clusterState.getMetaData();
             ImmutableOpenMap<String, IndexMetaData> indicesMetaData = metaData.indices();
             for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
                 IndexRequest indexRequest = getIndexWriteRequest(actionRequest);
@@ -296,11 +291,10 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                    indices we can't create that we'll use when we try to run the requests. */
                 final Map<String, IndexNotFoundException> indicesThatCannotBeCreated = new HashMap<>();
                 Set<String> autoCreateIndices = new HashSet<>();
-                ClusterState state = clusterService.state();
                 for (String index : indices) {
                     boolean shouldAutoCreate;
                     try {
-                        shouldAutoCreate = shouldAutoCreate(index, state);
+                        shouldAutoCreate = shouldAutoCreate(index, clusterState);
                     } catch (IndexNotFoundException e) {
                         shouldAutoCreate = false;
                         indicesThatCannotBeCreated.put(index, e);

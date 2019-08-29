@@ -392,6 +392,7 @@ final class RequestConverters {
 
     private static void addSearchRequestParams(Params params, SearchRequest searchRequest) {
         params.putParam(RestSearchAction.TYPED_KEYS_PARAM, "true");
+        params.putParam(RestSearchAction.TOTAL_HIT_AS_INT_PARAM, "true");
         params.withRouting(searchRequest.routing());
         params.withPreference(searchRequest.preference());
         params.withIndicesOptions(searchRequest.indicesOptions());
@@ -425,6 +426,7 @@ final class RequestConverters {
 
         Params params = new Params(request);
         params.putParam(RestSearchAction.TYPED_KEYS_PARAM, "true");
+        params.putParam(RestSearchAction.TOTAL_HIT_AS_INT_PARAM, "true");
         if (multiSearchRequest.maxConcurrentSearchRequests() != MultiSearchRequest.MAX_CONCURRENT_SEARCH_REQUESTS_DEFAULT) {
             params.putParam("max_concurrent_searches", Integer.toString(multiSearchRequest.maxConcurrentSearchRequests()));
         }
@@ -458,6 +460,7 @@ final class RequestConverters {
 
         Params params = new Params(request);
         params.putParam(RestSearchAction.TYPED_KEYS_PARAM, "true");
+        params.putParam(RestSearchAction.TOTAL_HIT_AS_INT_PARAM, "true");
         if (multiSearchTemplateRequest.maxConcurrentSearchRequests() != MultiSearchRequest.MAX_CONCURRENT_SEARCH_REQUESTS_DEFAULT) {
             params.putParam("max_concurrent_searches", Integer.toString(multiSearchTemplateRequest.maxConcurrentSearchRequests()));
         }

@@ -49,6 +49,7 @@ index settings, aliases, mappings, and index templates.
 [float]
 [[index-templates]]
 === Index templates:
+* <<indices-delete-template>>
 * <<indices-template-exists>>
 * <<indices-templates>>
 
@@ -113,6 +114,8 @@ include::indices/update-settings.asciidoc[]
 include::indices/get-settings.asciidoc[]
 
 include::indices/analyze.asciidoc[]
+
+include::indices/delete-index-template.asciidoc[]
 
 include::indices/template-exists.asciidoc[]
 

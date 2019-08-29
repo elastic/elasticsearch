@@ -51,6 +51,7 @@ public class SnapshotRetentionServiceTests extends ESTestCase {
                  FakeRetentionTask::new, clusterService, clock)) {
             assertThat(service.getScheduler().jobCount(), equalTo(0));
 
+            service.onMaster();
             service.setUpdateSchedule(SnapshotLifecycleServiceTests.randomSchedule());
             assertThat(service.getScheduler().scheduledJobIds(), containsInAnyOrder(SnapshotRetentionService.SLM_RETENTION_JOB_ID));
 

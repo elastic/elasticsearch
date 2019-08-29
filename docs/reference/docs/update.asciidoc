@@ -249,8 +249,6 @@ request is ignored and the `result` element in the response returns `noop`:
    "_type": "_doc",
    "_id": "1",
    "_version": 7,
-   "_primary_term": 1,
-   "_seq_no": 6,
    "result": "noop"
 }
 --------------------------------------------------

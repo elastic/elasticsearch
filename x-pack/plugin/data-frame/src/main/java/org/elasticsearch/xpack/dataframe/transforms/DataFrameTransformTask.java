@@ -219,31 +219,6 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 ));
     }
 
-    public DataFrameTransformCheckpoint getLastCheckpoint() {
-        return getIndexer().getLastCheckpoint();
-    }
-
-    public DataFrameTransformCheckpoint getNextCheckpoint() {
-        return getIndexer().getNextCheckpoint();
-    }
-
-    /**
-     * Get the in-progress checkpoint
-     *
-     * @return checkpoint in progress or 0 if task/indexer is not active
-     */
-    public long getInProgressCheckpoint() {
-        if (getIndexer() == null) {
-            return 0;
-        } else {
-            return indexer.get().getState().equals(IndexerState.INDEXING) ? currentCheckpoint.get() + 1L : 0;
-        }
-    }
-
-    public synchronized void setTaskStateStopped() {
-        taskState.set(DataFrameTransformTaskState.STOPPED);
-    }
-
     /**
      * Start the background indexer and set the task's state to started
      * @param startingCheckpoint Set the current checkpoint to this value. If null the
@@ -271,6 +246,15 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 RestStatus.CONFLICT,
                 getTransformId(),
                 msg));
+            return;
+        }
+        // If we are already in a `STARTED` state, we should not attempt to call `.start` on the indexer again.
+        if (taskState.get() == DataFrameTransformTaskState.STARTED) {
+            listener.onFailure(new ElasticsearchStatusException(
+                "Cannot start transform [{}] as it is already STARTED.",
+                RestStatus.CONFLICT,
+                getTransformId()
+            ));
             return;
         }
         final IndexerState newState = getIndexer().start();
@@ -328,7 +312,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             return;
         }
 
-        if (getIndexer().getState() == IndexerState.STOPPED) {
+        if (getIndexer().getState() == IndexerState.STOPPED || getIndexer().getState() == IndexerState.STOPPING) {
             return;
         }
 
@@ -342,10 +326,11 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
         IndexerState state = getIndexer().stop();
         stateReason.set(null);
-        // We just don't want it to be failed if it is failed
-        // Either we are running, and the STATE is already started or failed
-        // doSaveState should transfer the state to STOPPED when it needs to.
-        taskState.set(DataFrameTransformTaskState.STARTED);
+        // No reason to keep it in the potentially failed state.
+        // Since we have called `stop` against the indexer, we have no more fear of triggering again.
+        // But, since `doSaveState` is asynchronous, it is best to set the state as STARTED so that another `start` call cannot be
+        // executed while we are wrapping up.
+        taskState.compareAndSet(DataFrameTransformTaskState.FAILED, DataFrameTransformTaskState.STARTED);
         if (state == IndexerState.STOPPED) {
             getIndexer().onStop();
             getIndexer().doSaveState(state, getIndexer().getPosition(), () -> {});
@@ -364,8 +349,10 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             return;
         }
 
-        if (taskState.get() == DataFrameTransformTaskState.FAILED) {
-            logger.debug("[{}] schedule was triggered for transform but task is failed. Ignoring trigger.", getTransformId());
+        if (taskState.get() == DataFrameTransformTaskState.FAILED || taskState.get() == DataFrameTransformTaskState.STOPPED) {
+            logger.debug("[{}] schedule was triggered for transform but task is [{}]. Ignoring trigger.",
+                getTransformId(),
+                taskState.get());
             return;
         }
 
@@ -382,7 +369,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
         // if it runs for the 1st time we just do it, if not we check for changes
         if (currentCheckpoint.get() == 0) {
-            logger.debug("Trigger initial run.");
+            logger.debug("[{}] trigger initial run.", getTransformId());
             getIndexer().maybeTriggerAsyncJob(System.currentTimeMillis());
         } else if (getIndexer().isContinuous()) {
             getIndexer().maybeTriggerAsyncJob(System.currentTimeMillis());
@@ -396,17 +383,6 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
     synchronized void shutdown() {
         deregisterSchedulerJob();
         markAsCompleted();
-    }
-
-    public DataFrameTransformProgress getProgress() {
-        if (indexer.get() == null) {
-            return null;
-        }
-        DataFrameTransformProgress indexerProgress = indexer.get().getProgress();
-        if (indexerProgress == null) {
-            return null;
-        }
-        return new DataFrameTransformProgress(indexerProgress);
     }
 
     void persistStateToClusterState(DataFrameTransformState state,
@@ -886,14 +862,12 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 return;
             }
 
-
             DataFrameTransformTaskState taskState = transformTask.taskState.get();
 
             if (indexerState.equals(IndexerState.STARTED)
                 && transformTask.currentCheckpoint.get() == 1
                 && this.isContinuous() == false) {
                 // set both to stopped so they are persisted as such
-                taskState = DataFrameTransformTaskState.STOPPED;
                 indexerState = IndexerState.STOPPED;
 
                 auditor.info(transformConfig.getId(), "Data frame finished indexing all data, initiating stop");
@@ -904,6 +878,8 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             // OR we called `doSaveState` manually as the indexer was not actively running.
             // Since we save the state to an index, we should make sure that our task state is in parity with the indexer state
             if (indexerState.equals(IndexerState.STOPPED)) {
+                // We don't want adjust the stored taskState because as soon as it is `STOPPED` a user could call
+                // .start again.
                 taskState = DataFrameTransformTaskState.STOPPED;
             }
 
@@ -990,6 +966,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 nextCheckpoint = null;
                 // Reset our failure count as we have finished and may start again with a new checkpoint
                 failureCount.set(0);
+                transformTask.stateReason.set(null);
 
                 // With bucket_selector we could have read all the buckets and completed the transform
                 // but not "see" all the buckets since they were filtered out. Consequently, progress would

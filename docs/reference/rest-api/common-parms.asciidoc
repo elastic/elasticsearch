@@ -313,12 +313,12 @@ tag::version[]
 (Optional, boolean) If `true`, returns the document version as part of a hit.
 end::version[]
 
-tag::index-alias-routing[]
+tag::index-routing[]
 `routing`::
 (Optional, string)
 Custom <<mapping-routing-field, routing value>>
 used to route operations to a specific shard.
-end::index-alias-routing[]
+end::index-routing[]
 
 tag::doc-version[]
 `version`::

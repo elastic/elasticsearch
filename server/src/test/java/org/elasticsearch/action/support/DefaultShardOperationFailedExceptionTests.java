@@ -138,7 +138,9 @@ public class DefaultShardOperationFailedExceptionTests extends ESTestCase {
                 assertThat(deserializedException.shardId(), equalTo(exception.shardId()));
                 // Serialising and deserialising an exception seems to remove the "java.base/" part from the stack trace,
                 // so these string replacements account for this.
-                assertThat(deserializedException.reason().replace("java.base/", ""), equalTo(exception.reason().replace("java.base/", "")));
+                assertThat(
+                    deserializedException.reason().replace("java.base/", ""),
+                    equalTo(exception.reason().replace("java.base/", "")));
                 assertThat(deserializedException.getCause().getMessage(), equalTo(exception.getCause().getMessage()));
                 assertThat(deserializedException.getCause().getClass(), equalTo(exception.getCause().getClass()));
                 assertArrayEquals(deserializedException.getCause().getStackTrace(), exception.getCause().getStackTrace());

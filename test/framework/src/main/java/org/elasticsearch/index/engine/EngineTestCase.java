@@ -1130,34 +1130,38 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     public static void assertAtMostOneLuceneDocumentPerSequenceNumber(Engine engine) throws IOException {
-        if (engine.config().getIndexSettings().isSoftDeleteEnabled() == false || engine instanceof InternalEngine == false) {
-            return;
+        if (engine instanceof InternalEngine) {
+            try {
+                engine.refresh("test");
+                try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+                    assertAtMostOneLuceneDocumentPerSequenceNumber(engine.config().getIndexSettings(), searcher.getDirectoryReader());
+                }
+            } catch (AlreadyClosedException ignored) {
+                // engine was closed
+            }
         }
-        try {
-            engine.refresh("test");
-            try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
-                DirectoryReader reader = Lucene.wrapAllDocsLive(searcher.getDirectoryReader());
-                Set<Long> seqNos = new HashSet<>();
-                for (LeafReaderContext leaf : reader.leaves()) {
-                    NumericDocValues primaryTermDocValues = leaf.reader().getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
-                    NumericDocValues seqNoDocValues = leaf.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
-                    int docId;
-                    while ((docId = seqNoDocValues.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-                        assertTrue(seqNoDocValues.advanceExact(docId));
-                        long seqNo = seqNoDocValues.longValue();
-                        assertThat(seqNo, greaterThanOrEqualTo(0L));
-                        if (primaryTermDocValues.advanceExact(docId)) {
-                            if (seqNos.add(seqNo) == false) {
-                                final IdOnlyFieldVisitor idFieldVisitor = new IdOnlyFieldVisitor();
-                                leaf.reader().document(docId, idFieldVisitor);
-                                throw new AssertionError("found multiple documents for seq=" + seqNo + " id=" + idFieldVisitor.getId());
-                            }
-                        }
+    }
+
+    public static void assertAtMostOneLuceneDocumentPerSequenceNumber(IndexSettings indexSettings,
+                                                                      DirectoryReader reader) throws IOException {
+        Set<Long> seqNos = new HashSet<>();
+        final DirectoryReader wrappedReader = indexSettings.isSoftDeleteEnabled() ? Lucene.wrapAllDocsLive(reader) : reader;
+        for (LeafReaderContext leaf : wrappedReader.leaves()) {
+            NumericDocValues primaryTermDocValues = leaf.reader().getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
+            NumericDocValues seqNoDocValues = leaf.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
+            int docId;
+            while ((docId = seqNoDocValues.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                assertTrue(seqNoDocValues.advanceExact(docId));
+                long seqNo = seqNoDocValues.longValue();
+                assertThat(seqNo, greaterThanOrEqualTo(0L));
+                if (primaryTermDocValues.advanceExact(docId)) {
+                    if (seqNos.add(seqNo) == false) {
+                        final IdOnlyFieldVisitor idFieldVisitor = new IdOnlyFieldVisitor();
+                        leaf.reader().document(docId, idFieldVisitor);
+                        throw new AssertionError("found multiple documents for seq=" + seqNo + " id=" + idFieldVisitor.getId());
                     }
                 }
             }
-        } catch (AlreadyClosedException ignored) {
-
         }
     }
 

@@ -242,13 +242,13 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
     /**
      * HTTP handler that injects random S3 service errors
      *
-     * Note: it is not a good idea to allow this handler to simulates too many errors as it would
+     * Note: it is not a good idea to allow this handler to simulate too many errors as it would
      * slow down the test suite and/or could trigger SDK client request throttling (and request
      * would fail before reaching the max retry attempts - this can be mitigated by disabling
      * {@link S3ClientSettings#USE_THROTTLE_RETRIES_SETTING})
      */
     @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
-    private class ErroneousHttpHandler implements HttpHandler {
+    private static class ErroneousHttpHandler implements HttpHandler {
 
         // first key is the remote address, second key is the HTTP request unique id provided by the AWS SDK client,
         // value is the number of times the request has been seen
@@ -268,7 +268,7 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
             final String requestId = exchange.getRequestHeaders().getFirst(AmazonHttpClient.HEADER_SDK_TRANSACTION_ID);
             assert Strings.hasText(requestId);
 
-            final int count = requests.computeIfAbsent(requestId, (req) -> new AtomicInteger(0)).incrementAndGet();
+            final int count = requests.computeIfAbsent(requestId, req -> new AtomicInteger(0)).incrementAndGet();
             if (count >= maxErrorsPerRequest || randomBoolean()) {
                 requests.remove(requestId);
                 delegate.handle(exchange);

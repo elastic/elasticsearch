@@ -40,12 +40,12 @@ public class JdkDownloadPluginTests extends GradleUnitTestCase {
     }
 
     public void testMissingPlatform() {
-        assertJdkError(createProject(), "testjdk", "11.0.2+33", null, "platform not specified for jdk [testjdk]");
+        assertJdkError(createProject(), "testjdk", "openjdk-11.0.2+33", null, "platform not specified for jdk [testjdk]");
     }
 
     public void testUnknownPlatform() {
-        assertJdkError(createProject(), "testjdk", "11.0.2+33", "unknown",
-            "unknown platform [unknown] for jdk [testjdk], must be one of [linux, windows, darwin]");
+        assertJdkError(createProject(), "testjdk", "openjdk-11.0.2+33", "unknown",
+            "unknown platform [unknown] for jdk [testjdk], must be one of [darwin, linux, windows]");
     }
 
     public void testBadVersionFormat() {

@@ -65,8 +65,8 @@ import static org.elasticsearch.gradle.vagrant.VagrantMachine.convertWindowsPath
 
 public class DistroTestPlugin implements Plugin<Project> {
 
-    private static final String SYSTEM_JDK_VERSION = "11.0.2+9";
-    private static final String GRADLE_JDK_VERSION = "12.0.1+12@69cfe15208a647278a19ef0990eea691";
+    private static final String SYSTEM_JDK_VERSION = "openjdk-11.0.2+9";
+    private static final String GRADLE_JDK_VERSION = "openjdk-12.0.1+12@69cfe15208a647278a19ef0990eea691";
 
     // all distributions used by distro tests. this is temporary until tests are per distribution
     private static final String DISTRIBUTIONS_CONFIGURATION = "distributions";
@@ -172,7 +172,7 @@ public class DistroTestPlugin implements Plugin<Project> {
         String box = project.getName();
 
         // setup jdks used by the distro tests, and by gradle executing
-        
+
         NamedDomainObjectContainer<Jdk> jdksContainer = JdkDownloadPlugin.getContainer(project);
         String platform = box.contains("windows") ? "windows" : "linux";
         Jdk systemJdk = createJdk(jdksContainer, "system", SYSTEM_JDK_VERSION, platform);
@@ -309,7 +309,7 @@ public class DistroTestPlugin implements Plugin<Project> {
                 }
             });
     }
-    
+
     private List<ElasticsearchDistribution> configureDistributions(Project project, Version upgradeVersion) {
         NamedDomainObjectContainer<ElasticsearchDistribution> distributions = DistributionDownloadPlugin.getContainer(project);
         List<ElasticsearchDistribution> currentDistros = new ArrayList<>();

@@ -71,6 +71,10 @@ Example response:
           "available" : true,
           "enabled" : true
       },
+      "data_science" : {
+          "available" : true,
+          "enabled" : true
+      },
       "flattened" : {
          "available" : true,
          "enabled" : true

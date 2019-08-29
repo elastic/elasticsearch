@@ -270,9 +270,9 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        protected S3Repository createRepository(RepositoryMetaData metadata, Settings settings,
+        protected S3Repository createRepository(RepositoryMetaData metadata,
                                                 NamedXContentRegistry registry, ThreadPool threadPool) {
-            return new S3Repository(metadata, settings, registry, service, threadPool) {
+            return new S3Repository(metadata, registry, service, threadPool) {
                 @Override
                 protected void assertSnapshotOrGenericThread() {
                     // eliminate thread name check as we create repo manually on test/main threads

@@ -32,13 +32,15 @@ public class Regression implements DataFrameAnalysis {
     public static final ParseField MAXIMUM_NUMBER_TREES = new ParseField("maximum_number_trees");
     public static final ParseField FEATURE_BAG_FRACTION = new ParseField("feature_bag_fraction");
     public static final ParseField PREDICTION_FIELD_NAME = new ParseField("prediction_field_name");
+    public static final ParseField TRAINING_PERCENT = new ParseField("training_percent");
 
     private static final ConstructingObjectParser<Regression, Void> LENIENT_PARSER = createParser(true);
     private static final ConstructingObjectParser<Regression, Void> STRICT_PARSER = createParser(false);
 
     private static ConstructingObjectParser<Regression, Void> createParser(boolean lenient) {
         ConstructingObjectParser<Regression, Void> parser = new ConstructingObjectParser<>(NAME.getPreferredName(), lenient,
-            a -> new Regression((String) a[0], (Double) a[1], (Double) a[2], (Double) a[3], (Integer) a[4], (Double) a[5], (String) a[6]));
+            a -> new Regression((String) a[0], (Double) a[1], (Double) a[2], (Double) a[3], (Integer) a[4], (Double) a[5], (String) a[6],
+                (Double) a[7]));
         parser.declareString(ConstructingObjectParser.constructorArg(), DEPENDENT_VARIABLE);
         parser.declareDouble(ConstructingObjectParser.optionalConstructorArg(), LAMBDA);
         parser.declareDouble(ConstructingObjectParser.optionalConstructorArg(), GAMMA);
@@ -46,6 +48,7 @@ public class Regression implements DataFrameAnalysis {
         parser.declareInt(ConstructingObjectParser.optionalConstructorArg(), MAXIMUM_NUMBER_TREES);
         parser.declareDouble(ConstructingObjectParser.optionalConstructorArg(), FEATURE_BAG_FRACTION);
         parser.declareString(ConstructingObjectParser.optionalConstructorArg(), PREDICTION_FIELD_NAME);
+        parser.declareDouble(ConstructingObjectParser.optionalConstructorArg(), TRAINING_PERCENT);
         return parser;
     }
 
@@ -60,9 +63,11 @@ public class Regression implements DataFrameAnalysis {
     private final Integer maximumNumberTrees;
     private final Double featureBagFraction;
     private final String predictionFieldName;
+    private final double trainingPercent;
 
     public Regression(String dependentVariable, @Nullable Double lambda, @Nullable Double gamma, @Nullable Double eta,
-                      @Nullable Integer maximumNumberTrees, @Nullable Double featureBagFraction, @Nullable String predictionFieldName) {
+                      @Nullable Integer maximumNumberTrees, @Nullable Double featureBagFraction, @Nullable String predictionFieldName,
+                      @Nullable Double trainingPercent) {
         this.dependentVariable = Objects.requireNonNull(dependentVariable);
 
         if (lambda != null && lambda < 0) {
@@ -91,10 +96,15 @@ public class Regression implements DataFrameAnalysis {
         this.featureBagFraction = featureBagFraction;
 
         this.predictionFieldName = predictionFieldName;
+
+        if (trainingPercent != null && (trainingPercent < 1.0 || trainingPercent > 100.0)) {
+            throw ExceptionsHelper.badRequestException("[{}] must be a double in [1, 100]", TRAINING_PERCENT.getPreferredName());
+        }
+        this.trainingPercent = trainingPercent == null ? 100.0 : trainingPercent;
     }
 
     public Regression(String dependentVariable) {
-        this(dependentVariable, null, null, null, null, null, null);
+        this(dependentVariable, null, null, null, null, null, null, null);
     }
 
     public Regression(StreamInput in) throws IOException {
@@ -105,6 +115,15 @@ public class Regression implements DataFrameAnalysis {
         maximumNumberTrees = in.readOptionalVInt();
         featureBagFraction = in.readOptionalDouble();
         predictionFieldName = in.readOptionalString();
+        trainingPercent = in.readDouble();
+    }
+
+    public String getDependentVariable() {
+        return dependentVariable;
+    }
+
+    public double getTrainingPercent() {
+        return trainingPercent;
     }
 
     @Override
@@ -121,6 +140,7 @@ public class Regression implements DataFrameAnalysis {
         out.writeOptionalVInt(maximumNumberTrees);
         out.writeOptionalDouble(featureBagFraction);
         out.writeOptionalString(predictionFieldName);
+        out.writeDouble(trainingPercent);
     }
 
     @Override
@@ -145,6 +165,7 @@ public class Regression implements DataFrameAnalysis {
         if (predictionFieldName != null) {
             builder.field(PREDICTION_FIELD_NAME.getPreferredName(), predictionFieldName);
         }
+        builder.field(TRAINING_PERCENT.getPreferredName(), trainingPercent);
         builder.endObject();
         return builder;
     }
@@ -191,7 +212,8 @@ public class Regression implements DataFrameAnalysis {
 
     @Override
     public int hashCode() {
-        return Objects.hash(dependentVariable, lambda, gamma, eta, maximumNumberTrees, featureBagFraction, predictionFieldName);
+        return Objects.hash(dependentVariable, lambda, gamma, eta, maximumNumberTrees, featureBagFraction, predictionFieldName,
+            trainingPercent);
     }
 
     @Override
@@ -205,6 +227,7 @@ public class Regression implements DataFrameAnalysis {
             && Objects.equals(eta, that.eta)
             && Objects.equals(maximumNumberTrees, that.maximumNumberTrees)
             && Objects.equals(featureBagFraction, that.featureBagFraction)
-            && Objects.equals(predictionFieldName, that.predictionFieldName);
+            && Objects.equals(predictionFieldName, that.predictionFieldName)
+            && trainingPercent == that.trainingPercent;
     }
 }

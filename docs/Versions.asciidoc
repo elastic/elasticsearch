@@ -7,7 +7,7 @@ bare_version never includes -alpha or -beta
 :prev-major-version:    6.x
 :lucene_version:        8.2.0
 :lucene_version_path:   8_2_0
-:branch:                7.x
+:branch:                7.4
 :jdk:                   1.8.0_131
 :jdk_major:             8
 :build_flavor:          default

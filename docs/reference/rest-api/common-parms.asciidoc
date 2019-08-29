@@ -38,22 +38,19 @@ Wildcard expressions are not accepted.
 --
 end::expand-wildcards[]
 
-tag::cat-h[]
-`h`::
-(Optional, string) Comma-separated list of column names to display.
-end::cat-h[]
-
 tag::flat-settings[]
 `flat_settings`::
 (Optional, boolean) If `true`, returns settings in flat format. Defaults to
 `false`.
 end::flat-settings[]
 
-tag::help[]
-`help`::
-(Optional, boolean) If `true`, the response returns help information. Defaults
-to `false`.
-end::help[]
+tag::index-alias-filter[]
+<<query-dsl-bool-query, Filter query>>
+used to limit the index alias.
++
+If specified,
+the index alias only applies to documents returned by the filter.
+end::index-alias-filter[]
 
 tag::http-format[]
 `format`::
@@ -61,6 +58,17 @@ tag::http-format[]
 https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html[HTTP accept header].
 Valid values include JSON, YAML, etc.
 end::http-format[]
+
+tag::cat-h[]
+`h`::
+(Optional, string) Comma-separated list of column names to display.
+end::cat-h[]
+
+tag::help[]
+`help`::
+(Optional, boolean) If `true`, the response returns help information. Defaults
+to `false`.
+end::help[]
 
 tag::include-defaults[]
 `include_defaults`::
@@ -152,6 +160,13 @@ tag::doc-routing[]
 `routing`::
 (Optional, string) Target the specified primary shard.
 end::doc-routing[]
+
+tag::index-routing[]
+`routing`::
+(Optional, string)
+Custom <<mapping-routing-field, routing value>>
+used to route operations to a specific shard.
+end::index-routing[]
 
 tag::doc-version[]
 `version`::

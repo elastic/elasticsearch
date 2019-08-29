@@ -36,6 +36,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
@@ -68,12 +69,7 @@ public class ExtractedFieldsDetector {
     }
 
     public ExtractedFields detect() {
-        Set<String> fields = new HashSet<>(fieldCapabilitiesResponse.get().keySet());
-        fields.removeAll(IGNORE_FIELDS);
-        removeFieldsUnderResultsField(fields);
-        includeAndExcludeFields(fields);
-        removeFieldsWithIncompatibleTypes(fields);
-        checkRequiredFields();
+        Set<String> fields = getIncludedFields();
 
         if (fields.isEmpty()) {
             throw ExceptionsHelper.badRequestException("No compatible fields could be detected in index {}. Supported types are {}.",
@@ -81,20 +77,25 @@ public class ExtractedFieldsDetector {
                 getSupportedTypes());
         }
 
-        List<String> sortedFields = new ArrayList<>(fields);
-        // We sort the fields to ensure the checksum for each document is deterministic
-        Collections.sort(sortedFields);
-        ExtractedFields extractedFields = ExtractedFields.build(sortedFields, Collections.emptySet(), fieldCapabilitiesResponse);
-        if (extractedFields.getDocValueFields().size() > docValueFieldsLimit) {
-            extractedFields = fetchFromSourceIfSupported(extractedFields);
-            if (extractedFields.getDocValueFields().size() > docValueFieldsLimit) {
-                throw ExceptionsHelper.badRequestException("[{}] fields must be retrieved from doc_values but the limit is [{}]; " +
-                    "please adjust the index level setting [{}]", extractedFields.getDocValueFields().size(), docValueFieldsLimit,
-                    IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.getKey());
-            }
+        checkNoIgnoredFields(fields);
+        checkFieldsHaveCompatibleTypes(fields);
+        checkRequiredFields(fields);
+        checkResultsFieldIsNotPresent();
+        return detectExtractedFields(fields);
+    }
+
+    private Set<String> getIncludedFields() {
+        Set<String> fields = new HashSet<>(fieldCapabilitiesResponse.get().keySet());
+        removeFieldsUnderResultsField(fields);
+        FetchSourceContext analyzedFields = config.getAnalyzedFields();
+
+        // If the user has not explicitly included fields we'll include all compatible fields
+        if (analyzedFields == null || analyzedFields.includes().length == 0) {
+            fields.removeAll(IGNORE_FIELDS);
+            removeFieldsWithIncompatibleTypes(fields);
         }
-        extractedFields = fetchBooleanFieldsAsIntegers(extractedFields);
-        return extractedFields;
+        includeAndExcludeFields(fields);
+        return fields;
     }
 
     private void removeFieldsUnderResultsField(Set<String> fields) {
@@ -190,11 +191,35 @@ public class ExtractedFieldsDetector {
         }
     }
 
-    private void checkRequiredFields() {
+    private void checkNoIgnoredFields(Set<String> fields) {
+        Optional<String> ignoreField = IGNORE_FIELDS.stream().filter(fields::contains).findFirst();
+        if (ignoreField.isPresent()) {
+            throw ExceptionsHelper.badRequestException("field [{}] cannot be analyzed", ignoreField.get());
+        }
+    }
+
+    private void checkFieldsHaveCompatibleTypes(Set<String> fields) {
+        for (String field : fields) {
+            Map<String, FieldCapabilities> fieldCaps = fieldCapabilitiesResponse.getField(field);
+            if (fieldCaps == null) {
+                throw ExceptionsHelper.badRequestException("no mappings could be found for field [{}]", field);
+            }
+
+            // Check all field has compatible type
+            Set<String> asSet = new HashSet<>(Collections.singleton(field));
+            removeFieldsWithIncompatibleTypes(asSet);
+            if (asSet.isEmpty()) {
+                throw ExceptionsHelper.badRequestException("field [{}] has unsupported type {}. Supported types are {}.", field,
+                    fieldCaps.keySet(), getSupportedTypes());
+            }
+        }
+    }
+
+    private void checkRequiredFields(Set<String> fields) {
         List<RequiredField> requiredFields = config.getAnalysis().getRequiredFields();
         for (RequiredField requiredField : requiredFields) {
             Map<String, FieldCapabilities> fieldCaps = fieldCapabilitiesResponse.getField(requiredField.getName());
-            if (fieldCaps == null || fieldCaps.isEmpty()) {
+            if (fields.contains(requiredField.getName()) == false || fieldCaps == null || fieldCaps.isEmpty()) {
                 List<String> requiredFieldNames = requiredFields.stream().map(RequiredField::getName).collect(Collectors.toList());
                 throw ExceptionsHelper.badRequestException("required field [{}] is missing; analysis requires fields {}",
                     requiredField.getName(), requiredFieldNames);
@@ -205,6 +230,23 @@ public class ExtractedFieldsDetector {
                     fieldTypes, requiredField.getName(), requiredField.getTypes());
             }
         }
+    }
+
+    private ExtractedFields detectExtractedFields(Set<String> fields) {
+        List<String> sortedFields = new ArrayList<>(fields);
+        // We sort the fields to ensure the checksum for each document is deterministic
+        Collections.sort(sortedFields);
+        ExtractedFields extractedFields = ExtractedFields.build(sortedFields, Collections.emptySet(), fieldCapabilitiesResponse);
+        if (extractedFields.getDocValueFields().size() > docValueFieldsLimit) {
+            extractedFields = fetchFromSourceIfSupported(extractedFields);
+            if (extractedFields.getDocValueFields().size() > docValueFieldsLimit) {
+                throw ExceptionsHelper.badRequestException("[{}] fields must be retrieved from doc_values but the limit is [{}]; " +
+                        "please adjust the index level setting [{}]", extractedFields.getDocValueFields().size(), docValueFieldsLimit,
+                    IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.getKey());
+            }
+        }
+        extractedFields = fetchBooleanFieldsAsIntegers(extractedFields);
+        return extractedFields;
     }
 
     private ExtractedFields fetchFromSourceIfSupported(ExtractedFields extractedFields) {

@@ -14,6 +14,11 @@ import java.util.TreeSet;
 public class RequiredField {
 
     private final String name;
+
+    /**
+     * The required field must have one of those types.
+     * We use a sorted set to ensure types are reported alphabetically in error messages.
+     */
     private final SortedSet<String> types;
 
     public RequiredField(String name, Set<String> types) {

@@ -20,7 +20,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.TreeSet;
 
 public class Regression implements DataFrameAnalysis {
 
@@ -203,7 +202,7 @@ public class Regression implements DataFrameAnalysis {
 
     @Override
     public List<RequiredField> getRequiredFields() {
-        return Collections.singletonList(new RequiredField(dependentVariable, new TreeSet<>(Types.numerical())));
+        return Collections.singletonList(new RequiredField(dependentVariable, Types.numerical()));
     }
 
     @Override

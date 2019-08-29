@@ -46,6 +46,7 @@ import java.io.IOException;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.startsWith;
 
 public class DefaultShardOperationFailedExceptionTests extends ESTestCase {
 
@@ -53,19 +54,20 @@ public class DefaultShardOperationFailedExceptionTests extends ESTestCase {
         {
             DefaultShardOperationFailedException exception = new DefaultShardOperationFailedException(
                 new ElasticsearchException("foo", new IllegalArgumentException("bar", new RuntimeException("baz"))));
-            assertEquals("[null][-1] failed, reason [ElasticsearchException[foo]; nested: " +
-                "IllegalArgumentException[bar]; nested: RuntimeException[baz]; ]", exception.toString());
+            assertThat(exception.toString(), startsWith("[null][-1] failed, reason [org.elasticsearch.ElasticsearchException: foo"));
         }
+
         {
             ElasticsearchException elasticsearchException = new ElasticsearchException("foo");
             elasticsearchException.setIndex(new Index("index1", "_na_"));
             elasticsearchException.setShard(new ShardId("index1", "_na_", 1));
             DefaultShardOperationFailedException exception = new DefaultShardOperationFailedException(elasticsearchException);
-            assertEquals("[index1][1] failed, reason [ElasticsearchException[foo]]", exception.toString());
+            assertThat(exception.toString(), startsWith("[index1][1] failed, reason [[index1][[index1][1]] org.elasticsearch.ElasticsearchException: foo"));
         }
+
         {
             DefaultShardOperationFailedException exception = new DefaultShardOperationFailedException("index2", 2, new Exception("foo"));
-            assertEquals("[index2][2] failed, reason [Exception[foo]]", exception.toString());
+            assertThat(exception.toString(), startsWith("[index2][2] failed, reason [java.lang.Exception: foo"));
         }
     }
 
@@ -134,7 +136,9 @@ public class DefaultShardOperationFailedExceptionTests extends ESTestCase {
                 assertNotSame(exception, deserializedException);
                 assertThat(deserializedException.index(), equalTo(exception.index()));
                 assertThat(deserializedException.shardId(), equalTo(exception.shardId()));
-                assertThat(deserializedException.reason(), equalTo(exception.reason()));
+                // Serialising and deserialising an exception seems to remove the "java.base/" part from the stack trace,
+                // so these string replacements account for this.
+                assertThat(deserializedException.reason().replace("java.base/", ""), equalTo(exception.reason().replace("java.base/", "")));
                 assertThat(deserializedException.getCause().getMessage(), equalTo(exception.getCause().getMessage()));
                 assertThat(deserializedException.getCause().getClass(), equalTo(exception.getCause().getClass()));
                 assertArrayEquals(deserializedException.getCause().getStackTrace(), exception.getCause().getStackTrace());

@@ -1,5 +1,34 @@
 [[indices-aliases]]
-=== Index Aliases
+=== Update index alias API
+++++
+<titleabbrev>Update index alias</titleabbrev>
+++++
+
+Adds or removes index aliases.
+
+include::alias-exists.asciidoc[tag=index-alias-def]
+
+[source,js]
+----
+POST /_aliases
+{
+    "actions" : [
+        { "add" : { "index" : "twitter", "alias" : "alias1" } }
+    ]
+}
+----
+// CONSOLE
+// TEST[setup:twitter]
+
+
+[[indices-aliases-api-request]]
+==== {api-request-title}
+
+`POST /_aliases`
+
+
+[[indices-aliases-api-desc]]
+==== {api-description-title}
 
 APIs in Elasticsearch accept an index name when working against a
 specific index, and several indices when applicable. The index aliases
@@ -10,7 +39,119 @@ automatically expand to the aliased indices. An alias can also be
 associated with a filter that will automatically be applied when
 searching, and routing values. An alias cannot have the same name as an index.
 
-Here is a sample of associating the alias `alias1` with index `test1`:
+
+[[indices-aliases-api-query-params]]
+==== {api-query-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+
+
+[[indices-aliases-api-request-body]]
+==== {api-request-body-title}
+
+`actions`::
++
+--
+(Required, array of actions)
+Set of actions to perform.
+Valid actions include:
+
+`add`::
+Adds an alias to an index.
+
+`remove`::
+Removes an alias from an index.
+
+`remove_index`::
+Deletes an index or index alias,
+like the <<indices-delete-index,delete index API>>.
+
+You can perform these actions on alias objects.
+Valid parameters for alias objects include:
+
+`index`::
+(String)
+Wildcard expression of index names
+used to perform the action.
++
+If the `indices` parameter is not specified,
+this parameter is required.
+
+`indices`::
+(Array)
+Array of index names
+used to perform the action.
++
+If the `index` parameter is not specified,
+this parameter is required.
+
+`alias`::
+(String)
+Comma-separated list or wildcard expression of index alias names to
+add, remove, or delete.
++
+If the `aliases` parameter is not specified,
+this parameter is required for the `add` or `remove` action.
+
+`aliases`::
+(String)
+Comma-separated list or wildcard expression of index alias names to
+add, remove, or delete.
++
+If the `alias` parameter is not specified,
+this parameter is required for the `add` or `remove` action.
+
+`filter`::
+(Optional, query object)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=index-alias-filter]
++
+See <<filtered>> for an example.
+
+`is_write_index`::
+(Optional, boolean)
+If `true`, assigns the index as an alias's write index.
+Defaults to `false`.
++
+An alias can have one write index at a time.
++
+See <<aliases-write-index>> for an example.
++
+[IMPORTANT]
+====
+Aliases that do not explicitly set `is_write_index: true` for an index, and
+only reference one index, will have that referenced index behave as if it is the write index
+until an additional index is referenced. At that point, there will be no write index and
+writes will be rejected.
+====
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=index-routing]
++
+See <<aliases-routing>> for an example.
+
+`index_routing`::
+(Optional, string)
+Custom <<mapping-routing-field, routing value>> used
+for the alias's indexing operations.
++
+See <<aliases-routing>> for an example.
+
+`search_routing`::
+`index_routing`::
+(Optional, string)
+Custom <<mapping-routing-field, routing value>> used
+for the alias's search operations.
++
+See <<aliases-routing>> for an example.
+--
+
+
+[[indices-aliases-api-example]]
+==== {api-examples-title}
+
+[[indices-aliases-api-add-alias-ex]]
+===== Add an alias
+
+The following request adds the `alias1` alias to the `test1` index.
 
 [source,js]
 --------------------------------------------------
@@ -24,7 +165,10 @@ POST /_aliases
 // CONSOLE
 // TEST[s/^/PUT test1\nPUT test2\n/]
 
-And here is removing that same alias:
+[[indices-aliases-api-remove-alias-ex]]
+===== Remove an alias
+
+The following request removes the `alias1` alias.
 
 [source,js]
 --------------------------------------------------
@@ -38,6 +182,9 @@ POST /_aliases
 // CONSOLE
 // TEST[continued]
 
+[[indices-aliases-api-rename-alias-ex]]
+===== Rename an alias
+
 Renaming an alias is a simple `remove` then `add` operation within the
 same API. This operation is atomic, no need to worry about a short
 period of time where the alias does not point to an index:
@@ -48,12 +195,15 @@ POST /_aliases
 {
     "actions" : [
         { "remove" : { "index" : "test1", "alias" : "alias1" } },
-        { "add" : { "index" : "test2", "alias" : "alias1" } }
+        { "add" : { "index" : "test1", "alias" : "alias2" } }
     ]
 }
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
+
+[[indices-aliases-api-add-multi-alias-ex]]
+===== Add an alias to multiple indices
 
 Associating an alias with more than one index is simply several `add`
 actions:
@@ -128,9 +278,8 @@ POST /_aliases
 <2> The index we should have added
 <3> `remove_index` is just like <<indices-delete-index>>
 
-[float]
 [[filtered]]
-==== Filtered Aliases
+===== Filtered aliases
 
 Aliases with filters provide an easy way to create different "views" of
 the same index. The filter can be defined using Query DSL and is applied
@@ -175,7 +324,6 @@ POST /_aliases
 // CONSOLE
 // TEST[continued]
 
-[float]
 [[aliases-routing]]
 ===== Routing
 
@@ -242,9 +390,8 @@ GET /alias2/_search?q=user:kimchy&routing=2,3
 // CONSOLE
 // TEST[continued]
 
-[float]
 [[aliases-write-index]]
-===== Write Index
+===== Write index
 
 It is possible to associate the index pointed to by an alias as the write index.
 When specified, all index and update requests against an alias that point to multiple
@@ -331,11 +478,3 @@ POST /_aliases
 --------------------------------------------------
 // CONSOLE
 // TEST[s/^/PUT test\nPUT test2\n/]
-
-[IMPORTANT]
-=====================================
-Aliases that do not explicitly set `is_write_index: true` for an index, and
-only reference one index, will have that referenced index behave as if it is the write index
-until an additional index is referenced. At that point, there will be no write index and
-writes will be rejected.
-=====================================

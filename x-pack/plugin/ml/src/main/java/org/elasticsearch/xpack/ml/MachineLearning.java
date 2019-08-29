@@ -201,6 +201,7 @@ import org.elasticsearch.xpack.ml.dataframe.process.results.MemoryUsageEstimatio
 import org.elasticsearch.xpack.ml.dataframe.process.NativeMemoryUsageEstimationProcessFactory;
 import org.elasticsearch.xpack.ml.dataframe.process.NativeAnalyticsProcessFactory;
 import org.elasticsearch.xpack.ml.inference.InferenceProcessor;
+import org.elasticsearch.xpack.ml.inference.ModelLoader;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.JobManagerHolder;
 import org.elasticsearch.xpack.ml.job.UpdateJobProcessNotifier;
@@ -620,8 +621,13 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         );
     }
 
+    @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-        return Collections.singletonMap(InferenceProcessor.TYPE, new InferenceProcessor.Factory());
+        return Collections.singletonMap(InferenceProcessor.TYPE, new InferenceProcessor.Factory(getModelLoaders(parameters.client)));
+    }
+
+    private Map<String, ModelLoader> getModelLoaders(Client client) {
+        return Collections.emptyMap();
     }
 
     @Override

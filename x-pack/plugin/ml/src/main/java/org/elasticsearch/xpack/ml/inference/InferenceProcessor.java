@@ -8,10 +8,6 @@ package org.elasticsearch.xpack.ml.inference;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -19,8 +15,6 @@ import org.elasticsearch.ingest.Processor;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicReference;
 
 public class InferenceProcessor extends AbstractProcessor {
 
@@ -41,7 +35,7 @@ public class InferenceProcessor extends AbstractProcessor {
     }
     @Override
     public IngestDocument execute(IngestDocument document) {
-        document.setFieldValue(targetField, Boolean.TRUE);
+//        document.setFieldValue(targetField, Boolean.TRUE);
 
 
         return document;
@@ -58,62 +52,33 @@ public class InferenceProcessor extends AbstractProcessor {
 
     public static final class Factory implements Processor.Factory {
 
-        private final ModelMetadataManager modelMetadataManager;
-
         private Map<String, Model> loadedModels;
         private Map<String, ModelLoader> modelLoaders;
 
-        public Factory(Client client, NamedXContentRegistry xContentRegistry) {
-            this.modelMetadataManager = new ModelMetadataManager(client, xContentRegistry);
+        // If a client is needed here then in the Node ctor Plugin.createComponents
+        // should be called before the IngestService is created
+        public Factory(Map<String, ModelLoader> modelLoaders) {
             loadedModels = new HashMap<>();
+            this.modelLoaders = modelLoaders;
         }
 
         @Override
-        public InferenceProcessor create(Map<String, Processor.Factory> processorFactories, String tag, Map<String, Object> config)
-                throws Exception {
+        public InferenceProcessor create(Map<String, Processor.Factory> processorFactories, String tag, Map<String, Object> config) {
             String modelId = ConfigurationUtils.readStringProperty(TYPE, tag, config, MODEL_NAME);
+            String modelType = ConfigurationUtils.readStringProperty(TYPE, tag, config, TARGET_FIELD);
 
-            ModelMeta modelMeta;
-            try {
-                 modelMeta = lookUpModelOrThrow(modelId);
-            } catch (Exception e) {
-                logger.error("Failed to read the metadata for model " + modelId, e);
-                throw e;
-            }
-
-            String targetField = ConfigurationUtils.readStringProperty(TYPE, tag, config, TARGET_FIELD);
-
-            if (loadedModels.containsKey(modelMeta.getModelId())) {
-                return new InferenceProcessor(tag, modelId, loadedModels.get(modelMeta.getModelId()));
+            if (loadedModels.containsKey(modelId)) {
+                return new InferenceProcessor(tag, modelId, loadedModels.get(modelId));
             } else {
-                ModelLoader loader = modelLoaders.get(modelMeta.getType());
+                ModelLoader loader = modelLoaders.get(modelType);
                 if (loader == null) {
-                    throw new IllegalStateException("Cannot find loader for model type " + modelMeta.getType());
+                    throw new IllegalStateException("Cannot find loader for model type " + modelType);
                 }
 
                 Model model = loader.load();
-                loadedModels.put(modelMeta.getModelId(), model);
+                loadedModels.put(modelId, model);
                 return new InferenceProcessor(tag, modelId, model);
             }
-        }
-
-        private ModelMeta lookUpModelOrThrow(String modelId) throws Exception {
-
-            CountDownLatch latch = new CountDownLatch(1);
-            AtomicReference<ModelMeta> response = new AtomicReference<>();
-            AtomicReference<Exception> fail = new AtomicReference<>();
-            LatchedActionListener<ModelMeta> latchedListener = new LatchedActionListener<>(
-                    ActionListener.wrap(response::set, fail::set),
-                    latch);
-
-
-            modelMetadataManager.getModelMeta(modelId, latchedListener);
-            latch.await();
-
-            if (fail.get() != null) {
-                throw fail.get();
-            }
-            return response.get();
         }
     }
 }

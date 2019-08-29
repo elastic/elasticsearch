@@ -6,6 +6,5 @@
 
 package org.elasticsearch.xpack.ml.inference;
 
-public interface ModelLoader {
-    Model load();
+public interface Model {
 }

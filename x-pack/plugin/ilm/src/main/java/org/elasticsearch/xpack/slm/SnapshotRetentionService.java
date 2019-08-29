@@ -37,6 +37,7 @@ public class SnapshotRetentionService implements LocalNodeMasterListener, Closea
     private final SchedulerEngine scheduler;
 
     private volatile String slmRetentionSchedule;
+    private volatile boolean isMaster = false;
 
     public SnapshotRetentionService(Settings settings,
                                     Supplier<SnapshotRetentionTask> taskSupplier,
@@ -63,17 +64,19 @@ public class SnapshotRetentionService implements LocalNodeMasterListener, Closea
 
     @Override
     public void onMaster() {
+        this.isMaster = true;
         rescheduleRetentionJob();
     }
 
     @Override
     public void offMaster() {
+        this.isMaster = false;
         cancelRetentionJob();
     }
 
     private void rescheduleRetentionJob() {
         final String schedule = this.slmRetentionSchedule;
-        if (Strings.hasText(schedule)) {
+        if (this.isMaster && Strings.hasText(schedule)) {
             final SchedulerEngine.Job retentionJob = new SchedulerEngine.Job(SLM_RETENTION_JOB_ID,
                 new CronSchedule(schedule));
             logger.debug("scheduling SLM retention job for [{}]", schedule);

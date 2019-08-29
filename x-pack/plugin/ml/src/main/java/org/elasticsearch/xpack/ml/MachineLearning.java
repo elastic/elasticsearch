@@ -801,24 +801,6 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 delayedNodeTimeOutSetting = TimeValue.timeValueNanos(0);
             }
 
-            try (XContentBuilder auditMapping = ElasticsearchMappings.auditMessageMappingLegacy()) {
-                IndexTemplateMetaData notificationMessageTemplate =
-                    IndexTemplateMetaData.builder(AuditorField.NOTIFICATIONS_INDEX_LEGACY)
-                        .putMapping(SINGLE_MAPPING_NAME, Strings.toString(auditMapping))
-                        .patterns(Collections.singletonList(AuditorField.NOTIFICATIONS_INDEX_LEGACY))
-                        .version(Version.CURRENT.id)
-                        .settings(Settings.builder()
-                                // Our indexes are small and one shard puts the
-                                // least possible burden on Elasticsearch
-                                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                                .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-                                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting))
-                        .build();
-                templates.put(AuditorField.NOTIFICATIONS_INDEX_LEGACY, notificationMessageTemplate);
-            } catch (IOException e) {
-                logger.warn("Error loading the template for the legacy notification message index", e);
-            }
-
             try (XContentBuilder auditMapping = ElasticsearchMappings.auditMessageMapping()) {
                 IndexTemplateMetaData notificationMessageTemplate =
                     IndexTemplateMetaData.builder(AuditorField.NOTIFICATIONS_INDEX)
@@ -921,7 +903,6 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         boolean allPresent = true;
         List<String> templateNames =
             Arrays.asList(
-                AuditorField.NOTIFICATIONS_INDEX_LEGACY,
                 AuditorField.NOTIFICATIONS_INDEX,
                 MlMetaIndex.INDEX_NAME,
                 AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,

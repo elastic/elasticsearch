@@ -187,94 +187,51 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=from]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
   
-
 include::{docdir}/rest-api/common-parms.asciidoc[tag=lenient]
   
-`max_docs`::
-  (Optional, integer) Maximum number of documents to process. Defaults to all
-  documents.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=max_docs]
 
-`preference`::
-  (Optional, string) Specifies the node or shard the operation should be 
-  performed on. Random by default.
-  
-`q`::
-  (Optional, string) Query in the Lucene query string syntax.
-  
-`request_cache`::
-  (Optional, boolean) Specifies if the request cache should be used for this
-  request. Defaults to the index-level setting.
-    
-`refresh`::
-  (Optional, boolean) Indicates if the affected indexes should be refreshed.
-  
-`requests_per_second`::
-  (Optional, integer) The throttle for this request in sub-requests per second.
-  -1 means no throttle. Defaults to 0.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=preference]
 
-`routing`::
-  (Optional, list) A comma-separated list of specific routing values.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=search-q]
 
-`scroll`::
-  (Optional, <<time-units, time units>>) Specifies how long a consistent view of 
-  the index should be maintained for scrolled search.
-  
-`scroll_size`::
-  (Optional, integer) Size of the scroll request that powers the delete by 
-  query. Defaults to 100. 
-  
-`search_type`::
-  (Optional, string) Defines the type of the search operation. Available 
-  options:
-  * `query_then_fetch`
-  * `dfs_query_then_fetch`
+include::{docdir}/rest-api/common-parms.asciidoc[tag=request_cache]
 
-`search_timeout`::
-  (Optional, <<time-units, time units>> Explicit timeout for each search 
-  request. Defaults to no timeout.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=refresh]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=requests_per_second]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=routing]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=scroll]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=scroll_size]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=search_type]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=search_timeout]
   
-`slices`::
-  (Optional, integer) The number of slices this task should be divided into. 
-  Defaults to 1 meaning the task isn't sliced into subtasks.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=slices]
   
-`sort`::
-  (Optional, string) A comma-separated list of <field>:<direction> pairs.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=sort]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=source]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=source_excludes]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=source_includes]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=stats]
   
-`_source`::
-  (Optional, string) True or false to return the `_source` field or not, or a 
-  list of fields to return.
-  
-`_source_excludes`::
-  (Optional, string) A list of fields to exclude from the returned `_source` 
-  field.
-  
-`_source_includes`::
-  (Optional, string) A list of fields to extract and return from the `_source` 
-  field.
-  
-`stats`::
-  (Optional, string) Specific `tag` of the request for logging and statistical 
-  purposes.
-  
-`terminate_after`::
-  (Optional, integer) The maximum number of documents to collect for each shard, 
-  upon reaching which the query execution will terminate early.
-  
+include::{docdir}/rest-api/common-parms.asciidoc[tag=terminate_after]
+
 include::{docdir}/rest-api/common-parms.asciidoc[tag=timeout]
-  
-`version`::
-  (Optional, boolean) If `true`, returns the document version as part of a hit.
-  
-`wait_for_active_shards`::
-  (Optional, string)  Sets the number of shard copies that must be active 
-  before proceeding with the delete by query operation. Defaults to 1, 
-  meaning the primary shard only. Set to `all` for all shard copies, 
-  otherwise set to any non-negative value less than or equal to the total 
-  number of copies for the shard (number of replicas + 1)"
 
-`wait_for_completion`::
-  (Optional, boolean) Should the request should block until the delete by
-  query is complete. Defaults to `true`.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=version]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=timeout]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 
 [[docs-delete-by-query-api-request-body]]
 ==== {api-request-body-title}

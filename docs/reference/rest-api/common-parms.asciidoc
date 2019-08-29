@@ -9,12 +9,12 @@ end::allow-no-indices[]
 
 tag::analyzer[]
 analyzer`::
-(Optional, string) Defines the analyzer to use for the query string.
+(Optional, string) Analyzer to use for the query string.
 end::analyzer[]
 
 tag::analyze_wildcard[]
 `analyze_wildcard`::
-(Optional, boolean) If `true`, wildcard and prefix queries will also be 
+(Optional, boolean) If `true`, wildcard and prefix queries are 
 analyzed. Defaults to `false`.
 end::analyze_wildcard[]
 
@@ -31,7 +31,7 @@ end::default_operator[]
 
 tag::df[]
 `df`::
-(Optional, string) Defines the field to use as default where no field prefix is 
+(Optional, string) Field to use as default where no field prefix is 
 given in the query string.
 end::df[]
 
@@ -56,27 +56,11 @@ Wildcard expressions are not accepted.
 --
 end::expand-wildcards[]
 
-tag::cat-h[]
-`h`::
-(Optional, string) Comma-separated list of column names to display.
-end::cat-h[]
-
 tag::flat-settings[]
 `flat_settings`::
 (Optional, boolean) If `true`, returns settings in flat format. Defaults to
 `false`.
 end::flat-settings[]
-
-tag::from[]
-`from`::
-(Optional, integer) Defines the starting offset. Defaults to `0`.
-end::from[]
-
-tag::help[]
-`help`::
-(Optional, boolean) If `true`, the response returns help information. Defaults
-to `false`.
-end::help[]
 
 tag::http-format[]
 `format`::
@@ -84,6 +68,34 @@ tag::http-format[]
 https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html[HTTP accept header].
 Valid values include JSON, YAML, etc.
 end::http-format[]
+
+tag::from[]
+`from`::
+(Optional, integer) Starting document offset. Defaults to `0`.
+end::from[]
+
+tag::cat-h[]
+`h`::
+(Optional, string) Comma-separated list of column names to display.
+end::cat-h[]
+
+tag::help[]
+`help`::
+(Optional, boolean) If `true`, the response returns help information. Defaults
+to `false`.
+end::help[]
+
+tag::if_primary_term[]
+`if_primary_term`::
+(Optional, integer) Only perform the operation if the document has
+this primary term. See <<optimistic-concurrency-control-index>>.
+end::if_primary_term[]
+
+tag::if_seq_no[]
+`if_seq_no`::
+(Optional, integer) Only perform the operation if the document has this
+sequence number. See <<optimistic-concurrency-control-index>>.
+end::if_seq_no[]
 
 tag::include-defaults[]
 `include_defaults`::
@@ -129,6 +141,12 @@ node only. Defaults to `false`, which means information is retrieved from
 the master node.
 end::local[]
 
+tag::max_docs[]
+`max_docs`::
+(Optional, integer) Maximum number of documents to process. Defaults to all
+documents.
+end::max_docs[]
+
 tag::name[]
 `<name>`::
 (Optional, string) Comma-separated list of alias names to return.
@@ -140,10 +158,46 @@ tag::node-id[]
 returned information.
 end::node-id[]
 
+tag::pipeline[]
+`pipeline`::
+(Optional, string) ID of the pipeline to use to preprocess incoming documents.
+end::pipeline[]
+
+tag::preference[]
+`preference`::
+  (Optional, string) Specifies the node or shard the operation should be 
+  performed on. Random by default.
+end::preference[]
+
 tag::search-q[]
 `q`::
 (Optional, string) Query in the Lucene query string syntax.
 end::search-q[]
+
+tag::refresh[]
+`refresh`::
+(Optional, enum) If `true`, {es} refreshes the affected shards to make this
+operation visible to search, if `wait_for` then wait for a refresh to make
+this operation visible to search, if `false` do nothing with refreshes.
+Valid values: `true`, `false`, `wait_for`. Default: `false`.
+end::refresh[]
+
+tag::request_cache[]
+`request_cache`::
+(Optional, boolean) Specifies if the request cache should be used for this
+request. Defaults to the index-level setting.
+end::request_cache[]
+
+tag::requests_per_second[]
+`requests_per_second`::
+  (Optional, integer) The throttle for this request in sub-requests per second.
+  -1 means no throttle. Defaults to 0.
+end::requests_per_second[]
+
+tag::routing[]
+`routing`::
+(Optional, string) Target the specified primary shard.
+end::routing[]
 
 tag::cat-s[]
 `s`::
@@ -151,18 +205,36 @@ tag::cat-s[]
 to sort the response.
 end::cat-s[]
 
-tag::search_type[]
-`search_type`::
-(Optional, string) Defines the type of the search operation. Available options:
-* `query_then_fetch`
-* `dfs_query_then_fetch`
-end::search_type[]
+tag::scroll[]
+`scroll`::
+(Optional, <<time-units, time units>>) Specifies how long a consistent view of 
+the index should be maintained for scrolled search.
+end::scroll[]
+
+tag::scroll_size[]
+`scroll_size`::
+(Optional, integer) Size of the scroll request that powers the operation. 
+Defaults to 100. 
+end::scroll_size[]
 
 tag::search_timeout[]
 `search_timeout`::
 (Optional, <<time-units, time units>> Explicit timeout for each search 
 request. Defaults to no timeout.
 end::search_timeout[]
+
+tag::search_type[]
+`search_type`::
+(Optional, string) The type of the search operation. Available options:
+* `query_then_fetch`
+* `dfs_query_then_fetch`
+end::search_type[]
+
+tag::slices[]
+`slices`::
+(Optional, integer) The number of slices this task should be divided into. 
+Defaults to 1 meaning the task isn't sliced into subtasks.
+end::slices[]
 
 tag::sort[]
 `sort`::
@@ -187,78 +259,17 @@ tag::source_includes[]
 field.
 end::source_includes[]
 
+tag::stats[]
+`stats`::
+  (Optional, string) Specific `tag` of the request for logging and statistical 
+  purposes.
+end::stats[]
+
 tag::terminate_after[]
 `terminate_after`::
 (Optional, integer) The maximum number of documents to collect for each shard, 
 upon reaching which the query execution will terminate early.
 end::terminate_after[]
-
-tag::cat-v[]
-`v`::
-(Optional, boolean) If `true`, the response includes column headings. Defaults
-to `false`.
-end::cat-v[]
-
-tag::version[]
-`version`::
-(Optional, boolean) If `true`, returns the document version as part of a hit.
-end::version[]
-
-tag::doc-pipeline[]
-`pipeline`::
-(Optional, string) ID of the pipeline to use to preprocess incoming documents.
-end::doc-pipeline[]
-
-tag::doc-refresh[]
-`refresh`::
-(Optional, enum) If `true`, {es} refreshes the affected shards to make this
-operation visible to search, if `wait_for` then wait for a refresh to make
-this operation visible to search, if `false` do nothing with refreshes.
-Valid values: `true`, `false`, `wait_for`. Default: `false`.
-end::doc-refresh[]
-
-tag::doc-seq-no[]
-`if_seq_no`::
-(Optional, integer) Only perform the operation if the document has this
-sequence number. See <<optimistic-concurrency-control-index>>.
-end::doc-seq-no[]
-
-tag::doc-primary-term[]
-`if_primary_term`::
-(Optional, integer) Only perform the operation if the document has
-this primary term. See <<optimistic-concurrency-control-index>>.
-end::doc-primary-term[]
-
-tag::doc-routing[]
-`routing`::
-(Optional, string) Target the specified primary shard.
-end::doc-routing[]
-
-tag::doc-version[]
-`version`::
-(Optional, integer) Explicit version number for concurrency control.
-The specified version must match the current version of the document for the
-request to succeed.
-end::doc-version[]
-
-tag::doc-version-type[]
-`version_type`::
-(Optional, enum) Specific version type: `internal`, `external`,
-`external_gte`, `force`.
-end::doc-version-type[]
-
-tag::doc-wait-for-active-shards[]
-`wait_for_active_shards`::
-+
---
-(Optional, string) The number of shard copies that must be active before
-proceeding with the operation. Set to `all` or any positive integer up
-to the total number of shards in the index (`number_of_replicas+1`).
-Default: 1, the primary shard.
-
-See <<index-wait-for-active-shards>>.
---
-end::doc-wait-for-active-shards[]
 
 tag::timeoutparms[]
 
@@ -277,3 +288,46 @@ expires, the request fails and returns an error. Defaults to `30s`.
 end::master-timeout[]
 
 end::timeoutparms[]
+
+tag::cat-v[]
+`v`::
+(Optional, boolean) If `true`, the response includes column headings. Defaults
+to `false`.
+end::cat-v[]
+
+tag::version[]
+`version`::
+(Optional, boolean) If `true`, returns the document version as part of a hit.
+end::version[]
+
+tag::doc-version[]
+`version`::
+(Optional, integer) Explicit version number for concurrency control.
+The specified version must match the current version of the document for the
+request to succeed.
+end::doc-version[]
+
+tag::version_type[]
+`version_type`::
+(Optional, enum) Specific version type: `internal`, `external`,
+`external_gte`, `force`.
+end::version_type[]
+
+tag::wait_for_active_shards[]
+`wait_for_active_shards`::
++
+--
+(Optional, string) The number of shard copies that must be active before
+proceeding with the operation. Set to `all` or any positive integer up
+to the total number of shards in the index (`number_of_replicas+1`).
+Default: 1, the primary shard.
+
+See <<index-wait-for-active-shards>>.
+--
+end::wait_for_active_shards[]
+
+tag::wait_for_completion[]
+`wait_for_completion`::
+(Optional, boolean) Should the request block until the operation is 
+complete. Defaults to `true`.
+end::wait_for_completion[]

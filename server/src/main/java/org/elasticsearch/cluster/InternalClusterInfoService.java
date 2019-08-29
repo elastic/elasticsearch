@@ -47,9 +47,8 @@ import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -88,7 +87,7 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
     private final NodeClient client;
-    private final List<Consumer<ClusterInfo>> listeners = Collections.synchronizedList(new ArrayList<>(1));
+    private final List<Consumer<ClusterInfo>> listeners = new CopyOnWriteArrayList<>();
 
     public InternalClusterInfoService(Settings settings, ClusterService clusterService, ThreadPool threadPool, NodeClient client) {
         this.leastAvailableSpaceUsages = ImmutableOpenMap.of();
@@ -364,15 +363,13 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
         }
         ClusterInfo clusterInfo = getClusterInfo();
         boolean anyListeners = false;
-        synchronized (listeners) {
-            for (final Consumer<ClusterInfo> listener : listeners) {
-                anyListeners = true;
-                try {
-                    logger.trace("notifying [{}] of new cluster info", listener);
-                    listener.accept(clusterInfo);
-                } catch (Exception e) {
-                    logger.info(new ParameterizedMessage("failed to notify [{}] of new cluster info", listener), e);
-                }
+        for (final Consumer<ClusterInfo> listener : listeners) {
+            anyListeners = true;
+            try {
+                logger.trace("notifying [{}] of new cluster info", listener);
+                listener.accept(clusterInfo);
+            } catch (Exception e) {
+                logger.info(new ParameterizedMessage("failed to notify [{}] of new cluster info", listener), e);
             }
         }
         assert anyListeners : "expected to notify at least one listener";

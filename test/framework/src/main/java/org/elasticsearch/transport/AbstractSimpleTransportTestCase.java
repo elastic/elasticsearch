@@ -95,8 +95,12 @@ import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -227,21 +231,21 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     public void assertNumHandshakes(long expected, Transport transport) {
         if (transport instanceof TcpTransport) {
-            assertEquals(expected, ((TcpTransport) transport).getNumHandshakes());
+            assertThat(((TcpTransport) transport).getNumHandshakes(), equalTo(expected));
         }
     }
 
     public void assertNoPendingHandshakes(Transport transport) {
         if (transport instanceof TcpTransport) {
-            assertEquals(0, ((TcpTransport) transport).getNumPendingHandshakes());
+            assertThat(((TcpTransport) transport).getNumPendingHandshakes(), equalTo(0));
         }
     }
 
 
-    public void testHelloWorld() {
+    public void testHelloWorld() throws Exception {
         serviceA.registerRequestHandler("internal:sayHello", ThreadPool.Names.GENERIC, StringMessageRequest::new,
             (request, channel, task) -> {
-                assertThat("moshe", equalTo(request.message));
+                assertThat(request.message, equalTo("moshe"));
                 try {
                     channel.sendResponse(new StringMessageResponse("hello " + request.message));
                 } catch (IOException e) {
@@ -264,7 +268,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
                 @Override
                 public void handleResponse(StringMessageResponse response) {
-                    assertThat("hello moshe", equalTo(response.message));
+                    assertThat(response.message, equalTo("hello moshe"));
                 }
 
                 @Override
@@ -274,12 +278,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 }
             });
 
-        try {
-            StringMessageResponse message = res.get();
-            assertThat("hello moshe", equalTo(message.message));
-        } catch (Exception e) {
-            assertThat(e.getMessage(), false, equalTo(true));
-        }
+        assertThat(res.get().message, equalTo("hello moshe"));
 
         res = submitRequest(serviceB, nodeA, "internal:sayHello", new StringMessageRequest("moshe"), new TransportResponseHandler<>() {
                 @Override
@@ -294,7 +293,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
                 @Override
                 public void handleResponse(StringMessageResponse response) {
-                    assertThat("hello moshe", equalTo(response.message));
+                    assertThat(response.message, equalTo("hello moshe"));
                 }
 
                 @Override
@@ -304,19 +303,14 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 }
             });
 
-        try {
-            StringMessageResponse message = res.get();
-            assertThat("hello moshe", equalTo(message.message));
-        } catch (Exception e) {
-            assertThat(e.getMessage(), false, equalTo(true));
-        }
+        assertThat(res.get().message, equalTo("hello moshe"));
     }
 
     public void testThreadContext() throws ExecutionException, InterruptedException {
 
         serviceA.registerRequestHandler("internal:ping_pong", ThreadPool.Names.GENERIC, StringMessageRequest::new,
             (request, channel, task) -> {
-            assertEquals("ping_user", threadPool.getThreadContext().getHeader("test.ping.user"));
+            assertThat(threadPool.getThreadContext().getHeader("test.ping.user"), equalTo("ping_user"));
             assertNull(threadPool.getThreadContext().getTransient("my_private_context"));
             try {
                 StringMessageResponse response = new StringMessageResponse("pong");
@@ -342,8 +336,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             @Override
             public void handleResponse(StringMessageResponse response) {
-                assertThat("pong", equalTo(response.message));
-                assertEquals("ping_user", threadPool.getThreadContext().getHeader("test.ping.user"));
+                assertThat(response.message, equalTo("pong"));
+                assertThat(threadPool.getThreadContext().getHeader("test.ping.user"), equalTo("ping_user"));
                 assertNull(threadPool.getThreadContext().getHeader("test.pong.user"));
                 assertSame(context, threadPool.getThreadContext().getTransient("my_private_context"));
                 threadPool.getThreadContext().putHeader("some.temp.header", "booooom");
@@ -362,8 +356,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         TransportFuture<StringMessageResponse> res = submitRequest(serviceB, nodeA, "internal:ping_pong", ping, responseHandler);
 
         StringMessageResponse message = res.get();
-        assertThat("pong", equalTo(message.message));
-        assertEquals("ping_user", threadPool.getThreadContext().getHeader("test.ping.user"));
+        assertThat(message.message, equalTo("pong"));
+        assertThat(threadPool.getThreadContext().getHeader("test.ping.user"), equalTo("ping_user"));
         assertSame(context, threadPool.getThreadContext().getTransient("my_private_context"));
         assertNull("this header is only visible in the handler context", threadPool.getThreadContext().getHeader("some.temp.header"));
     }
@@ -538,7 +532,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         });
     }
 
-    public void testVoidMessageCompressed() {
+    public void testVoidMessageCompressed() throws Exception {
         try (MockTransportService serviceC = buildService("TS_C", CURRENT_VERSION, Settings.EMPTY)) {
             serviceC.start();
             serviceC.acceptIncomingRequests();
@@ -580,16 +574,11 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     }
                 });
 
-            try {
-                TransportResponse.Empty message = res.get();
-                assertThat(message, notNullValue());
-            } catch (Exception e) {
-                assertThat(e.getMessage(), false, equalTo(true));
-            }
+            assertThat(res.get(), notNullValue());
         }
     }
 
-    public void testHelloWorldCompressed() throws IOException {
+    public void testHelloWorldCompressed() throws Exception {
         try (MockTransportService serviceC = buildService("TS_C", CURRENT_VERSION,  Settings.EMPTY)) {
             serviceC.start();
             serviceC.acceptIncomingRequests();
@@ -597,6 +586,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             serviceA.registerRequestHandler("internal:sayHello", ThreadPool.Names.GENERIC, StringMessageRequest::new,
                 (request, channel, task) -> {
                     assertThat("moshe", equalTo(request.message));
+                    assertThat(request.message, equalTo("moshe"));
                     try {
                         channel.sendResponse(new StringMessageResponse("hello " + request.message));
                     } catch (IOException e) {
@@ -623,7 +613,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
                     @Override
                     public void handleResponse(StringMessageResponse response) {
-                        assertThat("hello moshe", equalTo(response.message));
+                        assertThat(response.message, equalTo("hello moshe"));
                     }
 
                     @Override
@@ -633,19 +623,14 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     }
                 });
 
-            try {
-                StringMessageResponse message = res.get();
-                assertThat("hello moshe", equalTo(message.message));
-            } catch (Exception e) {
-                assertThat(e.getMessage(), false, equalTo(true));
-            }
+            assertThat(res.get().message, equalTo("hello moshe"));
         }
     }
 
     public void testErrorMessage() {
         serviceA.registerRequestHandler("internal:sayHelloException", ThreadPool.Names.GENERIC, StringMessageRequest::new,
             (request, channel, task) -> {
-                assertThat("moshe", equalTo(request.message));
+                assertThat(request.message, equalTo("moshe"));
                 throw new RuntimeException("bad message !!!");
             });
 
@@ -668,7 +653,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
                 @Override
                 public void handleException(TransportException exp) {
-                    assertThat("runtime_exception: bad message !!!", equalTo(exp.getCause().getMessage()));
+                    assertThat(exp.getCause().getMessage(), equalTo("runtime_exception: bad message !!!"));
                 }
             });
 
@@ -859,7 +844,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             new TransportRequestHandler<StringMessageRequest>() {
                 @Override
                 public void messageReceived(StringMessageRequest request, TransportChannel channel, Task task) {
-                    assertThat("moshe", equalTo(request.message));
+                    assertThat(request.message, equalTo("moshe"));
                     // don't send back a response
                 }
             });
@@ -981,7 +966,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
                     @Override
                     public void handleResponse(StringMessageResponse response) {
-                        assertThat("hello " + counter + "ms", equalTo(response.message));
+                        assertThat(response.message, equalTo("hello " + counter + "ms"));
                     }
 
                     @Override
@@ -1321,7 +1306,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     assertThat(request.value1, equalTo(1));
                     Version0Response response = new Version0Response(1);
                     channel.sendResponse(response);
-                    assertEquals(version0, channel.getVersion());
+                    assertThat(channel.getVersion(), equalTo(version0));
                 }
             });
 
@@ -1405,7 +1390,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 assertThat(request.value1, equalTo(1));
                 Version0Response response = new Version0Response(1);
                 channel.sendResponse(response);
-                assertEquals(version0, channel.getVersion());
+                assertThat(channel.getVersion(), equalTo(version0));
             });
 
         Version0Request version0Request = new Version0Request();
@@ -1440,7 +1425,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     public void testMockFailToSendNoConnectRule() throws Exception {
         serviceA.registerRequestHandler("internal:sayHello", ThreadPool.Names.GENERIC, StringMessageRequest::new,
             (request, channel, task) -> {
-                assertThat("moshe", equalTo(request.message));
+                assertThat(request.message, equalTo("moshe"));
                 throw new RuntimeException("bad message !!!");
             });
 
@@ -1497,7 +1482,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     public void testMockUnresponsiveRule() throws IOException {
         serviceA.registerRequestHandler("internal:sayHello", ThreadPool.Names.GENERIC, StringMessageRequest::new,
             (request, channel, task) -> {
-                assertThat("moshe", equalTo(request.message));
+                assertThat(request.message, equalTo("moshe"));
                 throw new RuntimeException("bad message !!!");
             });
 
@@ -1582,8 +1567,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             fail("message round trip did not complete within a sensible time frame");
         }
 
-        assertTrue(nodeA.getAddress().getAddress().equals(addressA.get().getAddress()));
-        assertTrue(nodeB.getAddress().getAddress().equals(addressB.get().getAddress()));
+        assertThat(nodeA.getAddress().getAddress(), equalTo(addressA.get().getAddress()));
+        assertThat(nodeB.getAddress().getAddress(), equalTo(addressB.get().getAddress()));
     }
 
     public void testBlockingIncomingRequests() throws Exception {
@@ -1852,8 +1837,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 allRequestsDone.countDown();
                 Throwable unwrap = ExceptionsHelper.unwrap(exp, IOException.class);
                 assertNotNull(unwrap);
-                assertEquals(IOException.class, unwrap.getClass());
-                assertEquals("forced failure", unwrap.getMessage());
+                assertThat(unwrap, instanceOf(IOException.class));
+                assertThat(unwrap.getMessage(), equalTo("forced failure"));
             }
 
             @Override
@@ -1940,9 +1925,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 ConnectTransportException ex = expectThrows(ConnectTransportException.class, () -> service.openConnection(second, profile));
                 final long now = System.nanoTime();
                 final long timeTaken = TimeValue.nsecToMSec(now - startTime);
-                assertTrue("test didn't timeout quick enough, time taken: [" + timeTaken + "]",
-                    timeTaken < TimeValue.timeValueSeconds(5).millis());
-                assertEquals(ex.getMessage(), "[][" + second.getAddress() + "] connect_timeout[1ms]");
+                assertThat("test didn't timeout quick enough, time taken: [" + timeTaken + "]",
+                    timeTaken, lessThan(TimeValue.timeValueSeconds(5).millis()));
+                assertThat(ex.getMessage(), equalTo("[][" + second.getAddress() + "] connect_timeout[1ms]"));
             }
         }
     }
@@ -1982,7 +1967,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 TransportRequestOptions.Type.REG,
                 TransportRequestOptions.Type.STATE);
             try (Transport.Connection connection = serviceA.openConnection(node, builder.build())) {
-                assertEquals(connection.getVersion(), version);
+                assertThat(connection.getVersion(), equalTo(version));
             }
         }
     }
@@ -2002,9 +1987,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             originalTransport.openConnection(node, connectionProfile, future);
             try (Transport.Connection connection = future.actionGet()) {
                 assertBusy(() -> {
-                    assertTrue(originalTransport.getKeepAlive().successfulPingCount() > 30);
+                    assertThat(originalTransport.getKeepAlive().successfulPingCount(), greaterThan(30L));
                 });
-                assertEquals(0, originalTransport.getKeepAlive().failedPingCount());
+                assertThat(originalTransport.getKeepAlive().failedPingCount(), equalTo(0L));
             }
         }
     }
@@ -2027,7 +2012,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(), version0);
             ConnectTransportException exception = expectThrows(ConnectTransportException.class, () -> serviceA.connectToNode(node));
             assertThat(exception.getCause(), instanceOf(IllegalStateException.class));
-            assertEquals("handshake failed", exception.getCause().getMessage());
+            assertThat(exception.getCause().getMessage(), equalTo("handshake failed"));
         }
 
         ConnectionProfile connectionProfile = ConnectionProfile.buildDefaultConnectionProfile(Settings.EMPTY);
@@ -2037,7 +2022,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             PlainActionFuture<Transport.Connection> future = PlainActionFuture.newFuture();
             serviceA.getOriginalTransport().openConnection(node, connectionProfile, future);
             try (Transport.Connection connection = future.actionGet()) {
-                assertEquals(connection.getVersion(), Version.CURRENT);
+                assertThat(connection.getVersion(), equalTo(Version.CURRENT));
             }
         }
     }
@@ -2059,7 +2044,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             builder.setHandshakeTimeout(TimeValue.timeValueMillis(1));
             ConnectTransportException ex = expectThrows(ConnectTransportException.class,
                 () -> serviceA.connectToNode(dummy, builder.build()));
-            assertEquals("[][" + dummy.getAddress() + "] handshake_timeout[1ms]", ex.getMessage());
+            assertThat(ex.getMessage(), equalTo("[][" + dummy.getAddress() + "] handshake_timeout[1ms]"));
         }
     }
 
@@ -2093,7 +2078,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             builder.setHandshakeTimeout(TimeValue.timeValueHours(1));
             ConnectTransportException ex = expectThrows(ConnectTransportException.class,
                 () -> serviceA.connectToNode(dummy, builder.build()));
-            assertEquals(ex.getMessage(), "[][" + dummy.getAddress() + "] general node connection failure");
+            assertThat(ex.getMessage(), equalTo("[][" + dummy.getAddress() + "] general node connection failure"));
             assertThat(ex.getCause().getMessage(), startsWith("handshake failed"));
             t.join();
         }
@@ -2126,9 +2111,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             public void handleResponse(TransportResponse response) {
                 try {
                     assertSame(response, TransportResponse.Empty.INSTANCE);
-                    assertTrue(threadPool.getThreadContext().getResponseHeaders().containsKey("foo.bar"));
-                    assertEquals(1, threadPool.getThreadContext().getResponseHeaders().get("foo.bar").size());
-                    assertEquals("baz", threadPool.getThreadContext().getResponseHeaders().get("foo.bar").get(0));
+                    assertThat(threadPool.getThreadContext().getResponseHeaders(), hasKey("foo.bar"));
+                    assertThat(threadPool.getThreadContext().getResponseHeaders().get("foo.bar").size(), equalTo(1));
+                    assertThat(threadPool.getThreadContext().getResponseHeaders().get("foo.bar").get(0), equalTo("baz"));
                     assertNull(threadPool.getThreadContext().getTransient("boom"));
                 } finally {
                     latch.countDown();
@@ -2139,9 +2124,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             @Override
             public void handleException(TransportException exp) {
                 try {
-                    assertTrue(threadPool.getThreadContext().getResponseHeaders().containsKey("foo.bar"));
-                    assertEquals(1, threadPool.getThreadContext().getResponseHeaders().get("foo.bar").size());
-                    assertEquals("baz", threadPool.getThreadContext().getResponseHeaders().get("foo.bar").get(0));
+                    assertThat(threadPool.getThreadContext().getResponseHeaders(), hasKey("foo.bar"));
+                    assertThat(threadPool.getThreadContext().getResponseHeaders().get("foo.bar").size(), equalTo(1));
+                    assertThat(threadPool.getThreadContext().getResponseHeaders().get("foo.bar").get(0), equalTo("baz"));
                     assertNull(threadPool.getThreadContext().getTransient("boom"));
                 } finally {
                     latch.countDown();
@@ -2189,10 +2174,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             public void handleException(TransportException exp) {
                 try {
                     if (exp instanceof SendRequestTransportException) {
-                        assertTrue(exp.getCause().getClass().toString(), exp.getCause() instanceof NodeNotConnectedException);
+                        assertThat(exp.getCause(), instanceOf(NodeNotConnectedException.class));
                     } else {
                         // here the concurrent disconnect was faster and invoked the listener first
-                        assertTrue(exp.getClass().toString(), exp instanceof NodeDisconnectedException);
+                        assertThat(exp.getClass(), instanceOf(NodeDisconnectedException.class));
                     }
                 } finally {
                     latch.countDown();
@@ -2338,10 +2323,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         };
 
         TransportStats stats = serviceC.transport.getStats(); // nothing transmitted / read yet
-        assertEquals(0, stats.getRxCount());
-        assertEquals(0, stats.getTxCount());
-        assertEquals(0, stats.getRxSize().getBytes());
-        assertEquals(0, stats.getTxSize().getBytes());
+        assertThat(stats.getRxCount(), equalTo(0L));
+        assertThat(stats.getTxCount(), equalTo(0L));
+        assertThat(stats.getRxSize().getBytes(), equalTo(0L));
+        assertThat(stats.getTxSize().getBytes(), equalTo(0L));
 
         ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
         builder.addConnections(1,
@@ -2353,28 +2338,28 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         try (Transport.Connection connection = serviceC.openConnection(serviceB.getLocalNode(), builder.build())) {
             assertBusy(() -> { // netty for instance invokes this concurrently so we better use assert busy here
                 TransportStats transportStats = serviceC.transport.getStats(); // we did a single round-trip to do the initial handshake
-                assertEquals(1, transportStats.getRxCount());
-                assertEquals(1, transportStats.getTxCount());
-                assertEquals(25, transportStats.getRxSize().getBytes());
-                assertEquals(51, transportStats.getTxSize().getBytes());
+                assertThat(transportStats.getRxCount(), equalTo(1L));
+                assertThat(transportStats.getTxCount(), equalTo(1L));
+                assertThat(transportStats.getRxSize().getBytes(), equalTo(25L));
+                assertThat(transportStats.getTxSize().getBytes(), equalTo(51L));
             });
             serviceC.sendRequest(connection, "internal:action", new TestRequest("hello world"), TransportRequestOptions.EMPTY,
                 transportResponseHandler);
             receivedLatch.await();
             assertBusy(() -> { // netty for instance invokes this concurrently so we better use assert busy here
                 TransportStats transportStats = serviceC.transport.getStats(); // request has ben send
-                assertEquals(1, transportStats.getRxCount());
-                assertEquals(2, transportStats.getTxCount());
-                assertEquals(25, transportStats.getRxSize().getBytes());
-                assertEquals(107, transportStats.getTxSize().getBytes());
+                assertThat(transportStats.getRxCount(), equalTo(1L));
+                assertThat(transportStats.getTxCount(), equalTo(2L));
+                assertThat(transportStats.getRxSize().getBytes(), equalTo(25L));
+                assertThat(transportStats.getTxSize().getBytes(), equalTo(107L));
             });
             sendResponseLatch.countDown();
             responseLatch.await();
             stats = serviceC.transport.getStats(); // response has been received
-            assertEquals(2, stats.getRxCount());
-            assertEquals(2, stats.getTxCount());
-            assertEquals(46, stats.getRxSize().getBytes());
-            assertEquals(107, stats.getTxSize().getBytes());
+            assertThat(stats.getRxCount(), equalTo(2L));
+            assertThat(stats.getTxCount(), equalTo(2L));
+            assertThat(stats.getRxSize().getBytes(), equalTo(46L));
+            assertThat(stats.getTxSize().getBytes(), equalTo(107L));
         } finally {
             serviceC.close();
         }
@@ -2383,18 +2368,18 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     public void testAcceptedChannelCount() throws Exception {
         assertBusy(() -> {
             TransportStats transportStats = serviceA.transport.getStats();
-            assertEquals(channelsPerNodeConnection(), transportStats.getServerOpen());
+            assertThat(transportStats.getServerOpen(), equalTo((long) channelsPerNodeConnection()));
         });
         assertBusy(() -> {
             TransportStats transportStats = serviceB.transport.getStats();
-            assertEquals(channelsPerNodeConnection(), transportStats.getServerOpen());
+            assertThat(transportStats.getServerOpen(), equalTo((long) channelsPerNodeConnection()));
         });
 
         serviceA.close();
 
         assertBusy(() -> {
             TransportStats transportStats = serviceB.transport.getStats();
-            assertEquals(0, transportStats.getServerOpen());
+            assertThat(transportStats.getServerOpen(), equalTo(0L));
         });
     }
 
@@ -2453,10 +2438,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         };
 
         TransportStats stats = serviceC.transport.getStats(); // nothing transmitted / read yet
-        assertEquals(0, stats.getRxCount());
-        assertEquals(0, stats.getTxCount());
-        assertEquals(0, stats.getRxSize().getBytes());
-        assertEquals(0, stats.getTxSize().getBytes());
+        assertThat(stats.getRxCount(), equalTo(0L));
+        assertThat(stats.getTxCount(), equalTo(0L));
+        assertThat(stats.getRxSize().getBytes(), equalTo(0L));
+        assertThat(stats.getTxSize().getBytes(), equalTo(0L));
 
         ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
         builder.addConnections(1,
@@ -2468,26 +2453,26 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         try (Transport.Connection connection = serviceC.openConnection(serviceB.getLocalNode(), builder.build())) {
             assertBusy(() -> { // netty for instance invokes this concurrently so we better use assert busy here
                 TransportStats transportStats = serviceC.transport.getStats(); // request has been sent
-                assertEquals(1, transportStats.getRxCount());
-                assertEquals(1, transportStats.getTxCount());
-                assertEquals(25, transportStats.getRxSize().getBytes());
-                assertEquals(51, transportStats.getTxSize().getBytes());
+                assertThat(transportStats.getRxCount(), equalTo(1L));
+                assertThat(transportStats.getTxCount(), equalTo(1L));
+                assertThat(transportStats.getRxSize().getBytes(), equalTo(25L));
+                assertThat(transportStats.getTxSize().getBytes(), equalTo(51L));
             });
             serviceC.sendRequest(connection, "internal:action", new TestRequest("hello world"), TransportRequestOptions.EMPTY,
                 transportResponseHandler);
             receivedLatch.await();
             assertBusy(() -> { // netty for instance invokes this concurrently so we better use assert busy here
                 TransportStats transportStats = serviceC.transport.getStats(); // request has been sent
-                assertEquals(1, transportStats.getRxCount());
-                assertEquals(2, transportStats.getTxCount());
-                assertEquals(25, transportStats.getRxSize().getBytes());
-                assertEquals(107, transportStats.getTxSize().getBytes());
+                assertThat(transportStats.getRxCount(), equalTo(1L));
+                assertThat(transportStats.getTxCount(), equalTo(2L));
+                assertThat(transportStats.getRxSize().getBytes(), equalTo(25L));
+                assertThat(transportStats.getTxSize().getBytes(), equalTo(107L));
             });
             sendResponseLatch.countDown();
             responseLatch.await();
             stats = serviceC.transport.getStats(); // exception response has been received
-            assertEquals(2, stats.getRxCount());
-            assertEquals(2, stats.getTxCount());
+            assertThat(stats.getRxCount(), equalTo(2L));
+            assertThat(stats.getTxCount(), equalTo(2L));
             TransportException exception = receivedException.get();
             assertNotNull(exception);
             BytesStreamOutput streamOutput = new BytesStreamOutput();
@@ -2495,8 +2480,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             String failedMessage = "Unexpected read bytes size. The transport exception that was received=" + exception;
             // 49 bytes are the non-exception message bytes that have been received. It should include the initial
             // handshake message and the header, version, etc bytes in the exception message.
-            assertEquals(failedMessage, 49 + streamOutput.bytes().length(), stats.getRxSize().getBytes());
-            assertEquals(107, stats.getTxSize().getBytes());
+            assertThat(failedMessage,  stats.getRxSize().getBytes(), equalTo(49L + streamOutput.bytes().length()));
+            assertThat(stats.getTxSize().getBytes(), equalTo(107L));
         } finally {
             serviceC.close();
         }
@@ -2522,15 +2507,17 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             serviceC.start();
             serviceC.acceptIncomingRequests();
             Map<String, BoundTransportAddress> profileBoundAddresses = serviceC.transport.profileBoundAddresses();
-            assertTrue(profileBoundAddresses.containsKey("some_profile"));
-            assertTrue(profileBoundAddresses.containsKey("some_other_profile"));
-            assertTrue(profileBoundAddresses.get("some_profile").publishAddress().getPort() >= 8900);
-            assertTrue(profileBoundAddresses.get("some_profile").publishAddress().getPort() < 9000);
-            assertTrue(profileBoundAddresses.get("some_other_profile").publishAddress().getPort() >= 8700);
-            assertTrue(profileBoundAddresses.get("some_other_profile").publishAddress().getPort() < 8800);
-            assertTrue(profileBoundAddresses.get("some_profile").boundAddresses().length >= 1);
+
+            assertThat(profileBoundAddresses, hasKey("some_profile"));
+            assertThat(profileBoundAddresses, hasKey("some_other_profile"));
+            assertThat(profileBoundAddresses.get("some_profile").publishAddress().getPort(), greaterThanOrEqualTo(8900));
+            assertThat(profileBoundAddresses.get("some_profile").publishAddress().getPort(), lessThan(9000));
+            assertThat(profileBoundAddresses.get("some_other_profile").publishAddress().getPort(), greaterThanOrEqualTo(8700));
+            assertThat(profileBoundAddresses.get("some_other_profile").publishAddress().getPort(), lessThan(8800));
+            assertThat(profileBoundAddresses.get("some_profile").boundAddresses().length, greaterThanOrEqualTo(1));
+
             if (doIPV6) {
-                assertTrue(profileBoundAddresses.get("some_other_profile").boundAddresses().length >= 2);
+                assertThat(profileBoundAddresses.get("some_other_profile").boundAddresses().length, greaterThanOrEqualTo(2));
                 int ipv4 = 0;
                 int ipv6 = 0;
                 for (TransportAddress addr : profileBoundAddresses.get("some_other_profile").boundAddresses()) {
@@ -2542,12 +2529,14 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                         fail("what kind of address is this: " + addr.address().getAddress());
                     }
                 }
-                assertTrue("num ipv4 is wrong: " + ipv4, ipv4 >= 1);
-                assertTrue("num ipv6 is wrong: " + ipv6, ipv6 >= 1);
+                assertThat("num ipv4 is wrong: " + ipv4, ipv4, greaterThanOrEqualTo(1));
+                assertThat("num ipv6 is wrong: " + ipv6, ipv6, greaterThanOrEqualTo(1));
             } else {
-                assertTrue(profileBoundAddresses.get("some_other_profile").boundAddresses().length >= 1);
+                assertThat(profileBoundAddresses.get("some_other_profile").boundAddresses().length, greaterThanOrEqualTo(1));
             }
-            assertTrue(profileBoundAddresses.get("some_other_profile").publishAddress().address().getAddress() instanceof Inet4Address);
+            assertThat(
+                profileBoundAddresses.get("some_other_profile").publishAddress().address().getAddress(),
+                instanceOf(Inet4Address.class));
         }
     }
 
@@ -2649,49 +2638,51 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             Settings.builder().put(randomSettings).put("transport.profiles.some_profile.port", "9700-9800").build(), // port is required
             "some_profile");
 
-        assertEquals(enable, settings.tcpNoDelay);
-        assertEquals(enable, settings.tcpKeepAlive);
-        assertEquals(42, settings.tcpKeepIdle);
-        assertEquals(7, settings.tcpKeepInterval);
-        assertEquals(13, settings.tcpKeepCount);
-        assertEquals(enable, settings.reuseAddress);
-        assertEquals(43000, settings.sendBufferSize.getBytes());
-        assertEquals(42000, settings.receiveBufferSize.getBytes());
+        assertThat(settings.tcpNoDelay, equalTo(enable));
+        assertThat(settings.tcpKeepAlive, equalTo(enable));
+        assertThat(settings.tcpKeepIdle, equalTo(42));
+        assertThat(settings.tcpKeepInterval, equalTo(7));
+        assertThat(settings.tcpKeepCount, equalTo(13));
+        assertThat(settings.reuseAddress, equalTo(enable));
+        assertThat(settings.sendBufferSize.getBytes(), equalTo(43000L));
+        assertThat(settings.receiveBufferSize.getBytes(), equalTo(42000L));
         if (randomSettings == profileSettings) {
-            assertEquals(42, settings.publishPort);
+            assertThat(settings.publishPort, equalTo(42));
         } else {
-            assertEquals(-1, settings.publishPort);
+            assertThat(settings.publishPort, equalTo(-1));
         }
 
         if (randomSettings == globalSettings) { // publish host has no global fallback for the profile since we later resolve it based on
             // the bound address
-            assertEquals(Collections.emptyList(), settings.publishHosts);
+            assertThat(settings.publishHosts, equalTo(Collections.emptyList()));
         } else {
-            assertEquals(Collections.singletonList("the_publish_host"), settings.publishHosts);
+            assertThat(settings.publishHosts, equalTo(Collections.singletonList("the_publish_host")));
         }
-        assertEquals("9700-9800", settings.portOrRange);
-        assertEquals(Collections.singletonList("the_bind_host"), settings.bindHosts);
+        assertThat(settings.portOrRange, equalTo("9700-9800"));
+        assertThat(settings.bindHosts, equalTo(Collections.singletonList("the_bind_host")));
     }
 
     public void testProfilesIncludesDefault() {
         Set<TcpTransport.ProfileSettings> profileSettings = TcpTransport.getProfileSettings(Settings.EMPTY);
-        assertEquals(1, profileSettings.size());
-        assertEquals(TransportSettings.DEFAULT_PROFILE, profileSettings.stream().findAny().get().profileName);
+        assertThat(profileSettings.size(), equalTo(1));
+        assertThat(profileSettings.stream().findAny().get().profileName, equalTo(TransportSettings.DEFAULT_PROFILE));
 
         profileSettings = TcpTransport.getProfileSettings(Settings.builder()
             .put("transport.profiles.test.port", "0")
             .build());
-        assertEquals(2, profileSettings.size());
-        assertEquals(new HashSet<>(Arrays.asList("default", "test")), profileSettings.stream().map(s -> s.profileName).collect(Collectors
-            .toSet()));
+        assertThat(profileSettings.size(), equalTo(2));
+        assertThat(
+            profileSettings.stream().map(s -> s.profileName).collect(Collectors.toSet()),
+            equalTo(new HashSet<>(Arrays.asList("default", "test"))));
 
         profileSettings = TcpTransport.getProfileSettings(Settings.builder()
             .put("transport.profiles.test.port", "0")
             .put("transport.profiles.default.port", "0")
             .build());
-        assertEquals(2, profileSettings.size());
-        assertEquals(new HashSet<>(Arrays.asList("default", "test")), profileSettings.stream().map(s -> s.profileName).collect(Collectors
-            .toSet()));
+        assertThat(profileSettings.size(), equalTo(2));
+        assertThat(
+            profileSettings.stream().map(s -> s.profileName).collect(Collectors.toSet()),
+            equalTo(new HashSet<>(Arrays.asList("default", "test"))));
     }
 
     public void testBindUnavailableAddress() {
@@ -2702,7 +2693,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             .build();
         BindTransportException bindTransportException = expectThrows(BindTransportException.class,
             () -> buildService("test", Version.CURRENT, settings));
-        assertEquals("Failed to bind to ["+ port + "]", bindTransportException.getMessage());
+        assertThat(bindTransportException.getMessage(), equalTo("Failed to bind to ["+ port + "]"));
     }
 
     public void testChannelCloseWhileConnecting() {

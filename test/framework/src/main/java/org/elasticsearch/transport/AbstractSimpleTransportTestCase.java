@@ -2144,6 +2144,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         latch.await();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/46124")
     public void testHandlerIsInvokedOnConnectionClose() throws IOException, InterruptedException {
         List<String> executors = new ArrayList<>(ThreadPool.THREAD_POOL_TYPES.keySet());
         CollectionUtil.timSort(executors); // makes sure it's reproducible

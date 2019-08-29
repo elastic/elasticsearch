@@ -19,15 +19,12 @@
 package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.MockInternalClusterInfoService;
-import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
@@ -52,8 +49,6 @@ import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;

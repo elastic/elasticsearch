@@ -17,9 +17,9 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 public class Regression implements DataFrameAnalysis {
 
@@ -201,8 +201,8 @@ public class Regression implements DataFrameAnalysis {
     }
 
     @Override
-    public Set<String> getRequiredFields() {
-        return Collections.singleton(dependentVariable);
+    public List<RequiredField> getRequiredFields() {
+        return Collections.singletonList(new RequiredField(dependentVariable, Types.numerical()));
     }
 
     @Override

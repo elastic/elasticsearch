@@ -192,6 +192,8 @@ public class ThreadPool implements Scheduler, Closeable {
         this.builders = Collections.unmodifiableMap(builders);
 
         threadContext = new ThreadContext(settings);
+        // adds the context to the DeprecationLogger so that it does not need to be injected everywhere
+        DeprecationLogger.setThreadContext(threadContext);
 
         final Map<String, ExecutorHolder> executors = new HashMap<>();
         for (final Map.Entry<String, ExecutorBuilder> entry : builders.entrySet()) {

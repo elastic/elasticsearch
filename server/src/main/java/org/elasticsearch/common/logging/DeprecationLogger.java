@@ -96,9 +96,10 @@ public class DeprecationLogger {
      * @throws IllegalStateException if this {@code threadContext} is unknown (and presumably already unset before)
      */
     public static void removeThreadContext(ThreadContext threadContext) {
+        System.out.println("remove "+threadContext);
         assert threadContext != null;
         threadContextLock.writeLock().lock();
-        try{
+        try {
             // remove returning false means it did not have it already
             if (THREAD_CONTEXT.remove(threadContext) == false) {
                 throw new IllegalStateException("Removing unknown ThreadContext not allowed!");
@@ -114,6 +115,7 @@ public class DeprecationLogger {
      * it replaces "org.elasticsearch" with "org.elasticsearch.deprecation" to maintain
      * the "org.elasticsearch" namespace.
      */
+
     public DeprecationLogger(Logger parentLogger) {
         String name = parentLogger.getName();
         if (name.startsWith("org.elasticsearch")) {
@@ -242,7 +244,7 @@ public class DeprecationLogger {
 
     void deprecated(final Set<ThreadContext> threadContexts, final String message, final boolean log, final Object... params) {
         threadContextLock.readLock().lock();
-        try{
+        try {
             final Iterator<ThreadContext> iterator = threadContexts.iterator();
             if (iterator.hasNext()) {
                 final String formattedMessage = LoggerMessageFormat.format(message, params);
@@ -250,8 +252,8 @@ public class DeprecationLogger {
                 assert WARNING_HEADER_PATTERN.matcher(warningHeaderValue).matches();
                 assert extractWarningValueFromWarningHeader(warningHeaderValue).equals(escapeAndEncode(formattedMessage));
                 while (iterator.hasNext()) {
-                        final ThreadContext next = iterator.next();
-                        next.addResponseHeader("Warning", warningHeaderValue);
+                    final ThreadContext next = iterator.next();
+                    next.addResponseHeader("Warning", warningHeaderValue);
                 }
             }
 
@@ -264,7 +266,6 @@ public class DeprecationLogger {
                          * There should be only one threadContext (in prod env), @see DeprecationLogger#setThreadContext
                          */
                         String opaqueId = getXOpaqueId(threadContexts);
-
                         logger.warn(new DeprecatedMessage(message, opaqueId, params));
                         return null;
                     }
@@ -281,11 +282,10 @@ public class DeprecationLogger {
         threadContextLock.readLock().lock();
         try {
             for (ThreadContext threadContext : threadContexts) {
-                if (threadContext.isClosed() == false) {
-                    String header = threadContext.getHeader(Task.X_OPAQUE_ID);
-                    if (header != null) {
-                        return header;
-                    }
+                assert threadContext.isClosed() == false;
+                String header = threadContext.getHeader(Task.X_OPAQUE_ID);
+                if (header != null) {
+                    return header;
                 }
             }
             return "";

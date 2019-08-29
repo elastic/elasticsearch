@@ -22,16 +22,17 @@ import static org.mockito.Mockito.when;
 public class InferenceProcessorTests extends ESTestCase {
 
     public void testFactory() throws Exception {
+        String processorTag = randomAlphaOfLength(10);
+        
         Model mockModel = mock(Model.class);
         ModelLoader mockLoader = mock(ModelLoader.class);
-        when(mockLoader.load(eq("k2"), eq("inference"), eq(false), any())).thenReturn(mockModel);
+        when(mockLoader.load(eq("k2"), eq(processorTag), eq(false), any())).thenReturn(mockModel);
 
         InferenceProcessor.Factory factory = new InferenceProcessor.Factory(Map.of("test", mockLoader));
 
         Map<String, Object> config = new HashMap<>();
         config.put("model_id", "k2");
         config.put("model_type", "test");
-        String processorTag = randomAlphaOfLength(10);
 
         InferenceProcessor processor = factory.create(Collections.emptyMap(), processorTag, config);
         assertThat(processor.getTag(), equalTo(processorTag));

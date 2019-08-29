@@ -24,6 +24,7 @@ import com.sun.net.httpserver.HttpServer;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -40,7 +41,6 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
@@ -108,12 +108,8 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
         secureSettings.setString(S3ClientSettings.ACCESS_KEY_SETTING.getConcreteSettingForNamespace("test").getKey(), "access");
         secureSettings.setString(S3ClientSettings.SECRET_KEY_SETTING.getConcreteSettingForNamespace("test").getKey(), "secret");
 
-        final String endpoint;
-        if (httpServer.getAddress().getAddress() instanceof Inet6Address) {
-            endpoint = "http://[" + httpServer.getAddress().getHostString() + "]:" + httpServer.getAddress().getPort();
-        } else {
-            endpoint = "http://" + httpServer.getAddress().getHostString() + ":" + httpServer.getAddress().getPort();
-        }
+        final InetSocketAddress address = httpServer.getAddress();
+        final String endpoint = "http://" + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort();
 
         return Settings.builder()
             .put(Settings.builder()

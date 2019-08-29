@@ -401,9 +401,9 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
         initializeRepo(slowRepo, "1b");
         initializeRepo(fastRepo, "10mb");
 
-        createSnapshotPolicy(slowPolicy, "snap", "1 2 3 4 5 ?", slowRepo, indexName, true,
+        createSnapshotPolicy(slowPolicy, "slow-snap", "1 2 3 4 5 ?", slowRepo, indexName, true,
             new SnapshotRetentionConfiguration(TimeValue.timeValueSeconds(0), null, null));
-        createSnapshotPolicy(fastPolicy, "snap", "1 2 3 4 5 ?", fastRepo, indexName, true,
+        createSnapshotPolicy(fastPolicy, "fast-snap", "1 2 3 4 5 ?", fastRepo, indexName, true,
             new SnapshotRetentionConfiguration(TimeValue.timeValueSeconds(0), null, null));
 
         // Create a snapshot and wait for it to be complete (need something that can be deleted)
@@ -417,6 +417,19 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
                     logger.info("--> waiting for snapshot {} to be successful, got: {}", completedSnapshotName, snaps);
                     List<Map<String, Object>> snaps2 = (List<Map<String, Object>>) snaps.get("snapshots");
                     assertThat(snaps2.get(0).get("state"), equalTo("SUCCESS"));
+
+                    // Check that no in_progress snapshots show up
+                    Response response = client().performRequest(new Request("GET", "/_slm/policy"));
+                    Map<String, Object> policyResponseMap;
+                    try (InputStream content2 = response.getEntity().getContent()) {
+                        policyResponseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), content2, true);
+                    }
+                    assertThat(policyResponseMap.size(), greaterThan(0));
+                    Optional<Map<String, Object>> inProgress = Optional.ofNullable((Map<String, Object>) policyResponseMap.get(slowPolicy))
+                        .map(policy -> (Map<String, Object>) policy.get("in_progress"));
+
+                    // Ensure no snapshots are running
+                    assertFalse("expected no in progress snapshots but got " + inProgress.orElse(null), inProgress.isPresent());
                 }
             } catch (NullPointerException | ResponseException e) {
                 fail("unable to retrieve completed snapshot: " + e);
@@ -429,11 +442,12 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
         // Check that the executed snapshot shows up in the SLM output as in_progress
         assertBusy(() -> {
             try {
-                Response response = client().performRequest(new Request("GET", "/_slm/policy" + (randomBoolean() ? "" : "?human")));
+                Response response = client().performRequest(new Request("GET", "/_slm/policy"));
                 Map<String, Object> policyResponseMap;
                 try (InputStream content = response.getEntity().getContent()) {
                     policyResponseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), content, true);
                 }
+                logger.info("--> checking for 'slow-*' snapshot to show up in policy response, got: " + policyResponseMap);
                 assertThat(policyResponseMap.size(), greaterThan(0));
                 Optional<Map<String, Object>> inProgress = Optional.ofNullable((Map<String, Object>) policyResponseMap.get(slowPolicy))
                     .map(policy -> (Map<String, Object>) policy.get("in_progress"));
@@ -442,7 +456,7 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
                     Map<String, Object> inProgressMap = inProgress.get();
                     assertThat(inProgressMap.get("name"), equalTo(slowSnapshotName));
                     assertNotNull(inProgressMap.get("uuid"));
-                    assertThat(inProgressMap.get("state"), equalTo("STARTED"));
+                    assertThat(inProgressMap.get("state"), anyOf(equalTo("STARTED"), equalTo("INIT")));
                     assertThat((long) inProgressMap.get("start_time_millis"), greaterThan(0L));
                     assertNull(inProgressMap.get("failure"));
                 } else {
@@ -479,9 +493,10 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
         assertBusy(() -> {
             // We expect a failed response because the snapshot should not exist
             try {
-                logger.info("--> checking to see if snapshot has been deleted...");
                 Response response = client().performRequest(new Request("GET", "/_snapshot/" + slowRepo + "/" + completedSnapshotName));
-                assertThat(EntityUtils.toString(response.getEntity()), containsString("snapshot_missing_exception"));
+                String resp = EntityUtils.toString(response.getEntity());
+                logger.info("--> checking to see if snapshot has been deleted, got: " + resp);
+                assertThat(resp, containsString("snapshot_missing_exception"));
             } catch (ResponseException e) {
                 assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("snapshot_missing_exception"));
             }

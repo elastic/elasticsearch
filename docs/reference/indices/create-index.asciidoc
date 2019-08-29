@@ -52,7 +52,7 @@ Index names must meet the following criteria:
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=include-type-name]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-wait-for-active-shards]
+include::{docdir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 

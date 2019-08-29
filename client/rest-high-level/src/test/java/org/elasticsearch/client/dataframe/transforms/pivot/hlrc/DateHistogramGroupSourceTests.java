@@ -21,6 +21,7 @@ package org.elasticsearch.client.dataframe.transforms.pivot.hlrc;
 
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.xpack.core.dataframe.transforms.pivot.DateHistogramGroupSource;
 
@@ -48,7 +49,7 @@ public class DateHistogramGroupSourceTests extends AbstractResponseTestCase<
     }
 
     @Override
-    protected DateHistogramGroupSource createServerTestInstance() {
+    protected DateHistogramGroupSource createServerTestInstance(XContentType xContentType) {
         return randomDateHistogramGroupSource();
     }
 

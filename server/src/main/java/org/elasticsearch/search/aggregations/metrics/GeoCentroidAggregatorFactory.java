@@ -32,9 +32,9 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-class GeoCentroidAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> {
+class GeoCentroidAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.Geo> {
 
-    GeoCentroidAggregatorFactory(String name, ValuesSourceConfig<ValuesSource.GeoPoint> config,
+    GeoCentroidAggregatorFactory(String name, ValuesSourceConfig<ValuesSource.Geo> config,
             SearchContext context, AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
             Map<String, Object> metaData) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metaData);
@@ -47,7 +47,7 @@ class GeoCentroidAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesS
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource.GeoPoint valuesSource, Aggregator parent,
+    protected Aggregator doCreateInternal(ValuesSource.Geo valuesSource, Aggregator parent,
             boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
                     throws IOException {
         return new GeoCentroidAggregator(name, context, parent, valuesSource, pipelineAggregators, metaData);

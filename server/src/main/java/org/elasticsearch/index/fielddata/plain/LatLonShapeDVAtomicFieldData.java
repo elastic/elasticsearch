@@ -23,6 +23,7 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.GeoShapeCoordinateEncoder;
 import org.elasticsearch.common.geo.GeometryTreeReader;
 import org.elasticsearch.index.fielddata.MultiGeoValues;
 
@@ -74,7 +75,7 @@ final class LatLonShapeDVAtomicFieldData extends AbstractAtomicGeoShapeFieldData
                 @Override
                 public GeoValue nextValue() throws IOException {
                     final BytesRef encoded = binaryValues.binaryValue();
-                    return new GeoShapeValue(new GeometryTreeReader(encoded));
+                    return new GeoShapeValue(new GeometryTreeReader(encoded, GeoShapeCoordinateEncoder.INSTANCE));
                 }
             };
         } catch (IOException e) {

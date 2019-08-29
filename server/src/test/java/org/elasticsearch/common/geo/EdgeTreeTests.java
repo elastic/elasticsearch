@@ -47,11 +47,15 @@ public class EdgeTreeTests extends ESTestCase {
             int maxY = randomIntBetween(minY + 10, 180);
             double[] x = new double[]{minX, maxX, maxX, minX, minX};
             double[] y = new double[]{minY, minY, maxY, maxY, minY};
-            EdgeTreeWriter writer = new EdgeTreeWriter(x, y, TestCoordinateEncoder.INSTANCE);
+            EdgeTreeWriter writer = new EdgeTreeWriter(x, y, TestCoordinateEncoder.INSTANCE, true);
             BytesStreamOutput output = new BytesStreamOutput();
             writer.writeTo(output);
             output.close();
-            EdgeTreeReader reader = new EdgeTreeReader(new ByteBufferStreamInput(ByteBuffer.wrap(output.bytes().toBytesRef().bytes)), true);
+            EdgeTreeReader reader = new EdgeTreeReader(
+                new ByteBufferStreamInput(ByteBuffer.wrap(output.bytes().toBytesRef().bytes)), true);
+
+            assertThat(writer.getCentroidCalculator().getX(), equalTo((minX + maxX)/2.0));
+            assertThat(writer.getCentroidCalculator().getY(), equalTo((minY + maxY)/2.0));
 
             // box-query touches bottom-left corner
             assertTrue(reader.intersects(Extent.fromPoints(minX - randomIntBetween(1, 180), minY - randomIntBetween(1, 180), minX, minY)));
@@ -119,7 +123,7 @@ public class EdgeTreeTests extends ESTestCase {
             double[] x = testPolygon.getPolygon().getLons();
             double[] y = testPolygon.getPolygon().getLats();
 
-            EdgeTreeWriter writer = new EdgeTreeWriter(x, y, TestCoordinateEncoder.INSTANCE);
+            EdgeTreeWriter writer = new EdgeTreeWriter(x, y, TestCoordinateEncoder.INSTANCE, true);
             BytesStreamOutput output = new BytesStreamOutput();
             writer.writeTo(output);
             output.close();
@@ -155,7 +159,7 @@ public class EdgeTreeTests extends ESTestCase {
         int yMax = 1;//5;
 
         // test cell crossing poly
-        EdgeTreeWriter writer = new EdgeTreeWriter(px, py, TestCoordinateEncoder.INSTANCE);
+        EdgeTreeWriter writer = new EdgeTreeWriter(px, py, TestCoordinateEncoder.INSTANCE, true);
         BytesStreamOutput output = new BytesStreamOutput();
         writer.writeTo(output);
         output.close();
@@ -165,10 +169,10 @@ public class EdgeTreeTests extends ESTestCase {
 
     public void testGetShapeType() {
         double[] pointCoord = new double[] { 0 };
-        assertThat(new EdgeTreeWriter(pointCoord, pointCoord, TestCoordinateEncoder.INSTANCE).getShapeType(),
+        assertThat(new EdgeTreeWriter(pointCoord, pointCoord, TestCoordinateEncoder.INSTANCE, false).getShapeType(),
             equalTo(ShapeType.LINESTRING));
         assertThat(new EdgeTreeWriter(List.of(pointCoord, pointCoord), List.of(pointCoord, pointCoord),
-                TestCoordinateEncoder.INSTANCE).getShapeType(),
+                TestCoordinateEncoder.INSTANCE, false).getShapeType(),
             equalTo(ShapeType.MULTILINESTRING));
     }
 }

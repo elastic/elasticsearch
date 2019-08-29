@@ -29,4 +29,6 @@ public abstract class ShapeTreeWriter implements Writeable {
     public abstract Extent getExtent();
 
     public abstract ShapeType getShapeType();
+
+    public abstract CentroidCalculator getCentroidCalculator();
 }

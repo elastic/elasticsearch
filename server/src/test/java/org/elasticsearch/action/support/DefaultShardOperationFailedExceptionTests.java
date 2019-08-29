@@ -62,7 +62,9 @@ public class DefaultShardOperationFailedExceptionTests extends ESTestCase {
             elasticsearchException.setIndex(new Index("index1", "_na_"));
             elasticsearchException.setShard(new ShardId("index1", "_na_", 1));
             DefaultShardOperationFailedException exception = new DefaultShardOperationFailedException(elasticsearchException);
-            assertThat(exception.toString(), startsWith("[index1][1] failed, reason [[index1][[index1][1]] org.elasticsearch.ElasticsearchException: foo"));
+            assertThat(
+                exception.toString(),
+                startsWith("[index1][1] failed, reason [[index1][[index1][1]] org.elasticsearch.ElasticsearchException: foo"));
         }
 
         {

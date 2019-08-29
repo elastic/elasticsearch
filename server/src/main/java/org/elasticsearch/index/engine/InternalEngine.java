@@ -92,6 +92,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -1464,14 +1465,21 @@ public class InternalEngine extends Engine {
             }
             return new DeleteResult(
                 plan.versionOfDeletion, getPrimaryTerm(), plan.seqNoOfDeletion, plan.currentlyDeleted == false);
-        } catch (Exception ex) {
-            if (indexWriter.getTragicException() == null) {
-                // there is no tragic event and such it must be a document level failure
-                return new DeleteResult(
-                        ex, plan.versionOfDeletion, delete.primaryTerm(), plan.seqNoOfDeletion, plan.currentlyDeleted == false);
-            } else {
-                throw ex;
+        } catch (final Exception ex) {
+            /*
+             * Document level failures when deleting are unexpected, we likely hit something fatal such as the Lucene index being corrupt,
+             * or the Lucene document limit. We have already issued a sequence number here so this is fatal, fail the engine.
+             */
+            if (ex instanceof AlreadyClosedException == false && indexWriter.getTragicException() == null) {
+                final String reason = String.format(
+                    Locale.ROOT,
+                    "delete id[%s] origin [%s] seq#[%d] failed at the document level",
+                    delete.id(),
+                    delete.origin(),
+                    delete.seqNo());
+                failEngine(reason, ex);
             }
+            throw ex;
         }
     }
 

@@ -77,6 +77,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
@@ -3318,8 +3319,8 @@ public class InternalEngineTests extends EngineTestCase {
             AtomicReference<ThrowingIndexWriter> throwingIndexWriter = new AtomicReference<>();
             try (InternalEngine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE,
                 (directory, iwc) -> {
-                  throwingIndexWriter.set(new ThrowingIndexWriter(directory, iwc));
-                  return throwingIndexWriter.get();
+                    throwingIndexWriter.set(new ThrowingIndexWriter(directory, iwc));
+                    return throwingIndexWriter.get();
                 })
             ) {
                 // test document failure while indexing
@@ -3342,22 +3343,6 @@ public class InternalEngineTests extends EngineTestCase {
                 assertNull(indexResult.getFailure());
                 assertNotNull(indexResult.getTranslogLocation());
                 engine.index(indexForDoc(doc2));
-
-                // test failure while deleting
-                // all these simulated exceptions are not fatal to the IW so we treat them as document failures
-                final Engine.DeleteResult deleteResult;
-                if (randomBoolean()) {
-                    throwingIndexWriter.get().setThrowFailure(() -> new IOException("simulated"));
-                    deleteResult = engine.delete(new Engine.Delete("test", "1", newUid(doc1), primaryTerm.get()));
-                    assertThat(deleteResult.getFailure(), instanceOf(IOException.class));
-                } else {
-                    throwingIndexWriter.get().setThrowFailure(() -> new IllegalArgumentException("simulated max token length"));
-                    deleteResult = engine.delete(new Engine.Delete("test", "1", newUid(doc1), primaryTerm.get()));
-                    assertThat(deleteResult.getFailure(),
-                        instanceOf(IllegalArgumentException.class));
-                }
-                assertThat(deleteResult.getVersion(), equalTo(2L));
-                assertThat(deleteResult.getSeqNo(), equalTo(3L));
 
                 // test non document level failure is thrown
                 if (randomBoolean()) {
@@ -5807,6 +5792,50 @@ public class InternalEngineTests extends EngineTestCase {
                  config(indexSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null))) {
             final Engine.NoOp op = new Engine.NoOp(0, 0, PRIMARY, System.currentTimeMillis(), "test");
             final IllegalArgumentException e = expectThrows(IllegalArgumentException. class, () -> engine.noOp(op));
+            assertThat(e.getMessage(), equalTo("fatal"));
+            assertTrue(engine.isClosed.get());
+            assertThat(engine.failedEngine.get(), not(nullValue()));
+            assertThat(engine.failedEngine.get(), instanceOf(IllegalArgumentException.class));
+            assertThat(engine.failedEngine.get().getMessage(), equalTo("fatal"));
+        }
+    }
+
+    public void testDeleteFailureSoftDeletesEnabledDocAlreadyDeleted() throws IOException {
+        runTestDeleteFailure(true, InternalEngine::delete);
+    }
+
+    public void testDeleteFailureSoftDeletesEnabled() throws IOException {
+        runTestDeleteFailure(true, (engine, op) -> {});
+    }
+
+    public void testDeleteFailureSoftDeletesDisabled() throws IOException {
+        runTestDeleteFailure(false, (engine, op) -> {});
+    }
+
+    private void runTestDeleteFailure(
+        final boolean softDeletesEnabled,
+        final CheckedBiConsumer<InternalEngine, Engine.Delete, IOException> consumer) throws IOException {
+        engine.close();
+        final Settings settings = Settings.builder()
+            .put(defaultSettings.getSettings())
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), softDeletesEnabled).build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
+            IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build());
+        final AtomicReference<ThrowingIndexWriter> iw = new AtomicReference<>();
+        try (Store store = createStore();
+             InternalEngine engine = createEngine(
+                 (dir, iwc) -> {
+                     iw.set(new ThrowingIndexWriter(dir, iwc));
+                     return iw.get();
+                 },
+                 null,
+                 null,
+                 config(indexSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null))) {
+            engine.index(new Engine.Index(newUid("0"), primaryTerm.get(), InternalEngineTests.createParsedDoc("0", null)));
+            final Engine.Delete op = new Engine.Delete("_doc", "0", newUid("0"), primaryTerm.get());
+            consumer.accept(engine, op);
+            iw.get().setThrowFailure(() -> new IllegalArgumentException("fatal"));
+            final IllegalArgumentException e = expectThrows(IllegalArgumentException. class, () -> engine.delete(op));
             assertThat(e.getMessage(), equalTo("fatal"));
             assertTrue(engine.isClosed.get());
             assertThat(engine.failedEngine.get(), not(nullValue()));

@@ -25,7 +25,6 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -48,8 +47,7 @@ public class RestGetAction extends BaseRestHandler {
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in " +
         "document get requests is deprecated, use the /{index}/_doc/{id} endpoint instead.";
 
-    public RestGetAction(final Settings settings, final RestController controller) {
-        super(settings);
+    public RestGetAction(final RestController controller) {
         controller.registerHandler(GET, "/{index}/_doc/{id}", this);
         controller.registerHandler(HEAD, "/{index}/_doc/{id}", this);
 

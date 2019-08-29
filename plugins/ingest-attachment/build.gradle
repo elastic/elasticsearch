@@ -23,10 +23,10 @@ esplugin {
 }
 
 versions << [
-  'tika': '1.19.1',
-  'pdfbox': '2.0.12',
-  'poi': '4.0.0',
-  'mime4j': '0.8.2'
+  'tika': '1.22',
+  'pdfbox': '2.0.16',
+  'poi': '4.0.1',
+  'mime4j': '0.8.3'
 ]
 
 dependencies {
@@ -66,6 +66,8 @@ dependencies {
   // Outlook documents
   compile "org.apache.james:apache-mime4j-core:${versions.mime4j}"
   compile "org.apache.james:apache-mime4j-dom:${versions.mime4j}"
+  // EPUB books
+  compile 'org.apache.commons:commons-lang3:3.9'
 }
 
 dependencyLicenses {

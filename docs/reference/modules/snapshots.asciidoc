@@ -20,6 +20,9 @@ name of the restored index as well as some of its settings. There is a great
 deal of flexibility in how the snapshot and restore functionality can be used.
 // end::restore-intro[]
 
+You can automate your snapshot backup and restore process by using
+<<getting-started-snapshot-lifecycle-management, snapshot lifecycle management>>.
+
 // tag::backup-warning[]
 WARNING: You cannot back up an Elasticsearch cluster by simply taking a copy of
 the data directories of all of its nodes. Elasticsearch may be making changes to
@@ -124,7 +127,7 @@ which returns:
 -----------------------------------
 // TESTRESPONSE
 
-To retrieve information about multiple repositories, specify a comma-delimited 
+To retrieve information about multiple repositories, specify a comma-delimited
 list of repositories. You can also use the * wildcard when
 specifying repository names. For example, the following request retrieves
 information about all of the snapshot repositories that start with `repo` or
@@ -216,8 +219,8 @@ The following settings are supported:
 [horizontal]
 `location`:: Location of the snapshots. Mandatory.
 `compress`:: Turns on compression of the snapshot files. Compression is applied only to metadata files (index mapping and settings). Data files are not compressed. Defaults to `true`.
-`chunk_size`:: Big files can be broken down into chunks during snapshotting if needed. The chunk size can be specified in bytes or by
- using size value notation, i.e. 1g, 10m, 5k. Defaults to `null` (unlimited chunk size).
+`chunk_size`:: Big files can be broken down into chunks during snapshotting if needed. Specify the chunk size as a value and
+unit, for example: `1GB`, `10MB`, `5KB`, `500B`. Defaults to `null` (unlimited chunk size).
 `max_restore_bytes_per_sec`:: Throttles per node restore rate. Defaults to `40mb` per second.
 `max_snapshot_bytes_per_sec`:: Throttles per node snapshot rate. Defaults to `40mb` per second.
 `readonly`:: Makes repository read-only.  Defaults to `false`.
@@ -328,6 +331,42 @@ POST /_snapshot/my_unverified_backup/_verify
 // TEST[continued]
 
 It returns a list of nodes where repository was successfully verified or an error message if verification process failed.
+
+[float]
+===== Repository Cleanup
+Repositories can over time accumulate data that is not referenced by any existing snapshot. This is a result of the data safety guarantees
+the snapshot functionality provides in failure scenarios during snapshot creation and the decentralized nature of the snapshot creation
+process. This unreferenced data does in no way negatively impact the performance or safety of a snapshot repository but leads to higher
+than necessary storage use. In order to clean up this unreferenced data, users can call the cleanup endpoint for a repository which will
+trigger a complete accounting of the repositories contents and subsequent deletion of all unreferenced data that was found.
+
+[source,js]
+-----------------------------------
+POST /_snapshot/my_repository/_cleanup
+-----------------------------------
+// CONSOLE
+// TEST[continued]
+
+The response to a cleanup request looks as follows:
+
+[source,js]
+--------------------------------------------------
+{
+  "results": {
+    "deleted_bytes": 20,
+    "deleted_blobs": 5
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+Depending on the concrete repository implementation the numbers shown for bytes free as well as the number of blobs removed will either
+be an approximation or an exact result. Any non-zero value for the number of blobs removed implies that unreferenced blobs were found and
+subsequently cleaned up.
+
+Please note that most of the cleanup operations executed by this endpoint are automatically executed when deleting any snapshot from a
+repository. If you regularly delete snapshots, you will in most cases not get any or only minor space savings from using this functionality
+and should lower your frequency of invoking it accordingly.
 
 [float]
 [[snapshots-take-snapshot]]

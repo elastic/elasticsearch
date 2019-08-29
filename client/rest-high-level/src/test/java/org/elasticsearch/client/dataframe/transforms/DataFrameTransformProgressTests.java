@@ -34,22 +34,31 @@ public class DataFrameTransformProgressTests extends ESTestCase {
             DataFrameTransformProgressTests::toXContent,
             DataFrameTransformProgress::fromXContent)
            .supportsUnknownFields(true)
-           .randomFieldsExcludeFilter(field -> field.startsWith("state"))
            .test();
     }
 
     public static DataFrameTransformProgress randomInstance() {
-        long totalDocs = randomNonNegativeLong();
-        Long docsRemaining = randomBoolean() ? null : randomLongBetween(0, totalDocs);
-        double percentComplete = totalDocs == 0 ? 1.0 : docsRemaining == null ? 0.0 : 100.0*(double)(totalDocs - docsRemaining)/totalDocs;
-        return new DataFrameTransformProgress(totalDocs, docsRemaining, percentComplete);
+        return new DataFrameTransformProgress(
+            randomBoolean() ? null : randomNonNegativeLong(),
+            randomBoolean() ? null : randomNonNegativeLong(),
+            randomBoolean() ? null : randomDouble(),
+            randomBoolean() ? null : randomNonNegativeLong(),
+            randomBoolean() ? null : randomNonNegativeLong());
     }
 
     public static void toXContent(DataFrameTransformProgress progress, XContentBuilder builder) throws IOException {
         builder.startObject();
-        builder.field(DataFrameTransformProgress.TOTAL_DOCS.getPreferredName(), progress.getTotalDocs());
-        builder.field(DataFrameTransformProgress.DOCS_REMAINING.getPreferredName(), progress.getRemainingDocs());
-        builder.field(DataFrameTransformProgress.PERCENT_COMPLETE.getPreferredName(), progress.getPercentComplete());
+        if (progress.getTotalDocs() != null) {
+            builder.field(DataFrameTransformProgress.TOTAL_DOCS.getPreferredName(), progress.getTotalDocs());
+        }
+        if (progress.getPercentComplete() != null) {
+            builder.field(DataFrameTransformProgress.PERCENT_COMPLETE.getPreferredName(), progress.getPercentComplete());
+        }
+        if (progress.getRemainingDocs() != null) {
+            builder.field(DataFrameTransformProgress.DOCS_REMAINING.getPreferredName(), progress.getRemainingDocs());
+        }
+        builder.field(DataFrameTransformProgress.DOCS_INDEXED.getPreferredName(), progress.getDocumentsIndexed());
+        builder.field(DataFrameTransformProgress.DOCS_PROCESSED.getPreferredName(), progress.getDocumentsProcessed());
         builder.endObject();
     }
 }

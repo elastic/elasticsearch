@@ -29,6 +29,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
@@ -43,10 +44,16 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.plugins.IngestPlugin;
+import org.elasticsearch.script.MockScriptEngine;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -64,6 +71,8 @@ import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.LongSupplier;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -261,6 +270,93 @@ public class IngestServiceTests extends ESTestCase {
             emptyMap(), emptySet(), Version.CURRENT);
         IngestInfo ingestInfo = new IngestInfo(Collections.singletonList(new ProcessorInfo("set")));
         ingestService.validatePipeline(Collections.singletonMap(discoveryNode, ingestInfo), putRequest);
+    }
+
+    public void testGetProcessorsInPipeline() throws Exception {
+        IngestService ingestService = createWithProcessors();
+        String id = "_id";
+        Pipeline pipeline = ingestService.getPipeline(id);
+        assertThat(pipeline, nullValue());
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
+
+        PutPipelineRequest putRequest = new PutPipelineRequest("_id", new BytesArray(
+            "{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\", \"tag\": \"tag1\"}}," +
+                "{\"remove\" : {\"field\": \"_field\", \"tag\": \"tag2\"}}]}"),
+            XContentType.JSON);
+        ClusterState previousClusterState = clusterState;
+        clusterState = IngestService.innerPut(putRequest, clusterState);
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+        pipeline = ingestService.getPipeline(id);
+        assertThat(pipeline, notNullValue());
+
+        assertThat(ingestService.getProcessorsInPipeline(id, Processor.class).size(), equalTo(3));
+        assertThat(ingestService.getProcessorsInPipeline(id, WrappingProcessorImpl.class).size(), equalTo(1));
+        assertThat(ingestService.getProcessorsInPipeline(id, WrappingProcessor.class).size(), equalTo(1));
+        assertThat(ingestService.getProcessorsInPipeline(id, FakeProcessor.class).size(), equalTo(2));
+
+        assertThat(ingestService.getProcessorsInPipeline(id, ConditionalProcessor.class).size(), equalTo(0));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> ingestService.getProcessorsInPipeline("fakeID", Processor.class));
+        assertThat("pipeline with id [fakeID] does not exist", equalTo(e.getMessage()));
+    }
+
+    public void testGetProcessorsInPipelineComplexConditional() throws Exception {
+        LongSupplier relativeTimeProvider = mock(LongSupplier.class);
+        String scriptName = "conditionalScript";
+        ScriptService scriptService = new ScriptService(Settings.builder().build(),
+            Collections.singletonMap(
+                Script.DEFAULT_SCRIPT_LANG,
+                new MockScriptEngine(
+                    Script.DEFAULT_SCRIPT_LANG,
+                    Collections.singletonMap(
+                        scriptName, ctx -> {
+                            ctx.get("_type");
+                            return true;
+                        }
+                    ),
+                    Collections.emptyMap()
+                )
+            ),
+            new HashMap<>(ScriptModule.CORE_CONTEXTS)
+        );
+
+        Map<String, Processor.Factory> processors = new HashMap<>();
+        processors.put("complexSet", (factories, tag, config) -> {
+            String field = (String) config.remove("field");
+            String value = (String) config.remove("value");
+
+            return new ConditionalProcessor(randomAlphaOfLength(10),
+                new Script(
+                    ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG,
+                    scriptName, Collections.emptyMap()), scriptService,
+                new ConditionalProcessor(randomAlphaOfLength(10) + "-nested",
+                    new Script(
+                        ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG,
+                        scriptName, Collections.emptyMap()), scriptService,
+                    new FakeProcessor("complexSet", tag, (ingestDocument) -> ingestDocument.setFieldValue(field, value))));
+        });
+
+        IngestService ingestService = createWithProcessors(processors);
+        String id = "_id";
+        Pipeline pipeline = ingestService.getPipeline(id);
+        assertThat(pipeline, nullValue());
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
+
+        PutPipelineRequest putRequest = new PutPipelineRequest(id,
+            new BytesArray("{\"processors\": [{\"complexSet\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}"), XContentType.JSON);
+        ClusterState previousClusterState = clusterState;
+        clusterState = IngestService.innerPut(putRequest, clusterState);
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+        pipeline = ingestService.getPipeline(id);
+        assertThat(pipeline, notNullValue());
+
+        assertThat(ingestService.getProcessorsInPipeline(id, Processor.class).size(), equalTo(3));
+        assertThat(ingestService.getProcessorsInPipeline(id, WrappingProcessor.class).size(), equalTo(2));
+        assertThat(ingestService.getProcessorsInPipeline(id, FakeProcessor.class).size(), equalTo(1));
+        assertThat(ingestService.getProcessorsInPipeline(id, ConditionalProcessor.class).size(), equalTo(2));
+
+        assertThat(ingestService.getProcessorsInPipeline(id, WrappingProcessorImpl.class).size(), equalTo(0));
     }
 
     public void testCrud() throws Exception {
@@ -796,20 +892,33 @@ public class IngestServiceTests extends ESTestCase {
         verify(completionHandler, times(1)).accept(null);
     }
 
-    public void testBulkRequestExecution() {
+    public void testBulkRequestExecution() throws Exception {
         BulkRequest bulkRequest = new BulkRequest();
         String pipelineId = "_id";
 
+        // Test to make sure that ingest respects content types other than the default index content type
+        XContentType xContentType = randomFrom(Arrays.stream(XContentType.values())
+                .filter(t -> Requests.INDEX_CONTENT_TYPE.equals(t) == false)
+                .collect(Collectors.toList()));
+
+        logger.info("Using [{}], not randomly determined default [{}]", xContentType, Requests.INDEX_CONTENT_TYPE);
         int numRequest = scaledRandomIntBetween(8, 64);
         for (int i = 0; i < numRequest; i++) {
             IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").setPipeline(pipelineId);
-            indexRequest.source(Requests.INDEX_CONTENT_TYPE, "field1", "value1");
+            indexRequest.source(xContentType, "field1", "value1");
             bulkRequest.add(indexRequest);
         }
 
-        IngestService ingestService = createWithProcessors(emptyMap());
-        PutPipelineRequest putRequest =
-            new PutPipelineRequest("_id", new BytesArray("{\"processors\": [], \"description\": \"_description\"}"), XContentType.JSON);
+        final Processor processor = mock(Processor.class);
+        when(processor.getType()).thenReturn("mock");
+        when(processor.getTag()).thenReturn("mockTag");
+        when(processor.execute(any(IngestDocument.class))).thenReturn( RandomDocumentPicks.randomIngestDocument(random()));
+        Map<String, Processor.Factory> map = new HashMap<>(2);
+        map.put("mock", (factories, tag, config) -> processor);
+
+        IngestService ingestService = createWithProcessors(map);
+        PutPipelineRequest putRequest = new PutPipelineRequest("_id",
+            new BytesArray("{\"processors\": [{\"mock\": {}}], \"description\": \"_description\"}"), XContentType.JSON);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
         ClusterState previousClusterState = clusterState;
         clusterState = IngestService.innerPut(putRequest, clusterState);
@@ -823,6 +932,11 @@ public class IngestServiceTests extends ESTestCase {
 
         verify(requestItemErrorHandler, never()).accept(any(), any());
         verify(completionHandler, times(1)).accept(null);
+        for (DocWriteRequest<?> docWriteRequest : bulkRequest.requests()) {
+            IndexRequest indexRequest = TransportBulkAction.getIndexWriteRequest(docWriteRequest);
+            assertThat(indexRequest, notNullValue());
+            assertThat(indexRequest.getContentType(), equalTo(xContentType));
+        }
     }
 
     public void testStats() throws Exception {
@@ -946,7 +1060,7 @@ public class IngestServiceTests extends ESTestCase {
         assertThat(IngestService.getProcessorName(processor), equalTo(name + ":" + tag));
 
         ConditionalProcessor conditionalProcessor = mock(ConditionalProcessor.class);
-        when(conditionalProcessor.getProcessor()).thenReturn(processor);
+        when(conditionalProcessor.getInnerProcessor()).thenReturn(processor);
         assertThat(IngestService.getProcessorName(conditionalProcessor), equalTo(name + ":" + tag));
 
         PipelineProcessor pipelineProcessor = mock(PipelineProcessor.class);
@@ -1012,42 +1126,11 @@ public class IngestServiceTests extends ESTestCase {
         processors.put("set", (factories, tag, config) -> {
             String field = (String) config.remove("field");
             String value = (String) config.remove("value");
-            return new Processor() {
-                @Override
-                public IngestDocument execute(IngestDocument ingestDocument) {
-                    ingestDocument.setFieldValue(field, value);
-                    return ingestDocument;
-                }
-
-                @Override
-                public String getType() {
-                    return "set";
-                }
-
-                @Override
-                public String getTag() {
-                    return tag;
-                }
-            };
+            return new FakeProcessor("set", tag, (ingestDocument) ->ingestDocument.setFieldValue(field, value));
         });
         processors.put("remove", (factories, tag, config) -> {
             String field = (String) config.remove("field");
-            return new Processor() {
-                @Override
-                public IngestDocument execute(IngestDocument ingestDocument) {
-                    ingestDocument.removeField(field);
-                    return ingestDocument;
-                }
-
-                @Override
-                public String getType() {
-                    return "remove";
-                }
-
-                @Override
-                public String getTag() {
-                    return tag;
-                }
+            return new WrappingProcessorImpl("remove", tag, (ingestDocument -> ingestDocument.removeField(field))) {
             };
         });
         return createWithProcessors(processors);

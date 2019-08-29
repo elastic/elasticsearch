@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheck
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStoredDoc;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformTaskState;
 import org.elasticsearch.xpack.core.dataframe.transforms.NodeAttributes;
 import org.elasticsearch.xpack.dataframe.checkpoint.DataFrameTransformsCheckpointService;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
@@ -90,7 +89,7 @@ public class TransportGetDataFrameTransformsStatsAction extends
             task.getCheckpointingInfo(transformsCheckpointService, ActionListener.wrap(
                 checkpointingInfo -> listener.onResponse(new Response(
                     Collections.singletonList(new DataFrameTransformStats(task.getTransformId(),
-                        transformState.getTaskState(),
+                        DataFrameTransformStats.State.fromComponents(transformState.getTaskState(), transformState.getIndexerState()),
                         transformState.getReason(),
                         null,
                         task.getStats(),
@@ -100,7 +99,7 @@ public class TransportGetDataFrameTransformsStatsAction extends
                     logger.warn("Failed to retrieve checkpointing info for transform [" + task.getTransformId() + "]", e);
                     listener.onResponse(new Response(
                     Collections.singletonList(new DataFrameTransformStats(task.getTransformId(),
-                        transformState.getTaskState(),
+                        DataFrameTransformStats.State.fromComponents(transformState.getTaskState(), transformState.getIndexerState()),
                         transformState.getReason(),
                         null,
                         task.getStats(),
@@ -221,7 +220,6 @@ public class TransportGetDataFrameTransformsStatsAction extends
         transformsCheckpointService.getCheckpointingInfo(
             transform.getId(),
             transform.getTransformState().getCheckpoint(),
-            transform.getTransformState().getIndexerState(),
             transform.getTransformState().getPosition(),
             transform.getTransformState().getProgress(),
             ActionListener.wrap(
@@ -252,7 +250,7 @@ public class TransportGetDataFrameTransformsStatsAction extends
                     synchronized (allStateAndStats) {
                         allStateAndStats.add(new DataFrameTransformStats(
                             stat.getId(),
-                            DataFrameTransformTaskState.STOPPED,
+                            DataFrameTransformStats.State.STOPPED,
                             null,
                             null,
                             stat.getTransformStats(),

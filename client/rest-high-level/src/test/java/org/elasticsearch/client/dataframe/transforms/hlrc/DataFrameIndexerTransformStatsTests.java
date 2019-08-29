@@ -31,9 +31,20 @@ public class DataFrameIndexerTransformStatsTests extends AbstractHlrcXContentTes
 
     public static DataFrameIndexerTransformStats fromHlrc(
             org.elasticsearch.client.dataframe.transforms.DataFrameIndexerTransformStats instance) {
-        return new DataFrameIndexerTransformStats(instance.getNumPages(), instance.getNumDocuments(),
-                instance.getOutputDocuments(), instance.getNumInvocations(), instance.getIndexTime(), instance.getSearchTime(),
-                instance.getIndexTotal(), instance.getSearchTotal(), instance.getIndexFailures(), instance.getSearchFailures());
+        return new DataFrameIndexerTransformStats(
+            instance.getNumPages(),
+            instance.getNumDocuments(),
+            instance.getOutputDocuments(),
+            instance.getNumInvocations(),
+            instance.getIndexTime(),
+            instance.getSearchTime(),
+            instance.getIndexTotal(),
+            instance.getSearchTotal(),
+            instance.getIndexFailures(),
+            instance.getSearchFailures(),
+            instance.getExpAvgCheckpointDurationMs(),
+            instance.getExpAvgDocumentsIndexed(),
+            instance.getExpAvgDocumentsProcessed());
     }
 
     @Override
@@ -52,7 +63,10 @@ public class DataFrameIndexerTransformStatsTests extends AbstractHlrcXContentTes
         return new DataFrameIndexerTransformStats(randomLongBetween(10L, 10000L),
             randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L),
             randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L),
-            randomLongBetween(0L, 10000L));
+            randomLongBetween(0L, 10000L),
+            randomBoolean() ? null : randomDouble(),
+            randomBoolean() ? null : randomDouble(),
+            randomBoolean() ? null : randomDouble());
     }
 
     @Override

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -38,6 +39,11 @@ public final class SThrow extends AStatement {
         super(location);
 
         this.expression = Objects.requireNonNull(expression);
+    }
+
+    @Override
+    void storeSettings(CompilerSettings settings) {
+        expression.storeSettings(settings);
     }
 
     @Override

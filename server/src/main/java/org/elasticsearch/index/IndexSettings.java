@@ -196,23 +196,13 @@ public final class IndexSettings {
             Property.Dynamic, Property.IndexScope);
 
     /**
-     * Controls how long translog files that are no longer needed for persistence reasons
-     * will be kept around before being deleted. A longer retention policy is useful to increase
-     * the chance of ops based recoveries.
-     **/
-    public static final Setting<TimeValue> INDEX_TRANSLOG_RETENTION_AGE_SETTING =
-        Setting.timeSetting("index.translog.retention.age", TimeValue.timeValueHours(12), TimeValue.timeValueMillis(-1),
+     * The minimum size of a merge that triggers a flush in order to free resources
+     */
+    public static final Setting<ByteSizeValue> INDEX_FLUSH_AFTER_MERGE_THRESHOLD_SIZE_SETTING =
+        Setting.byteSizeSetting("index.flush_after_merge", new ByteSizeValue(512, ByteSizeUnit.MB),
+            new ByteSizeValue(0, ByteSizeUnit.BYTES), // always flush after merge
+            new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES), // never flush after merge
             Property.Dynamic, Property.IndexScope);
-
-    /**
-     * Controls how many translog files that are no longer needed for persistence reasons
-     * will be kept around before being deleted. Keeping more files is useful to increase
-     * the chance of ops based recoveries.
-     **/
-    public static final Setting<ByteSizeValue> INDEX_TRANSLOG_RETENTION_SIZE_SETTING =
-        Setting.byteSizeSetting("index.translog.retention.size", new ByteSizeValue(512, ByteSizeUnit.MB), Property.Dynamic,
-            Property.IndexScope);
-
     /**
      * The maximum size of a translog generation. This is independent of the maximum size of
      * translog operations that have not been flushed.
@@ -259,6 +249,27 @@ public final class IndexSettings {
             Property.IndexScope, Property.Dynamic);
 
     /**
+     * Controls how long translog files that are no longer needed for persistence reasons
+     * will be kept around before being deleted. Keeping more files is useful to increase
+     * the chance of ops based recoveries for indices with soft-deletes disabled.
+     * This setting will be ignored if soft-deletes is enabled.
+     **/
+    public static final Setting<TimeValue> INDEX_TRANSLOG_RETENTION_AGE_SETTING =
+        Setting.timeSetting("index.translog.retention.age",
+            settings -> INDEX_SOFT_DELETES_SETTING.get(settings) ? TimeValue.MINUS_ONE : TimeValue.timeValueHours(12), TimeValue.MINUS_ONE,
+            Property.Dynamic, Property.IndexScope);
+
+    /**
+     * Controls how many translog files that are no longer needed for persistence reasons
+     * will be kept around before being deleted. Keeping more files is useful to increase
+     * the chance of ops based recoveries for indices with soft-deletes disabled.
+     * This setting will be ignored if soft-deletes is enabled.
+     **/
+    public static final Setting<ByteSizeValue> INDEX_TRANSLOG_RETENTION_SIZE_SETTING =
+        Setting.byteSizeSetting("index.translog.retention.size", settings -> INDEX_SOFT_DELETES_SETTING.get(settings) ? "-1" : "512MB",
+            Property.Dynamic, Property.IndexScope);
+
+    /**
      * Controls the maximum length of time since a retention lease is created or renewed before it is considered expired.
      */
     public static final Setting<TimeValue> INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING =
@@ -301,6 +312,19 @@ public final class IndexSettings {
     public static final Setting<Boolean> INDEX_SEARCH_THROTTLED = Setting.boolSetting("index.search.throttled", false,
         Property.IndexScope, Property.PrivateIndex, Property.Dynamic);
 
+    /**
+     * Determines a balance between file-based and operations-based peer recoveries. The number of operations that will be used in an
+     * operations-based peer recovery is limited to this proportion of the total number of documents in the shard (including deleted
+     * documents) on the grounds that a file-based peer recovery may copy all of the documents in the shard over to the new peer, but is
+     * significantly faster than replaying the missing operations on the peer, so once a peer falls far enough behind the primary it makes
+     * more sense to copy all the data over again instead of replaying history.
+     *
+     * Defaults to retaining history for up to 10% of the documents in the shard. This can only be changed in tests, since this setting is
+     * intentionally unregistered.
+     */
+    public static final Setting<Double> FILE_BASED_RECOVERY_THRESHOLD_SETTING
+        = Setting.doubleSetting("index.recovery.file_based_threshold", 0.1d, 0.0d, Setting.Property.IndexScope);
+
     private final Index index;
     private final Version version;
     private final Logger logger;
@@ -322,6 +346,7 @@ public final class IndexSettings {
     private volatile TimeValue translogRetentionAge;
     private volatile ByteSizeValue translogRetentionSize;
     private volatile ByteSizeValue generationThresholdSize;
+    private volatile ByteSizeValue flushAfterMergeThresholdSize;
     private final MergeSchedulerConfig mergeSchedulerConfig;
     private final MergePolicyConfig mergePolicyConfig;
     private final IndexSortConfig indexSortConfig;
@@ -453,9 +478,8 @@ public final class IndexSettings {
         syncInterval = INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.get(settings);
         refreshInterval = scopedSettings.get(INDEX_REFRESH_INTERVAL_SETTING);
         flushThresholdSize = scopedSettings.get(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING);
-        translogRetentionAge = scopedSettings.get(INDEX_TRANSLOG_RETENTION_AGE_SETTING);
-        translogRetentionSize = scopedSettings.get(INDEX_TRANSLOG_RETENTION_SIZE_SETTING);
         generationThresholdSize = scopedSettings.get(INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING);
+        flushAfterMergeThresholdSize = scopedSettings.get(INDEX_FLUSH_AFTER_MERGE_THRESHOLD_SIZE_SETTING);
         mergeSchedulerConfig = new MergeSchedulerConfig(this);
         gcDeletesInMillis = scopedSettings.get(INDEX_GC_DELETES_SETTING).getMillis();
         softDeleteEnabled = scopedSettings.get(INDEX_SOFT_DELETES_SETTING);
@@ -480,6 +504,8 @@ public final class IndexSettings {
         this.indexSortConfig = new IndexSortConfig(this);
         searchIdleAfter = scopedSettings.get(INDEX_SEARCH_IDLE_AFTER);
         defaultPipeline = scopedSettings.get(DEFAULT_PIPELINE);
+        setTranslogRetentionAge(scopedSettings.get(INDEX_TRANSLOG_RETENTION_AGE_SETTING));
+        setTranslogRetentionSize(scopedSettings.get(INDEX_TRANSLOG_RETENTION_SIZE_SETTING));
 
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING, mergePolicyConfig::setNoCFSRatio);
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_DELETES_PCT_ALLOWED_SETTING,
@@ -514,6 +540,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_WARMER_ENABLED_SETTING, this::setEnableWarmer);
         scopedSettings.addSettingsUpdateConsumer(INDEX_GC_DELETES_SETTING, this::setGCDeletes);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING, this::setTranslogFlushThresholdSize);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_FLUSH_AFTER_MERGE_THRESHOLD_SIZE_SETTING, this::setFlushAfterMergeThresholdSize);
         scopedSettings.addSettingsUpdateConsumer(
                 INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING,
                 this::setGenerationThresholdSize);
@@ -539,12 +566,26 @@ public final class IndexSettings {
         this.flushThresholdSize = byteSizeValue;
     }
 
+    private void setFlushAfterMergeThresholdSize(ByteSizeValue byteSizeValue) {
+        this.flushAfterMergeThresholdSize = byteSizeValue;
+    }
+
     private void setTranslogRetentionSize(ByteSizeValue byteSizeValue) {
-        this.translogRetentionSize = byteSizeValue;
+        if (softDeleteEnabled && byteSizeValue.getBytes() >= 0) {
+            // ignore the translog retention settings if soft-deletes enabled
+            this.translogRetentionSize = new ByteSizeValue(-1);
+        } else {
+            this.translogRetentionSize = byteSizeValue;
+        }
     }
 
     private void setTranslogRetentionAge(TimeValue age) {
-        this.translogRetentionAge = age;
+        if (softDeleteEnabled && age.millis() >= 0) {
+            // ignore the translog retention settings if soft-deletes enabled
+            this.translogRetentionAge = TimeValue.MINUS_ONE;
+        } else {
+            this.translogRetentionAge = age;
+        }
     }
 
     private void setGenerationThresholdSize(final ByteSizeValue generationThresholdSize) {
@@ -719,15 +760,26 @@ public final class IndexSettings {
     public ByteSizeValue getFlushThresholdSize() { return flushThresholdSize; }
 
     /**
+     * Returns the merge threshold size when to forcefully flush the index and free resources.
+     */
+    public ByteSizeValue getFlushAfterMergeThresholdSize() { return flushAfterMergeThresholdSize; }
+
+    /**
      * Returns the transaction log retention size which controls how much of the translog is kept around to allow for ops based recoveries
      */
-    public ByteSizeValue getTranslogRetentionSize() { return translogRetentionSize; }
+    public ByteSizeValue getTranslogRetentionSize() {
+        assert softDeleteEnabled == false || translogRetentionSize.getBytes() == -1L : translogRetentionSize;
+        return translogRetentionSize;
+    }
 
     /**
      * Returns the transaction log retention age which controls the maximum age (time from creation) that translog files will be kept
      * around
      */
-    public TimeValue getTranslogRetentionAge() { return translogRetentionAge; }
+    public TimeValue getTranslogRetentionAge() {
+        assert softDeleteEnabled == false || translogRetentionAge.millis() == -1L : translogRetentionSize;
+        return translogRetentionAge;
+    }
 
     /**
      * Returns the generation threshold size. As sequence numbers can cause multiple generations to

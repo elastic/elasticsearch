@@ -854,6 +854,8 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         long nextPolicyExecutionDate = policyMeta.getNextExecution();
         SnapshotInvocationRecord lastSuccess = policyMeta.getLastSuccess();
         SnapshotInvocationRecord lastFailure = policyMeta.getLastFailure();
+        SnapshotLifecyclePolicyMetadata.SnapshotInProgress inProgress =
+            policyMeta.getSnapshotInProgress();
         SnapshotLifecyclePolicy retrievedPolicy = policyMeta.getPolicy(); // <2>
         String id = retrievedPolicy.getId();
         String snapshotNameFormat = retrievedPolicy.getName();

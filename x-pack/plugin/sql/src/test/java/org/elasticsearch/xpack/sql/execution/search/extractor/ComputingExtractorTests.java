@@ -9,10 +9,10 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.expression.function.scalar.CastProcessorTests;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessorTests;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryMathProcessorTests;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathFunctionProcessorTests;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
@@ -32,7 +32,7 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.sql.util.CollectionUtils.combine;
 import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
 
-public class ComputingExtractorTests extends AbstractWireSerializingTestCase<ComputingExtractor> {
+public class ComputingExtractorTests extends AbstractSqlWireSerializingTestCase<ComputingExtractor> {
     public static ComputingExtractor randomComputingExtractor() {
         return new ComputingExtractor(randomProcessor(), randomAlphaOfLength(10));
     }
@@ -41,8 +41,8 @@ public class ComputingExtractorTests extends AbstractWireSerializingTestCase<Com
         List<Supplier<Processor>> options = new ArrayList<>();
         options.add(() -> ChainingProcessorTests.randomComposeProcessor());
         options.add(CastProcessorTests::randomCastProcessor);
-        options.add(DateTimeProcessorTests::randomDateTimeProcessor);
         options.add(MathFunctionProcessorTests::randomMathFunctionProcessor);
+        options.add(BinaryMathProcessorTests::randomProcessor);
         return randomFrom(options).get();
     }
 

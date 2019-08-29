@@ -21,7 +21,7 @@ package org.elasticsearch.common.geo;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.geo.utils.GeographyValidator;
+import org.elasticsearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions;
@@ -66,14 +66,14 @@ abstract class BaseGeoParsingTestCase extends ESTestCase {
                 ElasticsearchGeoAssertions.assertEquals(expected, ShapeParser.parse(parser).buildS4J());
             } else {
                 GeometryParser geometryParser = new GeometryParser(true, true, true);
-                org.elasticsearch.geo.geometry.Geometry shape = geometryParser.parse(parser);
+                org.elasticsearch.geometry.Geometry shape = geometryParser.parse(parser);
                 shape = new GeoShapeIndexer(true, "name").prepareForIndexing(shape);
                 ElasticsearchGeoAssertions.assertEquals(expected, shape);
             }
         }
     }
 
-    protected void assertGeometryEquals(org.elasticsearch.geo.geometry.Geometry expected, XContentBuilder geoJson) throws IOException {
+    protected void assertGeometryEquals(org.elasticsearch.geometry.Geometry expected, XContentBuilder geoJson) throws IOException {
         try (XContentParser parser = createParser(geoJson)) {
             parser.nextToken();
             assertEquals(expected, new GeoJson(true, false, new GeographyValidator(false)).fromXContent(parser));

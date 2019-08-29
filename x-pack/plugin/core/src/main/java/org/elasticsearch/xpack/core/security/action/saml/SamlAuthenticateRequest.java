@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.security.action.saml;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
@@ -19,6 +20,8 @@ public final class SamlAuthenticateRequest extends ActionRequest {
 
     private byte[] saml;
     private List<String> validRequestIds;
+    @Nullable
+    private String realm;
 
     public SamlAuthenticateRequest(StreamInput in) throws IOException {
         super(in);
@@ -46,5 +49,13 @@ public final class SamlAuthenticateRequest extends ActionRequest {
 
     public void setValidRequestIds(List<String> validRequestIds) {
         this.validRequestIds = validRequestIds;
+    }
+
+    public String getRealm() {
+        return realm;
+    }
+
+    public void setRealm(String realm) {
+        this.realm = realm;
     }
 }

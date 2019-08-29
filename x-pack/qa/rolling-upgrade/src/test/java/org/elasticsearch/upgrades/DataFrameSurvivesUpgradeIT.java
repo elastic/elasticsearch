@@ -14,7 +14,6 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.dataframe.GetDataFrameTransformStatsResponse;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformStats;
-import org.elasticsearch.client.dataframe.transforms.DataFrameTransformTaskState;
 import org.elasticsearch.client.dataframe.transforms.DestConfig;
 import org.elasticsearch.client.dataframe.transforms.SourceConfig;
 import org.elasticsearch.client.dataframe.transforms.TimeSyncConfig;
@@ -47,6 +46,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.oneOf;
 
 @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/43662")
 public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
@@ -139,7 +139,7 @@ public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
 
         assertThat(stateAndStats.getIndexerStats().getOutputDocuments(), equalTo((long)ENTITIES.size()));
         assertThat(stateAndStats.getIndexerStats().getNumDocuments(), equalTo(totalDocsWritten));
-        assertThat(stateAndStats.getTaskState(), equalTo(DataFrameTransformTaskState.STARTED));
+        assertThat(stateAndStats.getState(), oneOf(DataFrameTransformStats.State.STARTED, DataFrameTransformStats.State.INDEXING));
     }
 
     private void verifyContinuousDataFrameHandlesData(long expectedLastCheckpoint) throws Exception {
@@ -148,7 +148,7 @@ public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         // if it was assigned to the node that was removed from the cluster
         assertBusy(() -> {
             DataFrameTransformStats stateAndStats = getTransformStats(CONTINUOUS_DATA_FRAME_ID);
-            assertThat(stateAndStats.getTaskState(), equalTo(DataFrameTransformTaskState.STARTED));
+            assertThat(stateAndStats.getState(), oneOf(DataFrameTransformStats.State.STARTED, DataFrameTransformStats.State.INDEXING));
         },
         120,
         TimeUnit.SECONDS);
@@ -174,8 +174,8 @@ public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
             TimeUnit.SECONDS);
         DataFrameTransformStats stateAndStats = getTransformStats(CONTINUOUS_DATA_FRAME_ID);
 
-        assertThat(stateAndStats.getTaskState(),
-            equalTo(DataFrameTransformTaskState.STARTED));
+        assertThat(stateAndStats.getState(),
+            oneOf(DataFrameTransformStats.State.STARTED, DataFrameTransformStats.State.INDEXING));
         assertThat(stateAndStats.getIndexerStats().getOutputDocuments(),
             greaterThan(previousStateAndStats.getIndexerStats().getOutputDocuments()));
         assertThat(stateAndStats.getIndexerStats().getNumDocuments(),

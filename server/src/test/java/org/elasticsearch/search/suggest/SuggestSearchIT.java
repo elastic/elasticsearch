@@ -775,6 +775,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").setSettings(Settings.builder()
                 .put(indexSettings())
                 .put(IndexSettings.MAX_SHINGLE_DIFF_SETTING.getKey(), 4)
+                .put("index.refresh_interval", -1)  // prevents occasional scoring glitches due to multi segments
                 .put("index.analysis.analyzer.suggest.tokenizer", "standard")
                 .putList("index.analysis.analyzer.suggest.filter", "lowercase", "shingler")
                 .put("index.analysis.filter.shingler.type", "shingle")

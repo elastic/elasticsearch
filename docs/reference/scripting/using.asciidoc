@@ -196,6 +196,21 @@ DELETE _scripts/calculate-score
 // TEST[continued]
 
 [float]
+[[modules-scripting-search-templates]]
+=== Search templates
+You can also use the `_scripts` API to store **search templates**. Search
+templates save specific <<search-search,search requests>> with placeholder
+values, called template parameters.
+
+You can use stored search templates to run searches without writing out the
+entire query. Just provide the stored template's ID and the template parameters.
+This is useful when you want to run a commonly used query quickly and without
+mistakes.
+
+Search templates use the http://mustache.github.io/mustache.5.html[mustache
+templating language]. See <<search-template>> for more information and examples.
+
+[float]
 [[modules-scripting-using-caching]]
 === Script caching
 

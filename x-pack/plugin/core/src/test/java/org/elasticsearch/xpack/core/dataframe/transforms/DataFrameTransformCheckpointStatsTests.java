@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.dataframe.transforms;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.indexing.IndexerState;
 
 import java.io.IOException;
 
@@ -16,7 +15,6 @@ public class DataFrameTransformCheckpointStatsTests extends AbstractSerializingD
 {
     public static DataFrameTransformCheckpointStats randomDataFrameTransformCheckpointStats() {
         return new DataFrameTransformCheckpointStats(randomLongBetween(1, 1_000_000),
-            randomBoolean() ? null : randomFrom(IndexerState.values()),
             DataFrameIndexerPositionTests.randomDataFrameIndexerPosition(),
             randomBoolean() ? null : DataFrameTransformProgressTests.randomDataFrameTransformProgress(),
             randomLongBetween(1, 1_000_000), randomLongBetween(0, 1_000_000));

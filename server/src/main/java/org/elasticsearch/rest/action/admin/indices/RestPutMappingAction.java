@@ -25,7 +25,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -47,8 +46,7 @@ public class RestPutMappingAction extends BaseRestHandler {
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in put " +
         "mapping requests is deprecated. The parameter will be removed in the next major version.";
 
-    public RestPutMappingAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestPutMappingAction(RestController controller) {
         controller.registerHandler(PUT, "/{index}/_mapping/", this);
         controller.registerHandler(PUT, "/{index}/{type}/_mapping", this);
         controller.registerHandler(PUT, "/{index}/_mapping/{type}", this);

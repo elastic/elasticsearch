@@ -29,13 +29,13 @@ import org.elasticsearch.common.geo.GeoUtils.EffectivePoint;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.geo.geometry.Geometry;
-import org.elasticsearch.geo.geometry.Point;
-import org.elasticsearch.geo.geometry.Rectangle;
-import org.elasticsearch.geo.geometry.ShapeType;
-import org.elasticsearch.geo.utils.GeographyValidator;
-import org.elasticsearch.geo.utils.Geohash;
-import org.elasticsearch.geo.utils.WellKnownText;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.geometry.ShapeType;
+import org.elasticsearch.geometry.utils.GeographyValidator;
+import org.elasticsearch.geometry.utils.Geohash;
+import org.elasticsearch.geometry.utils.WellKnownText;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -137,7 +137,7 @@ public final class GeoPoint implements ToXContentFragment {
                 "but found " + geometry.type());
         }
         Point point = (Point) geometry;
-        return reset(point.getLat(), point.getLon());
+        return reset(point.getY(), point.getX());
     }
 
     GeoPoint parseGeoHash(String geohash, EffectivePoint effectivePoint) {
@@ -147,11 +147,11 @@ public final class GeoPoint implements ToXContentFragment {
             Rectangle rectangle = Geohash.toBoundingBox(geohash);
             switch (effectivePoint) {
                 case TOP_LEFT:
-                    return reset(rectangle.getMaxLat(), rectangle.getMinLon());
+                    return reset(rectangle.getMaxY(), rectangle.getMinX());
                 case TOP_RIGHT:
-                    return reset(rectangle.getMaxLat(), rectangle.getMaxLon());
+                    return reset(rectangle.getMaxY(), rectangle.getMaxX());
                 case BOTTOM_RIGHT:
-                    return reset(rectangle.getMinLat(), rectangle.getMaxLon());
+                    return reset(rectangle.getMinY(), rectangle.getMaxX());
                 default:
                     throw new IllegalArgumentException("Unsupported effective point " + effectivePoint);
             }

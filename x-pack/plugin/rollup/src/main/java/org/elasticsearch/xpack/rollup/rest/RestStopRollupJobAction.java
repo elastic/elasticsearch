@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.rollup.rest;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -24,8 +23,7 @@ public class RestStopRollupJobAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestStopRollupJobAction.class));
 
-    public RestStopRollupJobAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestStopRollupJobAction(RestController controller) {
         // TODO: remove deprecated endpoint in 8.0.0
         controller.registerWithDeprecatedHandler(
                 POST, "/_rollup/job/{id}/_stop", this,

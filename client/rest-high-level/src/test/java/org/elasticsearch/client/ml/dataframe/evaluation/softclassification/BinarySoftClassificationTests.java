@@ -37,8 +37,7 @@ public class BinarySoftClassificationTests extends AbstractXContentTestCase<Bina
         return new NamedXContentRegistry(new MlEvaluationNamedXContentProvider().getNamedXContentParsers());
     }
 
-    @Override
-    protected BinarySoftClassification createTestInstance() {
+    public static BinarySoftClassification createRandom() {
         List<EvaluationMetric> metrics = new ArrayList<>();
         if (randomBoolean()) {
             metrics.add(new AucRocMetric(randomBoolean()));
@@ -64,6 +63,11 @@ public class BinarySoftClassificationTests extends AbstractXContentTestCase<Bina
         return randomBoolean() ?
             new BinarySoftClassification(randomAlphaOfLength(10), randomAlphaOfLength(10)) :
             new BinarySoftClassification(randomAlphaOfLength(10), randomAlphaOfLength(10), metrics.isEmpty() ? null : metrics);
+    }
+
+    @Override
+    protected BinarySoftClassification createTestInstance() {
+        return createRandom();
     }
 
     @Override

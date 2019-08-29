@@ -19,13 +19,12 @@
 
 package org.elasticsearch.common.settings;
 
+import org.elasticsearch.common.util.ArrayUtils;
+
 import java.io.InputStream;
 import java.security.GeneralSecurityException;
 import java.util.EnumSet;
 import java.util.Set;
-
-import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.util.ArrayUtils;
 
 /**
  * A secure setting.

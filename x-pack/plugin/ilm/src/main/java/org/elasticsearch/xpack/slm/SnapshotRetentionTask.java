@@ -418,7 +418,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
     public static boolean okayToDeleteSnapshots(ClusterState state) {
         // Cannot delete during a snapshot
         final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE);
-        if (snapshotsInProgress != null && snapshotsInProgress.entries().size() > 1) {
+        if (snapshotsInProgress != null && snapshotsInProgress.entries().size() > 0) {
             return false;
         }
 

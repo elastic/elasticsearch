@@ -7,23 +7,27 @@ Project mainProject = project
 
 group = "${group}.x-pack.qa.sql.security"
 
-configurations.create('testClasses')
+configurations.create('testArtifacts')
 
-String classesDir = sourceSets.test.output.classesDirs.singleFile.toString()
-artifacts.add('testClasses', project.layout.projectDirectory.dir(classesDir)) {
-  builtBy sourceSets.test.output
-} 
+TaskProvider testJar = tasks.register("testJar", Jar) {
+  appendix 'test'
+  from sourceSets.test.output
+}
+
+artifacts {
+  testArtifacts testJar
+}
 
 // Tests are pushed down to subprojects and will be checked there.
 testingConventions.enabled = false
 
 subprojects {
   // Use tests from the root security qa project in subprojects
-  configurations.create('testClasses')
+  configurations.create('testArtifacts')
 
   dependencies {
     testCompile project(":x-pack:plugin:core")
-    testClasses project(path: mainProject.path, configuration: 'testClasses')
+    testArtifacts project(path: mainProject.path, configuration: 'testArtifacts')
   }
 
   testClusters.integTest {
@@ -39,11 +43,21 @@ subprojects {
     user username: "test_admin", password: "x-pack-test-password"
   }
 
+  File testArtifactsDir = project.file('build/testArtifacts')
+  TaskProvider copyTestClasses = tasks.register("copyTestClasses", Copy) {
+    from { zipTree(configurations.testArtifacts.singleFile) }
+    into testArtifactsDir
+  }
+
   integTest.runner {
-    testClassesDirs += configurations.testClasses
+    dependsOn copyTestClasses
+    testClassesDirs += project.files(testArtifactsDir)
+    classpath += configurations.testArtifacts
     nonInputProperties.systemProperty 'tests.audit.logfile',
         "${ -> testClusters.integTest.singleNode().getAuditLog()}"
     nonInputProperties.systemProperty 'tests.audit.yesterday.logfile',
         "${ -> testClusters.integTest.singleNode().getAuditLog().getParentFile()}/integTest_audit-${new Date().format('yyyy-MM-dd')}.json"
   }
+
+  testingConventions.enabled = false
 }

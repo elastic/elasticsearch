@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.vectors.Vectors;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Collection;
 
 import static org.hamcrest.Matchers.containsString;
@@ -95,8 +96,8 @@ public class DenseVectorFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(fields[0], instanceOf(BinaryDocValuesField.class));
         // assert that after decoding the indexed value is equal to expected
         BytesRef vectorBR = fields[0].binaryValue();
-        float[] decodedValues = VectorEncoderDecoder.decodeDenseVector(indexVersion, vectorBR);
-        float decodedMagnitude = VectorEncoderDecoder.getVectorMagnitude(indexVersion, vectorBR, decodedValues);
+        float[] decodedValues = decodeDenseVector(indexVersion, vectorBR);
+        float decodedMagnitude = VectorEncoderDecoder.decodeVectorMagnitude(indexVersion, vectorBR);
         assertEquals(expectedMagnitude, decodedMagnitude, 0.001f);
         assertArrayEquals(
             "Decoded dense vector values is not equal to the indexed one.",
@@ -133,13 +134,24 @@ public class DenseVectorFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(fields[0], instanceOf(BinaryDocValuesField.class));
         // assert that after decoding the indexed value is equal to expected
         BytesRef vectorBR = fields[0].binaryValue();
-        float[] decodedValues = VectorEncoderDecoder.decodeDenseVector(indexVersion, vectorBR);
+        float[] decodedValues = decodeDenseVector(indexVersion, vectorBR);
         assertArrayEquals(
             "Decoded dense vector values is not equal to the indexed one.",
             validVector,
             decodedValues,
             0.001f
         );
+    }
+
+    private static float[] decodeDenseVector(Version indexVersion, BytesRef encodedVector) {
+        int dimCount = VectorEncoderDecoder.denseVectorLength(indexVersion, encodedVector);
+        float[] vector = new float[dimCount];
+
+        ByteBuffer byteBuffer = ByteBuffer.wrap(encodedVector.bytes, encodedVector.offset, encodedVector.length);
+        for (int dim = 0; dim < dimCount; dim++) {
+            vector[dim] = byteBuffer.getFloat();
+        }
+        return vector;
     }
 
     public void testDocumentsWithIncorrectDims() throws Exception {

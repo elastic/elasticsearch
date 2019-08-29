@@ -17,48 +17,6 @@ import java.util.Arrays;
 
 public class VectorEncoderDecoderTests extends ESTestCase {
 
-    public void testDenseVectorEncodingDecoding() {
-        Version indexVersion = Version.CURRENT;
-        int dimCount = randomIntBetween(0, DenseVectorFieldMapper.MAX_DIMS_COUNT);
-        float[] expectedValues = new float[dimCount];
-        double dotProduct = 0f;
-        for (int i = 0; i < dimCount; i++) {
-            expectedValues[i] = randomFloat();
-            dotProduct += expectedValues[i] * expectedValues[i];
-        }
-        float expectedMagnitude = (float) Math.sqrt(dotProduct);
-
-        // test that values that went through encoding and decoding are equal to their original
-        BytesRef encodedDenseVector = mockEncodeDenseVector(expectedValues);
-        float[] decodedValues = VectorEncoderDecoder.decodeDenseVector(indexVersion, encodedDenseVector);
-        float decodedMagnitude = VectorEncoderDecoder.getVectorMagnitude(indexVersion, encodedDenseVector, decodedValues);
-        assertEquals(expectedMagnitude, decodedMagnitude, 0.0f);
-        assertArrayEquals(
-            "Decoded dense vector values are not equal to their original.",
-            expectedValues,
-            decodedValues,
-            0.001f
-        );
-    }
-
-    public void testDenseVectorEncodingDecodingBefore7_4() {
-        Version indexVersion = Version.V_7_3_0;
-        int dimCount = randomIntBetween(0, DenseVectorFieldMapper.MAX_DIMS_COUNT);
-        float[] expectedValues = new float[dimCount];
-        for (int i = 0; i < dimCount; i++) {
-            expectedValues[i] = randomFloat();
-        }
-        // test that values that went through encoding and decoding are equal to their original
-        BytesRef encodedDenseVector = mockEncodeDenseVectorBefore7_4(expectedValues);
-        float[] decodedValues = VectorEncoderDecoder.decodeDenseVector(indexVersion, encodedDenseVector);
-        assertArrayEquals(
-            "Decoded dense vector values are not equal to their original.",
-            expectedValues,
-            decodedValues,
-            0.001f
-        );
-    }
-
     public void testSparseVectorEncodingDecoding() {
         Version indexVersion = Version.CURRENT;
         int dimCount = randomIntBetween(0, 100);
@@ -85,7 +43,7 @@ public class VectorEncoderDecoderTests extends ESTestCase {
         BytesRef encodedSparseVector = VectorEncoderDecoder.encodeSparseVector(indexVersion, expectedDims, expectedValues, dimCount);
         int[] decodedDims = VectorEncoderDecoder.decodeSparseVectorDims(indexVersion, encodedSparseVector);
         float[] decodedValues = VectorEncoderDecoder.decodeSparseVector(indexVersion, encodedSparseVector);
-        float decodedMagnitude = VectorEncoderDecoder.getVectorMagnitude(indexVersion, encodedSparseVector, decodedValues);
+        float decodedMagnitude = VectorEncoderDecoder.decodeVectorMagnitude(indexVersion, encodedSparseVector);
         assertEquals(expectedMagnitude, decodedMagnitude, 0.0f);
         assertArrayEquals(
             "Decoded sparse vector dims are not equal to their original!",
@@ -137,29 +95,24 @@ public class VectorEncoderDecoderTests extends ESTestCase {
     }
 
     // imitates the code in DenseVectorFieldMapper::parse
-    public static BytesRef mockEncodeDenseVector(float[] values) {
-        byte[] bytes = new byte[VectorEncoderDecoder.INT_BYTES * values.length + VectorEncoderDecoder.INT_BYTES];
+    public static BytesRef mockEncodeDenseVector(float[] values, Version indexVersion) {
+        byte[] bytes = indexVersion.onOrAfter(Version.V_7_4_0)
+            ? new byte[VectorEncoderDecoder.INT_BYTES * values.length + VectorEncoderDecoder.INT_BYTES]
+            : new byte[VectorEncoderDecoder.INT_BYTES * values.length];
         double dotProduct = 0f;
+
         ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);
         for (float value : values) {
             byteBuffer.putFloat(value);
             dotProduct += value * value;
         }
-        // encode vector magnitude at the end
-        float vectorMagnitude = (float) Math.sqrt(dotProduct);
-        byteBuffer.putFloat(vectorMagnitude);
-        return new BytesRef(bytes);
-    }
 
-    // imitates the code in DenseVectorFieldMapper::parse before version 7.4
-    public static BytesRef mockEncodeDenseVectorBefore7_4(float[] values) {
-        byte[] bytes = new byte[VectorEncoderDecoder.INT_BYTES * values.length];
-        ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);
-        for (float value : values) {
-            byteBuffer.putFloat(value);
+        if (indexVersion.onOrAfter(Version.V_7_4_0)) {
+            // encode vector magnitude at the end
+            float vectorMagnitude = (float) Math.sqrt(dotProduct);
+            byteBuffer.putFloat(vectorMagnitude);
         }
         return new BytesRef(bytes);
-
     }
 
     // generate unique random dims

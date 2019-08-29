@@ -175,6 +175,7 @@ public class InternalEngine extends Engine {
 
     private final AtomicBoolean trackTranslogLocation = new AtomicBoolean(false);
     private final KeyedLock<Long> noOpKeyedLock = new KeyedLock<>();
+    private final AtomicBoolean shouldPeriodicallyFlushAfterBigMerge = new AtomicBoolean(false);
 
     @Nullable
     private final String historyUUID;
@@ -1698,6 +1699,9 @@ public class InternalEngine extends Engine {
     @Override
     public boolean shouldPeriodicallyFlush() {
         ensureOpen();
+        if (shouldPeriodicallyFlushAfterBigMerge.get()) {
+            return true;
+        }
         final long translogGenerationOfLastCommit =
             Long.parseLong(lastCommittedSegmentInfos.userData.get(Translog.TRANSLOG_GENERATION_KEY));
         final long flushThreshold = config().getIndexSettings().getFlushThresholdSize().getBytes();
@@ -2345,7 +2349,7 @@ public class InternalEngine extends Engine {
                     }
 
                     @Override
-                    protected void doRun() throws Exception {
+                    protected void doRun() {
                         // if we have no pending merges and we are supposed to flush once merges have finished
                         // we try to renew a sync commit which is the case when we are having a big merge after we
                         // are inactive. If that didn't work we go and do a real flush which is ok since it only doesn't work
@@ -2357,7 +2361,11 @@ public class InternalEngine extends Engine {
                         }
                     }
                 });
-
+            } else if (merge.getTotalBytesSize() >= engineConfig.getIndexSettings().getFlushAfterMergeThresholdSize().getBytes()) {
+                // we hit a significant merge which would allow us to free up memory if we'd commit it hence on the next change
+                // we should execute a flush on the next operation if that's a flush after inactive or indexing a document.
+                // we could fork a thread and do it right away but we try to minimize forking and piggyback on outside events.
+                shouldPeriodicallyFlushAfterBigMerge.set(true);
             }
         }
 
@@ -2425,7 +2433,7 @@ public class InternalEngine extends Engine {
                 logger.trace("committing writer with commit data [{}]", commitData);
                 return commitData.entrySet().iterator();
             });
-
+            shouldPeriodicallyFlushAfterBigMerge.set(false);
             writer.commit();
         } catch (final Exception ex) {
             try {

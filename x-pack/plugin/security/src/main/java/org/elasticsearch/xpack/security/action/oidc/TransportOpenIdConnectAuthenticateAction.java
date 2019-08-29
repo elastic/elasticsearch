@@ -55,7 +55,7 @@ public class TransportOpenIdConnectAuthenticateAction
     protected void doExecute(Task task, OpenIdConnectAuthenticateRequest request,
                              ActionListener<OpenIdConnectAuthenticateResponse> listener) {
         final OpenIdConnectToken token = new OpenIdConnectToken(request.getRedirectUri(), new State(request.getState()),
-            new Nonce(request.getNonce()));
+            new Nonce(request.getNonce()), request.getRealm());
         final ThreadContext threadContext = threadPool.getThreadContext();
         Authentication originatingAuthentication = Authentication.getAuthentication(threadContext);
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {

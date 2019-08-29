@@ -288,6 +288,32 @@ public class TcpTransportTests extends ESTestCase {
         }
     }
 
+    public void testTLSHeader() throws IOException {
+        BytesStreamOutput streamOutput = new BytesStreamOutput(1 << 14);
+
+        streamOutput.write(0x16);
+        streamOutput.write(0x03);
+        byte byte1 = randomByte();
+        streamOutput.write(byte1);
+        byte byte2 = randomByte();
+        streamOutput.write(byte2);
+        streamOutput.write(randomByte());
+        streamOutput.write(randomByte());
+        streamOutput.write(randomByte());
+
+        try {
+            BytesReference bytes = streamOutput.bytes();
+            TcpTransport.decodeFrame(bytes);
+            fail("Expected exception");
+        } catch (Exception ex) {
+            assertThat(ex, instanceOf(StreamCorruptedException.class));
+            String expected = "SSL/TLS request received but SSL/TLS is not enabled on this node, got (16,3,"
+                    + Integer.toHexString(byte1 & 0xFF) + ","
+                    + Integer.toHexString(byte2 & 0xFF) + ")";
+            assertEquals(expected, ex.getMessage());
+        }
+    }
+
     public void testHTTPHeader() throws IOException {
         String[] httpHeaders = {"GET", "POST", "PUT", "HEAD", "DELETE", "OPTIONS", "PATCH", "TRACE"};
 

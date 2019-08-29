@@ -593,7 +593,7 @@ public class Node implements Closeable {
                 .map(p -> (LifecycleComponent) p).collect(Collectors.toList());
             resourcesToClose.addAll(pluginLifecycleComponents);
             this.pluginLifecycleComponents = Collections.unmodifiableList(pluginLifecycleComponents);
-            client.initialize(injector.getInstance(new Key<Map<ActionType, TransportAction>>() {}),
+            client.initialize(injector.getInstance(new Key<Map<ActionType, TransportAction>>() {}), transportService.getTaskManager(),
                     () -> clusterService.localNode().getId(), transportService.getRemoteClusterService());
             this.namedWriteableRegistry = namedWriteableRegistry;
 

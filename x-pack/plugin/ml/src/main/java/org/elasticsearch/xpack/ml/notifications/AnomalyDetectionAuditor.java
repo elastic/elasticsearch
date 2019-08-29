@@ -15,6 +15,6 @@ import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 public class AnomalyDetectionAuditor extends AbstractAuditor<AnomalyDetectionAuditMessage> {
 
     public AnomalyDetectionAuditor(Client client, String nodeName) {
-        super(client, nodeName, AuditorField.NOTIFICATIONS_INDEX, ML_ORIGIN, AnomalyDetectionAuditMessage.builder());
+        super(client, nodeName, AuditorField.NOTIFICATIONS_INDEX, ML_ORIGIN, AnomalyDetectionAuditMessage::new);
     }
 }

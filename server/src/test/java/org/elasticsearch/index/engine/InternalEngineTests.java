@@ -6016,7 +6016,7 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testDeleteFailureSoftDeletesEnabled() throws IOException {
-        runTestDeleteFailure(false, (engine, op) -> {});
+        runTestDeleteFailure(true, (engine, op) -> {});
     }
 
     public void testDeleteFailureSoftDeletesDisabled() throws IOException {

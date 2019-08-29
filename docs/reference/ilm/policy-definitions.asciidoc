@@ -66,8 +66,11 @@ index is rolled over, then `min_age` is the time elapsed from the time the index
 is rolled over. The intention here is to execute following phases and actions
 relative to when data was written last to a rolled over index.
 
-The previous phase's actions must complete before {ilm} will check `min_age`
-and transition into the next phase.
+The previous phase's actions must complete before {ilm} will check `min_age` and
+transition into the next phase. By default, {ilm} checks for indices that meet
+policy criteria, like `min_age`, every 10 minutes. You can use the
+`indices.lifecycle.poll_interval` cluster setting to control how often this
+check occurs.
 
 === Phase Execution
 

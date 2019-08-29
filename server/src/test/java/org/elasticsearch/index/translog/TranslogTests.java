@@ -110,6 +110,7 @@ import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.Phaser;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -124,6 +125,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.common.util.BigArrays.NON_RECYCLING_INSTANCE;
 import static org.elasticsearch.index.translog.SnapshotMatchers.containsOperationsInAnyOrder;
 import static org.elasticsearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
+import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
@@ -3265,6 +3267,68 @@ public class TranslogTests extends ESTestCase {
                 brokenTranslog.getDeletionPolicy(), () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get, seqNo -> {})) {
                 recoveredTranslog.rollGeneration();
                 assertFilePresences(recoveredTranslog);
+            }
+        }
+    }
+
+    public void testSyncConcurrently() throws Exception {
+        Path path = createTempDir("translog");
+        TranslogConfig config = getTranslogConfig(path);
+        String translogUUID = Translog.createEmptyTranslog(
+            config.getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+        Set<Long> persistedSeqNos = ConcurrentCollections.newConcurrentSet();
+        AtomicLong lastGlobalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        LongSupplier globalCheckpointSupplier = () -> {
+            if (randomBoolean()) {
+                return lastGlobalCheckpoint.addAndGet(randomIntBetween(1, 100));
+            } else {
+                return lastGlobalCheckpoint.get();
+            }
+        };
+        try (Translog translog = new Translog(config, translogUUID, createTranslogDeletionPolicy(config.getIndexSettings()),
+            globalCheckpointSupplier, primaryTerm::get, persistedSeqNos::add)) {
+            Thread[] threads = new Thread[between(2, 8)];
+            Phaser phaser = new Phaser(threads.length);
+            AtomicLong nextSeqNo = new AtomicLong();
+            for (int t = 0; t < threads.length; t++) {
+                threads[t] = new Thread(() -> {
+                    phaser.arriveAndAwaitAdvance();
+                    int iterations = randomIntBetween(10, 100);
+                    for (int i = 0; i < iterations; i++) {
+                        List<Translog.Operation> ops = IntStream.range(0, between(1, 10))
+                            .mapToObj(n -> new Translog.Index("test", "1", nextSeqNo.incrementAndGet(), primaryTerm.get(), new byte[]{1}))
+                            .collect(Collectors.toList());
+                        try {
+                            Translog.Location location = null;
+                            for (Translog.Operation op : ops) {
+                                location = translog.add(op);
+                            }
+                            assertNotNull(location);
+                            long globalCheckpoint = lastGlobalCheckpoint.get();
+                            if (randomBoolean()) {
+                                translog.ensureSynced(location);
+                            } else {
+                                translog.sync();
+                            }
+                            for (Translog.Operation op : ops) {
+                                assertThat("seq# " + op.seqNo() + " was not marked as persisted", persistedSeqNos, hasItem(op.seqNo()));
+                            }
+                            Checkpoint checkpoint = translog.getLastSyncedCheckpoint();
+                            assertThat(checkpoint.offset, greaterThanOrEqualTo(location.translogLocation));
+                            assertThat(checkpoint.globalCheckpoint, greaterThanOrEqualTo(globalCheckpoint));
+                            for (Translog.Operation op : ops) {
+                                assertThat(checkpoint.minSeqNo, lessThanOrEqualTo(op.seqNo()));
+                                assertThat(checkpoint.maxSeqNo, greaterThanOrEqualTo(op.seqNo()));
+                            }
+                        } catch (Exception e) {
+                            throw new AssertionError(e);
+                        }
+                    }
+                });
+                threads[t].start();
+            }
+            for (Thread thread : threads) {
+                thread.join();
             }
         }
     }

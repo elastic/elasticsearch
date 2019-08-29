@@ -26,6 +26,8 @@ public final class DataFrameField {
     public static final ParseField INDEX_DOC_TYPE = new ParseField("doc_type");
     public static final ParseField SOURCE = new ParseField("source");
     public static final ParseField DESCRIPTION = new ParseField("description");
+    public static final ParseField VERSION = new ParseField("version");
+    public static final ParseField CREATE_TIME = new ParseField("create_time");
     public static final ParseField DESTINATION = new ParseField("dest");
     public static final ParseField FREQUENCY = new ParseField("frequency");
     public static final ParseField FORCE = new ParseField("force");
@@ -65,7 +67,6 @@ public final class DataFrameField {
     // strings for meta information
     public static final String META_FIELDNAME = "_data_frame";
     public static final String CREATION_DATE_MILLIS = "creation_date_in_millis";
-    public static final String VERSION = "version";
     public static final String CREATED = "created";
     public static final String CREATED_BY = "created_by";
     public static final String TRANSFORM = "transform";

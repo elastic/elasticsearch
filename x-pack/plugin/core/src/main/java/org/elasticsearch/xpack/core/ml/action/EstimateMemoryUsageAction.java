@@ -35,10 +35,8 @@ public class EstimateMemoryUsageAction extends ActionType<EstimateMemoryUsageAct
 
         public static final ParseField TYPE = new ParseField("memory_usage_estimation_result");
 
-        public static final ParseField EXPECTED_MEMORY_USAGE_WITH_ONE_PARTITION =
-            new ParseField("expected_memory_usage_with_one_partition");
-        public static final ParseField EXPECTED_MEMORY_USAGE_WITH_MAX_PARTITIONS =
-            new ParseField("expected_memory_usage_with_max_partitions");
+        public static final ParseField EXPECTED_MEMORY_WITHOUT_DISK = new ParseField("expected_memory_without_disk");
+        public static final ParseField EXPECTED_MEMORY_WITH_DISK = new ParseField("expected_memory_with_disk");
 
         static final ConstructingObjectParser<Response, Void> PARSER =
             new ConstructingObjectParser<>(
@@ -48,55 +46,52 @@ public class EstimateMemoryUsageAction extends ActionType<EstimateMemoryUsageAct
         static {
             PARSER.declareField(
                 optionalConstructorArg(),
-                (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), EXPECTED_MEMORY_USAGE_WITH_ONE_PARTITION.getPreferredName()),
-                EXPECTED_MEMORY_USAGE_WITH_ONE_PARTITION,
+                (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), EXPECTED_MEMORY_WITHOUT_DISK.getPreferredName()),
+                EXPECTED_MEMORY_WITHOUT_DISK,
                 ObjectParser.ValueType.VALUE);
             PARSER.declareField(
                 optionalConstructorArg(),
-                (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), EXPECTED_MEMORY_USAGE_WITH_MAX_PARTITIONS.getPreferredName()),
-                EXPECTED_MEMORY_USAGE_WITH_MAX_PARTITIONS,
+                (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), EXPECTED_MEMORY_WITH_DISK.getPreferredName()),
+                EXPECTED_MEMORY_WITH_DISK,
                 ObjectParser.ValueType.VALUE);
         }
 
-        private final ByteSizeValue expectedMemoryUsageWithOnePartition;
-        private final ByteSizeValue expectedMemoryUsageWithMaxPartitions;
+        private final ByteSizeValue expectedMemoryWithoutDisk;
+        private final ByteSizeValue expectedMemoryWithDisk;
 
-        public Response(@Nullable ByteSizeValue expectedMemoryUsageWithOnePartition,
-                        @Nullable ByteSizeValue expectedMemoryUsageWithMaxPartitions) {
-            this.expectedMemoryUsageWithOnePartition = expectedMemoryUsageWithOnePartition;
-            this.expectedMemoryUsageWithMaxPartitions = expectedMemoryUsageWithMaxPartitions;
+        public Response(@Nullable ByteSizeValue expectedMemoryWithoutDisk, @Nullable ByteSizeValue expectedMemoryWithDisk) {
+            this.expectedMemoryWithoutDisk = expectedMemoryWithoutDisk;
+            this.expectedMemoryWithDisk = expectedMemoryWithDisk;
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            this.expectedMemoryUsageWithOnePartition = in.readOptionalWriteable(ByteSizeValue::new);
-            this.expectedMemoryUsageWithMaxPartitions = in.readOptionalWriteable(ByteSizeValue::new);
+            this.expectedMemoryWithoutDisk = in.readOptionalWriteable(ByteSizeValue::new);
+            this.expectedMemoryWithDisk = in.readOptionalWriteable(ByteSizeValue::new);
         }
 
-        public ByteSizeValue getExpectedMemoryUsageWithOnePartition() {
-            return expectedMemoryUsageWithOnePartition;
+        public ByteSizeValue getExpectedMemoryWithoutDisk() {
+            return expectedMemoryWithoutDisk;
         }
 
-        public ByteSizeValue getExpectedMemoryUsageWithMaxPartitions() {
-            return expectedMemoryUsageWithMaxPartitions;
+        public ByteSizeValue getExpectedMemoryWithDisk() {
+            return expectedMemoryWithDisk;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalWriteable(expectedMemoryUsageWithOnePartition);
-            out.writeOptionalWriteable(expectedMemoryUsageWithMaxPartitions);
+            out.writeOptionalWriteable(expectedMemoryWithoutDisk);
+            out.writeOptionalWriteable(expectedMemoryWithDisk);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            if (expectedMemoryUsageWithOnePartition != null) {
-                builder.field(
-                    EXPECTED_MEMORY_USAGE_WITH_ONE_PARTITION.getPreferredName(), expectedMemoryUsageWithOnePartition.getStringRep());
+            if (expectedMemoryWithoutDisk != null) {
+                builder.field(EXPECTED_MEMORY_WITHOUT_DISK.getPreferredName(), expectedMemoryWithoutDisk.getStringRep());
             }
-            if (expectedMemoryUsageWithMaxPartitions != null) {
-                builder.field(
-                    EXPECTED_MEMORY_USAGE_WITH_MAX_PARTITIONS.getPreferredName(), expectedMemoryUsageWithMaxPartitions.getStringRep());
+            if (expectedMemoryWithDisk != null) {
+                builder.field(EXPECTED_MEMORY_WITH_DISK.getPreferredName(), expectedMemoryWithDisk.getStringRep());
             }
             builder.endObject();
             return builder;
@@ -112,13 +107,13 @@ public class EstimateMemoryUsageAction extends ActionType<EstimateMemoryUsageAct
             }
 
             Response that = (Response) other;
-            return Objects.equals(expectedMemoryUsageWithOnePartition, that.expectedMemoryUsageWithOnePartition)
-                && Objects.equals(expectedMemoryUsageWithMaxPartitions, that.expectedMemoryUsageWithMaxPartitions);
+            return Objects.equals(expectedMemoryWithoutDisk, that.expectedMemoryWithoutDisk)
+                && Objects.equals(expectedMemoryWithDisk, that.expectedMemoryWithDisk);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(expectedMemoryUsageWithOnePartition, expectedMemoryUsageWithMaxPartitions);
+            return Objects.hash(expectedMemoryWithoutDisk, expectedMemoryWithDisk);
         }
     }
 }

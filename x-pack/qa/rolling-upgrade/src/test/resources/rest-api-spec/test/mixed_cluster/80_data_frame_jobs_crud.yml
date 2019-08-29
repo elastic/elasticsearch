@@ -1,8 +1,5 @@
 ---
 "Test put batch data frame transforms on mixed cluster":
-  - skip:
-      version: "7.4.0 - "
-      reason:  "https://github.com/elastic/elasticsearch/pull/45627 backport"
   - do:
       cluster.health:
         index: "dataframe-transform-airline-data"
@@ -109,9 +106,6 @@
 
 ---
 "Test put continuous data frame transform on mixed cluster":
-  - skip:
-      version: "7.4.0 - "
-      reason:  "https://github.com/elastic/elasticsearch/pull/45627 backport"
   - do:
       cluster.health:
         index: "dataframe-transform-airline-data-cont"
@@ -174,9 +168,6 @@
 
 ---
 "Test GET, start, and stop old cluster batch transforms":
-  - skip:
-      version: "7.4.0 - "
-      reason:  "https://github.com/elastic/elasticsearch/pull/45627 backport"
   - do:
       cluster.health:
         index: "dataframe-transform-airline-data"
@@ -254,9 +245,6 @@
 
 ---
 "Test GET, stop, start, old continuous transforms":
-  - skip:
-      version: "7.4.0 - "
-      reason:  "https://github.com/elastic/elasticsearch/pull/45627 backport"
   - do:
       cluster.health:
         index: "dataframe-transform-airline-data-cont"

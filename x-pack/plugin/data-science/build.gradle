@@ -1,0 +1,26 @@
+evaluationDependsOn(xpackModule('core'))
+
+apply plugin: 'elasticsearch.esplugin'
+esplugin {
+    name 'x-pack-data-science'
+    description 'Elasticsearch Expanded Pack Plugin - Data Science'
+    classname 'org.elasticsearch.xpack.datascience.DataSciencePlugin'
+    extendedPlugins = ['x-pack-core']
+}
+archivesBaseName = 'x-pack-data-science'
+
+compileJava.options.compilerArgs << "-Xlint:-rawtypes"
+compileTestJava.options.compilerArgs << "-Xlint:-rawtypes"
+
+
+dependencies {
+    compileOnly project(":server")
+    
+    compileOnly project(path: xpackModule('core'), configuration: 'default')
+    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+    if (isEclipse) {
+      testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
+    }
+}
+
+integTest.enabled = false

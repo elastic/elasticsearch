@@ -98,6 +98,39 @@ dictionary to `$ES_HOME/config/userdict_ja.txt`:
 東京スカイツリー,東京 スカイツリー,トウキョウ スカイツリー,カスタム名詞
 -----------------------
 
+--
+
+You can also inline the rules directly in the tokenizer definition using
+the `user_dictionary_rules` option:
+
+[source,js]
+--------------------------------------------------
+PUT nori_sample
+{
+  "settings": {
+    "index": {
+      "analysis": {
+        "tokenizer": {
+          "kuromoji_user_dict": {
+            "type": "kuromoji_tokenizer",
+            "mode": "extended",
+            "user_dictionary_rules": ["東京スカイツリー,東京 スカイツリー,トウキョウ スカイツリー,カスタム名詞"]
+          }
+        },
+        "analyzer": {
+          "my_analyzer": {
+            "type": "custom",
+            "tokenizer": "kuromoji_user_dict"
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+--
+
 `nbest_cost`/`nbest_examples`::
 +
 --

@@ -649,7 +649,9 @@ POST /_security/oidc/prepare
   this HTTP GET request, the custom web app will need to make an HTTP POST request to
   `_security/oidc/authenticate`, again - authenticating as the `facilitator` user - passing the URL
   where the user's browser was redirected to, as a parameter, along with the
-  values for `nonce` and `state` it had saved in the user's session previously.
+  values for `nonce` and `state` it had saved in the user's session previously. If more than one
+  OpenID Connect realms are configured, the custom web app can specify the name of the realm to be
+  used for handling this, but this parameter is optional.
   See {ref}/security-api-oidc-authenticate.html[OIDC Authenticate API] for more details
 +
 [source,js]
@@ -658,7 +660,8 @@ POST /_security/oidc/authenticate
 {
   "redirect_uri" : "https://oidc-kibana.elastic.co:5603/api/security/v1/oidc?code=jtI3Ntt8v3_XvcLzCFGq&state=4dbrihtIAt3wBTwo6DxK-vdk-sSyDBV8Yf0AjdkdT5I",
   "state" : "4dbrihtIAt3wBTwo6DxK-vdk-sSyDBV8Yf0AjdkdT5I",
-  "nonce" : "WaBPH0KqPVdG5HHdSxPRjfoZbXMCicm5v1OiAj0DUFM"
+  "nonce" : "WaBPH0KqPVdG5HHdSxPRjfoZbXMCicm5v1OiAj0DUFM",
+  "realm" : "oidc1"
 }
 -----------------------------------------------------------------------
 // CONSOLE

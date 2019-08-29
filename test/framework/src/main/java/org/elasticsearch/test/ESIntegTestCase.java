@@ -509,7 +509,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return testCluster;
     }
 
-    private static void clearClusters() throws IOException {
+    private static void clearClusters() throws Exception {
         if (!clusters.isEmpty()) {
             IOUtils.close(clusters.values());
             clusters.clear();
@@ -518,9 +518,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
             restClient.close();
             restClient = null;
         }
-        assertEquals(HttpChannelTaskHandler.INSTANCE.getNumChannels() + " channels still being tracked in " +
-            HttpChannelTaskHandler.class.getSimpleName() + " while there should be none", 0,
-            HttpChannelTaskHandler.INSTANCE.getNumChannels());
+        assertBusy(() -> assertEquals(HttpChannelTaskHandler.INSTANCE.getNumChannels() + " channels still being tracked in " +
+                    HttpChannelTaskHandler.class.getSimpleName() + " while there should be none", 0,
+                HttpChannelTaskHandler.INSTANCE.getNumChannels()));
     }
 
     private void afterInternal(boolean afterClass) throws Exception {

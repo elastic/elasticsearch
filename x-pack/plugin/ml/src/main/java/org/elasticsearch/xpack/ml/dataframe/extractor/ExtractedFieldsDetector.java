@@ -80,7 +80,6 @@ public class ExtractedFieldsDetector {
         checkNoIgnoredFields(fields);
         checkFieldsHaveCompatibleTypes(fields);
         checkRequiredFields(fields);
-        checkResultsFieldIsNotPresent();
         return detectExtractedFields(fields);
     }
 

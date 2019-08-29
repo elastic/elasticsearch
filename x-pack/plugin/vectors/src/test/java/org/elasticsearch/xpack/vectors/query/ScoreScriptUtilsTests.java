@@ -36,11 +36,11 @@ public class ScoreScriptUtilsTests extends ESTestCase {
         BytesRef encodedDocVector =  mockEncodeDenseVector(docVector);
         VectorScriptDocValues.DenseVectorScriptDocValues dvs = mock(VectorScriptDocValues.DenseVectorScriptDocValues.class);
         when(dvs.getEncodedValue()).thenReturn(encodedDocVector);
-        List<Number> queryVector = Arrays.asList(0.5, 111.3, -13.0, 14.8, -156.0);
+        List<Number> queryVector = Arrays.asList(0.5f, 111.3f, -13.0f, 14.8f, -156.0f);
 
         // test dotProduct
         double result = dotProduct(queryVector, dvs);
-        assertEquals("dotProduct result is not equal to the expected value!", 65425.626, result, 0.001);
+        assertEquals("dotProduct result is not equal to the expected value!", 65425.624, result, 0.001);
 
         // test cosineSimilarity
         CosineSimilarity cosineSimilarity = new CosineSimilarity(queryVector);
@@ -91,7 +91,7 @@ public class ScoreScriptUtilsTests extends ESTestCase {
         // test dotProduct
         DotProductSparse docProductSparse = new DotProductSparse(queryVector);
         double result = docProductSparse.dotProductSparse(dvs);
-        assertEquals("dotProductSparse result is not equal to the expected value!", 65425.626, result, 0.001);
+        assertEquals("dotProductSparse result is not equal to the expected value!", 65425.624, result, 0.001);
 
         // test cosineSimilarity
         CosineSimilaritySparse cosineSimilaritySparse = new CosineSimilaritySparse(queryVector);
@@ -128,7 +128,7 @@ public class ScoreScriptUtilsTests extends ESTestCase {
         // test dotProduct
         DotProductSparse docProductSparse = new DotProductSparse(queryVector);
         double result = docProductSparse.dotProductSparse(dvs);
-        assertEquals("dotProductSparse result is not equal to the expected value!", 65425.626, result, 0.001);
+        assertEquals("dotProductSparse result is not equal to the expected value!", 65425.624, result, 0.001);
 
         // test cosineSimilarity
         CosineSimilaritySparse cosineSimilaritySparse = new CosineSimilaritySparse(queryVector);
@@ -165,7 +165,7 @@ public class ScoreScriptUtilsTests extends ESTestCase {
         // test dotProduct
         DotProductSparse docProductSparse = new DotProductSparse(queryVector);
         double result = docProductSparse.dotProductSparse(dvs);
-        assertEquals("dotProductSparse result is not equal to the expected value!", 65425.626, result, 0.001);
+        assertEquals("dotProductSparse result is not equal to the expected value!", 65425.624, result, 0.001);
 
         // test cosineSimilarity
         CosineSimilaritySparse cosineSimilaritySparse = new CosineSimilaritySparse(queryVector);

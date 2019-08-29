@@ -37,8 +37,7 @@ HEAD /_alias/alias1
 
 `<alias>`::
 (Required, string)
-Comma-separated list or wildcard expression of index alias names
-used to limit the request.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=index-alias]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
 

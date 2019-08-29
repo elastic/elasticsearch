@@ -381,7 +381,11 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
             });
 
             // Cancel the snapshot since it is not going to complete quickly
-            assertOK(client().performRequest(new Request("DELETE", "/_snapshot/" + repoId + "/" + snapshotName)));
+            try {
+                client().performRequest(new Request("DELETE", "/_snapshot/" + repoId + "/" + snapshotName));
+            } catch (Exception e) {
+                // ignore
+            }
         }
     }
 

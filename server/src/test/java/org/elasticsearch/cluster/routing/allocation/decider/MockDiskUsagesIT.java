@@ -87,8 +87,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         final List<String> nodeIds = StreamSupport.stream(client().admin().cluster().prepareState().get().getState()
             .getRoutingNodes().spliterator(), false).map(RoutingNode::nodeId).collect(Collectors.toList());
 
-        final MockInternalClusterInfoService clusterInfoService = (MockInternalClusterInfoService)
-            internalCluster().getInstance(ClusterInfoService.class, internalCluster().getMasterName());
+        final MockInternalClusterInfoService clusterInfoService = getMockInternalClusterInfoService();
         clusterInfoService.setUpdateFrequency(TimeValue.timeValueMillis(200));
         clusterInfoService.onMaster();
 
@@ -150,8 +149,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         final List<String> nodeIds = StreamSupport.stream(client().admin().cluster().prepareState().get().getState()
             .getRoutingNodes().spliterator(), false).map(RoutingNode::nodeId).collect(Collectors.toList());
 
-        final MockInternalClusterInfoService clusterInfoService = (MockInternalClusterInfoService)
-            internalCluster().getInstance(ClusterInfoService.class, internalCluster().getMasterName());
+        final MockInternalClusterInfoService clusterInfoService = getMockInternalClusterInfoService();
         clusterInfoService.setUpdateFrequency(TimeValue.timeValueMillis(200));
         clusterInfoService.onMaster();
 
@@ -223,12 +221,10 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
             internalCluster().startNode(Settings.builder().put(Environment.PATH_DATA_SETTING.getKey(), createTempDir()));
         }
 
-        final MockInternalClusterInfoService clusterInfoService = (MockInternalClusterInfoService)
-            internalCluster().getInstance(ClusterInfoService.class, internalCluster().getMasterName());
+        final MockInternalClusterInfoService clusterInfoService = getMockInternalClusterInfoService();
 
         final AtomicReference<ClusterState> masterAppliedClusterState = new AtomicReference<>();
-        internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName())
-            .addListener(event -> {
+        internalCluster().getCurrentMasterNodeInstance(ClusterService.class).addListener(event -> {
                 masterAppliedClusterState.set(event.state());
                 clusterInfoService.refresh(); // so that a subsequent reroute sees disk usage according to the current state
             });
@@ -289,13 +285,12 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
 
         final AtomicReference<ClusterState> masterAppliedClusterState = new AtomicReference<>();
 
-        final MockInternalClusterInfoService clusterInfoService = (MockInternalClusterInfoService)
-            internalCluster().getInstance(ClusterInfoService.class, internalCluster().getMasterName());
+        final MockInternalClusterInfoService clusterInfoService = getMockInternalClusterInfoService();
 
         final List<String> nodeIds = StreamSupport.stream(client().admin().cluster().prepareState().get().getState()
             .getRoutingNodes().spliterator(), false).map(RoutingNode::nodeId).collect(Collectors.toList());
 
-        internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName()).addListener(event -> {
+        internalCluster().getCurrentMasterNodeInstance(ClusterService.class).addListener(event -> {
             assertThat(event.state().getRoutingNodes().node(nodeIds.get(2)).size(), lessThanOrEqualTo(1));
             masterAppliedClusterState.set(event.state());
             clusterInfoService.refresh(); // so that a subsequent reroute sees disk usage according to the current state
@@ -354,8 +349,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         internalCluster().startNode(Settings.builder().put(Environment.PATH_DATA_SETTING.getKey(), createTempDir()));
         internalCluster().startNode(Settings.builder().put(Environment.PATH_DATA_SETTING.getKey(), createTempDir()));
 
-        final MockInternalClusterInfoService clusterInfoService = (MockInternalClusterInfoService)
-            internalCluster().getInstance(ClusterInfoService.class, internalCluster().getMasterName());
+        final MockInternalClusterInfoService clusterInfoService = getMockInternalClusterInfoService();
 
         // prevent any effects from in-flight recoveries, since we are only simulating a 100-byte disk
         clusterInfoService.shardSizeFunction = shardRouting -> 0L;
@@ -426,6 +420,10 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
             shardCountByNodeId.put(node.nodeId(), clusterState.getRoutingNodes().node(node.nodeId()).numberOfOwningShards());
         }
         return shardCountByNodeId;
+    }
+
+    private MockInternalClusterInfoService getMockInternalClusterInfoService() {
+        return (MockInternalClusterInfoService) internalCluster().getCurrentMasterNodeInstance(ClusterInfoService.class);
     }
 
 }

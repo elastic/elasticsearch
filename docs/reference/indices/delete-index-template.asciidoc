@@ -6,8 +6,6 @@
 
 Deletes an existing index.
 
-include::templates.asciidoc[tag=index-template-def]
-
 ////
 [source,js]
 --------------------------------------------------
@@ -34,6 +32,14 @@ DELETE /_template/template_1
 ==== {api-request-title}
 
 `DELETE /_template/<index-template>`
+
+
+[[delete-template-api-desc]]
+==== {api-description-title}
+
+Use the delete index template API to delete one or more index templates
+
+include::templates.asciidoc[tag=index-template-def]
 
 
 [[delete-template-api-path-params]]

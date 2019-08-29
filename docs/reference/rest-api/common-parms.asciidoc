@@ -1,4 +1,9 @@
 
+tag::index-alias[]
+Comma-separated list or wildcard expression of index alias names
+used to limit the request.
+end::index-alias[]
+
 tag::allow-no-indices[]
 `allow_no_indices`::
 (Optional, boolean) If `true`, the request returns an error if a wildcard

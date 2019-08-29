@@ -462,10 +462,11 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         final Request request = SecurityRequestConverters.getApiKey(getApiKeyRequest);
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
         assertEquals("/_security/api_key", request.getEndpoint());
-        Map<String, String> mapOfParameters = new HashMap<>();
-        mapOfParameters.put("realm_name", realmName);
-        mapOfParameters.put("username", userName);
-        assertThat(request.getParameters(), equalTo(mapOfParameters));
+        Map<String, String> expectedMapOfParameters = new HashMap<>();
+        expectedMapOfParameters.put("realm_name", realmName);
+        expectedMapOfParameters.put("username", userName);
+        expectedMapOfParameters.put("owner", Boolean.FALSE.toString());
+        assertThat(request.getParameters(), equalTo(expectedMapOfParameters));
     }
 
     public void testInvalidateApiKey() throws IOException {

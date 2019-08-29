@@ -18,10 +18,10 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 public class OutlierDetection implements DataFrameAnalysis {
 
@@ -160,8 +160,8 @@ public class OutlierDetection implements DataFrameAnalysis {
     }
 
     @Override
-    public Set<String> getRequiredFields() {
-        return Collections.emptySet();
+    public List<RequiredField> getRequiredFields() {
+        return Collections.emptyList();
     }
 
     @Override

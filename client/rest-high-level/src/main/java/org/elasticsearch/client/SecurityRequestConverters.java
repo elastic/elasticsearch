@@ -301,7 +301,7 @@ final class SecurityRequestConverters {
         if (Strings.hasText(getApiKeyRequest.getRealmName())) {
             request.addParameter("realm_name", getApiKeyRequest.getRealmName());
         }
-
+        request.addParameter("owner", Boolean.toString(getApiKeyRequest.ownedByAuthenticatedUser()));
         return request;
     }
 

@@ -48,7 +48,7 @@ import java.util.function.Function;
  * <p>
  * To perform a snapshot:
  * <ul>
- * <li>Data nodes call {@link Repository#snapshotShard(Store, MapperService, SnapshotId, IndexId, IndexCommit, IndexShardSnapshotStatus)}
+ * <li>Data nodes call {@link Repository#snapshotShard}
  * for each shard</li>
  * <li>When all shard calls return master calls {@link #finalizeSnapshot} with possible list of failures</li>
  * </ul>
@@ -206,9 +206,10 @@ public interface Repository extends LifecycleComponent {
      * @param indexId             id for the index being snapshotted
      * @param snapshotIndexCommit commit point
      * @param snapshotStatus      snapshot status
+     * @param listener            listener invoked on completion
      */
     void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit,
-                       IndexShardSnapshotStatus snapshotStatus);
+                       IndexShardSnapshotStatus snapshotStatus, ActionListener<Void> listener);
 
     /**
      * Restores snapshot of the shard.

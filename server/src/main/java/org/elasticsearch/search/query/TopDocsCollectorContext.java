@@ -235,15 +235,16 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
             super(REASON_SEARCH_TOP_HITS, numHits);
             this.sortAndFormats = sortAndFormats;
 
-            // disable max score optimization since we have a mandatory clause
-            // that doesn't track the maximum score
+            final TopDocsCollector<?> topDocsCollector;
+
             if ((sortAndFormats == null || SortField.FIELD_SCORE.equals(sortAndFormats.sort.getSort()[0]))
                     && hasInfMaxScore(query)) {
-                trackTotalHitsUpTo = Integer.MAX_VALUE;
-            }
-
-            final TopDocsCollector<?> topDocsCollector;
-            if (trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
+                // disable max score optimization since we have a mandatory clause
+                // that doesn't track the maximum score
+                topDocsCollector = createCollector(sortAndFormats, numHits, searchAfter, Integer.MAX_VALUE);
+                topDocsSupplier = new CachedSupplier<>(topDocsCollector::topDocs);
+                totalHitsSupplier = () -> topDocsSupplier.get().totalHits;
+            } else if (trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
                 // don't compute hit counts via the collector
                 topDocsCollector = createCollector(sortAndFormats, numHits, searchAfter, 1);
                 topDocsSupplier = new CachedSupplier<>(topDocsCollector::topDocs);

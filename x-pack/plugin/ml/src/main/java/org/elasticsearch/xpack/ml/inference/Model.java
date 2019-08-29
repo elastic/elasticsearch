@@ -12,5 +12,15 @@ import java.util.function.BiConsumer;
 
 public interface Model {
 
+    /**
+     * Perform inference on the input {@code document}.
+     *
+     * The type of inference is dependent on the implementing model, in general
+     * the input is an ingest document and {@code handler} <strong>must</strong>
+     * be called either with the updated (or new) document or an {@code Exception}.
+     *
+     * @param document  Document to infer on
+     * @param handler   The handler must be called
+     */
     void infer(IngestDocument document, BiConsumer<IngestDocument, Exception> handler);
 }

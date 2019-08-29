@@ -13,6 +13,9 @@ import org.elasticsearch.xpack.ml.inference.Model;
 import java.util.Random;
 import java.util.function.BiConsumer;
 
+/**
+ * Trivial model whose only purpose is to aid code design
+ */
 public class SillyModel implements Model {
 
     private static final String TARGET_FIELD = "hotdog_or_not";

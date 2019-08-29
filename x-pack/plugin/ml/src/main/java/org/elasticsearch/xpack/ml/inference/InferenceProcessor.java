@@ -15,13 +15,18 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
+/**
+ * An inference ingest processor.
+ * The processor performs inference on ingest documents using a pre-trained model.
+ * The type of the pre-trained model is defined via the processor config.
+ * Inference models implement {@link Model} and are loaded via a {@link ModelLoader}
+ */
 public class InferenceProcessor extends AbstractProcessor {
 
     public static final String TYPE = "inference";
     private static final String MODEL_ID = "model_id";
     private static final String MODEL_TYPE = "model_type";
     private static final String IGNORE_MISSING = "ignore_missing";
-
 
     private final Model model;
 
@@ -51,8 +56,6 @@ public class InferenceProcessor extends AbstractProcessor {
         private Map<String, Model> loadedModels;
         private Map<String, ModelLoader> modelLoaders;
 
-        // If a client is needed here then in the Node ctor Plugin.createComponents
-        // should be called before the IngestService is created
         public Factory(Map<String, ModelLoader> modelLoaders) {
             loadedModels = new HashMap<>();
             this.modelLoaders = modelLoaders;
@@ -60,7 +63,7 @@ public class InferenceProcessor extends AbstractProcessor {
 
         @Override
         public InferenceProcessor create(Map<String, Processor.Factory> processorFactories, String tag, Map<String, Object> config)
-                throws Exception {
+        throws Exception {
             String modelId = ConfigurationUtils.readStringProperty(TYPE, tag, config, MODEL_ID);
             String modelType = ConfigurationUtils.readStringProperty(TYPE, tag, config, MODEL_TYPE);
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, tag, config, IGNORE_MISSING, false);

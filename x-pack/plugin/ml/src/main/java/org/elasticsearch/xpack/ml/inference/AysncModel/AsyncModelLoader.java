@@ -14,7 +14,7 @@ import java.util.Map;
 public class AsyncModelLoader implements ModelLoader {
 
     @Override
-    public Model load(String modelId, String processorTag, boolean ignoreMissing, Map<String, Object> config) throws Exception {
+    public Model load(String modelId, String processorTag, boolean ignoreMissing, Map<String, Object> config) {
         return null;
     }
 

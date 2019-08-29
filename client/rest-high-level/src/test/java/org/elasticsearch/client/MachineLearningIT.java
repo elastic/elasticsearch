@@ -123,6 +123,7 @@ import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsStats;
 import org.elasticsearch.client.ml.dataframe.OutlierDetection;
+import org.elasticsearch.client.ml.dataframe.PhaseProgress;
 import org.elasticsearch.client.ml.dataframe.QueryConfig;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredErrorMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.RSquaredMetric;
@@ -1214,9 +1215,9 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(remainingIds, not(hasItem(deletedEvent)));
     }
 
-    public void testPutDataFrameAnalyticsConfig() throws Exception {
+    public void testPutDataFrameAnalyticsConfig_GivenOutlierDetectionAnalysis() throws Exception {
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
-        String configId = "put-test-config";
+        String configId = "test-put-df-analytics-outlier-detection";
         DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder()
             .setId(configId)
             .setSource(DataFrameAnalyticsSource.builder()
@@ -1244,6 +1245,41 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(createdConfig.getAnalyzedFields(), equalTo(config.getAnalyzedFields()));
         assertThat(createdConfig.getModelMemoryLimit(), equalTo(ByteSizeValue.parseBytesSizeValue("1gb", "")));  // default value
         assertThat(createdConfig.getDescription(), equalTo("some description"));
+    }
+
+    public void testPutDataFrameAnalyticsConfig_GivenRegression() throws Exception {
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        String configId = "test-put-df-analytics-regression";
+        DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder()
+            .setId(configId)
+            .setSource(DataFrameAnalyticsSource.builder()
+                .setIndex("put-test-source-index")
+                .build())
+            .setDest(DataFrameAnalyticsDest.builder()
+                .setIndex("put-test-dest-index")
+                .build())
+            .setAnalysis(org.elasticsearch.client.ml.dataframe.Regression
+                .builder("my_dependent_variable")
+                .setTrainingPercent(80.0)
+                .build())
+            .setDescription("this is a regression")
+            .build();
+
+        createIndex("put-test-source-index", defaultMappingForTest());
+
+        PutDataFrameAnalyticsResponse putDataFrameAnalyticsResponse = execute(
+            new PutDataFrameAnalyticsRequest(config),
+            machineLearningClient::putDataFrameAnalytics, machineLearningClient::putDataFrameAnalyticsAsync);
+        DataFrameAnalyticsConfig createdConfig = putDataFrameAnalyticsResponse.getConfig();
+        assertThat(createdConfig.getId(), equalTo(config.getId()));
+        assertThat(createdConfig.getSource().getIndex(), equalTo(config.getSource().getIndex()));
+        assertThat(createdConfig.getSource().getQueryConfig(), equalTo(new QueryConfig(new MatchAllQueryBuilder())));  // default value
+        assertThat(createdConfig.getDest().getIndex(), equalTo(config.getDest().getIndex()));
+        assertThat(createdConfig.getDest().getResultsField(), equalTo("ml"));  // default value
+        assertThat(createdConfig.getAnalysis(), equalTo(config.getAnalysis()));
+        assertThat(createdConfig.getAnalyzedFields(), equalTo(config.getAnalyzedFields()));
+        assertThat(createdConfig.getModelMemoryLimit(), equalTo(ByteSizeValue.parseBytesSizeValue("1gb", "")));  // default value
+        assertThat(createdConfig.getDescription(), equalTo("this is a regression"));
     }
 
     public void testGetDataFrameAnalyticsConfig_SingleConfig() throws Exception {
@@ -1377,11 +1413,17 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(stats.getId(), equalTo(configId));
         assertThat(stats.getState(), equalTo(DataFrameAnalyticsState.STOPPED));
         assertNull(stats.getFailureReason());
-        assertNull(stats.getProgressPercent());
         assertNull(stats.getNode());
         assertNull(stats.getAssignmentExplanation());
         assertThat(statsResponse.getNodeFailures(), hasSize(0));
         assertThat(statsResponse.getTaskFailures(), hasSize(0));
+        List<PhaseProgress> progress = stats.getProgress();
+        assertThat(progress, is(notNullValue()));
+        assertThat(progress.size(), equalTo(4));
+        assertThat(progress.get(0), equalTo(new PhaseProgress("reindexing", 0)));
+        assertThat(progress.get(1), equalTo(new PhaseProgress("loading_data", 0)));
+        assertThat(progress.get(2), equalTo(new PhaseProgress("analyzing", 0)));
+        assertThat(progress.get(3), equalTo(new PhaseProgress("writing_results", 0)));
     }
 
     public void testStartDataFrameAnalyticsConfig() throws Exception {

@@ -32,8 +32,6 @@ public class FilePermissionUtils {
     /** no instantiation */
     private FilePermissionUtils() {}
 
-    private static final boolean VERSION_IS_AT_LEAST_JAVA_9 = JavaVersion.current().compareTo(JavaVersion.parse("9")) >= 0;
-
     /**
      * Add access to single file path
      * @param policy current policy to add permissions to
@@ -43,10 +41,12 @@ public class FilePermissionUtils {
     @SuppressForbidden(reason = "only place where creating Java-9 compatible FilePermission objects is possible")
     public static void addSingleFilePath(Permissions policy, Path path, String permissions) throws IOException {
         policy.add(new FilePermission(path.toString(), permissions));
-        if (VERSION_IS_AT_LEAST_JAVA_9 && Files.exists(path)) {
-            // Java 9 FilePermission model requires this due to the removal of pathname canonicalization,
-            // see also https://github.com/elastic/elasticsearch/issues/21534
-            Path realPath = path.toRealPath();
+        if (Files.exists(path)) {
+            /*
+             * The file permission model since JDK 9 requires this due to the removal of pathname canonicalization. See also
+             * https://github.com/elastic/elasticsearch/issues/21534.
+             */
+            final Path realPath = path.toRealPath();
             if (path.toString().equals(realPath.toString()) == false) {
                 policy.add(new FilePermission(realPath.toString(), permissions));
             }
@@ -73,14 +73,15 @@ public class FilePermissionUtils {
         // add each path twice: once for itself, again for files underneath it
         policy.add(new FilePermission(path.toString(), permissions));
         policy.add(new FilePermission(path.toString() + path.getFileSystem().getSeparator() + "-", permissions));
-        if (VERSION_IS_AT_LEAST_JAVA_9) {
-            // Java 9 FilePermission model requires this due to the removal of pathname canonicalization,
-            // see also https://github.com/elastic/elasticsearch/issues/21534
-            Path realPath = path.toRealPath();
-            if (path.toString().equals(realPath.toString()) == false) {
-                policy.add(new FilePermission(realPath.toString(), permissions));
-                policy.add(new FilePermission(realPath.toString() + realPath.getFileSystem().getSeparator() + "-", permissions));
-            }
+        /*
+         * The file permission model since JDK 9 requires this due to the removal of pathname canonicalization. See also
+         * https://github.com/elastic/elasticsearch/issues/21534.
+         */
+        final Path realPath = path.toRealPath();
+        if (path.toString().equals(realPath.toString()) == false) {
+            policy.add(new FilePermission(realPath.toString(), permissions));
+            policy.add(new FilePermission(realPath.toString() + realPath.getFileSystem().getSeparator() + "-", permissions));
         }
     }
+
 }

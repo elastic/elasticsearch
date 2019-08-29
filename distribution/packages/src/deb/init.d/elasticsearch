@@ -80,22 +80,8 @@ if [ ! -x "$DAEMON" ]; then
 	exit 1
 fi
 
-checkJava() {
-  if [ ! -z "${JAVA_HOME}" ]; then
-    JAVA="${JAVA_HOME}"/bin/java
-  else
-    JAVA="${ES_HOME}"/jdk/bin/java
-  fi
-
-  if [ ! -x "$JAVA" ]; then
-    echo "could not find java in JAVA_HOME or bundled at ${JAVA}"
-    exit 1
-  fi
-}
-
 case "$1" in
   start)
-	checkJava
 
 	log_daemon_msg "Starting $DESC"
 

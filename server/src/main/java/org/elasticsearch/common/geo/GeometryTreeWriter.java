@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.common.geo;
 
-import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.geometry.Circle;
@@ -48,8 +47,8 @@ public class GeometryTreeWriter implements Writeable {
 
     private final GeometryTreeBuilder builder;
 
-    public GeometryTreeWriter(Geometry geometry) {
-        builder = new GeometryTreeBuilder();
+    public GeometryTreeWriter(Geometry geometry, CoordinateEncoder coordinateEncoder) {
+        builder = new GeometryTreeBuilder(coordinateEncoder);
         geometry.visit(builder);
     }
 
@@ -77,6 +76,7 @@ public class GeometryTreeWriter implements Writeable {
     class GeometryTreeBuilder implements GeometryVisitor<Void, RuntimeException> {
 
         private List<ShapeTreeWriter> shapeWriters;
+        private final CoordinateEncoder coordinateEncoder;
         // integers are used to represent int-encoded lat/lon values
         int top = Integer.MIN_VALUE;
         int bottom = Integer.MAX_VALUE;
@@ -85,8 +85,9 @@ public class GeometryTreeWriter implements Writeable {
         int posLeft = Integer.MAX_VALUE;
         int posRight = Integer.MIN_VALUE;
 
-        GeometryTreeBuilder() {
-            shapeWriters = new ArrayList<>();
+        GeometryTreeBuilder(CoordinateEncoder coordinateEncoder) {
+            this.coordinateEncoder = coordinateEncoder;
+            this.shapeWriters = new ArrayList<>();
         }
 
         private void addWriter(ShapeTreeWriter writer) {
@@ -110,20 +111,20 @@ public class GeometryTreeWriter implements Writeable {
 
         @Override
         public Void visit(Line line) {
-            addWriter(new EdgeTreeWriter(asLonEncodedArray(line.getLons()), asLatEncodedArray(line.getLats())));
+            addWriter(new EdgeTreeWriter(line.getLons(), line.getLats(), coordinateEncoder));
             return null;
         }
 
         @Override
         public Void visit(MultiLine multiLine) {
             int size = multiLine.size();
-            List<int[]> x = new ArrayList<>(size);
-            List<int[]> y = new ArrayList<>(size);
+            List<double[]> x = new ArrayList<>(size);
+            List<double[]> y = new ArrayList<>(size);
             for (Line line : multiLine) {
-                x.add(asLonEncodedArray(line.getLons()));
-                y.add(asLatEncodedArray(line.getLats()));
+                x.add(line.getLons());
+                y.add(line.getLats());
             }
-            addWriter(new EdgeTreeWriter(x, y));
+            addWriter(new EdgeTreeWriter(x, y, coordinateEncoder));
             return null;
         }
 
@@ -131,14 +132,14 @@ public class GeometryTreeWriter implements Writeable {
         public Void visit(Polygon polygon) {
             LinearRing outerShell = polygon.getPolygon();
             int numHoles = polygon.getNumberOfHoles();
-            List<int[]> x = new ArrayList<>(numHoles);
-            List<int[]> y = new ArrayList<>(numHoles);
+            List<double[]> x = new ArrayList<>(numHoles);
+            List<double[]> y = new ArrayList<>(numHoles);
             for (int i = 0; i < numHoles; i++) {
                 LinearRing innerRing = polygon.getHole(i);
-                x.add(asLonEncodedArray(innerRing.getLons()));
-                y.add(asLatEncodedArray(innerRing.getLats()));
+                x.add(innerRing.getLons());
+                y.add(innerRing.getLats());
             }
-            addWriter(new PolygonTreeWriter(asLonEncodedArray(outerShell.getLons()), asLatEncodedArray(outerShell.getLats()), x, y));
+            addWriter(new PolygonTreeWriter(outerShell.getLons(), outerShell.getLats(), x, y, coordinateEncoder));
             return null;
         }
 
@@ -152,34 +153,28 @@ public class GeometryTreeWriter implements Writeable {
 
         @Override
         public Void visit(Rectangle r) {
-            int encodedMinLat = GeoEncodingUtils.encodeLatitude(r.getMinLat());
-            int encodedMaxLat = GeoEncodingUtils.encodeLatitude(r.getMaxLat());
-            int encodedMinLon = GeoEncodingUtils.encodeLongitude(r.getMinLon());
-            int encodedMaxLon = GeoEncodingUtils.encodeLongitude(r.getMaxLon());
-            int[] lats = new int[] { encodedMinLat, encodedMinLat, encodedMaxLat, encodedMaxLat, encodedMinLat };
-            int[] lons = new int[] { encodedMinLon, encodedMaxLon, encodedMaxLon, encodedMinLon, encodedMinLon };
-            addWriter(new PolygonTreeWriter(lons, lats, Collections.emptyList(), Collections.emptyList()));
+            double[] lats = new double[] { r.getMinLat(), r.getMinLat(), r.getMaxLat(), r.getMaxLat(), r.getMinLat() };
+            double[] lons = new double[] { r.getMinLon(), r.getMaxLon(), r.getMaxLon(), r.getMinLon(), r.getMinLon() };
+            addWriter(new PolygonTreeWriter(lons, lats, Collections.emptyList(), Collections.emptyList(), coordinateEncoder));
             return null;
         }
 
         @Override
         public Void visit(Point point) {
-            int x = GeoEncodingUtils.encodeLongitude(point.getLon());
-            int y = GeoEncodingUtils.encodeLatitude(point.getLat());
-            Point2DWriter writer = new Point2DWriter(x, y);
+            Point2DWriter writer = new Point2DWriter(point.getLon(), point.getLat(), coordinateEncoder);
             addWriter(writer);
             return null;
         }
 
         @Override
         public Void visit(MultiPoint multiPoint) {
-            int[] x = new int[multiPoint.size()];
-            int[] y = new int[x.length];
+            double[] x = new double[multiPoint.size()];
+            double[] y = new double[x.length];
             for (int i = 0; i < multiPoint.size(); i++) {
-                x[i] = GeoEncodingUtils.encodeLongitude(multiPoint.get(i).getLon());
-                y[i] = GeoEncodingUtils.encodeLatitude(multiPoint.get(i).getLat());
+                x[i] = multiPoint.get(i).getLon();
+                y[i] = multiPoint.get(i).getLat();
             }
-            Point2DWriter writer = new Point2DWriter(x, y);
+            Point2DWriter writer = new Point2DWriter(x, y, coordinateEncoder);
             addWriter(writer);
             return null;
         }
@@ -192,22 +187,6 @@ public class GeometryTreeWriter implements Writeable {
         @Override
         public Void visit(Circle circle) {
             throw new IllegalArgumentException("invalid shape type found [Circle]");
-        }
-
-        private int[] asLonEncodedArray(double[] doub) {
-            int[] intArr = new int[doub.length];
-            for (int i = 0; i < intArr.length; i++) {
-                intArr[i] = GeoEncodingUtils.encodeLongitude(doub[i]);
-            }
-            return intArr;
-        }
-
-        private int[] asLatEncodedArray(double[] doub) {
-            int[] intArr = new int[doub.length];
-            for (int i = 0; i < intArr.length; i++) {
-                intArr[i] = GeoEncodingUtils.encodeLatitude(doub[i]);
-            }
-            return intArr;
         }
     }
 }

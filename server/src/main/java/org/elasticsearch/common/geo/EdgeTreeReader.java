@@ -19,7 +19,6 @@
 package org.elasticsearch.common.geo;
 
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
-import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 import java.util.Optional;
@@ -57,16 +56,14 @@ public class EdgeTreeReader implements ShapeTreeReader {
         }
     }
 
-    static Optional<Boolean> checkExtent(StreamInput input, Extent extent) throws IOException {
-        Extent edgeExtent = new Extent(input);
-
-        if (edgeExtent.minY() > extent.maxY() || edgeExtent.maxX() < extent.minX()
-                || edgeExtent.maxY() < extent.minY() || edgeExtent.minX() > extent.maxX()) {
+    static Optional<Boolean> checkExtent(Extent treeExtent, Extent extent) throws IOException {
+        if (treeExtent.minY() > extent.maxY() || treeExtent.maxX() < extent.minX()
+                || treeExtent.maxY() < extent.minY() || treeExtent.minX() > extent.maxX()) {
             return Optional.of(false); // tree and bbox-query are disjoint
         }
 
-        if (extent.minX() <= edgeExtent.minX() && extent.minY() <= edgeExtent.minY()
-                && extent.maxX() >= edgeExtent.maxX() && extent.maxY() >= edgeExtent.maxY()) {
+        if (extent.minX() <= treeExtent.minX() && extent.minY() <= treeExtent.minY()
+                && extent.maxX() >= treeExtent.maxX() && extent.maxY() >= treeExtent.maxY()) {
             return Optional.of(true); // bbox-query fully contains tree's extent.
         }
         return Optional.empty();
@@ -75,7 +72,7 @@ public class EdgeTreeReader implements ShapeTreeReader {
     boolean containsBottomLeft(Extent extent) throws IOException {
         resetInputPosition();
 
-        Optional<Boolean> extentCheck = checkExtent(input, extent);
+        Optional<Boolean> extentCheck = checkExtent(new Extent(input), extent);
         if (extentCheck.isPresent()) {
             return extentCheck.get();
         }
@@ -92,7 +89,7 @@ public class EdgeTreeReader implements ShapeTreeReader {
     public boolean crosses(Extent extent) throws IOException {
         resetInputPosition();
 
-        Optional<Boolean> extentCheck = checkExtent(input, extent);
+        Optional<Boolean> extentCheck = checkExtent(new Extent(input), extent);
         if (extentCheck.isPresent()) {
             return extentCheck.get();
         }
@@ -100,7 +97,7 @@ public class EdgeTreeReader implements ShapeTreeReader {
         return crosses(readRoot(input.position()), extent);
     }
 
-    public Edge readRoot(int position) throws IOException {
+    private Edge readRoot(int position) throws IOException {
         input.position(position);
         if (input.readBoolean()) {
             return readEdge(input.position());

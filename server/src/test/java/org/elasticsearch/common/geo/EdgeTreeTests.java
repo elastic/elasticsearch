@@ -35,7 +35,6 @@ import org.locationtech.spatial4j.shape.Rectangle;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
-import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -47,9 +46,9 @@ public class EdgeTreeTests extends ESTestCase {
             int maxX = randomIntBetween(minX + 10, 180);
             int minY = randomIntBetween(-180, 170);
             int maxY = randomIntBetween(minY + 10, 180);
-            int[] x = new int[]{minX, maxX, maxX, minX, minX};
-            int[] y = new int[]{minY, minY, maxY, maxY, minY};
-            EdgeTreeWriter writer = new EdgeTreeWriter(x, y);
+            double[] x = new double[]{minX, maxX, maxX, minX, minX};
+            double[] y = new double[]{minY, minY, maxY, maxY, minY};
+            EdgeTreeWriter writer = new EdgeTreeWriter(x, y, TestCoordinateEncoder.INSTANCE);
             BytesStreamOutput output = new BytesStreamOutput();
             writer.writeTo(output);
             output.close();
@@ -118,10 +117,10 @@ public class EdgeTreeTests extends ESTestCase {
             int maxXBox = GeoEncodingUtils.encodeLongitude(box.getMaxX());
             int maxYBox = GeoEncodingUtils.encodeLatitude(box.getMaxY());
 
-            int[] x = asIntArray(testPolygon.getPolygon().getLons(), GeoEncodingUtils::encodeLongitude);
-            int[] y = asIntArray(testPolygon.getPolygon().getLats(), GeoEncodingUtils::encodeLatitude);
+            double[] x = testPolygon.getPolygon().getLons();
+            double[] y = testPolygon.getPolygon().getLats();
 
-            EdgeTreeWriter writer = new EdgeTreeWriter(x, y);
+            EdgeTreeWriter writer = new EdgeTreeWriter(x, y, TestCoordinateEncoder.INSTANCE);
             BytesStreamOutput output = new BytesStreamOutput();
             writer.writeTo(output);
             output.close();
@@ -147,8 +146,8 @@ public class EdgeTreeTests extends ESTestCase {
 
     public void testPacMan() throws Exception {
         // pacman
-        int[] px = {0, 10, 10, 0, -8, -10, -8, 0, 10, 10, 0};
-        int[] py = {0, 5, 9, 10, 9, 0, -9, -10, -9, -5, 0};
+        double[] px = {0, 10, 10, 0, -8, -10, -8, 0, 10, 10, 0};
+        double[] py = {0, 5, 9, 10, 9, 0, -9, -10, -9, -5, 0};
 
         // candidate intersects cell
         int xMin = 2;//-5;
@@ -157,7 +156,7 @@ public class EdgeTreeTests extends ESTestCase {
         int yMax = 1;//5;
 
         // test cell crossing poly
-        EdgeTreeWriter writer = new EdgeTreeWriter(px, py);
+        EdgeTreeWriter writer = new EdgeTreeWriter(px, py, TestCoordinateEncoder.INSTANCE);
         BytesStreamOutput output = new BytesStreamOutput();
         writer.writeTo(output);
         output.close();
@@ -166,17 +165,11 @@ public class EdgeTreeTests extends ESTestCase {
     }
 
     public void testGetShapeType() {
-        int[] pointCoord = new int[] { 0 };
-        assertThat(new EdgeTreeWriter(pointCoord, pointCoord).getShapeType(), equalTo(ShapeType.LINESTRING));
-        assertThat(new EdgeTreeWriter(List.of(pointCoord, pointCoord), List.of(pointCoord, pointCoord)).getShapeType(),
+        double[] pointCoord = new double[] { 0 };
+        assertThat(new EdgeTreeWriter(pointCoord, pointCoord, TestCoordinateEncoder.INSTANCE).getShapeType(),
+            equalTo(ShapeType.LINESTRING));
+        assertThat(new EdgeTreeWriter(List.of(pointCoord, pointCoord), List.of(pointCoord, pointCoord),
+                TestCoordinateEncoder.INSTANCE).getShapeType(),
             equalTo(ShapeType.MULTILINESTRING));
-    }
-
-    private int[] asIntArray(double[] doub, Function<Double, Integer> encode) {
-        int[] intArr = new int[doub.length];
-        for (int i = 0; i < intArr.length; i++) {
-            intArr[i] = encode.apply(doub[i]);
-        }
-        return intArr;
     }
 }

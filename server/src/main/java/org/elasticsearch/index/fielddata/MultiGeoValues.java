@@ -18,9 +18,10 @@
  */
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.geo.GeoEncodingUtils;
+import org.elasticsearch.common.geo.CoordinateEncoder;
 import org.elasticsearch.common.geo.Extent;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeoShapeCoordinateEncoder;
 import org.elasticsearch.common.geo.GeometryTreeReader;
 import org.elasticsearch.common.geo.GeometryTreeWriter;
 import org.elasticsearch.geometry.Geometry;
@@ -124,7 +125,7 @@ public abstract class MultiGeoValues {
 
         @Override
         public BoundingBox boundingBox() {
-            return new BoundingBox(extent);
+            return new BoundingBox(extent, GeoShapeCoordinateEncoder.INSTANCE);
         }
 
         @Override
@@ -140,7 +141,7 @@ public abstract class MultiGeoValues {
         public static GeoShapeValue missing(String missing) {
             try {
                 Geometry geometry = MISSING_GEOMETRY_PARSER.fromWKT(missing);
-                GeometryTreeWriter writer = new GeometryTreeWriter(geometry);
+                GeometryTreeWriter writer = new GeometryTreeWriter(geometry, GeoShapeCoordinateEncoder.INSTANCE);
                 return new GeoShapeValue(writer.extent());
             } catch (IOException | ParseException e) {
                 throw new IllegalArgumentException("Can't apply missing value [" + missing + "]", e);
@@ -166,28 +167,28 @@ public abstract class MultiGeoValues {
         public final double posLeft;
         public final double posRight;
 
-        BoundingBox(Extent extent) {
-            this.top = GeoEncodingUtils.decodeLatitude(extent.top);
-            this.bottom = GeoEncodingUtils.decodeLatitude(extent.bottom);
+        BoundingBox(Extent extent, CoordinateEncoder coordinateEncoder) {
+            this.top = coordinateEncoder.decodeY(extent.top);
+            this.bottom = coordinateEncoder.decodeY(extent.bottom);
             if (extent.negLeft == Integer.MAX_VALUE) {
                 this.negLeft = Double.POSITIVE_INFINITY;
             } else {
-                this.negLeft = GeoEncodingUtils.decodeLongitude(extent.negLeft);
+                this.negLeft = coordinateEncoder.decodeX(extent.negLeft);
             }
             if (extent.negRight == Integer.MIN_VALUE) {
                 this.negRight = Double.NEGATIVE_INFINITY;
             } else {
-                this.negRight = GeoEncodingUtils.decodeLongitude(extent.negRight);
+                this.negRight = coordinateEncoder.decodeX(extent.negRight);
             }
             if (extent.posLeft == Integer.MAX_VALUE) {
                 this.posLeft = Double.POSITIVE_INFINITY;
             } else {
-                this.posLeft = GeoEncodingUtils.decodeLongitude(extent.posLeft);
+                this.posLeft = coordinateEncoder.decodeX(extent.posLeft);
             }
             if (extent.posRight == Integer.MIN_VALUE) {
                 this.posRight = Double.NEGATIVE_INFINITY;
             } else {
-                this.posRight = GeoEncodingUtils.decodeLongitude(extent.posRight);
+                this.posRight = coordinateEncoder.decodeX(extent.posRight);
             }
         }
 

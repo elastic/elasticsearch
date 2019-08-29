@@ -144,9 +144,9 @@ DELETE /twitter/_doc/1?timeout=5m
 [[docs-delete-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=seq-no]
+include::{docdir}/rest-api/common-parms.asciidoc[tag=if_seq_no]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=primary-term]
+include::{docdir}/rest-api/common-parms.asciidoc[tag=if_primary_term]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=pipeline]
 

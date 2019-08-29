@@ -214,7 +214,16 @@ _Role Management APIs_, the role found in the file will be used.
 While the _Role Management APIs_ is the preferred mechanism to define roles,
 using the `roles.yml` file becomes useful if you want to define fixed roles that
 no one (beside an administrator having physical access to the {es} nodes)
-would be able to change.
+would be able to change. Please note however, that this is provided as a
+minimal administrative function and is not intended to cover and be used
+to define roles for all use cases.
+
+[IMPORTANT]
+==============================
+You will not be able to view, edit or remove any roles defined in `roles.yml`, by
+using the <<role-management-ui, Role management UI>> or the
+<<role-management-api, Role management API>>.
+==============================
 
 [IMPORTANT]
 ==============================

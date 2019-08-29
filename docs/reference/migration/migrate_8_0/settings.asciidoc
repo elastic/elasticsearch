@@ -13,6 +13,14 @@ refuse to start if you have these settings in your configuration or cluster
 state.
 
 [float]
+[[remove-pidfile]]
+==== `pidfile` setting is replaced by `node.pidfile`
+
+To ensure that all settings are in a proper namespace, the `pidfile` setting was
+previously deprecated in version 7.4.0 of Elasticsearch, and is removed in
+version 8.0.0. Instead, use `node.pidfile`.
+
+[float]
 [[remove-processors]]
 ==== `processors` setting is replaced by `node.processors`
 

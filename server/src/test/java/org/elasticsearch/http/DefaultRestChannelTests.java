@@ -57,6 +57,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -272,8 +273,13 @@ public class DefaultRestChannelTests extends ESTestCase {
     public void testConnectionClose() throws Exception {
         final Settings settings = Settings.builder().build();
         final HttpRequest httpRequest;
-        final boolean close = randomBoolean();
-        if (randomBoolean()) {
+        final boolean brokenRequest = randomBoolean();
+        final boolean close = brokenRequest || randomBoolean();
+        if (brokenRequest) {
+            httpRequest = new TestRequest(() -> {
+                throw new IllegalArgumentException("Can't parse HTTP version");
+            }, RestRequest.Method.GET, "/");
+        } else if (randomBoolean()) {
             httpRequest = new TestRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
             if (close) {
                 httpRequest.getHeaders().put(DefaultRestChannel.CONNECTION, Collections.singletonList(DefaultRestChannel.CLOSE));
@@ -399,16 +405,19 @@ public class DefaultRestChannelTests extends ESTestCase {
 
     private static class TestRequest implements HttpRequest {
 
-        private final HttpVersion version;
+        private final Supplier<HttpVersion> version;
         private final RestRequest.Method method;
         private final String uri;
         private HashMap<String, List<String>> headers = new HashMap<>();
 
-        private TestRequest(HttpVersion version, RestRequest.Method method, String uri) {
-
-            this.version = version;
+        private TestRequest(Supplier<HttpVersion> versionSupplier, RestRequest.Method method, String uri) {
+            this.version = versionSupplier;
             this.method = method;
             this.uri = uri;
+        }
+
+        private TestRequest(HttpVersion version, RestRequest.Method method, String uri) {
+            this(() -> version, method, uri);
         }
 
         @Override
@@ -438,7 +447,7 @@ public class DefaultRestChannelTests extends ESTestCase {
 
         @Override
         public HttpVersion protocolVersion() {
-            return version;
+            return version.get();
         }
 
         @Override

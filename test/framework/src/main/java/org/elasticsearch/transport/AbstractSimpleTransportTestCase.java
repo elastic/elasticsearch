@@ -2177,7 +2177,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                         assertThat(exp.getCause(), instanceOf(NodeNotConnectedException.class));
                     } else {
                         // here the concurrent disconnect was faster and invoked the listener first
-                        assertThat(exp.getClass(), instanceOf(NodeDisconnectedException.class));
+                        assertThat(exp, instanceOf(NodeDisconnectedException.class));
                     }
                 } finally {
                     latch.countDown();

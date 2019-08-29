@@ -181,6 +181,22 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("required field [foo] is missing; analysis requires fields [foo]"));
     }
 
+    public void testDetect_GivenFieldIsBothIncludedAndExcluded() {
+        FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
+            .addAggregatableField("foo", "float")
+            .addAggregatableField("bar", "float")
+            .build();
+        FetchSourceContext analyzedFields = new FetchSourceContext(true, new String[]  {"foo", "bar"}, new String[] {"foo"});
+
+        ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
+            SOURCE_INDEX, buildOutlierDetectionConfig(analyzedFields), RESULTS_FIELD, false, 100, fieldCapabilities);
+        ExtractedFields extractedFields = extractedFieldsDetector.detect();
+
+        List<ExtractedField> allFields = extractedFields.getAllFields();
+        assertThat(allFields.size(), equalTo(1));
+        assertThat(allFields.stream().map(ExtractedField::getName).collect(Collectors.toList()), contains("bar"));
+    }
+
     public void testDetect_GivenRegressionAndRequiredFieldHasInvalidType() {
         FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
             .addAggregatableField("some_float", "float")

@@ -128,24 +128,31 @@ public class ExtractedFieldsDetector {
         Iterator<String> fieldsIterator = fields.iterator();
         while (fieldsIterator.hasNext()) {
             String field = fieldsIterator.next();
-            Map<String, FieldCapabilities> fieldCaps = fieldCapabilitiesResponse.getField(field);
-            if (fieldCaps == null) {
-                LOGGER.debug("[{}] Removing field [{}] because it is missing from mappings", config.getId(), field);
+            if (hasCompatibleType(field) == false) {
                 fieldsIterator.remove();
-            } else {
-                Set<String> fieldTypes = fieldCaps.keySet();
-                if (Types.numerical().containsAll(fieldTypes)) {
-                    LOGGER.debug("[{}] field [{}] is compatible as it is numerical", config.getId(), field);
-                } else if (config.getAnalysis().supportsCategoricalFields() && Types.categorical().containsAll(fieldTypes)) {
-                    LOGGER.debug("[{}] field [{}] is compatible as it is categorical", config.getId(), field);
-                } else if (isBoolean(fieldTypes)) {
-                    LOGGER.debug("[{}] field [{}] is compatible as it is boolean", config.getId(), field);
-                } else {
-                    LOGGER.debug("[{}] Removing field [{}] because its types are not supported; types {}; supported {}",
-                        config.getId(), field, fieldTypes, getSupportedTypes());
-                    fieldsIterator.remove();
-                }
             }
+        }
+    }
+
+    private boolean hasCompatibleType(String field) {
+        Map<String, FieldCapabilities> fieldCaps = fieldCapabilitiesResponse.getField(field);
+        if (fieldCaps == null) {
+            LOGGER.debug("[{}] incompatible field [{}] because it is missing from mappings", config.getId(), field);
+            return false;
+        }
+        Set<String> fieldTypes = fieldCaps.keySet();
+        if (Types.numerical().containsAll(fieldTypes)) {
+            LOGGER.debug("[{}] field [{}] is compatible as it is numerical", config.getId(), field);
+            return true;
+        } else if (config.getAnalysis().supportsCategoricalFields() && Types.categorical().containsAll(fieldTypes)) {
+            LOGGER.debug("[{}] field [{}] is compatible as it is categorical", config.getId(), field);
+            return true;
+        } else if (isBoolean(fieldTypes)) {
+            LOGGER.debug("[{}] field [{}] is compatible as it is boolean", config.getId(), field);
+            return true;
+        } else {
+            LOGGER.debug("[{}] incompatible field [{}]; types {}; supported {}", config.getId(), field, fieldTypes, getSupportedTypes());
+            return false;
         }
     }
 
@@ -205,10 +212,7 @@ public class ExtractedFieldsDetector {
                 throw ExceptionsHelper.badRequestException("no mappings could be found for field [{}]", field);
             }
 
-            // Check all field has compatible type
-            Set<String> asSet = new HashSet<>(Collections.singleton(field));
-            removeFieldsWithIncompatibleTypes(asSet);
-            if (asSet.isEmpty()) {
+            if (hasCompatibleType(field) == false) {
                 throw ExceptionsHelper.badRequestException("field [{}] has unsupported type {}. Supported types are {}.", field,
                     fieldCaps.keySet(), getSupportedTypes());
             }

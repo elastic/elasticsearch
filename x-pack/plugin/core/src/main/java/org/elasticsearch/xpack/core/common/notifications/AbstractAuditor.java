@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Date;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -28,37 +29,37 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
     private final String nodeName;
     private final String auditIndex;
     private final String executionOrigin;
-    private final AbstractAuditMessage.AbstractBuilder<T> messageBuilder;
+    private final AbstractAuditMessageFactory<T> messageFactory;
 
-    public AbstractAuditor(Client client,
-                           String nodeName,
-                           String auditIndex,
-                           String executionOrigin,
-                           AbstractAuditMessage.AbstractBuilder<T> messageBuilder) {
+    protected AbstractAuditor(Client client,
+                              String nodeName,
+                              String auditIndex,
+                              String executionOrigin,
+                              AbstractAuditMessageFactory<T> messageFactory) {
         this.client = Objects.requireNonNull(client);
         this.nodeName = Objects.requireNonNull(nodeName);
         this.auditIndex = auditIndex;
         this.executionOrigin = executionOrigin;
-        this.messageBuilder = Objects.requireNonNull(messageBuilder);
+        this.messageFactory = Objects.requireNonNull(messageFactory);
     }
 
     public void info(String resourceId, String message) {
-        indexDoc(messageBuilder.info(resourceId, message, nodeName));
+        indexDoc(messageFactory.newMessage(resourceId, message, Level.INFO, new Date(), nodeName));
     }
 
     public void warning(String resourceId, String message) {
-        indexDoc(messageBuilder.warning(resourceId, message, nodeName));
+        indexDoc(messageFactory.newMessage(resourceId, message, Level.WARNING, new Date(), nodeName));
     }
 
     public void error(String resourceId, String message) {
-        indexDoc(messageBuilder.error(resourceId, message, nodeName));
+        indexDoc(messageFactory.newMessage(resourceId, message, Level.ERROR, new Date(), nodeName));
     }
 
-    protected void onIndexResponse(IndexResponse response) {
+    private void onIndexResponse(IndexResponse response) {
         logger.trace("Successfully wrote audit message");
     }
 
-    protected void onIndexFailure(Exception exception) {
+    private void onIndexFailure(Exception exception) {
         logger.debug("Failed to write audit message", exception);
     }
 

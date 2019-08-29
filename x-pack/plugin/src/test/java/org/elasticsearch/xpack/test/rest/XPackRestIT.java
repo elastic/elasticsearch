@@ -89,7 +89,6 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
             List<String> templates = new ArrayList<>();
             templates.addAll(
                 Arrays.asList(
-                    AuditorField.NOTIFICATIONS_INDEX_LEGACY,
                     AuditorField.NOTIFICATIONS_INDEX,
                     MlMetaIndex.INDEX_NAME,
                     AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,

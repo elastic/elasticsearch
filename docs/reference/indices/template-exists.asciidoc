@@ -6,7 +6,7 @@
 
 Checks if an index template exists.
 
-include::templates.asciidoc[tag=index-template-def]
+
 
 [source,js]
 -----------------------------------------------
@@ -19,6 +19,15 @@ HEAD /_template/template_1
 ==== {api-request-title}
 
 `HEAD /_template/<index-template>`
+
+
+[[template-exists-api-desc]]
+==== {api-description-title}
+
+Use the index template exists API
+to determine whether one or more index templates exist.
+
+include::templates.asciidoc[tag=index-template-def]
 
 
 [[template-exists-api-path-params]]

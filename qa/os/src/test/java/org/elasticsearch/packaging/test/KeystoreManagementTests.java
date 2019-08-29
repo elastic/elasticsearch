@@ -20,12 +20,14 @@
 package org.elasticsearch.packaging.test;
 
 import org.elasticsearch.packaging.util.Archives;
+import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Packages;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -52,6 +54,8 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
     @Rule
     public ExpectedException exceptionRule = ExpectedException.none();
+
+    private static final String LINE_SEP = System.lineSeparator();
 
     /** We need an initially installed package */
     public void test10InstallDistribution() throws Exception {
@@ -101,20 +105,32 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         String password = "keystorepass";
 
-        final Installation.Executables bin = installation.executables();
+        rmKeystoreIfExists();
+        createKeystore();
+        setKeystorePassword(password);
 
-        // set the password by passing it to stdin twice
-        Platforms.onLinux(() ->
-            sh.run("echo $\'" + password + "\n" + password + "\n\' | sudo -u " + ARCHIVE_OWNER + " "
-                + bin.elasticsearchKeystore + " passwd")
-        );
-        Platforms.onWindows(() -> {
-            sh.run("echo \"" + password + "`r`n" + password + "`r`n\" | " + bin.elasticsearchKeystore + " passwd");
-        });
+        assertPasswordProtectedKeystore();
 
         Archives.runElasticsearch(installation, sh, password);
         ServerUtils.runElasticsearchTests();
         Archives.stopElasticsearch(installation);
+    }
+
+    private void setKeystorePassword(String password) throws Exception {
+        final Installation.Executables bin = installation.executables();
+
+        // set the password by passing it to stdin twice
+        Platforms.onLinux(() ->
+            selectOnPackaging(
+                () -> sh.run("echo $\'" + password + LINE_SEP + password + LINE_SEP + "\' | "
+                    + bin.elasticsearchKeystore + " passwd"),
+                () -> sh.run("echo $\'" + password + LINE_SEP + password + LINE_SEP + "\' | sudo -u " + ARCHIVE_OWNER + " "
+                    + bin.elasticsearchKeystore + " passwd")
+            )
+        );
+        Platforms.onWindows(() -> {
+            sh.run("echo \"" + password + "`r`n" + password + "`r`n\" | " + bin.elasticsearchKeystore + " passwd");
+        });
     }
 
     @Test(timeout = 5 * 60 * 1000)
@@ -123,25 +139,80 @@ public class KeystoreManagementTests extends PackagingTestCase {
             distribution.isArchive());
         assumeThat(installation, is(notNullValue()));
 
+        assertPasswordProtectedKeystore();
+
         exceptionRule.expect(RuntimeException.class);
         exceptionRule.expectMessage("Elasticsearch did not start");
         Archives.runElasticsearch(installation, sh, "wrong");
     }
 
+    @Ignore
+    @Test(timeout = 5 * 60 * 1000)
+    public void test42keystorePasswordOnTty() throws Exception {
+        assumeTrue("expect command isn't on Windows",
+            distribution.platform != Distribution.Platform.WINDOWS);
+        assumeTrue("packages will use systemd, which doesn't handle stdin",
+            distribution.isArchive());
+        assumeThat(installation, is(notNullValue()));
+
+        assertPasswordProtectedKeystore();
+
+        String password = "keystorepass";
+
+        Archives.runElasticsearchWithTty(installation, sh, password);
+        ServerUtils.runElasticsearchTests();
+        Archives.stopElasticsearch(installation);
+    }
+
+    @Ignore
+    @Test(timeout = 5 * 60 * 1000)
+    public void test43wrongKeystorePasswordOnTty() throws Exception {
+        assumeTrue("expect command isn't on Windows",
+            distribution.platform != Distribution.Platform.WINDOWS);
+        assumeTrue("packages will use systemd, which doesn't handle stdin",
+            distribution.isArchive());
+        assumeThat(installation, is(notNullValue()));
+
+        assertPasswordProtectedKeystore();
+
+        exceptionRule.expect(RuntimeException.class);
+        exceptionRule.expectMessage("Elasticsearch did not start");
+        Archives.runElasticsearchWithTty(installation, sh, "wrong");
+    }
+
     @Test(timeout = 5 * 60 * 1000)
     public void test50keystorePasswordFromFile() throws Exception {
-        String passwordWithNewline = "keystorepass\n";
+        String password = "keystorepass";
         Path esKeystorePassphraseFile = installation.config.resolve("eks");
-        Path esEnv = installation.bin.resolve("elasticsearch-env");
+        boolean isWindows = distribution.platform.equals(Distribution.Platform.WINDOWS);
+        Path esEnv = isWindows
+            ? installation.bin.resolve("elasticsearch-env.bat")
+            : installation.bin.resolve("elasticsearch-env");
         byte[] originalEnvFile = Files.readAllBytes(esEnv);
 
+        rmKeystoreIfExists();
+        createKeystore();
+        setKeystorePassword(password);
+
+        assertPasswordProtectedKeystore();
+
         try {
+            if (isWindows) {
+                Files.write(esEnv,
+                    ("set ES_KEYSTORE_PASSPHRASE_FILE=\"" + esKeystorePassphraseFile.toString() + "\"" +
+                        LINE_SEP)
+                        .getBytes(StandardCharsets.UTF_8),
+                    StandardOpenOption.APPEND);
+            } else {
+                assert distribution.platform == Distribution.Platform.LINUX || distribution.platform == Distribution.Platform.DARWIN;
+                Files.write(esEnv,
+                    ("ES_KEYSTORE_PASSPHRASE_FILE=" + esKeystorePassphraseFile.toString() + LINE_SEP)
+                        .getBytes(StandardCharsets.UTF_8),
+                    StandardOpenOption.APPEND);
+            }
             Files.createFile(esKeystorePassphraseFile);
-            Files.write(esEnv,
-                ("ES_KEYSTORE_PASSPHRASE_FILE=" + esKeystorePassphraseFile.toString() + "\n").getBytes(StandardCharsets.UTF_8),
-                StandardOpenOption.APPEND);
             Files.write(esKeystorePassphraseFile,
-                passwordWithNewline.getBytes(StandardCharsets.UTF_8),
+                (password + LINE_SEP).getBytes(StandardCharsets.UTF_8),
                 StandardOpenOption.WRITE);
 
             startElasticsearch();
@@ -155,31 +226,32 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
     @Test(timeout = 5 * 60 * 1000)
     public void test51wrongKeystorePasswordFromFile() throws Exception {
-        String password = "keystorepass";
         Path esKeystorePassphraseFile = installation.config.resolve("eks");
-        Path esEnv = installation.bin.resolve("elasticsearch-env");
+        boolean isWindows = distribution.platform.equals(Distribution.Platform.WINDOWS);
+        Path esEnv = isWindows
+            ? installation.bin.resolve("elasticsearch-env.bat")
+            : installation.bin.resolve("elasticsearch-env");
         byte[] originalEnvFile = Files.readAllBytes(esEnv);
 
-        final Installation.Executables bin = installation.executables();
+        assertPasswordProtectedKeystore();
 
         try {
+            if (isWindows) {
+                Files.write(esEnv,
+                    ("set ES_KEYSTORE_PASSPHRASE_FILE=\"config\\eks\"" + LINE_SEP)
+                        .getBytes(StandardCharsets.UTF_8),
+                    StandardOpenOption.APPEND);
+            } else {
+                assert distribution.platform == Distribution.Platform.LINUX || distribution.platform == Distribution.Platform.DARWIN;
+                Files.write(esEnv,
+                    ("ES_KEYSTORE_PASSPHRASE_FILE=" + esKeystorePassphraseFile.toString() + LINE_SEP)
+                        .getBytes(StandardCharsets.UTF_8),
+                    StandardOpenOption.APPEND);
+            }
             Files.createFile(esKeystorePassphraseFile);
-            Files.write(esEnv,
-                ("ES_KEYSTORE_PASSPHRASE_FILE=" + esKeystorePassphraseFile.toString() + "\n").getBytes(StandardCharsets.UTF_8),
-                StandardOpenOption.APPEND);
             Files.write(esKeystorePassphraseFile,
-                "wrongpassword\n".getBytes(StandardCharsets.UTF_8),
+                ("wrongpassword" + LINE_SEP).getBytes(StandardCharsets.UTF_8),
                 StandardOpenOption.WRITE);
-
-            sh.run("yes | " + bin.elasticsearchKeystore + " create");
-            // set the password by passing it to stdin twice
-            Platforms.onLinux(() ->
-                sh.run("echo $\'" + password + "\n" + password + "\n\' | sudo -u " + ARCHIVE_OWNER + " "
-                    + bin.elasticsearchKeystore + " passwd")
-            );
-            Platforms.onWindows(() -> {
-                sh.run("echo \"" + password + "`r`n" + password + "`r`n\" | " + bin.elasticsearchKeystore + " passwd");
-            });
 
             assertElasticsearchFailsToStart();
         } finally {
@@ -215,6 +287,11 @@ public class KeystoreManagementTests extends PackagingTestCase {
         if (Files.exists(keystore)) {
             FileUtils.rm(keystore);
         }
+    }
+
+    private void assertPasswordProtectedKeystore() {
+        Shell.Result r = sh.runIgnoreExitCode(installation.executables().elasticsearchKeystore.toString() + " has-passwd");
+        assertThat("keystore should be password protected", r.exitCode, is(0));
     }
 
     @FunctionalInterface

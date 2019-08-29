@@ -261,6 +261,20 @@ public class Archives {
         runElasticsearch(installation, sh, "");
     }
 
+    // TODO[wrb]: this "expect" usage doesn't work yet
+    public static void runElasticsearchWithTty(Installation installation, Shell sh, String keystorePassword) throws Exception {
+        final Path pidFile = installation.home.resolve("elasticsearch.pid");
+
+        final Installation.Executables bin = installation.executables();
+        sh.run("expect -c \"$(cat<<EXPECT\n" +
+            "spawn sudo -E -u " + ARCHIVE_OWNER + " " + bin.elasticsearch + "-d -p " + pidFile + "\n" +
+            "expect \"Elasticsearch keystore password: \"\n" +
+            "send \"" + keystorePassword + "\"\n" +
+            "expect eof\n" +
+            "EXPECT\n" +
+            ")\"");
+    }
+
     public static void runElasticsearch(Installation installation, Shell sh, String keystorePassword) throws Exception {
         final Path pidFile = installation.home.resolve("elasticsearch.pid");
 

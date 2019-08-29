@@ -4,6 +4,7 @@ setlocal enabledelayedexpansion
 setlocal enableextensions
 
 SET params='%*'
+SET checkpassword=Y
 
 :loop
 FOR /F "usebackq tokens=1* delims= " %%A IN (!params!) DO (
@@ -16,6 +17,20 @@ FOR /F "usebackq tokens=1* delims= " %%A IN (!params!) DO (
 	)
 	IF "!current!" == "--silent" (
 		SET silent=Y
+	)
+
+	IF "!current!" == "-h" (
+		SET checkpassword=N
+	)
+	IF "!current!" == "--help" (
+		SET checkpassword=N
+	)
+
+	IF "!current!" == "-V" (
+		SET checkpassword=N
+	)
+	IF "!current!" == "--version" (
+		SET checkpassword=N
 	)
 
 	IF "!silent!" == "Y" (
@@ -41,6 +56,25 @@ IF ERRORLEVEL 1 (
 	EXIT /B %ERRORLEVEL%
 )
 
+SET KEYSTORE_PASSWORD=
+IF "%checkpassword%"=="Y" (
+  CALL "%~dp0elasticsearch-keystore.bat" has-passwd >NUL 2>NUL
+  IF NOT ERRORLEVEL 1 (
+    IF DEFINED ES_KEYSTORE_PASSPHRASE_FILE (
+      IF EXIST "%ES_KEYSTORE_PASSPHRASE_FILE%" (
+        ECHO Reading keystore passphrase from file %ES_KEYSTORE_PASSPHRASE_FILE%
+        SET /P KEYSTORE_PASSWORD=<"%ES_KEYSTORE_PASSPHRASE_FILE%"
+      )
+    ) ELSE (
+      SET /P KEYSTORE_PASSWORD=Elasticsearch keystore password:
+      IF ERRORLEVEL 1 (
+        ECHO Failed to read keystore password on standard input
+        EXIT /B %ERRORLEVEL%
+      )
+    )
+  )
+)
+
 if not defined ES_TMPDIR (
   for /f "tokens=* usebackq" %%a in (`CALL %JAVA% -cp "!ES_CLASSPATH!" "org.elasticsearch.tools.launchers.TempDirectory"`) do set  ES_TMPDIR=%%a
 )
@@ -54,8 +88,16 @@ if "%MAYBE_JVM_OPTIONS_PARSER_FAILED%" == "jvm_options_parser_failed" (
   exit /b 1
 )
 
-%JAVA% %ES_JAVA_OPTS% -Delasticsearch -Des.path.home="%ES_HOME%" -Des.path.conf="%ES_PATH_CONF%" -Des.distribution.flavor="%ES_DISTRIBUTION_FLAVOR%" -Des.distribution.type="%ES_DISTRIBUTION_TYPE%" -Des.bundled_jdk="%ES_BUNDLED_JDK%" -cp "%ES_CLASSPATH%" "org.elasticsearch.bootstrap.Elasticsearch" !newparams!
+ECHO.%KEYSTORE_PASSWORD%| %JAVA% %ES_JAVA_OPTS% -Delasticsearch ^
+  -Des.path.home="%ES_HOME%" -Des.path.conf="%ES_PATH_CONF%" ^
+  -Des.distribution.flavor="%ES_DISTRIBUTION_FLAVOR%" ^
+  -Des.distribution.type="%ES_DISTRIBUTION_TYPE%" ^
+  -Des.bundled_jdk="%ES_BUNDLED_JDK%" ^
+  -cp "%ES_CLASSPATH%" "org.elasticsearch.bootstrap.Elasticsearch" !newparams!
+
+IF ERRORLEVEL 1 (
+  EXIT /B 1
+)
 
 endlocal
 endlocal
-exit /b %ERRORLEVEL%

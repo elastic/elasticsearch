@@ -158,7 +158,13 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                         if (r) {
                             nextSearch(ActionListener.wrap(this::onSearchResponse, this::finishWithSearchFailure));
                         } else {
-                            finishAndSetState();
+                            // If our state is INDEXING then transition to STARTED
+                            // Calling checkState here covers the scenarios when
+                            // the indexer was aborted or set to STOPPING between `onStart` being called
+                            // and this branch being executed
+                            if (checkState(getState())) {
+                                finishAndSetState();
+                            }
                         }
                     },
                     this::finishWithFailure));

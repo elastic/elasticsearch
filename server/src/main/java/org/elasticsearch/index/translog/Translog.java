@@ -591,8 +591,12 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * @return the last synced checkpoint
      */
     public long getLastSyncedGlobalCheckpoint() {
+        return getLastSyncedCheckpoint().globalCheckpoint;
+    }
+
+    final Checkpoint getLastSyncedCheckpoint() {
         try (ReleasableLock ignored = readLock.acquire()) {
-            return current.getLastSyncedCheckpoint().globalCheckpoint;
+            return current.getLastSyncedCheckpoint();
         }
     }
 

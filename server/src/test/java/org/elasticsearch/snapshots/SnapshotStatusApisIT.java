@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -76,7 +77,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         assertEquals(snStatus.getStats().getTime(), snapshotInfo.endTime() - snapshotInfo.startTime());
     }
 
-    public void testStatusAPICallInProgressSnapshot() throws InterruptedException {
+    public void testStatusAPICallInProgressSnapshot() throws Exception {
         Client client = client();
 
         logger.info("-->  creating repository");
@@ -101,7 +102,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
 
         final List<SnapshotStatus> snapshotStatus = client.admin().cluster().snapshotsStatus(
             new SnapshotsStatusRequest("test-repo", new String[]{"test-snap"})).actionGet().getSnapshots();
-        assertEquals(snapshotStatus.get(0).getState(), SnapshotsInProgress.State.STARTED);
+        assertBusy(() -> assertEquals(SnapshotsInProgress.State.STARTED, snapshotStatus.get(0).getState()), 1L, TimeUnit.MINUTES);
 
         logger.info("--> unblock all data nodes");
         unblockAllDataNodes("test-repo");

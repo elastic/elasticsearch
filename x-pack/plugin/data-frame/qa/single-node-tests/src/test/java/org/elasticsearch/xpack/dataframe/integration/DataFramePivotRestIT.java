@@ -820,6 +820,43 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         assertEquals(4.47169811, actual.doubleValue(), 0.000001);
     }
 
+    public void testManyBucketsWithSmallPageSize() throws Exception {
+        String transformId = "test_with_many_buckets";
+        String dataFrameIndex = transformId + "-idx";
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, dataFrameIndex);
+        final Request createDataframeTransformRequest = createRequestWithAuth("PUT", DATAFRAME_ENDPOINT + transformId,
+            BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
+
+        String config = "{"
+            + " \"source\": {\"index\":\"" + REVIEWS_INDEX_NAME + "\"},"
+            + " \"dest\": {\"index\":\"" + dataFrameIndex + "\"},"
+            + " \"pivot\": {"
+            + "   \"max_page_search_size\": 10,"
+            + "   \"group_by\": {"
+            + "     \"user.id\": {\"terms\": { \"field\": \"user_id\" }},"
+            + "     \"business.id\": {\"terms\": { \"field\": \"business_id\" }},"
+            + "     \"every_star\": {\"histogram\": { \"field\": \"stars\", \"interval\": 1 }},"
+            + "     \"every_two_star\": {\"histogram\": { \"field\": \"stars\", \"interval\": 2 }},"
+            + "     \"by_second\": {\"date_histogram\": {\"fixed_interval\": \"1s\",\"field\":\"timestamp\"}},"
+            + "     \"by_day\": {\"date_histogram\": {\"fixed_interval\": \"1d\",\"field\":\"timestamp\"}},"
+            + "     \"by_minute\": {\"date_histogram\": {\"fixed_interval\": \"1m\",\"field\":\"timestamp\"}}},"
+            + "   \"aggregations\": {"
+            + "     \"user.avg_rating\": {"
+            + "       \"avg\": {"
+            + "         \"field\": \"stars\""
+            + " } } } }"
+            + "}";
+        createDataframeTransformRequest.setJsonEntity(config);
+        Map<String, Object> createDataframeTransformResponse = entityAsMap(client().performRequest(createDataframeTransformRequest));
+        assertThat(createDataframeTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        startAndWaitForTransform(transformId, dataFrameIndex, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
+        assertTrue(indexExists(dataFrameIndex));
+
+        Map<String, Object> stats = getAsMap(DATAFRAME_ENDPOINT + transformId + "/_stats");
+        assertEquals(101, ((List<?>)XContentMapValues.extractValue("transforms.stats.pages_processed", stats)).get(0));
+    }
+
     private void assertOnePivotValue(String query, double expected) throws IOException {
         Map<String, Object> searchResult = getAsMap(query);
 

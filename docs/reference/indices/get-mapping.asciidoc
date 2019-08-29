@@ -23,7 +23,7 @@ through the parameter `include_type_name`. For more details, please see <<remova
 
 `GET /_mapping`
 
-`GET /{index}/_mapping`
+`GET /<index>/_mapping`
 
 
 [[get-mapping-api-path-params]]

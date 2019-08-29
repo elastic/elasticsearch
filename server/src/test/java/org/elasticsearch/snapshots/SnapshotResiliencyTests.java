@@ -1030,7 +1030,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     transportService, clusterService, threadPool,
                     snapshotsService, actionFilters, indexNameExpressionResolver
                 ));
-            client.initialize(actions, () -> clusterService.localNode().getId(), transportService.getRemoteClusterService());
+            client.initialize(actions, transportService.getTaskManager(),
+                () -> clusterService.localNode().getId(), transportService.getRemoteClusterService());
         }
 
         private Repository.Factory getRepoFactory(Environment environment) {
@@ -1049,7 +1050,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             } else {
                 return metaData -> {
                     final Repository repository = new MockEventuallyConsistentRepository(
-                        metaData, environment, xContentRegistry(), deterministicTaskQueue.getThreadPool(), blobStoreContext);
+                        metaData, xContentRegistry(), deterministicTaskQueue.getThreadPool(), blobStoreContext);
                     repository.start();
                     return repository;
                 };

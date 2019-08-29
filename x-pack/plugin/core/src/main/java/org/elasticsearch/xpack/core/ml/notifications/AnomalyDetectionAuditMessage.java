@@ -25,7 +25,7 @@ public class AnomalyDetectionAuditMessage extends AbstractAuditMessage {
 
     @Override
     public final String getJobType() {
-        return "anomaly_detector";
+        return Job.ANOMALY_DETECTOR_JOB_TYPE;
     }
 
     @Override

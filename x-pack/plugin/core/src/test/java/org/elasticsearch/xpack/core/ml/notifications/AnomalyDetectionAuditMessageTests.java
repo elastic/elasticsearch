@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ml.notifications;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xpack.core.common.notifications.Level;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.util.Date;
 
@@ -17,7 +18,7 @@ public class AnomalyDetectionAuditMessageTests extends AbstractXContentTestCase<
 
     public void testGetJobType() {
         AnomalyDetectionAuditMessage message = createTestInstance();
-        assertThat(message.getJobType(), equalTo("anomaly_detector"));
+        assertThat(message.getJobType(), equalTo(Job.ANOMALY_DETECTOR_JOB_TYPE));
     }
 
     @Override

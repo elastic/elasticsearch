@@ -8,10 +8,6 @@ Checks if an index template exists.
 
 include::templates.asciidoc[tag=index-template-def]
 
-The returned HTTP status code indicates whether the index template exists.
-A `404` means it does not exist,
-and `200` means it does.
-
 [source,js]
 -----------------------------------------------
 HEAD /_template/template_1

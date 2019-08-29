@@ -40,7 +40,6 @@ import java.io.InputStream;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
 import java.security.spec.InvalidKeySpecException;
 import java.util.Map;
 import java.util.function.Function;
@@ -100,13 +99,11 @@ public class EncryptedRepository extends BlobStoreRepository {
     }
 
     protected ByteSizeValue chunkSize() {
-        return ByteSizeValue.parseBytesSizeValue("32gb", "encrypted blob store repository max chunk size");
+        return ByteSizeValue.parseBytesSizeValue("16mb", "encrypted blob store repository max chunk size");
     }
 
     private static SecretKey generateSecretKeyFromPassword(String password) throws NoSuchAlgorithmException, InvalidKeySpecException {
-        SecureRandom sr = SecureRandom.getInstanceStrong();
-        byte[] salt = new byte[16];
-        sr.nextBytes(salt);
+        byte[] salt = new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}; // same salt for 1:1 password to key
         PBEKeySpec spec = new PBEKeySpec(password.toCharArray(), salt, 65536, 256);
         SecretKey tmp = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec);
         return new SecretKeySpec(tmp.getEncoded(), "AES");

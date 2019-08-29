@@ -63,10 +63,6 @@ public class SimilarityTests extends ESSingleNodeTestCase {
         assertThat(similarityService.getSimilarity("BM25").get(), instanceOf(LegacyBM25Similarity.class));
         assertThat(similarityService.getSimilarity("boolean").get(), instanceOf(BooleanSimilarity.class));
         assertThat(similarityService.getSimilarity("default"), equalTo(null));
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> similarityService.getSimilarity("classic"));
-        assertEquals("The [classic] similarity may not be used anymore. Please use the [BM25] similarity or build a custom [scripted] "
-                + "similarity instead.", e.getMessage());
     }
 
     public void testResolveSimilaritiesFromMapping_bm25() throws IOException {

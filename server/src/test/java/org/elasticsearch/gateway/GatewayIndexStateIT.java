@@ -375,7 +375,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         final IndexMetaData brokenMeta = IndexMetaData.builder(metaData).settings(Settings.builder().put(metaData.getSettings())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT.minimumIndexCompatibilityVersion().id)
                 // this is invalid but should be archived
-                .put("index.similarity.BM25.type", "classic")
+                .put("index.similarity.BM25.type", "boolean")
                 // this one is not validated ahead of time and breaks allocation
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
         ).build();

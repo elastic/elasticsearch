@@ -74,7 +74,7 @@ public class ArchiveTests extends PackagingTestCase {
         assertThat(r.stdout, isEmptyString());
     }
 
-    public void test30NoJava() throws Exception {
+    public void test30MissingBundledJdk() throws Exception {
         final Installation.Executables bin = installation.executables();
         sh.getEnv().remove("JAVA_HOME");
 
@@ -87,12 +87,23 @@ public class ArchiveTests extends PackagingTestCase {
             // ask for elasticsearch version to quickly exit if java is actually found (ie test failure)
             final Result runResult = sh.runIgnoreExitCode(bin.elasticsearch.toString() + " -v");
             assertThat(runResult.exitCode, is(1));
-            assertThat(runResult.stderr, containsString("could not find java in JAVA_HOME or bundled"));
+            assertThat(runResult.stderr, containsString("could not find java in bundled jdk"));
         } finally {
             if (distribution().hasJdk) {
                 mv(relocatedJdk, installation.bundledJdk);
             }
         }
+    }
+
+    public void test31BadJavaHome() throws Exception {
+        final Installation.Executables bin = installation.executables();
+        sh.getEnv().put("JAVA_HOME", "doesnotexist");
+
+        // ask for elasticsearch version to quickly exit if java is actually found (ie test failure)
+        final Result runResult = sh.runIgnoreExitCode(bin.elasticsearch.toString() + " -v");
+        assertThat(runResult.exitCode, is(1));
+        assertThat(runResult.stderr, containsString("could not find java in JAVA_HOME"));
+
     }
 
     public void test40CreateKeystoreManually() throws Exception {

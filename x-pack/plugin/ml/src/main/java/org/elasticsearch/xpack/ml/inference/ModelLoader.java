@@ -20,8 +20,6 @@ public interface ModelLoader {
      */
     Model load(String modelId, String processorTag, boolean ignoreMissing, Map<String, Object> config) throws Exception;
 
-    // parses the config out of the map
-
     /**
      * Inference processors must remove their configuration from the {@code config} map.
      * For the case when a model has already been loaded

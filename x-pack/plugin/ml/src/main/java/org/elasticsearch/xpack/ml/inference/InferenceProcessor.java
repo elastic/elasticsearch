@@ -13,6 +13,7 @@ import org.elasticsearch.ingest.Processor;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
 
 /**
@@ -57,7 +58,7 @@ public class InferenceProcessor extends AbstractProcessor {
         private Map<String, ModelLoader> modelLoaders;
 
         public Factory(Map<String, ModelLoader> modelLoaders) {
-            loadedModels = new HashMap<>();
+            loadedModels = new ConcurrentHashMap<>();
             this.modelLoaders = modelLoaders;
         }
 

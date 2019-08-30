@@ -95,16 +95,12 @@ public class DeprecationLogger {
      * @see ThreadContext#close()
      * @param threadContext The thread context owned by the {@code ThreadPool} (and implicitly a {@code Node})
      * @return true if the context was removed, false if the context was now known (possibly already removed)
-     * */
+     **/
     public static boolean removeThreadContext(ThreadContext threadContext) {
         assert threadContext != null;
         threadContextLock.writeLock().lock();
         try {
             return THREAD_CONTEXT.remove(threadContext);
-//            // remove returning false means it did not have it already
-//            if (THREAD_CONTEXT.remove(threadContext) == false) {
-//                logger.warn("Removing unknown ThreadContext not allowed!");
-//            }
         } finally {
             threadContextLock.writeLock().unlock();
         }
@@ -116,7 +112,6 @@ public class DeprecationLogger {
      * it replaces "org.elasticsearch" with "org.elasticsearch.deprecation" to maintain
      * the "org.elasticsearch" namespace.
      */
-
     public DeprecationLogger(Logger parentLogger) {
         String name = parentLogger.getName();
         if (name.startsWith("org.elasticsearch")) {

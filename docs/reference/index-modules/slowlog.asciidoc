@@ -83,7 +83,7 @@ logger.index_search_slowlog_rolling.appenderRef.index_search_slowlog_rolling.ref
 logger.index_search_slowlog_rolling.additivity = false
 --------------------------------------------------
 
-=== Identifying slow log origin
+==== Identifying search slow log origin
 
 It is often useful to identify what triggered a slow running query. If a call was initiated with an `X-Opaque-ID` header, then this value
 will be present in Search Slow logs as an additional **id** field (scroll to the right).

@@ -166,8 +166,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     public static final Setting<Boolean> COMPRESS_SETTING = Setting.boolSetting("compress", true, Setting.Property.NodeScope);
 
-    private final Settings settings;
-
     private final boolean compress;
 
     private final RateLimiter snapshotRateLimiter;
@@ -201,12 +199,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     /**
      * Constructs new BlobStoreRepository
      * @param metadata   The metadata for this repository including name and settings
-     * @param settings   Settings for the node this repository object is created on
      * @param threadPool Threadpool to run long running repository manipulations on asynchronously
      */
-    protected BlobStoreRepository(RepositoryMetaData metadata, Settings settings, NamedXContentRegistry namedXContentRegistry,
-                                  ThreadPool threadPool, BlobPath basePath) {
-        this.settings = settings;
+    protected BlobStoreRepository(
+        final RepositoryMetaData metadata,
+        final NamedXContentRegistry namedXContentRegistry,
+        final ThreadPool threadPool,
+        final BlobPath basePath) {
         this.metadata = metadata;
         this.threadPool = threadPool;
         this.compress = COMPRESS_SETTING.get(metadata.settings());
@@ -678,8 +677,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @return rate limiter or null of no throttling is needed
      */
     private RateLimiter getRateLimiter(Settings repositorySettings, String setting, ByteSizeValue defaultRate) {
-        ByteSizeValue maxSnapshotBytesPerSec = repositorySettings.getAsBytesSize(setting,
-                settings.getAsBytesSize(setting, defaultRate));
+        ByteSizeValue maxSnapshotBytesPerSec = repositorySettings.getAsBytesSize(setting, defaultRate);
         if (maxSnapshotBytesPerSec.getBytes() <= 0) {
             return null;
         } else {

@@ -30,12 +30,7 @@ public final class SecurityTransportExceptionHandler implements BiConsumer<TcpCh
             // just close and ignore - we are already stopped and just need to make sure we release all resources
             CloseableChannel.closeChannel(channel);
         } else if (SSLExceptionHelper.isNotSslRecordException(e)) {
-            if (logger.isTraceEnabled()) {
-                logger.trace(
-                    new ParameterizedMessage("received plaintext traffic on an encrypted channel, closing connection {}", channel), e);
-            } else {
-                logger.warn("received plaintext traffic on an encrypted channel, closing connection {}", channel);
-            }
+            logger.warn("received plaintext traffic on an encrypted channel, closing connection {}", channel);
             CloseableChannel.closeChannel(channel);
         } else if (SSLExceptionHelper.isCloseDuringHandshakeException(e)) {
             if (logger.isTraceEnabled()) {

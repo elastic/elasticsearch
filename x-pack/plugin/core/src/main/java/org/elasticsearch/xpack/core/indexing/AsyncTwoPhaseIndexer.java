@@ -158,13 +158,9 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                         if (r) {
                             nextSearch(ActionListener.wrap(this::onSearchResponse, this::finishWithSearchFailure));
                         } else {
-                            // If we transition to `STOPPED` this means the previous state was `STOPPING`.
-                            // This is because we are guaranteed to originally been in an INDEXING state if `stop` is called.
-                            // Treat this like a `checkState` call that is transitioning to a STOPPED state.
-                            if (finishAndSetState() == IndexerState.STOPPED) {
-                                logger.info("Indexer job encountered [" + IndexerState.STOPPING + "] state, halting indexer.");
-                                doSaveState(getState(), getPosition(), () -> {});
-                            }
+                            onFinish(ActionListener.wrap(
+                                onFinishResponse -> doSaveState(finishAndSetState(), position.get(), () -> {}),
+                                onFinishFailure -> doSaveState(finishAndSetState(), position.get(), () -> {})));
                         }
                     },
                     this::finishWithFailure));

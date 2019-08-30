@@ -42,7 +42,6 @@ import java.security.Permissions;
 import java.security.PrivilegedAction;
 import java.security.ProtectionDomain;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -195,19 +194,6 @@ public class DeprecationLoggerTests extends ESTestCase {
                 assertThat(responses.get(0), not(containsString(unexpected)));
             }
         }
-    }
-
-    public void testIgnoresClosedThreadContext() throws IOException {
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        Set<ThreadContext> threadContexts = new HashSet<>(1);
-
-        threadContexts.add(threadContext);
-
-        threadContext.close();
-
-        logger.deprecated(threadContexts, "Ignored logger message");
-
-        assertTrue(threadContexts.contains(threadContext));
     }
 
     public void testSafeWithoutThreadContext() {

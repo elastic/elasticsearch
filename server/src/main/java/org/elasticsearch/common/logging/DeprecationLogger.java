@@ -100,10 +100,11 @@ public class DeprecationLogger {
         assert threadContext != null;
         threadContextLock.writeLock().lock();
         try {
-            // remove returning false means it did not have it already
-            if (THREAD_CONTEXT.remove(threadContext) == false) {
-                throw new IllegalStateException("Removing unknown ThreadContext not allowed!");
-            }
+            THREAD_CONTEXT.remove(threadContext);
+//            // remove returning false means it did not have it already
+//            if (THREAD_CONTEXT.remove(threadContext) == false) {
+//                logger.warn("Removing unknown ThreadContext not allowed!");
+//            }
         } finally {
             threadContextLock.writeLock().unlock();
         }

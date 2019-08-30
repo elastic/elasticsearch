@@ -29,8 +29,6 @@ public class ScoreScriptUtils {
         final ScoreScript scoreScript;
         final float[] queryVector;
 
-        // prepare queryVector once per script execution
-        // queryVector represents a map of dimensions to values
         public DenseVectorFunction(ScoreScript scoreScript, List<Number> queryVector) {
             this.scoreScript = scoreScript;
             this.queryVector = new float[queryVector.size()];

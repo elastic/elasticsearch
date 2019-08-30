@@ -1,0 +1,98 @@
+[[execute-enrich-policy-api]]
+=== Execute enrich policy API
+++++
+<titleabbrev>Execute enrich policy</titleabbrev>
+++++
+
+Executes an existing enrich policy.
+
+////
+
+[source,js]
+----
+PUT /_enrich/policy/my-policy
+{
+    "match": {
+        "indices": "users",
+        "match_field": "email",
+        "enrich_fields": ["first_name", "last_name", "address", "city", "zip", "state"]
+    }
+}
+
+PUT /users/_doc/1?refresh
+{
+    "email": "mardy.brown@email.me",
+    "first_name": "Mardy",
+    "last_name": "Brown",
+    "address": "6649 N Blue Gum St",
+    "city": "New Orleans",
+    "county": "Orleans",
+    "state": "LA",
+    "zip": 70116,
+    "phone1":"504-621-8927",
+    "phone2": "504-845-1427",
+    "web": "mardy-brown.me"
+}
+----
+// CONSOLE
+// TESTSETUP
+////
+
+[source,js]
+--------------------------------------------------
+PUT /_enrich/policy/my-policy/_execute
+--------------------------------------------------
+// CONSOLE
+
+
+[[execute-enrich-policy-api-request]]
+==== {api-request-title}
+
+`PUT /_enrich/policy/<enrich-policy>/_execute`
+
+`POST /_enrich/policy/<enrich-policy>/_execute`
+
+
+[[execute-enrich-policy-api-prereqs]]
+==== {api-prereq-title}
+
+include::put-enrich-policy.asciidoc[tag=enrich-policy-api-prereqs]
+
+
+[[execute-enrich-policy-api-desc]]
+==== {api-description-title}
+
+Use the execute enrich policy API
+to create the enrich index for an existing enrich policy.
+
+// tag::execute-enrich-policy-desc[]
+
+The *enrich index* contains documents from the policy's source indices.
+Enrich indices always begin with `.enrich-*`,
+are read-only,
+and are <<indices-forcemerge,force merged>>.
+
+[WARNING]
+====
+Enrich indices should be used by the <<enrich-processor,enrich processor>> only.
+Avoid using enrich indices for other purposes.
+====
+
+Once created, you cannot update 
+or index documents to an enrich index.
+Instead, update your source indices
+and execute the enrich policy again.
+This creates a new enrich index from your updated source indices
+and deletes the previous enrich index.
+
+Because this API request performs several operations,
+it may take a while to return a response.
+
+// end::execute-enrich-policy-desc[]
+
+[[sample-api-path-params]]
+==== {api-path-parms-title}
+
+`<enrich-policy>`::
+(Required, string)
+Enrich policy to execute.

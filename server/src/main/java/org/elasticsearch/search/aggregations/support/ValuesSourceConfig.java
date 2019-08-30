@@ -18,9 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.support;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
@@ -266,41 +264,21 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
                 vs = (VS) valueSourceType().getEmpty();
             }
         } else {
-            vs = originalValuesSource();
+            if (fieldContext() == null) {
+                vs = (VS) valueSourceType().getScript(script(), scriptValueType());
+            } else if (valueSourceType() == ValuesSourceType.ANY) {
+                // falling back to bytes values
+                vs = (VS) ValuesSourceType.BYTES.getField(fieldContext(), script());
+            } else {
+                vs = (VS) valueSourceType().getField(fieldContext(), script());
+            }
         }
 
         if (missing() == null) {
             return vs;
         }
 
-        if (vs instanceof ValuesSource.Bytes) {
-            final BytesRef missing = format.parseBytesRef(missing().toString());
-            return (VS) ValuesSourceType.BYTES.replaceMissing(vs, missing);
-        } else if (vs instanceof ValuesSource.Numeric) {
-            Number missing = format.parseDouble(missing().toString(), false, context::nowInMillis);
-            return (VS) ValuesSourceType.NUMERIC.replaceMissing(vs, missing);
-        } else if (vs instanceof ValuesSource.GeoPoint) {
-            // TODO: also support the structured formats of geo points
-            final GeoPoint missing = new GeoPoint(missing().toString());
-            return (VS) MissingValues.replaceMissing((ValuesSource.GeoPoint) vs, missing);
-        } else {
-            // Should not happen
-            throw new IllegalArgumentException("Can't apply missing values on a " + vs.getClass());
-        }
+        return (VS) valueSourceType().replaceMissing(vs, missing, format, context);
     }
 
-    /**
-     * Return the original values source, before we apply `missing`.
-     */
-    private VS originalValuesSource() {
-        if (fieldContext() == null) {
-            return (VS) valueSourceType().getScript(script(), scriptValueType());
-        }
-
-        if (valueSourceType() == ValuesSourceType.ANY) {
-            // falling back to bytes values
-            return (VS) ValuesSourceType.BYTES.getField(fieldContext(), script());
-        }
-        return (VS) valueSourceType().getField(fieldContext(), script());
-    }
 }

@@ -19,7 +19,9 @@
 
 package org.elasticsearch.search.aggregations.support;
 
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.AggregationScript;
+import org.elasticsearch.search.DocValueFormat;
 
 public interface ValuesSourceFamily {
     ValuesSource getEmpty();
@@ -28,5 +30,5 @@ public interface ValuesSourceFamily {
 
     ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script);
 
-    ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing);
+    ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat format, QueryShardContext queryShardContext);
 }

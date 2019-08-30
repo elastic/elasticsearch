@@ -30,7 +30,9 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.AggregationScript;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 
 import java.io.IOException;
@@ -54,8 +56,9 @@ public enum ValuesSourceType implements Writeable, ValuesSourceFamily {
         }
 
         @Override
-        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing) {
-            throw new UnsupportedOperationException("ValuesSourceType.ANY is still a special case");
+        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat format,
+                                           QueryShardContext queryShardContext) {
+            return BYTES.replaceMissing(valuesSource, rawMissing, format, queryShardContext);
         }
     },
     NUMERIC {
@@ -84,13 +87,9 @@ public enum ValuesSourceType implements Writeable, ValuesSourceFamily {
         }
 
         @Override
-        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing) {
-            if (rawMissing instanceof Number == false) {
-                throw new IllegalArgumentException("Can't apply missing value [" +
-                    (rawMissing == null ? "null" : rawMissing.toString())
-                    + "] to Numeric values source");
-            }
-            Number missing = (Number) rawMissing;
+        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat format,
+                                           QueryShardContext queryShardContext) {
+            Number missing = format.parseDouble(rawMissing.toString(), false, queryShardContext::nowInMillis);
             return MissingValues.replaceMissing((ValuesSource.Numeric) valuesSource, missing);
         }
     },
@@ -121,13 +120,9 @@ public enum ValuesSourceType implements Writeable, ValuesSourceFamily {
         }
 
         @Override
-        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing) {
-            if (rawMissing instanceof BytesRef == false) {
-                throw new IllegalArgumentException("Can't apply missing value [" +
-                    (rawMissing == null ? "null" : rawMissing.toString())
-                    + "] to Bytes values source");
-            }
-            BytesRef missing = (BytesRef) rawMissing;
+        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat format,
+                                           QueryShardContext queryShardContext) {
+            final BytesRef missing = format.parseBytesRef(rawMissing.toString());
             if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals) {
                 return MissingValues.replaceMissing((ValuesSource.Bytes.WithOrdinals) valuesSource, missing);
             } else {
@@ -156,13 +151,9 @@ public enum ValuesSourceType implements Writeable, ValuesSourceFamily {
         }
 
         @Override
-        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing) {
-            if (rawMissing instanceof GeoPoint == false) {
-                throw new IllegalArgumentException("Can't apply missing value [" +
-                    (rawMissing == null ? "null" : rawMissing.toString())
-                    + "] to Geopoint values source");
-            }
-            GeoPoint missing = (GeoPoint) rawMissing;
+        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat format,
+                                           QueryShardContext queryShardContext) {
+            final GeoPoint missing = new GeoPoint(rawMissing.toString());
             return MissingValues.replaceMissing((ValuesSource.GeoPoint) valuesSource, missing);
         }
     },
@@ -189,7 +180,8 @@ public enum ValuesSourceType implements Writeable, ValuesSourceFamily {
         }
 
         @Override
-        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing) {
+        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat format,
+                                           QueryShardContext queryShardContext) {
             throw new IllegalArgumentException("Can't apply missing values on a Range values source");
         }
     };

@@ -12,7 +12,8 @@
 
 `analysis`::
   (object) The type of analysis that is performed on the `source`. For example: 
-  `outlier_detection`. For more information, see <<dfanalytics-types>>.
+  `outlier_detection` or `regression`. For more information, see 
+  <<dfanalytics-types>>.
   
 `analyzed_fields`::
   (object) You can specify both `includes` and/or `excludes` patterns. If 
@@ -99,15 +100,13 @@ PUT _ml/data_frame/analytics/loganalytics
 ==== Analysis objects
 
 {dfanalytics-cap} resources contain `analysis` objects. For example, when you
-create a {dfanalytics-job}, you must define the type of analysis it performs. 
-Currently, `outlier_detection` is the only available type of analysis, however, 
-other types will be added, for example `regression`.
-  
+create a {dfanalytics-job}, you must define the type of analysis it performs.
+
 [discrete]
 [[oldetection-resources]]
 ==== {oldetection-cap} configuration objects 
 
-An {oldetection} configuration object has the following properties:
+An `outlier_detection` configuration object has the following properties:
 
 `n_neighbors`::
   (integer) Defines the value for how many nearest neighbors each method of 
@@ -125,3 +124,66 @@ An {oldetection} configuration object has the following properties:
   (double) The minimum {olscore} that a document needs to have in order to 
   calculate its {fiscore}. 
   Value range: 0-1 (`0.1` by default).
+  
+
+[discrete]
+[[regression-resources]]
+==== {regression-cap} configuration objects
+
+A `{regression}` configuration object has the following properties:
+
+`dependent_variable`::
+  (Required, string) Defines which field of the {dataframe} is to be predicted. 
+  The data type of the field must be numeric.
+
+`eta`::
+  (Optional, double) The shrinkage applied to the weights. 
+
+`feature_bag_fraction`::
+  (Optional, double) Defines the fraction of features which will be used when 
+  selecting a random bag for each candidate split. 
+
+`gamma`::
+  (Optional, double) A regularisation parameter associated with tree training. 
+  Defines a linear penalty associated with tree size. A higher value means 
+  training will prefer smaller trees. It aims to prevent overfitting.
+  
+`lambda`::
+  (Optional, double) A regularisation parameters associated with tree training. 
+  It is the L2 regularisation term which applies to leaf weights of the 
+  individual trees in the forest. It aims to prevent overfitting.
+  
+`maximum_number_trees`::
+  (Optional, integer) Defines the maximum number of trees the forest will be 
+  allowed to contain. The maximum value is 2000.
+  
+`prediction_field_name`::
+  (Optional, string) Defines the name of the prediction field in the results. 
+  Defaults to `<dependent_variable>_prediction`.
+  
+`training_percent`::
+  (Optional, integer) Defines what percentage of data frame rows that are 
+  eligible for training are actually going to be used for training. Defaults to 
+  `100`.
+
+
+[source,js]
+--------------------------------------------------
+PUT _ml/data_frame/analytics/wine_quality_white
+{
+  "source": {
+    "index": "wine_quality_white"
+  },
+  "dest": {
+    "index": "wine_quality_white_regression"
+  },
+  "analysis": 
+    {
+      "regression": {
+        "dependent_variable": "quality"
+      }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:setup_wine_quality_white]

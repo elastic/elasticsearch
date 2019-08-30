@@ -121,6 +121,9 @@ and mappings.
 [[ml-put-dfanalytics-example]]
 ==== {api-examples-title}
 
+[ml-put-dfanalytics-example-od]
+===== {oldetection-cap} example
+
 The following example creates the `loganalytics` {dfanalytics-job}, the analysis 
 type is `outlier_detection`:
 
@@ -172,3 +175,64 @@ The API returns the following result:
 ----
 // TESTRESPONSE[s/1562265491319/$body.$_path/]
 // TESTRESPONSE[s/"version": "8.0.0"/"version": $body.version/]
+
+
+[ml-put-dfanalytics-example-r]
+===== {regression-cap} example
+
+The following example creates the `wine_quality_white` {dfanalytics-job}, the 
+analysis type is `regression`:
+
+[source,js]
+--------------------------------------------------
+PUT _ml/data_frame/analytics/wine_quality_prediction
+{
+  "source": {
+    "index": "wine_quality_white"
+  },
+  "dest": {
+    "index": "wine_quality_white_regression"
+  },
+  "analysis": 
+    {
+      "regression": {
+        "dependent_variable": "quality"
+      }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:setup_wine_quality_white]
+
+
+The API returns the following result:
+
+[source,js]
+----
+{
+  "id" : "wine_quality_prediction",
+  "source" : {
+    "index" : [
+      "wine_quality_white"
+    ],
+    "query" : {
+      "match_all" : { }
+    }
+  },
+  "dest" : {
+    "index" : "wine_quality_white_regression",
+    "results_field" : "ml"
+  },
+  "analysis" : {
+    "regression" : {
+      "dependent_variable" : "quality"
+    }
+  },
+  "model_memory_limit" : "1gb",
+  "create_time" : 1567168659127,
+  "version" : "8.0.0"
+}
+----
+// TESTRESPONSE[s/1567168659127/$body.$_path/]
+// TESTRESPONSE[s/"version": "8.0.0"/"version": $body.version/]
+

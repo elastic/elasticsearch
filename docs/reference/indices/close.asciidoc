@@ -51,7 +51,7 @@ Defaults to `open`.
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-wait-for-active-shards]
+include::{docdir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 

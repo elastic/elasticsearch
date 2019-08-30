@@ -1,11 +1,8 @@
 [[cat]]
-= cat APIs
-
-[partintro]
---
+== cat APIs
 
 ["float",id="intro"]
-== Introduction
+=== Introduction
 
 JSON is great... for computers.  Even if it's pretty-printed, trying
 to find relationships in the data is tedious.  Human eyes, especially
@@ -18,11 +15,11 @@ the available commands.
 
 [float]
 [[common-parameters]]
-== Common parameters
+=== Common parameters
 
 [float]
 [[verbose]]
-=== Verbose
+==== Verbose
 
 Each of the commands accepts a query string parameter `v` to turn on
 verbose output. For example:
@@ -44,7 +41,7 @@ u_n93zwxThWHi1PDBJAGAg 127.0.0.1 127.0.0.1 u_n93zw
 
 [float]
 [[help]]
-=== Help
+==== Help
 
 Each of the commands accepts a query string parameter `help` which will
 output its available columns. For example:
@@ -73,7 +70,7 @@ instead.
 
 [float]
 [[headers]]
-=== Headers
+==== Headers
 
 Each of the commands accepts a query string parameter `h` which forces
 only those columns to appear. For example:
@@ -98,7 +95,7 @@ with `queue`.
 
 [float]
 [[numeric-formats]]
-=== Numeric formats
+==== Numeric formats
 
 Many commands provide a few types of numeric output, either a byte, size
 or a time value.  By default, these types are human-formatted,
@@ -129,7 +126,7 @@ If you want to change the <<size-units,size units>>, use `size` parameter.
 If you want to change the <<byte-units,byte units>>, use `bytes` parameter.
 
 [float]
-=== Response as text, json, smile, yaml or cbor
+==== Response as text, json, smile, yaml or cbor
 
 [source,sh]
 --------------------------------------------------
@@ -182,7 +179,7 @@ For example:
 
 [float]
 [[sort]]
-=== Sort
+==== Sort
 
 Each of the commands accepts a query string parameter `s` which sorts the table by
 the columns specified as the parameter value. Columns are specified either by name or by
@@ -209,8 +206,6 @@ pizza_pepperoni       [*pepperoni*]  2
 sushi_california_roll [*avocado*]    1     1
 pizza_hawaiian        [*pineapples*] 1
 --------------------------------------------------
-
---
 
 include::cat/alias.asciidoc[]
 

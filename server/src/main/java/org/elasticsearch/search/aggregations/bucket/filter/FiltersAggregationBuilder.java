@@ -220,7 +220,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
     }
 
     @Override
-    protected AggregatorFactory<?> doBuild(SearchContext context, AggregatorFactory<?> parent, Builder subFactoriesBuilder)
+    protected AggregatorFactory doBuild(SearchContext context, AggregatorFactory parent, Builder subFactoriesBuilder)
         throws IOException {
         return new FiltersAggregatorFactory(name, filters, keyed, otherBucket, otherBucketKey, context, parent,
             subFactoriesBuilder, metaData);

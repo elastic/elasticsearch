@@ -37,12 +37,7 @@ public class GetDataFrameTransformsAction extends ActionType<GetDataFrameTransfo
             LogManager.getLogger(GetDataFrameTransformsAction.class));
 
     private GetDataFrameTransformsAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, GetDataFrameTransformsAction.Response::new);
     }
 
     public static class Request extends AbstractGetResourcesRequest {

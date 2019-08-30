@@ -1,5 +1,5 @@
 [[search-multi-search]]
-== Multi Search API
+=== Multi Search API
 
 The multi search API allows to execute several search requests within
 the same API. The endpoint for it is `_msearch`.
@@ -98,13 +98,13 @@ increase this value to a higher number.
 
 [float]
 [[msearch-security]]
-=== Security
+==== Security
 
 See <<url-access-control>>
 
 [float]
 [[template-msearch]]
-=== Template support
+==== Template support
 
 Much like described in <<search-template>> for the _search resource, _msearch
 also provides support for templates. Submit them like follows:
@@ -177,5 +177,5 @@ GET _msearch/template
 
 [float]
 [[multi-search-partial-responses]]
-=== Partial responses
+==== Partial responses
 To ensure fast responses, the multi search API will respond with partial results if one or more shards fail. See <<shard-failures, Shard failures>> for more information.

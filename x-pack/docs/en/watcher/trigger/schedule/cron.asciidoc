@@ -1,5 +1,5 @@
 [[schedule-cron]]
-==== `cron` Schedule
+==== `cron` schedule
 
 A <<trigger-schedule, `schedule`>> trigger that enables you to use a
 https://en.wikipedia.org/wiki/Cron[cron] style expression to specify when you
@@ -211,26 +211,21 @@ minute during the weekend:
 // NOTCONSOLE
 
 [[croneval]]
-===== Verifying Cron Expressions
+===== Verifying cron expressions
 
-{xpack} ships with a `elasticsearch-croneval` command line tool that you can use to verify that
-your cron expressions are valid and produce the expected results. This tool is
-provided in the `$ES_HOME/bin` directory.
+The {es} {alert-features} provide a
+{ref}/elasticsearch-croneval.html[`elasticsearch-croneval`] command line tool
+that you can use to verify that your cron expressions are valid and produce the
+expected results. This tool is provided in the `$ES_HOME/bin` directory.
 
-To verify a cron expression, simply pass it in as a parameter to `elasticsearch-croneval`:
+To verify a cron expression, simply pass it in as a parameter to
+`elasticsearch-croneval`:
 
 [source,bash]
 --------------------------------------------------
 bin/elasticsearch-croneval "0 0/1 * * * ?"
 --------------------------------------------------
 
-If the cron expression is valid, `elasticsearch-croneval` displays the next 10 times that the
-schedule will be triggered.
-
-You can specify the `-c` option to control how many future trigger times are
-displayed. For example, the following command displays the next 20 trigger times:
-
-[source,bash]
---------------------------------------------------
-bin/elasticsearch-croneval "0 0/1 * * * ?" -c 20
---------------------------------------------------
+If the cron expression is valid, `elasticsearch-croneval` displays the next 10
+times that the schedule will be triggered. You can specify the `-c` option to
+control how many future trigger times are displayed.

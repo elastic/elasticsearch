@@ -31,10 +31,12 @@ import java.util.Optional;
 public class StopDataFrameAnalyticsRequest implements Validatable {
 
     public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
+    public static final ParseField FORCE = new ParseField("force");
 
     private final String id;
-    private TimeValue timeout;
     private Boolean allowNoMatch;
+    private Boolean force;
+    private TimeValue timeout;
 
     public StopDataFrameAnalyticsRequest(String id) {
         this.id = id;
@@ -62,6 +64,15 @@ public class StopDataFrameAnalyticsRequest implements Validatable {
         return this;
     }
 
+    public Boolean getForce() {
+        return force;
+    }
+
+    public StopDataFrameAnalyticsRequest setForce(boolean force) {
+        this.force = force;
+        return this;
+    }
+
     @Override
     public Optional<ValidationException> validate() {
         if (id == null) {
@@ -78,11 +89,12 @@ public class StopDataFrameAnalyticsRequest implements Validatable {
         StopDataFrameAnalyticsRequest other = (StopDataFrameAnalyticsRequest) o;
         return Objects.equals(id, other.id)
             && Objects.equals(timeout, other.timeout)
-            && Objects.equals(allowNoMatch, other.allowNoMatch);
+            && Objects.equals(allowNoMatch, other.allowNoMatch)
+            && Objects.equals(force, other.force);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, timeout, allowNoMatch);
+        return Objects.hash(id, timeout, allowNoMatch, force);
     }
 }

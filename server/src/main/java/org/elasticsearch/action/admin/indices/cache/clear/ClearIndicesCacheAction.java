@@ -19,19 +19,14 @@
 
 package org.elasticsearch.action.admin.indices.cache.clear;
 
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 
-public class ClearIndicesCacheAction extends StreamableResponseActionType<ClearIndicesCacheResponse> {
+public class ClearIndicesCacheAction extends ActionType<ClearIndicesCacheResponse> {
 
     public static final ClearIndicesCacheAction INSTANCE = new ClearIndicesCacheAction();
     public static final String NAME = "indices:admin/cache/clear";
 
     private ClearIndicesCacheAction() {
-        super(NAME);
-    }
-
-    @Override
-    public ClearIndicesCacheResponse newResponse() {
-        return new ClearIndicesCacheResponse();
+        super(NAME, ClearIndicesCacheResponse::new);
     }
 }

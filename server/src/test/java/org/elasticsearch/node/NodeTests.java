@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.node;
 
+import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
@@ -149,6 +150,7 @@ public class NodeTests extends ESTestCase {
     }
 
     public void testCloseOnOutstandingTask() throws Exception {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/44256", Constants.WINDOWS);
         Node node = new MockNode(baseSettings().build(), basePlugins());
         node.start();
         ThreadPool threadpool = node.injector().getInstance(ThreadPool.class);

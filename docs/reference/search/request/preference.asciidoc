@@ -1,5 +1,5 @@
-[[search-request-preference]]
-=== Preference
+[[request-body-search-preference]]
+==== Preference
 
 Controls a `preference` of the shard copies on which to execute the search.  By
 default, Elasticsearch selects from the available shard copies in an

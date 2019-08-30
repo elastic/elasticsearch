@@ -299,13 +299,17 @@ leveraging the query cache.
 [float]
 === Force-merge read-only indices
 
-Indices that are read-only would benefit from being
-<<indices-forcemerge,merged down to a single segment>>. This is typically the
-case with time-based indices: only the index for the current time frame is
-getting new documents while older indices are read-only.
+Indices that are read-only may benefit from being <<indices-forcemerge,merged
+down to a single segment>>. This is typically the case with time-based indices:
+only the index for the current time frame is getting new documents while older
+indices are read-only. Shards that have been force-merged into a single segment
+can use simpler and more efficient data structures to perform searches.
 
-IMPORTANT: Don't force-merge indices that are still being written to -- leave
-merging to the background merge process.
+IMPORTANT: Do not force-merge indices to which you are still writing, or to
+which you will write again in the future. Instead, rely on the automatic
+background merge process to perform merges as needed to keep the index running
+smoothly. If you continue to write to a force-merged index then its performance
+may become much worse.
 
 [float]
 === Warm up global ordinals
@@ -315,7 +319,8 @@ Global ordinals are a data-structure that is used in order to run
 <<keyword,`keyword`>> fields. They are loaded lazily in memory because
 Elasticsearch does not know which fields will be used in `terms` aggregations
 and which fields won't. You can tell Elasticsearch to load global ordinals
-eagerly at refresh-time by configuring mappings as described below:
+eagerly when starting or refreshing a shard by configuring mappings as
+described below:
 
 [source,js]
 --------------------------------------------------

@@ -2,19 +2,15 @@
 [testenv="platinum"]
 [[ccr-get-stats]]
 === Get {ccr} stats API
+[subs="attributes"]
 ++++
-<titleabbrev>Get CCR stats</titleabbrev>
+<titleabbrev>Get {ccr-init} stats</titleabbrev>
 ++++
 
 Get {ccr} stats.
 
-==== Description
-
-This API gets {ccr} stats. This API will return all stats related to {ccr}. In
-particular, this API returns stats about auto-following, and returns the same
-shard-level stats as in the <<ccr-get-follow-stats,get follower stats API>>.
-
-==== Request
+[[ccr-get-stats-request]]
+==== {api-request-title}
 
 //////////////////////////
 
@@ -45,46 +41,55 @@ GET /_ccr/stats
 --------------------------------------------------
 // CONSOLE
 
-==== Results
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `monitor` cluster
+privileges on the cluster that contains the follower index. For more information,
+see {stack-ov}/security-privileges.html[Security privileges].
+
+[[ccr-get-stats-desc]]
+==== {api-description-title}
+
+This API gets {ccr} stats. This API will return all stats related to {ccr}. In
+particular, this API returns stats about auto-following, and returns the same
+shard-level stats as in the <<ccr-get-follow-stats,get follower stats API>>.
+
+[[ccr-get-stats-response-body]]
+==== {api-response-body-title}
 
 This API returns the following information:
 
 `auto_follow_stats`::
-  (object) an object representing stats for the auto-follow coordinator
+  (object) An object representing stats for the auto-follow coordinator.
 
 This object consists of the following fields:
 
 `auto_follow_stats.number_of_failed_follow_indices`::
-  (long) the number of indices that the auto-follow coordinator failed to
-  automatically follow; the causes of recent failures are captured in the logs
-  of the elected master node, and in the
-  `auto_follow_stats.recent_auto_follow_errors` field
+  (long) The number of indices that the auto-follow coordinator failed to
+  automatically follow. The causes of recent failures are captured in the logs
+  of the elected master node and in the
+  `auto_follow_stats.recent_auto_follow_errors` field.
 
 `auto_follow_stats.number_of_failed_remote_cluster_state_requests`::
-  (long) the number of times that the auto-follow coordinator failed to retrieve
+  (long) The number of times that the auto-follow coordinator failed to retrieve
   the cluster state from a remote cluster registered in a collection of
-  auto-follow patterns
+  auto-follow patterns.
 
 `auto_follow_stats.number_of_successful_follow_indices`::
-  (long) the number of indices that the auto-follow coordinator successfully
-  followed
+  (long) The number of indices that the auto-follow coordinator successfully
+  followed.
 
 `auto_follow_stats.recent_auto_follow_errors`::
-  (array) an array of objects representing failures by the auto-follow
-  coordinator
+  (array) An array of objects representing failures by the auto-follow
+  coordinator.
 
 `follow_stats`::
-  (object) an object representing shard-level stats for follower indices; refer
+  (object) An object representing shard-level stats for follower indices; refer
   to the details of the response in the
-  <<ccr-get-follow-stats,get follower stats API>>
+  <<ccr-get-follow-stats,get follower stats API>>.
 
-==== Authorization
-
-If the {es} {security-features} are enabled, you must have `monitor` cluster
-privileges on the cluster that contains the follower index. For more information,
-see {stack-ov}/security-privileges.html[Security privileges].
-
-==== Example
+[[ccr-get-stats-examples]]
+==== {api-examples-title}
 
 This example retrieves {ccr} stats:
 

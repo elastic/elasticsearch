@@ -9,7 +9,7 @@ supported attributes.
 In the search input's `request` object, you specify:
 
 * The indices you want to search
-* The {ref}/search-request-search-type.html[search type]
+* The {ref}/search-request-body.html#request-body-search-search-type[search type]
 * The search request body
 
 The search request body supports the full Elasticsearch Query DSL--it's the

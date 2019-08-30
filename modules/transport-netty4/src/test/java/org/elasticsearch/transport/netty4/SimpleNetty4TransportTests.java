@@ -29,16 +29,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.node.Node;
-import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
-import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportSettings;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -50,10 +45,10 @@ import static org.hamcrest.Matchers.containsString;
 
 public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase {
 
-    public static MockTransportService nettyFromThreadPool(Settings settings, ThreadPool threadPool, final Version version,
-                                                           ClusterSettings clusterSettings, boolean doHandshake) {
+    @Override
+    protected Transport build(Settings settings, final Version version, ClusterSettings clusterSettings, boolean doHandshake) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
-        Transport transport = new Netty4Transport(settings, version, threadPool, new NetworkService(Collections.emptyList()),
+        return new Netty4Transport(settings, version, threadPool, new NetworkService(Collections.emptyList()),
             PageCacheRecycler.NON_RECYCLING_INSTANCE, namedWriteableRegistry, new NoneCircuitBreakerService()) {
 
             @Override
@@ -66,18 +61,6 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
                 }
             }
         };
-        MockTransportService mockTransportService =
-            MockTransportService.createNewService(settings, transport, version, threadPool, clusterSettings, Collections.emptySet());
-        mockTransportService.start();
-        return mockTransportService;
-    }
-
-    @Override
-    protected MockTransportService build(Settings settings, Version version, ClusterSettings clusterSettings, boolean doHandshake) {
-        settings = Settings.builder().put(settings).put(TransportSettings.PORT.getKey(), "0").build();
-        MockTransportService transportService = nettyFromThreadPool(settings, threadPool, version, clusterSettings, doHandshake);
-        transportService.start();
-        return transportService;
     }
 
     public void testConnectException() throws UnknownHostException {
@@ -89,29 +72,6 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
             assertThat(e.getMessage(), containsString("connect_exception"));
             assertThat(e.getMessage(), containsString("[127.0.0.1:9876]"));
         }
-    }
-
-    public void testBindUnavailableAddress() {
-        // this is on a lower level since it needs access to the TransportService before it's started
-        int port = serviceA.boundAddress().publishAddress().getPort();
-        Settings settings = Settings.builder()
-            .put(Node.NODE_NAME_SETTING.getKey(), "foobar")
-            .put(TransportSettings.TRACE_LOG_INCLUDE_SETTING.getKey(), "")
-            .put(TransportSettings.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
-            .put(TransportSettings.PORT.getKey(), port)
-            .build();
-        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        BindTransportException bindTransportException = expectThrows(BindTransportException.class, () -> {
-            MockTransportService transportService =
-                    nettyFromThreadPool(settings, threadPool, Version.CURRENT, clusterSettings, true);
-            try {
-                transportService.start();
-            } finally {
-                transportService.stop();
-                transportService.close();
-            }
-        });
-        assertEquals("Failed to bind to ["+ port + "]", bindTransportException.getMessage());
     }
 
 }

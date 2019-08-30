@@ -265,8 +265,9 @@ public class JobNodeSelector {
                 MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, task -> node.getId().equals(task.getExecutorNode()));
             for (PersistentTasksCustomMetaData.PersistentTask<?> assignedTask : assignedAnalyticsTasks) {
                 DataFrameAnalyticsState dataFrameAnalyticsState = ((DataFrameAnalyticsTaskState) assignedTask.getState()).getState();
-                // TODO: skip FAILED here too if such a state is ever added
-                if (dataFrameAnalyticsState != DataFrameAnalyticsState.STOPPED) {
+
+                // Don't count stopped and failed df-analytics tasks as they don't consume native memory
+                if (dataFrameAnalyticsState.isAnyOf(DataFrameAnalyticsState.STOPPED, DataFrameAnalyticsState.FAILED) == false) {
                     // The native process is only running in the ANALYZING and STOPPING states, but in the STARTED
                     // and REINDEXING states we're committed to using the memory soon, so account for it here
                     ++result.numberOfAssignedJobs;

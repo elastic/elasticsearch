@@ -35,7 +35,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -52,16 +51,33 @@ public class DataFrameTransformsCheckpointServiceTests extends ESTestCase {
         Map<String, long[]> expectedCheckpoints = new HashMap<>();
         Set<String> indices = randomUserIndices();
 
-        ShardStats[] shardStatsArray = createRandomShardStats(expectedCheckpoints, indices, false, false);
+        ShardStats[] shardStatsArray = createRandomShardStats(expectedCheckpoints, indices, false, false, false);
 
-        Map<String, long[]> checkpoints = DataFrameTransformsCheckpointService.extractIndexCheckPoints(shardStatsArray, indices);
+        Map<String, long[]> checkpoints = DefaultCheckpointProvider.extractIndexCheckPoints(shardStatsArray, indices);
 
         assertEquals(expectedCheckpoints.size(), checkpoints.size());
         assertEquals(expectedCheckpoints.keySet(), checkpoints.keySet());
 
         // low-level compare
         for (Entry<String, long[]> entry : expectedCheckpoints.entrySet()) {
-            assertTrue(Arrays.equals(entry.getValue(), checkpoints.get(entry.getKey())));
+            assertArrayEquals(entry.getValue(), checkpoints.get(entry.getKey()));
+        }
+    }
+
+    public void testExtractIndexCheckpointsMissingSeqNoStats() {
+        Map<String, long[]> expectedCheckpoints = new HashMap<>();
+        Set<String> indices = randomUserIndices();
+
+        ShardStats[] shardStatsArray = createRandomShardStats(expectedCheckpoints, indices, false, false, true);
+
+        Map<String, long[]> checkpoints = DefaultCheckpointProvider.extractIndexCheckPoints(shardStatsArray, indices);
+
+        assertEquals(expectedCheckpoints.size(), checkpoints.size());
+        assertEquals(expectedCheckpoints.keySet(), checkpoints.keySet());
+
+        // low-level compare
+        for (Entry<String, long[]> entry : expectedCheckpoints.entrySet()) {
+            assertArrayEquals(entry.getValue(), checkpoints.get(entry.getKey()));
         }
     }
 
@@ -69,16 +85,16 @@ public class DataFrameTransformsCheckpointServiceTests extends ESTestCase {
         Map<String, long[]> expectedCheckpoints = new HashMap<>();
         Set<String> indices = randomUserIndices();
 
-        ShardStats[] shardStatsArray = createRandomShardStats(expectedCheckpoints, indices, true, false);
+        ShardStats[] shardStatsArray = createRandomShardStats(expectedCheckpoints, indices, true, false, false);
 
-        Map<String, long[]> checkpoints = DataFrameTransformsCheckpointService.extractIndexCheckPoints(shardStatsArray, indices);
+        Map<String, long[]> checkpoints = DefaultCheckpointProvider.extractIndexCheckPoints(shardStatsArray, indices);
 
         assertEquals(expectedCheckpoints.size(), checkpoints.size());
         assertEquals(expectedCheckpoints.keySet(), checkpoints.keySet());
 
         // low-level compare
         for (Entry<String, long[]> entry : expectedCheckpoints.entrySet()) {
-            assertTrue(Arrays.equals(entry.getValue(), checkpoints.get(entry.getKey())));
+            assertArrayEquals(entry.getValue(), checkpoints.get(entry.getKey()));
         }
     }
 
@@ -86,13 +102,14 @@ public class DataFrameTransformsCheckpointServiceTests extends ESTestCase {
         Map<String, long[]> expectedCheckpoints = new HashMap<>();
         Set<String> indices = randomUserIndices();
 
-        ShardStats[] shardStatsArray = createRandomShardStats(expectedCheckpoints, indices, randomBoolean(), true);
+        ShardStats[] shardStatsArray = createRandomShardStats(expectedCheckpoints, indices, randomBoolean(), true, false);
 
         // fail
         CheckpointException e = expectThrows(CheckpointException.class,
-                () -> DataFrameTransformsCheckpointService.extractIndexCheckPoints(shardStatsArray, indices));
+                () -> DefaultCheckpointProvider.extractIndexCheckPoints(shardStatsArray, indices));
 
-        assertThat(e.getMessage(), containsString("Global checkpoints mismatch"));    }
+        assertThat(e.getMessage(), containsString("Global checkpoints mismatch"));
+    }
 
     /**
      * Create a random set of 3 index names
@@ -120,16 +137,19 @@ public class DataFrameTransformsCheckpointServiceTests extends ESTestCase {
      * @param userIndices set of indices that are visible
      * @param skipPrimaries whether some shards do not have a primary shard at random
      * @param inconsistentGlobalCheckpoints whether to introduce inconsistent global checkpoints
+     * @param missingSeqNoStats whether some indices miss SeqNoStats
      * @return array of ShardStats
      */
     private static ShardStats[] createRandomShardStats(Map<String, long[]> expectedCheckpoints, Set<String> userIndices,
-            boolean skipPrimaries, boolean inconsistentGlobalCheckpoints) {
+            boolean skipPrimaries, boolean inconsistentGlobalCheckpoints, boolean missingSeqNoStats) {
 
         // always create the full list
         List<Index> indices = new ArrayList<>();
         indices.add(new Index("index-1", UUIDs.randomBase64UUID(random())));
         indices.add(new Index("index-2", UUIDs.randomBase64UUID(random())));
         indices.add(new Index("index-3", UUIDs.randomBase64UUID(random())));
+
+        String missingSeqNoStatsIndex = randomFrom(userIndices);
 
         List<ShardStats> shardStats = new ArrayList<>();
         for (final Index index : indices) {
@@ -160,8 +180,15 @@ public class DataFrameTransformsCheckpointServiceTests extends ESTestCase {
                 long globalCheckpoint = randomBoolean() ? localCheckpoint : randomLongBetween(0L, 100000000L);
                 long maxSeqNo = Math.max(localCheckpoint, globalCheckpoint);
 
-                final SeqNoStats validSeqNoStats = new SeqNoStats(maxSeqNo, localCheckpoint, globalCheckpoint);
-                checkpoints.add(globalCheckpoint);
+                SeqNoStats validSeqNoStats = null;
+
+                // add broken seqNoStats if requested
+                if (missingSeqNoStats && index.getName().equals(missingSeqNoStatsIndex)) {
+                    checkpoints.add(0L);
+                } else {
+                    validSeqNoStats = new SeqNoStats(maxSeqNo, localCheckpoint, globalCheckpoint);
+                    checkpoints.add(globalCheckpoint);
+                }
 
                 for (int replica = 0;  replica < numShardCopies; replica++) {
                     ShardId shardId = new ShardId(index, shardIndex);

@@ -36,16 +36,16 @@ public abstract class IndexerJobStats {
     public static ParseField SEARCH_FAILURES = new ParseField("search_failures");
     public static ParseField INDEX_FAILURES = new ParseField("index_failures");
 
-    private final long numPages;
-    private final long numInputDocuments;
-    private final long numOuputDocuments;
-    private final long numInvocations;
-    private final long indexTime;
-    private final long indexTotal;
-    private final long searchTime;
-    private final long searchTotal;
-    private final long indexFailures;
-    private final long searchFailures;
+    protected final long numPages;
+    protected final long numInputDocuments;
+    protected final long numOuputDocuments;
+    protected final long numInvocations;
+    protected final long indexTime;
+    protected final long indexTotal;
+    protected final long searchTime;
+    protected final long searchTotal;
+    protected final long indexFailures;
+    protected final long searchFailures;
 
     public IndexerJobStats(long numPages, long numInputDocuments, long numOutputDocuments, long numInvocations,
                            long indexTime, long searchTime, long indexTotal, long searchTotal, long indexFailures, long searchFailures) {

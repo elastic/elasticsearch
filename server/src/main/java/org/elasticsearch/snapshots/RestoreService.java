@@ -83,6 +83,7 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_CREATION_DATE;
@@ -177,11 +178,6 @@ public class RestoreService implements ClusterStateApplier {
             Repository repository = repositoriesService.repository(repositoryName);
             final RepositoryData repositoryData = repository.getRepositoryData();
             final String snapshotName = request.snapshot();
-            final Optional<SnapshotId> incompatibleSnapshotId =
-                repositoryData.getIncompatibleSnapshotIds().stream().filter(s -> snapshotName.equals(s.getName())).findFirst();
-            if (incompatibleSnapshotId.isPresent()) {
-                throw new SnapshotRestoreException(repositoryName, snapshotName, "cannot restore incompatible snapshot");
-            }
             final Optional<SnapshotId> matchingSnapshotId = repositoryData.getSnapshotIds().stream()
                 .filter(s -> snapshotName.equals(s.getName())).findFirst();
             if (matchingSnapshotId.isPresent() == false) {
@@ -270,16 +266,14 @@ public class RestoreService implements ClusterStateApplier {
                                 // Index doesn't exist - create it and start recovery
                                 // Make sure that the index we are about to create has a validate name
                                 MetaDataCreateIndexService.validateIndexName(renamedIndexName, currentState);
-                                createIndexService.validateIndexSettings(renamedIndexName,
-                                                                        snapshotIndexMetaData.getSettings(),
-                                                                        currentState,
-                                                                        false);
+                                createIndexService.validateIndexSettings(renamedIndexName, snapshotIndexMetaData.getSettings(), false);
                                 IndexMetaData.Builder indexMdBuilder = IndexMetaData.builder(snapshotIndexMetaData)
                                                                                     .state(IndexMetaData.State.OPEN)
                                                                                     .index(renamedIndexName);
                                 indexMdBuilder.settings(Settings.builder()
                                                                 .put(snapshotIndexMetaData.getSettings())
                                                                 .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()));
+                                MetaDataCreateIndexService.checkShardLimit(snapshotIndexMetaData.getSettings(), currentState);
                                 if (!request.includeAliases() && !snapshotIndexMetaData.getAliases().isEmpty()) {
                                     // Remove all aliases - they shouldn't be restored
                                     indexMdBuilder.removeAllAliases();
@@ -857,30 +851,26 @@ public class RestoreService implements ClusterStateApplier {
     }
 
     /**
-     * Check if any of the indices to be closed are currently being restored from a snapshot and fail closing if such an index
-     * is found as closing an index that is being restored makes the index unusable (it cannot be recovered).
+     * Returns the indices that are currently being restored and that are contained in the indices-to-check set.
      */
-    public static void checkIndexClosing(ClusterState currentState, Set<IndexMetaData> indices) {
-        RestoreInProgress restore = currentState.custom(RestoreInProgress.TYPE);
-        if (restore != null) {
-            Set<Index> indicesToFail = null;
-            for (RestoreInProgress.Entry entry : restore) {
-                for (ObjectObjectCursor<ShardId, RestoreInProgress.ShardRestoreStatus> shard : entry.shards()) {
-                    if (!shard.value.state().completed()) {
-                        IndexMetaData indexMetaData = currentState.metaData().index(shard.key.getIndex());
-                        if (indexMetaData != null && indices.contains(indexMetaData)) {
-                            if (indicesToFail == null) {
-                                indicesToFail = new HashSet<>();
-                            }
-                            indicesToFail.add(shard.key.getIndex());
-                        }
-                    }
+    public static Set<Index> restoringIndices(final ClusterState currentState, final Set<Index> indicesToCheck) {
+        final RestoreInProgress restore = currentState.custom(RestoreInProgress.TYPE);
+        if (restore == null) {
+            return emptySet();
+        }
+
+        final Set<Index> indices = new HashSet<>();
+        for (RestoreInProgress.Entry entry : restore) {
+            for (ObjectObjectCursor<ShardId, RestoreInProgress.ShardRestoreStatus> shard : entry.shards()) {
+                Index index = shard.key.getIndex();
+                if (indicesToCheck.contains(index)
+                    && shard.value.state().completed() == false
+                    && currentState.getMetaData().index(index) != null) {
+                    indices.add(index);
                 }
             }
-            if (indicesToFail != null) {
-                throw new IllegalArgumentException("Cannot close indices that are being restored: " + indicesToFail);
-            }
         }
+        return indices;
     }
 
     @Override

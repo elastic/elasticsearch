@@ -84,9 +84,22 @@ public abstract class AbstractRestChannel implements RestChannel {
      */
     @Override
     public XContentBuilder newBuilder(@Nullable XContentType requestContentType, boolean useFiltering) throws IOException {
+        return newBuilder(requestContentType, null, useFiltering);
+    }
+
+    /**
+     * Creates a new {@link XContentBuilder} for a response to be sent using this channel. The builder's type can be sent as a parameter,
+     * through {@code responseContentType} or it can fallback to {@link #newBuilder(XContentType, boolean)} logic if the sent type value
+     * is {@code null}.
+     */
+    @Override
+    public XContentBuilder newBuilder(@Nullable XContentType requestContentType, @Nullable XContentType responseContentType,
+            boolean useFiltering) throws IOException {
+        if (responseContentType == null) {
+            responseContentType = XContentType.fromMediaTypeOrFormat(format);
+        }
         // try to determine the response content type from the media type or the format query string parameter, with the format parameter
         // taking precedence over the Accept header
-        XContentType responseContentType = XContentType.fromMediaTypeOrFormat(format);
         if (responseContentType == null) {
             if (requestContentType != null) {
                 // if there was a parsed content-type for the incoming request use that since no format was specified using the query

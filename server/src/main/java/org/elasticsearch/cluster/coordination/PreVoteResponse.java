@@ -47,7 +47,6 @@ public class PreVoteResponse extends TransportResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeLong(currentTerm);
         out.writeLong(lastAcceptedTerm);
         out.writeLong(lastAcceptedVersion);

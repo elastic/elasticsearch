@@ -26,7 +26,16 @@ about any failures.
 
 ==== Request Parameters
 
-include::{docdir}/rest-api/timeoutparms.asciidoc[]
+`only_managed`::
+  (boolean) Filters the returned indices to only indices that are managed by
+  ILM.
+
+`only_errors`::
+  (boolean) Filters the returned indices to only indices that are managed by
+  ILM and are in an error state, either due to an encountering an error while
+  executing the policy, or attempting to use a policy that does not exist.
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 ==== Authorization
 
@@ -98,12 +107,13 @@ that the index is managed and in the `new` phase:
       "managed": true, <1>
       "policy": "my_policy", <2>
       "lifecycle_date_millis": 1538475653281, <3>
+      "age": "15s", <4>
       "phase": "new",
-      "phase_time_millis": 1538475653317, <4>
+      "phase_time_millis": 1538475653317, <5>
       "action": "complete",
-      "action_time_millis": 1538475653317, <5>
+      "action_time_millis": 1538475653317, <6>
       "step": "complete",
-      "step_time_millis": 1538475653317 <6>
+      "step_time_millis": 1538475653317 <7>
     }
   }
 }
@@ -114,9 +124,10 @@ that the index is managed and in the `new` phase:
 ILM the other fields will not be shown
 <2> The name of the policy which ILM is using for this index
 <3> The timestamp used for the `min_age`
-<4> When the index entered the current phase
-<5> When the index entered the current action
-<6> When the index entered the current step
+<4> The age of the index (used for calculating when to enter the next phase)
+<5> When the index entered the current phase
+<6> When the index entered the current action
+<7> When the index entered the current step
 
 Once the policy is running on the index, the response includes a
 `phase_execution` object that shows the definition of the current phase.
@@ -133,6 +144,7 @@ phase completes.
       "policy": "my_lifecycle3",
       "lifecycle_date_millis": 1538475653281,
       "lifecycle_date": "2018-10-15T13:45:21.981Z",
+      "age": "25.14s",
       "phase": "hot",
       "phase_time_millis": 1538475653317,
       "phase_time": "2018-10-15T13:45:22.577Z",
@@ -181,6 +193,7 @@ information for the step that's being performed on the index.
       "policy": "my_lifecycle3",
       "lifecycle_date_millis": 1538475653281,
       "lifecycle_date": "2018-10-15T13:45:21.981Z",
+      "age": "4.12m",
       "phase": "warm",
       "phase_time_millis": 1538475653317,
       "phase_time": "2018-10-15T13:45:22.577Z",
@@ -241,6 +254,7 @@ the step that failed and the step info provides information about the error.
       "policy": "my_lifecycle3",
       "lifecycle_date_millis": 1538475653281,
       "lifecycle_date": "2018-10-15T13:45:21.981Z",
+      "age": "50.1d",
       "phase": "hot",
       "phase_time_millis": 1538475653317,
       "phase_time": "2018-10-15T13:45:22.577Z",

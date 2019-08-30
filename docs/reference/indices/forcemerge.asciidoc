@@ -1,19 +1,24 @@
 [[indices-forcemerge]]
-== Force Merge
+=== Force Merge
 
-The force merge API allows to force merging of one or more indices through an
-API. The merge relates to the number of segments a Lucene index holds within
-each shard. The force merge operation allows to reduce the number of segments by
-merging them.
+The force merge API allows you to force a <<index-modules-merge,merge>> on the
+shards of one or more indices. Merging reduces the number of segments in each
+shard by merging some of them together, and also frees up the space used by
+deleted documents. Merging normally happens automatically, but sometimes it is
+useful to trigger a merge manually.
 
-This call will block until the merge is complete. If the http connection is
-lost, the request will continue in the background, and any new requests will
-block until the previous force merge is complete.
+WARNING: **Force merge should only be called against an index after you have
+finished writing to it.** Force merge can cause very large (>5GB) segments to
+be produced, and if you continue to write to such an index then the automatic
+merge policy will never consider these segments for future merges until they
+mostly consist of deleted documents. This can cause very large segments to
+remain in the index which can result in increased disk usage and worse search
+performance.
 
-WARNING: Force merge should only be called against *read-only indices*. Running 
-force merge against a read-write index can cause very large segments to be produced 
-(>5Gb per segment), and the merge policy will never consider it for merging again until 
-it mostly consists of deleted docs. This can cause very large segments to remain in the shards.
+Calls to this API block until the merge is complete. If the client connection
+is lost before completion then the force merge process will continue in the
+background. Any new requests to force merge the same indices will also block
+until the ongoing force merge is complete.
 
 [source,js]
 --------------------------------------------------
@@ -22,9 +27,25 @@ POST /twitter/_forcemerge
 // CONSOLE
 // TEST[setup:twitter]
 
+Force-merging can be useful with time-based indices and when using
+<<indices-rollover-index,rollover>>. In these cases each index only receives
+indexing traffic for a certain period of time, and once an index will receive
+no more writes its shards can be force-merged down to a single segment:
+
+[source,js]
+--------------------------------------------------
+POST /logs-000001/_forcemerge?max_num_segments=1
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+// TEST[s/logs-000001/twitter/]
+
+This can be a good idea because single-segment shards can sometimes use simpler
+and more efficient data structures to perform searches.
+
 [float]
 [[forcemerge-parameters]]
-=== Request Parameters
+==== Request Parameters
 
 The force merge API accepts the following request parameters:
 
@@ -52,7 +73,7 @@ POST /kimchy/_forcemerge?only_expunge_deletes=false&max_num_segments=100&flush=t
 
 [float]
 [[forcemerge-multi-index]]
-=== Multi Index
+==== Multi Index
 
 The force merge API can be applied to more than one index with a single call, or
 even on `_all` the indices. Multi index operations are executed one shard at a

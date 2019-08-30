@@ -1,19 +1,31 @@
 {
-  "migration.deprecations": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/migration-api-deprecation.html",
-    "stability": "stable",
-    "methods": [ "GET" ],
-    "url": {
-      "paths": ["/_migration/deprecations", "/{index}/_migration/deprecations"],
-      "parts": {
-        "index": {
-          "type" : "string",
-          "description" : "Index pattern"
-        }
-      },
-      "params": {
-      }
+  "migration.deprecations":{
+    "documentation":{
+      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/migration-api-deprecation.html"
     },
-    "body": null
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_migration/deprecations",
+          "methods":[
+            "GET"
+          ]
+        },
+        {
+          "path":"/{index}/_migration/deprecations",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "index":{
+              "type":"string",
+              "description":"Index pattern"
+            }
+          }
+        }
+      ]
+    },
+    "params":{}
   }
 }

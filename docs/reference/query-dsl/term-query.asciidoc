@@ -1,5 +1,8 @@
 [[query-dsl-term-query]]
-=== Term Query
+=== Term query
+++++
+<titleabbrev>Term</titleabbrev>
+++++
 
 Returns documents that contain an *exact* term in a provided field.
 
@@ -40,18 +43,18 @@ GET /_search
 [[term-top-level-params]]
 ==== Top-level parameters for `term`
 `<field>`::
-Field you wish to search.
+(Required, object) Field you wish to search.
 
 [[term-field-params]]
 ==== Parameters for `<field>`
 `value`::
-Term you wish to find in the provided `<field>`. To return a document, the term
-must exactly match the field value, including whitespace and capitalization.
+(Required, string) Term you wish to find in the provided `<field>`. To return a
+document, the term must exactly match the field value, including whitespace and
+capitalization.
 
 `boost`::
-Floating point number used to decrease or increase the
-<<query-filter-context, relevance scores>> of a query. Default is `1.0`.
-Optional.
+(Optional, float) Floating point number used to decrease or increase the
+<<relevance-scores,relevance scores>> of a query. Defaults to `1.0`.
 +
 You can use the `boost` parameter to adjust relevance scores for searches
 containing two or more queries.

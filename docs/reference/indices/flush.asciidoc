@@ -1,5 +1,5 @@
 [[indices-flush]]
-== Flush
+=== Flush
 
 The flush API allows to flush one or more indices through an API. The
 flush process of an index makes sure that any data that is currently only
@@ -18,7 +18,7 @@ POST twitter/_flush
 
 [float]
 [[flush-parameters]]
-=== Request Parameters
+==== Request Parameters
 
 The flush API accepts the following request parameters:
 
@@ -33,7 +33,7 @@ should be incremented even if no uncommitted changes are present.
 
 [float]
 [[flush-multi-index]]
-=== Multi Index
+==== Multi Index
 
 The flush API can be applied to more than one index with a single call,
 or even on `_all` the indices.
@@ -47,8 +47,8 @@ POST _flush
 // CONSOLE
 // TEST[s/^/PUT kimchy\nPUT elasticsearch\n/]
 
-[[indices-synced-flush]]
-=== Synced Flush
+[[synced-flush-api]]
+==== Synced Flush
 
 Elasticsearch tracks the indexing activity of each shard. Shards that have not
 received any indexing operations for 5 minutes are automatically marked as inactive. This presents
@@ -119,7 +119,7 @@ which returns something similar to:
 <1> the `sync id` marker
 
 [float]
-=== Synced Flush API
+==== Synced Flush API
 
 The Synced Flush API allows an administrator to initiate a synced flush manually. This can be particularly useful for
 a planned (rolling) cluster restart where you can stop indexing and don't want to wait the default 5 minutes for

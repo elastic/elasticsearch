@@ -36,7 +36,7 @@ available then a number of features are not supported:
 * The <<docs-update,`update`>>, <<docs-update-by-query,`update_by_query`>>,
 and <<docs-reindex,`reindex`>> APIs.
 
-* On the fly <<search-request-highlighting,highlighting>>.
+* On the fly <<request-body-search-highlighting,highlighting>>.
 
 * The ability to reindex from one Elasticsearch index to another, either
   to change mappings or analysis, or to upgrade an index to a new major
@@ -77,7 +77,7 @@ stored.
 WARNING: Removing fields from the `_source` has similar downsides to disabling
 `_source`, especially the fact that you cannot reindex documents from one
 Elasticsearch index to another. Consider using
-<<search-request-source-filtering,source filtering>> instead.
+<<request-body-search-source-filtering,source filtering>> instead.
 
 The `includes`/`excludes` parameters (which also accept wildcards) can be used
 as follows:

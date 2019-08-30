@@ -21,6 +21,7 @@ package org.elasticsearch.snapshots.mockstore;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.DeleteResult;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -36,11 +37,6 @@ public class BlobContainerWrapper implements BlobContainer {
     @Override
     public BlobPath path() {
         return delegate.path();
-    }
-
-    @Override
-    public boolean blobExists(String blobName) {
-        return delegate.blobExists(blobName);
     }
 
     @Override
@@ -65,8 +61,8 @@ public class BlobContainerWrapper implements BlobContainer {
     }
 
     @Override
-    public void delete() throws IOException {
-        delegate.delete();
+    public DeleteResult delete() throws IOException {
+        return delegate.delete();
     }
 
     @Override

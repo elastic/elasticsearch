@@ -25,12 +25,12 @@ abstract class IdentifierBuilder extends AbstractBuilder {
         ParseTree tree = ctx.name != null ? ctx.name : ctx.TABLE_IDENTIFIER();
         String index = tree.getText();
 
-        return new TableIdentifier(source, visitIdentifier(ctx.catalog), index);
+        return new TableIdentifier(source, visitIdentifier(ctx.catalog), unquoteIdentifier(index));
     }
 
     @Override
     public String visitIdentifier(IdentifierContext ctx) {
-        return ctx == null ? null : ctx.getText();
+        return ctx == null ? null : unquoteIdentifier(ctx.getText());
     }
 
     @Override
@@ -40,5 +40,9 @@ abstract class IdentifierBuilder extends AbstractBuilder {
         }
 
         return Strings.collectionToDelimitedString(visitList(ctx.identifier(), String.class), ".");
+    }
+    
+    private static String unquoteIdentifier(String identifier) {
+        return identifier.replace("\"\"", "\"");
     }
 }

@@ -38,6 +38,14 @@ public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteReq
     private boolean explain;
     private boolean retryFailed;
 
+    public ClusterRerouteRequest(StreamInput in) throws IOException {
+        super(in);
+        commands = AllocationCommands.readFrom(in);
+        dryRun = in.readBoolean();
+        explain = in.readBoolean();
+        retryFailed = in.readBoolean();
+    }
+
     public ClusterRerouteRequest() {
     }
 
@@ -119,15 +127,6 @@ public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteReq
     @Override
     public ActionRequestValidationException validate() {
         return null;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        commands = AllocationCommands.readFrom(in);
-        dryRun = in.readBoolean();
-        explain = in.readBoolean();
-        retryFailed = in.readBoolean();
     }
 
     @Override

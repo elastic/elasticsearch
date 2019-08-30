@@ -20,7 +20,6 @@
 package org.elasticsearch.action.termvectors;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.io.stream.Writeable;
 
 public class TermVectorsAction extends ActionType<TermVectorsResponse> {
 
@@ -28,11 +27,7 @@ public class TermVectorsAction extends ActionType<TermVectorsResponse> {
     public static final String NAME = "indices:data/read/tv";
 
     private TermVectorsAction() {
-        super(NAME);
+        super(NAME, TermVectorsResponse::new);
     }
 
-    @Override
-    public Writeable.Reader<TermVectorsResponse> getResponseReader() {
-        return TermVectorsResponse::new;
-    }
 }

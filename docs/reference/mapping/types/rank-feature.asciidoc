@@ -1,5 +1,8 @@
 [[rank-feature]]
 === Rank feature datatype
+++++
+<titleabbrev>Rank feature</titleabbrev>
+++++
 
 A `rank_feature` field can index numbers so that they can later be used to boost
 documents in queries with a <<query-dsl-rank-feature-query,`rank_feature`>> query.

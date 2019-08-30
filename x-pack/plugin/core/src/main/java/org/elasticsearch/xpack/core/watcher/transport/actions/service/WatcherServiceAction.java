@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.core.watcher.transport.actions.service;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.io.stream.Writeable;
 
 
 public class WatcherServiceAction extends ActionType<AcknowledgedResponse> {
@@ -16,11 +15,6 @@ public class WatcherServiceAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/xpack/watcher/service";
 
     private WatcherServiceAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<AcknowledgedResponse> getResponseReader() {
-        return AcknowledgedResponse::new;
+        super(NAME, AcknowledgedResponse::new);
     }
 }

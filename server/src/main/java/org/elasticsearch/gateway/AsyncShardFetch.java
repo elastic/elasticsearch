@@ -73,7 +73,6 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
     private final AtomicLong round = new AtomicLong();
     private boolean closed;
 
-    @SuppressWarnings("unchecked")
     protected AsyncShardFetch(Logger logger, String type, ShardId shardId, Lister<? extends BaseNodesResponse<T>, T> action) {
         this.logger = logger;
         this.type = type;

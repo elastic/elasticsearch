@@ -1,5 +1,5 @@
-[[search-suggesters-completion]]
-=== Completion Suggester
+[[completion-suggester]]
+==== Completion Suggester
 
 NOTE: In order to understand the format of suggestions, please
 read the <<search-suggesters>> page first. For more flexible
@@ -19,7 +19,7 @@ The suggester uses data structures that enable fast lookups,
 but are costly to build and are stored in-memory.
 
 [[completion-suggester-mapping]]
-==== Mapping
+===== Mapping
 
 To use this feature, specify a special mapping for this field,
 which indexes the field values for fast completions.
@@ -74,7 +74,7 @@ Mapping supports the following parameters:
     than a handful of characters.
 
 [[indexing]]
-==== Indexing
+===== Indexing
 
 You index suggestions like any other field. A suggestion is made of an
 `input` and an optional `weight` attribute. An `input` is the expected
@@ -141,7 +141,7 @@ PUT music/_doc/1?refresh
 // TEST[continued]
 
 [[querying]]
-==== Querying
+===== Querying
 
 Suggesting works as usual, except that you have to specify the suggest
 type as `completion`. Suggestions are near real-time, which means
@@ -214,7 +214,7 @@ The configured weight for a suggestion is returned as `_score`. The
 return the full document `_source` by default. The size of the `_source`
 can impact performance due to disk fetch and network transport overhead.
 To save some network overhead, filter out unnecessary fields from the `_source`
-using <<search-request-source-filtering, source filtering>> to minimize
+using <<request-body-search-source-filtering, source filtering>> to minimize
 `_source` size. Note that the _suggest endpoint doesn't support source
 filtering but using suggest on the `_search` endpoint does:
 
@@ -291,7 +291,7 @@ The basic completion suggester query supports the following parameters:
 `skip_duplicates`:: Whether duplicate suggestions should be filtered out (defaults to `false`).
 
 NOTE: The completion suggester considers all documents in the index.
-See <<suggester-context>> for an explanation of how to query a subset of
+See <<context-suggester>> for an explanation of how to query a subset of
 documents instead.
 
 NOTE: In case of completion queries spanning more than one shard, the suggest
@@ -304,7 +304,7 @@ shard size, it is still recommended to break index into multiple shards instead
 of optimizing for completion performance.
 
 [[skip_duplicates]]
-==== Skip duplicate suggestions
+===== Skip duplicate suggestions
 
 Queries can return duplicate suggestions coming from different documents.
 It is possible to modify this behavior by setting `skip_duplicates` to true.
@@ -331,7 +331,7 @@ WARNING: When set to true, this option can slow down search because more suggest
 need to be visited to find the top N.
 
 [[fuzzy]]
-==== Fuzzy queries
+===== Fuzzy queries
 
 The completion suggester also supports fuzzy queries -- this means
 you can have a typo in your search and still get results back.
@@ -390,7 +390,7 @@ NOTE: If you want to stick with the default values, but
       or `fuzzy: true`.
 
 [[regex]]
-==== Regex queries
+===== Regex queries
 
 The completion suggester also supports regex queries meaning
 you can express a prefix as a regular expression

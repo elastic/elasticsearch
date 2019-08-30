@@ -131,6 +131,7 @@ public class DataFrameTransformProgressIT extends ESRestTestCase {
             destConfig,
             null,
             null,
+            null,
             pivotConfig,
             null);
 
@@ -143,7 +144,7 @@ public class DataFrameTransformProgressIT extends ESRestTestCase {
             TransformProgressGatherer.searchResponseToDataFrameTransformProgressFunction().apply(response);
 
         assertThat(progress.getTotalDocs(), equalTo(1000L));
-        assertThat(progress.getRemainingDocs(), equalTo(1000L));
+        assertThat(progress.getDocumentsProcessed(), equalTo(0L));
         assertThat(progress.getPercentComplete(), equalTo(0.0));
 
 
@@ -155,6 +156,7 @@ public class DataFrameTransformProgressIT extends ESRestTestCase {
             destConfig,
             null,
             null,
+            null,
             pivotConfig,
             null);
 
@@ -163,7 +165,7 @@ public class DataFrameTransformProgressIT extends ESRestTestCase {
         progress = TransformProgressGatherer.searchResponseToDataFrameTransformProgressFunction().apply(response);
 
         assertThat(progress.getTotalDocs(), equalTo(35L));
-        assertThat(progress.getRemainingDocs(), equalTo(35L));
+        assertThat(progress.getDocumentsProcessed(), equalTo(0L));
         assertThat(progress.getPercentComplete(), equalTo(0.0));
 
         histgramGroupConfig = new GroupConfig(Collections.emptyMap(),
@@ -174,6 +176,7 @@ public class DataFrameTransformProgressIT extends ESRestTestCase {
             destConfig,
             null,
             null,
+            null,
             pivotConfig,
             null);
 
@@ -182,7 +185,7 @@ public class DataFrameTransformProgressIT extends ESRestTestCase {
         progress = TransformProgressGatherer.searchResponseToDataFrameTransformProgressFunction().apply(response);
 
         assertThat(progress.getTotalDocs(), equalTo(0L));
-        assertThat(progress.getRemainingDocs(), equalTo(0L));
+        assertThat(progress.getDocumentsProcessed(), equalTo(0L));
         assertThat(progress.getPercentComplete(), equalTo(100.0));
 
         deleteIndex(REVIEWS_INDEX_NAME);

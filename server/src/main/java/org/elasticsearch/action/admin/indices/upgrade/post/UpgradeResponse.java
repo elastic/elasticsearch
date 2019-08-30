@@ -41,19 +41,8 @@ public class UpgradeResponse extends BroadcastResponse {
 
     private Map<String, Tuple<Version, String>> versions;
 
-    UpgradeResponse() {
-
-    }
-
-    UpgradeResponse(Map<String, Tuple<Version, String>> versions, int totalShards, int successfulShards, int failedShards,
-                    List<DefaultShardOperationFailedException> shardFailures) {
-        super(totalShards, successfulShards, failedShards, shardFailures);
-        this.versions = versions;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
+    UpgradeResponse(StreamInput in) throws IOException {
+        super(in);
         int size = in.readVInt();
         versions = new HashMap<>();
         for (int i=0; i<size; i++) {
@@ -62,6 +51,12 @@ public class UpgradeResponse extends BroadcastResponse {
             String oldestLuceneSegment = in.readString();
             versions.put(index, new Tuple<>(upgradeVersion, oldestLuceneSegment));
         }
+    }
+
+    UpgradeResponse(Map<String, Tuple<Version, String>> versions, int totalShards, int successfulShards, int failedShards,
+                    List<DefaultShardOperationFailedException> shardFailures) {
+        super(totalShards, successfulShards, failedShards, shardFailures);
+        this.versions = versions;
     }
 
     @Override

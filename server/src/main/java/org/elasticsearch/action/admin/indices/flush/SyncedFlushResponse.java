@@ -22,7 +22,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -44,12 +44,8 @@ import static java.util.Collections.unmodifiableMap;
  */
 public class SyncedFlushResponse extends ActionResponse implements ToXContentFragment {
 
-    Map<String, List<ShardsSyncedFlushResult>> shardsResultPerIndex;
-    ShardCounts shardCounts;
-
-    SyncedFlushResponse() {
-
-    }
+    private final Map<String, List<ShardsSyncedFlushResult>> shardsResultPerIndex;
+    private final ShardCounts shardCounts;
 
     public SyncedFlushResponse(Map<String, List<ShardsSyncedFlushResult>> shardsResultPerIndex) {
         // shardsResultPerIndex is never modified after it is passed to this
@@ -57,6 +53,23 @@ public class SyncedFlushResponse extends ActionResponse implements ToXContentFra
         // ConcurrentHashMap
         this.shardsResultPerIndex = unmodifiableMap(shardsResultPerIndex);
         this.shardCounts = calculateShardCounts(Iterables.flatten(shardsResultPerIndex.values()));
+    }
+
+    public SyncedFlushResponse(StreamInput in) throws IOException {
+        super(in);
+        shardCounts = new ShardCounts(in);
+        Map<String, List<ShardsSyncedFlushResult>> tmpShardsResultPerIndex = new HashMap<>();
+        int numShardsResults = in.readInt();
+        for (int i =0 ; i< numShardsResults; i++) {
+            String index = in.readString();
+            List<ShardsSyncedFlushResult> shardsSyncedFlushResults = new ArrayList<>();
+            int numShards = in.readInt();
+            for (int j =0; j< numShards; j++) {
+                shardsSyncedFlushResults.add(new ShardsSyncedFlushResult(in));
+            }
+            tmpShardsResultPerIndex.put(index, shardsSyncedFlushResults);
+        }
+        shardsResultPerIndex = Collections.unmodifiableMap(tmpShardsResultPerIndex);
     }
 
     /**
@@ -140,11 +153,11 @@ public class SyncedFlushResponse extends ActionResponse implements ToXContentFra
         return new ShardCounts(total, successful, failed);
     }
 
-    static final class ShardCounts implements ToXContentFragment, Streamable {
+    static final class ShardCounts implements ToXContentFragment, Writeable {
 
-        public int total;
-        public int successful;
-        public int failed;
+        public final int total;
+        public final int successful;
+        public final int failed;
 
         ShardCounts(int total, int successful, int failed) {
             this.total = total;
@@ -152,8 +165,10 @@ public class SyncedFlushResponse extends ActionResponse implements ToXContentFra
             this.failed = failed;
         }
 
-        ShardCounts() {
-
+        ShardCounts(StreamInput in) throws IOException {
+            total = in.readInt();
+            successful = in.readInt();
+            failed = in.readInt();
         }
 
         @Override
@@ -162,13 +177,6 @@ public class SyncedFlushResponse extends ActionResponse implements ToXContentFra
             builder.field(Fields.SUCCESSFUL, successful);
             builder.field(Fields.FAILED, failed);
             return builder;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            total = in.readInt();
-            successful = in.readInt();
-            failed = in.readInt();
         }
 
         @Override
@@ -191,27 +199,7 @@ public class SyncedFlushResponse extends ActionResponse implements ToXContentFra
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        shardCounts = new ShardCounts();
-        shardCounts.readFrom(in);
-        Map<String, List<ShardsSyncedFlushResult>> tmpShardsResultPerIndex = new HashMap<>();
-        int numShardsResults = in.readInt();
-        for (int i =0 ; i< numShardsResults; i++) {
-            String index = in.readString();
-            List<ShardsSyncedFlushResult> shardsSyncedFlushResults = new ArrayList<>();
-            int numShards = in.readInt();
-            for (int j =0; j< numShards; j++) {
-                shardsSyncedFlushResults.add(ShardsSyncedFlushResult.readShardsSyncedFlushResult(in));
-            }
-            tmpShardsResultPerIndex.put(index, shardsSyncedFlushResults);
-        }
-        shardsResultPerIndex = Collections.unmodifiableMap(tmpShardsResultPerIndex);
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         shardCounts.writeTo(out);
         out.writeInt(shardsResultPerIndex.size());
         for (Map.Entry<String, List<ShardsSyncedFlushResult>> entry : shardsResultPerIndex.entrySet()) {

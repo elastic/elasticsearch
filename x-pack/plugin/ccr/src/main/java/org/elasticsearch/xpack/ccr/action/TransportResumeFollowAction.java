@@ -108,11 +108,6 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
     }
 
     @Override
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     protected ClusterBlockException checkBlock(ResumeFollowAction.Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
@@ -403,6 +398,7 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
             IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING,
             IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING,
             IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING,
+            IndexSettings.INDEX_FLUSH_AFTER_MERGE_THRESHOLD_SIZE_SETTING,
             IndexSettings.INDEX_GC_DELETES_SETTING,
             IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD,
             IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING,

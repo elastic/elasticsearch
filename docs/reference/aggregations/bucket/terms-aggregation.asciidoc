@@ -162,7 +162,7 @@ respective document counts in brackets:
 | 6  | Product F (2)  | Product H (14) | Product H (28)
 | 7  | Product G (2)  | Product I (10) | Product Q (2)
 | 8  | Product H (2)  | Product Q (6)  | Product D (1)
-| 9  | Product I (1)  | Product J (8)  |
+| 9  | Product I (1)  | Product J (6)  |
 | 10 | Product J (1)  | Product C (4)  |
 
 |=========================================================

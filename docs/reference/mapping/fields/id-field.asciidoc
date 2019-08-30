@@ -39,3 +39,9 @@ but doing so is discouraged as it requires to load a lot of data in memory. In
 case sorting or aggregating on the `_id` field is required, it is advised to
 duplicate the content of the `_id` field in another field that has `doc_values`
 enabled.
+
+
+[NOTE]
+==================================================
+`_id` is limited to 512 bytes in size and larger values will be rejected.
+==================================================

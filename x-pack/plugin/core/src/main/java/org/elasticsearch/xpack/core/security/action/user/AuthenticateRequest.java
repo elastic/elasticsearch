@@ -16,6 +16,11 @@ public class AuthenticateRequest extends ActionRequest implements UserRequest {
 
     private String username;
 
+    public AuthenticateRequest(StreamInput in) throws IOException {
+        super(in);
+        username = in.readString();
+    }
+
     public AuthenticateRequest() {}
 
     public AuthenticateRequest(String username) {
@@ -39,12 +44,6 @@ public class AuthenticateRequest extends ActionRequest implements UserRequest {
     @Override
     public String[] usernames() {
         return new String[] { username };
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        username = in.readString();
     }
 
     @Override

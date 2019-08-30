@@ -1,5 +1,8 @@
 [[ip]]
 === IP datatype
+++++
+<titleabbrev>IP</titleabbrev>
+++++
 
 An `ip` field can index/store either https://en.wikipedia.org/wiki/IPv4[IPv4] or
 https://en.wikipedia.org/wiki/IPv6[IPv6] addresses.

@@ -98,10 +98,10 @@ public class WeightedAvgAggregationBuilder extends MultiValuesSourceAggregationB
     }
 
     @Override
-    protected MultiValuesSourceAggregatorFactory<Numeric, ?> innerBuild(SearchContext context,
+    protected MultiValuesSourceAggregatorFactory<Numeric> innerBuild(SearchContext context,
                                                                     Map<String, ValuesSourceConfig<Numeric>> configs,
                                                                     DocValueFormat format,
-                                                                    AggregatorFactory<?> parent,
+                                                                    AggregatorFactory parent,
                                                                     Builder subFactoriesBuilder) throws IOException {
         return new WeightedAvgAggregatorFactory(name, configs, format, context, parent, subFactoriesBuilder, metaData);
     }

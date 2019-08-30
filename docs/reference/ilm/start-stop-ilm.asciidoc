@@ -10,6 +10,10 @@ maybe there are scheduled maintenance windows when cluster topology
 changes are desired that may impact running ILM actions. For this reason,
 ILM has two ways to disable operations.
 
+When stopping ILM, snapshot lifecycle management operations are also stopped,
+this means that no scheduled snapshots are created (currently ongoing snapshots
+are unaffected).
+
 Normally, ILM will be running by default.
 To see the current operating status of ILM, use the <<ilm-get-status,Get Status API>>
 to see the current state of ILM.

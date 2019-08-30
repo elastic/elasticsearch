@@ -12,6 +12,7 @@ See also <<release-highlights>> and <<es-release-notes>>.
 coming[8.0.0]
 
 * <<breaking_80_analysis_changes>>
+* <<breaking_80_allocation_changes>>
 * <<breaking_80_discovery_changes>>
 * <<breaking_80_mappings_changes>>
 * <<breaking_80_packaging_changes>>
@@ -27,6 +28,7 @@ coming[8.0.0]
 * <<breaking_80_reindex_changes>>
 * <<breaking_80_search_changes>>
 * <<breaking_80_settings_changes>>
+* <<breaking_80_indices_changes>>
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
@@ -50,6 +52,7 @@ Elasticsearch 7.x in order to be readable by Elasticsearch 8.x.
 // end::notable-breaking-changes[]
 
 include::migrate_8_0/analysis.asciidoc[]
+include::migrate_8_0/allocation.asciidoc[]
 include::migrate_8_0/discovery.asciidoc[]
 include::migrate_8_0/mappings.asciidoc[]
 include::migrate_8_0/packaging.asciidoc[]
@@ -65,3 +68,4 @@ include::migrate_8_0/http.asciidoc[]
 include::migrate_8_0/reindex.asciidoc[]
 include::migrate_8_0/search.asciidoc[]
 include::migrate_8_0/settings.asciidoc[]
+include::migrate_8_0/indices.asciidoc[]

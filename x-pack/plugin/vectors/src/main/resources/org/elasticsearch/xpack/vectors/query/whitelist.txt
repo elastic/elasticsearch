@@ -11,8 +11,12 @@ class org.elasticsearch.xpack.vectors.query.VectorScriptDocValues$SparseVectorSc
 }
 
 static_import {
+    double l1norm(List, VectorScriptDocValues.DenseVectorScriptDocValues) from_class org.elasticsearch.xpack.vectors.query.ScoreScriptUtils
+    double l2norm(List, VectorScriptDocValues.DenseVectorScriptDocValues) from_class org.elasticsearch.xpack.vectors.query.ScoreScriptUtils
     double cosineSimilarity(List, VectorScriptDocValues.DenseVectorScriptDocValues) bound_to org.elasticsearch.xpack.vectors.query.ScoreScriptUtils$CosineSimilarity
     double dotProduct(List, VectorScriptDocValues.DenseVectorScriptDocValues) from_class org.elasticsearch.xpack.vectors.query.ScoreScriptUtils
+    double l1normSparse(Map, VectorScriptDocValues.SparseVectorScriptDocValues) bound_to org.elasticsearch.xpack.vectors.query.ScoreScriptUtils$L1NormSparse
+    double l2normSparse(Map, VectorScriptDocValues.SparseVectorScriptDocValues) bound_to org.elasticsearch.xpack.vectors.query.ScoreScriptUtils$L2NormSparse
     double dotProductSparse(Map, VectorScriptDocValues.SparseVectorScriptDocValues) bound_to org.elasticsearch.xpack.vectors.query.ScoreScriptUtils$DotProductSparse
     double cosineSimilaritySparse(Map, VectorScriptDocValues.SparseVectorScriptDocValues) bound_to org.elasticsearch.xpack.vectors.query.ScoreScriptUtils$CosineSimilaritySparse
 }

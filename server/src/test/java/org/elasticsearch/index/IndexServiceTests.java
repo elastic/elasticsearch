@@ -287,7 +287,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
             // this one either becomes visible due to a concurrently running scheduled refresh OR due to the force refresh
             // we are running on updateMetaData if the interval changes
             try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-                TopDocs search = searcher.searcher().search(new MatchAllDocsQuery(), 10);
+                TopDocs search = searcher.search(new MatchAllDocsQuery(), 10);
                 assertEquals(1, search.totalHits.value);
             }
         });
@@ -300,7 +300,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         assertBusy(() -> {
             // this one becomes visible due to the force refresh we are running on updateMetaData if the interval changes
             try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-                TopDocs search = searcher.searcher().search(new MatchAllDocsQuery(), 10);
+                TopDocs search = searcher.search(new MatchAllDocsQuery(), 10);
                 assertEquals(2, search.totalHits.value);
             }
         });
@@ -308,7 +308,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         assertBusy(() -> {
             // this one becomes visible due to the scheduled refresh
             try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-                TopDocs search = searcher.searcher().search(new MatchAllDocsQuery(), 10);
+                TopDocs search = searcher.search(new MatchAllDocsQuery(), 10);
                 assertEquals(3, search.totalHits.value);
             }
         });
@@ -390,20 +390,24 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         IndexService indexService = createIndex(indexName, Settings.builder()
             .put(TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING.getKey(), "100ms")
             .build());
-
         Translog translog = IndexShardTestCase.getTranslog(indexService.getShard(0));
         final Path translogPath = translog.getConfig().getTranslogPath();
         final String translogUuid = translog.getTranslogUUID();
 
+        int translogOps = 0;
         final int numDocs = scaledRandomIntBetween(10, 100);
         for (int i = 0; i < numDocs; i++) {
             client().prepareIndex().setIndex(indexName).setId(String.valueOf(i)).setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
+            translogOps++;
             if (randomBoolean()) {
                 client().admin().indices().prepareFlush(indexName).get();
+                if (indexService.getIndexSettings().isSoftDeleteEnabled()) {
+                    translogOps = 0;
+                }
             }
         }
-        assertThat(translog.totalOperations(), equalTo(numDocs));
-        assertThat(translog.stats().estimatedNumberOfOperations(), equalTo(numDocs));
+        assertThat(translog.totalOperations(), equalTo(translogOps));
+        assertThat(translog.stats().estimatedNumberOfOperations(), equalTo(translogOps));
         assertAcked(client().admin().indices().prepareClose("test"));
 
         indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(indexService.index());

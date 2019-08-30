@@ -67,11 +67,11 @@ public class PrimaryElectionRoutingTests extends ESAllocationTestCase {
 
         logger.info("Start the primary shard (on node1)");
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
-        clusterState = strategy.applyStartedShards(clusterState, routingNodes.node("node1").shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState, routingNodes.node("node1"));
 
         logger.info("Start the backup shard (on node2)");
         routingNodes = clusterState.getRoutingNodes();
-        clusterState = strategy.applyStartedShards(clusterState, routingNodes.node("node2").shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState, routingNodes.node("node2"));
 
         logger.info("Adding third node and reroute and kill first node");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
@@ -115,9 +115,8 @@ public class PrimaryElectionRoutingTests extends ESAllocationTestCase {
         clusterState = allocation.reroute(clusterState, "reroute");
 
         logger.info("Start the primary shards");
+        clusterState = startInitializingShardsAndReroute(allocation, clusterState);
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
-        clusterState = allocation.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
-        routingNodes = clusterState.getRoutingNodes();
 
         assertThat(routingNodes.shardsWithState(STARTED).size(), equalTo(2));
         assertThat(routingNodes.shardsWithState(INITIALIZING).size(), equalTo(2));

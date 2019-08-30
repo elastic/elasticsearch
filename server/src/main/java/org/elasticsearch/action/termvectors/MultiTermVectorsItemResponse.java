@@ -21,26 +21,32 @@ package org.elasticsearch.action.termvectors;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 
 /**
  * A single multi get response.
  */
-public class MultiTermVectorsItemResponse implements Streamable {
+public class MultiTermVectorsItemResponse implements Writeable {
 
-    private TermVectorsResponse response;
-    private MultiTermVectorsResponse.Failure failure;
-
-    MultiTermVectorsItemResponse() {
-
-    }
+    private final TermVectorsResponse response;
+    private final MultiTermVectorsResponse.Failure failure;
 
     public MultiTermVectorsItemResponse(TermVectorsResponse response, MultiTermVectorsResponse.Failure failure) {
         assert (((response == null) && (failure != null)) || ((response != null) && (failure == null)));
         this.response = response;
         this.failure = failure;
+    }
+
+    MultiTermVectorsItemResponse(StreamInput in) throws IOException {
+        if (in.readBoolean()) {
+            failure = new MultiTermVectorsResponse.Failure(in);
+            response = null;
+        } else {
+            response = new TermVectorsResponse(in);
+            failure = null;
+        }
     }
 
     /**
@@ -82,21 +88,6 @@ public class MultiTermVectorsItemResponse implements Streamable {
      */
     public MultiTermVectorsResponse.Failure getFailure() {
         return this.failure;
-    }
-
-    public static MultiTermVectorsItemResponse readItemResponse(StreamInput in) throws IOException {
-        MultiTermVectorsItemResponse response = new MultiTermVectorsItemResponse();
-        response.readFrom(in);
-        return response;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        if (in.readBoolean()) {
-            failure = MultiTermVectorsResponse.Failure.readFailure(in);
-        } else {
-            response = new TermVectorsResponse(in);
-        }
     }
 
     @Override

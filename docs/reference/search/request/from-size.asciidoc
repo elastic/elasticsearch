@@ -1,5 +1,5 @@
-[[search-request-from-size]]
-=== From / Size
+[[request-body-search-from-size]]
+==== From / Size
 
 Pagination of results can be done by using the `from` and `size`
 parameters. The `from` parameter defines the offset from the first
@@ -24,5 +24,11 @@ GET /_search
 
 
 Note that `from` + `size` can not be more than the `index.max_result_window`
-index setting which defaults to 10,000. See the <<search-request-scroll,Scroll>> or <<search-request-search-after,Search After>>
-API for more efficient ways to do deep scrolling.
+index setting, which defaults to 10,000.
+
+WARNING: {es} uses Lucene's internal doc IDs as tie-breakers. These internal
+doc IDs can be completely different across replicas of the same
+data. When paginating, you might occasionally see that documents with the same
+sort values are not ordered consistently. For deep scrolling, it is more
+efficient to use the <<request-body-search-scroll,Scroll>> or 
+<<request-body-search-search-after,Search After>> APIs.

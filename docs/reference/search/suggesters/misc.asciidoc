@@ -1,5 +1,5 @@
-[[returning-suggesters-type]]
-=== Returning the type of the suggester
+[[return-suggesters-type]]
+==== Returning the type of the suggester
 
 Sometimes you need to know the exact type of a suggester in order to parse its results. The `typed_keys` parameter
  can be used to change the suggester's name in the response so that it will be prefixed by its type.

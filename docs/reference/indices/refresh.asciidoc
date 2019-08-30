@@ -1,5 +1,5 @@
 [[indices-refresh]]
-== Refresh
+=== Refresh
 
 The refresh API allows to explicitly refresh one or more index, making
 all operations performed since the last refresh available for search.
@@ -15,7 +15,7 @@ POST /twitter/_refresh
 // TEST[setup:twitter]
 
 [float]
-=== Multi Index
+==== Multi Index
 
 The refresh API can be applied to more than one index with a single
 call, or even on `_all` the indices.

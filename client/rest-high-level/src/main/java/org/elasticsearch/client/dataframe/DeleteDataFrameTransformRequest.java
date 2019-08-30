@@ -31,7 +31,10 @@ import java.util.Optional;
  */
 public class DeleteDataFrameTransformRequest implements Validatable {
 
+    public static final String FORCE = "force";
+
     private final String id;
+    private Boolean force;
 
     public DeleteDataFrameTransformRequest(String id) {
         this.id = id;
@@ -39,6 +42,14 @@ public class DeleteDataFrameTransformRequest implements Validatable {
 
     public String getId() {
         return id;
+    }
+
+    public Boolean getForce() {
+        return force;
+    }
+
+    public void setForce(boolean force) {
+        this.force = force;
     }
 
     @Override
@@ -54,7 +65,7 @@ public class DeleteDataFrameTransformRequest implements Validatable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(id);
+        return Objects.hash(id, force);
     }
 
     @Override
@@ -67,6 +78,6 @@ public class DeleteDataFrameTransformRequest implements Validatable {
             return false;
         }
         DeleteDataFrameTransformRequest other = (DeleteDataFrameTransformRequest) obj;
-        return Objects.equals(id, other.id);
+        return Objects.equals(id, other.id) && Objects.equals(force, other.force);
     }
 }

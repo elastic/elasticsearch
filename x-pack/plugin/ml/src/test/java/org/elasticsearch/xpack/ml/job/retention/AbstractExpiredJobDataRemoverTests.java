@@ -86,6 +86,7 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
         return searchResponse;
     }
 
+    @SuppressWarnings("unchecked")
     public void testRemoveGivenNoJobs() throws IOException {
         SearchResponse response = createSearchResponse(Collections.emptyList());
 
@@ -102,7 +103,7 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
         assertEquals(remover.getRetentionDaysCallCount, 0);
     }
 
-
+    @SuppressWarnings("unchecked")
     public void testRemoveGivenMulipleBatches() throws IOException {
         // This is testing AbstractExpiredJobDataRemover.WrappedBatchedJobsIterator
         int totalHits = 7;

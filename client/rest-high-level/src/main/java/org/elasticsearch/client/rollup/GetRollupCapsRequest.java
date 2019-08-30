@@ -21,14 +21,11 @@ package org.elasticsearch.client.rollup;
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 
-import java.io.IOException;
 import java.util.Objects;
 
-public class GetRollupCapsRequest implements Validatable, ToXContentObject {
-    private static final String ID = "id";
+public class GetRollupCapsRequest implements Validatable {
+
     private final String indexPattern;
 
     public GetRollupCapsRequest(final String indexPattern) {
@@ -41,14 +38,6 @@ public class GetRollupCapsRequest implements Validatable, ToXContentObject {
 
     public String getIndexPattern() {
         return indexPattern;
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field(ID, indexPattern);
-        builder.endObject();
-        return builder;
     }
 
     @Override

@@ -10,7 +10,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -31,18 +31,13 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class FindFileStructureAction extends StreamableResponseActionType<FindFileStructureAction.Response> {
+public class FindFileStructureAction extends ActionType<FindFileStructureAction.Response> {
 
     public static final FindFileStructureAction INSTANCE = new FindFileStructureAction();
     public static final String NAME = "cluster:monitor/xpack/ml/findfilestructure";
 
     private FindFileStructureAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        return new Response();
+        super(NAME, Response::new);
     }
 
     static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
@@ -60,22 +55,13 @@ public class FindFileStructureAction extends StreamableResponseActionType<FindFi
             this.fileStructure = fileStructure;
         }
 
-        Response() {
-        }
-
-        public FileStructure getFileStructure() {
-            return fileStructure;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        Response(StreamInput in) throws IOException {
+            super(in);
             fileStructure = new FileStructure(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             fileStructure.writeTo(out);
         }
 
@@ -148,6 +134,27 @@ public class FindFileStructureAction extends StreamableResponseActionType<FindFi
 
         public Request() {
         }
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            linesToSample = in.readOptionalVInt();
+            if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
+                lineMergeSizeLimit = in.readOptionalVInt();
+            }
+            timeout = in.readOptionalTimeValue();
+            charset = in.readOptionalString();
+            format = in.readBoolean() ? in.readEnum(FileStructure.Format.class) : null;
+            columnNames = in.readBoolean() ? in.readStringList() : null;
+            hasHeaderRow = in.readOptionalBoolean();
+            delimiter = in.readBoolean() ? (char) in.readVInt() : null;
+            quote = in.readBoolean() ? (char) in.readVInt() : null;
+            shouldTrimFields = in.readOptionalBoolean();
+            grokPattern = in.readOptionalString();
+            timestampFormat = in.readOptionalString();
+            timestampField = in.readOptionalString();
+            sample = in.readBytesReference();
+        }
+
 
         public Integer getLinesToSample() {
             return linesToSample;
@@ -336,31 +343,10 @@ public class FindFileStructureAction extends StreamableResponseActionType<FindFi
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            linesToSample = in.readOptionalVInt();
-            if (in.getVersion().onOrAfter(Version.CURRENT)) {
-                lineMergeSizeLimit = in.readOptionalVInt();
-            }
-            timeout = in.readOptionalTimeValue();
-            charset = in.readOptionalString();
-            format = in.readBoolean() ? in.readEnum(FileStructure.Format.class) : null;
-            columnNames = in.readBoolean() ? in.readStringList() : null;
-            hasHeaderRow = in.readOptionalBoolean();
-            delimiter = in.readBoolean() ? (char) in.readVInt() : null;
-            quote = in.readBoolean() ? (char) in.readVInt() : null;
-            shouldTrimFields = in.readOptionalBoolean();
-            grokPattern = in.readOptionalString();
-            timestampFormat = in.readOptionalString();
-            timestampField = in.readOptionalString();
-            sample = in.readBytesReference();
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeOptionalVInt(linesToSample);
-            if (out.getVersion().onOrAfter(Version.CURRENT)) {
+            if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
                 out.writeOptionalVInt(lineMergeSizeLimit);
             }
             out.writeOptionalTimeValue(timeout);

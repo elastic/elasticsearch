@@ -25,7 +25,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.engine.Engine.Searcher;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -41,13 +41,13 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
 
-        try (Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
-            QueryShardContext context = indexService.newQueryShardContext(0, searcher.reader(), () -> 42L, null);
+        try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
+            QueryShardContext context = indexService.newQueryShardContext(0, searcher.getIndexReader(), () -> 42L, null);
 
             ValuesSourceConfig<ValuesSource.Bytes> config = ValuesSourceConfig.resolve(
                     context, null, "bytes", null, null, null, null);
             ValuesSource.Bytes valuesSource = config.toValuesSource(context);
-            LeafReaderContext ctx = searcher.reader().leaves().get(0);
+            LeafReaderContext ctx = searcher.getIndexReader().leaves().get(0);
             SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
             assertTrue(values.advanceExact(0));
             assertEquals(1, values.docValueCount());
@@ -63,13 +63,13 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
 
-        try (Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
-            QueryShardContext context = indexService.newQueryShardContext(0, searcher.reader(), () -> 42L, null);
+        try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
+            QueryShardContext context = indexService.newQueryShardContext(0, searcher.getIndexReader(), () -> 42L, null);
 
             ValuesSourceConfig<ValuesSource.Bytes> config = ValuesSourceConfig.resolve(
                     context, null, "bytes", null, null, null, null);
             ValuesSource.Bytes valuesSource = config.toValuesSource(context);
-            LeafReaderContext ctx = searcher.reader().leaves().get(0);
+            LeafReaderContext ctx = searcher.getIndexReader().leaves().get(0);
             SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
             assertFalse(values.advanceExact(0));
 
@@ -90,8 +90,8 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
 
-        try (Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
-            QueryShardContext context = indexService.newQueryShardContext(0, searcher.reader(), () -> 42L, null);
+        try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
+            QueryShardContext context = indexService.newQueryShardContext(0, searcher.getIndexReader(), () -> 42L, null);
             ValuesSourceConfig<ValuesSource.Bytes> config = ValuesSourceConfig.resolve(
                     context, ValueType.STRING, "bytes", null, null, null, null);
             ValuesSource.Bytes valuesSource = config.toValuesSource(context);
@@ -100,7 +100,7 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
             config = ValuesSourceConfig.resolve(
                     context, ValueType.STRING, "bytes", null, "abc", null, null);
             valuesSource = config.toValuesSource(context);
-            LeafReaderContext ctx = searcher.reader().leaves().get(0);
+            LeafReaderContext ctx = searcher.getIndexReader().leaves().get(0);
             SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
             assertTrue(values.advanceExact(0));
             assertEquals(1, values.docValueCount());
@@ -116,13 +116,13 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
 
-        try (Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
-            QueryShardContext context = indexService.newQueryShardContext(0, searcher.reader(), () -> 42L, null);
+        try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
+            QueryShardContext context = indexService.newQueryShardContext(0, searcher.getIndexReader(), () -> 42L, null);
 
             ValuesSourceConfig<ValuesSource.Numeric> config = ValuesSourceConfig.resolve(
                     context, null, "long", null, null, null, null);
             ValuesSource.Numeric valuesSource = config.toValuesSource(context);
-            LeafReaderContext ctx = searcher.reader().leaves().get(0);
+            LeafReaderContext ctx = searcher.getIndexReader().leaves().get(0);
             SortedNumericDocValues values = valuesSource.longValues(ctx);
             assertTrue(values.advanceExact(0));
             assertEquals(1, values.docValueCount());
@@ -138,13 +138,13 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
 
-        try (Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
-            QueryShardContext context = indexService.newQueryShardContext(0, searcher.reader(), () -> 42L, null);
+        try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
+            QueryShardContext context = indexService.newQueryShardContext(0, searcher.getIndexReader(), () -> 42L, null);
 
             ValuesSourceConfig<ValuesSource.Numeric> config = ValuesSourceConfig.resolve(
                     context, null, "long", null, null, null, null);
             ValuesSource.Numeric valuesSource = config.toValuesSource(context);
-            LeafReaderContext ctx = searcher.reader().leaves().get(0);
+            LeafReaderContext ctx = searcher.getIndexReader().leaves().get(0);
             SortedNumericDocValues values = valuesSource.longValues(ctx);
             assertFalse(values.advanceExact(0));
 
@@ -165,8 +165,8 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
 
-        try (Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
-            QueryShardContext context = indexService.newQueryShardContext(0, searcher.reader(), () -> 42L, null);
+        try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
+            QueryShardContext context = indexService.newQueryShardContext(0, searcher.getIndexReader(), () -> 42L, null);
 
             ValuesSourceConfig<ValuesSource.Numeric> config = ValuesSourceConfig.resolve(
                     context, ValueType.NUMBER, "long", null, null, null, null);
@@ -176,7 +176,7 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
             config = ValuesSourceConfig.resolve(
                     context, ValueType.NUMBER, "long", null, 42, null, null);
             valuesSource = config.toValuesSource(context);
-            LeafReaderContext ctx = searcher.reader().leaves().get(0);
+            LeafReaderContext ctx = searcher.getIndexReader().leaves().get(0);
             SortedNumericDocValues values = valuesSource.longValues(ctx);
             assertTrue(values.advanceExact(0));
             assertEquals(1, values.docValueCount());
@@ -192,13 +192,13 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
 
-        try (Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
-            QueryShardContext context = indexService.newQueryShardContext(0, searcher.reader(), () -> 42L, null);
+        try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
+            QueryShardContext context = indexService.newQueryShardContext(0, searcher.getIndexReader(), () -> 42L, null);
 
             ValuesSourceConfig<ValuesSource.Numeric> config = ValuesSourceConfig.resolve(
                     context, null, "bool", null, null, null, null);
             ValuesSource.Numeric valuesSource = config.toValuesSource(context);
-            LeafReaderContext ctx = searcher.reader().leaves().get(0);
+            LeafReaderContext ctx = searcher.getIndexReader().leaves().get(0);
             SortedNumericDocValues values = valuesSource.longValues(ctx);
             assertTrue(values.advanceExact(0));
             assertEquals(1, values.docValueCount());
@@ -214,13 +214,13 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
 
-        try (Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
-            QueryShardContext context = indexService.newQueryShardContext(0, searcher.reader(), () -> 42L, null);
+        try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
+            QueryShardContext context = indexService.newQueryShardContext(0, searcher.getIndexReader(), () -> 42L, null);
 
             ValuesSourceConfig<ValuesSource.Numeric> config = ValuesSourceConfig.resolve(
                     context, null, "bool", null, null, null, null);
             ValuesSource.Numeric valuesSource = config.toValuesSource(context);
-            LeafReaderContext ctx = searcher.reader().leaves().get(0);
+            LeafReaderContext ctx = searcher.getIndexReader().leaves().get(0);
             SortedNumericDocValues values = valuesSource.longValues(ctx);
             assertFalse(values.advanceExact(0));
 
@@ -241,8 +241,8 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
 
-        try (Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
-            QueryShardContext context = indexService.newQueryShardContext(0, searcher.reader(), () -> 42L, null);
+        try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
+            QueryShardContext context = indexService.newQueryShardContext(0, searcher.getIndexReader(), () -> 42L, null);
 
             ValuesSourceConfig<ValuesSource.Numeric> config = ValuesSourceConfig.resolve(
                     context, ValueType.BOOLEAN, "bool", null, null, null, null);
@@ -252,7 +252,7 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
             config = ValuesSourceConfig.resolve(
                     context, ValueType.BOOLEAN, "bool", null, true, null, null);
             valuesSource = config.toValuesSource(context);
-            LeafReaderContext ctx = searcher.reader().leaves().get(0);
+            LeafReaderContext ctx = searcher.getIndexReader().leaves().get(0);
             SortedNumericDocValues values = valuesSource.longValues(ctx);
             assertTrue(values.advanceExact(0));
             assertEquals(1, values.docValueCount());
@@ -262,8 +262,8 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
 
     public void testTypeFieldDeprecation() {
         IndexService indexService = createIndex("index", Settings.EMPTY, "type");
-        try (Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
-            QueryShardContext context = indexService.newQueryShardContext(0, searcher.reader(), () -> 42L, null);
+        try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
+            QueryShardContext context = indexService.newQueryShardContext(0, searcher.getIndexReader(), () -> 42L, null);
 
             ValuesSourceConfig<ValuesSource.Bytes> config = ValuesSourceConfig.resolve(
                 context, null, TypeFieldMapper.NAME, null, null, null, null);
@@ -279,13 +279,13 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
 
-        try (Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
-            QueryShardContext context = indexService.newQueryShardContext(0, searcher.reader(), () -> 42L, null);
+        try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
+            QueryShardContext context = indexService.newQueryShardContext(0, searcher.getIndexReader(), () -> 42L, null);
             ValuesSourceConfig<ValuesSource.Bytes> config = ValuesSourceConfig.resolve(
                 context, ValueType.STRING, "alias", null, null, null, null);
             ValuesSource.Bytes valuesSource = config.toValuesSource(context);
 
-            LeafReaderContext ctx = searcher.reader().leaves().get(0);
+            LeafReaderContext ctx = searcher.getIndexReader().leaves().get(0);
             SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
             assertTrue(values.advanceExact(0));
             assertEquals(1, values.docValueCount());

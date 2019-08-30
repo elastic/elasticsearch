@@ -99,3 +99,7 @@ analyzers that were reloaded:
 // TESTRESPONSE[s/"total" : 2/"total" : $body._shards.total/]
 // TESTRESPONSE[s/"successful" : 2/"successful" : $body._shards.successful/]
 // TESTRESPONSE[s/mfdqTXn_T7SGr2Ho2KT8uw/$body.reload_details.0.reloaded_node_ids.0/]
+
+NOTE: Reloading does not happen on each shard of an index, but once on each node
+the index has shards on. The total shard count can therefore differ from the number
+of index shards.

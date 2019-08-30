@@ -35,9 +35,6 @@ public class DatafeedUpdateTests extends AbstractXContentTestCase<DatafeedUpdate
     public static DatafeedUpdate createRandom() {
         DatafeedUpdate.Builder builder = new DatafeedUpdate.Builder(DatafeedConfigTests.randomValidDatafeedId());
         if (randomBoolean()) {
-            builder.setJobId(randomAlphaOfLength(10));
-        }
-        if (randomBoolean()) {
             builder.setQueryDelay(TimeValue.timeValueMillis(randomIntBetween(1, Integer.MAX_VALUE)));
         }
         if (randomBoolean()) {

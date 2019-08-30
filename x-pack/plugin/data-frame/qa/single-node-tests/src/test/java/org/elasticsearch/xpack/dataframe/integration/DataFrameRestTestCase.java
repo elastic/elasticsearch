@@ -51,10 +51,8 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE_SUPER_USER).build();
     }
 
-    protected void createReviewsIndex(String indexName) throws IOException {
+    protected void createReviewsIndex(String indexName, int numDocs) throws IOException {
         int[] distributionTable = {5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 4, 4, 4, 3, 3, 2, 1, 1, 1};
-
-        final int numDocs = 1000;
 
         // create mapping
         try (XContentBuilder builder = jsonBuilder()) {
@@ -146,6 +144,10 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
         createReviewsIndex(REVIEWS_INDEX_NAME);
     }
 
+    protected void createReviewsIndex(String indexName) throws IOException {
+        createReviewsIndex(indexName, 1000);
+    }
+
     protected void createPivotReviewsTransform(String transformId, String dataFrameIndex, String query) throws IOException {
         createPivotReviewsTransform(transformId, dataFrameIndex, query, null);
     }
@@ -161,7 +163,9 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
 
         String config = "{ \"dest\": {\"index\":\"" + dataFrameIndex + "\"},"
             + " \"source\": {\"index\":\"" + REVIEWS_INDEX_NAME + "\"},"
+            //Set frequency high for testing
             + " \"sync\": {\"time\":{\"field\": \"timestamp\", \"delay\": \"15m\"}},"
+            + " \"frequency\": \"1s\","
             + " \"pivot\": {"
             + "   \"group_by\": {"
             + "     \"reviewer\": {"
@@ -210,7 +214,8 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
                 + "     \"avg_rating\": {"
                 + "       \"avg\": {"
                 + "         \"field\": \"stars\""
-                + " } } } }"
+                + " } } } },"
+                + "\"frequency\":\"1s\""
                 + "}";
 
         createDataframeTransformRequest.setJsonEntity(config);
@@ -295,8 +300,7 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
 
     void waitForDataFrameStopped(String transformId) throws Exception {
         assertBusy(() -> {
-            assertEquals("stopped", getDataFrameTaskState(transformId));
-            assertEquals("stopped", getDataFrameIndexerState(transformId));
+            assertEquals("stopped", getDataFrameTransformState(transformId));
         }, 15, TimeUnit.SECONDS);
     }
 
@@ -321,15 +325,9 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
         return transformConfigs == null ? Collections.emptyList() : transformConfigs;
     }
 
-    protected static String getDataFrameIndexerState(String transformId) throws IOException {
+    protected static String getDataFrameTransformState(String transformId) throws IOException {
         Map<?, ?> transformStatsAsMap = getDataFrameState(transformId);
-        return transformStatsAsMap == null ? null :
-            (String) XContentMapValues.extractValue("state.indexer_state", transformStatsAsMap);
-    }
-
-    protected static String getDataFrameTaskState(String transformId) throws IOException {
-        Map<?, ?> transformStatsAsMap = getDataFrameState(transformId);
-        return transformStatsAsMap == null ? null : (String) XContentMapValues.extractValue("state.task_state", transformStatsAsMap);
+        return transformStatsAsMap == null ? null : (String) XContentMapValues.extractValue("state", transformStatsAsMap);
     }
 
     protected static Map<?, ?> getDataFrameState(String transformId) throws IOException {
@@ -357,7 +355,7 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
     public static void removeIndices() throws Exception {
         // we might have disabled wiping indices, but now its time to get rid of them
         // note: can not use super.cleanUpCluster() as this method must be static
-        wipeIndices();
+        wipeAllIndices();
     }
 
     public void wipeDataFrameTransforms() throws IOException {
@@ -373,8 +371,8 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
 
         for (Map<String, Object> transformConfig : transformConfigs) {
             String transformId = (String) transformConfig.get("id");
-            String state = getDataFrameIndexerState(transformId);
-            assertEquals("Transform [" + transformId + "] indexer is not in the stopped state", "stopped", state);
+            String state = getDataFrameTransformState(transformId);
+            assertEquals("Transform [" + transformId + "] is not in the stopped state", "stopped", state);
         }
 
         for (Map<String, Object> transformConfig : transformConfigs) {
@@ -387,7 +385,7 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
         assertTrue(transformConfigs.isEmpty());
 
         // the configuration index should be empty
-        Request request = new Request("GET", DataFrameInternalIndex.INDEX_NAME + "/_search");
+        Request request = new Request("GET", DataFrameInternalIndex.LATEST_INDEX_NAME + "/_search");
         try {
             Response searchResponse = adminClient().performRequest(request);
             Map<String, Object> searchResult = entityAsMap(searchResponse);
@@ -405,22 +403,11 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
         waitForPendingTasks(adminClient(), taskName -> taskName.startsWith(DataFrameField.TASK_NAME) == false);
     }
 
-    protected static void wipeIndices() throws IOException {
-        try {
-            adminClient().performRequest(new Request("DELETE", "*"));
-        } catch (ResponseException e) {
-            // 404 here just means we had no indexes
-            if (e.getResponse().getStatusLine().getStatusCode() != 404) {
-                throw e;
-            }
-        }
-    }
-
     static int getDataFrameCheckpoint(String transformId) throws IOException {
         Response statsResponse = client().performRequest(new Request("GET", DATAFRAME_ENDPOINT + transformId + "/_stats"));
 
         Map<?, ?> transformStatsAsMap = (Map<?, ?>) ((List<?>) entityAsMap(statsResponse).get("transforms")).get(0);
-        return (int) XContentMapValues.extractValue("state.checkpoint", transformStatsAsMap);
+        return (int) XContentMapValues.extractValue("checkpointing.last.checkpoint", transformStatsAsMap);
     }
 
     protected void setupDataAccessRole(String role, String... indices) throws IOException {

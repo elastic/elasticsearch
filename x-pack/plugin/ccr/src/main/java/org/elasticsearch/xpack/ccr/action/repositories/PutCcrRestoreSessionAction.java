@@ -36,12 +36,7 @@ public class PutCcrRestoreSessionAction extends ActionType<PutCcrRestoreSessionA
     public static final String NAME = "internal:admin/ccr/restore/session/put";
 
     private PutCcrRestoreSessionAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<PutCcrRestoreSessionAction.PutCcrRestoreSessionResponse> getResponseReader() {
-        return PutCcrRestoreSessionAction.PutCcrRestoreSessionResponse::new;
+        super(NAME, PutCcrRestoreSessionResponse::new);
     }
 
     public static class TransportPutCcrRestoreSessionAction
@@ -95,9 +90,6 @@ public class PutCcrRestoreSessionAction extends ActionType<PutCcrRestoreSessionA
         private Store.MetadataSnapshot storeFileMetaData;
         private long mappingVersion;
 
-        PutCcrRestoreSessionResponse() {
-        }
-
         PutCcrRestoreSessionResponse(DiscoveryNode node, Store.MetadataSnapshot storeFileMetaData, long mappingVersion) {
             this.node = node;
             this.storeFileMetaData = storeFileMetaData;
@@ -112,16 +104,7 @@ public class PutCcrRestoreSessionAction extends ActionType<PutCcrRestoreSessionA
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            node = new DiscoveryNode(in);
-            storeFileMetaData = new Store.MetadataSnapshot(in);
-            mappingVersion = in.readVLong();
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             node.writeTo(out);
             storeFileMetaData.writeTo(out);
             out.writeVLong(mappingVersion);

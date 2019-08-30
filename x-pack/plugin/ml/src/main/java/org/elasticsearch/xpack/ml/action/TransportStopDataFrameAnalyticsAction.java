@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -31,6 +32,7 @@ import org.elasticsearch.xpack.core.ml.action.StopDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
 
@@ -89,13 +91,10 @@ public class TransportStopDataFrameAnalyticsAction
                     return;
                 }
 
-                Set<String> startedAnalytics = new HashSet<>();
-                Set<String> stoppingAnalytics = new HashSet<>();
                 PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-                sortAnalyticsByTaskState(expandedIds, tasks, startedAnalytics, stoppingAnalytics);
-
-                request.setExpandedIds(startedAnalytics);
-                request.setNodes(findAllocatedNodesAndRemoveUnassignedTasks(startedAnalytics, tasks));
+                Set<String> analyticsToStop = findAnalyticsToStop(tasks, expandedIds, request.isForce());
+                request.setExpandedIds(analyticsToStop);
+                request.setNodes(findAllocatedNodesAndRemoveUnassignedTasks(analyticsToStop, tasks));
 
                 ActionListener<StopDataFrameAnalyticsAction.Response> finalListener = ActionListener.wrap(
                     r -> waitForTaskRemoved(expandedIds, request, r, listener),
@@ -110,8 +109,28 @@ public class TransportStopDataFrameAnalyticsAction
         expandIds(state, request, expandedIdsListener);
     }
 
+    /** Visible for testing */
+    static Set<String> findAnalyticsToStop(PersistentTasksCustomMetaData tasks, Set<String> ids, boolean force) {
+        Set<String> startedAnalytics = new HashSet<>();
+        Set<String> stoppingAnalytics = new HashSet<>();
+        Set<String> failedAnalytics = new HashSet<>();
+        sortAnalyticsByTaskState(ids, tasks, startedAnalytics, stoppingAnalytics, failedAnalytics);
+
+        if (force == false && failedAnalytics.isEmpty() == false) {
+            ElasticsearchStatusException e = failedAnalytics.size() == 1 ? ExceptionsHelper.conflictStatusException(
+                "cannot close data frame analytics [{}] because it failed, use force stop instead", failedAnalytics.iterator().next()) :
+                ExceptionsHelper.conflictStatusException("one or more data frame analytics are in failed state, " +
+                    "use force stop instead");
+            throw e;
+        }
+
+        startedAnalytics.addAll(failedAnalytics);
+        return startedAnalytics;
+    }
+
     private static void sortAnalyticsByTaskState(Set<String> analyticsIds, PersistentTasksCustomMetaData tasks,
-                                                 Set<String> startedAnalytics, Set<String> stoppingAnalytics) {
+                                                 Set<String> startedAnalytics, Set<String> stoppingAnalytics,
+                                                 Set<String> failedAnalytics) {
         for (String analyticsId : analyticsIds) {
             switch (MlTasks.getDataFrameAnalyticsState(analyticsId, tasks)) {
                 case STARTED:
@@ -123,6 +142,9 @@ public class TransportStopDataFrameAnalyticsAction
                     stoppingAnalytics.add(analyticsId);
                     break;
                 case STOPPED:
+                    break;
+                case FAILED:
+                    failedAnalytics.add(analyticsId);
                     break;
                 default:
                     break;
@@ -203,7 +225,7 @@ public class TransportStopDataFrameAnalyticsAction
                                  TransportStartDataFrameAnalyticsAction.DataFrameAnalyticsTask task,
                                  ActionListener<StopDataFrameAnalyticsAction.Response> listener) {
         DataFrameAnalyticsTaskState stoppingState =
-            new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.STOPPING, task.getAllocationId());
+            new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.STOPPING, task.getAllocationId(), null);
         task.updatePersistentTaskState(stoppingState, ActionListener.wrap(pTask -> {
                 threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(new AbstractRunnable() {
                     @Override
@@ -213,6 +235,7 @@ public class TransportStopDataFrameAnalyticsAction
 
                     @Override
                     protected void doRun() {
+                        logger.info("[{}] Stopping task with force [{}]", task.getParams().getId(), request.isForce());
                         task.stop("stop_data_frame_analytics (api)", request.getTimeout());
                         listener.onResponse(new StopDataFrameAnalyticsAction.Response(true));
                     }

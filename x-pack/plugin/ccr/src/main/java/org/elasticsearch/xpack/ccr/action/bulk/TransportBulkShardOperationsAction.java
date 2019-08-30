@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -190,8 +191,8 @@ public class TransportBulkShardOperationsAction
     }
 
     @Override
-    protected BulkShardOperationsResponse newResponseInstance() {
-        return new BulkShardOperationsResponse();
+    protected BulkShardOperationsResponse newResponseInstance(StreamInput in) throws IOException {
+        return new BulkShardOperationsResponse(in);
     }
 
     /**

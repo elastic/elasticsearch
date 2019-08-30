@@ -54,10 +54,7 @@ public class RestGetIndicesAction extends BaseRestHandler {
             .unmodifiableSet(Stream.concat(Collections.singleton(INCLUDE_TYPE_NAME_PARAMETER).stream(), Settings.FORMAT_PARAMS.stream())
                     .collect(Collectors.toSet()));
 
-    public RestGetIndicesAction(
-            final Settings settings,
-            final RestController controller) {
-        super(settings);
+    public RestGetIndicesAction(final RestController controller) {
         controller.registerHandler(GET, "/{index}", this);
         controller.registerHandler(HEAD, "/{index}", this);
     }
@@ -70,8 +67,8 @@ public class RestGetIndicesAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
-        // starting with 7.0 we don't include types by default in the response
-        if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
+        // starting with 7.0 we don't include types by default in the response to GET requests
+        if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER) && request.method().equals(GET)) {
             deprecationLogger.deprecatedAndMaybeLog("get_indices_with_types", TYPES_DEPRECATION_MESSAGE);
         }
         final GetIndexRequest getIndexRequest = new GetIndexRequest();

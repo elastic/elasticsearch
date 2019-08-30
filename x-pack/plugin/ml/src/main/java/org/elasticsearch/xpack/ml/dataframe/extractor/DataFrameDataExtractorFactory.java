@@ -19,13 +19,17 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedField;
 import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedFields;
 
 import java.util.Arrays;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -34,30 +38,74 @@ public class DataFrameDataExtractorFactory {
 
     private final Client client;
     private final String analyticsId;
-    private final String index;
+    private final List<String> indices;
     private final ExtractedFields extractedFields;
     private final Map<String, String> headers;
+    private final boolean includeRowsWithMissingValues;
 
-    private DataFrameDataExtractorFactory(Client client, String analyticsId, String index, ExtractedFields extractedFields,
-                                          Map<String, String> headers) {
+    private DataFrameDataExtractorFactory(Client client, String analyticsId, List<String> indices, ExtractedFields extractedFields,
+                                          Map<String, String> headers, boolean includeRowsWithMissingValues) {
         this.client = Objects.requireNonNull(client);
         this.analyticsId = Objects.requireNonNull(analyticsId);
-        this.index = Objects.requireNonNull(index);
+        this.indices = Objects.requireNonNull(indices);
         this.extractedFields = Objects.requireNonNull(extractedFields);
         this.headers = headers;
+        this.includeRowsWithMissingValues = includeRowsWithMissingValues;
     }
 
     public DataFrameDataExtractor newExtractor(boolean includeSource) {
         DataFrameDataExtractorContext context = new DataFrameDataExtractorContext(
                 analyticsId,
                 extractedFields,
-                Arrays.asList(index),
-                QueryBuilders.matchAllQuery(),
+                indices,
+                createQuery(),
                 1000,
                 headers,
-                includeSource
+                includeSource,
+                includeRowsWithMissingValues
             );
         return new DataFrameDataExtractor(client, context);
+    }
+
+    private QueryBuilder createQuery() {
+        return includeRowsWithMissingValues ? QueryBuilders.matchAllQuery() : allExtractedFieldsExistQuery();
+    }
+
+    private QueryBuilder allExtractedFieldsExistQuery() {
+        BoolQueryBuilder query = QueryBuilders.boolQuery();
+        for (ExtractedField field : extractedFields.getAllFields()) {
+            query.filter(QueryBuilders.existsQuery(field.getName()));
+        }
+        return query;
+    }
+
+    /**
+     * Validate and create a new extractor factory
+     *
+     * The source index must exist and contain at least 1 compatible field or validations will fail.
+     *
+     * @param client ES Client used to make calls against the cluster
+     * @param config The config from which to create the extractor factory
+     * @param listener The listener to notify on creation or failure
+     */
+    public static void createForSourceIndices(Client client,
+                                              String taskId,
+                                              DataFrameAnalyticsConfig config,
+                                              ActionListener<DataFrameDataExtractorFactory> listener) {
+        validateIndexAndExtractFields(
+            client,
+            config.getSource().getIndex(),
+            config,
+            null,
+            false,
+            ActionListener.wrap(
+                extractedFields -> listener.onResponse(
+                    new DataFrameDataExtractorFactory(
+                        client, taskId, Arrays.asList(config.getSource().getIndex()), extractedFields, config.getHeaders(),
+                        config.getAnalysis().supportsMissingValues())),
+                listener::onFailure
+            )
+        );
     }
 
     /**
@@ -70,15 +118,24 @@ public class DataFrameDataExtractorFactory {
      * @param isTaskRestarting Whether the task is restarting
      * @param listener The listener to notify on creation or failure
      */
-    public static void create(Client client,
-                              DataFrameAnalyticsConfig config,
-                              boolean isTaskRestarting,
-                              ActionListener<DataFrameDataExtractorFactory> listener) {
-        validateIndexAndExtractFields(client, new String[] {config.getDest().getIndex()}, config, isTaskRestarting,
-            ActionListener.wrap(extractedFields -> listener.onResponse(new DataFrameDataExtractorFactory(
-                    client, config.getId(), config.getDest().getIndex(), extractedFields, config.getHeaders())),
+    public static void createForDestinationIndex(Client client,
+                                                 DataFrameAnalyticsConfig config,
+                                                 boolean isTaskRestarting,
+                                                 ActionListener<DataFrameDataExtractorFactory> listener) {
+        validateIndexAndExtractFields(
+            client,
+            new String[] {config.getDest().getIndex()},
+            config,
+            config.getDest().getResultsField(),
+            isTaskRestarting,
+            ActionListener.wrap(
+                extractedFields -> listener.onResponse(
+                    new DataFrameDataExtractorFactory(
+                        client, config.getId(), Arrays.asList(config.getDest().getIndex()), extractedFields, config.getHeaders(),
+                        config.getAnalysis().supportsMissingValues())),
                 listener::onFailure
-        ));
+            )
+        );
     }
 
     /**
@@ -91,26 +148,36 @@ public class DataFrameDataExtractorFactory {
     public static void validateConfigAndSourceIndex(Client client,
                                                     DataFrameAnalyticsConfig config,
                                                     ActionListener<DataFrameAnalyticsConfig> listener) {
-        validateIndexAndExtractFields(client, config.getSource().getIndex(), config, false, ActionListener.wrap(
+        validateIndexAndExtractFields(
+            client,
+            config.getSource().getIndex(),
+            config,
+            config.getDest().getResultsField(),
+            false,
+            ActionListener.wrap(
                 fields -> {
                     config.getSource().getParsedQuery(); // validate query is acceptable
                     listener.onResponse(config);
                 },
                 listener::onFailure
-        ));
+            )
+        );
     }
 
     private static void validateIndexAndExtractFields(Client client,
                                                       String[] index,
                                                       DataFrameAnalyticsConfig config,
+                                                      String resultsField,
                                                       boolean isTaskRestarting,
                                                       ActionListener<ExtractedFields> listener) {
         AtomicInteger docValueFieldsLimitHolder = new AtomicInteger();
 
         // Step 3. Extract fields (if possible) and notify listener
         ActionListener<FieldCapabilitiesResponse> fieldCapabilitiesHandler = ActionListener.wrap(
-            fieldCapabilitiesResponse -> listener.onResponse(new ExtractedFieldsDetector(index, config, isTaskRestarting,
-                docValueFieldsLimitHolder.get(), fieldCapabilitiesResponse).detect()),
+            fieldCapabilitiesResponse -> listener.onResponse(
+                new ExtractedFieldsDetector(
+                        index, config, resultsField, isTaskRestarting, docValueFieldsLimitHolder.get(), fieldCapabilitiesResponse)
+                    .detect()),
             listener::onFailure
         );
 

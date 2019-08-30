@@ -1,5 +1,5 @@
 [[search-field-caps]]
-== Field Capabilities API
+=== Field Capabilities API
 
 The field capabilities API allows to retrieve the capabilities of fields among multiple indices.
 
@@ -27,7 +27,7 @@ Supported request options:
             will cause all fields that match the expression to be returned.
 
 [float]
-=== Field Capabilities
+==== Field Capabilities
 
 The field capabilities API returns the following information per field:
 
@@ -57,7 +57,7 @@ or null if all indices have the same definition for the field.
 
 
 [float]
-=== Response format
+==== Response format
 
 Request:
 
@@ -70,8 +70,8 @@ GET _field_caps?fields=rating,title
 [source,js]
 --------------------------------------------------
 {
+    "indices": ["index1", "index2", "index3", "index4", "index5"],
     "fields": {
-        "indices": ["index1", "index2", "index3", "index4", "index5"],
         "rating": { <1>
             "long": {
                 "searchable": true,
@@ -105,7 +105,7 @@ and as a `keyword` in `index3` and `index4`.
 <4> The field `title` is defined as `text` in all indices.
 
 [float]
-=== Unmapped fields
+==== Unmapped fields
 
 By default unmapped fields are ignored. You can include them in the response by
 adding a parameter called `include_unmapped` in the request:
@@ -122,8 +122,8 @@ some indices but not all:
 [source,js]
 --------------------------------------------------
 {
+    "indices": ["index1", "index2", "index3"],
     "fields": {
-        "indices": ["index1", "index2", "index3"],
         "rating": {
             "long": {
                 "searchable": true,

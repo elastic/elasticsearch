@@ -1,5 +1,8 @@
 [[percolator]]
 === Percolator type
+++++
+<titleabbrev>Percolator</titleabbrev>
+++++
 
 The `percolator` field type parses a json structure into a native query and
 stores that query, so that the <<query-dsl-percolate-query,percolate query>>

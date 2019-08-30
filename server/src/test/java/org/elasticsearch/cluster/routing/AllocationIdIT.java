@@ -52,7 +52,6 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -174,7 +173,7 @@ public class AllocationIdIT extends ESIntegTestCase {
         assertThat(indexHealthStatus, is(healthStatus));
     }
 
-    private int indexDocs(String indexName, Object ... source) throws InterruptedException, ExecutionException {
+    private int indexDocs(String indexName, Object ... source) throws InterruptedException {
         // index some docs in several segments
         int numDocs = 0;
         for (int k = 0, attempts = randomIntBetween(5, 10); k < attempts; k++) {
@@ -192,9 +191,7 @@ public class AllocationIdIT extends ESIntegTestCase {
     }
 
     private Path getIndexPath(String nodeName, ShardId shardId) {
-        final Set<Path> indexDirs = RemoveCorruptedShardDataCommandIT.getDirs(nodeName, shardId, ShardPath.INDEX_FOLDER_NAME);
-        assertThat(indexDirs, hasSize(1));
-        return indexDirs.iterator().next();
+        return RemoveCorruptedShardDataCommandIT.getPathToShardData(nodeName, shardId, ShardPath.INDEX_FOLDER_NAME);
     }
 
     private Set<String> getAllocationIds(String indexName) {

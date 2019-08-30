@@ -1,5 +1,8 @@
 [[search-as-you-type]]
-=== Search as you type datatype
+=== Search-as-you-type datatype
+++++
+<titleabbrev>Search-as-you-type</titleabbrev>
+++++
 
 The `search_as_you_type` field type is a text-like field that is optimized to
 provide out-of-the-box support for queries that serve an as-you-type completion

@@ -14,13 +14,12 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.NotEqualMessageBuilder;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 import org.elasticsearch.xpack.sql.qa.ErrorsTestCase;
 import org.hamcrest.Matcher;
@@ -48,7 +47,7 @@ import static org.hamcrest.Matchers.containsString;
  * Integration test for the rest sql action. The one that speaks json directly to a
  * user rather than to the JDBC driver or CLI.
  */
-public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTestCase {
+public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements ErrorsTestCase {
     
     public static String SQL_QUERY_REST_ENDPOINT = org.elasticsearch.xpack.sql.proto.Protocol.SQL_QUERY_REST_ENDPOINT;
     private static String SQL_TRANSLATE_REST_ENDPOINT = org.elasticsearch.xpack.sql.proto.Protocol.SQL_TRANSLATE_REST_ENDPOINT;
@@ -349,7 +348,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
             }, containsString("unknown field [columnar], parser not found"));
     }
 
-    protected void expectBadRequest(CheckedSupplier<Map<String, Object>, Exception> code, Matcher<String> errorMessageMatcher) {
+    public static void expectBadRequest(CheckedSupplier<Map<String, Object>, Exception> code, Matcher<String> errorMessageMatcher) {
         try {
             Map<String, Object> result = code.get();
             fail("expected ResponseException but got " + result);
@@ -411,6 +410,85 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         Response response = client().performRequest(request);
         try (InputStream content = response.getEntity().getContent()) {
             return XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
+        }
+    }
+
+    public void testPrettyPrintingEnabled() throws IOException {
+        boolean columnar = randomBoolean();
+        String expected = "";
+        if (columnar) {
+            expected = "{\n" + 
+                    "  \"columns\" : [\n" + 
+                    "    {\n" + 
+                    "      \"name\" : \"test1\",\n" + 
+                    "      \"type\" : \"text\"\n" + 
+                    "    }\n" + 
+                    "  ],\n" + 
+                    "  \"values\" : [\n" + 
+                    "    [\n" + 
+                    "      \"test1\",\n" + 
+                    "      \"test2\"\n" + 
+                    "    ]\n" + 
+                    "  ]\n" + 
+                    "}\n";
+        } else {
+            expected = "{\n" + 
+                    "  \"columns\" : [\n" + 
+                    "    {\n" + 
+                    "      \"name\" : \"test1\",\n" + 
+                    "      \"type\" : \"text\"\n" + 
+                    "    }\n" + 
+                    "  ],\n" + 
+                    "  \"rows\" : [\n" + 
+                    "    [\n" + 
+                    "      \"test1\"\n" + 
+                    "    ],\n" + 
+                    "    [\n" + 
+                    "      \"test2\"\n" + 
+                    "    ]\n" + 
+                    "  ]\n" + 
+                    "}\n";
+        }
+        executeAndAssertPrettyPrinting(expected, "true", columnar);
+    }
+    
+    public void testPrettyPrintingDisabled() throws IOException {
+        boolean columnar = randomBoolean();
+        String expected = "";
+        if (columnar) {
+            expected = "{\"columns\":[{\"name\":\"test1\",\"type\":\"text\"}],\"values\":[[\"test1\",\"test2\"]]}";
+        } else {
+            expected = "{\"columns\":[{\"name\":\"test1\",\"type\":\"text\"}],\"rows\":[[\"test1\"],[\"test2\"]]}";
+        }
+        executeAndAssertPrettyPrinting(expected, randomFrom("false", null), columnar);
+    }
+    
+    private void executeAndAssertPrettyPrinting(String expectedJson, String prettyParameter, boolean columnar)
+            throws IOException {
+        index("{\"test1\":\"test1\"}",
+              "{\"test1\":\"test2\"}");
+
+        Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
+        if (prettyParameter != null) {
+            request.addParameter("pretty", prettyParameter);
+        }
+        if (randomBoolean()) {
+            // We default to JSON but we force it randomly for extra coverage
+            request.addParameter("format", "json");
+        }
+        if (randomBoolean()) {
+            // JSON is the default but randomly set it sometime for extra coverage
+            RequestOptions.Builder options = request.getOptions().toBuilder();
+            options.addHeader("Accept", randomFrom("*/*", "application/json"));
+            request.setOptions(options);
+        }
+        request.setEntity(new StringEntity("{\"query\":\"SELECT * FROM test\"" + mode("plain") + columnarParameter(columnar) + "}",
+                  ContentType.APPLICATION_JSON));
+        
+        Response response = client().performRequest(request);
+        try (InputStream content = response.getEntity().getContent()) {
+            String actualJson = new BytesArray(content.readAllBytes()).utf8ToString();
+            assertEquals(expectedJson, actualJson);
         }
     }
 
@@ -774,7 +852,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         );
     }
 
-    private void assertResponse(Map<String, Object> expected, Map<String, Object> actual) {
+    public static void assertResponse(Map<String, Object> expected, Map<String, Object> actual) {
         if (false == expected.equals(actual)) {
             NotEqualMessageBuilder message = new NotEqualMessageBuilder();
             message.compareMaps(actual, expected);
@@ -811,25 +889,5 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         try (InputStream content = response.getEntity().getContent()) {
             return XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
         }
-    }
-
-    public static String randomMode() {
-        return randomFrom(StringUtils.EMPTY, "jdbc", "plain");
-    }
-    
-    public static String mode(String mode) {
-        return Strings.isEmpty(mode) ? StringUtils.EMPTY : ",\"mode\":\"" + mode + "\"";
-    }
-
-    protected void index(String... docs) throws IOException {
-        Request request = new Request("POST", "/test/_bulk");
-        request.addParameter("refresh", "true");
-        StringBuilder bulk = new StringBuilder();
-        for (String doc : docs) {
-            bulk.append("{\"index\":{}\n");
-            bulk.append(doc + "\n");
-        }
-        request.setJsonEntity(bulk.toString());
-        client().performRequest(request);
     }
 }

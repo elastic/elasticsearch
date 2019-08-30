@@ -188,9 +188,7 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
 
     private ElasticsearchDistribution createDistro(Project project, String name, String version, Type type,
                               Platform platform, Flavor flavor, Boolean bundledJdk) {
-        @SuppressWarnings("unchecked")
-        NamedDomainObjectContainer<ElasticsearchDistribution> distros =
-            (NamedDomainObjectContainer<ElasticsearchDistribution>) project.getExtensions().getByName("elasticsearch_distributions");
+        NamedDomainObjectContainer<ElasticsearchDistribution> distros = DistributionDownloadPlugin.getContainer(project);
         return distros.create(name, distro -> {
             if (version != null) {
                 distro.setVersion(version);

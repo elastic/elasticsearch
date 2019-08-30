@@ -1,5 +1,8 @@
 [[range]]
 === Range datatypes
+++++
+<titleabbrev>Range</titleabbrev>
+++++
 
 The following range types are supported:
 

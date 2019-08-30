@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -33,7 +32,7 @@ import java.util.Objects;
 /**
  * A response acknowledging the deletion of expired data
  */
-public class DeleteExpiredDataResponse extends ActionResponse implements ToXContentObject {
+public class DeleteExpiredDataResponse implements ToXContentObject {
 
     private static final ParseField DELETED = new ParseField("deleted");
 

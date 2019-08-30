@@ -21,6 +21,7 @@ package org.elasticsearch.client.dataframe.transforms.hlrc;
 
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformProgress;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -34,12 +35,25 @@ public class DataFrameTransformProgressTests extends AbstractResponseTestCase<
         if (instance == null) {
             return null;
         }
-        return new DataFrameTransformProgress(instance.getTotalDocs(), instance.getRemainingDocs());
+        return new DataFrameTransformProgress(instance.getTotalDocs(),
+            instance.getRemainingDocs(),
+            instance.getDocumentsProcessed(),
+            instance.getDocumentsIndexed());
+    }
+
+    public static DataFrameTransformProgress randomDataFrameTransformProgress() {
+        Long totalDocs = randomBoolean() ? null : randomNonNegativeLong();
+        Long docsRemaining = totalDocs != null ? randomLongBetween(0, totalDocs) : null;
+        return new DataFrameTransformProgress(
+            totalDocs,
+            docsRemaining,
+            totalDocs != null ? totalDocs - docsRemaining : randomNonNegativeLong(),
+            randomBoolean() ? null : randomNonNegativeLong());
     }
 
     @Override
-    protected DataFrameTransformProgress createServerTestInstance() {
-        return DataFrameTransformStateTests.randomDataFrameTransformProgress();
+    protected DataFrameTransformProgress createServerTestInstance(XContentType xContentType) {
+        return randomDataFrameTransformProgress();
     }
 
     @Override
@@ -51,7 +65,8 @@ public class DataFrameTransformProgressTests extends AbstractResponseTestCase<
     protected void assertInstances(DataFrameTransformProgress serverTestInstance,
                                    org.elasticsearch.client.dataframe.transforms.DataFrameTransformProgress clientInstance) {
         assertThat(serverTestInstance.getTotalDocs(), equalTo(clientInstance.getTotalDocs()));
-        assertThat(serverTestInstance.getRemainingDocs(), equalTo(clientInstance.getRemainingDocs()));
+        assertThat(serverTestInstance.getDocumentsProcessed(), equalTo(clientInstance.getDocumentsProcessed()));
         assertThat(serverTestInstance.getPercentComplete(), equalTo(clientInstance.getPercentComplete()));
+        assertThat(serverTestInstance.getDocumentsIndexed(), equalTo(clientInstance.getDocumentsIndexed()));
     }
 }

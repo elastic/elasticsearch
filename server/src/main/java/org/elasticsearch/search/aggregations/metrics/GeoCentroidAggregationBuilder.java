@@ -79,7 +79,7 @@ public class GeoCentroidAggregationBuilder
 
     @Override
     protected GeoCentroidAggregatorFactory innerBuild(SearchContext context, ValuesSourceConfig<ValuesSource.GeoPoint> config,
-            AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
+            AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
         return new GeoCentroidAggregatorFactory(name, config, context, parent, subFactoriesBuilder, metaData);
     }
 

@@ -24,6 +24,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 
@@ -43,17 +45,30 @@ public class DataFrameAnalyticsStatsTests extends ESTestCase {
         return new DataFrameAnalyticsStats(
             randomAlphaOfLengthBetween(1, 10),
             randomFrom(DataFrameAnalyticsState.values()),
-            randomBoolean() ? null : randomIntBetween(0, 100),
+            randomBoolean() ? null : randomAlphaOfLength(10),
+            randomBoolean() ? null : createRandomProgress(),
             randomBoolean() ? null : NodeAttributesTests.createRandom(),
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20));
+    }
+
+    private static List<PhaseProgress> createRandomProgress() {
+        int progressPhaseCount = randomIntBetween(3, 7);
+        List<PhaseProgress> progress = new ArrayList<>(progressPhaseCount);
+        for (int i = 0; i < progressPhaseCount; i++) {
+            progress.add(new PhaseProgress(randomAlphaOfLength(20), randomIntBetween(0, 100)));
+        }
+        return progress;
     }
 
     public static void toXContent(DataFrameAnalyticsStats stats, XContentBuilder builder) throws IOException {
         builder.startObject();
         builder.field(DataFrameAnalyticsStats.ID.getPreferredName(), stats.getId());
         builder.field(DataFrameAnalyticsStats.STATE.getPreferredName(), stats.getState().value());
-        if (stats.getProgressPercent() != null) {
-            builder.field(DataFrameAnalyticsStats.PROGRESS_PERCENT.getPreferredName(), stats.getProgressPercent());
+        if (stats.getFailureReason() != null) {
+            builder.field(DataFrameAnalyticsStats.FAILURE_REASON.getPreferredName(), stats.getFailureReason());
+        }
+        if (stats.getProgress() != null) {
+            builder.field(DataFrameAnalyticsStats.PROGRESS.getPreferredName(), stats.getProgress());
         }
         if (stats.getNode() != null) {
             builder.field(DataFrameAnalyticsStats.NODE.getPreferredName(), stats.getNode());

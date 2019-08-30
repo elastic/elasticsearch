@@ -10,7 +10,6 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -41,7 +40,7 @@ public class RestMonitoringBulkActionTests extends ESTestCase {
 
     private final RestController controller = mock(RestController.class);
 
-    private final RestMonitoringBulkAction action = new RestMonitoringBulkAction(Settings.EMPTY, controller);
+    private final RestMonitoringBulkAction action = new RestMonitoringBulkAction(controller);
 
     public void testGetName() {
         // Are you sure that you want to change the name?

@@ -676,6 +676,9 @@ final class MLRequestConverters {
             params.putParam(
                 StopDataFrameAnalyticsRequest.ALLOW_NO_MATCH.getPreferredName(), Boolean.toString(stopRequest.getAllowNoMatch()));
         }
+        if (stopRequest.getForce() != null) {
+            params.putParam(StopDataFrameAnalyticsRequest.FORCE.getPreferredName(), Boolean.toString(stopRequest.getForce()));
+        }
         request.addParameters(params.asMap());
         return request;
     }
@@ -694,6 +697,15 @@ final class MLRequestConverters {
             .build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         request.setEntity(createEntity(evaluateRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request estimateMemoryUsage(PutDataFrameAnalyticsRequest estimateRequest) throws IOException {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_ml", "data_frame", "analytics", "_estimate_memory_usage")
+            .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(estimateRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 

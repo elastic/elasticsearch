@@ -71,7 +71,6 @@ public final class ScrollQueryFetchSearchResult extends SearchPhaseResult {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         getSearchShardTarget().writeTo(out);
         result.writeTo(out);
     }

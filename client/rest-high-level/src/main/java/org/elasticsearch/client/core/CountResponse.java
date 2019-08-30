@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client.core;
 
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -35,7 +34,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 /**
  * A response to _count API request.
  */
-public final class CountResponse extends ActionResponse {
+public final class CountResponse {
 
     static final ParseField COUNT = new ParseField("count");
     static final ParseField TERMINATED_EARLY = new ParseField("terminated_early");

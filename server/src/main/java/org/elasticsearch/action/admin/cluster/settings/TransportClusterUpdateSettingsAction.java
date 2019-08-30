@@ -56,7 +56,7 @@ public class TransportClusterUpdateSettingsAction extends
                                                 ThreadPool threadPool, AllocationService allocationService, ActionFilters actionFilters,
                                                 IndexNameExpressionResolver indexNameExpressionResolver, ClusterSettings clusterSettings) {
         super(ClusterUpdateSettingsAction.NAME, false, transportService, clusterService, threadPool, actionFilters,
-            indexNameExpressionResolver, ClusterUpdateSettingsRequest::new);
+            ClusterUpdateSettingsRequest::new, indexNameExpressionResolver);
         this.allocationService = allocationService;
         this.clusterSettings = clusterSettings;
     }
@@ -80,12 +80,6 @@ public class TransportClusterUpdateSettingsAction extends
             }
         }
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
-    }
-
-
-    @Override
-    protected ClusterUpdateSettingsResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

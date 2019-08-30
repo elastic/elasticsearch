@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
@@ -41,18 +42,21 @@ public class DataFrameAnalyticsStats {
 
     static final ParseField ID = new ParseField("id");
     static final ParseField STATE = new ParseField("state");
-    static final ParseField PROGRESS_PERCENT = new ParseField("progress_percent");
+    static final ParseField FAILURE_REASON = new ParseField("failure_reason");
+    static final ParseField PROGRESS = new ParseField("progress");
     static final ParseField NODE = new ParseField("node");
     static final ParseField ASSIGNMENT_EXPLANATION = new ParseField("assignment_explanation");
 
+    @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<DataFrameAnalyticsStats, Void> PARSER =
         new ConstructingObjectParser<>("data_frame_analytics_stats", true,
             args -> new DataFrameAnalyticsStats(
                 (String) args[0],
                 (DataFrameAnalyticsState) args[1],
-                (Integer) args[2],
-                (NodeAttributes) args[3],
-                (String) args[4]));
+                (String) args[2],
+                (List<PhaseProgress>) args[3],
+                (NodeAttributes) args[4],
+                (String) args[5]));
 
     static {
         PARSER.declareString(constructorArg(), ID);
@@ -62,22 +66,26 @@ public class DataFrameAnalyticsStats {
             }
             throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
         }, STATE, ObjectParser.ValueType.STRING);
-        PARSER.declareInt(optionalConstructorArg(), PROGRESS_PERCENT);
+        PARSER.declareString(optionalConstructorArg(), FAILURE_REASON);
+        PARSER.declareObjectArray(optionalConstructorArg(), PhaseProgress.PARSER, PROGRESS);
         PARSER.declareObject(optionalConstructorArg(), NodeAttributes.PARSER, NODE);
         PARSER.declareString(optionalConstructorArg(), ASSIGNMENT_EXPLANATION);
     }
 
     private final String id;
     private final DataFrameAnalyticsState state;
-    private final Integer progressPercent;
+    private final String failureReason;
+    private final List<PhaseProgress> progress;
     private final NodeAttributes node;
     private final String assignmentExplanation;
 
-    public DataFrameAnalyticsStats(String id, DataFrameAnalyticsState state, @Nullable Integer progressPercent,
-                                   @Nullable NodeAttributes node, @Nullable String assignmentExplanation) {
+    public DataFrameAnalyticsStats(String id, DataFrameAnalyticsState state, @Nullable String failureReason,
+                                   @Nullable List<PhaseProgress> progress, @Nullable NodeAttributes node,
+                                   @Nullable String assignmentExplanation) {
         this.id = id;
         this.state = state;
-        this.progressPercent = progressPercent;
+        this.failureReason = failureReason;
+        this.progress = progress;
         this.node = node;
         this.assignmentExplanation = assignmentExplanation;
     }
@@ -90,8 +98,12 @@ public class DataFrameAnalyticsStats {
         return state;
     }
 
-    public Integer getProgressPercent() {
-        return progressPercent;
+    public String getFailureReason() {
+        return failureReason;
+    }
+
+    public List<PhaseProgress> getProgress() {
+        return progress;
     }
 
     public NodeAttributes getNode() {
@@ -110,14 +122,15 @@ public class DataFrameAnalyticsStats {
         DataFrameAnalyticsStats other = (DataFrameAnalyticsStats) o;
         return Objects.equals(id, other.id)
             && Objects.equals(state, other.state)
-            && Objects.equals(progressPercent, other.progressPercent)
+            && Objects.equals(failureReason, other.failureReason)
+            && Objects.equals(progress, other.progress)
             && Objects.equals(node, other.node)
             && Objects.equals(assignmentExplanation, other.assignmentExplanation);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, state, progressPercent, node, assignmentExplanation);
+        return Objects.hash(id, state, failureReason, progress, node, assignmentExplanation);
     }
 
     @Override
@@ -125,7 +138,8 @@ public class DataFrameAnalyticsStats {
         return new ToStringBuilder(getClass())
             .add("id", id)
             .add("state", state)
-            .add("progressPercent", progressPercent)
+            .add("failureReason", failureReason)
+            .add("progress", progress)
             .add("node", node)
             .add("assignmentExplanation", assignmentExplanation)
             .toString();

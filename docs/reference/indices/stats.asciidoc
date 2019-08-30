@@ -1,5 +1,5 @@
 [[indices-stats]]
-== Indices Stats
+=== Indices Stats
 
 Indices level stats provide statistics on different operations happening
 on an index. The API provides statistics on the index level scope

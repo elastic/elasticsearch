@@ -98,7 +98,7 @@ subprojects {
     apply plugin: 'elasticsearch.rest-test'
 
     testClusters.integTest {
-      distribution = 'DEFAULT'
+      testDistribution = 'DEFAULT'
       setting 'xpack.monitoring.enabled', 'false'
       setting 'xpack.ml.enabled', 'false'
       setting 'xpack.watcher.enabled', 'false'

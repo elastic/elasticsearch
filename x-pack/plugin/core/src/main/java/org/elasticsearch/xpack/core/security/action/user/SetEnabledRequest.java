@@ -27,6 +27,15 @@ public class SetEnabledRequest extends ActionRequest implements UserRequest, Wri
     private String username;
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
 
+    public SetEnabledRequest() {}
+
+    public SetEnabledRequest(StreamInput in) throws IOException {
+        super(in);
+        this.enabled = in.readBoolean();
+        this.username = in.readString();
+        this.refreshPolicy = RefreshPolicy.readFrom(in);
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
@@ -86,14 +95,6 @@ public class SetEnabledRequest extends ActionRequest implements UserRequest, Wri
     public SetEnabledRequest setRefreshPolicy(RefreshPolicy refreshPolicy) {
         this.refreshPolicy = refreshPolicy;
         return this;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        this.enabled = in.readBoolean();
-        this.username = in.readString();
-        this.refreshPolicy = RefreshPolicy.readFrom(in);
     }
 
     @Override

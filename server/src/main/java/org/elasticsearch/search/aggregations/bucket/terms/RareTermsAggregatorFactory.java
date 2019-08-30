@@ -38,7 +38,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource, RareTermsAggregatorFactory> {
+public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource> {
     private final IncludeExclude includeExclude;
     private final int maxDocCount;
     private final double precision;
@@ -46,7 +46,7 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory<Va
     RareTermsAggregatorFactory(String name, ValuesSourceConfig<ValuesSource> config,
                                       IncludeExclude includeExclude,
                                       SearchContext context,
-                                      AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder,
+                                      AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
                                       Map<String, Object> metaData, int maxDocCount, double precision) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metaData);
         this.includeExclude = includeExclude;

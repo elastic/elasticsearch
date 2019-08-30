@@ -266,6 +266,14 @@ additional names that can be used:
     mechanism that will cause an error if you attempt to map from a `NameID`
     that does not have a persistent value.
 
+NOTE: Identity Providers can be either statically configured to release a `NameID`
+with a specific format, or they can be configured to try to conform with the
+requirements of the SP. The SP declares its requirements as part of the
+Authentication Request, using an element which is called the `NameIDPolicy`. If
+this is needed, you can set the relevant <<saml-settings, settings>> named
+`nameid_format` in order to request that the IdP releases a `NameID` with a
+specific format.
+
 _friendlyName_::
     A SAML attribute may have a _friendlyName_ in addition to its URI based name.
     For example the attribute with a name of `urn:oid:0.9.2342.19200300.100.1.1`
@@ -733,19 +741,24 @@ SAML authentication in {kib} is also subject to the
 `xpack.security.sessionTimeout` setting that is described in the {kib} security
 documentation, and you may wish to adjust this timeout to meet your local needs.
 
-The two additional settings that are required for SAML support are shown below:
+The three additional settings that are required for SAML support are shown below:
 
 [source, yaml]
 ------------------------------------------------------------
-xpack.security.authProviders: [saml]
+xpack.security.authc.providers: [saml]
+xpack.security.authc.saml.realm: saml1
 server.xsrf.whitelist: [/api/security/v1/saml]
 ------------------------------------------------------------
 
 The configuration values used in the example above are:
 
-`xpack.security.authProviders`::
+`xpack.security.authc.providers`::
 Set this to `[ saml ]` to instruct {kib} to use SAML SSO as the authentication
 method.
+
+`xpack.security.authc.saml.realm`::
+Set this to the name of the SAML realm that you have used in your <<saml-create-realm,
+Elasticsearch realm configuration>>, for instance: `saml1`
 
 `server.xsrf.whitelist`::
 {kib} has in-built protection against _Cross Site Request Forgery_ attacks which
@@ -755,47 +768,18 @@ In order to support SAML authentication messages that originate from your
 Identity Provider, we need to explicitly _whitelist_ the SAML authentication URL
 within {kib}, so that the {kib} server will not reject these external messages.
 
-If your {kib} instance is behind a proxy, you may also need to add configuration
-to tell {kib} how to form its public URL. This is needed because all SAML
-messages are exchanged via the user's web browser, so {kib} needs to know what
-URLs are used within the browser. In this case, the following settings should be
-added to your `kibana.yml` configuration file:
-
-[source, yaml]
-------------------------------------------------------------
-xpack.security.public:
-  protocol: https
-  hostname: kibana.proxy.com
-  port: 443
-------------------------------------------------------------
-
-`xpack.security.public.protocol`::
-This is the protocol that the user's web browser uses to connect to the proxy.
-Must be one of `http` or `https`. It is strongly recommended that you use the
-`https` protocol for all access to {kib}.
-
-`xpack.security.public.hostname`::
-The fully qualified hostname that your users use to connect to the proxy server.
-
-`xpack.security.public.port`::
-The port number that your users use to connect to the proxy server (e.g. `80`
-for `http` or `443` for `https`).
-
-These values must be aligned with the URLs used in the {es} configuration for
-`sp.acs` and `sp.logout`.
-
 [[saml-kibana-basic]]
 ==== Supporting SAML and basic authentication in {kib}
 
 The SAML support in {kib} is designed on the expectation that it will be the
 primary (or sole) authentication method for users of that {kib} instance.
 However, it is possible to support both SAML and Basic authentication within a
-single {kib} instance by setting `xpack.security.authProviders` as per the
+single {kib} instance by setting `xpack.security.authc.providers` as per the
 example below:
 
 [source, yaml]
 ------------------------------------------------------------
-xpack.security.authProviders: [saml, basic]
+xpack.security.authc.providers: [saml, basic]
 ------------------------------------------------------------
 
 The order is important - this will _initiate_ SAML authentication for

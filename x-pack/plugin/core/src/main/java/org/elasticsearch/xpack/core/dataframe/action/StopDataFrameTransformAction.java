@@ -40,12 +40,7 @@ public class StopDataFrameTransformAction extends ActionType<StopDataFrameTransf
     public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
 
     private StopDataFrameTransformAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, StopDataFrameTransformAction.Response::new);
     }
 
     public static class Request extends BaseTasksRequest<Request> {

@@ -19,19 +19,14 @@
 
 package org.elasticsearch.action.delete;
 
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 
-public class DeleteAction extends StreamableResponseActionType<DeleteResponse> {
+public class DeleteAction extends ActionType<DeleteResponse> {
 
     public static final DeleteAction INSTANCE = new DeleteAction();
     public static final String NAME = "indices:data/write/delete";
 
     private DeleteAction() {
-        super(NAME);
-    }
-
-    @Override
-    public DeleteResponse newResponse() {
-        return new DeleteResponse();
+        super(NAME, DeleteResponse::new);
     }
 }

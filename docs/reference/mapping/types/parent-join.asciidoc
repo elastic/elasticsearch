@@ -1,5 +1,8 @@
 [[parent-join]]
-=== `join` datatype
+=== Join datatype
+++++
+<titleabbrev>Join</titleabbrev>
+++++
 
 The `join` datatype is a special field that creates
 parent/child relation within documents of the same index.

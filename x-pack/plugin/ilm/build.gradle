@@ -5,7 +5,7 @@ apply plugin: 'elasticsearch.esplugin'
 esplugin {
     name 'x-pack-ilm'
     description 'Elasticsearch Expanded Pack Plugin - Index Lifecycle Management'
-    classname 'org.elasticsearch.xpack.indexlifecycle.IndexLifecycle'
+    classname 'org.elasticsearch.xpack.ilm.IndexLifecycle'
     extendedPlugins = ['x-pack-core']
     hasNativeController false
     requiresKeystore true

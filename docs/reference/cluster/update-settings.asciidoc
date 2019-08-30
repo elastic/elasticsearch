@@ -1,20 +1,62 @@
 [[cluster-update-settings]]
-== Cluster Update Settings
+=== Cluster Update Settings
 
-Use this API to review and change cluster-wide settings. 
+Updates cluster-wide settings. 
 
-To review cluster settings:
 
-[source,js]
---------------------------------------------------
-GET /_cluster/settings
---------------------------------------------------
-// CONSOLE
+[[cluster-update-settings-api-request]]
+==== {api-request-title}
 
-By default, this API call only returns settings that have been explicitly defined, but can also <<cluster-get-settings,include the default settings>>.
+`PUT /_cluster/settings`
 
-Updates to settings can be persistent, meaning they apply across restarts, or transient, where they don't 
-survive a full cluster restart. Here is an example of a persistent update:
+
+[[cluster-update-settings-api-desc]]
+==== {api-description-title}
+
+With specifications in the request body, this API call can update cluster 
+settings. Updates to settings can be persistent, meaning they apply across 
+restarts, or transient, where they don't survive a full cluster restart.
+
+You can reset persistent or transient settings by assigning a `null` value. If a 
+transient setting is reset, the first one of these values that is defined is 
+applied:
+
+* the persistent setting
+* the setting in the configuration file
+* the default value. 
+
+The order of precedence for cluster settings is:
+
+1. transient cluster settings 
+2. persistent cluster settings
+3. settings in the `elasticsearch.yml` configuration file.
+
+It's best to set all cluster-wide settings with the `settings` API and use the
+`elasticsearch.yml` file only for local configurations. This way you can be sure that
+the setting is the same on all nodes. If, on the other hand, you define different
+settings on different nodes by accident using the configuration file, it is very
+difficult to notice these discrepancies.
+
+You can find the list of settings that you can dynamically update in 
+<<modules,Modules>>.
+
+
+[[cluster-update-settings-api-query-params]]
+==== {api-query-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=flat-settings]
+
+`include_defaults`::
+    (Optional, boolean) If `true`, returns all default cluster settings. 
+    Defaults to `false`.
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+
+
+[[cluster-update-settings-api-example]]
+==== {api-examples-title}
+
+An example of a persistent update:
 
 [source,js]
 --------------------------------------------------
@@ -27,7 +69,8 @@ PUT /_cluster/settings
 --------------------------------------------------
 // CONSOLE
 
-This update is transient:
+
+An example of a transient update:
 
 [source,js]
 --------------------------------------------------
@@ -40,7 +83,9 @@ PUT /_cluster/settings?flat_settings=true
 --------------------------------------------------
 // CONSOLE
 
-The response to an update returns the changed setting, as in this response to the transient example:
+
+The response to an update returns the changed setting, as in this response to 
+the transient example:
 
 [source,js]
 --------------------------------------------------
@@ -54,12 +99,6 @@ The response to an update returns the changed setting, as in this response to th
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"acknowledged": true,/]
 
-You can reset persistent or transient settings by assigning a
-`null` value. If a transient setting is reset, the first one of these values that is defined is applied:
-
-* the persistent setting
-* the setting in the configuration file
-* the default value. 
 
 This example resets a setting:
 
@@ -74,6 +113,7 @@ PUT /_cluster/settings
 --------------------------------------------------
 // CONSOLE
 
+
 The response does not include settings that have been reset:
 
 [source,js]
@@ -85,6 +125,7 @@ The response does not include settings that have been reset:
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"acknowledged": true,/]
+
 
 You can also reset settings using wildcards. For example, to reset
 all dynamic `indices.recovery` settings:
@@ -99,22 +140,4 @@ PUT /_cluster/settings
 }
 --------------------------------------------------
 // CONSOLE
-
-
-[float]
-=== Order of Precedence
-
-The order of precedence for cluster settings is:
-
-1. transient cluster settings 
-2. persistent cluster settings
-3. settings in the `elasticsearch.yml` configuration file.
-
-It's best to set all cluster-wide settings with the `settings` API and use the
-`elasticsearch.yml` file only for local configurations. This way you can be sure that
-the setting is the same on all nodes. If, on the other hand, you define different
-settings on different nodes by accident using the configuration file, it is very
-difficult to notice these discrepancies.
-
-You can find the list of settings that you can dynamically update in <<modules,Modules>>.
 

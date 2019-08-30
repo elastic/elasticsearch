@@ -50,7 +50,7 @@ section in order to setup the same environment for each test section.
 
 A `teardown` section contains a list of commands to run after each test
 section in order to setup the same environment for each test section. This
-may be needed for modifications made by the testthat are not cleared by the
+may be needed for modifications made by the test that are not cleared by the
 deletion of indices and templates.
 
 A test section represents an independent test, containing multiple `do`

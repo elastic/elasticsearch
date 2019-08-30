@@ -273,4 +273,5 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
         }
         return stdout.toString(UTF_8).trim();
     }
+
 }

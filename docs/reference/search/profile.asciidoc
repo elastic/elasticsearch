@@ -1,5 +1,5 @@
 [[search-profile]]
-== Profile API
+=== Profile API
 
 WARNING:  The Profile API is a debugging tool and adds significant overhead to search execution.
 
@@ -14,7 +14,7 @@ The output from the Profile API is *very* verbose, especially for complicated re
 many shards. Pretty-printing the response is recommended to help understand the output
 
 [float]
-=== Usage
+==== Usage
 
 Any `_search` request can be profiled by adding a top-level `profile` parameter:
 
@@ -227,8 +227,8 @@ NOTE: As with other statistics apis, the Profile API supports human readable out
 `?human=true` to the query string. In this case, the output contains the additional `time` field containing rounded,
 human readable timing information (e.g. `"time": "391,9ms"`, `"time": "123.3micros"`).
 
-[[search-profile-queries]]
-=== Profiling Queries
+[[profiling-queries]]
+==== Profiling Queries
 
 [NOTE]
 =======================================
@@ -244,7 +244,7 @@ the `advance` phase of that query is the cause, for example.
 =======================================
 
 [[query-section]]
-==== `query` Section
+===== `query` Section
 
 The `query` section contains detailed timing of the query tree executed by Lucene on a particular shard.
 The overall structure of this query tree will resemble your original Elasticsearch query, but may be slightly
@@ -296,7 +296,7 @@ that in a moment.  Finally, the `children` array lists any sub-queries that may 
 values ("search test"), our BooleanQuery holds two children TermQueries.  They have identical information (type, time,
 breakdown, etc).  Children are allowed to have their own children.
 
-===== Timing Breakdown
+====== Timing Breakdown
 
 The `breakdown` component lists detailed timing statistics about low-level Lucene execution:
 
@@ -335,7 +335,7 @@ the breakdown is inclusive of all children times.
 The meaning of the stats are as follows:
 
 [float]
-==== All parameters:
+===== All parameters:
 
 [horizontal]
 `create_weight`::
@@ -401,7 +401,7 @@ The meaning of the stats are as follows:
     how selective queries are, by comparing counts between different query components.
 
 [[collectors-section]]
-==== `collectors` Section
+===== `collectors` Section
 
 The Collectors portion of the response shows high-level execution details. Lucene works by defining a "Collector"
 which is responsible for coordinating the traversal, scoring, and collection of matching documents.  Collectors
@@ -488,7 +488,7 @@ For reference, the various collector reasons are:
 
 
 [[rewrite-section]]
-==== `rewrite` Section
+===== `rewrite` Section
 
 All queries in Lucene undergo a "rewriting" process.  A query (and its sub-queries) may be rewritten one or
 more times, and the process continues until the query stops changing.  This process allows Lucene to perform
@@ -500,7 +500,7 @@ The rewriting process is complex and difficult to display, since queries can cha
 showing the intermediate results, the total rewrite time is simply displayed as a value (in nanoseconds).  This
 value is cumulative and contains the total time for all queries being rewritten.
 
-==== A more complex example
+===== A more complex example
 
 
 To demonstrate a slightly more complex query and the associated results, we can profile the following query:
@@ -674,7 +674,7 @@ The Collector tree is fairly straightforward, showing how a single CancellableCo
  which also wraps a FilteredCollector to execute the post_filter (and in turn wraps the normal scoring SimpleCollector),
  a BucketCollector to run all scoped aggregations.
 
-==== Understanding MultiTermQuery output
+===== Understanding MultiTermQuery output
 
 A special note needs to be made about the `MultiTermQuery` class of queries.  This includes wildcards, regex, and fuzzy
 queries.  These queries emit very verbose responses, and are not overly structured.
@@ -693,11 +693,11 @@ ignore its children if you find the details too tricky to interpret.
 
 Hopefully this will be fixed in future iterations, but it is a tricky problem to solve and still in-progress :)
 
-[[search-profile-aggregations]]
-=== Profiling Aggregations
+[[profiling-aggregations]]
+==== Profiling Aggregations
 
 [[agg-section]]
-==== `aggregations` Section
+===== `aggregations` Section
 
 
 The `aggregations` section contains detailed timing of the aggregation tree executed by a particular shard.
@@ -817,7 +817,7 @@ aggregation then has a child `LongTermsAggregator` which comes from the second t
 The `time_in_nanos` field shows the time executed by each aggregation, and is inclusive of all children.  While the overall time is useful,
 the `breakdown` field will give detailed stats about how the time was spent.
 
-===== Timing Breakdown
+====== Timing Breakdown
 
 The `breakdown` component lists detailed timing statistics about low-level Lucene execution:
 
@@ -845,7 +845,7 @@ the breakdown is inclusive of all children times.
 The meaning of the stats are as follows:
 
 [float]
-==== All parameters:
+===== All parameters:
 
 [horizontal]
 `initialise`::
@@ -868,10 +868,10 @@ The meaning of the stats are as follows:
     Records the number of invocations of the particular method.  For example, `"collect_count": 2,`
     means the `collect()` method was called on two different documents.
 
-[[search-profile-considerations]]
-=== Profiling Considerations
+[[profiling-considerations]]
+==== Profiling Considerations
 
-==== Performance Notes
+===== Performance Notes
 
 Like any profiler, the Profile API introduces a non-negligible overhead to search execution.  The act of instrumenting
 low-level method calls such as `collect`, `advance`, and `next_doc` can be fairly expensive, since these methods are called
@@ -883,7 +883,7 @@ could cause some queries to report larger relative times than their non-profiled
 not have a drastic effect compared to other components in the profiled query.
 
 [[profile-limitations]]
-==== Limitations
+===== Limitations
 
 - Profiling currently does not measure the search fetch phase nor the network overhead
 - Profiling also does not account for time spent in the queue, merging shard responses on the coordinating node, or

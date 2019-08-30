@@ -1,0 +1,127 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ml-dfanalytics-resources]]
+=== {dfanalytics-cap} job resources
+
+{dfanalytics-cap} resources relate to APIs such as <<put-dfanalytics>> and
+<<get-dfanalytics>>.	
+
+[discrete]	
+[[ml-dfanalytics-properties]]	
+==== {api-definitions-title}
+
+`analysis`::
+  (object) The type of analysis that is performed on the `source`. For example: 
+  `outlier_detection`. For more information, see <<dfanalytics-types>>.
+  
+`analyzed_fields`::
+  (object) You can specify both `includes` and/or `excludes` patterns. If 
+  `analyzed_fields` is not set, only the relevant fields will be included. For 
+  example all the numeric fields for {oldetection}.
+  
+  `analyzed_fields.includes`:::
+    (array) An array of strings that defines the fields that will be included in 
+    the analysis.
+    
+  `analyzed_fields.excludes`:::
+    (array) An array of strings that defines the fields that will be excluded 
+    from the analysis.
+  
+
+[source,js]
+--------------------------------------------------
+PUT _ml/data_frame/analytics/loganalytics
+{
+  "source": {
+    "index": "logdata"
+  },
+  "dest": {
+    "index": "logdata_out"
+  },
+  "analysis": {
+    "outlier_detection": {
+    }
+  },
+  "analyzed_fields": {
+        "includes": [ "request.bytes", "response.counts.error" ],
+        "excludes": [ "source.geo" ]
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:setup_logdata]
+
+`description`::
+  (Optional, string) A description of the job.
+
+`dest`::
+  (object) The destination configuration of the analysis.
+  
+  `index`:::
+    (Required, string) Defines the _destination index_ to store the results of 
+    the {dfanalytics-job}.
+  
+  `results_field`:::
+    (Optional, string) Defines the name of the field in which to store the 
+    results of the analysis. Default to `ml`.
+
+`id`::
+  (string) The unique identifier for the {dfanalytics-job}. This identifier can 
+  contain lowercase alphanumeric characters (a-z and 0-9), hyphens, and 
+  underscores. It must start and end with alphanumeric characters. This property 
+  is informational; you cannot change the identifier for existing jobs.
+  
+`model_memory_limit`::
+  (string) The approximate maximum amount of memory resources that are 
+  permitted for analytical processing. The default value for {dfanalytics-jobs} 
+  is `1gb`. If your `elasticsearch.yml` file contains an 
+  `xpack.ml.max_model_memory_limit` setting, an error occurs when you try to 
+  create {dfanalytics-jobs} that have `model_memory_limit` values greater than 
+  that setting. For more information, see <<ml-settings>>.
+
+`source`::
+  (object) The source configuration consisting an `index` and optionally a 
+  `query` object.
+  
+  `index`:::
+    (Required, string or array) Index or indices on which to perform the 
+    analysis. It can be a single index or index pattern as well as an array of 
+    indices or patterns.
+    
+  `query`:::
+    (Optional, object) The {es} query domain-specific language 
+    (<<query-dsl,DSL>>). This value corresponds to the query object in an {es} 
+    search POST body. All the options that are supported by {es} can be used, 
+    as this object is passed verbatim to {es}. By default, this property has 
+    the following value: `{"match_all": {}}`.
+
+[[dfanalytics-types]]
+==== Analysis objects
+
+{dfanalytics-cap} resources contain `analysis` objects. For example, when you
+create a {dfanalytics-job}, you must define the type of analysis it performs. 
+Currently, `outlier_detection` is the only available type of analysis, however, 
+other types will be added, for example `regression`.
+  
+[discrete]
+[[oldetection-resources]]
+==== {oldetection-cap} configuration objects 
+
+An {oldetection} configuration object has the following properties:
+
+`n_neighbors`::
+  (integer) Defines the value for how many nearest neighbors each method of 
+  {oldetection} will use to calculate its {olscore}. When the value is 
+  not set, the system will dynamically detect an appropriate value.
+
+`method`::
+  (string) Sets the method that {oldetection} uses. If the method is not set 
+  {oldetection} uses an ensemble of different methods and normalises and 
+  combines their individual {olscores} to obtain the overall {olscore}. We 
+  recommend to use the ensemble method. Available methods are `lof`, `ldof`, 
+  `distance_kth_nn`, `distance_knn`.
+
+`feature_influence_threshold`:: 
+  (double) The minimum {olscore} that a document needs to have in order to 
+  calculate its {fiscore}. 
+  Value range: 0-1 (`0.1` by default).

@@ -1,5 +1,5 @@
-[[search-request-seq-no-primary-term]]
-=== Sequence Numbers and Primary Term
+[[request-body-search-seq-no-primary-term]]
+==== Sequence Numbers and Primary Term
 
 Returns the sequence number and primary term of the last modification to each search hit.
 See <<optimistic-concurrency-control>> for more details.

@@ -1,5 +1,5 @@
 [[search-shards]]
-== Search Shards API
+=== Search Shards API
 
 The search shards api returns the indices and shards that a search request would
 be executed against. This can give useful feedback for working out issues or
@@ -9,7 +9,7 @@ are used, the filter is returned as part of the `indices` section [5.1.0] Added 
 The `index` may be a single value, or comma-separated.
 
 [float]
-=== Usage
+==== Usage
 
 Full example:
 
@@ -149,7 +149,7 @@ This time the search will only be executed against two of the shards, because
 routing values have been specified.
 
 [float]
-=== All parameters:
+==== All parameters:
 
 [horizontal]
 `routing`::
@@ -159,7 +159,7 @@ routing values have been specified.
 `preference`::
     Controls a `preference` of which shard replicas to execute the search
     request on. By default, the operation is randomized between the shard
-    replicas. See the link:search-request-preference.html[preference]
+    replicas. See the link:search-request-body.html#request-body-search-preference[preference]
     documentation for a list of all acceptable values.
 
 `local`::

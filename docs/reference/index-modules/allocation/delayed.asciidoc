@@ -28,7 +28,7 @@ this scenario:
 If the master had just waited for a few minutes, then the missing shards could
 have been re-allocated to Node 5 with the minimum of network traffic.  This
 process would be even quicker for idle shards (shards not receiving indexing
-requests) which have been automatically <<indices-synced-flush,sync-flushed>>.
+requests) which have been automatically <<synced-flush-api,sync-flushed>>.
 
 The allocation of replica shards which become unassigned because a node has
 left can be delayed with the `index.unassigned.node_left.delayed_timeout`

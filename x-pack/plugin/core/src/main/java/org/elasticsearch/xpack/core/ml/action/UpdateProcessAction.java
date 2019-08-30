@@ -29,12 +29,7 @@ public class UpdateProcessAction extends ActionType<UpdateProcessAction.Response
     public static final String NAME = "cluster:internal/xpack/ml/job/update/process";
 
     private UpdateProcessAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, UpdateProcessAction.Response::new);
     }
 
     static class RequestBuilder extends ActionRequestBuilder<Request, Response> {

@@ -43,7 +43,7 @@ integTest.runner.dependsOn(copyKeyCerts)
 
 def pluginsCount = 0
 testClusters.integTest {
-  distribution = "DEFAULT"
+  testDistribution = 'DEFAULT'
   setting 'xpack.monitoring.collection.interval', '1s'
   setting 'xpack.monitoring.exporters._http.type', 'http'
   setting 'xpack.monitoring.exporters._http.enabled', 'false'

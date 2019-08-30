@@ -12,8 +12,6 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformProgressTests.randomDataFrameTransformProgress;
@@ -24,7 +22,7 @@ public class DataFrameTransformStateTests extends AbstractSerializingTestCase<Da
     public static DataFrameTransformState randomDataFrameTransformState() {
         return new DataFrameTransformState(randomFrom(DataFrameTransformTaskState.values()),
             randomFrom(IndexerState.values()),
-            randomPosition(),
+            DataFrameIndexerPositionTests.randomDataFrameIndexerPosition(),
             randomLongBetween(0,10),
             randomBoolean() ? null : randomAlphaOfLength(10),
             randomBoolean() ? null : randomDataFrameTransformProgress(),
@@ -44,24 +42,6 @@ public class DataFrameTransformStateTests extends AbstractSerializingTestCase<Da
     @Override
     protected Reader<DataFrameTransformState> instanceReader() {
         return DataFrameTransformState::new;
-    }
-
-    private static Map<String, Object> randomPosition() {
-        if (randomBoolean()) {
-            return null;
-        }
-        int numFields = randomIntBetween(1, 5);
-        Map<String, Object> position = new HashMap<>();
-        for (int i = 0; i < numFields; i++) {
-            Object value;
-            if (randomBoolean()) {
-                value = randomLong();
-            } else {
-                value = randomAlphaOfLengthBetween(1, 10);
-            }
-            position.put(randomAlphaOfLengthBetween(3, 10), value);
-        }
-        return position;
     }
 
     @Override

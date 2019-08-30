@@ -1,5 +1,8 @@
 [[query-dsl-multi-match-query]]
-=== Multi Match Query
+=== Multi-match query
+++++
+<titleabbrev>Multi-match</titleabbrev>
+++++
 
 The `multi_match` query builds on the <<query-dsl-match-query,`match` query>>
 to allow multi-field queries:

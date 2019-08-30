@@ -34,7 +34,7 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.intervals.IntervalsSource;
+import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.util.BytesRef;
@@ -99,13 +99,15 @@ public abstract class MappedFieldType extends FieldType {
     @Override
     public abstract MappedFieldType clone();
 
-    /** Return a fielddata builder for this field
-     *  @throws IllegalArgumentException if the fielddata is not supported on this type.
-     *  An IllegalArgumentException is needed in order to return an http error 400
-     *  when this error occurs in a request. see: {@link org.elasticsearch.ExceptionsHelper#status}
+    /**
+     * Return a fielddata builder for this field
      *
      * @param fullyQualifiedIndexName the name of the index this field-data is build for
-     * */
+     *
+     * @throws IllegalArgumentException if the fielddata is not supported on this type.
+     * An IllegalArgumentException is needed in order to return an http error 400
+     * when this error occurs in a request. see: {@link org.elasticsearch.ExceptionsHelper#status}
+     */
     public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
         throw new IllegalArgumentException("Fielddata is not supported on field [" + name() + "] of type [" + typeName() + "]");
     }

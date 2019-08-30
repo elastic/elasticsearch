@@ -75,7 +75,7 @@ public class TransportUpdateModelSnapshotAction extends HandledTransportAction<U
         if (request.getRetain() != null) {
             updatedSnapshotBuilder.setRetain(request.getRetain());
         }
-        return new Result(target.index, updatedSnapshotBuilder.build());
+        return new Result<>(target.index, updatedSnapshotBuilder.build());
     }
 
     private void indexModelSnapshot(Result<ModelSnapshot> modelSnapshot, Consumer<Boolean> handler, Consumer<Exception> errorHandler) {

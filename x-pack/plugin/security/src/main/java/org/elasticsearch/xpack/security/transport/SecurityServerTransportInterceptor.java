@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -45,23 +44,12 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Executor;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 
 public class SecurityServerTransportInterceptor implements TransportInterceptor {
 
-    private static final Function<String, Setting<String>> TRANSPORT_TYPE_SETTING_TEMPLATE = key -> new Setting<>(key, "node", v -> {
-        if (v.equals("node") || v.equals("client")) {
-            return v;
-        }
-        throw new IllegalArgumentException("type must be one of [client, node]");
-    }, Setting.Property.NodeScope);
-    private static final String TRANSPORT_TYPE_SETTING_KEY = "xpack.security.type";
     private static final Logger logger = LogManager.getLogger(SecurityServerTransportInterceptor.class);
-
-    public static final Setting.AffixSetting<String> TRANSPORT_TYPE_PROFILE_SETTING = Setting.affixKeySetting("transport.profiles.",
-            TRANSPORT_TYPE_SETTING_KEY, TRANSPORT_TYPE_SETTING_TEMPLATE);
 
     private final AuthenticationService authcService;
     private final AuthorizationService authzService;
@@ -71,7 +59,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     private final ThreadPool threadPool;
     private final Settings settings;
     private final SecurityContext securityContext;
-    private final boolean reservedRealmEnabled;
 
     private volatile boolean isStateNotRecovered = true;
 
@@ -92,7 +79,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         this.sslService = sslService;
         this.securityContext = securityContext;
         this.profileFilters = initializeProfileFilters(destructiveOperations);
-        this.reservedRealmEnabled = XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(settings);
         clusterService.addListener(e -> isStateNotRecovered = e.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK));
     }
 
@@ -187,21 +173,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         for (Map.Entry<String, SSLConfiguration> entry : profileConfigurations.entrySet()) {
             final SSLConfiguration profileConfiguration = entry.getValue();
             final boolean extractClientCert = transportSSLEnabled && sslService.isSSLClientAuthEnabled(profileConfiguration);
-            final String type = TRANSPORT_TYPE_PROFILE_SETTING.getConcreteSettingForNamespace(entry.getKey()).get(settings);
-            switch (type) {
-                case "client":
-                    profileFilters.put(entry.getKey(), new ServerTransportFilter.ClientProfile(authcService, authzService,
-                            threadPool.getThreadContext(), extractClientCert, destructiveOperations, reservedRealmEnabled,
-                            securityContext, licenseState));
-                    break;
-                case "node":
-                    profileFilters.put(entry.getKey(), new ServerTransportFilter.NodeProfile(authcService, authzService,
-                            threadPool.getThreadContext(), extractClientCert, destructiveOperations, reservedRealmEnabled,
-                            securityContext, licenseState));
-                    break;
-                default:
-                   throw new IllegalStateException("unknown profile type: " + type);
-            }
+            profileFilters.put(entry.getKey(), new ServerTransportFilter(authcService, authzService, threadPool.getThreadContext(),
+                extractClientCert, destructiveOperations, securityContext, licenseState));
         }
 
         return Collections.unmodifiableMap(profileFilters);

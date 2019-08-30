@@ -1,5 +1,5 @@
 [[optimistic-concurrency-control]]
-== Optimistic concurrency control
+=== Optimistic concurrency control
 
 Elasticsearch is distributed. When documents are created, updated, or deleted,
 the new version of the document has to be replicated to other nodes in the cluster. 
@@ -87,7 +87,7 @@ returns:
 
 
 Note: The <<search-search,Search API>> can return the `_seq_no` and `_primary_term`
-for each search hit by setting <<search-request-seq-no-primary-term,`seq_no_primary_term` parameter>>.
+for each search hit by setting <<request-body-search-seq-no-primary-term,`seq_no_primary_term` parameter>>.
 
 The sequence number and the primary term uniquely identify a change. By noting down 
 the sequence number and primary term returned, you can make sure to only change the

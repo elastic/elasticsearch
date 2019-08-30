@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -31,7 +30,7 @@ import java.util.Objects;
 /**
  * Forecast response object
  */
-public class ForecastJobResponse extends ActionResponse implements ToXContentObject {
+public class ForecastJobResponse implements ToXContentObject {
 
     public static final ParseField ACKNOWLEDGED = new ParseField("acknowledged");
     public static final ParseField FORECAST_ID = new ParseField("forecast_id");

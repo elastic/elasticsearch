@@ -5,15 +5,14 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -30,12 +29,7 @@ public class DeleteJobAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/xpack/ml/job/delete";
 
     private DeleteJobAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<AcknowledgedResponse> getResponseReader() {
-        return AcknowledgedResponse::new;
+        super(NAME, AcknowledgedResponse::new);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -53,6 +47,12 @@ public class DeleteJobAction extends ActionType<AcknowledgedResponse> {
         }
 
         public Request() {}
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            jobId = in.readString();
+            force = in.readBoolean();
+        }
 
         public String getJobId() {
             return jobId;
@@ -90,13 +90,6 @@ public class DeleteJobAction extends ActionType<AcknowledgedResponse> {
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
             return new JobDeletionTask(id, type, action, "delete-job-" + jobId, parentTaskId, headers);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            jobId = in.readString();
-            force = in.readBoolean();
         }
 
         @Override

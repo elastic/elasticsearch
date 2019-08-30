@@ -17,15 +17,15 @@ One or more bucket aggregators determines by which properties a result set get s
 
 The top_hits aggregation returns regular search hits, because of this many per hit features can be supported:
 
-* <<search-request-highlighting,Highlighting>>
-* <<search-request-explain,Explain>>
-* <<search-request-named-queries-and-filters,Named filters and queries>>
-* <<search-request-source-filtering,Source filtering>>
-* <<search-request-stored-fields,Stored fields>>
-* <<search-request-script-fields,Script fields>>
-* <<search-request-docvalue-fields,Doc value fields>>
-* <<search-request-version,Include versions>>
-* <<search-request-seq-no-primary-term,Include Sequence Numbers and Primary Terms>>
+* <<request-body-search-highlighting,Highlighting>>
+* <<request-body-search-explain,Explain>>
+* <<request-body-search-queries-and-filters,Named filters and queries>>
+* <<request-body-search-source-filtering,Source filtering>>
+* <<request-body-search-stored-fields,Stored fields>>
+* <<request-body-search-script-fields,Script fields>>
+* <<request-body-search-docvalue-fields,Doc value fields>>
+* <<request-body-search-version,Include versions>>
+* <<request-body-search-seq-no-primary-term,Include Sequence Numbers and Primary Terms>>
 
 ==== Example
 

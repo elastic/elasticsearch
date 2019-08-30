@@ -63,7 +63,7 @@ public abstract class AggregationBuilder
     }
 
     /** Internal: build an {@link AggregatorFactory} based on the configuration of this builder. */
-    protected abstract AggregatorFactory<?> build(SearchContext context, AggregatorFactory<?> parent) throws IOException;
+    protected abstract AggregatorFactory build(SearchContext context, AggregatorFactory parent) throws IOException;
 
     /** Associate metadata with this {@link AggregationBuilder}. */
     @Override

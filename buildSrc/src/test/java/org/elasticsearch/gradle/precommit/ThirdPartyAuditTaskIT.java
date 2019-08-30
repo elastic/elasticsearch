@@ -48,27 +48,7 @@ public class ThirdPartyAuditTaskIT extends GradleIntegrationTestCase {
                 "-PcompileOnlyGroup=other.gradle:broken-log4j", "-PcompileOnlyVersion=0.0.1",
                 "-PcompileGroup=other.gradle:dummy-io", "-PcompileVersion=0.0.1"
             )
-            .build();
-
-        assertTaskSuccessful(result, ":empty");
-
-        result = getGradleRunner("thirdPartyAudit")
-            .withArguments("empty", "-s",
-                "-PcompileOnlyGroup=other.gradle:broken-log4j", "-PcompileOnlyVersion=0.0.1",
-                "-PcompileGroup=other.gradle:dummy-io", "-PcompileVersion=0.0.1"
-            )
-            .build();
-
-        assertTaskUpToDate(result, ":empty");
-
-        result = getGradleRunner("thirdPartyAudit")
-            .withArguments("empty", "-s",
-                "-PcompileOnlyGroup=other.gradle:broken-log4j", "-PcompileOnlyVersion=0.0.1",
-                "-PcompileGroup=other.gradle:dummy-io", "-PcompileVersion=0.0.2"
-            )
-            .build();
-
-        assertTaskSuccessful(result, ":empty");
+            .buildAndFail();
     }
 
     public void testViolationFoundAndCompileOnlyIgnored() {

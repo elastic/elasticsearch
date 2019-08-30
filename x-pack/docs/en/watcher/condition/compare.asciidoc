@@ -46,6 +46,7 @@ search result>> is greater than or equal to 5:
       "ctx.payload.hits.total.value" : { <1>
         "gte" : 5 <2>
       }
+    }
   }
 }
 --------------------------------------------------
@@ -66,6 +67,7 @@ of the form `<{expression}>`. For example, the following expression returns
       "ctx.execution_time" : {
         "gte" : "<{now-5m}>"
       }
+    }
   }
 }
 --------------------------------------------------
@@ -84,6 +86,7 @@ to the `ctx.payload.aggregations.handled.buckets.true.doc_count`:
       "ctx.payload.aggregations.status.buckets.error.doc_count" : {
         "not_eq" : "{{ctx.payload.aggregations.handled.buckets.true.doc_count}}"
       }
+    }
   }
 }
 --------------------------------------------------

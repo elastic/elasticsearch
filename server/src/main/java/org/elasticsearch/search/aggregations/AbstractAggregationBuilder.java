@@ -135,12 +135,12 @@ public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationB
     }
 
     @Override
-    public final AggregatorFactory<?> build(SearchContext context, AggregatorFactory<?> parent) throws IOException {
-        AggregatorFactory<?> factory = doBuild(context, parent, factoriesBuilder);
+    public final AggregatorFactory build(SearchContext context, AggregatorFactory parent) throws IOException {
+        AggregatorFactory factory = doBuild(context, parent, factoriesBuilder);
         return factory;
     }
 
-    protected abstract AggregatorFactory<?> doBuild(SearchContext context, AggregatorFactory<?> parent,
+    protected abstract AggregatorFactory doBuild(SearchContext context, AggregatorFactory parent,
             AggregatorFactories.Builder subfactoriesBuilder) throws IOException;
 
     @Override

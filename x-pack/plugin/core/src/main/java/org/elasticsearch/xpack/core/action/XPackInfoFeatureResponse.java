@@ -16,8 +16,9 @@ public class XPackInfoFeatureResponse extends ActionResponse {
 
     private FeatureSet info;
 
-    public XPackInfoFeatureResponse() {
-        // empty, for readFrom
+    public XPackInfoFeatureResponse(StreamInput in) throws IOException {
+        super(in);
+        info = new FeatureSet(in);
     }
 
     public XPackInfoFeatureResponse(FeatureSet info) {
@@ -30,13 +31,7 @@ public class XPackInfoFeatureResponse extends ActionResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         info.writeTo(out);
     }
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        info = new FeatureSet(in);
     }
-}

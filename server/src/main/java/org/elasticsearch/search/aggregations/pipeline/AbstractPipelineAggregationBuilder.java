@@ -84,7 +84,7 @@ public abstract class AbstractPipelineAggregationBuilder<PAB extends AbstractPip
      * configured)
      */
     @Override
-    public final void validate(AggregatorFactory<?> parent, Collection<AggregationBuilder> factories,
+    public final void validate(AggregatorFactory parent, Collection<AggregationBuilder> factories,
             Collection<PipelineAggregationBuilder> pipelineAggregatorFactories) {
         doValidate(parent, factories, pipelineAggregatorFactories);
     }
@@ -102,14 +102,14 @@ public abstract class AbstractPipelineAggregationBuilder<PAB extends AbstractPip
         return aggregator;
     }
 
-    public void doValidate(AggregatorFactory<?> parent, Collection<AggregationBuilder> factories,
+    public void doValidate(AggregatorFactory parent, Collection<AggregationBuilder> factories,
             Collection<PipelineAggregationBuilder> pipelineAggregatorFactories) {
     }
     
     /**
      * Validates pipeline aggregations that need sequentially ordered data.
      */
-    public static void validateSequentiallyOrderedParentAggs(AggregatorFactory<?> parent, String type, String name) {
+    public static void validateSequentiallyOrderedParentAggs(AggregatorFactory parent, String type, String name) {
         if ((parent instanceof HistogramAggregatorFactory || parent instanceof DateHistogramAggregatorFactory
                 || parent instanceof AutoDateHistogramAggregatorFactory) == false) {
             throw new IllegalStateException(

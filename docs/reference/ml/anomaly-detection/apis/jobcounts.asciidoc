@@ -1,0 +1,260 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ml-jobstats]]
+=== Job statistics
+
+The get job statistics API provides information about the operational
+progress of a job.
+
+`assignment_explanation`::
+  (string) For open jobs only, contains messages relating to the selection
+  of a node to run the job.
+
+`data_counts`::
+  (object) An object that describes the number of records processed and
+  any related error counts. See <<ml-datacounts,data counts objects>>.
+
+`job_id`::
+  (string) A unique identifier for the job.
+
+`model_size_stats`::
+  (object) An object that provides information about the size and contents of the model.
+  See <<ml-modelsizestats,model size stats objects>>.
+
+`forecasts_stats`::
+  (object) An object that provides statistical information about forecasts
+  of this job. See <<ml-forecastsstats, forecasts stats objects>>.
+
+`timing_stats`::
+  (object) An object that provides statistical information about timing aspect
+  of this job. See <<ml-timingstats, timing stats objects>>.
+
+`node`::
+  (object) For open jobs only, contains information about the node where the
+  job runs. See <<ml-stats-node,node object>>.
+
+`open_time`::
+  (string) For open jobs only, the elapsed time for which the job has been open.
+  For example, `28746386s`.
+
+`state`::
+  (string) The status of the job, which can be one of the following values:
+
+  `opened`::: The job is available to receive and process data.
+  `closed`::: The job finished successfully with its model state persisted.
+  The job must be opened before it can accept further data.
+  `closing`::: The job close action is in progress and has not yet completed.
+  A closing job cannot accept further data.
+  `failed`::: The job did not finish successfully due to an error.
+  This situation can occur due to invalid input data.
+  If the job had irrevocably failed, it must be force closed and then deleted.
+  If the {dfeed} can be corrected, the job can be closed and then re-opened.
+  `opening`::: The job open action is in progress and has not yet completed.
+
+[float]
+[[ml-datacounts]]
+==== Data Counts Objects
+
+The `data_counts` object describes the number of records processed
+and any related error counts.
+
+The `data_count` values are cumulative for the lifetime of a job. If a model snapshot is reverted
+or old results are deleted, the job counts are not reset.
+
+`bucket_count`::
+  (long) The number of bucket results produced by the job.
+
+`earliest_record_timestamp`::
+  (date) The timestamp of the earliest chronologically input document.
+
+`empty_bucket_count`::
+  (long) The number of buckets which did not contain any data. If your data contains many
+  empty buckets, consider increasing your `bucket_span` or using functions that are tolerant
+  to gaps in data such as `mean`, `non_null_sum` or `non_zero_count`.
+
+`input_bytes`::
+  (long) The number of raw bytes read by the job.
+
+`input_field_count`::
+  (long) The total number of record fields read by the job. This count includes
+  fields that are not used in the analysis.
+
+`input_record_count`::
+  (long) The number of data records read by the job.
+
+`invalid_date_count`::
+  (long) The number of records with either a missing date field or a date that could not be parsed.
+
+`job_id`::
+  (string) A unique identifier for the job.
+
+`last_data_time`::
+  (date) The timestamp at which data was last analyzed, according to server time.
+
+`latest_empty_bucket_timestamp`::
+  (date) The timestamp of the last bucket that did not contain any data.
+
+`latest_record_timestamp`::
+  (date) The timestamp of the latest chronologically input document.
+
+`latest_sparse_bucket_timestamp`::
+  (date) The timestamp of the last bucket that was considered sparse.
+
+`missing_field_count`::
+  (long) The number of records that are missing a field that the job is
+  configured to analyze. Records with missing fields are still processed because
+  it is possible that not all fields are missing. The value of
+  `processed_record_count` includes this count. +
+
+NOTE: If you are using {dfeeds} or posting data to the job in JSON format, a
+high `missing_field_count` is often not an indication of data issues. It is not
+necessarily a cause for concern.
+
+`out_of_order_timestamp_count`::
+  (long) The number of records that are out of time sequence and
+  outside of the latency window. This information is applicable only when
+  you provide data to the job by using the <<ml-post-data,post data API>>.
+  These out of order records are discarded, since jobs require time series data
+  to be in ascending chronological order.
+
+`processed_field_count`::
+  (long) The total number of fields in all the records that have been processed
+  by the job. Only fields that are specified in the detector configuration
+  object contribute to this count. The time stamp is not included in this count.
+
+`processed_record_count`::
+  (long) The number of records that have been processed by the job.
+  This value includes records with missing fields, since they are nonetheless
+  analyzed. +
+  If you use {dfeeds} and have aggregations in your search query,
+  the `processed_record_count` will be the number of aggregated records
+  processed, not the number of {es} documents.
+
+`sparse_bucket_count`::
+  (long) The number of buckets that contained few data points compared to the
+  expected number of data points. If your data contains many sparse buckets,
+  consider using a longer `bucket_span`.
+
+[float]
+[[ml-modelsizestats]]
+==== Model Size Stats Objects
+
+The `model_size_stats` object has the following properties:
+
+`bucket_allocation_failures_count`::
+  (long) The number of buckets for which new entities in incoming data were not
+  processed due to insufficient model memory. This situation is also signified
+  by a `hard_limit: memory_status` property value.
+
+`job_id`::
+  (string) A numerical character string that uniquely identifies the job.
+
+`log_time`::
+  (date) The timestamp of the `model_size_stats` according to server time.
+
+`memory_status`::
+  (string) The status of the mathematical models.
+  This property can have one of the following values:
+  `ok`::: The models stayed below the configured value.
+  `soft_limit`::: The models used more than 60% of the configured memory limit
+  and older unused models will be pruned to free up space.
+  `hard_limit`::: The models used more space than the configured memory limit.
+  As a result, not all incoming data was processed.
+
+`model_bytes`::
+  (long) The number of bytes of memory used by the models. This is the maximum
+  value since the last time the model was persisted. If the job is closed,
+  this value indicates the latest size.
+
+`result_type`::
+  (string) For internal use. The type of result.
+
+`total_by_field_count`::
+  (long) The number of `by` field values that were analyzed by the models.+
+
+NOTE: The `by` field values are counted separately for each detector and partition.
+
+`total_over_field_count`::
+  (long) The number of `over` field values that were analyzed by the models.+
+
+NOTE: The `over` field values are counted separately for each detector and partition.
+
+`total_partition_field_count`::
+  (long) The number of `partition` field values that were analyzed by the models.
+
+`timestamp`::
+  (date) The timestamp of the `model_size_stats` according to the timestamp of the data.
+
+[float]
+[[ml-forecastsstats]]
+==== Forecasts Stats Objects
+
+The `forecasts_stats` object shows statistics about forecasts. It has the following properties:
+
+`total`::
+  (long) The number of forecasts currently available for this model.
+
+`forecasted_jobs`::
+  (long) The number of jobs that have at least one forecast.
+
+`memory_bytes`::
+  (object) Statistics about the memory usage: minimum, maximum, average and total.
+
+`records`::
+  (object) Statistics about the number of forecast records: minimum, maximum, average and total.
+
+`processing_time_ms`::
+  (object) Statistics about the forecast runtime in milliseconds: minimum, maximum, average and total.
+
+`status`::
+  (object) Counts per forecast status, for example: {"finished" : 2}. 
+
+NOTE: `memory_bytes`, `records`, `processing_time_ms` and `status` require at least 1 forecast, otherwise
+these fields are omitted.
+
+[float]
+[[ml-timingstats]]
+==== Timing Stats Objects
+
+The `timing_stats` object shows timing-related statistics about the job's progress. It has the following properties:
+
+`job_id`::
+  (string) A numerical character string that uniquely identifies the job.
+
+`bucket_count`::
+  (long) The number of buckets processed.
+
+`minimum_bucket_processing_time_ms`::
+  (double) Minimum among all bucket processing times in milliseconds.
+
+`maximum_bucket_processing_time_ms`::
+  (double) Maximum among all bucket processing times in milliseconds.
+
+`average_bucket_processing_time_ms`::
+  (double) Average of all bucket processing times in milliseconds.
+
+`exponential_average_bucket_processing_time_ms`::
+  (double) Exponential moving average of all bucket processing times in milliseconds.
+
+
+[float]
+[[ml-stats-node]]
+==== Node Objects
+
+The `node` objects contains properties for the node that runs the job.
+This information is available only for open jobs.
+
+`id`::
+  (string) The unique identifier of the node.
+
+`name`::
+  (string) The node name.
+
+`ephemeral_id`::
+  (string) The ephemeral id of the node.
+
+`transport_address`::
+  (string) The host and port where transport HTTP connections are accepted.
+
+`attributes`::
+  (object) For example, {"ml.machine_memory": "17179869184"}.

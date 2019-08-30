@@ -8,14 +8,8 @@
 
 Resumes a follower index.
 
-==== Description
-
-This API resumes a follower index that has been paused either explicitly with
-the <<ccr-post-pause-follow, pause follower API>> or implicitly due to
-execution that can not be retried due to failure during following. When this API
-returns, the follower index will resume fetching operations from the leader index.
-
-==== Request
+[[ccr-post-resume-follow-request]]
+==== {api-request-title}
 
 //////////////////////////
 
@@ -53,23 +47,35 @@ POST /<follower_index>/_ccr/resume_follow
 // TEST[s/<remote_cluster>/remote_cluster/]
 // TEST[s/<leader_index>/leader_index/]
 
-==== Path Parameters
+[[ccr-post-resume-follow-prereqs]]
+==== {api-prereq-title}
 
-`follower_index` (required)::
-  (string) the name of the follower index
-
-==== Request Body
-include::../follow-request-body.asciidoc[]
-
-==== Authorization
-
-If the {es} {security-features} are enabled, you must have `write` and `monitor`
+* If the {es} {security-features} are enabled, you must have `write` and `monitor`
 index privileges for the follower index. You must have `read` and `monitor`
 index privileges for the leader index. You must also have `manage_ccr` cluster
 privileges on the cluster that contains the follower index. For more information,
 see {stack-ov}/security-privileges.html[Security privileges].
 
-==== Example
+[[ccr-post-resume-follow-desc]]
+==== {api-description-title}
+
+This API resumes a follower index that has been paused either explicitly with
+the <<ccr-post-pause-follow, pause follower API>> or implicitly due to
+execution that can not be retried due to failure during following. When this API
+returns, the follower index will resume fetching operations from the leader index.
+
+[[ccr-post-resume-follow-path-parms]]
+==== {api-path-parms-title}
+
+`<follower_index>`::
+  (Required, string) The name of the follower index.
+
+[[ccr-post-resume-follow-request-body]]
+==== {api-request-body-title}
+include::../follow-request-body.asciidoc[]
+
+[[ccr-post-resume-follow-examples]]
+==== {api-examples-title}
 
 This example resumes a follower index named `follower_index`:
 

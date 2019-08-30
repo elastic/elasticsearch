@@ -7,11 +7,13 @@
 
 Invalidates one or more access tokens or refresh tokens.
 
-==== Request
+[[security-api-invalidate-token-request]]
+==== {api-request-title}
 
 `DELETE /_security/oauth2/token`
 
-==== Description
+[[security-api-invalidate-token-desc]]
+==== {api-description-title}
 
 The access tokens returned by the <<security-api-get-token,get token API>> have a
 finite period of time for which they are valid and after that time period, they 
@@ -25,34 +27,43 @@ only valid for 24 hours. They can also be used exactly once.
 If you want to invalidate one or more access or refresh tokens immediately, use
 this invalidate token API.
 
-
-==== Request Body
+[[security-api-invalidate-token-request-body]]
+==== {api-request-body-title}
 
 The following parameters can be specified in the body of a DELETE request and
 pertain to invalidating tokens:
 
-`token` (optional)::
-(string) An access token. This parameter cannot be used any of `refresh_token`,
-`realm_name` or `username` are used.
+`token`::
+(Optional, string) An access token. This parameter cannot be used any of
+`refresh_token`, `realm_name` or `username` are used.
 
-`refresh_token` (optional)::
-(string) A refresh token. This parameter cannot be used any of `refresh_token`,
-`realm_name` or `username` are used.
+`refresh_token`::
+(Optional, string) A refresh token. This parameter cannot be used any of
+`refresh_token`, `realm_name` or `username` are used.
 
-`realm_name` (optional)::
-(string) The name of an authentication realm. This parameter cannot be used with
-either `refresh_token` or `token`.
+`realm_name`::
+(Optional, string) The name of an authentication realm. This parameter cannot be
+used with either `refresh_token` or `token`.
 
-`username` (optional)::
-(string) The username of a user. This parameter cannot be used with either
-`refresh_token` or `token`
+`username`::
+(Optional, string) The username of a user. This parameter cannot be used with
+either `refresh_token` or `token`
 
 NOTE: While all parameters are optional, at least one of them is required. More
 specifically, either one of `token` or `refresh_token` parameters is required.
 If none of these two are specified, then `realm_name` and/or `username` need to
 be specified.
 
-==== Examples
+
+[[security-api-invalidate-token-response-body]]
+==== {api-response-body-title}
+
+A successful call returns a JSON structure that contains the number of tokens
+that were invalidated, the number of tokens that had already been invalidated,
+and potentially a list of errors encountered while invalidating specific tokens.
+
+[[security-api-invalidate-token-example]]
+==== {api-examples-title}
 
 For example, if you create a token using the `client_credentials` grant type as
 follows:
@@ -177,10 +188,6 @@ DELETE /_security/oauth2/token
 --------------------------------------------------
 // CONSOLE
 // TEST
-
-A successful call returns a JSON structure that contains the number of tokens
-that were invalidated, the number of tokens that had already been invalidated,
-and potentially a list of errors encountered while invalidating specific tokens.
 
 [source,js]
 --------------------------------------------------

@@ -134,6 +134,9 @@ public abstract class AbstractAsyncTask implements Runnable, Closeable {
     @Override
     public final void run() {
         synchronized (this) {
+            if (isClosed()) {
+                return;
+            }
             cancellable = null;
             isScheduledOrRunning = autoReschedule;
         }

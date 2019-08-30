@@ -33,7 +33,7 @@ dependencies {
 }
 
 testClusters.integTest {
-  distribution = 'oss'
+  testDistribution = 'oss'
 }
 
 test.enabled = false

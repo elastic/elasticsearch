@@ -65,8 +65,7 @@ public class DataFrameUsageTransportAction extends XPackUsageFeatureTransportAct
                                    ActionListener<XPackUsageFeatureResponse> listener) {
         boolean available = licenseState.isDataFrameAllowed();
         if (enabled == false) {
-            var usage = new DataFrameFeatureSetUsage(available, enabled, Collections.emptyMap(),
-                DataFrameIndexerTransformStats.withDefaultTransformId());
+            var usage = new DataFrameFeatureSetUsage(available, enabled, Collections.emptyMap(), new DataFrameIndexerTransformStats());
             listener.onResponse(new XPackUsageFeatureResponse(usage));
             return;
         }
@@ -99,7 +98,7 @@ public class DataFrameUsageTransportAction extends XPackUsageFeatureTransportAct
                 long totalTransforms = transformCountSuccess.getHits().getTotalHits().value;
                 if (totalTransforms == 0) {
                     var usage = new DataFrameFeatureSetUsage(available, enabled, transformsCountByState,
-                        DataFrameIndexerTransformStats.withDefaultTransformId());
+                        new DataFrameIndexerTransformStats());
                     listener.onResponse(new XPackUsageFeatureResponse(usage));
                     return;
                 }
@@ -115,7 +114,7 @@ public class DataFrameUsageTransportAction extends XPackUsageFeatureTransportAct
             }
         );
 
-        SearchRequest totalTransformCount = client.prepareSearch(DataFrameInternalIndex.INDEX_NAME)
+        SearchRequest totalTransformCount = client.prepareSearch(DataFrameInternalIndex.INDEX_NAME_PATTERN)
             .setTrackTotalHits(true)
             .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.boolQuery()
                 .filter(QueryBuilders.termQuery(DataFrameField.INDEX_DOC_TYPE.getPreferredName(), DataFrameTransformConfig.NAME))))

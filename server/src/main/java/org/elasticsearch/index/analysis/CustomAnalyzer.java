@@ -32,14 +32,14 @@ public final class CustomAnalyzer extends Analyzer implements AnalyzerComponents
     private final int offsetGap;
     private final AnalysisMode analysisMode;
 
-    public CustomAnalyzer(String tokenizerName, TokenizerFactory tokenizerFactory, CharFilterFactory[] charFilters,
+    public CustomAnalyzer(TokenizerFactory tokenizerFactory, CharFilterFactory[] charFilters,
             TokenFilterFactory[] tokenFilters) {
-        this(tokenizerName, tokenizerFactory, charFilters, tokenFilters, 0, -1);
+        this(tokenizerFactory, charFilters, tokenFilters, 0, -1);
     }
 
-    public CustomAnalyzer(String tokenizerName, TokenizerFactory tokenizerFactory, CharFilterFactory[] charFilters,
+    public CustomAnalyzer(TokenizerFactory tokenizerFactory, CharFilterFactory[] charFilters,
             TokenFilterFactory[] tokenFilters, int positionIncrementGap, int offsetGap) {
-        this.components = new AnalyzerComponents(tokenizerName, tokenizerFactory, charFilters, tokenFilters);
+        this.components = new AnalyzerComponents(tokenizerFactory, charFilters, tokenFilters);
         this.positionIncrementGap = positionIncrementGap;
         this.offsetGap = offsetGap;
         // merge and transfer token filter analysis modes with analyzer
@@ -48,13 +48,6 @@ public final class CustomAnalyzer extends Analyzer implements AnalyzerComponents
             mode = mode.merge(f.getAnalysisMode());
         }
         this.analysisMode = mode;
-    }
-
-    /**
-     * The name of the tokenizer as configured by the user.
-     */
-    public String getTokenizerName() {
-        return this.components.getTokenizerName();
     }
 
     public TokenizerFactory tokenizerFactory() {

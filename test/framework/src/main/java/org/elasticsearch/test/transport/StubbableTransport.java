@@ -24,7 +24,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.transport.ConnectionProfile;
@@ -128,7 +127,7 @@ public final class StubbableTransport implements Transport {
     }
 
     @Override
-    public Releasable openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> listener) {
+    public void openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> listener) {
         TransportAddress address = node.getAddress();
         OpenConnectionBehavior behavior = connectBehaviors.getOrDefault(address, defaultConnectBehavior);
 
@@ -137,9 +136,9 @@ public final class StubbableTransport implements Transport {
                 (delegatedListener, connection) -> delegatedListener.onResponse(new WrappedConnection(connection)));
 
         if (behavior == null) {
-            return delegate.openConnection(node, profile, wrappedListener);
+            delegate.openConnection(node, profile, wrappedListener);
         } else {
-            return behavior.openConnection(delegate, node, profile, wrappedListener);
+            behavior.openConnection(delegate, node, profile, wrappedListener);
         }
     }
 
@@ -247,8 +246,8 @@ public final class StubbableTransport implements Transport {
     @FunctionalInterface
     public interface OpenConnectionBehavior {
 
-        Releasable openConnection(Transport transport, DiscoveryNode discoveryNode, ConnectionProfile profile,
-                                  ActionListener<Connection> listener);
+        void openConnection(Transport transport, DiscoveryNode discoveryNode, ConnectionProfile profile,
+                            ActionListener<Connection> listener);
 
         default void clearCallback() {}
     }

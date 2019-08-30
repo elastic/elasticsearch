@@ -14,18 +14,21 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+
 public class RowResults implements ToXContentObject {
 
     public static final ParseField TYPE = new ParseField("row_results");
     public static final ParseField CHECKSUM = new ParseField("checksum");
     public static final ParseField RESULTS = new ParseField("results");
 
+    @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<RowResults, Void> PARSER = new ConstructingObjectParser<>(TYPE.getPreferredName(),
             a -> new RowResults((Integer) a[0], (Map<String, Object>) a[1]));
 
     static {
-        PARSER.declareInt(ConstructingObjectParser.constructorArg(), CHECKSUM);
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, context) -> p.map(), RESULTS);
+        PARSER.declareInt(constructorArg(), CHECKSUM);
+        PARSER.declareObject(constructorArg(), (p, context) -> p.map(), RESULTS);
     }
 
     private final int checksum;

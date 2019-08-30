@@ -10,6 +10,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -25,7 +26,8 @@ public class DataFrameTransformTests extends AbstractSerializingDataFrameTestCas
 
     @Override
     protected DataFrameTransform createTestInstance() {
-        return new DataFrameTransform(randomAlphaOfLength(10), randomBoolean() ? null : Version.CURRENT);
+        return new DataFrameTransform(randomAlphaOfLength(10), randomBoolean() ? null : Version.CURRENT,
+            randomBoolean() ? null : TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)));
     }
 
     @Override

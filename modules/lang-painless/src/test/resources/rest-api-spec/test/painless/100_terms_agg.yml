@@ -102,3 +102,41 @@ setup:
   - is_false: aggregations.double_terms.buckets.1.key_as_string
   - match: { aggregations.double_terms.buckets.1.doc_count: 1 }
 
+---
+"Bucket script with keys":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          size: 0
+          aggs:
+            placeholder:
+              filters:
+                filters:
+                 - match_all: {}
+              aggs:
+                str_terms:
+                  terms:
+                    field: "str"
+                  aggs:
+                    the_avg:
+                      avg:
+                        field: "number"
+                the_bucket_script:
+                  bucket_script:
+                    buckets_path:
+                      foo: "str_terms['bcd']>the_avg.value"
+                    script: "params.foo"
+
+  - match: { hits.total: 3 }
+
+  - length: { aggregations.placeholder.buckets.0.str_terms.buckets: 2 }
+  - match: { aggregations.placeholder.buckets.0.str_terms.buckets.0.key: "abc" }
+  - is_false: aggregations.placeholder.buckets.0.str_terms.buckets.0.key_as_string
+  - match: { aggregations.placeholder.buckets.0.str_terms.buckets.0.doc_count: 2 }
+  - match: { aggregations.placeholder.buckets.0.str_terms.buckets.1.key: "bcd" }
+  - is_false: aggregations.placeholder.buckets.0.str_terms.buckets.1.key_as_string
+  - match: { aggregations.placeholder.buckets.0.str_terms.buckets.1.doc_count: 1 }
+  - match: { aggregations.placeholder.buckets.0.the_bucket_script.value: 2.0 }
+

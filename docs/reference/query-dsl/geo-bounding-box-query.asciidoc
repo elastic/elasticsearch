@@ -1,5 +1,8 @@
 [[query-dsl-geo-bounding-box-query]]
-=== Geo Bounding Box Query
+=== Geo-bounding box query
+++++
+<titleabbrev>Geo-bounding box</titleabbrev>
+++++
 
 A query allowing to filter hits based on a point location using a
 bounding box. Assuming the following indexed document:

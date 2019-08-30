@@ -6,10 +6,17 @@
 package org.elasticsearch.xpack.core.ml.job.process.autodetect.state;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.utils.ExponentialAverageCalculationContext;
+import org.elasticsearch.xpack.core.ml.utils.ExponentialAverageCalculationContextTests;
+import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.hamcrest.CustomTypeSafeMatcher;
 import org.hamcrest.Matcher;
+
+import java.time.Instant;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
@@ -26,7 +33,8 @@ public class TimingStatsTests extends AbstractSerializingTestCase<TimingStats> {
             randomBoolean() ? null : randomDouble(),
             randomBoolean() ? null : randomDouble(),
             randomBoolean() ? null : randomDouble(),
-            randomBoolean() ? null : randomDouble());
+            randomBoolean() ? null : randomDouble(),
+            ExponentialAverageCalculationContextTests.createRandom());
     }
 
     @Override
@@ -44,24 +52,9 @@ public class TimingStatsTests extends AbstractSerializingTestCase<TimingStats> {
         return TimingStats.PARSER.apply(parser, null);
     }
 
-    public void testEquals() {
-        TimingStats stats1 = new TimingStats(JOB_ID, 7, 1.0, 2.0, 1.23, 7.89);
-        TimingStats stats2 = new TimingStats(JOB_ID, 7, 1.0, 2.0, 1.23, 7.89);
-        TimingStats stats3 = new TimingStats(JOB_ID, 7, 1.0, 3.0, 1.23, 7.89);
-
-        assertTrue(stats1.equals(stats1));
-        assertTrue(stats1.equals(stats2));
-        assertFalse(stats2.equals(stats3));
-    }
-
-    public void testHashCode() {
-        TimingStats stats1 = new TimingStats(JOB_ID, 7, 1.0, 2.0, 1.23, 7.89);
-        TimingStats stats2 = new TimingStats(JOB_ID, 7, 1.0, 2.0, 1.23, 7.89);
-        TimingStats stats3 = new TimingStats(JOB_ID, 7, 1.0, 3.0, 1.23, 7.89);
-
-        assertEquals(stats1.hashCode(), stats1.hashCode());
-        assertEquals(stats1.hashCode(), stats2.hashCode());
-        assertNotEquals(stats2.hashCode(), stats3.hashCode());
+    @Override
+    protected ToXContent.Params getToXContentParams() {
+        return new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"));
     }
 
     public void testDefaultConstructor() {
@@ -69,54 +62,86 @@ public class TimingStatsTests extends AbstractSerializingTestCase<TimingStats> {
 
         assertThat(stats.getJobId(), equalTo(JOB_ID));
         assertThat(stats.getBucketCount(), equalTo(0L));
+        assertThat(stats.getTotalBucketProcessingTimeMs(), equalTo(0.0));
         assertThat(stats.getMinBucketProcessingTimeMs(), nullValue());
         assertThat(stats.getMaxBucketProcessingTimeMs(), nullValue());
         assertThat(stats.getAvgBucketProcessingTimeMs(), nullValue());
         assertThat(stats.getExponentialAvgBucketProcessingTimeMs(), nullValue());
+        assertThat(stats.getExponentialAvgCalculationContext(), equalTo(new ExponentialAverageCalculationContext()));
     }
 
     public void testConstructor() {
-        TimingStats stats = new TimingStats(JOB_ID, 7, 1.0, 2.0, 1.23, 7.89);
+        ExponentialAverageCalculationContext context =
+            new ExponentialAverageCalculationContext(78.9, Instant.ofEpochMilli(123456789), 987.0);
+        TimingStats stats = new TimingStats(JOB_ID, 7, 1.0, 2.0, 1.23, 7.89, context);
 
         assertThat(stats.getJobId(), equalTo(JOB_ID));
         assertThat(stats.getBucketCount(), equalTo(7L));
+        assertThat(stats.getTotalBucketProcessingTimeMs(), equalTo(8.61));
         assertThat(stats.getMinBucketProcessingTimeMs(), equalTo(1.0));
         assertThat(stats.getMaxBucketProcessingTimeMs(), equalTo(2.0));
         assertThat(stats.getAvgBucketProcessingTimeMs(), equalTo(1.23));
         assertThat(stats.getExponentialAvgBucketProcessingTimeMs(), equalTo(7.89));
+        assertThat(stats.getExponentialAvgCalculationContext(), equalTo(context));
     }
 
     public void testCopyConstructor() {
-        TimingStats stats1 = new TimingStats(JOB_ID, 7, 1.0, 2.0, 1.23, 7.89);
+        ExponentialAverageCalculationContext context =
+            new ExponentialAverageCalculationContext(78.9, Instant.ofEpochMilli(123456789), 987.0);
+        TimingStats stats1 = new TimingStats(JOB_ID, 7, 1.0, 2.0, 1.23, 7.89, context);
         TimingStats stats2 = new TimingStats(stats1);
 
         assertThat(stats2.getJobId(), equalTo(JOB_ID));
         assertThat(stats2.getBucketCount(), equalTo(7L));
+        assertThat(stats2.getTotalBucketProcessingTimeMs(), equalTo(8.61));
         assertThat(stats2.getMinBucketProcessingTimeMs(), equalTo(1.0));
         assertThat(stats2.getMaxBucketProcessingTimeMs(), equalTo(2.0));
         assertThat(stats2.getAvgBucketProcessingTimeMs(), equalTo(1.23));
         assertThat(stats2.getExponentialAvgBucketProcessingTimeMs(), equalTo(7.89));
-        assertEquals(stats1, stats2);
-        assertEquals(stats1.hashCode(), stats2.hashCode());
+        assertThat(stats2.getExponentialAvgCalculationContext(), equalTo(context));
     }
 
     public void testUpdateStats() {
         TimingStats stats = new TimingStats(JOB_ID);
 
         stats.updateStats(3);
-        assertThat(stats, areCloseTo(new TimingStats(JOB_ID, 1, 3.0, 3.0, 3.0, 3.0), 1e-9));
+        assertThat(stats, areCloseTo(new TimingStats(JOB_ID, 1, 3.0, 3.0, 3.0, 3.0, createContext(3.0)), 1e-9));
 
         stats.updateStats(2);
-        assertThat(stats, areCloseTo(new TimingStats(JOB_ID, 2, 2.0, 3.0, 2.5, 2.99), 1e-9));
+        assertThat(stats, areCloseTo(new TimingStats(JOB_ID, 2, 2.0, 3.0, 2.5, 2.99, createContext(5.0)), 1e-9));
 
         stats.updateStats(4);
-        assertThat(stats, areCloseTo(new TimingStats(JOB_ID, 3, 2.0, 4.0, 3.0, 3.0001), 1e-9));
+        assertThat(stats, areCloseTo(new TimingStats(JOB_ID, 3, 2.0, 4.0, 3.0, 3.0001, createContext(9.0)), 1e-9));
 
         stats.updateStats(1);
-        assertThat(stats, areCloseTo(new TimingStats(JOB_ID, 4, 1.0, 4.0, 2.5, 2.980099), 1e-9));
+        assertThat(stats, areCloseTo(new TimingStats(JOB_ID, 4, 1.0, 4.0, 2.5, 2.980099, createContext(10.0)), 1e-9));
 
         stats.updateStats(5);
-        assertThat(stats, areCloseTo(new TimingStats(JOB_ID, 5, 1.0, 5.0, 3.0, 3.00029801), 1e-9));
+        assertThat(stats, areCloseTo(new TimingStats(JOB_ID, 5, 1.0, 5.0, 3.0, 3.00029801, createContext(15.0)), 1e-9));
+    }
+
+    private static ExponentialAverageCalculationContext createContext(double incrementalSearchTimeMs) {
+        return new ExponentialAverageCalculationContext(incrementalSearchTimeMs, null, null);
+    }
+
+    public void testTotalBucketProcessingTimeIsCalculatedProperlyAfterUpdates() {
+        TimingStats stats = new TimingStats(JOB_ID);
+        assertThat(stats.getTotalBucketProcessingTimeMs(), equalTo(0.0));
+
+        stats.updateStats(3);
+        assertThat(stats.getTotalBucketProcessingTimeMs(), equalTo(3.0));
+
+        stats.updateStats(2);
+        assertThat(stats.getTotalBucketProcessingTimeMs(), equalTo(5.0));
+
+        stats.updateStats(4);
+        assertThat(stats.getTotalBucketProcessingTimeMs(), equalTo(9.0));
+
+        stats.updateStats(1);
+        assertThat(stats.getTotalBucketProcessingTimeMs(), equalTo(10.0));
+
+        stats.updateStats(5);
+        assertThat(stats.getTotalBucketProcessingTimeMs(), equalTo(15.0));
     }
 
     public void testDocumentId() {
@@ -138,11 +163,14 @@ public class TimingStatsTests extends AbstractSerializingTestCase<TimingStats> {
             protected boolean matchesSafely(TimingStats item) {
                 return equalTo(operand.getJobId()).matches(item.getJobId())
                     && equalTo(operand.getBucketCount()).matches(item.getBucketCount())
+                    && closeTo(operand.getTotalBucketProcessingTimeMs(), error).matches(item.getTotalBucketProcessingTimeMs())
                     && closeTo(operand.getMinBucketProcessingTimeMs(), error).matches(item.getMinBucketProcessingTimeMs())
                     && closeTo(operand.getMaxBucketProcessingTimeMs(), error).matches(item.getMaxBucketProcessingTimeMs())
                     && closeTo(operand.getAvgBucketProcessingTimeMs(), error).matches(item.getAvgBucketProcessingTimeMs())
                     && closeTo(operand.getExponentialAvgBucketProcessingTimeMs(), error)
-                        .matches(item.getExponentialAvgBucketProcessingTimeMs());
+                        .matches(item.getExponentialAvgBucketProcessingTimeMs())
+                    && closeTo(operand.getExponentialAvgBucketProcessingTimePerHourMs(), error)
+                        .matches(item.getExponentialAvgBucketProcessingTimePerHourMs());
             }
         };
     }

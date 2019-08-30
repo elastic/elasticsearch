@@ -187,3 +187,11 @@ PUT _ml/data_frame/analytics/wine_quality_white
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:setup_wine_quality_white]
+
+
+[discrete]
+[[regression-resources-response]]
+==== {regression-cap} response object
+
+`is_training`::
+  (boolean) If `true`, the row was used for training the {regression} model.

@@ -40,6 +40,11 @@ tag::df[]
 given in the query string.
 end::df[]
 
+tag::enrich-policy[]
+Enrich policy name
+used to limit the request.
+end::enrich-policy[]
+
 tag::expand-wildcards[]
 `expand_wildcards`::
 +

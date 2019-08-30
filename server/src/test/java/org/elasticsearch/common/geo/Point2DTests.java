@@ -32,7 +32,7 @@ public class Point2DTests extends ESTestCase {
     public void testOnePoint() throws IOException {
         int x = randomIntBetween(-90, 90);
         int y = randomIntBetween(-90, 90);
-        Point2DWriter writer = new Point2DWriter(x, y);
+        Point2DWriter writer = new Point2DWriter(x, y, TestCoordinateEncoder.INSTANCE);
 
         BytesStreamOutput output = new BytesStreamOutput();
         writer.writeTo(output);
@@ -58,13 +58,13 @@ public class Point2DTests extends ESTestCase {
             Extent extent = Extent.fromPoints(minX, minY, maxX, maxY);
             int numPoints = randomIntBetween(2, 1000);
 
-            int[] x = new int[numPoints];
-            int[] y = new int[numPoints];
+            double[] x = new double[numPoints];
+            double[] y = new double[numPoints];
             for (int j = 0; j < numPoints; j++) {
                 x[j] = randomIntBetween(minX, maxX);
                 y[j] = randomIntBetween(minY, maxY);
             }
-            Point2DWriter writer = new Point2DWriter(x, y);
+            Point2DWriter writer = new Point2DWriter(x, y, TestCoordinateEncoder.INSTANCE);
 
             BytesStreamOutput output = new BytesStreamOutput();
             writer.writeTo(output);

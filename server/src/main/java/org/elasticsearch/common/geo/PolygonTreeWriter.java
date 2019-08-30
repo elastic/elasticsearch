@@ -34,9 +34,9 @@ public class PolygonTreeWriter extends ShapeTreeWriter {
     private final EdgeTreeWriter outerShell;
     private final EdgeTreeWriter holes;
 
-    public PolygonTreeWriter(int[] x, int[] y, List<int[]> holesX, List<int[]> holesY) {
-        outerShell = new EdgeTreeWriter(x, y);
-        holes = holesX.isEmpty() ? null : new EdgeTreeWriter(holesX, holesY);
+    public PolygonTreeWriter(double[] x, double[] y, List<double[]> holesX, List<double[]> holesY, CoordinateEncoder coordinateEncoder) {
+        outerShell = new EdgeTreeWriter(x, y, coordinateEncoder);
+        holes = holesX.isEmpty() ? null : new EdgeTreeWriter(holesX, holesY, coordinateEncoder);
     }
 
     public Extent getExtent() {

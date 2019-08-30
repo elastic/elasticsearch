@@ -43,29 +43,30 @@ public class EdgeTreeWriter extends ShapeTreeWriter {
 
 
     /**
-     * @param x        array of the x-coordinate of points.
-     * @param y        array of the y-coordinate of points.
+     * @param x                  array of the x-coordinate of points.
+     * @param y                  array of the y-coordinate of points.
+     * @param coordinateEncoder  class that encodes from real-valued x/y to serialized integer coordinate values.
      */
-    EdgeTreeWriter(int[] x, int[] y) {
-        this(Collections.singletonList(x), Collections.singletonList(y));
+    EdgeTreeWriter(double[] x, double[] y, CoordinateEncoder coordinateEncoder) {
+        this(Collections.singletonList(x), Collections.singletonList(y), coordinateEncoder);
     }
 
-    EdgeTreeWriter(List<int[]> x, List<int[]> y) {
+    EdgeTreeWriter(List<double[]> x, List<double[]> y, CoordinateEncoder coordinateEncoder) {
         this.numShapes = x.size();
-        int top = Integer.MIN_VALUE;
-        int bottom = Integer.MAX_VALUE;
-        int negLeft = Integer.MAX_VALUE;
-        int negRight = Integer.MIN_VALUE;
-        int posLeft = Integer.MAX_VALUE;
-        int posRight = Integer.MIN_VALUE;
+        double top = Double.NEGATIVE_INFINITY;
+        double bottom = Double.POSITIVE_INFINITY;
+        double negLeft = Double.POSITIVE_INFINITY;
+        double negRight = Double.NEGATIVE_INFINITY;
+        double posLeft = Double.POSITIVE_INFINITY;
+        double posRight = Double.NEGATIVE_INFINITY;
         List<Edge> edges = new ArrayList<>();
         for (int i = 0; i < y.size(); i++) {
             for (int j = 1; j < y.get(i).length; j++) {
-                int y1 = y.get(i)[j - 1];
-                int x1 = x.get(i)[j - 1];
-                int y2 = y.get(i)[j];
-                int x2 = x.get(i)[j];
-                int edgeMinY, edgeMaxY;
+                double y1 = y.get(i)[j - 1];
+                double x1 = x.get(i)[j - 1];
+                double y2 = y.get(i)[j];
+                double x2 = x.get(i)[j];
+                double edgeMinY, edgeMaxY;
                 if (y1 < y2) {
                     edgeMinY = y1;
                     edgeMaxY = y2;
@@ -73,7 +74,9 @@ public class EdgeTreeWriter extends ShapeTreeWriter {
                     edgeMinY = y2;
                     edgeMaxY = y1;
                 }
-                edges.add(new Edge(x1, y1, x2, y2, edgeMinY, edgeMaxY));
+                edges.add(new Edge(coordinateEncoder.encodeX(x1), coordinateEncoder.encodeY(y1),
+                    coordinateEncoder.encodeX(x2), coordinateEncoder.encodeY(y2),
+                    coordinateEncoder.encodeY(edgeMinY), coordinateEncoder.encodeY(edgeMaxY)));
 
                 top = Math.max(top, Math.max(y1, y2));
                 bottom = Math.min(bottom, Math.min(y1, y2));
@@ -108,7 +111,9 @@ public class EdgeTreeWriter extends ShapeTreeWriter {
             }
         }
         edges.sort(Edge::compareTo);
-        this.extent = new Extent(top, bottom, negLeft, negRight, posLeft, posRight);
+        this.extent = new Extent(coordinateEncoder.encodeY(top), coordinateEncoder.encodeY(bottom),
+            coordinateEncoder.encodeX(negLeft), coordinateEncoder.encodeX(negRight),
+            coordinateEncoder.encodeX(posLeft), coordinateEncoder.encodeX(posRight));
         this.tree = createTree(edges, 0, edges.size() - 1);
     }
 

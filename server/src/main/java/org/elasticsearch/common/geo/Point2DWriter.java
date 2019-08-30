@@ -32,22 +32,24 @@ public class Point2DWriter extends ShapeTreeWriter {
 
     private static final int K = 2;
     private final Extent extent;
-    private final int[] coords;
+    private final double[] coords;
     // size of a leaf node where searches are done sequentially.
     static final int LEAF_SIZE = 64;
+    private final CoordinateEncoder coordinateEncoder;
 
-    Point2DWriter(int[] x, int[] y) {
+    Point2DWriter(double[] x, double[] y, CoordinateEncoder coordinateEncoder) {
         assert x.length == y.length;
-        int top = Integer.MIN_VALUE;
-        int bottom = Integer.MAX_VALUE;
-        int negLeft = Integer.MAX_VALUE;
-        int negRight = Integer.MIN_VALUE;
-        int posLeft = Integer.MAX_VALUE;
-        int posRight = Integer.MIN_VALUE;
-        coords = new int[x.length * K];
+        this.coordinateEncoder = coordinateEncoder;
+        double top = Double.NEGATIVE_INFINITY;
+        double bottom = Double.POSITIVE_INFINITY;
+        double negLeft = Double.POSITIVE_INFINITY;
+        double negRight = Double.NEGATIVE_INFINITY;
+        double posLeft = Double.POSITIVE_INFINITY;
+        double posRight = Double.NEGATIVE_INFINITY;
+        coords = new double[x.length * K];
         for (int i = 0; i < x.length; i++) {
-            int xi = x[i];
-            int yi = y[i];
+            double xi = x[i];
+            double yi = y[i];
             top = Math.max(top, yi);
             bottom = Math.min(bottom, yi);
             if (xi >= 0 && xi < posLeft) {
@@ -66,12 +68,14 @@ public class Point2DWriter extends ShapeTreeWriter {
             coords[2 * i + 1] = yi;
         }
         sort(0, x.length - 1, 0);
-        this.extent = new Extent(top, bottom, negLeft, negRight, posLeft, posRight);
+        this.extent = new Extent(coordinateEncoder.encodeY(top), coordinateEncoder.encodeY(bottom), coordinateEncoder.encodeX(negLeft),
+            coordinateEncoder.encodeX(negRight), coordinateEncoder.encodeX(posLeft), coordinateEncoder.encodeX(posRight));
     }
 
-    Point2DWriter(int x, int y) {
-        coords = new int[] {x, y};
-        this.extent = Extent.fromPoint(x, y);
+    Point2DWriter(double x, double y, CoordinateEncoder coordinateEncoder) {
+        this.coordinateEncoder = coordinateEncoder;
+        coords = new double[] {x, y};
+        this.extent = Extent.fromPoint(coordinateEncoder.encodeX(x), coordinateEncoder.encodeY(y));
     }
 
     @Override
@@ -91,8 +95,10 @@ public class Point2DWriter extends ShapeTreeWriter {
         if (numPoints > 1) {
             extent.writeTo(out);
         }
-        for (int coord : coords) {
-            out.writeInt(coord);
+        for (int i = 0; i < coords.length; i++) {
+            double coord = coords[i];
+            int encodedCoord = i % 2 == 0 ? coordinateEncoder.encodeX(coord) : coordinateEncoder.encodeY(coord);
+            out.writeInt(encodedCoord);
         }
     }
 
@@ -133,7 +139,7 @@ public class Point2DWriter extends ShapeTreeWriter {
                 int newRight = Math.min(right, (int) Math.floor(k + (n - i) * s / n + sd));
                 select(newLeft, newRight, k, depth);
             }
-            int t = coords[2 * k + axis];
+            double t = coords[2 * k + axis];
             int i = left;
             int j = right;
 
@@ -176,7 +182,7 @@ public class Point2DWriter extends ShapeTreeWriter {
     }
 
     private void swap(int i, int j) {
-        int tmp = coords[i];
+        double tmp = coords[i];
         coords[i] = coords[j];
         coords[j] = tmp;
     }

@@ -56,7 +56,7 @@ public class GeometryTreeReader {
         input.position(0);
         boolean hasExtent = input.readBoolean();
         if (hasExtent) {
-            Optional<Boolean> extentCheck = EdgeTreeReader.checkExtent(input, extent);
+            Optional<Boolean> extentCheck = EdgeTreeReader.checkExtent(new Extent(input), extent);
             if (extentCheck.isPresent()) {
                 return extentCheck.get();
             }

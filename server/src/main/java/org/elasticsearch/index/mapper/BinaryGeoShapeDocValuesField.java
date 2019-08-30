@@ -20,6 +20,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.geo.GeoShapeCoordinateEncoder;
 import org.elasticsearch.common.geo.GeometryTreeWriter;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.geometry.Geometry;
@@ -52,7 +53,7 @@ public class BinaryGeoShapeDocValuesField extends CustomDocValuesField {
             } else {
                 geometry = geometries.get(0);
             }
-            final GeometryTreeWriter writer = new GeometryTreeWriter(geometry);
+            final GeometryTreeWriter writer = new GeometryTreeWriter(geometry, GeoShapeCoordinateEncoder.INSTANCE);
             BytesStreamOutput output = new BytesStreamOutput();
             writer.writeTo(output);
             return output.bytes().toBytesRef();

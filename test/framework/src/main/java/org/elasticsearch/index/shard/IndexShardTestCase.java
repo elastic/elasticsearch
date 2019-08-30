@@ -832,12 +832,14 @@ public abstract class IndexShardTestCase extends ESTestCase {
                                  final Snapshot snapshot,
                                  final Repository repository) throws IOException {
         final IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing();
+        final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
         try (Engine.IndexCommitRef indexCommitRef = shard.acquireLastIndexCommit(true)) {
             Index index = shard.shardId().getIndex();
             IndexId indexId = new IndexId(index.getName(), index.getUUID());
 
             repository.snapshotShard(shard.store(), shard.mapperService(), snapshot.getSnapshotId(), indexId,
-                indexCommitRef.getIndexCommit(), snapshotStatus);
+                indexCommitRef.getIndexCommit(), snapshotStatus, future);
+            future.actionGet();
         }
 
         final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.asCopy();

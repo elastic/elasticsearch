@@ -45,6 +45,7 @@ subprojects {
 
   File testArtifactsDir = project.file('build/testArtifacts')
   TaskProvider copyTestClasses = tasks.register("copyTestClasses", Copy) {
+    dependsOn configurations.testArtifacts
     from { zipTree(configurations.testArtifacts.singleFile) }
     into testArtifactsDir
   }

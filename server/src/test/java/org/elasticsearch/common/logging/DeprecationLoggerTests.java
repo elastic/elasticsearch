@@ -217,9 +217,9 @@ public class DeprecationLoggerTests extends ESTestCase {
         }
     }
 
-    public void testFailsWhenRemovingUnknownThreadContext() throws IOException {
+    public void testDoNotFailWhenRemovingUnknownThreadContext() throws IOException {
         try (ThreadContext threadContext = new ThreadContext(Settings.EMPTY)) {
-            expectThrows(IllegalStateException.class, () -> DeprecationLogger.removeThreadContext(threadContext));
+            assertFalse(DeprecationLogger.removeThreadContext(threadContext));
         }
     }
 

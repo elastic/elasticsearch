@@ -94,13 +94,13 @@ public class DeprecationLogger {
      * Node: This method should be called before closing a <code>ThreadContext</code>.
      * @see ThreadContext#close()
      * @param threadContext The thread context owned by the {@code ThreadPool} (and implicitly a {@code Node})
-     * @throws IllegalStateException if this {@code threadContext} is unknown (and presumably already unset before)
-     */
-    public static void removeThreadContext(ThreadContext threadContext) {
+     * @return true if the context was removed, false if the context was now known (possibly already removed)
+     * */
+    public static boolean removeThreadContext(ThreadContext threadContext) {
         assert threadContext != null;
         threadContextLock.writeLock().lock();
         try {
-            THREAD_CONTEXT.remove(threadContext);
+            return THREAD_CONTEXT.remove(threadContext);
 //            // remove returning false means it did not have it already
 //            if (THREAD_CONTEXT.remove(threadContext) == false) {
 //                logger.warn("Removing unknown ThreadContext not allowed!");

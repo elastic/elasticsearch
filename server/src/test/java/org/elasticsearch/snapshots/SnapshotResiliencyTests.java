@@ -196,12 +196,14 @@ import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.action.support.ActionTestUtils.assertNoFailureListener;
 import static org.elasticsearch.env.Environment.PATH_HOME_SETTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.Mockito.mock;
 
 public class SnapshotResiliencyTests extends ESTestCase {
@@ -491,6 +493,85 @@ public class SnapshotResiliencyTests extends ESTestCase {
         final Repository repository = masterNode.repositoriesService.repository(repoName);
         Collection<SnapshotId> snapshotIds = repository.getRepositoryData().getSnapshotIds();
         assertThat(snapshotIds, either(hasSize(1)).or(hasSize(0)));
+    }
+
+    public void testSuccessfulSnapshotWithConcurrentDynamicMappingUpdates() {
+        setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10));
+
+        String repoName = "repo";
+        String snapshotName = "snapshot";
+        final String index = "test";
+
+        final int shards = randomIntBetween(1, 10);
+        final int documents = randomIntBetween(2, 100);
+        TestClusterNode masterNode =
+            testClusterNodes.currentMaster(testClusterNodes.nodes.values().iterator().next().clusterService.state());
+
+        final StepListener<CreateSnapshotResponse> createSnapshotResponseStepListener = new StepListener<>();
+
+        continueOrDie(createRepoAndIndex(masterNode, repoName, index, shards), createIndexResponse -> {
+            final AtomicBoolean initiatedSnapshot = new AtomicBoolean(false);
+            for (int i = 0; i < documents; ++i) {
+                // Index a few documents with different field names so we trigger a dynamic mapping update for each of them
+                masterNode.client.bulk(
+                    new BulkRequest().add(new IndexRequest(index).source(Map.of("foo" + i, "bar")))
+                        .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE),
+                    assertNoFailureListener(
+                        bulkResponse -> {
+                            assertFalse("Failures in bulkresponse: " + bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
+                            if (initiatedSnapshot.compareAndSet(false, true)) {
+                                masterNode.client.admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
+                                    .setWaitForCompletion(true).execute(createSnapshotResponseStepListener);
+                            }
+                        }));
+            }
+        });
+
+        final String restoredIndex = "restored";
+
+        final StepListener<RestoreSnapshotResponse> restoreSnapshotResponseStepListener = new StepListener<>();
+
+        continueOrDie(createSnapshotResponseStepListener, createSnapshotResponse -> masterNode.client.admin().cluster().restoreSnapshot(
+            new RestoreSnapshotRequest(repoName, snapshotName)
+                .renamePattern(index).renameReplacement(restoredIndex).waitForCompletion(true), restoreSnapshotResponseStepListener));
+
+        final StepListener<SearchResponse> searchResponseStepListener = new StepListener<>();
+
+        continueOrDie(restoreSnapshotResponseStepListener, restoreSnapshotResponse -> {
+            assertEquals(shards, restoreSnapshotResponse.getRestoreInfo().totalShards());
+            masterNode.client.search(
+                new SearchRequest(restoredIndex).source(new SearchSourceBuilder().size(documents).trackTotalHits(true)),
+                searchResponseStepListener);
+        });
+
+        final AtomicBoolean documentCountVerified = new AtomicBoolean();
+
+        continueOrDie(searchResponseStepListener, r -> {
+            final long hitCount = r.getHits().getTotalHits().value;
+            assertThat(
+                "Documents were restored but the restored index mapping was older than some documents and misses some of their fields",
+                (int) hitCount,
+                lessThanOrEqualTo(((Map<?, ?>) masterNode.clusterService.state().metaData().index(restoredIndex).mapping()
+                    .sourceAsMap().get("properties")).size())
+            );
+            documentCountVerified.set(true);
+        });
+
+        runUntil(documentCountVerified::get, TimeUnit.MINUTES.toMillis(5L));
+
+        assertNotNull(createSnapshotResponseStepListener.result());
+        assertNotNull(restoreSnapshotResponseStepListener.result());
+        SnapshotsInProgress finalSnapshotsInProgress = masterNode.clusterService.state().custom(SnapshotsInProgress.TYPE);
+        assertFalse(finalSnapshotsInProgress.entries().stream().anyMatch(entry -> entry.state().completed() == false));
+        final Repository repository = masterNode.repositoriesService.repository(repoName);
+        Collection<SnapshotId> snapshotIds = repository.getRepositoryData().getSnapshotIds();
+        assertThat(snapshotIds, hasSize(1));
+
+        final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotIds.iterator().next());
+        assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
+        assertThat(snapshotInfo.indices(), containsInAnyOrder(index));
+        assertEquals(shards, snapshotInfo.successfulShards());
+        assertEquals(0, snapshotInfo.failedShards());
     }
 
     private StepListener<CreateIndexResponse> createRepoAndIndex(TestClusterNode masterNode, String repoName, String index, int shards) {

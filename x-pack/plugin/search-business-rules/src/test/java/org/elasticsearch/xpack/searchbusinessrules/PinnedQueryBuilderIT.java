@@ -62,7 +62,7 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
                 .addMapping("type1",
                         jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("field1")
                                 .field("analyzer", "whitespace").field("type", "text").endObject().endObject().endObject().endObject())
-                .setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", 2)));
+                .setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", randomIntBetween(2, 5))));
 
         int numRelevantDocs = randomIntBetween(1, 100);
         for (int i = 0; i < numRelevantDocs; i++) {

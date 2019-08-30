@@ -23,6 +23,7 @@ import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
 
+import static org.elasticsearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
@@ -56,7 +57,6 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
         return plugins;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/46174")
     public void testPinnedPromotions() throws Exception {
         assertAcked(prepareCreate("test")
                 .addMapping("type1",
@@ -102,6 +102,7 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
             int from = randomIntBetween(0, numRelevantDocs);
             int size = randomIntBetween(10, 100);
             SearchResponse searchResponse = client().prepareSearch().setQuery(pqb).setTrackTotalHits(true).setSize(size).setFrom(from)
+                    .setSearchType(DFS_QUERY_THEN_FETCH)
                     .get();
 
             long numHits = searchResponse.getHits().getTotalHits().value;

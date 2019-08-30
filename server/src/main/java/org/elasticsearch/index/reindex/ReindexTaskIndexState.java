@@ -35,9 +35,10 @@ public class ReindexTaskIndexState implements ToXContentObject {
     public static final String REINDEX_ORIGIN = "reindex";
     public static final ConstructingObjectParser<ReindexTaskIndexState, Void> PARSER =
         new ConstructingObjectParser<>("reindex/index_state", a -> new ReindexTaskIndexState((ReindexRequest) a[0],
-            (BulkByScrollResponse) a[1], (ElasticsearchException) a[2], (Integer) a[3]));
+            (BulkByScrollResponse) a[1], (Long) a[2], (ElasticsearchException) a[3], (Integer) a[4]));
 
     private static final String REINDEX_REQUEST = "request";
+    private static final String ALLOCATION = "allocation";
     private static final String REINDEX_RESPONSE = "response";
     private static final String REINDEX_EXCEPTION = "exception";
     private static final String FAILURE_REST_STATUS = "failure_rest_status";
@@ -45,6 +46,7 @@ public class ReindexTaskIndexState implements ToXContentObject {
     static {
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> ReindexRequest.fromXContentWithParams(p),
             new ParseField(REINDEX_REQUEST));
+        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), new ParseField(ALLOCATION));
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> BulkByScrollResponse.fromXContent(p),
             new ParseField(REINDEX_RESPONSE));
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> ElasticsearchException.fromXContent(p),
@@ -56,21 +58,24 @@ public class ReindexTaskIndexState implements ToXContentObject {
     private final BulkByScrollResponse reindexResponse;
     private final Exception exception;
     private final RestStatus failureStatusCode;
+    private final Long allocationId;
 
     public ReindexTaskIndexState(ReindexRequest reindexRequest) {
-        this(reindexRequest, null, null, (RestStatus) null);
+        this(reindexRequest, null, null, null, (RestStatus) null);
     }
 
-    public ReindexTaskIndexState(ReindexRequest reindexRequest, @Nullable BulkByScrollResponse reindexResponse,
+    private ReindexTaskIndexState(ReindexRequest reindexRequest, @Nullable BulkByScrollResponse reindexResponse, @Nullable Long allocationId,
                                  @Nullable ElasticsearchException exception, @Nullable Integer failureStatusCode) {
-        this(reindexRequest, reindexResponse, exception, failureStatusCode == null ? null : RestStatus.fromCode(failureStatusCode));
+        this(reindexRequest, reindexResponse, allocationId, exception,
+            failureStatusCode == null ? null : RestStatus.fromCode(failureStatusCode));
     }
 
-    public ReindexTaskIndexState(ReindexRequest reindexRequest, @Nullable BulkByScrollResponse reindexResponse,
+    public ReindexTaskIndexState(ReindexRequest reindexRequest, @Nullable BulkByScrollResponse reindexResponse, @Nullable Long allocationId,
                                  @Nullable ElasticsearchException exception, @Nullable RestStatus failureStatusCode) {
         assert (reindexResponse == null) || (exception == null) : "Either response or exception must be null";
         this.reindexRequest = reindexRequest;
         this.reindexResponse = reindexResponse;
+        this.allocationId = allocationId;
         this.exception = exception;
         this.failureStatusCode = failureStatusCode;
     }
@@ -80,6 +85,9 @@ public class ReindexTaskIndexState implements ToXContentObject {
         builder.startObject();
         builder.field(REINDEX_REQUEST);
         reindexRequest.toXContent(builder, params, true);
+        if (allocationId != null) {
+            builder.field(ALLOCATION, allocationId);
+        }
         if (reindexResponse != null) {
             builder.field(REINDEX_RESPONSE);
             builder.startObject();

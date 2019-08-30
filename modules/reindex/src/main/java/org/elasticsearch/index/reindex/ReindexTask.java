@@ -184,7 +184,7 @@ public class ReindexTask extends AllocatedPersistentTask {
         TaskManager taskManager = getTaskManager();
         assert taskManager != null : "TaskManager should have been set before reindex started";
 
-        ReindexTaskIndexState reindexState = new ReindexTaskIndexState(reindexRequest, response, null, (RestStatus) null);
+        ReindexTaskIndexState reindexState = new ReindexTaskIndexState(reindexRequest, response, getAllocationId(), null, null);
         reindexIndexClient.updateReindexTaskDoc(getPersistentTaskId(), reindexState, currentTerm, currentSeqNo, new ActionListener<>() {
             @Override
             public void onResponse(Void v) {
@@ -230,7 +230,8 @@ public class ReindexTask extends AllocatedPersistentTask {
         assert taskManager != null : "TaskManager should have been set before reindex started";
 
         ElasticsearchException exception = wrapException(ex);
-        ReindexTaskIndexState reindexState = new ReindexTaskIndexState(reindexRequest, null, exception, exception.status());
+        long allocationId = getAllocationId();
+        ReindexTaskIndexState reindexState = new ReindexTaskIndexState(reindexRequest, null, allocationId, exception, exception.status());
 
         reindexIndexClient.updateReindexTaskDoc(getPersistentTaskId(), reindexState, currentTerm, currentSeqNo, new ActionListener<>() {
             @Override

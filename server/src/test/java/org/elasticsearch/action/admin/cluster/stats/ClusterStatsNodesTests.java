@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.cluster.stats;
 
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
+import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -27,11 +28,18 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.action.admin.cluster.node.stats.NodeStatsTests.createNodeStats;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.hamcrest.Matchers.equalTo;
 
 public class ClusterStatsNodesTests extends ESTestCase {
 
@@ -57,6 +65,30 @@ public class ClusterStatsNodesTests extends ESTestCase {
                 + "\"transport_types\":{\"custom\":1},"
                 + "\"http_types\":{\"custom\":2}"
         + "}", toXContent(stats, XContentType.JSON, randomBoolean()).utf8ToString());
+    }
+
+    public void testIngestStats() throws Exception {
+        NodeStats nodeStats = createNodeStats();
+
+        SortedSet<String> processorTypes = new TreeSet<>();
+        nodeStats.getIngestStats().getProcessorStats().values().forEach(l -> l.forEach(s -> processorTypes.add(s.getType())));
+        ClusterStatsNodes.IngestStats stats = new ClusterStatsNodes.IngestStats(Collections.singletonList(nodeStats));
+        assertThat(stats.pipelineCount, equalTo(nodeStats.getIngestStats().getProcessorStats().size()));
+        assertThat(stats.processorTypes, equalTo(processorTypes));
+        Object[] processorTypesArray = processorTypes.toArray();
+        String processorTypesString = "[";
+        for (int i = 0; i < processorTypesArray.length; i++) {
+            processorTypesString += "\"" + processorTypesArray[i] + "\"";
+            if (i < processorTypesArray.length - 1) {
+                processorTypesString += ",";
+            }
+        }
+        processorTypesString += "]";
+        assertThat(toXContent(stats, XContentType.JSON, randomBoolean()).utf8ToString(), equalTo(
+            "{\"ingest\":{"
+                + "\"number_of_pipelines\":" + stats.pipelineCount + ","
+                + "\"processor_types\":" + processorTypesString
+                + "}}"));
     }
 
     private static NodeInfo createNodeInfo(String nodeId, String transportType, String httpType) {

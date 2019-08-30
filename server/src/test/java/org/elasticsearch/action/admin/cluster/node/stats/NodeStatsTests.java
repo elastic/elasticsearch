@@ -315,7 +315,7 @@ public class NodeStatsTests extends ESTestCase {
         }
     }
 
-    private static NodeStats createNodeStats() {
+    public static NodeStats createNodeStats() {
         DiscoveryNode node = new DiscoveryNode("test_node", buildNewFakeTransportAddress(),
                 emptyMap(), emptySet(), VersionUtils.randomVersion(random()));
         OsStats osStats = null;
@@ -456,7 +456,8 @@ public class NodeStatsTests extends ESTestCase {
                 for (int j =0; j < numProcessors;j++) {
                     IngestStats.Stats processorStats = new IngestStats.Stats
                         (randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
-                    processorPerPipeline.add(new IngestStats.ProcessorStat(randomAlphaOfLengthBetween(3, 10), processorStats));
+                    processorPerPipeline.add(new IngestStats.ProcessorStat(randomAlphaOfLengthBetween(3, 10),
+                        randomAlphaOfLengthBetween(3, 10), processorStats));
                 }
                 ingestProcessorStats.put(pipelineId,processorPerPipeline);
             }

@@ -36,6 +36,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.ingest.IngestInfo;
+import org.elasticsearch.ingest.IngestStats;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.plugins.PluginInfo;
@@ -49,7 +51,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.SortedSet;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class ClusterStatsNodes implements ToXContentFragment {
@@ -64,6 +68,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
     private final NetworkTypes networkTypes;
     private final DiscoveryTypes discoveryTypes;
     private final PackagingTypes packagingTypes;
+    private IngestStats ingestStats;
 
     ClusterStatsNodes(List<ClusterStatsNodeResponse> nodeResponses) {
         this.versions = new HashSet<>();
@@ -97,6 +102,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
         this.networkTypes = new NetworkTypes(nodeInfos);
         this.discoveryTypes = new DiscoveryTypes(nodeInfos);
         this.packagingTypes = new PackagingTypes(nodeInfos);
+        this.ingestStats = new IngestStats(nodeStats);
     }
 
     public Counts getCounts() {
@@ -178,6 +184,9 @@ public class ClusterStatsNodes implements ToXContentFragment {
         discoveryTypes.toXContent(builder, params);
 
         packagingTypes.toXContent(builder, params);
+
+        ingestStats.toXContent(builder, params);
+
         return builder;
     }
 
@@ -685,6 +694,57 @@ public class ClusterStatsNodes implements ToXContentFragment {
                 }
             }
             builder.endArray();
+            return builder;
+        }
+
+    }
+
+    static class IngestStats implements ToXContentFragment {
+
+        int pipelineCount;
+        Map<String, long[]> stats = new HashMap<>();
+
+        IngestStats(final List<NodeStats> nodeStats) {
+            Set<String> pipelineIds = new HashSet<>();
+            Map<String, long[]> stats = new HashMap<>();
+            for (NodeStats nodeStat : nodeStats) {
+                if (nodeStat.getIngestStats() != null) {
+                    for (Map.Entry<String, List<org.elasticsearch.ingest.IngestStats.ProcessorStat>> processorStats : nodeStat.getIngestStats()
+                        .getProcessorStats().entrySet()) {
+                        pipelineIds.add(processorStats.getKey());
+                        for (org.elasticsearch.ingest.IngestStats.ProcessorStat stat : processorStats.getValue()) {
+                            stats.compute(stat.getType(), (k, v) -> {
+                                if (v == null) {
+                                    return new long[] { stat.getStats().getIngestCount(), stat.getStats().getIngestFailedCount() };
+                                } else {
+                                    v[0] += stat.getStats().getIngestCount();
+                                    v[1] += stat.getStats().getIngestFailedCount();
+                                    return v;
+                                }
+                            });
+                        }
+                    }
+                }
+            }
+            this.pipelineCount = pipelineIds.size();
+            this.stats = Collections.unmodifiableMap(stats);
+        }
+
+        @Override
+        public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
+            builder.startObject("ingest");
+            {
+                builder.field("number_of_pipelines", pipelineCount);
+                builder.startObject("processor_stats");
+                for (Map.Entry<String, long[]> stat : stats.entrySet()) {
+                    builder.startObject(stat.getKey());
+                    builder.field("count", stat.getValue()[0]);
+                    builder.field("fail_count", stat.getValue()[1]);
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
+            builder.endObject();
             return builder;
         }
 

@@ -288,6 +288,28 @@ public class TcpTransportTests extends ESTestCase {
         }
     }
 
+    public void testHTTPRequest() throws IOException {
+        String[] httpHeaders = {"GET", "POST", "PUT", "HEAD", "DELETE", "OPTIONS", "PATCH", "TRACE"};
+
+        for (String httpHeader : httpHeaders) {
+            BytesStreamOutput streamOutput = new BytesStreamOutput(1 << 14);
+
+            for (char c : httpHeader.toCharArray()) {
+                streamOutput.write((byte) c);
+            }
+            streamOutput.write(new byte[6]);
+
+            try {
+                BytesReference bytes = streamOutput.bytes();
+                TcpTransport.decodeFrame(bytes);
+                fail("Expected exception");
+            } catch (Exception ex) {
+                assertThat(ex, instanceOf(TcpTransport.HttpRequestOnTransportException.class));
+                assertEquals("This is not an HTTP port", ex.getMessage());
+            }
+        }
+    }
+
     public void testTLSHeader() throws IOException {
         BytesStreamOutput streamOutput = new BytesStreamOutput(1 << 14);
 
@@ -314,25 +336,22 @@ public class TcpTransportTests extends ESTestCase {
         }
     }
 
-    public void testHTTPHeader() throws IOException {
-        String[] httpHeaders = {"GET", "POST", "PUT", "HEAD", "DELETE", "OPTIONS", "PATCH", "TRACE"};
+    public void testHTTPResponse() throws IOException {
+        BytesStreamOutput streamOutput = new BytesStreamOutput(1 << 14);
+        streamOutput.write('H');
+        streamOutput.write('T');
+        streamOutput.write('T');
+        streamOutput.write('P');
+        streamOutput.write(randomByte());
+        streamOutput.write(randomByte());
 
-        for (String httpHeader : httpHeaders) {
-            BytesStreamOutput streamOutput = new BytesStreamOutput(1 << 14);
-
-            for (char c : httpHeader.toCharArray()) {
-                streamOutput.write((byte) c);
-            }
-            streamOutput.write(new byte[6]);
-
-            try {
-                BytesReference bytes = streamOutput.bytes();
-                TcpTransport.decodeFrame(bytes);
-                fail("Expected exception");
-            } catch (Exception ex) {
-                assertThat(ex, instanceOf(TcpTransport.HttpOnTransportException.class));
-                assertEquals("This is not an HTTP port", ex.getMessage());
-            }
+        try {
+            TcpTransport.decodeFrame(streamOutput.bytes());
+            fail("Expected exception");
+        } catch (Exception ex) {
+            assertThat(ex, instanceOf(StreamCorruptedException.class));
+            assertEquals("received HTTP response on transport port, ensure that transport port " +
+                    "(not HTTP port) of a remote node is specified in the configuration", ex.getMessage());
         }
     }
 }

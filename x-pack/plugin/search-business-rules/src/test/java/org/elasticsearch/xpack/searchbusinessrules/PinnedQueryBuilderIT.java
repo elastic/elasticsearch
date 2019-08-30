@@ -56,6 +56,7 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
         return plugins;
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/46174")
     public void testPinnedPromotions() throws Exception {
         assertAcked(prepareCreate("test")
                 .addMapping("type1",

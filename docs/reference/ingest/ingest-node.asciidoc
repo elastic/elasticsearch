@@ -773,7 +773,9 @@ metadata field to provide the error message.
 [role="xpack"]
 [testenv="basic"]
 [[ingest-enriching-data]]
-== Enriching data with ingest node
+== Enrich your data using the ingest node
+
+
 
 The <<enrich-processor,enrich processor>> allows documents to be enriched with data from
 an enrich index that is managed by an enrich policy prior to indexing.
@@ -956,7 +958,7 @@ DELETE /_enrich/policy/users-policy
 Also there are several APIs in order to manage and execute enrich policies:
 
 * <<put-policy-api,Put policy api>>.
-* <<get-policy-api,Get policy api>>.
+* <<get-enrich-policy-api,Get enrich policy api>>.
 * <<delete-policy-api,Delete policy api>>.
 * <<execute-policy-api,Execute policy api>>.
 
@@ -991,83 +993,6 @@ Response:
 --------------------------------------------------
 {
     "acknowledged": true
-}
---------------------------------------------------
-// TESTRESPONSE
-
-[[get-policy-api]]
-==== Get Policy API
-
-The get policy api allows a policy to be retrieved by id.
-
-Request:
-
-[source,js]
---------------------------------------------------
-GET /_enrich/policy/my-policy
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-Response:
-
-[source,js]
---------------------------------------------------
-{
-    "policies": [
-        {
-            "exact_match": {
-                "name" : "my-policy",
-                "indices" : ["users"],
-                "match_field" : "email",
-                "enrich_fields" : [
-                    "first_name",
-                    "last_name",
-                    "address",
-                    "city",
-                    "zip",
-                    "state"
-                ]
-            }
-        }
-    ]
-}
---------------------------------------------------
-// TESTRESPONSE
-
-The get policy api allows all policies to be returned.
-
-Request:
-
-[source,js]
---------------------------------------------------
-GET /_enrich/policy
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-Response:
-
-[source,js]
---------------------------------------------------
-{
-    "policies": [
-        {
-            "exact_match": {
-                "name" : "my-policy",
-                "indices" : ["users"],
-                "match_field" : "email",
-                "enrich_fields" : [
-                    "first_name",
-                    "last_name",
-                    "address",
-                    "city",
-                    "zip",
-                    "state"
-                ]
-            }
-        }
-    ]
 }
 --------------------------------------------------
 // TESTRESPONSE

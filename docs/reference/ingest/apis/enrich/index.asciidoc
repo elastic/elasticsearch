@@ -4,6 +4,9 @@
 The following enrich APIs are available for managing enrich policies:
 
 * <<put-enrich-policy-api>> to add or update an enrich policy
+* <<get-enrich-policy-api>> to return information about an enrich policy
 
 
 include::put-enrich-policy.asciidoc[]
+
+include::get-enrich-policy.asciidoc[]

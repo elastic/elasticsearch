@@ -64,8 +64,9 @@ public class ReindexTaskIndexState implements ToXContentObject {
         this(reindexRequest, null, null, null, (RestStatus) null);
     }
 
-    private ReindexTaskIndexState(ReindexRequest reindexRequest, @Nullable BulkByScrollResponse reindexResponse, @Nullable Long allocationId,
-                                 @Nullable ElasticsearchException exception, @Nullable Integer failureStatusCode) {
+    private ReindexTaskIndexState(ReindexRequest reindexRequest, @Nullable BulkByScrollResponse reindexResponse,
+                                  @Nullable Long allocationId, @Nullable ElasticsearchException exception,
+                                  @Nullable Integer failureStatusCode) {
         this(reindexRequest, reindexResponse, allocationId, exception,
             failureStatusCode == null ? null : RestStatus.fromCode(failureStatusCode));
     }

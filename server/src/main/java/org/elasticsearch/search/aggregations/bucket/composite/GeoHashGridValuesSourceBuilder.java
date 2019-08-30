@@ -70,6 +70,11 @@ public class GeoHashGridValuesSourceBuilder extends CompositeValuesSourceBuilder
     }
 
     @Override
+    public GeoHashGridValuesSourceBuilder format(String format) {
+        throw new IllegalArgumentException("[format] is not supported for [" + TYPE + "]");
+    }
+
+    @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeInt(precision);
     }

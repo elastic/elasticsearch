@@ -48,7 +48,7 @@ public class DatafeedJobBuilder {
     private final Supplier<Long> currentTimeSupplier;
     private final boolean remoteClusterSearchSupported;
     private final String nodeName;
-		
+
     public DatafeedJobBuilder(Client client, Settings settings, NamedXContentRegistry xContentRegistry,
                               Auditor auditor, Supplier<Long> currentTimeSupplier, String nodeName) {
         this.client = client;

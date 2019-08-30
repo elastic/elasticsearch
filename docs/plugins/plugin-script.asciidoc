@@ -54,20 +54,6 @@ sudo bin/elasticsearch-plugin install analysis-icu
 This command will install the version of the plugin that matches your
 Elasticsearch version and also show a progress bar while downloading.
 
-[float]
-=== Mandatory Plugins
-
-If you rely on some plugins, you can define mandatory plugins by adding
-`plugin.mandatory` setting to the `config/elasticsearch.yml` file, for
-example:
-
-[source,yaml]
---------------------------------------------------
-plugin.mandatory: analysis-icu,lang-js
---------------------------------------------------
-
-For safety reasons, a node will not start if it is missing a mandatory plugin.
-
 [[plugin-management-custom-url]]
 === Custom URL or file system
 
@@ -119,6 +105,20 @@ to a local Java truststore and pass the location to the script as follows:
 sudo ES_JAVA_OPTS="-Djavax.net.ssl.trustStore=/path/to/trustStore.jks" bin/elasticsearch-plugin install https://host/plugin.zip
 -----------------------------------
 --
+
+[[mandatory-plugins]]
+=== Mandatory Plugins
+
+If you rely on some plugins, you can define mandatory plugins by adding
+`plugin.mandatory` setting to the `config/elasticsearch.yml` file, for
+example:
+
+[source,yaml]
+--------------------------------------------------
+plugin.mandatory: analysis-icu,lang-js
+--------------------------------------------------
+
+For safety reasons, a node will not start if it is missing a mandatory plugin.
 
 [[listing-removing-updating]]
 === Listing, Removing and Updating Installed Plugins
